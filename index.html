@@ -925,7 +925,7 @@
                     <li><a onclick="showPage('home'); scrollToSection('stories')">Latest Stories</a></li>
                     <li><a onclick="showPage('news')">News & Updates</a></li>
                     <li><a onclick="showPage('inspiring')">Inspiring Stories</a></li>
-                    <li><a onclick="showPage('flash')">Creative Writing</a></li>
+                    <li><a onclick="showPage('creative')">Creative Writing</a></li>
                 </ul>
             </div>
             <div class="footer-section">
@@ -960,7 +960,13 @@
             if (target) {
                 target.classList.add('active');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                triggerAnimations();
+                // Force all fade-in elements on the new page to be visible
+                setTimeout(() => {
+                    target.querySelectorAll('.fade-in, .slide-in-left, .slide-in-right').forEach((el, i) => {
+                        el.style.transitionDelay = `${i * 0.15}s`;
+                        el.classList.add('visible');
+                    });
+                }, 100);
             }
         }
 
