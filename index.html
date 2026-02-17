@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calvary Scribblings - Stories That Matter</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <a class="logo" href="index.html">
+                <div class="logo-icon"><span>S</span></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown" id="storiesDropdown">
+                            <li><a href="news.html">News & Updates</a></li>
+                            <li><a href="inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding: 0.5rem 1.25rem 0.25rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #999; pointer-events: none;">Creative Writing</li>
+                            <li><a href="flash.html" style="padding-left: 1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="short.html" style="padding-left: 1.75rem;">— Short Stories</a></li>
+                            <li><a href="serial.html" style="padding-left: 1.75rem;">— Serial Stories</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="index.html#about">About</a></li>
+                    <li><a href="index.html#subscribe">Subscribe</a></li>
+                    <li><a href="index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-content">
+            <h2>Stories That Inspire.<br>Words That Matter.</h2>
+            <p>Bringing you compelling news, heartwarming real-life stories, and thought-provoking articles from the heart of London and beyond.</p>
+            <div class="hero-buttons">
+                <a href="#stories" class="btn btn-primary">Read Latest Stories</a>
+                <a href="#subscribe" class="btn btn-secondary">Subscribe to Newsletter</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- What We Do -->
+    <section class="section fade-in" id="about" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); position: relative; overflow: hidden;">
+        <div style="position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.95);"></div>
+        <div class="container" style="position: relative; z-index: 1;">
+            <div class="section-header">
+                <h3>What We Do</h3>
+                <p>Calvary Scribblings is dedicated to sharing stories that matter — from breaking news to inspiring personal journeys across London.</p>
+            </div>
+            <div class="features-grid">
+                <a href="news.html" class="feature-card fade-in" style="text-decoration: none;">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, #c41e3a 0%, #e05c72 100%); color: white;">📰</div>
+                    <h4>News & Updates</h4>
+                    <p>Stay informed with our coverage of important events and developments affecting our community.</p>
+                </a>
+                <a href="inspiring.html" class="feature-card fade-in" style="text-decoration: none;">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); color: white;">✨</div>
+                    <h4>Inspiring Stories</h4>
+                    <p>Real people, real experiences. We highlight the extraordinary lives of ordinary Londoners.</p>
+                </a>
+                <a href="creative.html" class="feature-card fade-in" style="text-decoration: none;">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white;">✍️</div>
+                    <h4>Creative Writing</h4>
+                    <p>Flash fiction, short stories, and gripping serials that entertain, challenge, and uplift.</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Latest Stories -->
+    <section class="section fade-in" id="stories" style="background-color: var(--light-gray);">
+        <div class="container">
+            <div class="section-header">
+                <h3>Latest Stories</h3>
+                <p>Our most recent articles, features, and stories from across all divisions.</p>
+            </div>
+            <div class="stories-grid">
+                <a href="stories/miss-lady.html" class="story-card fade-in" style="text-decoration: none;">
+                    <div class="story-image" style="background: url('B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png') center/cover no-repeat;"></div>
+                    <div class="story-content">
+                        <div class="story-badges">
+                            <span class="division-badge badge-flash">Flash Fiction</span>
+                            <span class="division-badge" style="background:#ede9fe; color:#6b46c1;">Creative Writing</span>
+                        </div>
+                        <h4>Miss Lady</h4>
+                        <p>My eyes met hers before I had the chance to think about it — a girl in a sweet white mini-gown, moving through the slow-baked afternoon with an unhurried kind of certainty.</p>
+                        <div class="story-meta"><span>By Calvary</span><span>Feb 17, 2026</span></div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Newsletter -->
+    <section class="cta-section fade-in" id="subscribe">
+        <div class="cta-content">
+            <h3>Never Miss a Story</h3>
+            <p>Subscribe to our newsletter and get the latest stories, features, and updates delivered straight to your inbox every week.</p>
+            <form class="newsletter-form" action="https://formspree.io/f/YOUR_FORM_ID" method="POST" id="newsletterForm">
+                <input type="email" name="email" placeholder="Enter your email address" required>
+                <input type="hidden" name="_subject" value="New Newsletter Subscription - Calvary Scribblings">
+                <input type="hidden" name="_replyto" value="newsletter@calvaryscribblings.co.uk">
+                <button type="submit" class="btn btn-primary">Subscribe</button>
+            </form>
+            <div id="newsletterSuccess" style="display:none; margin-top:1rem; padding:1rem; background:#d4edda; color:#155724; border-radius:4px; text-align:center;">
+                Thank you for subscribing! We'll keep you updated with our latest stories.
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact -->
+    <section class="section fade-in" id="contact" style="background-color: var(--white);">
+        <div class="container">
+            <div class="section-header">
+                <h3>Get In Touch</h3>
+                <p>Have a story to share? Questions about our publication? We'd love to hear from you.</p>
+            </div>
+            <div style="max-width: 700px; margin: 0 auto;">
+                <form id="contactForm" action="https://formspree.io/f/YOUR_FORM_ID" method="POST" style="display:flex; flex-direction:column; gap:1.5rem;">
+                    <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                        <input type="text" name="name" placeholder="Your Name" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cormorant',Georgia,serif; transition:border-color 0.3s;">
+                        <input type="email" name="email" placeholder="Your Email" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cormorant',Georgia,serif; transition:border-color 0.3s;">
+                    </div>
+                    <textarea name="message" placeholder="Your Message" required rows="6" style="padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cormorant',Georgia,serif; resize:vertical; transition:border-color 0.3s;"></textarea>
+                    <input type="hidden" name="_subject" value="New Contact Form Submission - Calvary Scribblings">
+                    <input type="hidden" name="_replyto" value="contact@calvaryscribblings.co.uk">
+                    <button type="submit" class="btn btn-primary" style="align-self:flex-start;">Send Message</button>
+                </form>
+                <div id="contactSuccess" style="display:none; margin-top:1.5rem; padding:1.5rem; background:#d4edda; color:#155724; border-radius:4px; text-align:center; font-size:1.1rem;">
+                    Thank you for your message! We'll get back to you as soon as possible.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="index.html#stories">Latest Stories</a></li>
+                    <li><a href="news.html">News & Updates</a></li>
+                    <li><a href="inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="flash.html">Flash Fiction</a></li>
+                    <li><a href="short.html">Short Stories</a></li>
+                    <li><a href="serial.html">Serial Stories</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="index.html#subscribe">Newsletter</a></li>
+                    <li><a href="index.html#contact">Contact Us</a></li>
+                    <li><a href="index.html#contact">Submit a Story</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="scripts.js"></script>
+
+</body>
+</html>
