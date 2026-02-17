@@ -14,7 +14,7 @@
 }
 
 body {
-    font-family: 'Cormorant', Georgia, serif;
+    font-family: 'Cochin', Georgia, serif;
     line-height: 1.6;
     color: var(--dark-gray);
     background-color: var(--white);
@@ -208,7 +208,7 @@ nav a:hover { color: var(--purple); }
     transition: all 0.3s;
     text-decoration: none;
     display: inline-block;
-    font-family: 'Cormorant', Georgia, serif;
+    font-family: 'Cochin', Georgia, serif;
 }
 
 .btn-primary { background-color: var(--red); color: var(--white); }
@@ -376,7 +376,7 @@ nav a:hover { color: var(--purple); }
     border: 2px solid #d0d0d0;
     border-radius: 4px;
     font-size: 1rem;
-    font-family: 'Cormorant', Georgia, serif;
+    font-family: 'Cochin', Georgia, serif;
     transition: border-color 0.3s;
 }
 .newsletter-form input:focus { outline: none; border-color: var(--purple); }
