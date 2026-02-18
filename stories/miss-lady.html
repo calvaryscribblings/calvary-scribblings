@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Miss Lady - Calvary Scribblings</title>
@@ -69,8 +78,26 @@
                 </div>
                 <div style="margin-top:3rem;padding-top:2rem;border-top:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
                     <div><span class="division-badge badge-flash">Flash Fiction</span></div>
-                    <div style="font-size:0.95rem;color:var(--medium-gray);">By <strong>Calvary</strong> · Feb 17, 2026</div>
+                    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+                        <div style="font-size:0.95rem;color:var(--medium-gray);">By <strong>Calvary</strong> · Feb 17, 2026</div>
+                        <div style="font-size:0.9rem;color:var(--medium-gray);display:flex;align-items:center;gap:0.5rem;">
+                            <span>👁️</span>
+                            <span id="view-count">Loading...</span> views
+                        </div>
+                    </div>
                 </div>
+
+                <script>
+                    // Simple view counter using Countapi.xyz
+                    fetch('https://api.countapi.xyz/hit/calvaryscribblings.co.uk/miss-lady')
+                        .then(response => response.json())
+                        .then(data => {
+                            document.getElementById('view-count').textContent = data.value;
+                        })
+                        .catch(error => {
+                            document.getElementById('view-count').textContent = '—';
+                        });
+                </script>
 
                 <!-- Comments Section -->
                 <div style="margin-top:4rem;padding-top:3rem;border-top:2px solid #e0e0e0;">
