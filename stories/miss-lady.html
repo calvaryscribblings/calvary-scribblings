@@ -14,6 +14,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Miss Lady - Calvary Scribblings</title>
     <link rel="stylesheet" href="../styles.css">
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
 <body>
     <header>
@@ -82,23 +86,37 @@
                         <div style="font-size:0.95rem;color:var(--medium-gray);">By <strong>Calvary</strong> · Feb 17, 2026</div>
                         <div style="font-size:0.9rem;color:var(--medium-gray);display:flex;align-items:center;gap:0.5rem;">
                             <span>👁️</span>
-                            <span id="view-count">—</span> views
+                            <span id="hit-count">0</span> hits
                         </div>
                     </div>
                 </div>
 
                 <script>
-                    // View counter using hits.dwyl.com
-                    fetch('https://hits.dwyl.com/calvaryscribblings/miss-lady.json')
-                        .then(response => response.json())
-                        .then(data => {
-                            document.getElementById('view-count').textContent = data.value || data.count || '—';
-                        })
-                        .catch(error => {
-                            // Fallback: Use Google Analytics pageview data
-                            document.getElementById('view-count').textContent = '—';
-                            console.log('View counter temporarily unavailable');
-                        });
+                    // Firebase configuration
+                    const firebaseConfig = {
+                        apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+                        authDomain: "calvary-scribblings.firebaseapp.com",
+                        databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+                        projectId: "calvary-scribblings",
+                        storageBucket: "calvary-scribblings.firebasestorage.app",
+                        messagingSenderId: "1052137412283",
+                        appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+                    };
+
+                    // Initialize Firebase
+                    firebase.initializeApp(firebaseConfig);
+                    const database = firebase.database();
+                    const hitCountRef = database.ref('stories/miss-lady/hits');
+
+                    // Increment and display hit count
+                    hitCountRef.transaction(function(currentHits) {
+                        return (currentHits || 0) + 1;
+                    }).then(function(result) {
+                        document.getElementById('hit-count').textContent = result.snapshot.val();
+                    }).catch(function(error) {
+                        console.log('Hit counter error:', error);
+                        document.getElementById('hit-count').textContent = '—';
+                    });
                 </script>
 
                 <!-- Comments Section -->
