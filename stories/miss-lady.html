@@ -82,20 +82,22 @@
                         <div style="font-size:0.95rem;color:var(--medium-gray);">By <strong>Calvary</strong> · Feb 17, 2026</div>
                         <div style="font-size:0.9rem;color:var(--medium-gray);display:flex;align-items:center;gap:0.5rem;">
                             <span>👁️</span>
-                            <span id="view-count">Loading...</span> views
+                            <span id="view-count">—</span> views
                         </div>
                     </div>
                 </div>
 
                 <script>
-                    // Simple view counter using Countapi.xyz
-                    fetch('https://api.countapi.xyz/hit/calvaryscribblings.co.uk/miss-lady')
+                    // View counter using hits.dwyl.com
+                    fetch('https://hits.dwyl.com/calvaryscribblings/miss-lady.json')
                         .then(response => response.json())
                         .then(data => {
-                            document.getElementById('view-count').textContent = data.value;
+                            document.getElementById('view-count').textContent = data.value || data.count || '—';
                         })
                         .catch(error => {
+                            // Fallback: Use Google Analytics pageview data
                             document.getElementById('view-count').textContent = '—';
+                            console.log('View counter temporarily unavailable');
                         });
                 </script>
 
