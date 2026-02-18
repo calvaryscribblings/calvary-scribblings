@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Early - Calvary Scribblings</title>
+    <link rel="stylesheet" href="../styles.css">
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <a class="logo" href="../index.html">
+                <div class="logo-icon"><span>S</span></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="../index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown" id="storiesDropdown">
+                            <li><a href="../news.html">News & Updates</a></li>
+                            <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="../short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="../serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="../poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="../index.html#about">About</a></li>
+                    <li><a href="../index.html#subscribe">Subscribe</a></li>
+                    <li><a href="../index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <div style="width:100%;height:500px;background:url('../early-cover.png') center/cover no-repeat;position:relative;">
+        <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));padding:3rem 2rem 2rem;color:white;">
+            <div style="max-width:1200px;margin:0 auto;">
+                <h2 style="font-size:3rem;font-weight:700;margin-bottom:0.5rem;">Early</h2>
+                <p style="font-size:1.1rem;opacity:0.95;">By Calvary · Short Story · Feb 18, 2026</p>
+            </div>
+        </div>
+    </div>
+    <section class="section">
+        <div class="container">
+            <div style="max-width:700px;margin:0 auto;">
+                <a href="../short.html" style="display:inline-flex;align-items:center;gap:0.5rem;color:var(--purple);text-decoration:none;font-size:1rem;margin-bottom:3rem;font-weight:600;display:inline-block;">
+                    ← Back to Short Stories
+                </a>
+                <div style="font-size:1.25rem;line-height:2;color:var(--dark-gray);">
+                    <p style="margin-bottom:1.5rem;">It's half past three in the morning when I open my eyes and find myself staring at the clock quietly blinking its digital seconds at the head of our bed. I smile wickedly to myself as memory, without the slightest strain, takes me back to hours earlier — a night filled with breathless sex and tender loving. I turn and feel my naked skin brush against Jerry's. He stirs but doesn't wake. I watch his peaceful face and feel the familiar pull of desire.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">Determined not to disturb him yet, I let my mind drift back to the first time.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">We were only three months into our long-distance relationship when he flew into town to be with me. By then, shuttling between cities had become routine — exhausting but necessary. The distance tested us constantly, but we were determined to make it work.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">That particular afternoon, I knew something was different the moment I walked into his hotel room. His pupils were wide — hunger mixed with worry, nervousness tangled with desire. He had something on his mind, but I didn't press. I wanted him to come to me when he was ready.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">Wearing only a white polo and shorts, he moved to the refrigerator. 'Anything to drink?' he asked, glancing back with a tentative smile.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">'Water's fine.' I smiled and settled onto the bed, smoothing my baby-pink flare skirt beneath me.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">He poured my water and a half-glass of scotch for himself, then handed me the glass before retreating to the only chair in the room.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">'You are a very attractive woman, Nora,' he began. So this was it — he was finally ready. He took a sip, his shoulders easing slightly. 'I'm not one to pressure anyone or make a woman go against her will.' The smile had vanished from his face.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">'So what are you saying?' The words left my mouth before I'd even decided to speak. His presence had always done that to me — pulled responses from some unguarded place.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">'I'm saying that I find you extremely attractive. And I know you feel the same way about me.' He paused, holding my gaze. 'I would like for us to explore this attraction. More than anything.'</p>
+                    
+                    <p style="margin-bottom:1.5rem;">If there was one thing I loved about Jerry, it was his way with words — deliberate, careful, devastatingly precise.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">His eyes never left mine. And under that steady gaze, I felt my certainty waver. His calm seduction was building something in me — a hunger I hadn't known I possessed.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">I knew what he was asking, but I wanted him to say it plainly. I drained the last of my water, crossed the room to set the glass down, then walked to him and settled onto his lap. Our eyes were level now. I lowered my head and pressed my lips to his, deepening the kiss immediately. He matched my pressure exactly — God, the way he used his mouth.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">I pulled back just enough to ask, 'Jerry, tell me. What do you want?'</p>
+                    
+                    <p style="margin-bottom:1.5rem;">He swallowed hard. 'I want you.'</p>
+                    
+                    <p style="margin-bottom:1.5rem;">'You have me.'</p>
+                    
+                    <p style="margin-bottom:1.5rem;">'I know.' He understood I needed more. 'I want to peel those clothes off your body.' His voice remained calm, controlled — which only made it more potent.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">'What else?'</p>
+                    
+                    <p style="margin-bottom:1.5rem;">'I want to watch you come undone beneath me. Above me. Beside me. I want you shattering into a million pieces from my touch.'</p>
+                    
+                    <p style="margin-bottom:1.5rem;">Heat pooled between my legs. 'And?' My voice was weakening, consumed by need.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">'I want to hear you call my name while I memorize every inch of your body.'</p>
+                    
+                    <p style="margin-bottom:1.5rem;">He knew exactly what to say. When to say it. How.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">I couldn't wait anymore. 'Take me to the bed.'</p>
+                    
+                    <p style="margin-bottom:1.5rem;">We had never had sex. I had never had sex with anyone. Jerry was about to be my first.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">The combination of his tongue and hands on my bare skin drove me to the edge of reason. He brought a beautiful agony with every touch — gentle, patient, achingly thorough. He took control, and with his mouth alone, he took me to places I never knew existed while lying in that bed. Inch by deliberate inch, he learned me.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">I lost all control when his tongue found its way between my thighs.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">My breathless moan was all it took.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">Lying in our bed now, thinking about that cold December afternoon, I feel the dampness return. I glance at my husband beside me and decide he's slept long enough.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">I slip beneath the covers and quietly, hungrily, take him into my mouth.</p>
+                    
+                    <p style="margin-bottom:1.5rem;">His sleepy moan is all it takes.</p>
+                </div>
+                
+                <div style="margin-top:3rem;padding-top:2rem;border-top:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+                    <div><span class="division-badge badge-short">Short Story</span></div>
+                    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+                        <div style="font-size:0.95rem;color:var(--medium-gray);">By <strong>Calvary</strong> · Feb 18, 2026</div>
+                        <div style="font-size:0.9rem;color:var(--medium-gray);display:flex;align-items:center;gap:0.5rem;">
+                            <span>👁️</span>
+                            <span id="hit-count">0</span> hits
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    // Firebase configuration
+                    const firebaseConfig = {
+                        apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+                        authDomain: "calvary-scribblings.firebaseapp.com",
+                        databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+                        projectId: "calvary-scribblings",
+                        storageBucket: "calvary-scribblings.firebasestorage.app",
+                        messagingSenderId: "1052137412283",
+                        appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+                    };
+
+                    // Initialize Firebase
+                    firebase.initializeApp(firebaseConfig);
+                    const database = firebase.database();
+                    const hitCountRef = database.ref('stories/early/hits');
+
+                    // Increment and display hit count
+                    hitCountRef.transaction(function(currentHits) {
+                        return (currentHits || 0) + 1;
+                    }).then(function(result) {
+                        document.getElementById('hit-count').textContent = result.snapshot.val();
+                    }).catch(function(error) {
+                        console.log('Hit counter error:', error);
+                        document.getElementById('hit-count').textContent = '—';
+                    });
+                </script>
+
+                <!-- Comments Section -->
+                <div style="margin-top:4rem;padding-top:3rem;border-top:2px solid #e0e0e0;">
+                    <h3 style="font-size:2rem;font-weight:700;color:var(--purple);margin-bottom:2rem;">Comments</h3>
+                    <div id="disqus_thread"></div>
+                    <script>
+                        var disqus_config = function () {
+                        this.page.url = "https://calvaryscribblings.co.uk/stories/early.html";
+                        this.page.identifier = "early";
+                        };
+                        (function() {
+                        var d = document, s = d.createElement('script');
+                        s.src = 'https://calvaryscribblings.disqus.com/embed.js';
+                        s.setAttribute('data-timestamp', +new Date());
+                        (d.head || d.body).appendChild(s);
+                        })();
+                    </script>
+                    <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="../index.html#stories">Latest Stories</a></li>
+                    <li><a href="../news.html">News & Updates</a></li>
+                    <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="../creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="../flash.html">Flash Fiction</a></li>
+                    <li><a href="../short.html">Short Stories</a></li>
+                    <li><a href="../serial.html">Serial Stories</a></li>
+                    <li><a href="../poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="../index.html#subscribe">Newsletter</a></li>
+                    <li><a href="../index.html#contact">Contact Us</a></li>
+                    <li><a href="../index.html#contact">Submit a Story</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+        </div>
+    </footer>
+    <script src="../scripts.js"></script>
+</body>
+</html>
