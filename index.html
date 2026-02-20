@@ -234,6 +234,72 @@
                     });
             });
         }
+        
+        // PWA Install Prompt
+        let deferredPrompt;
+        const installBanner = document.createElement('div');
+        installBanner.id = 'installBanner';
+        installBanner.innerHTML = `
+            <div style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999; animation: slideUp 0.3s ease;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span style="font-size: 1.5rem;">📱</span>
+                    <div>
+                        <strong style="display: block; margin-bottom: 0.25rem;">Install Calvary Scribblings</strong>
+                        <span style="font-size: 0.9rem; opacity: 0.95;">Get our app for a better reading experience</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <button id="installButton" style="background: white; color: #6b46c1; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 1rem;">Install</button>
+                    <button id="dismissButton" style="background: transparent; color: white; border: 2px solid white; padding: 0.75rem 1rem; border-radius: 4px; cursor: pointer; font-size: 1rem;">Maybe Later</button>
+                </div>
+            </div>
+        `;
+        installBanner.style.display = 'none';
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Don't show if user dismissed recently
+            if (localStorage.getItem('installDismissed')) {
+                const dismissedTime = parseInt(localStorage.getItem('installDismissed'));
+                const daysSince = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
+                if (daysSince < 7) return; // Don't show for 7 days after dismissal
+            }
+            
+            document.body.appendChild(installBanner);
+            installBanner.style.display = 'block';
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'installButton') {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            console.log('User accepted the install prompt');
+                        }
+                        deferredPrompt = null;
+                        installBanner.style.display = 'none';
+                    });
+                }
+            }
+            
+            if (e.target.id === 'dismissButton') {
+                localStorage.setItem('installDismissed', Date.now().toString());
+                installBanner.style.display = 'none';
+            }
+        });
+        
+        // Add slideUp animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideUp {
+                from { transform: translateY(100%); }
+                to { transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 
 </body>
