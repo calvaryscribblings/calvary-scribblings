@@ -13,6 +13,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calvary Scribblings - Stories That Matter</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="Stories That Inspire. Words That Matter. Bringing you compelling news, heartwarming real-life stories, and thought-provoking articles.">
+    <meta name="theme-color" content="#6b46c1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CS">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -210,6 +220,21 @@
     </footer>
 
     <script src="scripts.js"></script>
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
 
 </body>
 </html>
