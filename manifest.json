@@ -1,7 +1,7 @@
 {
   "name": "Calvary Scribblings",
   "short_name": "CS",
-  "description": "The Story Island.",
+  "description": "The Story Island",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
