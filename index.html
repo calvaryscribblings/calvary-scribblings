@@ -235,7 +235,44 @@
             });
         }
         
-        // PWA Install Prompt
+        // Detect if user is on iOS
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
+        
+        // iOS Install Banner
+        if (isIOS && !isInStandaloneMode) {
+            // Check if user dismissed recently
+            const iosDismissed = localStorage.getItem('iosInstallDismissed');
+            if (!iosDismissed || (Date.now() - parseInt(iosDismissed)) > 7 * 24 * 60 * 60 * 1000) {
+                const iosInstallBanner = document.createElement('div');
+                iosInstallBanner.id = 'iosInstallBanner';
+                iosInstallBanner.innerHTML = `
+                    <div style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999; animation: slideUp 0.3s ease;">
+                        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                            <span style="font-size: 1.5rem;">📱</span>
+                            <div style="flex: 1;">
+                                <strong style="display: block; margin-bottom: 0.25rem;">Install Calvary Scribblings</strong>
+                                <span style="font-size: 0.85rem; opacity: 0.95;">Tap <span style="display: inline-flex; align-items: center; gap: 0.25rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8m-4-4h8"/></svg> Share</span> then "Add to Home Screen"</span>
+                            </div>
+                        </div>
+                        <button id="iosDismissButton" style="background: transparent; color: white; border: 2px solid white; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">Got it</button>
+                    </div>
+                `;
+                
+                setTimeout(() => {
+                    document.body.appendChild(iosInstallBanner);
+                }, 2000); // Show after 2 seconds
+                
+                document.addEventListener('click', (e) => {
+                    if (e.target.id === 'iosDismissButton') {
+                        localStorage.setItem('iosInstallDismissed', Date.now().toString());
+                        iosInstallBanner.style.display = 'none';
+                    }
+                });
+            }
+        }
+        
+        // Android PWA Install Prompt
         let deferredPrompt;
         const installBanner = document.createElement('div');
         installBanner.id = 'installBanner';
@@ -264,7 +301,7 @@
             if (localStorage.getItem('installDismissed')) {
                 const dismissedTime = parseInt(localStorage.getItem('installDismissed'));
                 const daysSince = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
-                if (daysSince < 7) return; // Don't show for 7 days after dismissal
+                if (daysSince < 7) return;
             }
             
             document.body.appendChild(installBanner);
