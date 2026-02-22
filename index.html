@@ -497,7 +497,7 @@
             const badgeClass = `badge-${story.category}`;
             return `
                 <a href="${story.url}" class="story-card">
-                    ${rank ? `<div class="ranking-badge">#${rank}</div>` : ''}
+                    ${rank ? `<div class="ranking-badge">${rank}</div>` : ''}
                     <img src="${story.cover}" alt="${story.title}" class="story-card-image" onerror="this.src='https://via.placeholder.com/220x330?text=${encodeURIComponent(story.title)}'">
                     <div class="story-card-overlay">
                         <span class="category-badge ${badgeClass}">${story.categoryName}</span>
