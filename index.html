@@ -12,7 +12,7 @@
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calvary Scribblings - The Story Island</title>
+    <title>Calvary Scribblings - Stories That Matter</title>
     
     <!-- PWA Meta Tags -->
     <meta name="description" content="The Story Island - Bringing you compelling news, heartwarming real-life stories, and thought-provoking articles.">
@@ -30,86 +30,33 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     
     <style>
-        /* Purple Theme - Netflix Style */
-        body {
-            background: #ffffff;
-            color: #1a1a1a;
-        }
-        
-        /* Hero Section - Purple Gradient */
-        .netflix-hero {
-            position: relative;
-            height: 70vh;
-            min-height: 500px;
-            background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-        
-        .netflix-hero::before {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 30%;
-            background: linear-gradient(to top, #ffffff, transparent);
-        }
-        
-        .netflix-hero-content {
-            position: relative;
-            z-index: 2;
-            text-align: center;
-            max-width: 800px;
-            padding: 2rem;
-        }
-        
-        .netflix-hero h1 {
-            font-size: clamp(3rem, 8vw, 5rem);
-            font-weight: 700;
-            margin-bottom: 1rem;
-            letter-spacing: -0.02em;
-            color: #ffffff;
-            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        }
-        
-        .netflix-hero p {
-            font-size: clamp(1.1rem, 2vw, 1.4rem);
-            color: #ffffff;
-            opacity: 0.95;
-            margin-bottom: 2rem;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-        
-        /* Story Rows Container */
+        /* Netflix-Style Story Rows - ADDITIONS ONLY */
         .story-section {
             padding: 3rem 0;
-            background: #f9f9f9;
         }
         
         .story-section:nth-child(even) {
-            background: #ffffff;
+            background: #f9f9f9;
         }
         
-        .section-title {
-            font-size: 1.6rem;
+        .section-title-stories {
+            font-size: 1.8rem;
             font-weight: 700;
             margin-bottom: 1.5rem;
             padding: 0 3rem;
             color: #1a1a1a;
+            font-family: 'Cochin', Georgia, serif;
         }
         
-        .section-title.top-ten {
-            font-size: 2rem;
+        .section-title-stories.top-ten {
+            font-size: 2.2rem;
             background: linear-gradient(90deg, #6b46c1, #c41e3a);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
         
-        /* Story Grid for Top 10 - Desktop */
+        /* Story Grid for Top 10 */
         .story-grid-top10 {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -119,22 +66,16 @@
             margin: 0 auto;
         }
         
-        /* Horizontal Scroll Container */
-        .story-row-container {
-            position: relative;
-            padding: 0 3rem;
-        }
-        
-        /* Horizontal Scroll for Categories */
+        /* Horizontal Scroll Rows */
         .story-row {
             display: flex;
             gap: 1.5rem;
+            padding: 0 3rem 1rem 3rem;
             overflow-x: auto;
             overflow-y: hidden;
             scrollbar-width: thin;
             scrollbar-color: #6b46c1 #e0e0e0;
             scroll-behavior: smooth;
-            padding-bottom: 1rem;
         }
         
         .story-row::-webkit-scrollbar {
@@ -168,10 +109,11 @@
             background: #ffffff;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             flex-shrink: 0;
+            text-decoration: none;
         }
         
         .story-card:hover {
-            transform: scale(1.05) translateY(-10px);
+            transform: scale(1.05) translateY(-5px);
             box-shadow: 0 10px 30px rgba(107, 70, 193, 0.3);
             z-index: 10;
         }
@@ -202,6 +144,7 @@
             font-weight: 700;
             margin-bottom: 0.5rem;
             color: #fff;
+            font-family: 'Cochin', Georgia, serif;
         }
         
         .story-card-meta {
@@ -210,39 +153,22 @@
             color: #ccc;
         }
         
-        /* Ranking Badge */
+        /* Ranking Badge - ONLY for Top 10 */
         .ranking-badge {
             position: absolute;
             top: 1rem;
             left: 1rem;
-            width: 45px;
-            height: 45px;
+            width: 50px;
+            height: 50px;
             background: linear-gradient(135deg, #6b46c1, #8b5cf6);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.4rem;
+            font-size: 1.5rem;
             font-weight: 900;
             color: #fff;
             box-shadow: 0 4px 15px rgba(107, 70, 193, 0.6);
-            z-index: 5;
-        }
-        
-        /* Hit Counter Badge */
-        .hit-badge {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            background: rgba(0,0,0,0.75);
-            padding: 0.4rem 0.8rem;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            color: #fff;
             z-index: 5;
         }
         
@@ -265,38 +191,13 @@
         .badge-news { background: #dc2626; color: #fff; }
         .badge-inspiring { background: #f59e0b; color: #fff; }
         
-        /* What We Do - Light Mode */
-        .section.what-we-do {
-            background: #f9f9f9 !important;
-            padding: 4rem 0;
-        }
-        
-        .section.what-we-do h3,
-        .section.what-we-do p {
-            color: #1a1a1a;
-        }
-        
-        .feature-card {
-            background: #ffffff !important;
-            border: 1px solid #e0e0e0;
-        }
-        
-        /* Footer Light Mode */
-        footer {
-            background: #6b46c1 !important;
-            border-top: none;
-        }
-        
-        footer * {
-            color: #ffffff !important;
-        }
-        
         /* Loading State */
         .loading {
             text-align: center;
             padding: 2rem;
             color: #999;
             font-style: italic;
+            font-family: 'Cochin', Georgia, serif;
         }
         
         /* Mobile Responsive */
@@ -307,8 +208,8 @@
                 padding: 0 1.5rem;
             }
             
-            .story-row-container {
-                padding: 0 1.5rem;
+            .story-row {
+                padding: 0 1.5rem 1rem 1.5rem;
             }
             
             .story-card {
@@ -316,9 +217,9 @@
                 width: 160px;
             }
             
-            .section-title {
+            .section-title-stories {
                 padding: 0 1.5rem;
-                font-size: 1.4rem;
+                font-size: 1.5rem;
             }
         }
     </style>
@@ -353,25 +254,29 @@
                             <li><a href="poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
                         </ul>
                     </li>
-                    <li><a href="#about">About</a></li>
-                    <li><a href="#subscribe">Subscribe</a></li>
-                    <li><a href="#contact">Contact</a></li>
+                    <li><a href="index.html#about">About</a></li>
+                    <li><a href="index.html#subscribe">Subscribe</a></li>
+                    <li><a href="index.html#contact">Contact</a></li>
                 </ul>
             </nav>
         </div>
     </header>
 
-    <!-- Netflix-Style Hero -->
-    <section class="netflix-hero">
-        <div class="netflix-hero-content">
-            <h1>The Story Island</h1>
-            <p>Discover stories that inspire, inform, and illuminate</p>
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-content">
+            <h2>The Story Island</h2>
+            <p>Bringing you compelling news, heartwarming real-life stories, and thought-provoking articles from the heart of London and beyond.</p>
+            <div class="hero-buttons">
+                <a href="#stories" class="btn btn-primary">Read Latest Stories</a>
+                <a href="#subscribe" class="btn btn-secondary">Subscribe to Newsletter</a>
+            </div>
         </div>
     </section>
 
     <!-- TOP 10 STORIES -->
-    <section class="story-section">
-        <h2 class="section-title top-ten">📊 Top 10 Stories</h2>
+    <section class="story-section" id="stories">
+        <h2 class="section-title-stories top-ten">📊 Top 10 Stories</h2>
         <div class="story-grid-top10" id="top10Grid">
             <div class="loading">Loading top stories...</div>
         </div>
@@ -379,117 +284,108 @@
 
     <!-- NEWS & UPDATES -->
     <section class="story-section">
-        <h2 class="section-title">📰 News & Updates</h2>
-        <div class="story-row-container">
-            <div class="story-row" id="newsRow">
-                <div class="loading">Loading news stories...</div>
-            </div>
+        <h2 class="section-title-stories">📰 News & Updates</h2>
+        <div class="story-row" id="newsRow">
+            <div class="loading">Loading news stories...</div>
         </div>
     </section>
 
     <!-- INSPIRING STORIES -->
     <section class="story-section">
-        <h2 class="section-title">✨ Inspiring Stories</h2>
-        <div class="story-row-container">
-            <div class="story-row" id="inspiringRow">
-                <div class="loading">Loading inspiring stories...</div>
-            </div>
+        <h2 class="section-title-stories">✨ Inspiring Stories</h2>
+        <div class="story-row" id="inspiringRow">
+            <div class="loading">Loading inspiring stories...</div>
         </div>
     </section>
 
     <!-- FLASH FICTION -->
     <section class="story-section">
-        <h2 class="section-title">⚡ Flash Fiction</h2>
-        <div class="story-row-container">
-            <div class="story-row" id="flashRow">
-                <div class="loading">Loading flash fiction...</div>
-            </div>
+        <h2 class="section-title-stories">⚡ Flash Fiction</h2>
+        <div class="story-row" id="flashRow">
+            <div class="loading">Loading flash fiction...</div>
         </div>
     </section>
 
     <!-- SHORT STORIES -->
     <section class="story-section">
-        <h2 class="section-title">📚 Short Stories</h2>
-        <div class="story-row-container">
-            <div class="story-row" id="shortRow">
-                <div class="loading">Loading short stories...</div>
-            </div>
+        <h2 class="section-title-stories">📚 Short Stories</h2>
+        <div class="story-row" id="shortRow">
+            <div class="loading">Loading short stories...</div>
         </div>
     </section>
 
     <!-- POETRY -->
     <section class="story-section">
-        <h2 class="section-title">✍️ Poetry</h2>
-        <div class="story-row-container">
-            <div class="story-row" id="poetryRow">
-                <div class="loading">Loading poetry...</div>
-            </div>
+        <h2 class="section-title-stories">✍️ Poetry</h2>
+        <div class="story-row" id="poetryRow">
+            <div class="loading">Loading poetry...</div>
         </div>
     </section>
 
     <!-- SERIAL STORIES -->
     <section class="story-section">
-        <h2 class="section-title">📖 Serial Stories</h2>
-        <div class="story-row-container">
-            <div class="story-row" id="serialRow">
-                <div class="loading">Loading serial stories...</div>
-            </div>
+        <h2 class="section-title-stories">📖 Serial Stories</h2>
+        <div class="story-row" id="serialRow">
+            <div class="loading">Loading serial stories...</div>
         </div>
     </section>
 
     <!-- What We Do -->
-    <section class="section what-we-do fade-in" id="about">
-        <div class="container">
+    <section class="section fade-in" id="about" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); position: relative; overflow: hidden;">
+        <div style="position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.95);"></div>
+        <div class="container" style="position: relative; z-index: 1;">
             <div class="section-header">
                 <h3>What We Do</h3>
-                <p>Calvary Scribblings is dedicated to sharing stories that matter — from breaking news to inspiring personal journeys.</p>
+                <p>Calvary Scribblings is dedicated to sharing stories that matter — from breaking news to inspiring personal journeys across London.</p>
             </div>
             <div class="features-grid">
                 <a href="news.html" class="feature-card fade-in" style="text-decoration: none;">
                     <div class="feature-icon" style="background: linear-gradient(135deg, #c41e3a 0%, #e05c72 100%); color: white;">📰</div>
                     <h4>News & Updates</h4>
-                    <p>Stay informed with our coverage of important events and developments.</p>
+                    <p>Stay informed with our coverage of important events and developments affecting our community.</p>
                 </a>
                 <a href="inspiring.html" class="feature-card fade-in" style="text-decoration: none;">
                     <div class="feature-icon" style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); color: white;">✨</div>
                     <h4>Inspiring Stories</h4>
-                    <p>Real people, real experiences. We highlight extraordinary lives.</p>
+                    <p>Real people, real experiences. We highlight the extraordinary lives of ordinary Londoners.</p>
                 </a>
                 <a href="creative.html" class="feature-card fade-in" style="text-decoration: none;">
                     <div class="feature-icon" style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white;">✍️</div>
                     <h4>Creative Writing</h4>
-                    <p>Flash fiction, short stories, poetry, and gripping serials.</p>
+                    <p>Flash fiction, short stories, and gripping serials that entertain, challenge, and uplift.</p>
                 </a>
             </div>
         </div>
     </section>
 
     <!-- Newsletter -->
-    <section class="cta-section fade-in" id="subscribe" style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%);">
+    <section class="cta-section fade-in" id="subscribe">
         <div class="cta-content">
             <h3>Never Miss a Story</h3>
             <p>Subscribe to our newsletter and get the latest stories delivered to your inbox.</p>
-            <form class="newsletter-form" action="https://formspree.io/f/xdalledg" method="POST">
+            <form class="newsletter-form" action="https://formspree.io/f/xdalledg" method="POST" id="newsletterForm">
                 <input type="email" name="email" placeholder="Enter your email address" required>
+                <input type="hidden" name="_subject" value="New Newsletter Subscription - Calvary Scribblings">
                 <button type="submit" class="btn btn-primary">Subscribe</button>
             </form>
         </div>
     </section>
 
     <!-- Contact -->
-    <section class="section fade-in" id="contact" style="background-color: #1a1a1a;">
+    <section class="section fade-in" id="contact">
         <div class="container">
             <div class="section-header">
-                <h3 style="color:#fff;">Get In Touch</h3>
-                <p style="color:#ccc;">Have a story to share? We'd love to hear from you.</p>
+                <h3>Get In Touch</h3>
+                <p>Have a story to share? We'd love to hear from you.</p>
             </div>
             <div style="max-width: 700px; margin: 0 auto;">
-                <form action="https://formspree.io/f/mlgwwjlw" method="POST" style="display:flex; flex-direction:column; gap:1.5rem;">
+                <form id="contactForm" action="https://formspree.io/f/mlgwwjlw" method="POST" style="display:flex; flex-direction:column; gap:1.5rem;">
                     <div style="display:flex; gap:1rem; flex-wrap:wrap;">
-                        <input type="text" name="name" placeholder="Your Name" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #333; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; background:#0f0f0f; color:#fff;">
-                        <input type="email" name="email" placeholder="Your Email" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #333; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; background:#0f0f0f; color:#fff;">
+                        <input type="text" name="name" placeholder="Your Name" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; transition:border-color 0.3s;">
+                        <input type="email" name="email" placeholder="Your Email" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; transition:border-color 0.3s;">
                     </div>
-                    <textarea name="message" placeholder="Your Message" required rows="6" style="padding:1rem 1.25rem; border:2px solid #333; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; resize:vertical; background:#0f0f0f; color:#fff;"></textarea>
+                    <textarea name="message" placeholder="Your Message" required rows="6" style="padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; resize:vertical; transition:border-color 0.3s;"></textarea>
+                    <input type="hidden" name="_subject" value="New Contact Form Submission - Calvary Scribblings">
                     <button type="submit" class="btn btn-primary" style="align-self:flex-start;">Send Message</button>
                 </form>
             </div>
@@ -550,7 +446,7 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         
-        // Story Database (will be populated dynamically from your CMS later)
+        // Story Database (will be populated dynamically from CMS later)
         const stories = [
             {
                 id: 'miss-lady',
@@ -603,10 +499,9 @@
         function createStoryCard(story, rank = null) {
             const badgeClass = `badge-${story.category}`;
             return `
-                <a href="${story.url}" class="story-card" style="text-decoration:none;">
+                <a href="${story.url}" class="story-card">
                     ${rank ? `<div class="ranking-badge">#${rank}</div>` : ''}
-                    <div class="hit-badge">👁️ ${story.hits}</div>
-                    <img src="${story.cover}" alt="${story.title}" class="story-card-image">
+                    <img src="${story.cover}" alt="${story.title}" class="story-card-image" onerror="this.src='https://via.placeholder.com/220x330?text=${encodeURIComponent(story.title)}'">
                     <div class="story-card-overlay">
                         <span class="category-badge ${badgeClass}">${story.categoryName}</span>
                         <h3 class="story-card-title">${story.title}</h3>
@@ -619,7 +514,7 @@
         function renderTop10(stories) {
             const grid = document.getElementById('top10Grid');
             if (stories.length === 0) {
-                grid.innerHTML = '<div class="loading">No stories yet</div>';
+                grid.innerHTML = '<div class="loading">No stories yet. Check back soon!</div>';
                 return;
             }
             grid.innerHTML = stories.map((story, i) => createStoryCard(story, i + 1)).join('');
@@ -628,7 +523,7 @@
         function renderCategory(category, stories, containerId) {
             const container = document.getElementById(containerId);
             if (stories.length === 0) {
-                container.innerHTML = '<div class="loading">No stories yet</div>';
+                container.innerHTML = '<div class="loading">No stories in this category yet.</div>';
                 return;
             }
             container.innerHTML = stories.map(story => createStoryCard(story)).join('');
@@ -641,13 +536,119 @@
         setInterval(loadStories, 30000);
     </script>
 
-    <!-- PWA Service Worker -->
+    <!-- PWA Service Worker Registration -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js');
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
             });
         }
+        
+        // Detect if user is on iOS
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
+        
+        // iOS Install Banner
+        if (isIOS && !isInStandaloneMode) {
+            const iosDismissed = localStorage.getItem('iosInstallDismissed');
+            if (!iosDismissed || (Date.now() - parseInt(iosDismissed)) > 7 * 24 * 60 * 60 * 1000) {
+                const iosInstallBanner = document.createElement('div');
+                iosInstallBanner.id = 'iosInstallBanner';
+                iosInstallBanner.innerHTML = `
+                    <div style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999; animation: slideUp 0.3s ease;">
+                        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                            <span style="font-size: 1.5rem;">📱</span>
+                            <div style="flex: 1;">
+                                <strong style="display: block; margin-bottom: 0.25rem;">Install Calvary Scribblings</strong>
+                                <span style="font-size: 0.85rem; opacity: 0.95;">Tap <span style="display: inline-flex; align-items: center; gap: 0.25rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8m-4-4h8"/></svg> Share</span> then "Add to Home Screen"</span>
+                            </div>
+                        </div>
+                        <button id="iosDismissButton" style="background: transparent; color: white; border: 2px solid white; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">Got it</button>
+                    </div>
+                `;
+                
+                setTimeout(() => {
+                    document.body.appendChild(iosInstallBanner);
+                }, 2000);
+                
+                document.addEventListener('click', (e) => {
+                    if (e.target.id === 'iosDismissButton') {
+                        localStorage.setItem('iosInstallDismissed', Date.now().toString());
+                        iosInstallBanner.style.display = 'none';
+                    }
+                });
+            }
+        }
+        
+        // Android PWA Install Prompt
+        let deferredPrompt;
+        const installBanner = document.createElement('div');
+        installBanner.id = 'installBanner';
+        installBanner.innerHTML = `
+            <div style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999; animation: slideUp 0.3s ease;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span style="font-size: 1.5rem;">📱</span>
+                    <div>
+                        <strong style="display: block; margin-bottom: 0.25rem;">Install Calvary Scribblings</strong>
+                        <span style="font-size: 0.9rem; opacity: 0.95;">Get our app for a better reading experience</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <button id="installButton" style="background: white; color: #6b46c1; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 1rem;">Install</button>
+                    <button id="dismissButton" style="background: transparent; color: white; border: 2px solid white; padding: 0.75rem 1rem; border-radius: 4px; cursor: pointer; font-size: 1rem;">Maybe Later</button>
+                </div>
+            </div>
+        `;
+        installBanner.style.display = 'none';
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            if (localStorage.getItem('installDismissed')) {
+                const dismissedTime = parseInt(localStorage.getItem('installDismissed'));
+                const daysSince = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
+                if (daysSince < 7) return;
+            }
+            
+            document.body.appendChild(installBanner);
+            installBanner.style.display = 'block';
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'installButton') {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            console.log('User accepted the install prompt');
+                        }
+                        deferredPrompt = null;
+                        installBanner.style.display = 'none';
+                    });
+                }
+            }
+            
+            if (e.target.id === 'dismissButton') {
+                localStorage.setItem('installDismissed', Date.now().toString());
+                installBanner.style.display = 'none';
+            }
+        });
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideUp {
+                from { transform: translateY(100%); }
+                to { transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 
 </body>
