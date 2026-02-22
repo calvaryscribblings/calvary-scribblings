@@ -12,7 +12,7 @@
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calvary Scribblings - Stories That Matter</title>
+    <title>Calvary Scribblings - The Story Island</title>
     
     <!-- PWA Meta Tags -->
     <meta name="description" content="The Story Island - Bringing you compelling news, heartwarming real-life stories, and thought-provoking articles.">
@@ -24,6 +24,243 @@
     <link rel="apple-touch-icon" href="/icon-192.png">
     
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    
+    <style>
+        /* Netflix-Style Overrides */
+        body {
+            background: #0f0f0f;
+            color: #ffffff;
+        }
+        
+        /* Hero Section - Netflix Style */
+        .netflix-hero {
+            position: relative;
+            height: 80vh;
+            min-height: 600px;
+            background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 50%, #c41e3a 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .netflix-hero::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 40%;
+            background: linear-gradient(to top, #0f0f0f, transparent);
+        }
+        
+        .netflix-hero-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            max-width: 800px;
+            padding: 2rem;
+        }
+        
+        .netflix-hero h1 {
+            font-size: clamp(3rem, 8vw, 6rem);
+            font-weight: 700;
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        
+        .netflix-hero p {
+            font-size: clamp(1.1rem, 2vw, 1.5rem);
+            opacity: 0.95;
+            margin-bottom: 2rem;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        
+        /* Story Rows */
+        .story-section {
+            padding: 3rem 0;
+            background: #0f0f0f;
+        }
+        
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            padding: 0 3rem;
+            color: #fff;
+        }
+        
+        .section-title.top-ten {
+            font-size: 2.2rem;
+            background: linear-gradient(90deg, #6b46c1, #c41e3a);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* Story Grid for Top 10 */
+        .story-grid-top10 {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 2rem;
+            padding: 0 3rem;
+        }
+        
+        /* Horizontal Scroll for Categories */
+        .story-row {
+            display: flex;
+            gap: 1.5rem;
+            padding: 0 3rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        .story-row::-webkit-scrollbar {
+            display: none;
+        }
+        
+        /* Story Card */
+        .story-card {
+            position: relative;
+            min-width: 280px;
+            aspect-ratio: 2/3;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background: #1a1a1a;
+        }
+        
+        .story-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 40px rgba(107, 70, 193, 0.3);
+            z-index: 10;
+        }
+        
+        .story-card-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .story-card-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 1.5rem;
+            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 60%, transparent 100%);
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .story-card:hover .story-card-overlay {
+            transform: translateY(0);
+        }
+        
+        .story-card-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+        
+        .story-card-meta {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            color: #ccc;
+        }
+        
+        /* Ranking Badge */
+        .ranking-badge {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #6b46c1, #8b5cf6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(107, 70, 193, 0.5);
+            z-index: 5;
+        }
+        
+        /* Hit Counter Badge */
+        .hit-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(0,0,0,0.8);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            z-index: 5;
+        }
+        
+        /* Category Badge */
+        .category-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .badge-flash { background: #c41e3a; color: #fff; }
+        .badge-short { background: #d97706; color: #fff; }
+        .badge-poetry { background: #6b46c1; color: #fff; }
+        .badge-serial { background: #059669; color: #fff; }
+        .badge-news { background: #dc2626; color: #fff; }
+        .badge-inspiring { background: #f59e0b; color: #fff; }
+        
+        /* What We Do - Dark Mode */
+        .section.what-we-do {
+            background: #1a1a1a !important;
+            padding: 4rem 0;
+        }
+        
+        .section.what-we-do h3,
+        .section.what-we-do p {
+            color: #fff;
+        }
+        
+        .feature-card {
+            background: #0f0f0f !important;
+            border: 1px solid #333;
+        }
+        
+        /* Footer Dark Mode */
+        footer {
+            background: #0a0a0a !important;
+            border-top: 1px solid #222;
+        }
+        
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+    </style>
 </head>
 <body>
 
@@ -55,126 +292,133 @@
                             <li><a href="poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
                         </ul>
                     </li>
-                    <li><a href="index.html#about">About</a></li>
-                    <li><a href="index.html#subscribe">Subscribe</a></li>
-                    <li><a href="index.html#contact">Contact</a></li>
+                    <li><a href="#about">About</a></li>
+                    <li><a href="#subscribe">Subscribe</a></li>
+                    <li><a href="#contact">Contact</a></li>
                 </ul>
             </nav>
         </div>
     </header>
 
-    <!-- Hero -->
-    <section class="hero">
-        <div class="hero-content">
-            <h2>The Story Island</h2>
-            <p>Bringing you compelling news, heartwarming real-life stories, and thought-provoking articles from the heart of London and beyond.</p>
-            <div class="hero-buttons">
-                <a href="#stories" class="btn btn-primary">Read Latest Stories</a>
-                <a href="#subscribe" class="btn btn-secondary">Subscribe to Newsletter</a>
-            </div>
+    <!-- Netflix-Style Hero -->
+    <section class="netflix-hero">
+        <div class="netflix-hero-content">
+            <h1>The Story Island</h1>
+            <p>Discover stories that inspire, inform, and illuminate</p>
+        </div>
+    </section>
+
+    <!-- TOP 10 STORIES -->
+    <section class="story-section">
+        <h2 class="section-title top-ten">📊 Top 10 Stories</h2>
+        <div class="story-grid-top10" id="top10Grid">
+            <div class="loading">Loading top stories...</div>
+        </div>
+    </section>
+
+    <!-- NEWS & UPDATES -->
+    <section class="story-section">
+        <h2 class="section-title">📰 News & Updates</h2>
+        <div class="story-row" id="newsRow">
+            <div class="loading">Loading news stories...</div>
+        </div>
+    </section>
+
+    <!-- INSPIRING STORIES -->
+    <section class="story-section">
+        <h2 class="section-title">✨ Inspiring Stories</h2>
+        <div class="story-row" id="inspiringRow">
+            <div class="loading">Loading inspiring stories...</div>
+        </div>
+    </section>
+
+    <!-- FLASH FICTION -->
+    <section class="story-section">
+        <h2 class="section-title">⚡ Flash Fiction</h2>
+        <div class="story-row" id="flashRow">
+            <div class="loading">Loading flash fiction...</div>
+        </div>
+    </section>
+
+    <!-- SHORT STORIES -->
+    <section class="story-section">
+        <h2 class="section-title">📚 Short Stories</h2>
+        <div class="story-row" id="shortRow">
+            <div class="loading">Loading short stories...</div>
+        </div>
+    </section>
+
+    <!-- POETRY -->
+    <section class="story-section">
+        <h2 class="section-title">✍️ Poetry</h2>
+        <div class="story-row" id="poetryRow">
+            <div class="loading">Loading poetry...</div>
+        </div>
+    </section>
+
+    <!-- SERIAL STORIES -->
+    <section class="story-section">
+        <h2 class="section-title">📖 Serial Stories</h2>
+        <div class="story-row" id="serialRow">
+            <div class="loading">Loading serial stories...</div>
         </div>
     </section>
 
     <!-- What We Do -->
-    <section class="section fade-in" id="about" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); position: relative; overflow: hidden;">
-        <div style="position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.95);"></div>
-        <div class="container" style="position: relative; z-index: 1;">
+    <section class="section what-we-do fade-in" id="about">
+        <div class="container">
             <div class="section-header">
                 <h3>What We Do</h3>
-                <p>Calvary Scribblings is dedicated to sharing stories that matter — from breaking news to inspiring personal journeys across London.</p>
+                <p>Calvary Scribblings is dedicated to sharing stories that matter — from breaking news to inspiring personal journeys.</p>
             </div>
             <div class="features-grid">
                 <a href="news.html" class="feature-card fade-in" style="text-decoration: none;">
                     <div class="feature-icon" style="background: linear-gradient(135deg, #c41e3a 0%, #e05c72 100%); color: white;">📰</div>
                     <h4>News & Updates</h4>
-                    <p>Stay informed with our coverage of important events and developments affecting our community.</p>
+                    <p>Stay informed with our coverage of important events and developments.</p>
                 </a>
                 <a href="inspiring.html" class="feature-card fade-in" style="text-decoration: none;">
                     <div class="feature-icon" style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); color: white;">✨</div>
                     <h4>Inspiring Stories</h4>
-                    <p>Real people, real experiences. We highlight the extraordinary lives of ordinary Londoners.</p>
+                    <p>Real people, real experiences. We highlight extraordinary lives.</p>
                 </a>
                 <a href="creative.html" class="feature-card fade-in" style="text-decoration: none;">
                     <div class="feature-icon" style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white;">✍️</div>
                     <h4>Creative Writing</h4>
-                    <p>Flash fiction, short stories, and gripping serials that entertain, challenge, and uplift.</p>
-                </a>
-            </div>
-        </div>
-    </section>
-
-    <!-- Latest Stories -->
-    <section class="section fade-in" id="stories" style="background-color: var(--light-gray);">
-        <div class="container">
-            <div class="section-header">
-                <h3>Latest Stories</h3>
-                <p>Our most recent articles, features, and stories from across all divisions.</p>
-            </div>
-            <div class="stories-grid">
-                <a href="stories/early.html" class="story-card fade-in" style="text-decoration: none;">
-                    <div class="story-image" style="background: url('early-cover.png') center/cover no-repeat;"></div>
-                    <div class="story-content">
-                        <div class="story-badges">
-                            <span class="division-badge badge-short">Short Story</span>
-                            <span class="division-badge" style="background:#ede9fe; color:#6b46c1;">Creative Writing</span>
-                        </div>
-                        <h4>Early</h4>
-                        <p>It's half past three in the morning when I open my eyes and find myself staring at the clock quietly blinking its digital seconds at the head of our bed.</p>
-                        <div class="story-meta"><span>By Calvary</span><span>Feb 18, 2026</span></div>
-                    </div>
-                </a>
-                <a href="stories/miss-lady.html" class="story-card fade-in" style="text-decoration: none;">
-                    <div class="story-image" style="background: url('B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png') center/cover no-repeat;"></div>
-                    <div class="story-content">
-                        <div class="story-badges">
-                            <span class="division-badge badge-flash">Flash Fiction</span>
-                            <span class="division-badge" style="background:#ede9fe; color:#6b46c1;">Creative Writing</span>
-                        </div>
-                        <h4>Miss Lady</h4>
-                        <p>My eyes met hers before I had the chance to think about it — a girl in a sweet white mini-gown, moving through the slow-baked afternoon with an unhurried kind of certainty.</p>
-                        <div class="story-meta"><span>By Calvary</span><span>Feb 17, 2026</span></div>
-                    </div>
+                    <p>Flash fiction, short stories, poetry, and gripping serials.</p>
                 </a>
             </div>
         </div>
     </section>
 
     <!-- Newsletter -->
-    <section class="cta-section fade-in" id="subscribe">
+    <section class="cta-section fade-in" id="subscribe" style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%);">
         <div class="cta-content">
             <h3>Never Miss a Story</h3>
-            <p>Subscribe to our newsletter and get the latest stories, features, and updates delivered straight to your inbox every week.</p>
-            <form class="newsletter-form" action="https://formspree.io/f/xdalledg" method="POST" id="newsletterForm">
+            <p>Subscribe to our newsletter and get the latest stories delivered to your inbox.</p>
+            <form class="newsletter-form" action="https://formspree.io/f/xdalledg" method="POST">
                 <input type="email" name="email" placeholder="Enter your email address" required>
-                <input type="hidden" name="_subject" value="New Newsletter Subscription - Calvary Scribblings">
                 <button type="submit" class="btn btn-primary">Subscribe</button>
             </form>
-            <div id="newsletterSuccess" style="display:none; margin-top:1rem; padding:1rem; background:#d4edda; color:#155724; border-radius:4px; text-align:center;">
-                Thank you for subscribing! We'll keep you updated with our latest stories.
-            </div>
         </div>
     </section>
 
     <!-- Contact -->
-    <section class="section fade-in" id="contact" style="background-color: var(--white);">
+    <section class="section fade-in" id="contact" style="background-color: #1a1a1a;">
         <div class="container">
             <div class="section-header">
-                <h3>Get In Touch</h3>
-                <p>Have a story to share? Questions about our publication? We'd love to hear from you.</p>
+                <h3 style="color:#fff;">Get In Touch</h3>
+                <p style="color:#ccc;">Have a story to share? We'd love to hear from you.</p>
             </div>
             <div style="max-width: 700px; margin: 0 auto;">
-                <form id="contactForm" action="https://formspree.io/f/mlgwwjlw" method="POST" style="display:flex; flex-direction:column; gap:1.5rem;">
+                <form action="https://formspree.io/f/mlgwwjlw" method="POST" style="display:flex; flex-direction:column; gap:1.5rem;">
                     <div style="display:flex; gap:1rem; flex-wrap:wrap;">
-                        <input type="text" name="name" placeholder="Your Name" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; transition:border-color 0.3s;">
-                        <input type="email" name="email" placeholder="Your Email" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; transition:border-color 0.3s;">
+                        <input type="text" name="name" placeholder="Your Name" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #333; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; background:#0f0f0f; color:#fff;">
+                        <input type="email" name="email" placeholder="Your Email" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #333; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; background:#0f0f0f; color:#fff;">
                     </div>
-                    <textarea name="message" placeholder="Your Message" required rows="6" style="padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; resize:vertical; transition:border-color 0.3s;"></textarea>
-                    <input type="hidden" name="_subject" value="New Contact Form Submission - Calvary Scribblings">
+                    <textarea name="message" placeholder="Your Message" required rows="6" style="padding:1rem 1.25rem; border:2px solid #333; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; resize:vertical; background:#0f0f0f; color:#fff;"></textarea>
                     <button type="submit" class="btn btn-primary" style="align-self:flex-start;">Send Message</button>
                 </form>
-                <div id="contactSuccess" style="display:none; margin-top:1.5rem; padding:1.5rem; background:#d4edda; color:#155724; border-radius:4px; text-align:center; font-size:1.1rem;">
-                    Thank you for your message! We'll get back to you as soon as possible.
-                </div>
             </div>
         </div>
     </section>
@@ -184,12 +428,11 @@
         <div class="footer-content">
             <div class="footer-section">
                 <h5>Calvary Scribblings</h5>
-                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire.</p>
             </div>
             <div class="footer-section">
                 <h5>Explore</h5>
                 <ul>
-                    <li><a href="index.html#stories">Latest Stories</a></li>
                     <li><a href="news.html">News & Updates</a></li>
                     <li><a href="inspiring.html">Inspiring Stories</a></li>
                     <li><a href="creative.html">Creative Writing</a></li>
@@ -207,136 +450,131 @@
             <div class="footer-section">
                 <h5>Connect</h5>
                 <ul>
-                    <li><a href="index.html#subscribe">Newsletter</a></li>
-                    <li><a href="index.html#contact">Contact Us</a></li>
-                    <li><a href="index.html#contact">Submit a Story</a></li>
-                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#subscribe">Newsletter</a></li>
+                    <li><a href="#contact">Contact Us</a></li>
                 </ul>
             </div>
         </div>
         <div class="footer-bottom">
-            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+            <p>&copy; 2026 Calvary Scribblings. All rights reserved.</p>
         </div>
     </footer>
 
     <script src="scripts.js"></script>
     
-    <!-- PWA Service Worker Registration -->
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // Story Database (will be populated dynamically from your CMS later)
+        const stories = [
+            {
+                id: 'miss-lady',
+                title: 'Miss Lady',
+                category: 'flash',
+                categoryName: 'Flash Fiction',
+                url: 'stories/miss-lady.html',
+                cover: 'B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png',
+                author: 'Calvary',
+                date: 'Feb 17, 2026',
+                firebasePath: 'stories/miss-lady/hits'
+            },
+            {
+                id: 'early',
+                title: 'Early',
+                category: 'short',
+                categoryName: 'Short Story',
+                url: 'stories/early.html',
+                cover: 'early-cover.png',
+                author: 'Calvary',
+                date: 'Feb 18, 2026',
+                firebasePath: 'stories/early/hits'
+            }
+        ];
+        
+        // Fetch hit counts and render stories
+        async function loadStories() {
+            const storiesWithHits = await Promise.all(
+                stories.map(async (story) => {
+                    const snapshot = await database.ref(story.firebasePath).once('value');
+                    return { ...story, hits: snapshot.val() || 0 };
+                })
+            );
+            
+            // Sort by hits for Top 10
+            const top10 = storiesWithHits.sort((a, b) => b.hits - a.hits).slice(0, 10);
+            
+            // Render Top 10
+            renderTop10(top10);
+            
+            // Render by category
+            renderCategory('flash', storiesWithHits.filter(s => s.category === 'flash'), 'flashRow');
+            renderCategory('short', storiesWithHits.filter(s => s.category === 'short'), 'shortRow');
+            renderCategory('poetry', storiesWithHits.filter(s => s.category === 'poetry'), 'poetryRow');
+            renderCategory('serial', storiesWithHits.filter(s => s.category === 'serial'), 'serialRow');
+            renderCategory('news', storiesWithHits.filter(s => s.category === 'news'), 'newsRow');
+            renderCategory('inspiring', storiesWithHits.filter(s => s.category === 'inspiring'), 'inspiringRow');
+        }
+        
+        function createStoryCard(story, rank = null) {
+            const badgeClass = `badge-${story.category}`;
+            return `
+                <a href="${story.url}" class="story-card" style="text-decoration:none;">
+                    ${rank ? `<div class="ranking-badge">#${rank}</div>` : ''}
+                    <div class="hit-badge">👁️ ${story.hits}</div>
+                    <img src="${story.cover}" alt="${story.title}" class="story-card-image">
+                    <div class="story-card-overlay">
+                        <span class="category-badge ${badgeClass}">${story.categoryName}</span>
+                        <h3 class="story-card-title">${story.title}</h3>
+                        <div class="story-card-meta">By ${story.author} · ${story.date}</div>
+                    </div>
+                </a>
+            `;
+        }
+        
+        function renderTop10(stories) {
+            const grid = document.getElementById('top10Grid');
+            if (stories.length === 0) {
+                grid.innerHTML = '<div class="loading">No stories yet</div>';
+                return;
+            }
+            grid.innerHTML = stories.map((story, i) => createStoryCard(story, i + 1)).join('');
+        }
+        
+        function renderCategory(category, stories, containerId) {
+            const container = document.getElementById(containerId);
+            if (stories.length === 0) {
+                container.innerHTML = '<div class="loading">No stories yet</div>';
+                return;
+            }
+            container.innerHTML = stories.map(story => createStoryCard(story)).join('');
+        }
+        
+        // Load stories on page load
+        loadStories();
+        
+        // Refresh every 30 seconds to update rankings
+        setInterval(loadStories, 30000);
+    </script>
+
+    <!-- PWA Service Worker -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then(registration => {
-                        console.log('Service Worker registered successfully:', registration.scope);
-                    })
-                    .catch(error => {
-                        console.log('Service Worker registration failed:', error);
-                    });
+                navigator.serviceWorker.register('/service-worker.js');
             });
         }
-        
-        // Detect if user is on iOS
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
-        
-        // iOS Install Banner
-        if (isIOS && !isInStandaloneMode) {
-            // Check if user dismissed recently
-            const iosDismissed = localStorage.getItem('iosInstallDismissed');
-            if (!iosDismissed || (Date.now() - parseInt(iosDismissed)) > 7 * 24 * 60 * 60 * 1000) {
-                const iosInstallBanner = document.createElement('div');
-                iosInstallBanner.id = 'iosInstallBanner';
-                iosInstallBanner.innerHTML = `
-                    <div style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999; animation: slideUp 0.3s ease;">
-                        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
-                            <span style="font-size: 1.5rem;">📱</span>
-                            <div style="flex: 1;">
-                                <strong style="display: block; margin-bottom: 0.25rem;">Install Calvary Scribblings</strong>
-                                <span style="font-size: 0.85rem; opacity: 0.95;">Tap <span style="display: inline-flex; align-items: center; gap: 0.25rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8m-4-4h8"/></svg> Share</span> then "Add to Home Screen"</span>
-                            </div>
-                        </div>
-                        <button id="iosDismissButton" style="background: transparent; color: white; border: 2px solid white; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">Got it</button>
-                    </div>
-                `;
-                
-                setTimeout(() => {
-                    document.body.appendChild(iosInstallBanner);
-                }, 2000); // Show after 2 seconds
-                
-                document.addEventListener('click', (e) => {
-                    if (e.target.id === 'iosDismissButton') {
-                        localStorage.setItem('iosInstallDismissed', Date.now().toString());
-                        iosInstallBanner.style.display = 'none';
-                    }
-                });
-            }
-        }
-        
-        // Android PWA Install Prompt
-        let deferredPrompt;
-        const installBanner = document.createElement('div');
-        installBanner.id = 'installBanner';
-        installBanner.innerHTML = `
-            <div style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999; animation: slideUp 0.3s ease;">
-                <div style="display: flex; align-items: center; gap: 1rem;">
-                    <span style="font-size: 1.5rem;">📱</span>
-                    <div>
-                        <strong style="display: block; margin-bottom: 0.25rem;">Install Calvary Scribblings</strong>
-                        <span style="font-size: 0.9rem; opacity: 0.95;">Get our app for a better reading experience</span>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 0.75rem;">
-                    <button id="installButton" style="background: white; color: #6b46c1; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 1rem;">Install</button>
-                    <button id="dismissButton" style="background: transparent; color: white; border: 2px solid white; padding: 0.75rem 1rem; border-radius: 4px; cursor: pointer; font-size: 1rem;">Maybe Later</button>
-                </div>
-            </div>
-        `;
-        installBanner.style.display = 'none';
-        
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            
-            // Don't show if user dismissed recently
-            if (localStorage.getItem('installDismissed')) {
-                const dismissedTime = parseInt(localStorage.getItem('installDismissed'));
-                const daysSince = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
-                if (daysSince < 7) return;
-            }
-            
-            document.body.appendChild(installBanner);
-            installBanner.style.display = 'block';
-        });
-        
-        document.addEventListener('click', (e) => {
-            if (e.target.id === 'installButton') {
-                if (deferredPrompt) {
-                    deferredPrompt.prompt();
-                    deferredPrompt.userChoice.then((choiceResult) => {
-                        if (choiceResult.outcome === 'accepted') {
-                            console.log('User accepted the install prompt');
-                        }
-                        deferredPrompt = null;
-                        installBanner.style.display = 'none';
-                    });
-                }
-            }
-            
-            if (e.target.id === 'dismissButton') {
-                localStorage.setItem('installDismissed', Date.now().toString());
-                installBanner.style.display = 'none';
-            }
-        });
-        
-        // Add slideUp animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideUp {
-                from { transform: translateY(100%); }
-                to { transform: translateY(0); }
-            }
-        `;
-        document.head.appendChild(style);
     </script>
 
 </body>
