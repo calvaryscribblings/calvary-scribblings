@@ -30,18 +30,18 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     
     <style>
-        /* Netflix-Style Overrides */
+        /* Purple Theme - Netflix Style */
         body {
-            background: #0f0f0f;
-            color: #ffffff;
+            background: #ffffff;
+            color: #1a1a1a;
         }
         
-        /* Hero Section - Netflix Style */
+        /* Hero Section - Purple Gradient */
         .netflix-hero {
             position: relative;
-            height: 80vh;
-            min-height: 600px;
-            background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 50%, #c41e3a 100%);
+            height: 70vh;
+            min-height: 500px;
+            background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -54,8 +54,8 @@
             bottom: 0;
             left: 0;
             right: 0;
-            height: 40%;
-            background: linear-gradient(to top, #0f0f0f, transparent);
+            height: 30%;
+            background: linear-gradient(to top, #ffffff, transparent);
         }
         
         .netflix-hero-content {
@@ -67,47 +67,61 @@
         }
         
         .netflix-hero h1 {
-            font-size: clamp(3rem, 8vw, 6rem);
+            font-size: clamp(3rem, 8vw, 5rem);
             font-weight: 700;
             margin-bottom: 1rem;
             letter-spacing: -0.02em;
-            text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            color: #ffffff;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
         
         .netflix-hero p {
-            font-size: clamp(1.1rem, 2vw, 1.5rem);
+            font-size: clamp(1.1rem, 2vw, 1.4rem);
+            color: #ffffff;
             opacity: 0.95;
             margin-bottom: 2rem;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
         
-        /* Story Rows */
+        /* Story Rows Container */
         .story-section {
             padding: 3rem 0;
-            background: #0f0f0f;
+            background: #f9f9f9;
+        }
+        
+        .story-section:nth-child(even) {
+            background: #ffffff;
         }
         
         .section-title {
-            font-size: 1.8rem;
+            font-size: 1.6rem;
             font-weight: 700;
             margin-bottom: 1.5rem;
             padding: 0 3rem;
-            color: #fff;
+            color: #1a1a1a;
         }
         
         .section-title.top-ten {
-            font-size: 2.2rem;
+            font-size: 2rem;
             background: linear-gradient(90deg, #6b46c1, #c41e3a);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
         
-        /* Story Grid for Top 10 */
+        /* Story Grid for Top 10 - Desktop */
         .story-grid-top10 {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 2rem;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1.5rem;
+            padding: 0 3rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* Horizontal Scroll Container */
+        .story-row-container {
+            position: relative;
             padding: 0 3rem;
         }
         
@@ -115,32 +129,50 @@
         .story-row {
             display: flex;
             gap: 1.5rem;
-            padding: 0 3rem;
             overflow-x: auto;
             overflow-y: hidden;
-            scrollbar-width: none;
-            -ms-overflow-style: none;
+            scrollbar-width: thin;
+            scrollbar-color: #6b46c1 #e0e0e0;
+            scroll-behavior: smooth;
+            padding-bottom: 1rem;
         }
         
         .story-row::-webkit-scrollbar {
-            display: none;
+            height: 8px;
+        }
+        
+        .story-row::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 10px;
+        }
+        
+        .story-row::-webkit-scrollbar-thumb {
+            background: #6b46c1;
+            border-radius: 10px;
+        }
+        
+        .story-row::-webkit-scrollbar-thumb:hover {
+            background: #8b5cf6;
         }
         
         /* Story Card */
         .story-card {
             position: relative;
-            min-width: 280px;
+            min-width: 220px;
+            width: 220px;
             aspect-ratio: 2/3;
             border-radius: 8px;
             overflow: hidden;
             cursor: pointer;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            background: #1a1a1a;
+            background: #ffffff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            flex-shrink: 0;
         }
         
         .story-card:hover {
-            transform: scale(1.05);
-            box-shadow: 0 10px 40px rgba(107, 70, 193, 0.3);
+            transform: scale(1.05) translateY(-10px);
+            box-shadow: 0 10px 30px rgba(107, 70, 193, 0.3);
             z-index: 10;
         }
         
@@ -156,7 +188,7 @@
             left: 0;
             right: 0;
             padding: 1.5rem;
-            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 60%, transparent 100%);
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 60%, transparent 100%);
             transform: translateY(100%);
             transition: transform 0.3s ease;
         }
@@ -166,15 +198,15 @@
         }
         
         .story-card-title {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 700;
             margin-bottom: 0.5rem;
             color: #fff;
         }
         
         .story-card-meta {
-            font-size: 0.9rem;
-            opacity: 0.8;
+            font-size: 0.85rem;
+            opacity: 0.9;
             color: #ccc;
         }
         
@@ -183,17 +215,17 @@
             position: absolute;
             top: 1rem;
             left: 1rem;
-            width: 50px;
-            height: 50px;
+            width: 45px;
+            height: 45px;
             background: linear-gradient(135deg, #6b46c1, #8b5cf6);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: 900;
             color: #fff;
-            box-shadow: 0 4px 15px rgba(107, 70, 193, 0.5);
+            box-shadow: 0 4px 15px rgba(107, 70, 193, 0.6);
             z-index: 5;
         }
         
@@ -202,14 +234,15 @@
             position: absolute;
             top: 1rem;
             right: 1rem;
-            background: rgba(0,0,0,0.8);
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
+            background: rgba(0,0,0,0.75);
+            padding: 0.4rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
             font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.4rem;
+            color: #fff;
             z-index: 5;
         }
         
@@ -218,7 +251,7 @@
             display: inline-block;
             padding: 0.25rem 0.75rem;
             border-radius: 4px;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -232,33 +265,61 @@
         .badge-news { background: #dc2626; color: #fff; }
         .badge-inspiring { background: #f59e0b; color: #fff; }
         
-        /* What We Do - Dark Mode */
+        /* What We Do - Light Mode */
         .section.what-we-do {
-            background: #1a1a1a !important;
+            background: #f9f9f9 !important;
             padding: 4rem 0;
         }
         
         .section.what-we-do h3,
         .section.what-we-do p {
-            color: #fff;
+            color: #1a1a1a;
         }
         
         .feature-card {
-            background: #0f0f0f !important;
-            border: 1px solid #333;
+            background: #ffffff !important;
+            border: 1px solid #e0e0e0;
         }
         
-        /* Footer Dark Mode */
+        /* Footer Light Mode */
         footer {
-            background: #0a0a0a !important;
-            border-top: 1px solid #222;
+            background: #6b46c1 !important;
+            border-top: none;
+        }
+        
+        footer * {
+            color: #ffffff !important;
         }
         
         /* Loading State */
         .loading {
             text-align: center;
-            padding: 3rem;
-            color: #666;
+            padding: 2rem;
+            color: #999;
+            font-style: italic;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .story-grid-top10 {
+                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+                gap: 1rem;
+                padding: 0 1.5rem;
+            }
+            
+            .story-row-container {
+                padding: 0 1.5rem;
+            }
+            
+            .story-card {
+                min-width: 160px;
+                width: 160px;
+            }
+            
+            .section-title {
+                padding: 0 1.5rem;
+                font-size: 1.4rem;
+            }
         }
     </style>
 </head>
@@ -319,48 +380,60 @@
     <!-- NEWS & UPDATES -->
     <section class="story-section">
         <h2 class="section-title">📰 News & Updates</h2>
-        <div class="story-row" id="newsRow">
-            <div class="loading">Loading news stories...</div>
+        <div class="story-row-container">
+            <div class="story-row" id="newsRow">
+                <div class="loading">Loading news stories...</div>
+            </div>
         </div>
     </section>
 
     <!-- INSPIRING STORIES -->
     <section class="story-section">
         <h2 class="section-title">✨ Inspiring Stories</h2>
-        <div class="story-row" id="inspiringRow">
-            <div class="loading">Loading inspiring stories...</div>
+        <div class="story-row-container">
+            <div class="story-row" id="inspiringRow">
+                <div class="loading">Loading inspiring stories...</div>
+            </div>
         </div>
     </section>
 
     <!-- FLASH FICTION -->
     <section class="story-section">
         <h2 class="section-title">⚡ Flash Fiction</h2>
-        <div class="story-row" id="flashRow">
-            <div class="loading">Loading flash fiction...</div>
+        <div class="story-row-container">
+            <div class="story-row" id="flashRow">
+                <div class="loading">Loading flash fiction...</div>
+            </div>
         </div>
     </section>
 
     <!-- SHORT STORIES -->
     <section class="story-section">
         <h2 class="section-title">📚 Short Stories</h2>
-        <div class="story-row" id="shortRow">
-            <div class="loading">Loading short stories...</div>
+        <div class="story-row-container">
+            <div class="story-row" id="shortRow">
+                <div class="loading">Loading short stories...</div>
+            </div>
         </div>
     </section>
 
     <!-- POETRY -->
     <section class="story-section">
         <h2 class="section-title">✍️ Poetry</h2>
-        <div class="story-row" id="poetryRow">
-            <div class="loading">Loading poetry...</div>
+        <div class="story-row-container">
+            <div class="story-row" id="poetryRow">
+                <div class="loading">Loading poetry...</div>
+            </div>
         </div>
     </section>
 
     <!-- SERIAL STORIES -->
     <section class="story-section">
         <h2 class="section-title">📖 Serial Stories</h2>
-        <div class="story-row" id="serialRow">
-            <div class="loading">Loading serial stories...</div>
+        <div class="story-row-container">
+            <div class="story-row" id="serialRow">
+                <div class="loading">Loading serial stories...</div>
+            </div>
         </div>
     </section>
 
