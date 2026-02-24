@@ -53,14 +53,16 @@
             color: #6b46c1;
         }
         
-        /* Story Grid for Top 10 */
+        /* Top 10 - Horizontal Scroll (not grid) */
         .story-grid-top10 {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            display: flex;
             gap: 1.5rem;
-            padding: 0 3rem;
-            max-width: 1400px;
-            margin: 0 auto;
+            padding: 0 3rem 1rem 3rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: #6b46c1 #e0e0e0;
+            scroll-behavior: smooth;
         }
         
         /* Horizontal Scroll Rows */
@@ -200,9 +202,7 @@
         /* Mobile Responsive */
         @media (max-width: 768px) {
             .story-grid-top10 {
-                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-                gap: 1rem;
-                padding: 0 1.5rem;
+                padding: 0 1.5rem 1rem 1.5rem;
             }
             
             .story-row {
