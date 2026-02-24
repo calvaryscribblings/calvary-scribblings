@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BAFTA 2026: Winners, the Controversial Moment Everyone is Talking About - Calvary Scribblings</title>
+    <link rel="stylesheet" href="../styles.css">
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    
+    <style>
+        /* Cover Banner Style */
+        .story-cover-banner {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            min-height: 500px;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: flex-end;
+            margin-bottom: 3rem;
+        }
+        
+        .story-cover-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
+        }
+        
+        .story-cover-content {
+            position: relative;
+            z-index: 2;
+            padding: 3rem;
+            color: white;
+            width: 100%;
+        }
+        
+        .story-cover-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            line-height: 1.2;
+        }
+        
+        .story-cover-meta {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            text-shadow: 0 1px 5px rgba(0,0,0,0.5);
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin: 2rem 0 2rem 3rem;
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        
+        .back-link:hover {
+            color: #8b5cf6;
+        }
+        
+        .article-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .article-content {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            color: #333;
+        }
+        
+        .article-content p {
+            margin-bottom: 1.5rem;
+        }
+        
+        .article-content h2 {
+            font-size: 2rem;
+            color: #1a1a1a;
+            margin: 2.5rem 0 1.5rem 0;
+            border-bottom: 3px solid #6b46c1;
+            padding-bottom: 0.5rem;
+        }
+        
+        .article-content h3 {
+            font-size: 1.5rem;
+            color: #6b46c1;
+            margin: 2rem 0 1rem 0;
+        }
+        
+        .bbc-quote {
+            background: #f9f9f9;
+            border-left: 4px solid #6b46c1;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            font-style: italic;
+            color: #555;
+        }
+        
+        .winners-list {
+            margin: 1.5rem 0;
+        }
+        
+        .winner-category {
+            margin-bottom: 2rem;
+        }
+        
+        .winner-category h4 {
+            color: #6b46c1;
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .winner-category ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .winner-category li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .winner-category li.winner {
+            font-weight: 700;
+            color: #6b46c1;
+        }
+        
+        .hit-counter {
+            text-align: center;
+            padding: 2rem 0;
+            font-size: 1rem;
+            color: #666;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 3rem;
+        }
+        
+        @media (max-width: 768px) {
+            .story-cover-banner {
+                height: 60vh;
+                min-height: 400px;
+            }
+            
+            .story-cover-title {
+                font-size: 2rem;
+            }
+            
+            .story-cover-content {
+                padding: 2rem;
+            }
+            
+            .back-link {
+                margin-left: 2rem;
+            }
+            
+            .article-content {
+                font-size: 1rem;
+            }
+            
+            .article-content h2 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <a class="logo" href="../index.html">
+                <div class="logo-icon"><span>S</span></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="../index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown">
+                            <li><a href="../news.html">News & Updates</a></li>
+                            <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="../short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="../serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="../poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="../index.html#about">About</a></li>
+                    <li><a href="../index.html#subscribe">Subscribe</a></li>
+                    <li><a href="../index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <a href="../news.html" class="back-link">← Back to News & Updates</a>
+
+    <!-- Cover Banner -->
+    <div class="story-cover-banner" style="background-image: url('../bafta-2026-cover.webp');">
+        <div class="story-cover-overlay"></div>
+        <div class="story-cover-content">
+            <h1 class="story-cover-title">BAFTA 2026: Winners, the Controversial Moment Everyone is Talking About</h1>
+            <div class="story-cover-meta">By Chioma Okonkwo · News · Feb 23, 2026</div>
+        </div>
+    </div>
+
+    <div class="article-container">
+        <article class="article-content">
+            <p>The 2026 BAFTA Film Awards took place on the 22nd of February at the Royal Festival Hall in London, England, bringing together Hollywood's finest for a night of celebration and recognition.</p>
+
+            <p>A-list stars including Michael B. Jordan, Teyana Taylor, and Timothée Chalamet graced the red carpet in stunning ensembles, setting the tone for an unforgettable evening.</p>
+
+            <h3>The Controversial Moment</h3>
+
+            <p>However, the night wasn't without incident. During the Special Visual Effects category presentation by <em>Sinners</em> actors Michael B. Jordan and Delroy Lindo, a guest with Tourette's syndrome involuntarily shouted an offensive slur. The BBC issued a swift apology to both the actors and viewers:</p>
+
+            <div class="bbc-quote">
+                "Some viewers may have heard strong and offensive language during the BAFTA Film Awards. This arose from involuntary verbal tics associated with Tourette's syndrome, and as explained during the ceremony it was not intentional. We apologise that this was not edited out prior to broadcast and it will now be removed from the version on BBC iPlayer."
+            </div>
+
+            <h3>Ryan Coogler Makes History</h3>
+
+            <p>Despite the controversy, the evening belonged to Ryan Coogler, who made history as the first Black winner of the BAFTA Award for Best Original Screenplay. His film <em>Sinners</em> became the most decorated film by a Black director in BAFTA history, earning 13 nominations — the highest number ever for a film directed by a Black filmmaker.</p>
+
+            <h2>The Winners</h2>
+
+            <div class="winners-list">
+                <div class="winner-category">
+                    <h4>Best Film</h4>
+                    <ul>
+                        <li>Hamnet</li>
+                        <li>Marty Supreme</li>
+                        <li class="winner">One Battle After Another — WINNER</li>
+                        <li>Sentimental Value</li>
+                        <li>Sinners</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Director</h4>
+                    <ul>
+                        <li>Bugonia — Yorgos Lanthimos</li>
+                        <li>Hamnet — Chloé Zhao</li>
+                        <li>Marty Supreme — Josh Safdie</li>
+                        <li class="winner">One Battle After Another — Paul Thomas Anderson — WINNER</li>
+                        <li>Sentimental Value — Joachim Trier</li>
+                        <li>Sinners — Ryan Coogler</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Leading Actress</h4>
+                    <ul>
+                        <li class="winner">Jessie Buckley — Hamnet — WINNER</li>
+                        <li>Rose Byrne — If I Had Legs I'd Kick You</li>
+                        <li>Kate Hudson — Song Sung Blue</li>
+                        <li>Chase Infiniti — One Battle After Another</li>
+                        <li>Renate Reinsve — Sentimental Value</li>
+                        <li>Emma Stone — Bugonia</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Leading Actor</h4>
+                    <ul>
+                        <li class="winner">Robert Aramayo — I Swear — WINNER</li>
+                        <li>Timothée Chalamet — Marty Supreme</li>
+                        <li>Leonardo DiCaprio — One Battle After Another</li>
+                        <li>Ethan Hawke — Blue Moon</li>
+                        <li>Michael B. Jordan — Sinners</li>
+                        <li>Jesse Plemons — Bugonia</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Supporting Actress</h4>
+                    <ul>
+                        <li>Odessa A'zion — Marty Supreme</li>
+                        <li>Inga Ibsdotter Lilleaas — Sentimental Value</li>
+                        <li class="winner">Wunmi Mosaku — Sinners — WINNER</li>
+                        <li>Carey Mulligan — The Ballad of Wallis Island</li>
+                        <li>Teyana Taylor — One Battle After Another</li>
+                        <li>Emily Watson — Hamnet</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Supporting Actor</h4>
+                    <ul>
+                        <li>Benicio del Toro — One Battle After Another</li>
+                        <li>Jacob Elordi — Frankenstein</li>
+                        <li>Paul Mescal — Hamnet</li>
+                        <li>Peter Mullan — I Swear</li>
+                        <li class="winner">Sean Penn — One Battle After Another — WINNER</li>
+                        <li>Stellan Skarsgård — Sentimental Value</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Original Screenplay</h4>
+                    <ul>
+                        <li>I Swear — Kirk Jones</li>
+                        <li>Marty Supreme — Ronald Bronstein, Josh Safdie</li>
+                        <li>The Secret Agent — Kleber Mendonça Filho</li>
+                        <li>Sentimental Value — Eskil Vogt, Joachim Trier</li>
+                        <li class="winner">Sinners — Ryan Coogler — WINNER</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Adapted Screenplay</h4>
+                    <ul>
+                        <li>The Ballad of Wallis Island — Tom Basden, Tim Key</li>
+                        <li>Bugonia — Will Tracy</li>
+                        <li>Hamnet — Chloé Zhao, Maggie O'Farrell</li>
+                        <li class="winner">One Battle After Another — Paul Thomas Anderson — WINNER</li>
+                        <li>Pillion — Harry Lighton</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Outstanding British Film</h4>
+                    <ul>
+                        <li>28 Years Later</li>
+                        <li>The Ballad of Wallis Island</li>
+                        <li>Bridget Jones: Mad About the Boy</li>
+                        <li>Die My Love</li>
+                        <li>H Is for Hawk</li>
+                        <li class="winner">Hamnet — WINNER</li>
+                        <li>I Swear</li>
+                        <li>Mr Burton</li>
+                        <li>Pillion</li>
+                        <li>Steve</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Film Not in the English Language</h4>
+                    <ul>
+                        <li>It Was Just an Accident</li>
+                        <li>The Secret Agent</li>
+                        <li class="winner">Sentimental Value — WINNER</li>
+                        <li>Sirāt</li>
+                        <li>The Voice of Hind Rajab</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Animated Film</h4>
+                    <ul>
+                        <li>Elio</li>
+                        <li>Little Amélie</li>
+                        <li class="winner">Zootropolis 2 — WINNER</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Documentary</h4>
+                    <ul>
+                        <li>2000 Metres to Andriivka</li>
+                        <li>Apocalypse in the Tropics</li>
+                        <li>Cover-Up</li>
+                        <li class="winner">Mr Nobody Against Putin — WINNER</li>
+                        <li>The Perfect Neighbor</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>EE Rising Star Award (voted for by the public)</h4>
+                    <ul>
+                        <li class="winner">Robert Aramayo — WINNER</li>
+                        <li>Miles Caton</li>
+                        <li>Chase Infiniti</li>
+                        <li>Archie Madekwe</li>
+                        <li>Posy Sterling</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Original Score</h4>
+                    <ul>
+                        <li>Bugonia</li>
+                        <li>Frankenstein</li>
+                        <li>Hamnet</li>
+                        <li>One Battle After Another</li>
+                        <li class="winner">Sinners — WINNER</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Cinematography</h4>
+                    <ul>
+                        <li>Frankenstein</li>
+                        <li>Marty Supreme</li>
+                        <li class="winner">One Battle After Another — WINNER</li>
+                        <li>Sinners</li>
+                        <li>Train Dreams</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Editing</h4>
+                    <ul>
+                        <li>F1</li>
+                        <li>A House of Dynamite</li>
+                        <li>Marty Supreme</li>
+                        <li class="winner">One Battle After Another — WINNER</li>
+                        <li>Sinners</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Production Design</h4>
+                    <ul>
+                        <li class="winner">Frankenstein — WINNER</li>
+                        <li>Hamnet</li>
+                        <li>Marty Supreme</li>
+                        <li>One Battle After Another</li>
+                        <li>Sinners</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Costume Design</h4>
+                    <ul>
+                        <li class="winner">Frankenstein — WINNER</li>
+                        <li>Hamnet</li>
+                        <li>Marty Supreme</li>
+                        <li>Sinners</li>
+                        <li>Wicked: For Good</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Make-Up & Hair</h4>
+                    <ul>
+                        <li class="winner">Frankenstein — WINNER</li>
+                        <li>Hamnet</li>
+                        <li>Marty Supreme</li>
+                        <li>Sinners</li>
+                        <li>Wicked: For Good</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Sound</h4>
+                    <ul>
+                        <li class="winner">F1 — WINNER</li>
+                        <li>Frankenstein</li>
+                        <li>One Battle After Another</li>
+                        <li>Sinners</li>
+                        <li>Warfare</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Special Visual Effects</h4>
+                    <ul>
+                        <li class="winner">Avatar: Fire and Ash — WINNER</li>
+                        <li>F1</li>
+                        <li>Frankenstein</li>
+                        <li>How to Train Your Dragon</li>
+                        <li>The Lost Bus</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Casting</h4>
+                    <ul>
+                        <li class="winner">I Swear — WINNER</li>
+                        <li>Marty Supreme</li>
+                        <li>One Battle After Another</li>
+                        <li>Sentimental Value</li>
+                        <li>Sinners</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best British Short Film</h4>
+                    <ul>
+                        <li>Magid/Zafar</li>
+                        <li>Nostalgie</li>
+                        <li>Terence</li>
+                        <li class="winner">This Is Endometriosis — WINNER</li>
+                        <li>Welcome Home Freckles</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best British Short Animation</h4>
+                    <ul>
+                        <li>Cardboard</li>
+                        <li>Solstice</li>
+                        <li class="winner">Two Black Boys in Paradise — WINNER</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Best Children's and Family Film</h4>
+                    <ul>
+                        <li>Arco</li>
+                        <li class="winner">Boong — WINNER</li>
+                        <li>Lilo & Stitch</li>
+                        <li>Zootropolis 2</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Outstanding Debut by a British Writer, Director or Producer</h4>
+                    <ul>
+                        <li>The Ceremony — Jack King (director, writer), Hollie Bryan (producer), Lucy Meer (producer)</li>
+                        <li class="winner">My Father's Shadow — Akinola Davies Jr (director), Wale Davies (writer) — WINNER</li>
+                        <li>Pillion — Harry Lighton (director, writer)</li>
+                        <li>A Want in Her — Myrid Carten (director)</li>
+                        <li>Wasteman — Cal McMau (director), Hunter Andrews (writer), Eoin Doran (writer)</li>
+                    </ul>
+                </div>
+
+                <div class="winner-category">
+                    <h4>Outstanding British Contribution to Cinema Award</h4>
+                    <ul>
+                        <li class="winner">Clare Binns</li>
+                    </ul>
+                </div>
+            </div>
+
+        </article>
+
+        <!-- Hit Counter -->
+        <div class="hit-counter">
+            <span id="hitCounter">👁️ — hits</span>
+        </div>
+    </div>
+
+    <!-- Comments -->
+    <div style="max-width: 800px; margin: 3rem auto; padding: 0 2rem;">
+        <div id="disqus_thread"></div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="../news.html">News & Updates</a></li>
+                    <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="../creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="../flash.html">Flash Fiction</a></li>
+                    <li><a href="../short.html">Short Stories</a></li>
+                    <li><a href="../serial.html">Serial Stories</a></li>
+                    <li><a href="../poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="../index.html#subscribe">Newsletter</a></li>
+                    <li><a href="../index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="../scripts.js"></script>
+    
+    <!-- Firebase Hit Counter -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const hitCountRef = database.ref('stories/bafta-2026/hits');
+
+        // Increment hit count
+        hitCountRef.transaction((currentHits) => {
+            return (currentHits || 0) + 1;
+        }).then(() => {
+            // Display hit count
+            hitCountRef.on('value', (snapshot) => {
+                const hits = snapshot.val() || 0;
+                document.getElementById('hitCounter').textContent = `👁️ ${hits} hits`;
+            });
+        });
+    </script>
+
+    <!-- Disqus Comments -->
+    <script>
+        var disqus_config = function () {
+            this.page.url = 'https://calvaryscribblings.co.uk/stories/bafta-2026.html';
+            this.page.identifier = 'bafta-2026';
+        };
+        (function() {
+            var d = document, s = d.createElement('script');
+            s.src = 'https://calvaryscribblings.disqus.com/embed.js';
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+        })();
+    </script>
+
+</body>
+</html>
