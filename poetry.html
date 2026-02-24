@@ -9,13 +9,93 @@
       gtag('js', new Date());
       gtag('config', 'G-W3B4WHBM8B');
     </script>
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Poetry - Calvary Scribblings</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    
+    <style>
+        .category-hero {
+            background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%);
+            color: white;
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+        
+        .category-hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .category-hero p {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .stories-grid {
+            max-width: 1200px;
+            margin: 4rem auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 2rem;
+        }
+        
+        .story-card-category {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            text-decoration: none;
+            display: block;
+        }
+        
+        .story-card-category:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(107, 70, 193, 0.3);
+        }
+        
+        .story-card-category img {
+            width: 100%;
+            aspect-ratio: 2/3;
+            object-fit: cover;
+        }
+        
+        .story-card-info {
+            padding: 1.5rem;
+            background: white;
+        }
+        
+        .story-card-info h3 {
+            font-size: 1.5rem;
+            color: #1a1a1a;
+            margin-bottom: 0.5rem;
+        }
+        
+        .story-card-info .meta {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .category-hero h1 {
+                font-size: 2rem;
+            }
+            
+            .stories-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 1.5rem;
+            }
+        }
+    </style>
 </head>
 <body>
+
+    <!-- Header -->
     <header>
         <div class="header-content">
             <a class="logo" href="index.html">
@@ -51,30 +131,33 @@
         </div>
     </header>
 
-    <div class="page-hero">
-        <h2>📝 Poetry</h2>
+    <!-- Category Hero -->
+    <section class="category-hero">
+        <h1>📝 Poetry</h1>
         <p>Verses that capture emotion, beauty, and truth in carefully chosen words.</p>
-    </div>
-    <section class="section">
-        <div class="container">
-            <div class="empty-state fade-in">
-                <div class="icon">📝</div>
-                <h4>Poems Coming Soon</h4>
-                <p>Original poetry is being prepared. Check back soon or subscribe to be notified when we publish.</p>
-            </div>
-        </div>
     </section>
 
+    <!-- Stories Grid -->
+    <section class="stories-grid">
+        <a href="stories/mother-and-other-poems.html" class="story-card-category">
+            <img src="mother-poems-cover.png" alt="Mother and Other Poems">
+            <div class="story-card-info">
+                <h3>Mother and Other Poems</h3>
+                <div class="meta">By Calvary · Feb 22, 2026</div>
+            </div>
+        </a>
+    </section>
+
+    <!-- Footer -->
     <footer>
         <div class="footer-content">
             <div class="footer-section">
                 <h5>Calvary Scribblings</h5>
-                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire.</p>
             </div>
             <div class="footer-section">
                 <h5>Explore</h5>
                 <ul>
-                    <li><a href="index.html#stories">Latest Stories</a></li>
                     <li><a href="news.html">News & Updates</a></li>
                     <li><a href="inspiring.html">Inspiring Stories</a></li>
                     <li><a href="creative.html">Creative Writing</a></li>
@@ -94,15 +177,15 @@
                 <ul>
                     <li><a href="index.html#subscribe">Newsletter</a></li>
                     <li><a href="index.html#contact">Contact Us</a></li>
-                    <li><a href="index.html#contact">Submit a Story</a></li>
-                    <li><a href="#">Privacy Policy</a></li>
                 </ul>
             </div>
         </div>
         <div class="footer-bottom">
-            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+            <p>&copy; 2026 Calvary Scribblings. All rights reserved.</p>
         </div>
     </footer>
+
     <script src="scripts.js"></script>
+
 </body>
 </html>
