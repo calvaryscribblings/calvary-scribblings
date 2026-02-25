@@ -361,9 +361,6 @@
                 <input type="hidden" name="_subject" value="New Newsletter Subscription - Calvary Scribblings">
                 <button type="submit" class="btn btn-primary">Subscribe</button>
             </form>
-            <div id="newsletterSuccess" style="display:none; margin-top:1rem; color:#fff; font-family:'Cochin',Georgia,serif; font-size:1.1rem;">
-                ✓ Thank you for subscribing!
-            </div>
         </div>
     </section>
 
@@ -384,9 +381,6 @@
                     <input type="hidden" name="_subject" value="New Contact Form Submission - Calvary Scribblings">
                     <button type="submit" class="btn btn-primary" style="align-self:flex-start;">Send Message</button>
                 </form>
-                <div id="contactSuccess" style="display:none; margin-top:1rem; color:#6b46c1; font-family:'Cochin',Georgia,serif; font-size:1.1rem;">
-                    ✓ Your message has been sent. We'll be in touch soon.
-                </div>
             </div>
         </div>
     </section>
@@ -447,6 +441,17 @@
         
         // Story Database (will be populated dynamically from CMS later)
         const stories = [
+            {
+                id: 'john-davidson-bafta-tourettes',
+                title: 'The Man in the Middle of the Controversy: John Davidson Addresses BAFTAs Incident',
+                category: 'news',
+                categoryName: 'News',
+                url: 'stories/john-davidson-bafta-tourettes.html',
+                cover: 'john-davidson-bafta-cover.jpeg',
+                author: 'Chioma Okonkwo',
+                date: 'Feb 25, 2026',
+                firebasePath: 'stories/john-davidson-bafta-tourettes/hits'
+            },
             {
                 id: 'bafta-2026',
                 title: 'BAFTA 2026: Winners, the Controversial Moment Everyone is Talking About',
