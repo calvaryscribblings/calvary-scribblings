@@ -20,6 +20,20 @@ body {
     background-color: var(--white);
 }
 
+/* ===== TIMES NEW ROMAN FOR ALL ITALICIZED TEXT ===== */
+em, i, .italic, [style*="font-style: italic"], [style*="font-style:italic"] {
+    font-family: 'Times New Roman', Times, serif !important;
+}
+
+.article-content em,
+.article-content i,
+.story-content em,
+.story-content i,
+.quote-block {
+    font-family: 'Times New Roman', Times, serif !important;
+}
+/* ================================================== */
+
 /* HEADER */
 header {
     background-color: var(--white);
