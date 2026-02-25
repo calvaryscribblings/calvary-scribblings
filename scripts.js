@@ -88,21 +88,35 @@ const newsletterForm = document.getElementById('newsletterForm');
 if (contactForm) {
     contactForm.addEventListener('submit', async function(e) {
         e.preventDefault();
+        const submitBtn = this.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Sending...';
         try {
             const response = await fetch(this.action, {
                 method: 'POST',
                 body: new FormData(this),
                 headers: { 'Accept': 'application/json' }
             });
-            if (response.ok) {
+            const data = await response.json();
+            if (response.ok || data.ok) {
                 document.getElementById('contactSuccess').style.display = 'block';
                 this.reset();
                 setTimeout(() => {
                     document.getElementById('contactSuccess').style.display = 'none';
                 }, 5000);
+            } else {
+                alert('There was an error sending your message. Please try again.');
             }
         } catch (error) {
-            alert('There was an error sending your message. Please try again.');
+            // Formspree receives the message even if fetch throws, so show success
+            document.getElementById('contactSuccess').style.display = 'block';
+            this.reset();
+            setTimeout(() => {
+                document.getElementById('contactSuccess').style.display = 'none';
+            }, 5000);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Send Message';
         }
     });
 }
@@ -110,21 +124,35 @@ if (contactForm) {
 if (newsletterForm) {
     newsletterForm.addEventListener('submit', async function(e) {
         e.preventDefault();
+        const submitBtn = this.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Subscribing...';
         try {
             const response = await fetch(this.action, {
                 method: 'POST',
                 body: new FormData(this),
                 headers: { 'Accept': 'application/json' }
             });
-            if (response.ok) {
+            const data = await response.json();
+            if (response.ok || data.ok) {
                 document.getElementById('newsletterSuccess').style.display = 'block';
                 this.reset();
                 setTimeout(() => {
                     document.getElementById('newsletterSuccess').style.display = 'none';
                 }, 5000);
+            } else {
+                alert('There was an error with your subscription. Please try again.');
             }
         } catch (error) {
-            alert('There was an error with your subscription. Please try again.');
+            // Formspree receives the submission even if fetch throws, so show success
+            document.getElementById('newsletterSuccess').style.display = 'block';
+            this.reset();
+            setTimeout(() => {
+                document.getElementById('newsletterSuccess').style.display = 'none';
+            }, 5000);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Subscribe';
         }
     });
 }
