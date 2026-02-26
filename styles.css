@@ -27,8 +27,10 @@ em, i, .italic, [style*="font-style: italic"], [style*="font-style:italic"] {
 
 .article-content em,
 .article-content i,
+.article-content p.standalone,
 .story-content em,
 .story-content i,
+.story-cover-subtitle,
 .quote-block {
     font-family: 'Times New Roman', Times, serif !important;
 }
