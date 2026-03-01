@@ -41,6 +41,16 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     
     <style>
+        /* Section title links */
+        .section-title-link {
+            text-decoration: none;
+            display: block;
+        }
+        .section-title-link:hover .section-title-stories {
+            text-decoration: underline;
+            opacity: 0.85;
+        }
+
         /* Netflix-Style Story Rows - ADDITIONS ONLY */
         .story-section {
             padding: 3rem 0;
@@ -288,7 +298,7 @@
 
     <!-- NEWS & UPDATES -->
     <section class="story-section">
-        <h2 class="section-title-stories">📰 News & Updates</h2>
+        <a href="news.html" class="section-title-link"><h2 class="section-title-stories">📰 News &amp; Updates</h2></a>
         <div class="story-row" id="newsRow">
             <div class="loading">Loading news stories...</div>
         </div>
@@ -296,7 +306,7 @@
 
     <!-- INSPIRING STORIES -->
     <section class="story-section">
-        <h2 class="section-title-stories">✨ Inspiring Stories</h2>
+        <a href="inspiring.html" class="section-title-link"><h2 class="section-title-stories">✨ Inspiring Stories</h2></a>
         <div class="story-row" id="inspiringRow">
             <div class="loading">Loading inspiring stories...</div>
         </div>
@@ -304,7 +314,7 @@
 
     <!-- FLASH FICTION -->
     <section class="story-section">
-        <h2 class="section-title-stories">⚡ Flash Fiction</h2>
+        <a href="flash.html" class="section-title-link"><h2 class="section-title-stories">⚡ Flash Fiction</h2></a>
         <div class="story-row" id="flashRow">
             <div class="loading">Loading flash fiction...</div>
         </div>
@@ -312,7 +322,7 @@
 
     <!-- SHORT STORIES -->
     <section class="story-section">
-        <h2 class="section-title-stories">📚 Short Stories</h2>
+        <a href="short.html" class="section-title-link"><h2 class="section-title-stories">📚 Short Stories</h2></a>
         <div class="story-row" id="shortRow">
             <div class="loading">Loading short stories...</div>
         </div>
@@ -320,7 +330,7 @@
 
     <!-- POETRY -->
     <section class="story-section">
-        <h2 class="section-title-stories">✍️ Poetry</h2>
+        <a href="poetry.html" class="section-title-link"><h2 class="section-title-stories">✍️ Poetry</h2></a>
         <div class="story-row" id="poetryRow">
             <div class="loading">Loading poetry...</div>
         </div>
@@ -328,7 +338,7 @@
 
     <!-- SERIAL STORIES -->
     <section class="story-section">
-        <h2 class="section-title-stories">📖 Serial Stories</h2>
+        <a href="serial.html" class="section-title-link"><h2 class="section-title-stories">📖 Serial Stories</h2></a>
         <div class="story-row" id="serialRow">
             <div class="loading">Loading serial stories...</div>
         </div>
@@ -462,6 +472,17 @@
                 author: 'Chioma Okonkwo',
                 date: 'Feb 28, 2026',
                 firebasePath: 'stories/paramount-warner-bros-discovery/hits'
+            },
+            {
+                id: 'the-girl-who-sang-through-the-dark',
+                title: 'The Girl Who Sang Through the Dark',
+                category: 'inspiring',
+                categoryName: 'Inspiring',
+                url: 'stories/the-girl-who-sang-through-the-dark.html',
+                cover: 'the-girl-who-sang-through-the-dark-cover.jpg',
+                author: 'Tricia Ajax',
+                date: 'Feb 26, 2026',
+                firebasePath: 'stories/the-girl-who-sang-through-the-dark/hits'
             },
             {
                 id: 'john-davidson-bafta-tourettes',
