@@ -22,18 +22,8 @@
             padding: 4rem 2rem;
             text-align: center;
         }
-        
-        .category-hero h1 {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-        
-        .category-hero p {
-            font-size: 1.2rem;
-            opacity: 0.95;
-            max-width: 700px;
-            margin: 0 auto;
-        }
+        .category-hero h1 { font-size: 3rem; margin-bottom: 1rem; }
+        .category-hero p { font-size: 1.2rem; opacity: 0.95; max-width: 700px; margin: 0 auto; }
         
         .stories-grid {
             max-width: 1200px;
@@ -53,49 +43,23 @@
             text-decoration: none;
             display: block;
         }
-        
         .story-card-category:hover {
             transform: translateY(-10px);
             box-shadow: 0 10px 30px rgba(196, 30, 58, 0.3);
         }
-        
-        .story-card-category img {
-            width: 100%;
-            aspect-ratio: 16/9;
-            object-fit: cover;
-        }
-        
-        .story-card-info {
-            padding: 1.5rem;
-            background: white;
-        }
-        
-        .story-card-info h3 {
-            font-size: 1.5rem;
-            color: #1a1a1a;
-            margin-bottom: 0.5rem;
-        }
-        
-        .story-card-info .meta {
-            color: #666;
-            font-size: 0.9rem;
-        }
+        .story-card-category img { width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+        .story-card-info { padding: 1.5rem; background: white; }
+        .story-card-info h3 { font-size: 1.5rem; color: #1a1a1a; margin-bottom: 0.5rem; }
+        .story-card-info .meta { color: #666; font-size: 0.9rem; }
         
         @media (max-width: 768px) {
-            .category-hero h1 {
-                font-size: 2rem;
-            }
-            
-            .stories-grid {
-                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-                gap: 1.5rem;
-            }
+            .category-hero h1 { font-size: 2rem; }
+            .stories-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Header -->
     <header>
         <div class="header-content">
             <a class="logo" href="index.html">
@@ -131,14 +95,21 @@
         </div>
     </header>
 
-    <!-- Category Hero -->
     <section class="category-hero">
         <h1>📰 News & Updates</h1>
         <p>Stay informed with our coverage of important events and developments.</p>
     </section>
 
-    <!-- Stories Grid -->
     <section class="stories-grid">
+
+        <a href="stories/paramount-warner-bros-discovery.html" class="story-card-category">
+            <img src="paramount-warner-bros-discovery-cover.jpg" alt="Paramount and Warner Bros Discovery merger">
+            <div class="story-card-info">
+                <h3>Hollywood Reacts: Paramount Moves to Take Control of Warner Bros. Discovery</h3>
+                <div class="meta">By Chioma Okonkwo · Feb 28, 2026</div>
+            </div>
+        </a>
+
         <a href="stories/john-davidson-bafta-tourettes.html" class="story-card-category">
             <img src="john-davidson-bafta-cover.jpeg" alt="John Davidson at BAFTAs">
             <div class="story-card-info">
@@ -154,9 +125,9 @@
                 <div class="meta">By Chioma Okonkwo · Feb 23, 2026</div>
             </div>
         </a>
+
     </section>
 
-    <!-- Footer -->
     <footer>
         <div class="footer-content">
             <div class="footer-section">
@@ -194,6 +165,5 @@
     </footer>
 
     <script src="scripts.js"></script>
-
 </body>
 </html>
