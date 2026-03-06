@@ -64,35 +64,20 @@ header {
 }
 
 .logo-icon {
-    width: 50px;
-    height: 50px;
-    background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%);
-    border-radius: 8px;
+    width: 52px;
+    height: 52px;
+    background: none;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    color: var(--white);
-    font-size: 1.5rem;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
 }
 
-.logo-icon::before {
-    content: '';
-    position: absolute;
-    width: 25px;
-    height: 2px;
-    background: white;
-    transform: rotate(-45deg);
-    top: 50%;
-    left: 50%;
-    margin-left: -12.5px;
-    margin-top: -8px;
-    opacity: 0.9;
-}
+.logo-icon::before { display: none; }
 
-.logo-icon span { position: relative; z-index: 2; }
+.logo-icon span { display: none; }
 
 .logo-text h1 {
     font-size: 1.5rem;
