@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mother and Other Poems - Calvary Scribblings</title>
+    <link rel="stylesheet" href="../styles.css">
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    
+    <style>
+        .story-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        /* Cover Banner Style - matching Miss Lady and Early */
+        .story-cover-banner {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            min-height: 500px;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: flex-end;
+            margin-bottom: 3rem;
+        }
+        
+        .story-cover-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
+        }
+        
+        .story-cover-content {
+            position: relative;
+            z-index: 2;
+            padding: 3rem;
+            color: white;
+            width: 100%;
+        }
+        
+        .story-cover-title {
+            font-size: 4rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        
+        .story-cover-meta {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            text-shadow: 0 1px 5px rgba(0,0,0,0.5);
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin: 2rem 0 2rem 3rem;
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        
+        .back-link:hover {
+            color: #8b5cf6;
+        }
+        
+        .poem {
+            margin-bottom: 4rem;
+            padding: 2rem 0;
+        }
+        
+        .poem-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #6b46c1;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .poem-content { font-size: 1.15rem; line-height: 1.8; color: #333; }
+        
+        .poem-divider {
+            width: 100px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #6b46c1, transparent);
+            margin: 3rem auto;
+        }
+        
+        .hit-counter {
+            text-align: center;
+            padding: 2rem 0;
+            font-size: 1rem;
+            color: #666;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 3rem;
+        }
+        
+        @media (max-width: 768px) {
+            .story-cover-banner {
+                height: 60vh;
+                min-height: 400px;
+            }
+            
+            .story-cover-title {
+                font-size: 2.5rem;
+            }
+            
+            .story-cover-content {
+                padding: 2rem;
+            }
+            
+            .back-link {
+                margin-left: 2rem;
+            }
+            
+            .poem-title {
+                font-size: 1.5rem;
+            }
+            
+            .poem-content { font-size: 1.15rem; line-height: 1.8; color: #333; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <a class="logo" href="../index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="../logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="../index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown">
+                            <li><a href="../news.html">News & Updates</a></li>
+                            <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="../short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="../serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="../poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="../index.html#about">About</a></li>
+                    <li><a href="../index.html#subscribe">Subscribe</a></li>
+                    <li><a href="../index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <a href="../poetry.html" class="back-link">← Back to Poetry</a>
+
+    <!-- Cover Banner -->
+    <div class="story-cover-banner" style="background-image: url('../mother-poems-cover.PNG');">
+        <div class="story-cover-overlay"></div>
+        <div class="story-cover-content">
+            <h1 class="story-cover-title">Mother and Other Poems</h1>
+            <div class="story-cover-meta">By Calvary · Poetry Collection · Feb 22, 2026</div>
+        </div>
+    </div>
+
+    <div class="story-container">
+
+        <!-- Poem 1: Lost -->
+        <div class="poem">
+            <h2 class="poem-title">"Lost"</h2>
+            <div class="poem-content">If I could touch heaven's soul
+I could find the peace I need —
+The peace to love,
+To be loved,
+To hold my kind of love.
+
+Darkness comes at me like pure grace.
+I grieve in joy for what I've lost,
+My tears flowing like the unending
+Ocean current beneath desert sand.
+
+I lie in peace.
+I lie in conflict.
+I lie in the ever-present darkness
+That purifies my soul.
+Then I thought of you.
+But who are you?</div>
+        </div>
+
+        <div class="poem-divider"></div>
+
+        <!-- Poem 2: Mother -->
+        <div class="poem">
+            <h2 class="poem-title">"Mother"</h2>
+            <div class="poem-content">I'll endure the blood-freezing winter cold
+Rather than a single beam of your endless scold.
+Your love for me never grows old,
+But I used to think differently, feeling controlled.
+
+Benign are your wishes for me,
+But if only I had wishes of my own,
+I would create an alliance with your thoughts —
+Aligned in our path,
+We will never grow apart.
+
+Like every supermarket flower,
+You glow.
+Like the protection
+That comes with every piece of fabric,
+You never lay bare the nakedness
+That comes with my humanness.
+And just like forever,
+We have no end.
+
+History will remember the birth of me
+But never will it have a place for that pain —
+A pain you alone know,
+A knowledge which gave me breath,
+The breath of existence,
+An existence I live for you, Mum.</div>
+        </div>
+
+        <div class="poem-divider"></div>
+
+        <!-- Poem 3: Disarmed -->
+        <div class="poem">
+            <h2 class="poem-title">"Disarmed"</h2>
+            <div class="poem-content">She tells me I'm being cute every time we fight.
+I try to hold on to the fights,
+But she kills each one with that cute first line.
+
+I try to kill the fright that comes with this feeling,
+But I lost my will long before I even knew her.
+And she holds my will.
+She always has.</div>
+        </div>
+
+        <div class="poem-divider"></div>
+
+        <!-- Poem 4: Smile -->
+        <div class="poem">
+            <h2 class="poem-title">"Smile"</h2>
+            <div class="poem-content">Out in the mud
+We play with dirt but stay dainty.
+Out in the field
+We smile but stay sad.
+Out in the world
+We struggle, unravelling peace.
+Out in the struggle
+We live for the struggle.
+Out with my blood
+We tell the tale.</div>
+        </div>
+
+        <div class="poem-divider"></div>
+
+        <!-- Poem 5: Touch -->
+        <div class="poem">
+            <h2 class="poem-title">"Touch"</h2>
+            <div class="poem-content">The last time you touched my breast
+It was not the touch —
+It was the aftermath.
+
+The heat between my legs
+Made me surrender my will to resist.
+You weren't compelling,
+Neither were you tame.
+My woman place screamed for your touch,
+Its petals voluntarily spreading to meet your touch.
+
+It wasn't your suavity,
+It wasn't your beauty,
+It wasn't you —
+It was your touch.
+Oh love, touch me again.
+Do it again.
+One last touch
+And I will never ask again.
+What have you done to me with your touch?
+Just touch me again.
+One last touch.</div>
+        </div>
+
+        <div class="poem-divider"></div>
+
+        <!-- Poem 6: Tuesday -->
+        <div class="poem">
+            <h2 class="poem-title">"Tuesday"</h2>
+            <div class="poem-content">Slowly but surely the heart drifts home —
+Or so you thought.
+It's coming home —
+Or so you thought.
+She's coming home.
+All in your Tuesday thoughts.
+
+'I'm not sure about all this again,
+So I wouldn't want you thinking it could be real.
+I'm not sure if the feelings I have are strong enough or dying.
+It's been back and forth.
+I got tired of the cycle.
+This is a lot.
+And I can't say it's your fault.
+I don't even know.'
+All her Tuesday words.</div>
+        </div>
+
+        <!-- Hit Counter -->
+        <div class="hit-counter">
+            <span id="hitCounter">👁️ — hits</span>
+        </div>
+    </div>
+
+    <!-- Comments -->
+    <div style="max-width: 800px; margin: 3rem auto; padding: 0 2rem;">
+        <div id="disqus_thread"></div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="../news.html">News & Updates</a></li>
+                    <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="../creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="../flash.html">Flash Fiction</a></li>
+                    <li><a href="../short.html">Short Stories</a></li>
+                    <li><a href="../serial.html">Serial Stories</a></li>
+                    <li><a href="../poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="../index.html#subscribe">Newsletter</a></li>
+                    <li><a href="../index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="../scripts.js"></script>
+    
+    <!-- Firebase Hit Counter -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const hitCountRef = database.ref('stories/mother-and-other-poems/hits');
+
+        // Increment hit count
+        hitCountRef.transaction((currentHits) => {
+            return (currentHits || 0) + 1;
+        }).then(() => {
+            // Display hit count
+            hitCountRef.on('value', (snapshot) => {
+                const hits = snapshot.val() || 0;
+                document.getElementById('hitCounter').textContent = `👁️ ${hits} hits`;
+            });
+        });
+    </script>
+
+    <!-- Disqus Comments -->
+    <script>
+        var disqus_config = function () {
+            this.page.url = 'https://calvaryscribblings.co.uk/stories/mother-and-other-poems.html';
+            this.page.identifier = 'mother-and-other-poems';
+        };
+        (function() {
+            var d = document, s = d.createElement('script');
+            s.src = 'https://calvaryscribblings.disqus.com/embed.js';
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+        })();
+    </script>
+
+</body>
+</html>
