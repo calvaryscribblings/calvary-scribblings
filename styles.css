@@ -325,6 +325,17 @@ nav a:hover { color: var(--purple); }
 .page-hero p { font-size: 1.2rem; opacity: 0.9; max-width: 600px; margin: 0 auto; }
 
 /* STORY LIST */
+/* Story prose body — applied to all story pages for consistent rendering */
+.story-body {
+    font-size: 1.2rem;
+    line-height: 1.9;
+    color: var(--dark-gray);
+}
+
+.story-body p {
+    margin-bottom: 1.5rem;
+}
+
 .stories-list { display: flex; flex-direction: column; gap: 2rem; }
 
 .story-list-item {
