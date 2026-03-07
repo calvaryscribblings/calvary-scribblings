@@ -19,18 +19,36 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <style>
+        .back-link {
+            display: inline-block;
+            margin: 2rem 0 2rem 2rem;
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .back-link:hover { color: #8b5cf6; }
         .article-container {
             max-width: 800px;
             margin: 0 auto;
             padding: 2rem;
         }
-        .story-body {
+        .article-content {
             font-size: 1.15rem;
             line-height: 1.8;
-            color: #333333;
+            color: #333;
         }
-        .story-body p {
-            margin-bottom: 1.5rem;
+        .article-content p { margin-bottom: 1.5rem; }
+        .hit-counter {
+            text-align: center;
+            padding: 2rem 0;
+            font-size: 1rem;
+            color: #666;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 3rem;
+        }
+        @media (max-width: 768px) {
+            .article-content { font-size: 1rem; }
         }
     </style>
 </head>
@@ -75,15 +93,14 @@
             <div style="max-width:1200px;margin:0 auto;">
                 <h2 style="font-size:3rem;font-weight:700;margin-bottom:0.5rem;">Miss Lady</h2>
                 <p style="font-size:1.1rem;opacity:0.95;">By Calvary · Flash Fiction · Feb 17, 2026</p>
-            </div>
-        </div>
+            </article>
     </div>
     <div class="article-container">
         <div>
                 <a href="../flash.html" style="display:inline-flex;align-items:center;gap:0.5rem;color:var(--purple);text-decoration:none;font-size:1rem;margin-bottom:3rem;font-weight:600;display:inline-block;">
                     ← Back to Flash Fiction
                 </a>
-                <div class="story-body">
+                <article class="article-content">
                     <p>My eyes met hers before I had the chance to think about it.</p>
                     <p>I was seated in the rear of father's car, coming from a visit at Nkpor, Anambra State, held by the familiar traffic of Ekwulobia — mother in the passenger seat beside father, who was at the wheel. My window was wound up until I caught sight of her: a girl in a sweet white mini-gown punctuated with spots of black, moving through the slow-baked afternoon with an unhurried kind of certainty.</p>
                     <p>She had a fine mien — the kind that was difficult to escape. The haircut alone could trap a man. I wound down the glass and stared.</p>
@@ -150,8 +167,7 @@
                         })();
                     </script>
                     <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-                </div>
-        </div>
+                </article>
     </div>
 
     <footer>
