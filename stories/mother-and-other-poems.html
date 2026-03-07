@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -9,24 +8,13 @@
       gtag('js', new Date());
       gtag('config', 'G-W3B4WHBM8B');
     </script>
-    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mother and Other Poems - Calvary Scribblings</title>
     <link rel="stylesheet" href="../styles.css">
-    
-    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    
     <style>
-        .story-container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        
-        /* Cover Banner Style - matching Miss Lady and Early */
         .story-cover-banner {
             position: relative;
             width: 100%;
@@ -37,18 +25,12 @@
             background-repeat: no-repeat;
             display: flex;
             align-items: flex-end;
-            margin-bottom: 3rem;
         }
-        
         .story-cover-overlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            top: 0; left: 0; right: 0; bottom: 0;
             background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
         }
-        
         .story-cover-content {
             position: relative;
             z-index: 2;
@@ -56,55 +38,43 @@
             color: white;
             width: 100%;
         }
-        
-        .story-cover-title {
-            font-size: 4rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
-        }
-        
-        .story-cover-meta {
-            font-size: 1.2rem;
-            opacity: 0.95;
-            text-shadow: 0 1px 5px rgba(0,0,0,0.5);
-        }
-        
+        .story-cover-title { font-size: 4rem; font-weight: 700; margin-bottom: 1rem; }
+        .story-cover-meta { font-size: 1.1rem; opacity: 0.95; }
         .back-link {
             display: inline-block;
-            margin: 2rem 0 2rem 3rem;
+            margin: 2rem 0;
             color: #6b46c1;
             text-decoration: none;
             font-weight: 600;
-            transition: color 0.3s;
         }
-        
-        .back-link:hover {
-            color: #8b5cf6;
+        .back-link:hover { color: #8b5cf6; }
+        .article-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
         }
-        
         .poem {
             margin-bottom: 4rem;
-            padding: 2rem 0;
         }
-        
         .poem-title {
-            font-size: 1.8rem;
+            font-size: 1.5rem;
             font-weight: 700;
             color: #6b46c1;
             margin-bottom: 1.5rem;
             text-align: center;
         }
-        
-        .poem-content { font-size: 1.15rem; line-height: 1.8; color: #333; }
-        
+        .poem-content {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            color: #333;
+            white-space: pre-line;
+        }
         .poem-divider {
             width: 100px;
             height: 2px;
             background: linear-gradient(90deg, transparent, #6b46c1, transparent);
             margin: 3rem auto;
         }
-        
         .hit-counter {
             text-align: center;
             padding: 2rem 0;
@@ -113,36 +83,16 @@
             border-top: 2px solid #e0e0e0;
             margin-top: 3rem;
         }
-        
         @media (max-width: 768px) {
-            .story-cover-banner {
-                height: 60vh;
-                min-height: 400px;
-            }
-            
-            .story-cover-title {
-                font-size: 2.5rem;
-            }
-            
-            .story-cover-content {
-                padding: 2rem;
-            }
-            
-            .back-link {
-                margin-left: 2rem;
-            }
-            
-            .poem-title {
-                font-size: 1.5rem;
-            }
-            
-            .poem-content { font-size: 1.15rem; line-height: 1.8; color: #333; }
+            .story-cover-banner { height: 60vh; min-height: 400px; }
+            .story-cover-title { font-size: 2.5rem; }
+            .story-cover-content { padding: 2rem; }
+            .poem-content { font-size: 1rem; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Header -->
     <header>
         <div class="header-content">
             <a class="logo" href="../index.html">
@@ -161,7 +111,7 @@
                     <li class="has-dropdown">
                         <a href="#">Stories</a>
                         <ul class="dropdown">
-                            <li><a href="../news.html">News & Updates</a></li>
+                            <li><a href="../news.html">News &amp; Updates</a></li>
                             <li><a href="../inspiring.html">Inspiring Stories</a></li>
                             <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
                             <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
@@ -178,20 +128,18 @@
         </div>
     </header>
 
-    <a href="../poetry.html" class="back-link">← Back to Poetry</a>
-
-    <!-- Cover Banner -->
     <div class="story-cover-banner" style="background-image: url('../mother-poems-cover.PNG');">
         <div class="story-cover-overlay"></div>
         <div class="story-cover-content">
             <h1 class="story-cover-title">Mother and Other Poems</h1>
-            <div class="story-cover-meta">By Calvary · Poetry Collection · Feb 22, 2026</div>
+            <div class="story-cover-meta">By Calvary &middot; Poetry Collection &middot; Feb 22, 2026</div>
         </div>
     </div>
 
-    <div class="story-container">
+    <div class="article-container">
 
-        <!-- Poem 1: Lost -->
+        <a href="../poetry.html" class="back-link">&larr; Back to Poetry</a>
+
         <div class="poem">
             <h2 class="poem-title">"Lost"</h2>
             <div class="poem-content">If I could touch heaven's soul
@@ -215,7 +163,6 @@ But who are you?</div>
 
         <div class="poem-divider"></div>
 
-        <!-- Poem 2: Mother -->
         <div class="poem">
             <h2 class="poem-title">"Mother"</h2>
             <div class="poem-content">I'll endure the blood-freezing winter cold
@@ -248,7 +195,6 @@ An existence I live for you, Mum.</div>
 
         <div class="poem-divider"></div>
 
-        <!-- Poem 3: Disarmed -->
         <div class="poem">
             <h2 class="poem-title">"Disarmed"</h2>
             <div class="poem-content">She tells me I'm being cute every time we fight.
@@ -263,7 +209,6 @@ She always has.</div>
 
         <div class="poem-divider"></div>
 
-        <!-- Poem 4: Smile -->
         <div class="poem">
             <h2 class="poem-title">"Smile"</h2>
             <div class="poem-content">Out in the mud
@@ -280,7 +225,6 @@ We tell the tale.</div>
 
         <div class="poem-divider"></div>
 
-        <!-- Poem 5: Touch -->
         <div class="poem">
             <h2 class="poem-title">"Touch"</h2>
             <div class="poem-content">The last time you touched my breast
@@ -309,7 +253,6 @@ One last touch.</div>
 
         <div class="poem-divider"></div>
 
-        <!-- Poem 6: Tuesday -->
         <div class="poem">
             <h2 class="poem-title">"Tuesday"</h2>
             <div class="poem-content">Slowly but surely the heart drifts home —
@@ -330,28 +273,33 @@ I don't even know.'
 All her Tuesday words.</div>
         </div>
 
-        <!-- Hit Counter -->
         <div class="hit-counter">
-            <span id="hitCounter">👁️ — hits</span>
+            <span>👁️ </span><span id="hit-count">0</span> hits
         </div>
+
+        <div style="padding:1.5rem 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;border-top:1px solid #e0e0e0;margin-top:1rem;">
+            <span class="division-badge badge-short">Poetry</span>
+            <div style="font-size:0.95rem;color:#666;">By <strong>Calvary</strong> &middot; Feb 22, 2026</div>
+        </div>
+
+        <div style="margin-top:3rem;padding-top:2rem;border-top:2px solid #e0e0e0;">
+            <h3 style="font-size:2rem;font-weight:700;color:#6b46c1;margin-bottom:2rem;">Comments</h3>
+            <div id="disqus_thread"></div>
+        </div>
+
     </div>
 
-    <!-- Comments -->
-    <div style="max-width: 800px; margin: 3rem auto; padding: 0 2rem;">
-        <div id="disqus_thread"></div>
-    </div>
-
-    <!-- Footer -->
     <footer>
         <div class="footer-content">
             <div class="footer-section">
                 <h5>Calvary Scribblings</h5>
-                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire.</p>
+                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
             </div>
             <div class="footer-section">
                 <h5>Explore</h5>
                 <ul>
-                    <li><a href="../news.html">News & Updates</a></li>
+                    <li><a href="../index.html#stories">Latest Stories</a></li>
+                    <li><a href="../news.html">News &amp; Updates</a></li>
                     <li><a href="../inspiring.html">Inspiring Stories</a></li>
                     <li><a href="../creative.html">Creative Writing</a></li>
                 </ul>
@@ -374,13 +322,12 @@ All her Tuesday words.</div>
             </div>
         </div>
         <div class="footer-bottom">
-            <p>&copy; 2026 Calvary Scribblings. All rights reserved.</p>
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
         </div>
     </footer>
 
     <script src="../scripts.js"></script>
-    
-    <!-- Firebase Hit Counter -->
+
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
@@ -391,24 +338,16 @@ All her Tuesday words.</div>
             messagingSenderId: "1052137412283",
             appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
         };
-
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         const hitCountRef = database.ref('stories/mother-and-other-poems/hits');
-
-        // Increment hit count
-        hitCountRef.transaction((currentHits) => {
-            return (currentHits || 0) + 1;
-        }).then(() => {
-            // Display hit count
+        hitCountRef.transaction((currentHits) => (currentHits || 0) + 1).then(() => {
             hitCountRef.on('value', (snapshot) => {
-                const hits = snapshot.val() || 0;
-                document.getElementById('hitCounter').textContent = `👁️ ${hits} hits`;
+                document.getElementById('hit-count').textContent = snapshot.val() || 0;
             });
         });
     </script>
 
-    <!-- Disqus Comments -->
     <script>
         var disqus_config = function () {
             this.page.url = 'https://calvaryscribblings.co.uk/stories/mother-and-other-poems.html';
