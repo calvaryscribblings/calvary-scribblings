@@ -785,7 +785,7 @@
         function isNew(story) {
             const published = parseStoryDate(story.date);
             const age = (Date.now() - published.getTime()) / (1000 * 60 * 60 * 24);
-            return age <= 14;
+            return age <= 7;
         }
 
         function createStoryCard(story, rank = null) {
