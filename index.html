@@ -148,11 +148,21 @@
             border-color: #c4b5fd;
         }
 
-        .just-added-card-thumb {
-            width: 72px;
-            height: 88px;
-            object-fit: cover;
+        .just-added-card-thumb-wrap {
+            width: 80px;
+            min-width: 80px;
+            height: 100%;
+            min-height: 88px;
+            overflow: hidden;
             flex-shrink: 0;
+            align-self: stretch;
+        }
+
+        .just-added-card-thumb {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center top;
             display: block;
         }
 
@@ -811,7 +821,9 @@
             const sorted = [...allStories].sort((a, b) => parseStoryDate(b.date) - parseStoryDate(a.date)).slice(0, 5);
             container.innerHTML = sorted.map(story => `
                 <a href="${story.url}" class="just-added-card">
-                    <img src="${story.cover}" alt="${story.title}" class="just-added-card-thumb" onerror="this.src='https://via.placeholder.com/72x88?text=CS'">
+                    <div class="just-added-card-thumb-wrap">
+                        <img src="${story.cover}" alt="${story.title}" class="just-added-card-thumb" onerror="this.src='https://via.placeholder.com/80x88?text=CS'">
+                    </div>
                     <div class="just-added-card-body">
                         <div class="just-added-card-title">${story.title}</div>
                         <div class="just-added-card-meta">By ${story.author} · ${story.date}</div>
