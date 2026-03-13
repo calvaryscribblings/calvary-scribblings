@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -9,12 +8,12 @@
       gtag('js', new Date());
       gtag('config', 'G-W3B4WHBM8B');
     </script>
-    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>News & Updates - Calvary Scribblings</title>
     <link rel="stylesheet" href="styles.css">
-    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <style>
         .category-hero {
             background: linear-gradient(135deg, #c41e3a 0%, #e05c72 100%);
@@ -24,7 +23,7 @@
         }
         .category-hero h1 { font-size: 3rem; margin-bottom: 1rem; }
         .category-hero p { font-size: 1.2rem; opacity: 0.95; max-width: 700px; margin: 0 auto; }
-        
+
         .stories-grid {
             max-width: 1200px;
             margin: 4rem auto;
@@ -33,7 +32,7 @@
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 2rem;
         }
-        
+
         .story-card-category {
             position: relative;
             border-radius: 8px;
@@ -42,16 +41,41 @@
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             text-decoration: none;
             display: block;
+            background: white;
         }
         .story-card-category:hover {
             transform: translateY(-10px);
             box-shadow: 0 10px 30px rgba(196, 30, 58, 0.3);
         }
-        .story-card-category img { width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+        .story-card-category img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
         .story-card-info { padding: 1.5rem; background: white; }
-        .story-card-info h3 { font-size: 1.5rem; color: #1a1a1a; margin-bottom: 0.5rem; }
+        .story-card-info h3 { font-size: 1.3rem; color: #1a1a1a; margin-bottom: 0.5rem; line-height: 1.4; }
         .story-card-info .meta { color: #666; font-size: 0.9rem; }
-        
+
+        .new-badge-cat {
+            position: absolute;
+            top: 0.6rem;
+            right: 0.6rem;
+            background: linear-gradient(135deg, #6b46c1, #8b5cf6);
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            z-index: 6;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #999;
+            font-style: italic;
+            font-family: 'Cochin', Georgia, serif;
+            font-size: 1.1rem;
+        }
+
         @media (max-width: 768px) {
             .category-hero h1 { font-size: 2rem; }
             .stories-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; }
@@ -78,7 +102,7 @@
                     <li class="has-dropdown">
                         <a href="#">Stories</a>
                         <ul class="dropdown" id="storiesDropdown">
-                            <li><a href="news.html">News & Updates</a></li>
+                            <li><a href="news.html">News &amp; Updates</a></li>
                             <li><a href="inspiring.html">Inspiring Stories</a></li>
                             <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
                             <li><a href="flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
@@ -96,72 +120,25 @@
     </header>
 
     <section class="category-hero">
-        <h1>📰 News & Updates</h1>
+        <h1>📰 News &amp; Updates</h1>
         <p>Stay informed with our coverage of important events and developments.</p>
     </section>
 
-    <section class="stories-grid">
-
-        <a href="stories/macbook-neo.html" class="story-card-category">
-            <img src="macbook-neo-cover.PNG" alt="The All New MacBook Neo">
-            <div class="story-card-info">
-                <h3>The All New MacBook Neo!</h3>
-                <div class="meta">By Chioma Okonkwo · Mar 5, 2026</div>
-            </div>
-        </a>
-
-        <a href="stories/netflix-harry-styles.html" class="story-card-category">
-            <img src="netflix-harry-styles-cover.jpg" alt="Netflix Harry Styles One Night in Manchester">
-            <div class="story-card-info">
-                <h3>Netflix to Stream Harry Styles' New Album Performance Live: What It Means for the Platform</h3>
-                <div class="meta">By Chioma Okonkwo · Mar 3, 2026</div>
-            </div>
-        </a>
-
-        <a href="stories/paramount-wbd-plans.html" class="story-card-category">
-            <img src="paramount-wbd-plans-cover.jpg" alt="Paramount plans for the future">
-            <div class="story-card-info">
-                <h3>Following the Deal Agreements with WBD, Paramount Reveals Plans for the Future</h3>
-                <div class="meta">By Calvary · Mar 2, 2026</div>
-            </div>
-        </a>
-
-        <a href="stories/paramount-warner-bros-discovery.html" class="story-card-category">
-            <img src="paramount-warner-bros-discovery-cover.jpg" alt="Paramount and Warner Bros Discovery merger">
-            <div class="story-card-info">
-                <h3>Hollywood Reacts: Paramount Moves to Take Control of Warner Bros. Discovery</h3>
-                <div class="meta">By Chioma Okonkwo · Feb 28, 2026</div>
-            </div>
-        </a>
-
-        <a href="stories/john-davidson-bafta-tourettes.html" class="story-card-category">
-            <img src="john-davidson-bafta-cover.jpeg" alt="John Davidson at BAFTAs">
-            <div class="story-card-info">
-                <h3>The Man in the Middle: John Davidson Addresses BAFTAs Incident and Living with Tourette's Syndrome</h3>
-                <div class="meta">By Chioma Okonkwo · Feb 25, 2026</div>
-            </div>
-        </a>
-        
-        <a href="stories/bafta-2026.html" class="story-card-category">
-            <img src="bafta-2026-cover.webp" alt="BAFTA 2026">
-            <div class="story-card-info">
-                <h3>BAFTA 2026: Winners, the Controversial Moment Everyone is Talking About</h3>
-                <div class="meta">By Chioma Okonkwo · Feb 23, 2026</div>
-            </div>
-        </a>
-
-    </section>
+    <div class="stories-grid" id="storiesGrid">
+        <div class="loading">Loading stories...</div>
+    </div>
 
     <footer>
         <div class="footer-content">
             <div class="footer-section">
                 <h5>Calvary Scribblings</h5>
-                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire.</p>
+                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
             </div>
             <div class="footer-section">
                 <h5>Explore</h5>
                 <ul>
-                    <li><a href="news.html">News & Updates</a></li>
+                    <li><a href="index.html#stories">Latest Stories</a></li>
+                    <li><a href="news.html">News &amp; Updates</a></li>
                     <li><a href="inspiring.html">Inspiring Stories</a></li>
                     <li><a href="creative.html">Creative Writing</a></li>
                 </ul>
@@ -184,10 +161,69 @@
             </div>
         </div>
         <div class="footer-bottom">
-            <p>&copy; 2026 Calvary Scribblings. All rights reserved.</p>
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
         </div>
     </footer>
 
     <script src="scripts.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const stories = [
+            { id: 'this-is-nigeria', title: 'This is Nigeria', categoryName: 'Op-Ed', url: 'stories/this-is-nigeria.html', cover: 'this-is-nigeria-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 13, 2026', firebasePath: 'stories/this-is-nigeria/hits' },
+            { id: 'london-tube-strike', title: 'Another London Underground Strike!', categoryName: 'News', url: 'stories/london-tube-strike.html', cover: 'london-tube-strike-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026', firebasePath: 'stories/london-tube-strike/hits' },
+            { id: 'the-bride-box-office', title: 'Why The Bride Struggled at the Box Office Despite Its Bold Feminist Vision', categoryName: 'News', url: 'stories/the-bride-box-office.html', cover: 'the-bride-box-office-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026', firebasePath: 'stories/the-bride-box-office/hits' },
+            { id: 'macbook-neo', title: 'The All New MacBook Neo!', categoryName: 'Tech', url: 'stories/macbook-neo.html', cover: 'macbook-neo-cover.PNG', author: 'Chioma Okonkwo', date: 'Mar 5, 2026', firebasePath: 'stories/macbook-neo/hits' },
+            { id: 'netflix-harry-styles', title: "Netflix to Stream Harry Styles' New Album Performance Live: What It Means for the Platform", categoryName: 'News', url: 'stories/netflix-harry-styles.html', cover: 'netflix-harry-styles-cover.jpg', author: 'Chioma Okonkwo', date: 'Mar 4, 2026', firebasePath: 'stories/netflix-harry-styles/hits' },
+            { id: 'paramount-wbd-plans', title: 'Following the Deal Agreements with WBD, Paramount Reveals Plans for the Future', categoryName: 'News', url: 'stories/paramount-wbd-plans.html', cover: 'paramount-wbd-plans-cover.jpg', author: 'Calvary', date: 'Mar 2, 2026', firebasePath: 'stories/paramount-wbd-plans/hits' },
+            { id: 'paramount-warner-bros-discovery', title: 'Hollywood Reacts: Paramount Moves to Take Control of Warner Bros. Discovery', categoryName: 'News', url: 'stories/paramount-warner-bros-discovery.html', cover: 'paramount-warner-bros-discovery-cover.jpg', author: 'Chioma Okonkwo', date: 'Feb 28, 2026', firebasePath: 'stories/paramount-warner-bros-discovery/hits' },
+            { id: 'john-davidson-bafta-tourettes', title: "The Man in the Middle: John Davidson Addresses BAFTAs Incident and Living with Tourette's Syndrome", categoryName: 'News', url: 'stories/john-davidson-bafta-tourettes.html', cover: 'john-davidson-bafta-cover.jpeg', author: 'Chioma Okonkwo', date: 'Feb 25, 2026', firebasePath: 'stories/john-davidson-bafta-tourettes/hits' },
+            { id: 'bafta-2026', title: 'BAFTA 2026: Winners, the Controversial Moment Everyone is Talking About', categoryName: 'News', url: 'stories/bafta-2026.html', cover: 'bafta-2026-cover.webp', author: 'Chioma Okonkwo', date: 'Feb 23, 2026', firebasePath: 'stories/bafta-2026/hits' },
+        ];
+
+        function parseStoryDate(dateStr) { return new Date(dateStr); }
+        function isNew(story) {
+            const age = (Date.now() - parseStoryDate(story.date).getTime()) / (1000 * 60 * 60 * 24);
+            return age <= 7;
+        }
+
+        async function loadStories() {
+            const grid = document.getElementById('storiesGrid');
+            const storiesWithHits = await Promise.all(
+                stories.map(async (story) => {
+                    const snapshot = await database.ref(story.firebasePath).once('value');
+                    return { ...story, hits: snapshot.val() || 0 };
+                })
+            );
+
+            // Sort by date descending
+            storiesWithHits.sort((a, b) => parseStoryDate(b.date) - parseStoryDate(a.date));
+
+            grid.innerHTML = storiesWithHits.map(story => `
+                <a href="${story.url}" class="story-card-category">
+                    ${isNew(story) ? '<div class="new-badge-cat">New</div>' : ''}
+                    <img src="${story.cover}" alt="${story.title}" onerror="this.src='https://via.placeholder.com/280x157?text=CS'">
+                    <div class="story-card-info">
+                        <h3>${story.title}</h3>
+                        <div class="meta">By ${story.author} &middot; ${story.date} &middot; <em>${story.categoryName}</em></div>
+                    </div>
+                </a>
+            `).join('');
+        }
+
+        loadStories();
+    </script>
+
 </body>
 </html>

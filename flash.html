@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -12,10 +11,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flash Fiction - Calvary Scribblings</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        .category-hero {
+            background: linear-gradient(135deg, #c41e3a 0%, #e05c72 100%);
+            color: white;
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+        .category-hero h1 { font-size: 3rem; margin-bottom: 1rem; }
+        .category-hero p { font-size: 1.2rem; opacity: 0.95; max-width: 700px; margin: 0 auto; }
+        .stories-grid {
+            max-width: 1200px;
+            margin: 4rem auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 2rem;
+        }
+        .story-card-category {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            text-decoration: none;
+            display: block;
+            background: white;
+        }
+        .story-card-category:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(196, 30, 58, 0.3);
+        }
+        .story-card-category img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+        .story-card-info { padding: 1.5rem; background: white; }
+        .story-card-info h3 { font-size: 1.3rem; color: #1a1a1a; margin-bottom: 0.5rem; line-height: 1.4; }
+        .story-card-info .meta { color: #666; font-size: 0.9rem; }
+        .new-badge-cat {
+            position: absolute;
+            top: 0.6rem; right: 0.6rem;
+            background: linear-gradient(135deg, #6b46c1, #8b5cf6);
+            color: #fff;
+            font-size: 0.6rem; font-weight: 800;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            padding: 0.25rem 0.5rem; border-radius: 3px; z-index: 6;
+        }
+        .loading {
+            text-align: center; padding: 4rem 2rem;
+            color: #999; font-style: italic;
+            font-family: 'Cochin', Georgia, serif; font-size: 1.1rem;
+        }
+        @media (max-width: 768px) {
+            .category-hero h1 { font-size: 2rem; }
+            .stories-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; }
+        }
+    </style>
 </head>
 <body>
+
     <header>
         <div class="header-content">
             <a class="logo" href="index.html">
@@ -34,7 +89,7 @@
                     <li class="has-dropdown">
                         <a href="#">Stories</a>
                         <ul class="dropdown" id="storiesDropdown">
-                            <li><a href="news.html">News & Updates</a></li>
+                            <li><a href="news.html">News &amp; Updates</a></li>
                             <li><a href="inspiring.html">Inspiring Stories</a></li>
                             <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
                             <li><a href="flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
@@ -51,25 +106,14 @@
         </div>
     </header>
 
-    <div class="page-hero">
-        <h2>⚡ Flash Fiction</h2>
-        <p>Small in size, big in impact.</p>
-    </div>
-    <section class="section">
-        <div class="container">
-            <div class="stories-list">
-                <a href="stories/miss-lady.html" class="story-list-item fade-in" style="text-decoration:none;">
-                    <div class="story-list-thumb" style="background:url('B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png') center/cover no-repeat;"></div>
-                    <div class="story-list-content">
-                        <span class="division-badge badge-flash">Flash Fiction</span>
-                        <h4>Miss Lady</h4>
-                        <p>My eyes met hers before I had the chance to think about it — a girl in a sweet white mini-gown, moving through the slow-baked afternoon with an unhurried kind of certainty.</p>
-                        <div class="story-list-meta">By Calvary · Feb 17, 2026</div>
-                    </div>
-                </a>
-            </div>
-        </div>
+    <section class="category-hero">
+        <h1>⚡ Flash Fiction</h1>
+        <p>Complete stories told in 100 words or less.</p>
     </section>
+
+    <div class="stories-grid" id="storiesGrid">
+        <div class="loading">Loading stories...</div>
+    </div>
 
     <footer>
         <div class="footer-content">
@@ -81,7 +125,7 @@
                 <h5>Explore</h5>
                 <ul>
                     <li><a href="index.html#stories">Latest Stories</a></li>
-                    <li><a href="news.html">News & Updates</a></li>
+                    <li><a href="news.html">News &amp; Updates</a></li>
                     <li><a href="inspiring.html">Inspiring Stories</a></li>
                     <li><a href="creative.html">Creative Writing</a></li>
                 </ul>
@@ -100,8 +144,6 @@
                 <ul>
                     <li><a href="index.html#subscribe">Newsletter</a></li>
                     <li><a href="index.html#contact">Contact Us</a></li>
-                    <li><a href="index.html#contact">Submit a Story</a></li>
-                    <li><a href="#">Privacy Policy</a></li>
                 </ul>
             </div>
         </div>
@@ -109,6 +151,54 @@
             <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
         </div>
     </footer>
+
     <script src="scripts.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const stories = [
+            { id: 'miss-lady', title: `Miss Lady`, categoryName: 'Flash Fiction', url: 'stories/miss-lady.html', cover: 'B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png', author: 'Calvary', date: 'Feb 17, 2026', firebasePath: 'stories/miss-lady/hits' }
+        ];
+
+        function parseStoryDate(dateStr) { return new Date(dateStr); }
+        function isNew(story) {
+            const age = (Date.now() - parseStoryDate(story.date).getTime()) / (1000 * 60 * 60 * 24);
+            return age <= 7;
+        }
+
+        async function loadStories() {
+            const grid = document.getElementById('storiesGrid');
+            const storiesWithHits = await Promise.all(
+                stories.map(async (story) => {
+                    const snapshot = await database.ref(story.firebasePath).once('value');
+                    return { ...story, hits: snapshot.val() || 0 };
+                })
+            );
+            storiesWithHits.sort((a, b) => parseStoryDate(b.date) - parseStoryDate(a.date));
+            grid.innerHTML = storiesWithHits.map(story => `
+                <a href="${story.url}" class="story-card-category">
+                    ${isNew(story) ? '<div class="new-badge-cat">New</div>' : ''}
+                    <img src="${story.cover}" alt="${story.title}" onerror="this.src='https://via.placeholder.com/280x157?text=CS'">
+                    <div class="story-card-info">
+                        <h3>${story.title}</h3>
+                        <div class="meta">By ${story.author} &middot; ${story.date} &middot; <em>${story.categoryName}</em></div>
+                    </div>
+                </a>
+            `).join('');
+        }
+
+        loadStories();
+    </script>
+
 </body>
 </html>
