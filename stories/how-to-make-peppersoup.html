@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta property="og:title" content="How to Make Peppersoup">
+    <meta property="og:description" content="If life gives you pepper, my brother, make peppersoup. A meditation on adversity, resilience, and perspective.">
+    <meta property="og:image" content="https://calvaryscribblings.co.uk/peppersoup-cover.jpeg">
+    <meta property="og:url" content="https://calvaryscribblings.co.uk/stories/how-to-make-peppersoup.html">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Calvary Scribblings">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="How to Make Peppersoup">
+    <meta name="twitter:description" content="If life gives you pepper, my brother, make peppersoup. A meditation on adversity, resilience, and perspective.">
+    <meta name="twitter:image" content="https://calvaryscribblings.co.uk/peppersoup-cover.jpeg">
+    <title>How to Make Peppersoup - Calvary Scribblings</title>
+    <link rel="stylesheet" href="../styles.css">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        .story-cover-banner {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            min-height: 500px;
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: flex-end;
+        }
+        .story-cover-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.15) 55%, transparent 100%);
+        }
+        .story-cover-content {
+            position: relative;
+            z-index: 2;
+            padding: 3rem;
+            color: white;
+            width: 100%;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.9);
+        }
+        .story-cover-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.4; }
+        .story-cover-meta { font-size: 1rem; opacity: 0.95; }
+        .back-link {
+            display: inline-block;
+            margin: 2rem 0;
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .back-link:hover { color: #8b5cf6; }
+        .article-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .article-content {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            color: #333;
+        }
+        .article-content p { margin-bottom: 1.5rem; }
+
+        /* In-article images */
+        .article-image {
+            width: 100%;
+            margin: 2.5rem 0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .article-image img {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: cover;
+            border-radius: 10px;
+        }
+        .article-image figcaption {
+            font-size: 0.82rem;
+            color: #999;
+            font-style: italic;
+            margin-top: 0.6rem;
+            text-align: center;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        .hit-counter {
+            text-align: center;
+            padding: 2rem 0;
+            font-size: 1rem;
+            color: #666;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 3rem;
+        }
+        @media (max-width: 768px) {
+            .story-cover-banner { height: 60vh; min-height: 400px; }
+            .story-cover-title { font-size: 1.1rem; }
+            .story-cover-content { padding: 2rem; }
+            .article-content { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <a class="logo" href="../index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="../logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="../index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown">
+                            <li><a href="../news.html">News &amp; Updates</a></li>
+                            <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="../short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="../serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="../poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="../index.html#about">About</a></li>
+                    <li><a href="../index.html#subscribe">Subscribe</a></li>
+                    <li><a href="../index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <div class="story-cover-banner" style="background-image: url('../peppersoup-cover.jpeg');">
+        <div class="story-cover-overlay"></div>
+        <div class="story-cover-content">
+            <span class="division-badge badge-inspiring" style="display:inline-block;margin-bottom:0.75rem;">Inspiring</span>
+            <h1 class="story-cover-title">How to Make Peppersoup</h1>
+            <div class="story-cover-meta">By Ufedo Adaji &middot; Mar 15, 2026</div>
+        </div>
+    </div>
+
+    <div class="article-container">
+
+        <a href="../inspiring.html" class="back-link">&larr; Back to Inspiring Stories</a>
+
+        <article class="article-content">
+
+            <p>In African cuisine, we use a wide range of spices in preparing our meals. We use ginger, thyme, bouillon cubes, African mesquite (popularly known as <em>Ogiri/Okpehe</em> in Nigeria), locust beans, and crayfish, but the most prominent ingredient is pepper — in all its different forms and colours: Cameroon pepper, habanero pepper, chilli pepper, yellow Nsukka pepper, black pepper, cayenne pepper, Scotch bonnet peppers, bell peppers, and the like. However, in this context, pepper is not just the spicy vegetable we use in garnishing our meals; it signifies the embodiment of the emotional and mental sensation experienced when things don't go well.</p>
+
+            <figure class="article-image">
+                <img src="../peppersoup-spices.jpeg" alt="A spread of West African peppers and spices on a wooden table">
+                <figcaption>The building blocks of African flavour — and of resilience.</figcaption>
+            </figure>
+
+            <p>To mark the end of his tour around West Africa to strengthen Britain's ties to Commonwealth nations in November 2018, the then Prince Charles — now King Charles — held a press conference in Lagos, Nigeria, with a speech that sent the internet abuzz. No, it wasn't just what he said that sparked conversations but how he said it. At the end of his speech, he spoke in pidgin English, though the words couldn't bypass the old monarch's strong accent. He said: <em>'If life gives you pepper, my brother, make peppersoup!'</em> — a linguistic variant of the popular adage, 'When life gives you lemons, make lemonade' — but in our clime as Africans, we resonate more with pepper than lemons.</p>
+
+            <p>Prior to being popularised by the English monarch, this proverb has been around for ages and holds deep meaning that resonates across continents, race, and social class. You see, when we set goals or make plans, all we can envision is the 'ideal' outcome — one where we have our 'happily ever after'. Unfortunately, the road to an ideal outcome is not as straight as we envisage. I'll describe it as a congested steep road with potholes, sharp swerves, and intermittent bridges from the start of the journey till you arrive at your destination.</p>
+
+            <figure class="article-image">
+                <img src="../peppersoup-road.jpeg" alt="A winding dusty road through the African landscape at sunset">
+                <figcaption>The road to any destination worth reaching is rarely a straight one.</figcaption>
+            </figure>
+
+            <p>Even though dictionaries and scholars have tried to define it, the best explanation of the sensation of pepper is evident in a Yoruba woman's cooking. The heat from one spoon of Ofada sauce activating the sweat glands, causing one to pant ceaselessly in order to allow more air to cool the raging fire on the tongue, triggering all the body's cooling mechanisms all at once. Yeah, that's it.</p>
+
+            <p>We may have set goals and worked towards them, but efforts become futile when we don't achieve our proposed outcome. That's when you feel it — the burning mix of anger, destitution, confusion, and sadness. That's when you feel the pepper. Just like Newton's third law of motion that supports the principle of cause and effect, the cause — that which sets the ball rolling — is the occurrence of a challenge, whilst the proverbial pepper is the effect of a cause.</p>
+
+            <p>We all experience challenges one way or the other. It could be a single event that paralysed our plans — a setback — or a series of antagonistic events that lasts a period of time — adversity.</p>
+
+            <p>A setback is an event that occurs to cause a delay or hamper the continuation of a process. It can present as a disappointment, a delay, or a hiccup in plans. The reasons for this include mistakes, the result of eager acquisitiveness, impatience, and poorly thought-out plans or actions borne out of incompetence or lack of thorough research.</p>
+
+            <p>Let me paint you a picture. Imagine a normal, ordinary day. You're just going about your business as usual and you have your whole day planned out. But then, out of the blue, everything comes crumbling down. You lose your job, all your years of hard work down the drain; you're unable to pay your mortgage; you can't go to school; and the worst part is you don't know when it will end. The whole world experienced this quagmire when COVID-19 hit.</p>
+
+            <p>Periods of adversity can bring levels of untold hardship. Like a chameleon, it wears many faces and can show up in different forms.</p>
+
+            <p>Physical adversity affects the body's ability to function optimally. It borders on things like illnesses, injuries, and disability. In the early 1960s, Abebe Bikila held the Ethiopian flag high with his brilliant record in track events. At age 28, he won his first-ever gold medal during the 1960 Olympics in Rome whilst running barefoot, making it in record time. To garner these accolades, his time on the track had to be short — but so was his career. In 1969, Abebe was involved in a car accident that resulted in complete paralysis, putting an end to his promising career completely.</p>
+
+            <figure class="article-image">
+                <img src="../peppersoup-shoes.jpeg" alt="Worn running shoes on a track at sunset">
+                <figcaption>A career cut short — Abebe Bikila's story is one of triumph shadowed by devastating physical adversity.</figcaption>
+            </figure>
+
+            <p>Emotional adversity wreaks havoc on a person's psyche. Rejection, grief, imposter syndrome, the loss of a loved one, and depression are the most common manifestations of emotional adversity. The mind is the membrane that binds the body and soul together. Once it is perturbed by the unexpected raging of deep pain, the membrane starts to deteriorate. According to the World Health Organisation report of March 2023, about 280 million people suffer from depression in our world today. There's no smoke without a fire; likewise, there's no depression without a precursor. When emotional adversity strikes, the mind and body are grossly affected.</p>
+
+            <figure class="article-image">
+                <img src="../peppersoup-grief.jpeg" alt="A man sitting alone by a window in grief">
+                <figcaption>280 million people live with depression — the most invisible and most devastating form of adversity.</figcaption>
+            </figure>
+
+            <p>Financial adversity entails experiencing difficulty in meeting living expenses due to little or no income and increased cost of living. It can also arise due to a failing business, legal issues, economic instability, unfavourable new policies, being duped, poverty, and job loss. Africa's foremost biobank also grappled with financial adversity. 54gene, a genomics research start-up launched to contribute African genomic data for the furtherance of medicine and healthcare, shut down in 2023 after an impressive four-year run. The unceremonious demise of this innovative company was due to financial difficulties that could not be resolved to keep the company afloat.</p>
+
+            <figure class="article-image">
+                <img src="../peppersoup-bowl.jpeg" alt="Fresh peppers and spices alongside a steaming bowl of peppersoup">
+                <figcaption>The pepper is real — but so is the soup you can make from it.</figcaption>
+            </figure>
+
+            <p>We've all experienced a setback before; some of us much more than others. Whether you're experiencing an extended period of adversity or receive a single blow from a setback, these unprecedented challenges affect us deeply.</p>
+
+            <p>A setback is like a two-edged sword — it can be an analyst or a catalyst depending on how you perceive it. I believe that the ability to bounce back after a setback and to stand strong in the face of adversities is embedded in one's perspective of the situation at hand.</p>
+
+            <p>If it is viewed as a failure, then disappointment sets in whilst demotivation and lacklustre follow suit. On the other hand, when we see it for what it is — a glitch in plans or a learning curve — then we can navigate a new path and maintain sturdiness whilst at it. A refined perspective allows you to view the glass as half full rather than half empty.</p>
+
+        </article>
+
+        <div class="hit-counter">
+            <span>👁️ </span><span id="hit-count">0</span> hits
+        </div>
+
+        <div style="padding:1.5rem 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;border-top:1px solid #e0e0e0;margin-top:1rem;">
+            <span class="division-badge badge-inspiring">Inspiring</span>
+            <div style="font-size:0.95rem;color:#666;">By <strong>Ufedo Adaji</strong> &middot; Mar 15, 2026</div>
+        </div>
+
+        <div style="margin-top:3rem;padding-top:2rem;border-top:2px solid #e0e0e0;">
+            <h3 style="font-size:2rem;font-weight:700;color:#6b46c1;margin-bottom:2rem;">Comments</h3>
+            <div id="disqus_thread"></div>
+        </div>
+
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="../index.html#stories">Latest Stories</a></li>
+                    <li><a href="../news.html">News &amp; Updates</a></li>
+                    <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="../creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="../flash.html">Flash Fiction</a></li>
+                    <li><a href="../short.html">Short Stories</a></li>
+                    <li><a href="../serial.html">Serial Stories</a></li>
+                    <li><a href="../poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="../index.html#subscribe">Newsletter</a></li>
+                    <li><a href="../index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="../scripts.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const hitCountRef = database.ref('stories/how-to-make-peppersoup/hits');
+        hitCountRef.transaction((currentHits) => (currentHits || 0) + 1).then(() => {
+            hitCountRef.on('value', (snapshot) => {
+                document.getElementById('hit-count').textContent = snapshot.val() || 0;
+            });
+        });
+    </script>
+
+    <script>
+        var disqus_config = function () {
+            this.page.url = 'https://calvaryscribblings.co.uk/stories/how-to-make-peppersoup.html';
+            this.page.identifier = 'how-to-make-peppersoup';
+        };
+        (function() {
+            var d = document, s = d.createElement('script');
+            s.src = 'https://calvaryscribblings.disqus.com/embed.js';
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+        })();
+    </script>
+
+</body>
+</html>
