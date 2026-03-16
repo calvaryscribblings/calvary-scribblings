@@ -403,6 +403,7 @@
     <script src="scripts.js"></script>
     <script>
         const stories = [
+            { id: 'oscars-2026', title: 'The Oscar Showdowns: Winning Films vs Their Biggest Competitors', category: 'news', categoryName: 'Film', url: 'stories/oscars-2026.html', cover: 'oscars-2026-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 16, 2026' },
             { id: 'how-to-make-peppersoup', title: 'How to Make Peppersoup', category: 'inspiring', categoryName: 'Inspiring', url: 'stories/how-to-make-peppersoup.html', cover: 'peppersoup-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 15, 2026' },
             { id: 'this-is-nigeria', title: 'This is Nigeria', category: 'news', categoryName: 'Op-Ed', url: 'stories/this-is-nigeria.html', cover: 'this-is-nigeria-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 13, 2026' },
             { id: 'london-tube-strike', title: 'Another London Underground Strike!', category: 'news', categoryName: 'News', url: 'stories/london-tube-strike.html', cover: 'london-tube-strike-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026' },
@@ -421,7 +422,7 @@
             { id: 'miss-lady', title: 'Miss Lady', category: 'flash', categoryName: 'Flash Fiction', url: 'stories/miss-lady.html', cover: 'B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png', author: 'Calvary', date: 'Feb 17, 2026' },
         ];
 
-        const suggestions = ['Nigeria', 'London', '1967', 'Calvary', 'Tricia Ajax', 'Ikenna Okpara', 'Poetry', 'Flash Fiction', 'BAFTA', 'Bride'];
+        const suggestions = ['Nigeria', 'London', '1967', 'Calvary', 'Tricia Ajax', 'Ikenna Okpara', 'Poetry', 'Flash Fiction', 'BAFTA', 'Oscars'];
 
         let activeFilter = 'all';
         let query = '';
@@ -467,7 +468,6 @@
                 return;
             }
 
-            const filterLabel = activeFilter === 'all' ? 'all categories' : activeFilter;
             meta.innerHTML = `Showing <strong>${results.length}</strong> result${results.length !== 1 ? 's' : ''} for "<strong>${q}</strong>"`;
 
             container.innerHTML = results.map(s => `
@@ -510,7 +510,6 @@
             doSearch();
         }
 
-        // Filter buttons
         document.getElementById('filterBar').addEventListener('click', e => {
             if (!e.target.classList.contains('filter-btn')) return;
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -519,10 +518,8 @@
             doSearch();
         });
 
-        // Live search
         input.addEventListener('input', doSearch);
 
-        // Check for ?q= in URL
         const urlParams = new URLSearchParams(window.location.search);
         const preQuery = urlParams.get('q');
         if (preQuery) {
@@ -532,7 +529,6 @@
             renderIdle();
         }
 
-        // Autofocus
         input.focus();
     </script>
 

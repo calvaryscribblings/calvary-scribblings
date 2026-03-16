@@ -254,23 +254,10 @@
             scroll-behavior: smooth;
         }
         
-        .story-row::-webkit-scrollbar {
-            height: 8px;
-        }
-        
-        .story-row::-webkit-scrollbar-track {
-            background: #e0e0e0;
-            border-radius: 10px;
-        }
-        
-        .story-row::-webkit-scrollbar-thumb {
-            background: #6b46c1;
-            border-radius: 10px;
-        }
-        
-        .story-row::-webkit-scrollbar-thumb:hover {
-            background: #8b5cf6;
-        }
+        .story-row::-webkit-scrollbar { height: 8px; }
+        .story-row::-webkit-scrollbar-track { background: #e0e0e0; border-radius: 10px; }
+        .story-row::-webkit-scrollbar-thumb { background: #6b46c1; border-radius: 10px; }
+        .story-row::-webkit-scrollbar-thumb:hover { background: #8b5cf6; }
         
         /* Story Card */
         .story-card {
@@ -294,26 +281,18 @@
             z-index: 10;
         }
         
-        .story-card-image {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+        .story-card-image { width: 100%; height: 100%; object-fit: cover; }
         
         .story-card-overlay {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 0; left: 0; right: 0;
             padding: 1.5rem;
             background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 60%, transparent 100%);
             transform: translateY(100%);
             transition: transform 0.3s ease;
         }
         
-        .story-card:hover .story-card-overlay {
-            transform: translateY(0);
-        }
+        .story-card:hover .story-card-overlay { transform: translateY(0); }
         
         .story-card-title {
             font-size: 1.1rem;
@@ -323,19 +302,13 @@
             font-family: 'Cochin', Georgia, serif;
         }
         
-        .story-card-meta {
-            font-size: 0.85rem;
-            opacity: 0.9;
-            color: #ccc;
-        }
+        .story-card-meta { font-size: 0.85rem; opacity: 0.9; color: #ccc; }
         
         /* Ranking Badge - ONLY for Top 10 */
         .ranking-badge {
             position: absolute;
-            top: 0.75rem;
-            left: 0.75rem;
-            width: 42px;
-            height: 42px;
+            top: 0.75rem; left: 0.75rem;
+            width: 42px; height: 42px;
             background: linear-gradient(135deg, #6b46c1, #8b5cf6);
             border-radius: 50%;
             display: flex;
@@ -367,7 +340,6 @@
         .badge-news { background: #dc2626; color: #fff; }
         .badge-inspiring { background: #f59e0b; color: #fff; }
         
-        /* Loading State */
         .loading {
             text-align: center;
             padding: 2rem;
@@ -376,25 +348,11 @@
             font-family: 'Cochin', Georgia, serif;
         }
         
-        /* Mobile Responsive */
         @media (max-width: 768px) {
-            .story-grid-top10 {
-                padding: 0 1.5rem 1rem 1.5rem;
-            }
-            
-            .story-row {
-                padding: 0 1.5rem 1rem 1.5rem;
-            }
-            
-            .story-card {
-                min-width: 160px;
-                width: 160px;
-            }
-            
-            .section-title-stories {
-                padding: 0 1.5rem;
-                font-size: 1.5rem;
-            }
+            .story-grid-top10 { padding: 0 1.5rem 1rem 1.5rem; }
+            .story-row { padding: 0 1.5rem 1rem 1.5rem; }
+            .story-card { min-width: 160px; width: 160px; }
+            .section-title-stories { padding: 0 1.5rem; font-size: 1.5rem; }
         }
     </style>
 </head>
@@ -419,7 +377,7 @@
                     <li class="has-dropdown">
                         <a href="#">Stories</a>
                         <ul class="dropdown" id="storiesDropdown">
-                            <li><a href="news.html">News & Updates</a></li>
+                            <li><a href="news.html">News &amp; Updates</a></li>
                             <li><a href="inspiring.html">Inspiring Stories</a></li>
                             <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
                             <li><a href="flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
@@ -448,7 +406,7 @@
         </div>
     </section>
 
-    <!-- TOP 10 STORIES -->
+    <!-- JUST ADDED -->
     <section class="just-added-section" id="just-added">
         <div class="just-added-header">
             <div class="just-added-pulse"></div>
@@ -459,6 +417,7 @@
         </div>
     </section>
 
+    <!-- TOP 10 -->
     <section class="story-section" id="stories">
         <h2 class="section-title-stories top-ten">📊 Top 10 Stories</h2>
         <div class="story-grid-top10" id="top10Grid">
@@ -525,7 +484,7 @@
             <div class="features-grid">
                 <a href="news.html" class="feature-card fade-in" style="text-decoration: none;">
                     <div class="feature-icon" style="background: linear-gradient(135deg, #c41e3a 0%, #e05c72 100%); color: white;">📰</div>
-                    <h4>News & Updates</h4>
+                    <h4>News &amp; Updates</h4>
                     <p>Stay informed with our coverage of important events and developments affecting our community.</p>
                 </a>
                 <a href="inspiring.html" class="feature-card fade-in" style="text-decoration: none;">
@@ -586,7 +545,7 @@
             <div class="footer-section">
                 <h5>Explore</h5>
                 <ul>
-                    <li><a href="news.html">News & Updates</a></li>
+                    <li><a href="news.html">News &amp; Updates</a></li>
                     <li><a href="inspiring.html">Inspiring Stories</a></li>
                     <li><a href="creative.html">Creative Writing</a></li>
                 </ul>
@@ -616,7 +575,6 @@
     <script src="scripts.js?v=20260224"></script>
     
     <script>
-        // Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
             authDomain: "calvary-scribblings.firebaseapp.com",
@@ -630,8 +588,18 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         
-        // Story Database (will be populated dynamically from CMS later)
         const stories = [
+            {
+                id: 'oscars-2026',
+                title: 'The Oscar Showdowns: Winning Films vs Their Biggest Competitors',
+                category: 'news',
+                categoryName: 'Film',
+                url: 'stories/oscars-2026.html',
+                cover: 'oscars-2026-cover.jpeg',
+                author: 'Chioma Okonkwo',
+                date: 'Mar 16, 2026',
+                firebasePath: 'stories/oscars-2026/hits'
+            },
             {
                 id: 'how-to-make-peppersoup',
                 title: 'How to Make Peppersoup',
@@ -810,7 +778,6 @@
             }
         ];
         
-        // Fetch hit counts and render stories
         async function loadStories() {
             const storiesWithHits = await Promise.all(
                 stories.map(async (story) => {
@@ -819,16 +786,10 @@
                 })
             );
             
-            // Sort by hits for Top 10
             const top10 = storiesWithHits.sort((a, b) => b.hits - a.hits).slice(0, 10);
             
-            // Render Just Added
             renderJustAdded(storiesWithHits);
-
-            // Render Top 10
             renderTop10(top10);
-            
-            // Render by category
             renderCategory('flash', storiesWithHits.filter(s => s.category === 'flash'), 'flashRow');
             renderCategory('short', storiesWithHits.filter(s => s.category === 'short'), 'shortRow');
             renderCategory('poetry', storiesWithHits.filter(s => s.category === 'poetry'), 'poetryRow');
@@ -837,14 +798,10 @@
             renderCategory('inspiring', storiesWithHits.filter(s => s.category === 'inspiring'), 'inspiringRow');
         }
         
-        // Parse "Mar 7, 2026" style dates
-        function parseStoryDate(dateStr) {
-            return new Date(dateStr);
-        }
+        function parseStoryDate(dateStr) { return new Date(dateStr); }
 
         function isNew(story) {
-            const published = parseStoryDate(story.date);
-            const age = (Date.now() - published.getTime()) / (1000 * 60 * 60 * 24);
+            const age = (Date.now() - parseStoryDate(story.date).getTime()) / (1000 * 60 * 60 * 24);
             return age <= 7;
         }
 
@@ -867,7 +824,6 @@
 
         function renderJustAdded(allStories) {
             const container = document.getElementById('justAddedRow');
-            // Sort by date descending, take 5 most recent
             const sorted = [...allStories].sort((a, b) => parseStoryDate(b.date) - parseStoryDate(a.date)).slice(0, 5);
             container.innerHTML = sorted.map(story => `
                 <a href="${story.url}" class="just-added-card">
@@ -885,26 +841,17 @@
         
         function renderTop10(stories) {
             const grid = document.getElementById('top10Grid');
-            if (stories.length === 0) {
-                grid.innerHTML = '<div class="loading">No stories yet. Check back soon!</div>';
-                return;
-            }
+            if (stories.length === 0) { grid.innerHTML = '<div class="loading">No stories yet. Check back soon!</div>'; return; }
             grid.innerHTML = stories.map((story, i) => createStoryCard(story, i + 1)).join('');
         }
         
         function renderCategory(category, stories, containerId) {
             const container = document.getElementById(containerId);
-            if (stories.length === 0) {
-                container.innerHTML = '<div class="loading">No stories in this category yet.</div>';
-                return;
-            }
+            if (stories.length === 0) { container.innerHTML = '<div class="loading">No stories in this category yet.</div>'; return; }
             container.innerHTML = stories.map(story => createStoryCard(story)).join('');
         }
         
-        // Load stories on page load
         loadStories();
-        
-        // Refresh every 30 seconds to update rankings
         setInterval(loadStories, 30000);
     </script>
 
@@ -915,8 +862,6 @@
                 navigator.serviceWorker.register('/service-worker.js')
                     .then(registration => {
                         console.log('Service Worker registered successfully:', registration.scope);
-
-                        // Ask for push notification permission after a short delay
                         setTimeout(() => {
                             if ('Notification' in window && Notification.permission === 'default') {
                                 Notification.requestPermission().then(permission => {
@@ -925,17 +870,13 @@
                             }
                         }, 5000);
                     })
-                    .catch(error => {
-                        console.log('Service Worker registration failed:', error);
-                    });
+                    .catch(error => { console.log('Service Worker registration failed:', error); });
             });
         }
         
-        // Detect if user is on iOS
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
         
-        // iOS Install Banner
         if (isIOS && !isInStandaloneMode) {
             const iosDismissed = localStorage.getItem('iosInstallDismissed');
             if (!iosDismissed || (Date.now() - parseInt(iosDismissed)) > 7 * 24 * 60 * 60 * 1000) {
@@ -953,11 +894,7 @@
                         <button id="iosDismissButton" style="background: transparent; color: white; border: 2px solid white; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">Got it</button>
                     </div>
                 `;
-                
-                setTimeout(() => {
-                    document.body.appendChild(iosInstallBanner);
-                }, 2000);
-                
+                setTimeout(() => { document.body.appendChild(iosInstallBanner); }, 2000);
                 document.addEventListener('click', (e) => {
                     if (e.target.id === 'iosDismissButton') {
                         localStorage.setItem('iosInstallDismissed', Date.now().toString());
@@ -967,7 +904,6 @@
             }
         }
         
-        // Android PWA Install Prompt
         let deferredPrompt;
         const installBanner = document.createElement('div');
         installBanner.id = 'installBanner';
@@ -991,13 +927,10 @@
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
-            
             if (localStorage.getItem('installDismissed')) {
-                const dismissedTime = parseInt(localStorage.getItem('installDismissed'));
-                const daysSince = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
+                const daysSince = (Date.now() - parseInt(localStorage.getItem('installDismissed'))) / (1000 * 60 * 60 * 24);
                 if (daysSince < 7) return;
             }
-            
             document.body.appendChild(installBanner);
             installBanner.style.display = 'block';
         });
@@ -1007,15 +940,11 @@
                 if (deferredPrompt) {
                     deferredPrompt.prompt();
                     deferredPrompt.userChoice.then((choiceResult) => {
-                        if (choiceResult.outcome === 'accepted') {
-                            console.log('User accepted the install prompt');
-                        }
                         deferredPrompt = null;
                         installBanner.style.display = 'none';
                     });
                 }
             }
-            
             if (e.target.id === 'dismissButton') {
                 localStorage.setItem('installDismissed', Date.now().toString());
                 installBanner.style.display = 'none';
@@ -1023,12 +952,7 @@
         });
         
         const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideUp {
-                from { transform: translateY(100%); }
-                to { transform: translateY(0); }
-            }
-        `;
+        style.textContent = `@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`;
         document.head.appendChild(style);
     </script>
 

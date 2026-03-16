@@ -185,6 +185,7 @@
         const database = firebase.database();
 
         const stories = [
+            { id: 'oscars-2026', title: 'The Oscar Showdowns: Winning Films vs Their Biggest Competitors', categoryName: 'Film', url: 'stories/oscars-2026.html', cover: 'oscars-2026-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 16, 2026', firebasePath: 'stories/oscars-2026/hits' },
             { id: 'this-is-nigeria', title: 'This is Nigeria', categoryName: 'Op-Ed', url: 'stories/this-is-nigeria.html', cover: 'this-is-nigeria-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 13, 2026', firebasePath: 'stories/this-is-nigeria/hits' },
             { id: 'london-tube-strike', title: 'Another London Underground Strike!', categoryName: 'News', url: 'stories/london-tube-strike.html', cover: 'london-tube-strike-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026', firebasePath: 'stories/london-tube-strike/hits' },
             { id: 'the-bride-box-office', title: 'Why The Bride Struggled at the Box Office Despite Its Bold Feminist Vision', categoryName: 'News', url: 'stories/the-bride-box-office.html', cover: 'the-bride-box-office-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026', firebasePath: 'stories/the-bride-box-office/hits' },
@@ -211,7 +212,6 @@
                 })
             );
 
-            // Sort by date descending
             storiesWithHits.sort((a, b) => parseStoryDate(b.date) - parseStoryDate(a.date));
 
             grid.innerHTML = storiesWithHits.map(story => `
