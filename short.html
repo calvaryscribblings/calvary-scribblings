@@ -171,9 +171,10 @@
         const database = firebase.database();
 
         const stories = [
-            { id: '1967', title: `1967`, categoryName: 'Short Story', url: 'stories/1967.html', cover: '1967-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 7, 2026', firebasePath: 'stories/1967/hits' },
-            { id: 'you-didnt-ask', title: `You Didn't Ask`, categoryName: 'Short Story', url: 'stories/you-didnt-ask.html', cover: 'you-didnt-ask-cover.jpg', author: 'Tricia Ajax', date: 'Mar 4, 2026', firebasePath: 'stories/you-didnt-ask/hits' },
-            { id: 'early', title: `Early`, categoryName: 'Short Story', url: 'stories/early.html', cover: 'early-cover.png', author: 'Calvary', date: 'Feb 18, 2026', firebasePath: 'stories/early/hits' }
+            { id: 'terms-and-conditions', title: 'Terms and Conditions', categoryName: 'Short Story', url: 'stories/terms-and-conditions.html', cover: 'terms-and-conditions-cover.jpeg', author: 'Tricia Ajax', date: 'Mar 18, 2026', firebasePath: 'stories/terms-and-conditions/hits' },
+            { id: '1967', title: '1967', categoryName: 'Short Story', url: 'stories/1967.html', cover: '1967-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 7, 2026', firebasePath: 'stories/1967/hits' },
+            { id: 'you-didnt-ask', title: "You Didn't Ask", categoryName: 'Short Story', url: 'stories/you-didnt-ask.html', cover: 'you-didnt-ask-cover.jpg', author: 'Tricia Ajax', date: 'Mar 4, 2026', firebasePath: 'stories/you-didnt-ask/hits' },
+            { id: 'early', title: 'Early', categoryName: 'Short Story', url: 'stories/early.html', cover: 'early-cover.png', author: 'Calvary', date: 'Feb 18, 2026', firebasePath: 'stories/early/hits' }
         ];
 
         function parseStoryDate(dateStr) { return new Date(dateStr); }
