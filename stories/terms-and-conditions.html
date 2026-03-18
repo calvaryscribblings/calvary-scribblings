@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta property="og:title" content="Terms and Conditions">
+    <meta property="og:description" content="He needed someone convincing. She needed ten million naira. Neither of them budgeted for what came next.">
+    <meta property="og:image" content="https://calvaryscribblings.co.uk/terms-and-conditions-cover.jpeg">
+    <meta property="og:url" content="https://calvaryscribblings.co.uk/stories/terms-and-conditions.html">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Calvary Scribblings">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Terms and Conditions">
+    <meta name="twitter:description" content="He needed someone convincing. She needed ten million naira. Neither of them budgeted for what came next.">
+    <meta name="twitter:image" content="https://calvaryscribblings.co.uk/terms-and-conditions-cover.jpeg">
+    <title>Terms and Conditions - Calvary Scribblings</title>
+    <link rel="stylesheet" href="../styles.css">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        .story-cover-banner {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            min-height: 500px;
+            background-size: cover;
+            background-position: center top;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: flex-end;
+        }
+        .story-cover-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.15) 55%, transparent 100%);
+        }
+        .story-cover-content {
+            position: relative;
+            z-index: 2;
+            padding: 3rem;
+            color: white;
+            width: 100%;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.9);
+        }
+        .story-cover-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.4; }
+        .story-cover-meta { font-size: 1rem; opacity: 0.95; }
+        .back-link {
+            display: inline-block;
+            margin: 2rem 0;
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .back-link:hover { color: #8b5cf6; }
+        .article-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .article-content {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            color: #333;
+        }
+        .article-content p { margin-bottom: 1.5rem; }
+        .hit-counter {
+            text-align: center;
+            padding: 2rem 0;
+            font-size: 1rem;
+            color: #666;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 3rem;
+        }
+        @media (max-width: 768px) {
+            .story-cover-banner { height: 60vh; min-height: 400px; }
+            .story-cover-title { font-size: 1.1rem; }
+            .story-cover-content { padding: 2rem; }
+            .article-content { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <a class="logo" href="../index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="../logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="../index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown">
+                            <li><a href="../news.html">News &amp; Updates</a></li>
+                            <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="../short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="../serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="../poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="../index.html#about">About</a></li>
+                    <li><a href="../index.html#subscribe">Subscribe</a></li>
+                    <li><a href="../index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <div class="story-cover-banner" style="background-image: url('../terms-and-conditions-cover.jpeg');">
+        <div class="story-cover-overlay"></div>
+        <div class="story-cover-content">
+            <span class="division-badge badge-short" style="display:inline-block;margin-bottom:0.75rem;">Short Story</span>
+            <h1 class="story-cover-title">Terms and Conditions</h1>
+            <div class="story-cover-meta">By Tricia Ajax &middot; Mar 18, 2026</div>
+        </div>
+    </div>
+
+    <div class="article-container">
+
+        <a href="../short.html" class="back-link">&larr; Back to Short Stories</a>
+
+        <article class="article-content">
+            <p>The ultimatum came on a Sunday, calmly delivered by his father over a meal, with the quiet authority of a man who had never needed to raise his voice to be obeyed.</p>
+            <p>'A wife, Caleb. By the end of the year. Or the inheritance goes to the foundation.'</p>
+            <p>'You can't be serious, Dad.'</p>
+            <p>'I've never been more serious. You work. You sleep. You work again. That is not a life, that is a sentence. I will not watch my only son disappear into boardrooms and leave nothing behind but a company.'</p>
+            <p>Caleb drove home in silence.</p>
+            <p>No girlfriend. No prospect of one. Relationships required time he didn't have and emotional availability he had long since misplaced.</p>
+            <p>He needed someone convincing. Someone his father would believe.</p>
+            <p>Zino's was Caleb's favourite restaurant. He had been going there for five years.</p>
+            <p>And that is where Nina worked as a cleaner.</p>
+            <p>He had noticed her the way you notice a painting in a room you pass through often. She was hard not to notice. She had the kind of face that made you look twice and then feel strangely caught, like you had been staring at something sacred. The gods, it seemed, had taken extra time with her. Her features carved with an unhurried precision, her skin smooth as glass. When she smiled, something in the room shifted. Even the most guarded men softened without knowing why. And her lips — soft, unhurried — looked like they had never once said anything unkind.</p>
+            <p>Caleb had always wondered how one person could carry that much beauty and still move through the world so gently.</p>
+            <p>He saw her on a Wednesday evening, standing outside Zino's after his dinner.</p>
+            <p>She was not smiling tonight.</p>
+            <p>She stood against the wall with her arms wrapped around herself, eyes swollen. He slowed. Something about the stillness of her — the way she was holding herself together by sheer will — made him stop entirely.</p>
+            <p>'Are you okay?' he asked.</p>
+            <p>She startled. Straightened. Wiped her face quickly with the back of her hand and looked at him with the practised composure of someone who had learnt long ago not to let people see too much.</p>
+            <p>'Yes, sir.' And then, almost immediately — 'Is there anything you want me to do for you?'</p>
+            <p>Caleb looked at her for a moment, then nodded slowly. 'I'll be in touch,' he said, and left.</p>
+            <p>The drive home was unusually fast — or perhaps it only felt that way because his mind was elsewhere.</p>
+            <p>Nina. Her face. He replayed it without meaning to.</p>
+            <p>'What a beauty,' he said out loud, to no one, as he lay on his bed staring at the ceiling.</p>
+            <p>Sleep that night was long and restless.</p>
+            <p>The next morning, he found himself driving to Zino's before he had fully decided to.</p>
+            <p>She was there. He took a corner table and asked for her — quietly, without spectacle. When she came over, uncertain, he gestured to the seat across from him.</p>
+            <p>'Sit. Please. Just for a moment.'</p>
+            <p>She sat, hands folded in her lap, watching him with careful eyes.</p>
+            <p>He ordered two drinks and told her plainly. He had a problem — his father, an inheritance, a deadline. He needed someone to play his wife for one year. He would pay her ten million naira. She would want for nothing. When the year ended, she would walk away free.</p>
+            <p>Nina was quiet for a long moment. She looked at the drink in front of her, then back at him.</p>
+            <p><em>What is he up to?</em> she thought. <em>Would I walk free after this — or is this some kind of trap?</em></p>
+            <p>Caleb watched her face and read it without difficulty. 'You'll be safe,' he said, his voice calm and certain. 'I give you my word. This is a business arrangement, not a cage. You'll have your own space, your own life within the year. No one will harm you.'</p>
+            <p>She nodded once — small, decided.</p>
+            <p>'Ten million naira,' she said. 'I'll do it.'</p>
+            <p>He took her to his lawyer that afternoon.</p>
+            <p>The contract was twelve pages. Nina read every word — slowly, carefully, running her finger along each line with a quiet thoroughness that made the lawyer shift in his seat and Caleb study her profile with something he told himself was just assessment.</p>
+            <p>She had questions. Sharp ones. She caught a clause on the third page that even the lawyer fumbled to explain, and when she looked up at Caleb with one eyebrow slightly raised, he felt the involuntary urge to impress her.</p>
+            <p><em>Intelligent,</em> he noted, and filed it away.</p>
+            <p>They signed.</p>
+            <p>'You keep whatever gifts you receive — from family, from friends, from me. After the year ends, you're free. Holiday anywhere you want. It's a fake marriage, not a prison.'</p>
+            <p>She moved into his house on a Friday.</p>
+            <p>One bag. A few books. A small plant in a terracotta pot that she carried like it was the most important thing she owned.</p>
+            <p>He showed her the guest room.</p>
+            <p>The months moved differently after Nina. She filled spaces without trying to. Something always smelt like it was cooking.</p>
+            <p>She was soft-spoken. She laughed easily. She learnt the staff's names and remembered them. She sat with his father at Sunday dinners and listened to his old stories with warmth.</p>
+            <p>'She's real,' his father told him one evening, gripping his arm. 'That one is real, Caleb.'</p>
+            <p>It's month eleven now. Past midnight.</p>
+            <p>Caleb watched Nina sleep. Peaceful.</p>
+            <p><em>It's a fake marriage, not a prison.</em> His own words. He had not thought everything through.</p>
+            <p>One month remained on the contract. Thirty days, and she would take her ten million naira and her plant and her quiet, unhurried presence and walk out of every room she had gently made feel like home. And the house would return to being exactly what it had always been — efficient, impersonal, his.</p>
+            <p>He would deserve every empty room. He had written the terms himself.</p>
+            <p>He reached over without thinking and pulled her blanket an inch higher. He was in love with her — he suddenly realised. And she had no idea.</p>
+            <p>He walked to the window and pressed his forehead to the cold glass.</p>
+            <p>Outside, the city moved. Inside, a man stood in the dark running out of time — holding feelings he'd never budgeted for and a contract he suddenly wished he'd never written.</p>
+            <p>One month. And neither of them knew the other had stopped pretending.</p>
+        </article>
+
+        <div class="hit-counter">
+            <span>👁️ </span><span id="hit-count">0</span> hits
+        </div>
+
+        <div style="padding:1.5rem 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;border-top:1px solid #e0e0e0;margin-top:1rem;">
+            <span class="division-badge badge-short">Short Story</span>
+            <div style="font-size:0.95rem;color:#666;">By <strong>Tricia Ajax</strong> &middot; Mar 18, 2026</div>
+        </div>
+
+        <div style="margin-top:3rem;padding-top:2rem;border-top:2px solid #e0e0e0;">
+            <h3 style="font-size:2rem;font-weight:700;color:#6b46c1;margin-bottom:2rem;">Comments</h3>
+            <div id="disqus_thread"></div>
+        </div>
+
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="../index.html#stories">Latest Stories</a></li>
+                    <li><a href="../news.html">News &amp; Updates</a></li>
+                    <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="../creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="../flash.html">Flash Fiction</a></li>
+                    <li><a href="../short.html">Short Stories</a></li>
+                    <li><a href="../serial.html">Serial Stories</a></li>
+                    <li><a href="../poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="../index.html#subscribe">Newsletter</a></li>
+                    <li><a href="../index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="../scripts.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const hitCountRef = database.ref('stories/terms-and-conditions/hits');
+        hitCountRef.transaction((currentHits) => (currentHits || 0) + 1).then(() => {
+            hitCountRef.on('value', (snapshot) => {
+                document.getElementById('hit-count').textContent = snapshot.val() || 0;
+            });
+        });
+    </script>
+
+    <script>
+        var disqus_config = function () {
+            this.page.url = 'https://calvaryscribblings.co.uk/stories/terms-and-conditions.html';
+            this.page.identifier = 'terms-and-conditions';
+        };
+        (function() {
+            var d = document, s = d.createElement('script');
+            s.src = 'https://calvaryscribblings.disqus.com/embed.js';
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+        })();
+    </script>
+
+</body>
+</html>
