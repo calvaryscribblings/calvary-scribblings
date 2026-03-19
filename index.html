@@ -857,7 +857,10 @@
 
         function renderJustAdded(allStories) {
             const container = document.getElementById('justAddedRow');
-            const sorted = [...allStories].sort((a, b) => parseStoryDate(b.date) - parseStoryDate(a.date)).slice(0, 5);
+            const sorted = [...allStories]
+                .map((s, i) => ({ ...s, _idx: i }))
+                .sort((a, b) => parseStoryDate(b.date) - parseStoryDate(a.date) || a._idx - b._idx)
+                .slice(0, 5);
             container.innerHTML = sorted.map(story => `
                 <a href="${story.url}" class="just-added-card">
                     <div class="just-added-card-thumb-wrap">
