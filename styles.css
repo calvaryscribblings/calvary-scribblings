@@ -31,7 +31,9 @@ em, i, .italic, [style*="font-style: italic"], [style*="font-style:italic"] {
 .story-content em,
 .story-content i,
 .story-cover-subtitle,
-.quote-block {
+.quote-block,
+.poem-collection-intro,
+.poem-contents p {
     font-family: 'Times New Roman', Times, serif !important;
 }
 /* ================================================== */
@@ -271,6 +273,7 @@ nav a:hover { color: var(--purple); }
 .badge-flash { background-color: #ede9fe; color: var(--creative-color); }
 .badge-short { background-color: #ede9fe; color: var(--creative-color); }
 .badge-serial { background-color: #ede9fe; color: var(--creative-color); }
+.badge-poetry { background-color: #ede9fe; color: var(--creative-color); }
 
 /* STORY CARDS */
 .stories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 2.5rem; }
@@ -325,7 +328,6 @@ nav a:hover { color: var(--purple); }
 .page-hero p { font-size: 1.2rem; opacity: 0.9; max-width: 600px; margin: 0 auto; }
 
 /* STORY LIST */
-/* Story prose body — applied to all story pages for consistent rendering */
 .story-body {
     font-size: 1.15rem;
     line-height: 1.8;
