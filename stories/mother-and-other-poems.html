@@ -31,7 +31,7 @@
             height: 70vh;
             min-height: 500px;
             background-size: cover;
-            background-position: center;
+            background-position: center top;
             background-repeat: no-repeat;
             display: flex;
             align-items: flex-end;
@@ -39,7 +39,7 @@
         .story-cover-overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
+            background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.15) 55%, transparent 100%);
         }
         .story-cover-content {
             position: relative;
@@ -47,9 +47,10 @@
             padding: 3rem;
             color: white;
             width: 100%;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.9);
         }
-        .story-cover-title { font-size: 4rem; font-weight: 700; margin-bottom: 1rem; }
-        .story-cover-meta { font-size: 1.1rem; opacity: 0.95; }
+        .story-cover-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.4; }
+        .story-cover-meta { font-size: 1rem; opacity: 0.95; }
         .back-link {
             display: inline-block;
             margin: 2rem 0;
@@ -63,27 +64,54 @@
             margin: 0 auto;
             padding: 2rem;
         }
-        .poem {
-            margin-bottom: 4rem;
-        }
-        .poem-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #6b46c1;
-            margin-bottom: 1.5rem;
-            text-align: center;
-        }
-        .poem-content {
+        .article-content {
             font-size: 1.15rem;
             line-height: 1.8;
             color: #333;
-            white-space: pre-line;
         }
-        .poem-divider {
-            width: 100px;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #6b46c1, transparent);
-            margin: 3rem auto;
+        .poem-collection-intro {
+            font-size: 1rem;
+            color: #888;
+            font-style: italic;
+            margin-bottom: 0.5rem;
+        }
+        .poem-contents {
+            background: #f9f7ff;
+            border-left: 3px solid #6b46c1;
+            padding: 1.25rem 1.5rem;
+            margin: 2rem 0 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .poem-contents p {
+            margin: 0;
+            font-size: 0.95rem;
+            color: #555;
+            font-style: italic;
+        }
+        .poem-contents ul {
+            margin: 0.5rem 0 0 1.25rem;
+            padding: 0;
+        }
+        .poem-contents ul li {
+            font-size: 0.95rem;
+            color: #6b46c1;
+            margin-bottom: 0.2rem;
+        }
+        .poem-block { margin-bottom: 4rem; }
+        .poem-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #6b46c1;
+            margin-bottom: 1.5rem;
+            font-family: 'Cochin', Georgia, serif;
+        }
+        .poem-stanza {
+            margin-bottom: 1.5rem;
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 1.1rem;
+            line-height: 1.9;
+            color: #333;
+            white-space: pre-line;
         }
         .hit-counter {
             text-align: center;
@@ -95,9 +123,9 @@
         }
         @media (max-width: 768px) {
             .story-cover-banner { height: 60vh; min-height: 400px; }
-            .story-cover-title { font-size: 2.5rem; }
+            .story-cover-title { font-size: 1.1rem; }
             .story-cover-content { padding: 2rem; }
-            .poem-content { font-size: 1rem; }
+            .poem-stanza { font-size: 1rem; }
         }
     </style>
 </head>
@@ -141,8 +169,9 @@
     <div class="story-cover-banner" style="background-image: url('../mother-poems-cover.PNG');">
         <div class="story-cover-overlay"></div>
         <div class="story-cover-content">
+            <span class="division-badge badge-poetry" style="display:inline-block;margin-bottom:0.75rem;">Poetry</span>
             <h1 class="story-cover-title">Mother and Other Poems</h1>
-            <div class="story-cover-meta">By Calvary &middot; Poetry Collection &middot; Feb 22, 2026</div>
+            <div class="story-cover-meta">By Calvary &middot; Feb 22, 2026</div>
         </div>
     </div>
 
@@ -150,9 +179,28 @@
 
         <a href="../poetry.html" class="back-link">&larr; Back to Poetry</a>
 
-        <div class="poem">
-            <h2 class="poem-title">"Lost"</h2>
-            <div class="poem-content">If I could touch heaven's soul
+        <article class="article-content">
+
+            <p class="poem-collection-intro">a collection of poems</p>
+
+            <div class="poem-contents">
+                <p>Contents</p>
+                <ul>
+                    <li>1. Lost</li>
+                    <li>2. Mother</li>
+                    <li>3. Disarmed</li>
+                    <li>4. Smile</li>
+                    <li>5. Touch</li>
+                    <li>6. Tuesday</li>
+                </ul>
+            </div>
+
+            <div style="width:100px;height:2px;background:linear-gradient(90deg,transparent,#6b46c1,transparent);margin:3rem auto;"></div>
+
+            <!-- LOST -->
+            <div class="poem-block">
+                <div class="poem-title">"Lost"</div>
+                <div class="poem-stanza">If I could touch heaven's soul
 I could find the peace I need —
 The peace to love,
 To be loved,
@@ -169,13 +217,14 @@ I lie in the ever-present darkness
 That purifies my soul.
 Then I thought of you.
 But who are you?</div>
-        </div>
+            </div>
 
-        <div class="poem-divider"></div>
+            <div style="width:100px;height:2px;background:linear-gradient(90deg,transparent,#6b46c1,transparent);margin:3rem auto;"></div>
 
-        <div class="poem">
-            <h2 class="poem-title">"Mother"</h2>
-            <div class="poem-content">I'll endure the blood-freezing winter cold
+            <!-- MOTHER -->
+            <div class="poem-block">
+                <div class="poem-title">"Mother"</div>
+                <div class="poem-stanza">I'll endure the blood-freezing winter cold
 Rather than a single beam of your endless scold.
 Your love for me never grows old,
 But I used to think differently, feeling controlled.
@@ -201,13 +250,14 @@ A pain you alone know,
 A knowledge which gave me breath,
 The breath of existence,
 An existence I live for you, Mum.</div>
-        </div>
+            </div>
 
-        <div class="poem-divider"></div>
+            <div style="width:100px;height:2px;background:linear-gradient(90deg,transparent,#6b46c1,transparent);margin:3rem auto;"></div>
 
-        <div class="poem">
-            <h2 class="poem-title">"Disarmed"</h2>
-            <div class="poem-content">She tells me I'm being cute every time we fight.
+            <!-- DISARMED -->
+            <div class="poem-block">
+                <div class="poem-title">"Disarmed"</div>
+                <div class="poem-stanza">She tells me I'm being cute every time we fight.
 I try to hold on to the fights,
 But she kills each one with that cute first line.
 
@@ -215,13 +265,14 @@ I try to kill the fright that comes with this feeling,
 But I lost my will long before I even knew her.
 And she holds my will.
 She always has.</div>
-        </div>
+            </div>
 
-        <div class="poem-divider"></div>
+            <div style="width:100px;height:2px;background:linear-gradient(90deg,transparent,#6b46c1,transparent);margin:3rem auto;"></div>
 
-        <div class="poem">
-            <h2 class="poem-title">"Smile"</h2>
-            <div class="poem-content">Out in the mud
+            <!-- SMILE -->
+            <div class="poem-block">
+                <div class="poem-title">"Smile"</div>
+                <div class="poem-stanza">Out in the mud
 We play with dirt but stay dainty.
 Out in the field
 We smile but stay sad.
@@ -231,13 +282,14 @@ Out in the struggle
 We live for the struggle.
 Out with my blood
 We tell the tale.</div>
-        </div>
+            </div>
 
-        <div class="poem-divider"></div>
+            <div style="width:100px;height:2px;background:linear-gradient(90deg,transparent,#6b46c1,transparent);margin:3rem auto;"></div>
 
-        <div class="poem">
-            <h2 class="poem-title">"Touch"</h2>
-            <div class="poem-content">The last time you touched my breast
+            <!-- TOUCH -->
+            <div class="poem-block">
+                <div class="poem-title">"Touch"</div>
+                <div class="poem-stanza">The last time you touched my breast
 It was not the touch —
 It was the aftermath.
 
@@ -259,13 +311,14 @@ And I will never ask again.
 What have you done to me with your touch?
 Just touch me again.
 One last touch.</div>
-        </div>
+            </div>
 
-        <div class="poem-divider"></div>
+            <div style="width:100px;height:2px;background:linear-gradient(90deg,transparent,#6b46c1,transparent);margin:3rem auto;"></div>
 
-        <div class="poem">
-            <h2 class="poem-title">"Tuesday"</h2>
-            <div class="poem-content">Slowly but surely the heart drifts home —
+            <!-- TUESDAY -->
+            <div class="poem-block">
+                <div class="poem-title">"Tuesday"</div>
+                <div class="poem-stanza">Slowly but surely the heart drifts home —
 Or so you thought.
 It's coming home —
 Or so you thought.
@@ -281,14 +334,16 @@ This is a lot.
 And I can't say it's your fault.
 I don't even know.'
 All her Tuesday words.</div>
-        </div>
+            </div>
+
+        </article>
 
         <div class="hit-counter">
             <span>👁️ </span><span id="hit-count">0</span> hits
         </div>
 
         <div style="padding:1.5rem 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;border-top:1px solid #e0e0e0;margin-top:1rem;">
-            <span class="division-badge badge-short">Poetry</span>
+            <span class="division-badge badge-poetry">Poetry</span>
             <div style="font-size:0.95rem;color:#666;">By <strong>Calvary</strong> &middot; Feb 22, 2026</div>
         </div>
 
