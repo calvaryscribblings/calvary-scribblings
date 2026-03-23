@@ -1,12 +1,6 @@
 import createMDX from '@next/mdx';
-import remarkGfm from 'remark-gfm';
 
-const withMDX = createMDX({
-  options: {
-    remarkPlugins: [remarkGfm],
-    rehypePlugins: [],
-  },
-});
+const withMDX = createMDX({});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -14,7 +8,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  output: 'export',
 };
 
 export default withMDX(nextConfig);
