@@ -84,39 +84,36 @@ function StoryCard({ story, width = 190, height = 270 }) {
 
 function JustAddedCard({ story }) {
   const [hovered, setHovered] = useState(false);
-  const badge = badgeStyle[story.category] || badgeStyle.news;
   return (
     <a href={story.url}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.85rem',
-        padding: '0.65rem 0.75rem', borderRadius: 8,
+        textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.75rem',
+        padding: '0.6rem 0.75rem', borderRadius: 8, flexShrink: 0,
         background: hovered ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.03)',
         border: hovered ? '1px solid rgba(139,92,246,0.25)' : '1px solid rgba(255,255,255,0.06)',
-        transition: 'all 0.25s ease', cursor: 'pointer',
+        transition: 'all 0.25s ease', width: 260, minWidth: 260,
       }}>
-      <div style={{ position: 'relative', flexShrink: 0 }}>
-        <img src={story.cover} alt={story.title}
-          style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 6, display: 'block', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }} />
-        {isNew(story) && (
-          <span style={{
-            position: 'absolute', top: -4, right: -4,
-            background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-            color: '#fff', fontSize: '0.45rem', fontWeight: 800,
-            letterSpacing: '0.1em', textTransform: 'uppercase',
-            padding: '0.15rem 0.35rem', borderRadius: 2,
-          }}>New</span>
-        )}
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <span style={{ ...badge, fontSize: '0.55rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.1rem 0.35rem', borderRadius: 2, display: 'inline-block', marginBottom: '0.3rem' }}>
-          {story.categoryName}
-        </span>
-        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e5e5e5', lineHeight: 1.3, marginBottom: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {story.title}
+      <img src={story.cover} alt={story.title}
+        style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#e8e0d4',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 6 }}>
+            {story.title}
+          </div>
+          {story.isNew && (
+            <span style={{
+              background: '#7c3aed', color: '#fff', fontSize: '0.6rem',
+              fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+              letterSpacing: '0.06em', flexShrink: 0,
+            }}>NEW</span>
+          )}
         </div>
-        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)' }}>{story.author} · {story.date}</div>
+        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.45)' }}>
+          By {story.author} · {story.date}
+        </div>
       </div>
     </a>
   );
@@ -124,7 +121,7 @@ function JustAddedCard({ story }) {
 
 function Row({ title, stories, seeAll }) {
   return (
-    <section style={{ padding: '1.5rem 0', marginBottom: '0.5rem' }}>
+    <section style={{ padding: '2rem 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 4%' }}>
         <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#e5e5e5', margin: 0 }}>{title}</h3>
         <a href={seeAll}
@@ -140,7 +137,53 @@ function Row({ title, stories, seeAll }) {
     </section>
   );
 }
+function Top10Card({ s, i }) {
+  const [active, setActive] = useState(false);
 
+  useEffect(() => {
+    if (!active) return;
+    const dismiss = () => setActive(false);
+    document.addEventListener('touchstart', dismiss, { once: true });
+    return () => document.removeEventListener('touchstart', dismiss);
+  }, [active]);
+
+  return (
+    <a href={s.url}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onTouchEnd={(e) => {
+        if (active) return;
+        e.preventDefault();
+        setActive(true);
+      }}
+      style={{
+        textDecoration: 'none', flexShrink: 0, width: 200,
+        display: 'flex', alignItems: 'flex-end', position: 'relative',
+        transform: active ? 'scale(1.04)' : 'scale(1)',
+        transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+        marginRight: '-1.5rem',
+      }}>
+      <span style={{
+        fontSize: '7rem', fontWeight: 900, color: 'transparent',
+        WebkitTextStroke: active ? '2px rgba(167,139,250,0.5)' : '2px rgba(255,255,255,0.1)',
+        lineHeight: 1, zIndex: 1, flexShrink: 0, width: 80,
+        transition: 'all 0.3s', fontFamily: 'Georgia, serif',
+        textShadow: active ? '0 0 30px rgba(124,58,237,0.3)' : 'none',
+      }}>{i + 1}</span>
+      <div style={{
+        borderRadius: 6, overflow: 'hidden', flex: 1,
+        boxShadow: active ? '0 20px 50px rgba(0,0,0,0.9), 0 0 0 1px rgba(124,58,237,0.3)' : '0 4px 20px rgba(0,0,0,0.6)',
+        transition: 'box-shadow 0.3s',
+      }}>
+        <img src={s.cover} alt={s.title} style={{
+          width: '100%', height: 260, objectFit: 'cover', display: 'block',
+          filter: active ? 'brightness(0.8)' : 'brightness(0.95)',
+          transition: 'filter 0.3s',
+        }} />
+      </div>
+    </a>
+  );
+}
 export default function Home() {
   const { user, logout } = useAuth();
 const [showAuth, setShowAuth] = useState(false);
@@ -391,52 +434,25 @@ const [showAuth, setShowAuth] = useState(false);
       </section>
 
       {/* Top 10 */}
-      <section style={{ padding: '2.5rem 0' }}>
-        <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#e5e5e5', margin: 0 }}>🔥 Top 10 Stories</h3>
-        </div>
-        <div style={{ display: 'flex', gap: '0rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
-          {top10.map((s, i) => {
-            const [hov, setHov] = useState(false);
-            return (
-              <a key={s.id} href={s.url}
-                onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-                style={{
-                  textDecoration: 'none', flexShrink: 0, width: 200,
-                  display: 'flex', alignItems: 'flex-end', position: 'relative',
-                  transform: hov ? 'scale(1.04)' : 'scale(1)',
-                  transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
-                  marginRight: '-1.5rem',
-                }}>
-                <span style={{
-                  fontSize: '7rem', fontWeight: 900, color: 'transparent',
-                  WebkitTextStroke: hov ? '2px rgba(167,139,250,0.5)' : '2px rgba(255,255,255,0.1)',
-                  lineHeight: 1, zIndex: 1, flexShrink: 0, width: 80,
-                  transition: 'all 0.3s', fontFamily: 'Georgia, serif',
-                  textShadow: hov ? '0 0 30px rgba(124,58,237,0.3)' : 'none',
-                }}>{i + 1}</span>
-                <div style={{
-                  borderRadius: 6, overflow: 'hidden', flex: 1,
-                  boxShadow: hov ? '0 20px 50px rgba(0,0,0,0.9), 0 0 0 1px rgba(124,58,237,0.3)' : '0 4px 20px rgba(0,0,0,0.6)',
-                  transition: 'box-shadow 0.3s',
-                }}>
-                  <img src={s.cover} alt={s.title} style={{ width: '100%', height: 260, objectFit: 'cover', display: 'block',
-                    filter: hov ? 'brightness(0.8)' : 'brightness(0.95)', transition: 'filter 0.3s' }} />
-                </div>
-              </a>
-            );
-          })}
-        </div>
-      </section>
+<section style={{ padding: '2.5rem 0' }}>
+  <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
+    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#e5e5e5', margin: 0 }}>🔥 Top 10 Stories</h3>
+  </div>
+  <div style={{ display: 'flex', gap: '0rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
+    {top10.map((s, i) => (
+      <Top10Card key={s.id} s={s} i={i} />
+    ))}
+  </div>
+</section>
+      
+        {/* Category Rows */}
+        <Row title="🗞️ News & Updates" stories={stories.filter(s => s.category === 'news')} seeAll="/news" />
+        <Row title="✨ Inspiring Stories" stories={stories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
+        <Row title="⚡ Flash Fiction" stories={stories.filter(s => s.category === 'flash')} seeAll="/flash" />
+        <Row title="📖 Short Stories" stories={stories.filter(s => s.category === 'short')} seeAll="/short" />
+        <Row title="🖊️ Poetry" stories={stories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
 
-      {/* Category Rows */}
-      <Row title="📰 News & Updates" stories={stories.filter(s => s.category === 'news')} seeAll="/news" />
-      <Row title="✨ Inspiring Stories" stories={stories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
-      <Row title="⚡ Flash Fiction" stories={stories.filter(s => s.category === 'flash')} seeAll="/flash" />
-      <Row title="📖 Short Stories" stories={stories.filter(s => s.category === 'short')} seeAll="/short" />
-      <Row title="✍️ Poetry" stories={stories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
-
-      {/* Subscribe */}
+{/* Subscribe */}
       <section id="subscribe" style={{
         padding: '6rem 4%', textAlign: 'center',
         background: 'linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(168,85,247,0.06) 100%)',
