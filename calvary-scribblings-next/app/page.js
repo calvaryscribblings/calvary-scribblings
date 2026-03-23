@@ -1,5 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from './lib/AuthContext';
+import AuthModal from './components/AuthModal';
 
 const stories = [
   { id: 'rise-and-shine', title: 'Rise and Shine', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/rise-and-shine', cover: '/rise-and-shine-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 21, 2026' },
@@ -140,6 +142,8 @@ function Row({ title, stories, seeAll }) {
 }
 
 export default function Home() {
+  const { user, logout } = useAuth();
+const [showAuth, setShowAuth] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [storiesOpen, setStoriesOpen] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
@@ -248,6 +252,30 @@ export default function Home() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             Search
           </a>
+          {user ? (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: '1rem' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      {user.photoURL ? (
+        <img src={user.photoURL} alt={user.displayName} style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid rgba(124,58,237,0.4)' }} />
+      ) : (
+        <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600, color: '#fff' }}>
+          {(user.displayName || user.email || '?')[0].toUpperCase()}
+        </div>
+      )}
+      <span style={{ fontSize: '0.8rem', color: 'rgba(232,224,212,0.7)', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {user.displayName || user.email}
+      </span>
+    </div>
+    <button onClick={logout} style={{ fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 3, padding: '0.3em 0.7em', color: 'rgba(232,224,212,0.45)', cursor: 'pointer' }}>
+      Sign Out
+    </button>
+  </div>
+) : (
+  <button onClick={() => setShowAuth(true)} style={{ marginLeft: '1rem', fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', background: '#7c3aed', border: 'none', borderRadius: 3, padding: '0.4em 1em', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+    Sign In
+  </button>
+)}
+{showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
         </div>
       </nav>
 
