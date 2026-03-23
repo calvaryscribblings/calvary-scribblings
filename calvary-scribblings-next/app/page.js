@@ -146,7 +146,7 @@ export default function Home() {
   const [heroTransition, setHeroTransition] = useState(true);
 
   const sorted = [...stories].map((s,i) => ({...s,_idx:i})).sort((a,b) => parseDate(b.date)-parseDate(a.date)||a._idx-b._idx);
-  const carouselStories = sorted.slice(0, 5);
+  const carouselStories = sorted.filter(s => s.category === 'news' || s.category === 'inspiring' || s.category === 'short').slice(0, 5);
   const justAdded = sorted.slice(0, 5);
   const top10 = [...stories].slice(0, 10);
 
@@ -260,7 +260,7 @@ export default function Home() {
             style={{
               position: 'absolute', inset: 0, width: '100%', height: '100%',
               objectFit: 'cover', objectPosition: 'center top',
-              filter: 'brightness(0.45)',
+              filter: 'brightness(0.35)',
               opacity: i === heroIndex ? (heroTransition ? 1 : 0) : 0,
               transition: 'opacity 0.7s ease',
               zIndex: 0,
@@ -268,7 +268,7 @@ export default function Home() {
         ))}
 
         {/* Gradients */}
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(105deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.2) 60%, transparent 100%)', zIndex: 1 }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(105deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.5) 60%, transparent 100%)', zIndex: 1 }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #0a0a0a 0%, transparent 45%)', zIndex: 1 }} />
 
         {/* Content */}
