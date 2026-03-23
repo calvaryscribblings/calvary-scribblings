@@ -115,11 +115,18 @@ export default function StoryPage({ params }) {
 
         .prose { font-size: 1.22rem; line-height: 1.85; color: #e8e0d4; font-weight: 400; }
         .prose p { margin-bottom: 1.8em; }
-        .prose p:first-child::first-letter { font-size: 4.5em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: 'Cormorant Garamond', Georgia, serif; }
+        .prose > p:first-of-type::first-letter { font-size: 4.5em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: 'Cormorant Garamond', Georgia, serif; }
         .prose em { font-style: italic; color: #c4b5a0; }
         .prose strong { font-weight: 600; color: #f0ebe2; }
         .prose hr { border: none; text-align: center; margin: 3em 0; color: rgba(232,224,212,0.2); letter-spacing: 0.4em; }
-        .prose hr::after { content: '· · ·'; }
+        .prose hr::after { content: '· · ·'; } .prose .poem-collection-intro { font-style: italic; font-family: 'Times New Roman', serif; }
+        .prose .poem-contents { border-left: 3px solid ${accentColor}; padding-left: 1.5em; margin: 1.5em 0; }
+        .prose .poem-contents ol, .prose .poem-contents li { font-style: italic; }
+        .prose .poem-stanza { font-family: 'Cormorant Garamond', Cochin, Georgia, serif; margin-bottom: 2em; }
+        .prose .poem-stanza p { margin-bottom: 0.3em; line-height: 1.7; }
+        .prose .poem-stanza p::first-letter { all: unset; }
+        .prose h3 { font-size: 1.2rem; font-style: italic; color: #c4b5a0; margin: 2em 0 0.5em; font-weight: 400; }
+        .prose > p:first-of-type::first-letter { ${story.category === 'poetry' ? 'all: unset;' : ''} }
         .prose blockquote { margin: 2.5em 0; padding: 1.5em 2em; border-left: 3px solid ${accentColor}; background: rgba(124,58,237,0.06); font-size: 1.3rem; font-style: italic; color: #c4b5a0; line-height: 1.7; border-radius: 0 4px 4px 0; }
 
         .story-footer { max-width: 680px; margin: 0 auto; padding: 2rem; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.06); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(232,224,212,0.6); gap: 1rem; flex-wrap: wrap; }
