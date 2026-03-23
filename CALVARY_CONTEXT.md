@@ -1,12 +1,12 @@
 # Calvary Scribblings — Full Project Context
-*Handoff document for new Claude session — last updated March 22, 2026*
+*Handoff document for new Claude session — last updated March 23, 2026*
 
 ---
 
 ## Platform Overview
 - **Site:** calvaryscribblings.co.uk
 - **Hosting:** Cloudflare Pages (from GitHub repo: calvaryscribblings/calvary-scribblings)
-- **Current stack:** Static HTML/CSS/JS
+- **Current stack:** Static HTML/CSS/JS (live site)
 - **Next.js migration:** IN PROGRESS — see Next.js section below
 - **Hit tracking:** Firebase Realtime Database
 - **Comments:** Disqus (calvaryscribblings.disqus.com)
@@ -27,33 +27,58 @@ messagingSenderId: "1052137412283"
 appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
 ```
 
-✅ **Firebase security rules FIXED** — updated to scoped rules (Mar 16, 2026):
-```json
-{
-  "rules": {
-    "stories": {
-      ".read": true,
-      ".write": true
-    }
-  }
-}
-```
+✅ Firebase security rules fixed and working.
 
 ---
 
-## Next.js Migration
-- **Status:** Project created and running in GitHub Codespaces
+## Next.js Migration — Status & Structure
+
+### Environment
 - **Codespace:** calvary-scribblings repo → Codespaces (silver robot)
-- **Next.js project folder:** `calvary-scribblings-next` (inside the Codespace workspace)
-- **Dev server:** runs on port 3000 via `npm run dev` from inside `calvary-scribblings-next`
-- **Setup used:** No TypeScript, ESLint yes, Tailwind CSS yes, No src/ dir, App Router yes, No Turbopack, No import alias customisation
-- **Next step:** Build the homepage in Next.js, then migrate all pages, then add Firebase Auth + Get Paid to Read features
-- **Deployment target:** Still Cloudflare Pages — will switch domain over when Next.js version is ready
+- **Next.js project folder:** `calvary-scribblings-next` (inside the Codespace at `/workspaces/calvary-scribblings/calvary-scribblings-next`)
+- **Dev server:** `cd /workspaces/calvary-scribblings/calvary-scribblings-next && npm run dev`
+- **Port:** 3000
+
+### Design Direction
+**"Netflix but for reading"** — cinematic dark mode, premium aesthetics, smooth hover effects, rich interactions. Background: `#0a0a0a`. Accent: purple `#7c3aed` / `#a855f7`. Font: Cochin/Georgia serif.
+
+### What's Built
+- ✅ `app/layout.js` — root layout with favicon
+- ✅ `app/globals.css` — clean dark mode base styles
+- ✅ `app/page.js` — full homepage with:
+  - Sticky navbar with scroll-aware background + Stories dropdown
+  - **Hero carousel** — auto-rotates every 6s through 5 most recent photographic stories (news/inspiring/short only), crossfade transition, dot indicators, prev/next arrows, thumbnail strip on right side
+  - **Just Added** — 5 slim horizontal cards with thumbnail + badge + title + author
+  - **Top 10** — Netflix-style with large ghost numbers overlapping covers
+  - **Category rows** — News, Inspiring, Flash Fiction, Short Stories, Poetry (each with See all →)
+  - **Subscribe section** — email input + button
+  - **Footer** — dark with logo, 4 column links
+- ✅ `app/lib/stories.js` — shared data file (all stories, parseDate, isNew, badgeStyle, categoryMeta)
+- ✅ `app/news/page.js` — News & Updates category page
+- ✅ `app/flash/page.js` — Flash Fiction category page
+- ✅ `app/short/page.js` — Short Stories category page
+- ✅ `app/poetry/page.js` — Poetry category page
+- ✅ `app/inspiring/page.js` — Inspiring Stories category page
+- ✅ `app/serial/page.js` — Serial Stories (Coming Soon state)
+
+### What's Next
+1. Test all category pages in preview
+2. Build individual story pages (`app/stories/[slug]/page.js`)
+3. Firebase Auth (Google + email/password login)
+4. Get Paid to Read features (leaderboard, quiz system)
+5. Deploy to Cloudflare Pages on new branch
+6. Switch domain when ready
+
+### Cover Images
+All cover images copied to `calvary-scribblings-next/public/` via:
+```
+cp /workspaces/calvary-scribblings/*cover* /workspaces/calvary-scribblings/calvary-scribblings-next/public/
+```
+Also copied: `logo-header.jpg`, `favicon.png`, `B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png`
 
 ---
 
 ## Get Paid to Read — Campaign Plan
-A reader engagement initiative. Full plan:
 
 ### Monthly Leaderboard (£25)
 - Top reader by total page reads at end of each month wins £25
@@ -63,39 +88,26 @@ A reader engagement initiative. Full plan:
 ### Bi-weekly Quiz (£25 / £15 / £10)
 - Top 3 scorers in story quizzes win prizes
 - Quiz structure per selected story:
-  1. **Hardball unlock question** — open text, manually reviewed by Ikenna, acts as AI-cheat deterrent and read verification
-  2. **15 MCQs** — a/b/c/d, one correct answer, auto-marked
+  1. **Hardball unlock question** — open text, manually reviewed by Ikenna
+  2. **15 MCQs** — a/b/c/d, auto-marked
   3. **3 theory questions** — written answers, manually reviewed
 - Results published one day before payment
-- Not every story has a quiz — selected stories only
+- Selected stories only (not every story)
 
 ### User Accounts
-- Required for leaderboard tracking and quiz participation
-- Auth method: Firebase Authentication (email/password + Google login)
-- All to be built in the Next.js version
+- Firebase Authentication: email/password + Google login
+- All to be built in Next.js version
 
 ### Payment
-- Manual bank transfer / PayPal by Ikenna to winners
-- No payment gateway needed
+- Manual bank transfer/PayPal by Ikenna to winners
 
 ---
 
-## File Structure (current static site)
-- Story HTML files → `stories/` folder in repo
-- All other files (covers, index.html, category pages, scripts.js, styles.css, etc.) → repo root
+## File Structure (current static site — still live)
+- Story HTML files → `stories/` folder in repo root
 - Cover images → repo root
-- Favicon → `favicon.png` in root
-
----
-
-## Key Files
-- `index.html` — Homepage with Top 10, Just Added strip, category rows
-- `scripts.js` — Hamburger menu, form handling, scroll animations
-- `styles.css` — Global styles (includes Times New Roman rule for italic text, badge-poetry fix)
-- `search.html` — Search engine (live search, category filters, keyword highlighting)
-- `news.html`, `inspiring.html`, `flash.html`, `short.html`, `poetry.html`, `serial.html`, `creative.html`, `offline.html` — Category pages
-- `logo-header.jpg` — Header logo used on all pages
-- `favicon.png` — Site favicon (purple S + fountain pen)
+- `favicon.png` → root
+- `logo-header.jpg` → root
 
 ---
 
@@ -120,15 +132,15 @@ A reader engagement initiative. Full plan:
 | How to Make Peppersoup | how-to-make-peppersoup.html | inspiring | Ufedo Adaji | Mar 15, 2026 | peppersoup-cover.jpeg |
 | This is Nigeria | this-is-nigeria.html | news (Op-Ed) | Ikenna Okpara | Mar 13, 2026 | this-is-nigeria-cover.jpeg |
 | Another London Underground Strike! | london-tube-strike.html | news | Chioma Okonkwo | Mar 10, 2026 | london-tube-strike-cover.jpeg |
-| Why The Bride Struggled at the Box Office... | the-bride-box-office.html | news | Chioma Okonkwo | Mar 10, 2026 | the-bride-box-office-cover.jpeg |
+| Why The Bride Struggled at the Box Office | the-bride-box-office.html | news | Chioma Okonkwo | Mar 10, 2026 | the-bride-box-office-cover.jpeg |
 | 1967 | 1967.html | short | Ikenna Okpara | Mar 7, 2026 | 1967-cover.jpeg |
 | You Didn't Ask | you-didnt-ask.html | short | Tricia Ajax | Mar 4, 2026 | you-didnt-ask-cover.jpg |
 | The All New MacBook Neo! | macbook-neo.html | news | Chioma Okonkwo | Mar 5, 2026 | macbook-neo-cover.PNG |
-| Netflix to Stream Harry Styles' New Album... | netflix-harry-styles.html | news | Chioma Okonkwo | Mar 4, 2026 | netflix-harry-styles-cover.jpg |
-| Following the Deal Agreements with WBD... | paramount-wbd-plans.html | news | Calvary | Mar 2, 2026 | paramount-wbd-plans-cover.jpg |
+| Netflix to Stream Harry Styles' New Album | netflix-harry-styles.html | news | Chioma Okonkwo | Mar 4, 2026 | netflix-harry-styles-cover.jpg |
+| Following the Deal Agreements with WBD | paramount-wbd-plans.html | news | Calvary | Mar 2, 2026 | paramount-wbd-plans-cover.jpg |
 | Hollywood Reacts: Paramount Moves... | paramount-warner-bros-discovery.html | news | Chioma Okonkwo | Feb 28, 2026 | paramount-warner-bros-discovery-cover.jpg |
 | The Girl Who Sang Through the Dark | the-girl-who-sang-through-the-dark.html | inspiring | Tricia Ajax | Feb 26, 2026 | the-girl-who-sang-through-the-dark-cover.jpg |
-| The Man in the Middle: John Davidson... | john-davidson-bafta-tourettes.html | news | Chioma Okonkwo | Feb 25, 2026 | john-davidson-bafta-cover.jpeg |
+| The Man in the Middle: John Davidson | john-davidson-bafta-tourettes.html | news | Chioma Okonkwo | Feb 25, 2026 | john-davidson-bafta-cover.jpeg |
 | BAFTA 2026: Winners... | bafta-2026.html | news | Chioma Okonkwo | Feb 23, 2026 | bafta-2026-cover.webp |
 | Mother and Other Poems | mother-and-other-poems.html | poetry | Calvary | Feb 22, 2026 | mother-poems-cover.PNG |
 | Early | early.html | short | Calvary | Feb 18, 2026 | early-cover.png |
@@ -136,103 +148,66 @@ A reader engagement initiative. Full plan:
 
 ---
 
-## Story Page Template Rules
+## Static Site — Story Page Template Rules
 Every story page must have:
 1. Google Analytics tag in `<head>`
-2. Favicon links: `<link rel="icon" type="image/png" href="../favicon.png">` and `<link rel="apple-touch-icon" href="../favicon.png">`
+2. Favicon: `<link rel="icon" type="image/png" href="../favicon.png">` and apple-touch-icon
 3. Full Open Graph + Twitter Card meta tags (absolute URLs)
 4. Firebase + Disqus SDK scripts
 5. Logo: `<div class="logo-icon" style="background:none;padding:0;"><img src="../logo-header.jpg" ...></div>`
-6. Cover banner: `.story-cover-banner` with gradient overlay, badge above title, title at `1.1–1.4rem` (NOT 3–4rem)
-7. Back link INSIDE `article-container`, below the banner (not above the banner)
+6. Cover banner: `.story-cover-banner` with gradient overlay, badge above title, title at `1.1–1.4rem`
+7. Back link INSIDE `article-container`, below the banner
 8. `article-container` + `article-content` structure
 9. Font: `1.15rem / 1.8 line-height` (mobile: `1rem`)
 10. Firebase hit counter using `id="hit-count"` pattern
 11. Footer meta row with badge + author/date
-12. Disqus comments with Comments heading
+12. Disqus comments
 13. Standard footer
-
-Story pages use `../` relative paths for assets. Category pages use root-relative paths.
-
----
-
-## Poetry Page Template Rules
-Poetry collections follow the same template PLUS:
-- `poem-collection-intro` class for "a collection of poems" subtitle (italic, Times New Roman via styles.css)
-- `poem-contents` block with purple left border listing poem titles
-- Purple gradient divider after contents block, before first poem
-- Purple gradient dividers between each poem
-- `poem-title` class for each poem title (Cochin, purple)
-- `poem-stanza` class for poem body text (Cochin — NOT Times New Roman)
-- Badge uses `badge-poetry` class (purple, defined in styles.css)
+14. Search `<li>` must be INSIDE the nav `<ul>`
 
 ---
 
-## Nav Structure (all pages)
-The Search link must be INSIDE the `<ul>` tag — it was previously floating outside causing misalignment on desktop. Fixed across all pages Mar 22, 2026.
-
-```html
-<ul>
-  <li>Home</li>
-  <li class="has-dropdown">Stories...</li>
-  <li>About</li>
-  <li>Subscribe</li>
-  <li>Contact</li>
-  <li><a href="search.html">Search (with SVG icon)</a></li>
-</ul>
-```
+## Poetry Page Template Rules (static site)
+- `poem-collection-intro` class for subtitle (italic, Times New Roman)
+- `poem-contents` block with purple left border
+- Purple gradient dividers between poems
+- `poem-stanza` class: Cochin (NOT Times New Roman)
+- Badge: `badge-poetry` (purple)
 
 ---
 
-## Homepage Features
-- **Just Added strip** — 5 most recent stories, stable sort using array index as tiebreaker for same-date stories
-- **Top 10** — sorted by Firebase hit count, horizontal scroll
-- **Category rows** — News, Inspiring, Flash, Short, Poetry, Serial
-- **NEW badge** — appears on cards for stories ≤7 days old (auto-expires)
+## Design System (static site)
+- **Primary purple:** `#6b46c1` | **Light purple:** `#8b5cf6`
+- **Body font:** Cochin/Georgia serif | **Italic text:** Times New Roman
+- **Section dividers:** `width:100px;height:2px;background:linear-gradient(90deg,transparent,#6b46c1,transparent);margin:3rem auto;`
+- **Cover banners:** gradient `rgba(0,0,0,0.88)` bottom to transparent, title `1.1–1.4rem`
 
----
-
-## Category Pages
-All dynamic — stories defined in a JS array at the bottom of each page. To add a new story: add entry to the array in the relevant category page AND in index.html AND in search.html.
-
----
-
-## Search Page (search.html)
-- Dark navy hero, live search, category filter pills
-- Keyword highlighting in results
-- Suggestion pills on idle screen
-- URL parameter support: `search.html?q=keyword`
-
----
-
-## Design System
-- **Primary purple:** `#6b46c1`
-- **Light purple:** `#8b5cf6`
-- **Accent/gradient:** `linear-gradient(135deg, #6b46c1, #8b5cf6)`
-- **Body font:** Cochin/Georgia serif
-- **Italic text:** Times New Roman (enforced globally in styles.css)
-- **Section dividers:** `<div style="width:100px;height:2px;background:linear-gradient(90deg,transparent,#6b46c1,transparent);margin:3rem auto;"></div>`
-- **Cover banners:** gradient overlay `rgba(0,0,0,0.88)` bottom to transparent, title `1.1–1.4rem`
-- **Category badges:** badge-news (red), badge-short (purple), badge-flash (purple), badge-poetry (purple), badge-inspiring (amber)
-- **styles.css includes:** Times New Roman rule for italics, badge-poetry definition, poem-collection-intro and poem-contents p font rules
+## Design System (Next.js)
+- **Background:** `#0a0a0a` | **Accent:** `#7c3aed` / `#a855f7` / `#c4b5fd`
+- **Font:** Cochin/Georgia serif
+- **Card hover:** `scale(1.05)` + purple glow box-shadow
+- **Navbar:** transparent → `rgba(10,10,10,0.96)` with blur on scroll
+- **Carousel:** photographic covers only (news/inspiring/short), excludes illustrated covers
 
 ---
 
 ## Known Issues / Resolved
-- ✅ Firebase security rules — fixed Mar 16
-- ✅ Nav search link misalignment — fixed Mar 22 across all pages
-- ✅ Favicon added to all pages — Mar 22
-- ✅ badge-poetry was missing from styles.css — fixed Mar 22
-- ✅ Just Added strip sort order for same-date stories — fixed with stable sort (array index tiebreaker)
-- ⚠️ Cloudflare cache can be slow to update — purge via dashboard when needed
+- ✅ Firebase security rules — fixed
+- ✅ Nav search link misalignment — fixed across all static pages
+- ✅ Favicon added to all static pages
+- ✅ badge-poetry missing from styles.css — fixed
+- ✅ Just Added strip stable sort — fixed
+- ✅ Poem stanza font (Cochin not Times) — fixed
+- ⚠️ Cloudflare cache slow to update — purge via dashboard when needed
+- ⚠️ Illustrated/text-heavy covers excluded from Next.js carousel
 
 ---
 
 ## What NOT to do
-- Never put story titles in 3–4rem font on cover banners (keep at 1.1–1.4rem)
-- Never move back link above the banner (it goes inside article-container, below banner)
-- Never use `section.section > div.container` structure for story pages
-- Never set poem stanza text to Times New Roman (Cochin only — Times is for italics only)
-- Always add new stories to: story HTML + index.html + category page + search.html
+- Never put story titles in 3–4rem font on cover banners (static site — keep at 1.1–1.4rem)
+- Never set poem stanza text to Times New Roman (Cochin only)
+- Always add new stories to: story HTML + index.html + category page + search.html (static site)
+- Always add new stories to: `app/lib/stories.js` (Next.js)
 - Always include favicon links on new story pages
-- Always keep Search `<li>` inside the nav `<ul>`
+- Keep Search `<li>` inside the nav `<ul>` (static site)
+- Don't use illustrated/text-heavy covers in the Next.js carousel
