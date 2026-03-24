@@ -5,6 +5,8 @@ import AuthModal from './AuthModal';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
+
+  const links = [['Home', '/'], ['About', '/about'], ['Subscribe', '/subscribe'], ['Contact', '/contact']];
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
