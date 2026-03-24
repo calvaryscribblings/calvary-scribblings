@@ -234,6 +234,16 @@ const [showAuth, setShowAuth] = useState(false);
   return (
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: "'Cochin', Georgia, serif" }}>
 
+      <style>{`
+  @media (max-width: 1024px) {
+    .nav-desktop { display: none !important; }
+    .nav-hamburger { display: flex !important; }
+  }
+  @media (min-width: 1025px) {
+    .nav-desktop { display: flex !important; }
+    .nav-hamburger { display: none !important; }
+  }
+`}</style>
       {/* Navbar */}
       <nav style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
