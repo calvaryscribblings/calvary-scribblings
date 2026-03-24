@@ -43,3 +43,10 @@ img {
 a {
   color: inherit;
 }
+.nav-desktop { display: flex !important; }
+.nav-hamburger { display: none !important; }
+
+@media (max-width: 1024px) {
+  .nav-desktop { display: none !important; }
+  .nav-hamburger { display: flex !important; }
+}
