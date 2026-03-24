@@ -53,7 +53,7 @@ export default function StoryPage({ params }) {
         };
         const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        const hitRef = ref(db, `hits/${slug}`);
+        const hitRef = ref(db, `stories/${slug}/hits`);
         await runTransaction(hitRef, count => (count || 0) + 1);
         onValue(hitRef, snap => setHitCount(snap.val()));
       } catch (e) {
