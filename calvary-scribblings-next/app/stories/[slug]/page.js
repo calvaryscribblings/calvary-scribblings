@@ -194,3 +194,7 @@ export default function StoryPage({ params }) {
     </>
   );
 }
+export async function generateStaticParams() {
+  const { stories } = await import('../../lib/stories');
+  return stories.map((s) => ({ slug: s.id }));
+}
