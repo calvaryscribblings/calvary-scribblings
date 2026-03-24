@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './lib/AuthContext';
 import AuthModal from './components/AuthModal';
+import Navbar from './components/Navbar';
 
 const stories = [
   { id: 'rise-and-shine', title: 'Rise and Shine', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/rise-and-shine', cover: '/rise-and-shine-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 21, 2026' },
@@ -186,13 +187,9 @@ function Top10Card({ s, i }) {
 }
 export default function Home() {
   const { user, logout } = useAuth();
-const [showAuth, setShowAuth] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [storiesOpen, setStoriesOpen] = useState(false);
-  const [heroIndex, setHeroIndex] = useState(0);
+      const [heroIndex, setHeroIndex] = useState(0);
   const [heroTransition, setHeroTransition] = useState(true);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 1024);
     check();
@@ -244,96 +241,7 @@ const [showAuth, setShowAuth] = useState(false);
     .nav-hamburger { display: none !important; }
   }
 `}</style>
-      {/* Navbar */}
-      <nav style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
-        padding: '0 4%', height: 68,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: scrolled ? 'rgba(10,10,10,0.96)' : 'linear-gradient(to bottom, rgba(0,0,0,0.85), transparent)',
-        backdropFilter: scrolled ? 'blur(12px)' : 'none',
-        borderBottom: scrolled ? '1px solid rgba(255,255,255,0.05)' : 'none',
-        transition: 'all 0.3s',
-      }}>
-        {/* Logo */}
-        <a href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.6rem', zIndex: 1001 }}>
-          <img src="/favicon.png" alt="Calvary Scribblings" style={{ width: 36, height: 36, borderRadius: 8 }} />
-          <div>
-            <div style={{ color: '#a78bfa', fontWeight: 700, fontSize: '1rem', lineHeight: 1.1 }}>Calvary Scribblings</div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.55rem', letterSpacing: '0.12em', textTransform: 'uppercase' }}>A Calvary Media UK Publication</div>
-          </div>
-        </a>
-
-        {/* Desktop links */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          {[['Home', '/'], ['About', '/about'], ['Subscribe', '/subscribe'], ['Contact', '/contact']].map(([label, href]) => (
-            <a key={label} href={href} style={{ color: 'rgba(255,255,255,0.75)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 500 }}>{label}</a>
-          ))}
-          <div style={{ position: 'relative' }}
-            onMouseEnter={() => setStoriesOpen(true)}
-            onMouseLeave={() => setStoriesOpen(false)}>
-            <span style={{ color: storiesOpen ? '#c4b5fd' : 'rgba(255,255,255,0.65)', fontSize: '0.9rem', fontWeight: 500, cursor: 'pointer', transition: 'color 0.2s' }}>
-              Stories ▾
-            </span>
-            {storiesOpen && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, background: 'rgba(10,10,10,0.98)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0.5rem', minWidth: 160, zIndex: 100 }}>
-                {[['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Serial Stories', '/serial'], ['Poetry', '/poetry'], ['Inspiring', '/inspiring']].map(([label, href]) => (
-                  <a key={label} href={href} style={{ display: 'block', padding: '0.5rem 0.75rem', color: 'rgba(255,255,255,0.75)', textDecoration: 'none', fontSize: '0.85rem', borderRadius: 4 }}
-                    onMouseEnter={e => e.target.style.background = 'rgba(124,58,237,0.15)'}
-                    onMouseLeave={e => e.target.style.background = 'transparent'}>
-                    {label}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-          <a href="/search" style={{ color: 'rgba(255,255,255,0.65)', textDecoration: 'none', fontSize: '0.85rem' }}>🔍 Search</a>
-          {user ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.85rem' }}>{user.displayName || user.email}</span>
-              <button onClick={logout} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 3, padding: '0.3em 0.8em', color: 'rgba(255,255,255,0.65)', fontSize: '0.72rem', cursor: 'pointer' }}>Sign Out</button>
-            </div>
-          ) : (
-            <button onClick={() => setShowAuth(true)} style={{ marginLeft: '1rem', fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', background: '#7c3aed', border: 'none', borderRadius: 3, padding: '0.4em 1em', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
-              Sign In
-            </button>
-          )}
-        </div>
-
-        {/* Hamburger button — mobile only */}
-        <button onClick={() => setMenuOpen(!menuOpen)} style={{
-          display: 'none', flexDirection: 'column', gap: 5, background: 'none',
-          border: 'none', cursor: 'pointer', padding: 4, zIndex: 1001,
-        }}>
-          <span style={{ display: 'block', width: 22, height: 2, background: '#fff', borderRadius: 2, transition: 'all 0.3s', transform: menuOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none' }} />
-          <span style={{ display: 'block', width: 22, height: 2, background: '#fff', borderRadius: 2, transition: 'all 0.3s', opacity: menuOpen ? 0 : 1 }} />
-          <span style={{ display: 'block', width: 22, height: 2, background: '#fff', borderRadius: 2, transition: 'all 0.3s', transform: menuOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none' }} />
-        </button>
-
-        {/* Mobile menu drawer */}
-        {menuOpen && (
-          <div style={{
-            position: 'fixed', top: 68, left: 0, right: 0, bottom: 0,
-            background: 'rgba(10,10,10,0.98)', zIndex: 999,
-            display: 'flex', flexDirection: 'column', padding: '2rem 4%',
-            gap: '0.25rem',
-          }} onClick={() => setMenuOpen(false)}>
-            {[['Home', '/'], ['About', '/about'], ['Subscribe', '/subscribe'], ['Contact', '/contact'], ['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Serial Stories', '/serial'], ['Poetry', '/poetry'], ['Inspiring Stories', '/inspiring'], ['News & Updates', '/news'], ['Search', '/search']].map(([label, href]) => (
-              <a key={label} href={href} style={{
-                color: 'rgba(255,255,255,0.85)', textDecoration: 'none',
-                fontSize: '1.1rem', fontWeight: 500, padding: '0.75rem 0',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-              }}>{label}</a>
-            ))}
-            {user ? (
-              <button onClick={logout} style={{ marginTop: '1rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6, padding: '0.75rem', color: 'rgba(255,255,255,0.65)', fontSize: '1rem', cursor: 'pointer', textAlign: 'left' }}>Sign Out</button>
-            ) : (
-              <button onClick={() => { setMenuOpen(false); setShowAuth(true); }} style={{ marginTop: '1rem', background: '#7c3aed', border: 'none', borderRadius: 6, padding: '0.75rem', color: '#fff', fontSize: '1rem', cursor: 'pointer', fontWeight: 600 }}>Sign In</button>
-            )}
-          </div>
-        )}
-
-        {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
-      </nav>
+      <Navbar />
 
       {/* Hero Carousel */}
       <section style={{ position: 'relative', height: '88vh', minHeight: 600, overflow: 'hidden' }}>
