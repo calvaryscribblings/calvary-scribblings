@@ -191,6 +191,14 @@ const [showAuth, setShowAuth] = useState(false);
   const [storiesOpen, setStoriesOpen] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroTransition, setHeroTransition] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const sorted = [...stories].map((s,i) => ({...s,_idx:i})).sort((a,b) => parseDate(b.date)-parseDate(a.date)||a._idx-b._idx);
   const carouselStories = sorted.filter(s => s.category === 'news' || s.category === 'inspiring' || s.category === 'short').slice(0, 5);
@@ -234,24 +242,21 @@ const [showAuth, setShowAuth] = useState(false);
         background: scrolled ? 'rgba(10,10,10,0.96)' : 'linear-gradient(to bottom, rgba(0,0,0,0.85), transparent)',
         backdropFilter: scrolled ? 'blur(12px)' : 'none',
         borderBottom: scrolled ? '1px solid rgba(255,255,255,0.05)' : 'none',
-        transition: 'all 0.35s ease',
+        transition: 'all 0.3s',
       }}>
-        <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
-          <img src="/logo-header.jpg" alt="CS" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }} />
+        {/* Logo */}
+        <a href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.6rem', zIndex: 1001 }}>
+          <img src="/favicon.png" alt="Calvary Scribblings" style={{ width: 36, height: 36, borderRadius: 8 }} />
           <div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#c4b5fd' }}>Calvary Scribblings</div>
-            <div style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>A Calvary Media UK Publication</div>
+            <div style={{ color: '#a78bfa', fontWeight: 700, fontSize: '1rem', lineHeight: 1.1 }}>Calvary Scribblings</div>
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.55rem', letterSpacing: '0.12em', textTransform: 'uppercase' }}>A Calvary Media UK Publication</div>
           </div>
         </a>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-          {['Home', 'About', 'Subscribe', 'Contact'].map(link => (
-            <a key={link} href={link === 'Home' ? '/' : `/#${link.toLowerCase()}`}
-              style={{ color: 'rgba(255,255,255,0.65)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500, transition: 'color 0.2s' }}
-              onMouseEnter={e => e.target.style.color = '#fff'}
-              onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.65)'}>
-              {link}
-            </a>
+        {/* Desktop links */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          {[['Home', '/'], ['About', '/about'], ['Subscribe', '/subscribe'], ['Contact', '/contact']].map(([label, href]) => (
+            <a key={label} href={href} style={{ color: 'rgba(255,255,255,0.75)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 500 }}>{label}</a>
           ))}
           <div style={{ position: 'relative' }}
             onMouseEnter={() => setStoriesOpen(true)}
@@ -260,66 +265,64 @@ const [showAuth, setShowAuth] = useState(false);
               Stories ▾
             </span>
             {storiesOpen && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 12px)', left: '50%', transform: 'translateX(-50%)',
-                background: 'rgba(15,15,15,0.98)', backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12,
-                padding: '0.6rem 0', minWidth: 220,
-                boxShadow: '0 24px 64px rgba(0,0,0,0.9)',
-              }}>
-                {[['News & Updates', '/news'], ['Inspiring Stories', '/inspiring']].map(([label, href]) => (
-                  <a key={href} href={href}
-                    style={{ display: 'block', padding: '0.6rem 1.25rem', color: 'rgba(255,255,255,0.75)', textDecoration: 'none', fontSize: '0.875rem', transition: 'all 0.2s' }}
-                    onMouseEnter={e => { e.target.style.background = 'rgba(124,58,237,0.15)'; e.target.style.color = '#c4b5fd'; }}
-                    onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = 'rgba(255,255,255,0.75)'; }}>
+              <div style={{ position: 'absolute', top: '100%', right: 0, background: 'rgba(10,10,10,0.98)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0.5rem', minWidth: 160, zIndex: 100 }}>
+                {[['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Serial Stories', '/serial'], ['Poetry', '/poetry'], ['Inspiring', '/inspiring']].map(([label, href]) => (
+                  <a key={label} href={href} style={{ display: 'block', padding: '0.5rem 0.75rem', color: 'rgba(255,255,255,0.75)', textDecoration: 'none', fontSize: '0.85rem', borderRadius: 4 }}
+                    onMouseEnter={e => e.target.style.background = 'rgba(124,58,237,0.15)'}
+                    onMouseLeave={e => e.target.style.background = 'transparent'}>
                     {label}
-                  </a>
-                ))}
-                <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '0.4rem 0' }} />
-                <div style={{ padding: '0.3rem 1.25rem 0.2rem', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.25)' }}>Creative Writing</div>
-                {[['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Serial Stories', '/serial'], ['Poetry', '/poetry']].map(([label, href]) => (
-                  <a key={href} href={href}
-                    style={{ display: 'block', padding: '0.5rem 1.75rem', color: 'rgba(255,255,255,0.65)', textDecoration: 'none', fontSize: '0.85rem', transition: 'all 0.2s' }}
-                    onMouseEnter={e => { e.target.style.background = 'rgba(124,58,237,0.15)'; e.target.style.color = '#c4b5fd'; }}
-                    onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = 'rgba(255,255,255,0.65)'; }}>
-                    — {label}
                   </a>
                 ))}
               </div>
             )}
           </div>
-          <a href="/search"
-            style={{ color: 'rgba(255,255,255,0.65)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', transition: 'color 0.2s' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.65)'}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            Search
-          </a>
+          <a href="/search" style={{ color: 'rgba(255,255,255,0.65)', textDecoration: 'none', fontSize: '0.85rem' }}>🔍 Search</a>
           {user ? (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: '1rem' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-      {user.photoURL ? (
-        <img src={user.photoURL} alt={user.displayName} style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid rgba(124,58,237,0.4)' }} />
-      ) : (
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600, color: '#fff' }}>
-          {(user.displayName || user.email || '?')[0].toUpperCase()}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.85rem' }}>{user.displayName || user.email}</span>
+              <button onClick={logout} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 3, padding: '0.3em 0.8em', color: 'rgba(255,255,255,0.65)', fontSize: '0.72rem', cursor: 'pointer' }}>Sign Out</button>
+            </div>
+          ) : (
+            <button onClick={() => setShowAuth(true)} style={{ marginLeft: '1rem', fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', background: '#7c3aed', border: 'none', borderRadius: 3, padding: '0.4em 1em', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+              Sign In
+            </button>
+          )}
         </div>
-      )}
-      <span style={{ fontSize: '0.8rem', color: 'rgba(232,224,212,0.7)', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {user.displayName || user.email}
-      </span>
-    </div>
-    <button onClick={logout} style={{ fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 3, padding: '0.3em 0.7em', color: 'rgba(232,224,212,0.45)', cursor: 'pointer' }}>
-      Sign Out
-    </button>
-  </div>
-) : (
-  <button onClick={() => setShowAuth(true)} style={{ marginLeft: '1rem', fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', background: '#7c3aed', border: 'none', borderRadius: 3, padding: '0.4em 1em', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
-    Sign In
-  </button>
-)}
-{showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
-        </div>
+
+        {/* Hamburger button — mobile only */}
+        <button onClick={() => setMenuOpen(!menuOpen)} style={{
+          display: 'none', flexDirection: 'column', gap: 5, background: 'none',
+          border: 'none', cursor: 'pointer', padding: 4, zIndex: 1001,
+        }}>
+          <span style={{ display: 'block', width: 22, height: 2, background: '#fff', borderRadius: 2, transition: 'all 0.3s', transform: menuOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none' }} />
+          <span style={{ display: 'block', width: 22, height: 2, background: '#fff', borderRadius: 2, transition: 'all 0.3s', opacity: menuOpen ? 0 : 1 }} />
+          <span style={{ display: 'block', width: 22, height: 2, background: '#fff', borderRadius: 2, transition: 'all 0.3s', transform: menuOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none' }} />
+        </button>
+
+        {/* Mobile menu drawer */}
+        {menuOpen && (
+          <div style={{
+            position: 'fixed', top: 68, left: 0, right: 0, bottom: 0,
+            background: 'rgba(10,10,10,0.98)', zIndex: 999,
+            display: 'flex', flexDirection: 'column', padding: '2rem 4%',
+            gap: '0.25rem',
+          }} onClick={() => setMenuOpen(false)}>
+            {[['Home', '/'], ['About', '/about'], ['Subscribe', '/subscribe'], ['Contact', '/contact'], ['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Serial Stories', '/serial'], ['Poetry', '/poetry'], ['Inspiring Stories', '/inspiring'], ['News & Updates', '/news'], ['Search', '/search']].map(([label, href]) => (
+              <a key={label} href={href} style={{
+                color: 'rgba(255,255,255,0.85)', textDecoration: 'none',
+                fontSize: '1.1rem', fontWeight: 500, padding: '0.75rem 0',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+              }}>{label}</a>
+            ))}
+            {user ? (
+              <button onClick={logout} style={{ marginTop: '1rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6, padding: '0.75rem', color: 'rgba(255,255,255,0.65)', fontSize: '1rem', cursor: 'pointer', textAlign: 'left' }}>Sign Out</button>
+            ) : (
+              <button onClick={() => { setMenuOpen(false); setShowAuth(true); }} style={{ marginTop: '1rem', background: '#7c3aed', border: 'none', borderRadius: 6, padding: '0.75rem', color: '#fff', fontSize: '1rem', cursor: 'pointer', fontWeight: 600 }}>Sign In</button>
+            )}
+          </div>
+        )}
+
+        {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
       </nav>
 
       {/* Hero Carousel */}
