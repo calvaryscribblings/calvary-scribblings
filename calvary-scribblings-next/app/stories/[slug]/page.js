@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { stories } from '../../lib/stories';
 import { use } from 'react';
 import { storyContent } from '../../lib/storyContent';
+
 export default function StoryPage({ params }) {
   const { slug } = use(params);
   const story = stories.find(s => s.id === slug);
@@ -64,7 +65,7 @@ export default function StoryPage({ params }) {
 
   if (!story) {
     return (
-      <div style={{ background: '#0a0a0a', color: '#e8e0d4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia, serif', fontSize: '1.2rem' }}>
+      <div style={{ background: '#f8f4ed', color: '#1a1a1a', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Cochin, Georgia, serif', fontSize: '1.2rem' }}>
         Story not found.
       </div>
     );
@@ -72,77 +73,117 @@ export default function StoryPage({ params }) {
 
   const categoryColors = {
     news: '#ef4444',
-    flash: '#7c3aed',
-    short: '#7c3aed',
-    poetry: '#7c3aed',
+    flash: '#6b46c1',
+    short: '#6b46c1',
+    poetry: '#6b46c1',
     inspiring: '#d97706',
-    serial: '#7c3aed',
+    serial: '#6b46c1',
   };
-  const accentColor = categoryColors[story.category] || '#7c3aed';
+  const accentColor = categoryColors[story.category] || '#6b46c1';
+  const isPoetry = story.category === 'poetry';
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0a0a0a; color: #e8e0d4; font-family: 'Cormorant Garamond', 'Cochin', Georgia, serif; overflow-x: hidden; }
+        html { background: #0a0a0a; }
+        body { background: #0a0a0a; color: #e8e0d4; font-family: Cochin, Georgia, serif; overflow-x: hidden; }
 
-        .reading-progress { position: fixed; top: 0; left: 0; height: 2px; background: linear-gradient(90deg, ${accentColor}, #c4b5fd); z-index: 1000; transition: width 0.1s linear; }
+        .reading-progress { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, ${accentColor}, #a855f7); z-index: 1000; transition: width 0.1s linear; }
 
-        .story-nav { position: fixed; top: 2px; left: 0; right: 0; z-index: 999; display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; background: rgba(10,10,10,0.85); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,0.04); transition: transform 0.3s ease; }
+        .story-nav { position: fixed; top: 3px; left: 0; right: 0; z-index: 999; display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; background: rgba(10,10,10,0.88); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,0.06); transition: transform 0.3s ease; }
         .story-nav.hidden { transform: translateY(-100%); }
-        .nav-logo { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; font-weight: 600; letter-spacing: 0.05em; color: #e8e0d4; text-decoration: none; }
+        .nav-logo { font-family: Cochin, Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f5f0e8; text-decoration: none; letter-spacing: 0.02em; }
         .nav-logo span { color: ${accentColor}; }
-        .nav-meta { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(232,224,212,0.4); }
+        .nav-meta { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(232,224,212,0.45); }
 
-        .story-hero { position: relative; height: 92vh; min-height: 560px; display: flex; align-items: flex-end; overflow: hidden; }
+        .story-hero { position: relative; height: 88vh; min-height: 520px; display: flex; align-items: flex-end; overflow: hidden; background: #0a0a0a; }
         .hero-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: heroZoom 12s ease-out forwards; }
         @keyframes heroZoom { from { transform: scale(1.06); } to { transform: scale(1.0); } }
-        .hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,10,10,1) 0%, rgba(10,10,10,0.75) 40%, rgba(10,10,10,0.15) 100%); }
+        .hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,10,10,1) 0%, rgba(10,10,10,0.72) 45%, rgba(10,10,10,0.15) 100%); }
         .hero-content { position: relative; z-index: 2; padding: 3rem 2rem 3.5rem; max-width: 820px; animation: heroUp 1s cubic-bezier(0.22,1,0.36,1) 0.3s both; }
-        @keyframes heroUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes heroUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
+        .story-badge-hero { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; padding: 0.3em 0.9em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; margin-bottom: 1.1rem; font-family: Cochin, Georgia, serif; }
+        .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 300; line-height: 1.1; color: #f5f0e8; margin-bottom: 1.1rem; font-family: 'Cormorant Garamond', Cochin, Georgia, serif; }
+        .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: rgba(232,224,212,0.55); }
+        .byline-dot { width: 3px; height: 3px; border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
+        .byline-by { font-style: italic; font-family: 'Cormorant Garamond', Georgia, serif; margin-right: -0.8rem; }
 
-        .story-badge { display: inline-block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; padding: 0.3em 0.85em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; margin-bottom: 1.2rem; }
-        .story-title { font-size: clamp(2.4rem, 6vw, 4.2rem); font-weight: 300; line-height: 1.08; color: #f5f0e8; margin-bottom: 1.2rem; }
-        .story-byline { display: flex; align-items: center; gap: 1.5rem; font-size: 0.82rem; letter-spacing: 0.08em; color: rgba(232,224,212,0.55); }
-        .byline-dot { width: 3px; height: 3px; border-radius: 50%; background: ${accentColor}; opacity: 0.6; }
+        .story-body-wrap { background: #f8f4ed; }
+        .story-body { max-width: 680px; margin: 0 auto; padding: 3rem 2rem 5rem; }
 
-        .story-body { max-width: 680px; margin: 0 auto; padding: 4rem 2rem 6rem; }
-        .reading-meta { display: flex; align-items: center; gap: 1rem; margin-bottom: 3.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.07); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(232,224,212,0.35); }
-        .reading-meta-pill { display: inline-flex; align-items: center; gap: 0.4em; padding: 0.3em 0.8em; background: rgba(124,58,237,0.12); border: 1px solid rgba(124,58,237,0.2); border-radius: 20px; color: #a78bfa; }
-        .back-link { display: inline-flex; align-items: center; gap: 0.5em; font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(232,224,212,0.35); text-decoration: none; transition: color 0.2s; }
-        .back-link:hover { color: ${accentColor}; }
+        .back-link-row { margin-bottom: 2.2rem; padding-bottom: 1.2rem; border-bottom: 1px solid #e0dbd2; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+        .back-link { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: ${accentColor}; text-decoration: none; font-family: Cochin, Georgia, serif; }
+        .back-link:hover { text-decoration: underline; }
+        .reading-time-pill { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: #999; font-family: Cochin, Georgia, serif; }
 
-        .prose { font-size: 1.22rem; line-height: 1.85; color: #e8e0d4; font-weight: 400; }
-        .prose p { margin-bottom: 1.8em; }
-        .prose > p:first-of-type::first-letter { font-size: 4.5em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: 'Cormorant Garamond', Georgia, serif; }
-        .prose em { font-style: italic; color: #c4b5a0; }
-        .prose strong { font-weight: 600; color: #f0ebe2; }
-        .prose hr { border: none; text-align: center; margin: 3em 0; color: rgba(232,224,212,0.2); letter-spacing: 0.4em; }
-        .prose hr::after { content: '· · ·'; } .prose .poem-collection-intro { font-style: italic; font-family: 'Times New Roman', serif; }
-        .prose .poem-contents { border-left: 3px solid ${accentColor}; padding-left: 1.5em; margin: 1.5em 0; }
-        .prose .poem-contents ol, .prose .poem-contents li { font-style: italic; }
-        .prose .poem-stanza { font-family: 'Cormorant Garamond', Cochin, Georgia, serif; margin-bottom: 2em; }
-        .prose .poem-stanza p { margin-bottom: 0.3em; line-height: 1.7; }
+        .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cochin, Georgia, serif; font-weight: 400; }
+        .prose p { margin-bottom: 1.75em; }
+
+        .prose.has-dropcap > p:first-of-type::first-letter {
+          font-size: 4.2em;
+          font-weight: 600;
+          float: left;
+          line-height: 0.78;
+          margin: 0.06em 0.12em 0 0;
+          color: ${accentColor};
+          font-family: 'Cormorant Garamond', Cochin, Georgia, serif;
+        }
+
+        .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cochin, Georgia, serif; line-height: 1.3; }
+        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose h4 { font-size: 1rem; font-weight: 700; color: #1a1a1a; margin: 1.5em 0 0.4em; font-family: Cochin, Georgia, serif; }
+
+        .prose img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; margin: 2em 0 0.5em; }
+        .prose figure { margin: 2em 0; }
+        .prose figcaption { font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose img + em { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: -1em; margin-bottom: 2em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+
+        .prose blockquote { margin: 2.2em 0; padding: 1.2em 1.6em; border-left: 4px solid ${accentColor}; background: rgba(107,70,193,0.07); font-size: 1.1rem; font-style: italic; color: ${accentColor}; line-height: 1.7; border-radius: 0 4px 4px 0; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose blockquote p { margin-bottom: 0; color: ${accentColor}; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+
+        .prose ul { margin: 1.8em 0; padding: 1.2em 1.5em 1.2em 2em; background: #ede6f5; border-left: 4px solid ${accentColor}; border-radius: 0 4px 4px 0; list-style: disc; }
+        .prose ul li { margin-bottom: 0.55em; color: #1a1a1a; font-size: 1.05rem; line-height: 1.75; }
+        .prose ul li::marker { color: ${accentColor}; }
+        .prose ol { margin: 1.5em 0; padding-left: 1.8em; }
+        .prose ol li { margin-bottom: 0.5em; color: #1a1a1a; }
+
+        .prose hr { border: none; height: 2px; background: linear-gradient(90deg, transparent, ${accentColor}, transparent); width: 100px; margin: 3em auto; display: block; }
+
+        .prose em { font-style: italic; color: inherit; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose i { font-style: italic; color: inherit; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose strong { font-weight: 700; color: #1a1a1a; }
+
+        .prose .poem-collection-intro { font-style: italic; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; color: #555; margin-bottom: 1.5em; display: block; font-size: 1.1rem; }
+        .prose .poem-contents { border-left: 4px solid ${accentColor}; padding: 0.8em 1.2em; margin: 1.5em 0; background: #ede6f5; border-radius: 0 4px 4px 0; }
+        .prose .poem-contents p { margin-bottom: 0.5em; font-weight: 600; color: #1a1a1a; }
+        .prose .poem-contents ol, .prose .poem-contents ul { background: transparent; border: none; padding: 0 0 0 1.2em; margin: 0; }
+        .prose .poem-contents li { font-style: italic; color: #444; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; font-size: 1.1rem; }
+
+        .prose .poem-block { margin-bottom: 3.5em; display: block; }
+        .prose .poem-title { font-size: 1.5rem; font-style: normal; color: ${accentColor}; margin-bottom: 1.2em; display: block; font-family: Cochin, Georgia, serif; font-weight: 700; }
+        .prose .poem-stanza { font-family: Cochin, Georgia, serif; margin-bottom: 1.8em; display: block; white-space: pre-line; line-height: 1.75; color: #1a1a1a; font-size: 1.15rem; }
+        .prose .poem-stanza p { margin-bottom: 0.25em; line-height: 1.75; color: #1a1a1a; white-space: pre-line; }
         .prose .poem-stanza p::first-letter { all: unset; }
-        .prose h3 { font-size: 1.2rem; font-style: italic; color: #c4b5a0; margin: 2em 0 0.5em; font-weight: 400; }
-        .prose > p:first-of-type::first-letter { ${story.category === 'poetry' ? 'all: unset;' : ''} }
-        .prose blockquote { margin: 2.5em 0; padding: 1.5em 2em; border-left: 3px solid ${accentColor}; background: rgba(124,58,237,0.06); font-size: 1.3rem; font-style: italic; color: #c4b5a0; line-height: 1.7; border-radius: 0 4px 4px 0; }
+        .prose .poem-stanza br { display: block; }
 
-        .story-footer { max-width: 680px; margin: 0 auto; padding: 2rem; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.06); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(232,224,212,0.6); gap: 1rem; flex-wrap: wrap; }
-        .hit-counter { display: flex; align-items: center; gap: 0.5em; }
-        .hit-dot { width: 6px; height: 6px; border-radius: 50%; background: ${accentColor}; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
+        .hit-counter-row { text-align: center; padding: 1.8rem 2rem 1.5rem; color: #888; font-size: 0.9rem; font-family: Cochin, Georgia, serif; border-top: 1px solid #e0dbd2; max-width: 680px; margin: 0 auto; background: #f8f4ed; }
 
-        .disqus-wrap { max-width: 680px; margin: 0 auto 6rem; padding: 0 2rem; }
-        .disqus-divider { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.5rem; font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(232,224,212,0.25); }
-        .disqus-divider::before, .disqus-divider::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.06); }
+        .story-footer { background: #f8f4ed; max-width: 680px; margin: 0 auto; padding: 1rem 2rem 2rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: #888; gap: 1rem; flex-wrap: wrap; font-family: Cochin, Georgia, serif; border-top: 1px solid #e0dbd2; }
+        .story-badge-footer { display: inline-block; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25em 0.8em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; }
+
+        .disqus-wrap { background: #f8f4ed; max-width: 680px; margin: 0 auto; padding: 2rem 2rem 6rem; }
+        .disqus-divider { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.5rem; font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: #bbb; }
+        .disqus-divider::before, .disqus-divider::after { content: ''; flex: 1; height: 1px; background: #e0dbd2; }
 
         @media (max-width: 640px) {
-          .story-body { padding: 3rem 1.25rem 4rem; }
-          .hero-content { padding: 2rem 1.25rem 2.5rem; }
-          .prose { font-size: 1.08rem; }
-          .story-nav { padding: 0.85rem 1.25rem; }
+          .story-body { padding: 2.5rem 1.2rem 4rem; }
+          .hero-content { padding: 2rem 1.2rem 2.5rem; }
+          .prose { font-size: 1.05rem; }
+          .story-nav { padding: 0.85rem 1.2rem; }
+          .hit-counter-row { padding: 1.5rem 1.2rem; }
+          .disqus-wrap { padding: 1.5rem 1.2rem 4rem; }
         }
       `}</style>
 
@@ -157,40 +198,54 @@ export default function StoryPage({ params }) {
         <img className="hero-cover" src={story.cover} alt={story.title} />
         <div className="hero-overlay" />
         <div className="hero-content">
-          <div className="story-badge">{story.categoryName}</div>
+          <div className="story-badge-hero">{story.categoryName}</div>
           <h1 className="story-title">{story.title}</h1>
           <div className="story-byline">
+            <span className="byline-by">by</span>
             <span>{story.author}</span>
             <div className="byline-dot" />
             <span>{story.date}</span>
-            {readingTime > 0 && <><div className="byline-dot" /><span>{readingTime} min read</span></>}
+            {readingTime > 0 && (
+              <>
+                <div className="byline-dot" />
+                <span>⏱ {readingTime} min read</span>
+              </>
+            )}
           </div>
         </div>
       </header>
 
-      <main>
-        <article className="story-body" ref={articleRef}>
-          <div className="reading-meta">
-            <a href={`/${story.category}`} className="back-link">← {story.categoryName}</a>
-            <div style={{ flex: 1 }} />
-            {readingTime > 0 && <span className="reading-meta-pill">⏱ {readingTime} min read</span>}
+      <div className="story-body-wrap">
+        <main>
+          <article className="story-body" ref={articleRef}>
+            <div className="back-link-row">
+              <a href={`/${story.category}`} className="back-link">← {story.categoryName}</a>
+              {readingTime > 0 && (
+                <span className="reading-time-pill">⏱ {readingTime} min read</span>
+              )}
+            </div>
+            <div
+              className={`prose${isPoetry ? '' : ' has-dropcap'}`}
+              id="story-content"
+              dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }}
+            />
+          </article>
+
+          <div className="hit-counter-row">
+            {hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}
           </div>
-<div className="prose" id="story-content" dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }} />        </article>
 
-        <div className="story-footer">
-          <span>{story.author} · {story.date}</span>
-          <span className="hit-counter">
-            <span className="hit-dot" />
-            {hitCount !== null ? `${hitCount.toLocaleString()} reads` : '— reads'}
-          </span>
-          <span className="story-badge" style={{ margin: 0 }}>{story.categoryName}</span>
-        </div>
+          <div className="story-footer">
+            <span>By {story.author} · {story.date}</span>
+            <span className="story-badge-footer">{story.categoryName}</span>
+          </div>
 
-        <div className="disqus-wrap">
-          <div className="disqus-divider">Discussion</div>
-          <div id="disqus_thread" />
-        </div>
-      </main>
+          <div className="disqus-wrap">
+            <div className="disqus-divider">Discussion</div>
+            <div id="disqus_thread" />
+          </div>
+        </main>
+      </div>
     </>
   );
 }
