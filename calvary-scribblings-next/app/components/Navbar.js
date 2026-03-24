@@ -15,17 +15,7 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const links = [
-    ['Home', '/'],
-    ['News', '/news'],
-    ['Inspiring', '/inspiring'],
-    ['Flash Fiction', '/flash'],
-    ['Short Stories', '/short'],
-    ['Poetry', '/poetry'],
-    ['About', '/about'],
-    ['Subscribe', '/subscribe'],
-    ['Contact', '/contact'],
-  ];
+
 
   return (
     <>
@@ -117,9 +107,16 @@ export default function Navbar() {
       </nav>
 
       {menuOpen && (
-        <div className="cs-drawer" onClick={() => setMenuOpen(false)}>
-          {links.map(([label, href]) => (
-            <a key={label} href={href}>{label}</a>
+        <div className="cs-drawer">
+          {[['Home', '/'], ['About', '/about'], ['Subscribe', '/subscribe'], ['Contact', '/contact']].map(([label, href]) => (
+            <a key={label} href={href} onClick={() => setMenuOpen(false)}>{label}</a>
+          ))}
+          <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', padding: '1rem 0 0.25rem' }}>Creative Writing</div>
+          {[['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Serial Stories', '/serial'], ['Poetry', '/poetry']].map(([label, href]) => (
+            <a key={label} href={href} onClick={() => setMenuOpen(false)} style={{ paddingLeft: '0.75rem' }}>{label}</a>
+          ))}
+          {[['News & Updates', '/news'], ['Inspiring Stories', '/inspiring'], ['Search', '/search']].map(([label, href]) => (
+            <a key={label} href={href} onClick={() => setMenuOpen(false)}>{label}</a>
           ))}
           {user ? (
             <button className="cs-drawer-signin" onClick={logout}>Sign Out</button>
