@@ -1,13 +1,13 @@
 # Calvary Scribblings — Full Project Context
-*Handoff document for new Claude session — last updated March 23, 2026*
+*Handoff document for new Claude session — last updated March 24, 2026*
 
 ---
 
 ## Platform Overview
 - **Site:** calvaryscribblings.co.uk
 - **Hosting:** Cloudflare Pages (from GitHub repo: calvaryscribblings/calvary-scribblings)
-- **Current stack:** Static HTML/CSS/JS (live site)
-- **Next.js migration:** IN PROGRESS — see Next.js section below
+- **Current stack:** Static HTML/CSS/JS (live site on `main` branch)
+- **Next.js migration:** IN PROGRESS — on `nextjs-preview` branch, deployed to Cloudflare preview URL
 - **Hit tracking:** Firebase Realtime Database
 - **Comments:** Disqus (calvaryscribblings.disqus.com)
 - **Analytics:** Google Analytics G-W3B4WHBM8B
@@ -28,6 +28,7 @@ appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
 ```
 
 ✅ Firebase security rules fixed and working.
+✅ Firebase Auth enabled: Email/Password + Google sign-in (both enabled in Firebase console)
 
 ---
 
@@ -39,51 +40,72 @@ appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
 - **Dev server:** `cd /workspaces/calvary-scribblings/calvary-scribblings-next && npm run dev`
 - **Port:** 3000
 - **Dev script:** `"dev": "next dev"` (no turbopack flag — removed to fix MDX compatibility)
+- **Preview branch:** `nextjs-preview` — deployed to Cloudflare Pages preview URL
+- **Cloudflare build command:** `cd calvary-scribblings-next && npm install && npm run build`
+- **Cloudflare build output:** `calvary-scribblings-next/out`
 
 ### Design Direction
 **"Netflix but for reading"** — cinematic dark mode, premium aesthetics, smooth hover effects, rich interactions. Background: `#0a0a0a`. Accent: purple `#7c3aed` / `#a855f7`. Font: Cochin/Georgia serif (Cormorant Garamond from Google Fonts on story pages).
 
 ### What's Built
-- ✅ `app/layout.js` — root layout with favicon
+- ✅ `app/layout.js` — root layout with AuthProvider + viewport meta tag + globals.css import
 - ✅ `app/globals.css` — clean dark mode base styles
+- ✅ `app/components/Navbar.js` — **clean standalone navbar component** with:
+  - Logo (favicon.png)
+  - Desktop links (Home, About, Subscribe, Contact + Stories dropdown)
+  - Hamburger button (CSS media query at 768px — works on real mobile)
+  - Mobile drawer with grouped links: main links → Creative Writing section → News/Inspiring/Search → Sign In
+  - Scroll-aware background (transparent → dark blur on scroll)
+  - Firebase auth integration (Sign In / Sign Out)
 - ✅ `app/page.js` — full homepage with:
-  - Sticky navbar with scroll-aware background + Stories dropdown
-  - **Hero carousel** — auto-rotates every 6s through 5 most recent photographic stories (news/inspiring/short only), crossfade transition, dot indicators, prev/next arrows, thumbnail strip on right side
-  - **Just Added** — 5 slim horizontal cards with thumbnail + badge + title + author
-  - **Top 10** — Netflix-style with large ghost numbers overlapping covers
-  - **Category rows** — News, Inspiring, Flash Fiction, Short Stories, Poetry (each with See all →)
-  - **Subscribe section** — email input + button
-  - **Footer** — dark with logo, 4 column links
+  - Navbar via `<Navbar />` component
+  - **Hero carousel** — auto-rotates every 6s through 5 most recent photographic stories
+  - **Just Added** — horizontal scroll cards (image left, title/author/date right, NEW badge overlay)
+  - **Top 10** — Netflix-style with large ghost numbers + **tap-to-toggle hover state on mobile** (Top10Card component with useEffect dismiss)
+  - **Category rows** — News, Inspiring, Flash Fiction, Short Stories, Poetry (Row component)
+  - **Subscribe section** + **Footer**
 - ✅ `app/lib/stories.js` — shared data file (all stories, parseDate, isNew, badgeStyle, categoryMeta)
-- ✅ `app/lib/storyContent.js` — extracted HTML content for all 21 stories (auto-generated from static HTML files via Python script)
-- ✅ `app/news/page.js` — News & Updates category page
-- ✅ `app/flash/page.js` — Flash Fiction category page
-- ✅ `app/short/page.js` — Short Stories category page
-- ✅ `app/poetry/page.js` — Poetry category page
-- ✅ `app/inspiring/page.js` — Inspiring Stories category page
-- ✅ `app/serial/page.js` — Serial Stories (Coming Soon state)
-- ✅ `app/stories/[slug]/page.js` — **Cinematic individual story page** with:
-  - Hero cover image with slow Ken Burns zoom animation
-  - Purple reading progress bar (fixed top)
-  - Hide-on-scroll navbar
-  - Drop cap on first paragraph
-  - Category badge, title, author · date · reading time byline
-  - ← Category back link + reading time pill
-  - HTML prose content via `dangerouslySetInnerHTML` from `storyContent[slug]`
-  - Firebase hit counter (live read count)
-  - Footer meta strip (author · date · reads · category badge)
-  - Disqus comments
-  - Cormorant Garamond serif font
-- ✅ `content/stories/rise-and-shine.mdx` — sample MDX file (kept for reference, not currently used)
+- ✅ `app/lib/storyContent.js` — extracted HTML content for all 21 stories
+- ✅ `app/lib/firebase.js` — Firebase app + auth + db initialisation
+- ✅ `app/lib/AuthContext.js` — React context (user, loading, logout) via onAuthStateChanged
+- ✅ `app/components/AuthModal.js` — cinematic auth modal
+- ✅ All category pages (news, flash, short, poetry, inspiring, serial)
+- ✅ `app/stories/[slug]/page.js` — individual story page
+- ✅ `app/stories/[slug]/layout.js` — contains `generateStaticParams()` for static export
 
 ### Key Technical Notes
-- **params in Next.js 16:** Must use `const { slug } = use(params)` (React `use()` hook) — not destructuring directly
-- **MDX:** Installed (`@next/mdx`, `@mdx-js/loader`, `@mdx-js/react`, `remark-gfm`) but dynamic MDX import approach abandoned in favour of `storyContent.js` HTML approach
-- **Turbopack disabled:** `package.json` dev script is `"next dev"` (no `--turbopack`) — required for MDX loader compatibility
-- **output: 'export'** removed from `next.config.mjs` for dev — add back for Cloudflare Pages deployment
-- **Content extraction:** Python script extracts content from `/workspaces/calvary-scribblings/stories/*.html` using `<article class="article-content">` tag, stops before `.hit-counter` div
+- **params in Next.js 16:** `const { slug } = use(params)` in client components; `const { slug } = await params` in server components/layouts
+- **Turbopack disabled:** `package.json` dev script is `"next dev"` (no `--turbopack`)
+- **output: 'export'** in `next.config.mjs` — required for Cloudflare Pages deployment
+- **generateStaticParams** lives in `app/stories/[slug]/layout.js` (NOT page.js which is 'use client')
+- **Viewport meta tag** in `app/layout.js` `<head>` — fixes mobile scaling
+- **favicon.png** copied to `public/` folder for Next.js
+- **Google sign-in:** Works on deployed domain; popup blocked in Codespace preview
 
-### Re-extracting Content (if new stories added to static site)
+---
+
+## Mobile Polish — Session March 24, 2026
+
+### Completed
+- ✅ Top 10 tap-to-toggle hover state (Top10Card component with useEffect dismiss on touchstart)
+- ✅ Just Added card alignment fixed — horizontal layout matching live site
+- ✅ Category rows restored after accidental deletion during editing
+- ✅ Viewport meta tag added — fixes mobile scaling
+- ✅ Hamburger menu working on real mobile (CSS media query approach, clean Navbar component)
+- ✅ MacBook Neo article images restored (downloaded from live site, added to public/)
+- ✅ Preview deployment working on nextjs-preview branch
+
+### Still To Do (Next Session Priority Order)
+1. **Hamburger drawer** — confirm latest commit (0856ab2) deployed cleanly and drawer looks right
+2. **MacBook Neo story** — inline article images still not displaying correctly in Next.js story page; pullquote N·e·o styling broken
+3. **Mother and Other Poems** — poem stanzas not displaying in verses on Next.js
+4. **Category rows mobile** — need horizontal scroll on mobile (currently showing as grid)
+5. **StoryCard component** — "This is Nigeria" card text bleeding outside container
+6. **Deploy to production** — merge nextjs-preview → main when mobile is ready
+
+---
+
+## Re-extracting Content (if new stories added to static site)
 ```bash
 python3 << 'EOF'
 import os, re
@@ -110,20 +132,6 @@ print(f"Done! Extracted {len(output)} stories")
 EOF
 ```
 
-### What's Next
-1. Wire up story links from homepage/category pages → `/stories/[slug]`
-2. Firebase Auth (Google + email/password login)
-3. Get Paid to Read features (leaderboard, quiz system)
-4. Deploy to Cloudflare Pages on new branch (add `output: 'export'` back to next.config.mjs)
-5. Switch domain when ready
-
-### Cover Images
-All cover images copied to `calvary-scribblings-next/public/` via:
-```
-cp /workspaces/calvary-scribblings/*cover* /workspaces/calvary-scribblings/calvary-scribblings-next/public/
-```
-Also copied: `logo-header.jpg`, `favicon.png`, `B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png`
-
 ---
 
 ## Get Paid to Read — Campaign Plan
@@ -140,11 +148,10 @@ Also copied: `logo-header.jpg`, `favicon.png`, `B4E36CD1-7C81-4ED0-BD27-63A125FD
   2. **15 MCQs** — a/b/c/d, auto-marked
   3. **3 theory questions** — written answers, manually reviewed
 - Results published one day before payment
-- Selected stories only (not every story)
+- Selected stories only
 
 ### User Accounts
-- Firebase Authentication: email/password + Google login
-- All to be built in Next.js version
+- ✅ Firebase Authentication: email/password + Google login — BUILT
 
 ### Payment
 - Manual bank transfer/PayPal by Ikenna to winners
@@ -243,22 +250,33 @@ Every story page must have:
   - `.poem-contents` — purple left border, italic list items
   - `.poem-stanza` — Cormorant Garamond, `margin-bottom: 2em`, line-height 1.7, `p::first-letter { all: unset }`
   - `h3` — italic, `#c4b5a0`, font-weight 400
-  - Drop cap suppressed for poetry: `p:first-child::first-letter { ${story.category === 'poetry' ? 'all: unset;' : ''} }`
+  - Drop cap suppressed for poetry via `story.category === 'poetry'` check
 
 ---
 
 ## Known Issues / Resolved
 - ✅ Firebase security rules — fixed
-- ✅ Nav search link misalignment — fixed across all static pages
+- ✅ Nav search link misalignment — fixed
 - ✅ Favicon added to all static pages
 - ✅ badge-poetry missing from styles.css — fixed
 - ✅ Just Added strip stable sort — fixed
 - ✅ Poem stanza font (Cochin not Times) — fixed
-- ✅ Next.js params async — fixed with `use(params)` from React
-- ✅ Turbopack MDX incompatibility — fixed by removing `--turbopack` from dev script
+- ✅ Next.js params async — fixed with `use(params)`
+- ✅ Turbopack MDX incompatibility — fixed
+- ✅ Drop cap on closing paragraphs — fixed with `p:first-of-type::first-letter`
+- ✅ Story links from homepage/category pages — all working
+- ✅ Firebase Auth email/password — working
+- ✅ Google sign-in popup — blocked in Codespace preview (works on deployed domain)
+- ✅ Mobile viewport scaling — fixed with meta tag in layout.js
+- ✅ Hamburger menu — working on real mobile via CSS media queries
+- ✅ Top 10 tap-to-toggle — working on mobile
+- ✅ Just Added cards — alignment fixed
+- ✅ MacBook Neo images — restored from live site
+- ⚠️ MacBook Neo story — inline images + pullquote styling broken in Next.js
+- ⚠️ Mother and Other Poems — verses not displaying correctly in Next.js
+- ⚠️ Category rows — no horizontal scroll on mobile in Next.js
 - ⚠️ Cloudflare cache slow to update — purge via dashboard when needed
-- ⚠️ Illustrated/text-heavy covers excluded from Next.js carousel
-- ⚠️ `output: 'export'` removed from next.config.mjs for local dev — must add back for Cloudflare deployment
+- ⚠️ No welcome email on registration yet — needs EmailJS integration
 
 ---
 
@@ -271,3 +289,5 @@ Every story page must have:
 - Keep Search `<li>` inside the nav `<ul>` (static site)
 - Don't use illustrated/text-heavy covers in the Next.js carousel
 - Don't add `--turbopack` back to the dev script
+- Don't put `generateStaticParams` in a 'use client' file — it must be in a server component (layout.js)
+- Don't use JavaScript (isMobile state) for responsive navbar — use CSS media queries only
