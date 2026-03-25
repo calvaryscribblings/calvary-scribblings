@@ -5,10 +5,9 @@ import AuthModal from './AuthModal';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-
-  const links = [['Home', '/'], ['About', '/about'], ['Subscribe', '/subscribe'], ['Contact', '/contact']];
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
   useEffect(() => {
@@ -16,8 +15,6 @@ export default function Navbar() {
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-
-
 
   return (
     <>
@@ -39,15 +36,47 @@ export default function Navbar() {
         .cs-logo { text-decoration: none; display: flex; align-items: center; gap: 0.6rem; }
         .cs-logo-title { color: #a78bfa; font-weight: 700; font-size: 1rem; line-height: 1.1; }
         .cs-logo-sub { color: rgba(255,255,255,0.4); font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; }
+
         .cs-desktop-links { display: flex; align-items: center; gap: 1.2rem; }
         .cs-desktop-links a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 0.82rem; font-weight: 500; }
         .cs-desktop-links a:hover { color: #fff; }
+
+        .cs-stories-wrap { position: relative; }
+        .cs-stories-btn {
+          background: none; border: none; cursor: pointer;
+          color: rgba(255,255,255,0.75); font-size: 0.82rem; font-weight: 500;
+          display: flex; align-items: center; gap: 0.3em; padding: 0;
+        }
+        .cs-stories-btn:hover { color: #fff; }
+        .cs-stories-btn span { font-size: 0.6rem; opacity: 0.6; }
+        .cs-dropdown {
+          position: absolute; top: calc(100% + 12px); left: 0;
+          background: rgba(15,15,15,0.98); backdrop-filter: blur(16px);
+          border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+          padding: 0.5rem 0; min-width: 200px; z-index: 2000;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .cs-dropdown a {
+          display: block; padding: 0.55rem 1.25rem;
+          color: rgba(255,255,255,0.75) !important; font-size: 0.82rem !important;
+          text-decoration: none; transition: color 0.2s;
+        }
+        .cs-dropdown a:hover { color: #fff !important; background: rgba(255,255,255,0.04); }
+        .cs-dropdown-label {
+          padding: 0.6rem 1.25rem 0.25rem;
+          font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em;
+          text-transform: uppercase; color: rgba(255,255,255,0.3);
+        }
+        .cs-dropdown-dot { color: #7c3aed; margin-right: 0.4em; }
+        .cs-dropdown hr { border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 0.4rem 0; }
+
         .cs-signin-btn {
           background: #7c3aed; border: none; border-radius: 3px;
           padding: 0.4em 1em; color: #fff; font-size: 0.72rem;
           font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
           cursor: pointer;
         }
+
         .cs-hamburger {
           display: none; flex-direction: column; gap: 5px;
           background: none; border: none; cursor: pointer; padding: 4px; z-index: 1001;
@@ -56,6 +85,7 @@ export default function Navbar() {
           display: block; width: 24px; height: 2px;
           background: #fff; border-radius: 2px; transition: all 0.3s;
         }
+
         .cs-drawer {
           position: fixed; top: 68px; left: 0; right: 0; bottom: 0;
           background: rgba(10,10,10,0.98); z-index: 999;
@@ -66,12 +96,20 @@ export default function Navbar() {
           color: rgba(255,255,255,0.85); text-decoration: none;
           font-size: 1.1rem; font-weight: 500; padding: 0.85rem 0;
           border-bottom: 1px solid rgba(255,255,255,0.06);
+          display: flex; align-items: center; gap: 0.5em;
         }
+        .cs-drawer-label {
+          color: rgba(255,255,255,0.35); font-size: 0.65rem;
+          letter-spacing: 0.12em; text-transform: uppercase;
+          padding: 1rem 0 0.25rem; border-bottom: none;
+        }
+        .cs-drawer-dot { color: #7c3aed; font-size: 1rem; }
         .cs-drawer-signin {
           margin-top: 1.5rem; background: #7c3aed; border: none;
           border-radius: 8px; padding: 1rem; color: #fff;
           font-size: 1rem; font-weight: 600; cursor: pointer; text-align: center;
         }
+
         @media (max-width: 768px) {
           .cs-desktop-links { display: none !important; }
           .cs-hamburger { display: flex !important; }
@@ -88,9 +126,31 @@ export default function Navbar() {
         </a>
 
         <div className="cs-desktop-links">
-          {links.map(([label, href]) => (
-            <a key={label} href={href}>{label}</a>
-          ))}
+          <a href="/">Home</a>
+
+          <div className="cs-stories-wrap" onMouseEnter={() => setDropdownOpen(true)} onMouseLeave={() => setDropdownOpen(false)}>
+            <button className="cs-stories-btn">
+              Stories <span>▾</span>
+            </button>
+            {dropdownOpen && (
+              <div className="cs-dropdown">
+                <div className="cs-dropdown-label">Creative Writing</div>
+                <a href="/flash"><span className="cs-dropdown-dot">·</span>Flash Fiction</a>
+                <a href="/short"><span className="cs-dropdown-dot">·</span>Short Stories</a>
+                <a href="/serial"><span className="cs-dropdown-dot">·</span>Serial Stories</a>
+                <a href="/poetry"><span className="cs-dropdown-dot">·</span>Poetry</a>
+                <hr />
+                <a href="/news">News &amp; Updates</a>
+                <a href="/inspiring">Inspiring Stories</a>
+              </div>
+            )}
+          </div>
+
+          <a href="/about">About</a>
+          <a href="/subscribe">Subscribe</a>
+          <a href="/contact">Contact</a>
+          <a href="/search">Search</a>
+
           {user ? (
             <>
               <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.82rem' }}>{user.displayName || user.email}</span>
@@ -110,16 +170,24 @@ export default function Navbar() {
 
       {menuOpen && (
         <div className="cs-drawer">
-          {[['Home', '/'], ['About', '/about'], ['Subscribe', '/subscribe'], ['Contact', '/contact']].map(([label, href]) => (
-            <a key={label} href={href} onClick={() => setMenuOpen(false)}>{label}</a>
-          ))}
-          <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.65rem', letterSpacing: '0.12em', textTransform: 'uppercase', padding: '1rem 0 0.25rem' }}>Creative Writing</div>
+          <a href="/" onClick={() => setMenuOpen(false)}>Home</a>
+
+          <div className="cs-drawer-label">Stories</div>
+          <div className="cs-drawer-label" style={{ paddingTop: '0.1rem' }}>Creative Writing</div>
           {[['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Serial Stories', '/serial'], ['Poetry', '/poetry']].map(([label, href]) => (
-            <a key={label} href={href} onClick={() => setMenuOpen(false)} style={{ paddingLeft: '0.75rem' }}>{label}</a>
+            <a key={label} href={href} onClick={() => setMenuOpen(false)}>
+              <span className="cs-drawer-dot">·</span>{label}
+            </a>
           ))}
-          {[['News & Updates', '/news'], ['Inspiring Stories', '/inspiring'], ['Search', '/search']].map(([label, href]) => (
+          {[['News & Updates', '/news'], ['Inspiring Stories', '/inspiring']].map(([label, href]) => (
             <a key={label} href={href} onClick={() => setMenuOpen(false)}>{label}</a>
           ))}
+
+          <a href="/about" onClick={() => setMenuOpen(false)}>About</a>
+          <a href="/subscribe" onClick={() => setMenuOpen(false)}>Subscribe</a>
+          <a href="/contact" onClick={() => setMenuOpen(false)}>Contact</a>
+          <a href="/search" onClick={() => setMenuOpen(false)}>Search</a>
+
           {user ? (
             <button className="cs-drawer-signin" onClick={logout}>Sign Out</button>
           ) : (
