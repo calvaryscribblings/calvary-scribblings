@@ -8,6 +8,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [storiesOpen, setStoriesOpen] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
   useEffect(() => {
@@ -98,11 +99,32 @@ export default function Navbar() {
           border-bottom: 1px solid rgba(255,255,255,0.06);
           display: flex; align-items: center; gap: 0.5em;
         }
-        .cs-drawer-label {
-          color: rgba(255,255,255,0.35); font-size: 0.65rem;
-          letter-spacing: 0.12em; text-transform: uppercase;
-          padding: 1rem 0 0.25rem; border-bottom: none;
+        .cs-drawer-stories-btn {
+          background: none; border: none; cursor: pointer;
+          color: rgba(255,255,255,0.85); font-size: 1.1rem; font-weight: 500;
+          padding: 0.85rem 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+          display: flex; align-items: center; justify-content: space-between;
+          width: 100%; text-align: left;
         }
+        .cs-drawer-stories-btn span { font-size: 0.7rem; opacity: 0.5; transition: transform 0.2s; }
+        .cs-drawer-stories-btn.open span { transform: rotate(180deg); }
+        .cs-drawer-subnav {
+          display: flex; flex-direction: column;
+          background: rgba(255,255,255,0.03);
+          border-radius: 8px; margin-bottom: 0.25rem;
+          overflow: hidden;
+        }
+        .cs-drawer-sublabel {
+          color: rgba(255,255,255,0.3); font-size: 0.62rem;
+          letter-spacing: 0.12em; text-transform: uppercase;
+          padding: 0.75rem 1rem 0.25rem;
+        }
+        .cs-drawer-subnav a {
+          padding: 0.7rem 1rem;
+          border-bottom: 1px solid rgba(255,255,255,0.04);
+          font-size: 1rem;
+        }
+        .cs-drawer-subnav a:last-child { border-bottom: none; }
         .cs-drawer-dot { color: #7c3aed; font-size: 1rem; }
         .cs-drawer-signin {
           margin-top: 1.5rem; background: #7c3aed; border: none;
@@ -127,7 +149,6 @@ export default function Navbar() {
 
         <div className="cs-desktop-links">
           <a href="/">Home</a>
-
           <div className="cs-stories-wrap" onMouseEnter={() => setDropdownOpen(true)} onMouseLeave={() => setDropdownOpen(false)}>
             <button className="cs-stories-btn">
               Stories <span>▾</span>
@@ -145,12 +166,10 @@ export default function Navbar() {
               </div>
             )}
           </div>
-
           <a href="/about">About</a>
           <a href="/subscribe">Subscribe</a>
           <a href="/contact">Contact</a>
           <a href="/search">Search</a>
-
           {user ? (
             <>
               <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.82rem' }}>{user.displayName || user.email}</span>
@@ -172,16 +191,27 @@ export default function Navbar() {
         <div className="cs-drawer">
           <a href="/" onClick={() => setMenuOpen(false)}>Home</a>
 
-          <div className="cs-drawer-label">Stories</div>
-          <div className="cs-drawer-label" style={{ paddingTop: '0.1rem' }}>Creative Writing</div>
-          {[['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Serial Stories', '/serial'], ['Poetry', '/poetry']].map(([label, href]) => (
-            <a key={label} href={href} onClick={() => setMenuOpen(false)}>
-              <span className="cs-drawer-dot">·</span>{label}
-            </a>
-          ))}
-          {[['News & Updates', '/news'], ['Inspiring Stories', '/inspiring']].map(([label, href]) => (
-            <a key={label} href={href} onClick={() => setMenuOpen(false)}>{label}</a>
-          ))}
+          <button
+            className={'cs-drawer-stories-btn' + (storiesOpen ? ' open' : '')}
+            onClick={() => setStoriesOpen(!storiesOpen)}
+          >
+            Stories <span>▾</span>
+          </button>
+
+          {storiesOpen && (
+            <div className="cs-drawer-subnav">
+              <div className="cs-drawer-sublabel">Creative Writing</div>
+              {[['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Serial Stories', '/serial'], ['Poetry', '/poetry']].map(([label, href]) => (
+                <a key={label} href={href} onClick={() => setMenuOpen(false)}>
+                  <span className="cs-drawer-dot">·</span>{label}
+                </a>
+              ))}
+              <div className="cs-drawer-sublabel" style={{ paddingTop: '0.5rem' }}>News &amp; More</div>
+              {[['News & Updates', '/news'], ['Inspiring Stories', '/inspiring']].map(([label, href]) => (
+                <a key={label} href={href} onClick={() => setMenuOpen(false)}>{label}</a>
+              ))}
+            </div>
+          )}
 
           <a href="/about" onClick={() => setMenuOpen(false)}>About</a>
           <a href="/subscribe" onClick={() => setMenuOpen(false)}>Subscribe</a>
