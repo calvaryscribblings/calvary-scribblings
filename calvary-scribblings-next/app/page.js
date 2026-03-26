@@ -142,31 +142,16 @@ function Row({ title, stories, seeAll }) {
 function Top10Card({ s, i }) {
   const [active, setActive] = useState(false);
 
-  useEffect(() => {
-    if (!active) return;
-    const dismiss = () => setActive(false);
-    document.addEventListener('touchstart', dismiss, { once: true });
-    return () => document.removeEventListener('touchstart', dismiss);
-  }, [active]);
-
   const CARD_WIDTH = 120;
   const CARD_HEIGHT = 180;
   const NUM_W = 60;
-  // SVG viewBox is taller than card so text isn't clipped
   const VB_H = 300;
-  // Text baseline sits at bottom of card — y = VB_H means baseline at card bottom
-  const TEXT_Y = VB_H;
   const strokeColor = active ? 'rgba(167,139,250,0.7)' : 'rgba(255,255,255,0.18)';
 
   return (
     <a href={s.url}
       onMouseEnter={() => setActive(true)}
       onMouseLeave={() => setActive(false)}
-      onTouchEnd={(e) => {
-        if (active) return;
-        e.preventDefault();
-        setActive(true);
-      }}
       style={{
         textDecoration: 'none',
         flexShrink: 0,
@@ -180,20 +165,13 @@ function Top10Card({ s, i }) {
         overflow: 'visible',
       }}>
 
-      {/* SVG number — viewBox is taller than card, overflow visible, baseline pinned to card bottom */}
       <svg
         width={NUM_W}
         height={CARD_HEIGHT}
         viewBox={`0 0 ${NUM_W} ${VB_H}`}
         preserveAspectRatio="xMaxYMax meet"
         overflow="visible"
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          zIndex: 1,
-          overflow: 'visible',
-        }}
+        style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, overflow: 'visible' }}
       >
         <text
           x={NUM_W - 2}
@@ -212,7 +190,6 @@ function Top10Card({ s, i }) {
         </text>
       </svg>
 
-      {/* Cover */}
       <div style={{
         position: 'absolute',
         top: 0,
