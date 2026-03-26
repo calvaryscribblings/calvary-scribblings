@@ -238,7 +238,7 @@ useEffect(() => {
           .hero-cover-panel { width: 100px; height: 145px; bottom: 0; right: 4%; z-index: 0; }
           
           .story-body { padding: 2.5rem 1.2rem 4rem; }
-          .hero-content { padding: 2rem 1.2rem 2.5rem; }
+          .hero-content { padding: 2rem 1.2rem 2.5rem 1.2rem; padding-right: 120px; }
           .prose { font-size: 1.05rem; }
           .story-nav { padding: 0.85rem 1.2rem; }
           .hit-counter-row { padding: 1.5rem 1.2rem; }
