@@ -13,7 +13,7 @@ export default function ContactPage() {
           <p>We'd love to hear from you — whether you're a reader, a writer, or a collaborator.</p>
           <p>For submissions, editorial enquiries, or general correspondence, reach us at:</p>
           <a href="mailto:contact@calvaryscribblings.co.uk" style={{ color: '#a78bfa', fontSize: '1.2rem', fontWeight: 600, textDecoration: 'none' }}>
-            hello@calvaryscribblings.co.uk
+            contact@calvaryscribblings.co.uk
           </a>
           <p style={{ fontSize: '0.95rem', color: 'rgba(255,255,255,0.45)' }}>We aim to respond within 48 hours.</p>
         </div>
