@@ -224,6 +224,8 @@ export default function Home() {
   const [heroTransition, setHeroTransition] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [top10, setTop10] = useState([...stories].slice(0, 10));
+  const [email, setEmail] = useState('');
+  const [subscribeStatus, setSubscribeStatus] = useState('');
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 1024);
@@ -265,10 +267,37 @@ export default function Home() {
     fetchTop10();
   }, []);
 
+  const handleSubscribe = async () => {
+    if (!email || !email.includes('@')) {
+      setSubscribeStatus('Please enter a valid email address.');
+      return;
+    }
+    try {
+      const { initializeApp, getApps } = await import('firebase/app');
+      const { getDatabase, ref, push } = await import('firebase/database');
+      const firebaseConfig = {
+        apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+        authDomain: 'calvary-scribblings.firebaseapp.com',
+        databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+        projectId: 'calvary-scribblings',
+        storageBucket: 'calvary-scribblings.firebasestorage.app',
+        messagingSenderId: '1052137412283',
+        appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+      };
+      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+      await push(ref(db, 'subscribers'), { email, subscribedAt: new Date().toISOString() });
+      setSubscribeStatus('Thank you! You\'re now subscribed.');
+      setEmail('');
+    } catch (e) {
+      setSubscribeStatus('Something went wrong. Please try again.');
+    }
+  };
+
   const sorted = [...stories].map((s,i) => ({...s,_idx:i})).sort((a,b) => parseDate(b.date)-parseDate(a.date)||a._idx-b._idx);
   const seed = Math.floor(Date.now() / (1000 * 60 * 60 * 2));
-const pool = sorted.filter(s => s.category === 'news' || s.category === 'inspiring' || s.category === 'short');
-const carouselStories = [...pool].sort((a, b) => ((a.id.charCodeAt(0) * seed) % 7) - ((b.id.charCodeAt(0) * seed) % 7)).slice(0, 5);
+  const pool = sorted.filter(s => s.category === 'news' || s.category === 'inspiring' || s.category === 'short');
+  const carouselStories = [...pool].sort((a, b) => ((a.id.charCodeAt(0) * seed) % 7) - ((b.id.charCodeAt(0) * seed) % 7)).slice(0, 5);
   const justAdded = sorted.slice(0, 5);
 
   const goTo = useCallback((idx) => {
@@ -427,11 +456,12 @@ const carouselStories = [...pool].sort((a, b) => ((a.id.charCodeAt(0) * seed) % 
       </section>
 
       {/* Category Rows */}
-<Row title="⚡ Flash Fiction" stories={stories.filter(s => s.category === 'flash')} seeAll="/flash" />
-<Row title="📖 Short Stories" stories={stories.filter(s => s.category === 'short')} seeAll="/short" />
-<Row title="🖊️ Poetry" stories={stories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
-<Row title="🗞️ News & Updates" stories={stories.filter(s => s.category === 'news')} seeAll="/news" />
-<Row title="✨ Inspiring Stories" stories={stories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
+      <Row title="⚡ Flash Fiction" stories={stories.filter(s => s.category === 'flash')} seeAll="/flash" />
+      <Row title="📖 Short Stories" stories={stories.filter(s => s.category === 'short')} seeAll="/short" />
+      <Row title="🖊️ Poetry" stories={stories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
+      <Row title="🗞️ News & Updates" stories={stories.filter(s => s.category === 'news')} seeAll="/news" />
+      <Row title="✨ Inspiring Stories" stories={stories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
+
       {/* Subscribe */}
       <section id="subscribe" style={{
         padding: '6rem 4%', textAlign: 'center',
@@ -445,24 +475,37 @@ const carouselStories = [...pool].sort((a, b) => ((a.id.charCodeAt(0) * seed) % 
             Subscribe to our newsletter and get the latest stories delivered to your inbox.
           </p>
           <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <input type="email" placeholder="Enter your email address" style={{
-              flex: 1, minWidth: 250, padding: '0.85rem 1.25rem', borderRadius: 6,
-              border: '1px solid rgba(124,58,237,0.3)', background: 'rgba(124,58,237,0.08)',
-              color: '#fff', fontSize: '0.9rem', outline: 'none', fontFamily: 'inherit',
-            }} />
-            <button style={{
-              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-              color: '#fff', padding: '0.85rem 1.75rem', borderRadius: 6,
-              border: 'none', fontWeight: 700, fontSize: '0.9rem',
-              cursor: 'pointer', fontFamily: 'inherit',
-              boxShadow: '0 4px 20px rgba(124,58,237,0.4)',
-              transition: 'all 0.2s',
-            }}
+            <input
+              type="email"
+              placeholder="Enter your email address"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubscribe()}
+              style={{
+                flex: 1, minWidth: 250, padding: '0.85rem 1.25rem', borderRadius: 6,
+                border: '1px solid rgba(124,58,237,0.3)', background: 'rgba(124,58,237,0.08)',
+                color: '#fff', fontSize: '0.9rem', outline: 'none', fontFamily: 'inherit',
+              }} />
+            <button
+              onClick={handleSubscribe}
+              style={{
+                background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                color: '#fff', padding: '0.85rem 1.75rem', borderRadius: 6,
+                border: 'none', fontWeight: 700, fontSize: '0.9rem',
+                cursor: 'pointer', fontFamily: 'inherit',
+                boxShadow: '0 4px 20px rgba(124,58,237,0.4)',
+                transition: 'all 0.2s',
+              }}
               onMouseEnter={e => { e.target.style.transform = 'scale(1.04)'; e.target.style.boxShadow = '0 6px 28px rgba(124,58,237,0.6)'; }}
               onMouseLeave={e => { e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = '0 4px 20px rgba(124,58,237,0.4)'; }}>
               Subscribe
             </button>
           </div>
+          {subscribeStatus && (
+            <p style={{ marginTop: '1rem', fontSize: '0.9rem', color: subscribeStatus.includes('Thank') ? '#a3e635' : '#f87171' }}>
+              {subscribeStatus}
+            </p>
+          )}
         </div>
       </section>
 
@@ -479,9 +522,19 @@ const carouselStories = [...pool].sort((a, b) => ((a.id.charCodeAt(0) * seed) % 
             </p>
           </div>
           {[
-            { title: 'Explore', links: [['News & Updates', '/news'], ['Inspiring Stories', '/inspiring'], ['Creative Writing', '/creative']] },
-            { title: 'Creative Writing', links: [['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Serial Stories', '/serial'], ['Poetry', '/poetry']] },
-            { title: 'Connect', links: [['Newsletter', '/#subscribe'], ['Contact Us', '/#contact'], ['About Us', '/#about']] },
+            { title: 'Explore', links: [
+              ['Flash Fiction', '/flash'],
+              ['Short Stories', '/short'],
+              ['Poetry', '/poetry'],
+              ['News & Updates', '/news'],
+              ['Inspiring Stories', '/inspiring'],
+              ['Serial Stories', '/serial'],
+            ]},
+            { title: 'Connect', links: [
+              ['Newsletter', '/#subscribe'],
+              ['Contact Us', '/contact'],
+              ['About Us', '/about'],
+            ]},
           ].map(({ title, links }) => (
             <div key={title}>
               <h5 style={{ color: '#a78bfa', marginBottom: '1rem', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{title}</h5>
