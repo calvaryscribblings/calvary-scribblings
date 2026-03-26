@@ -221,7 +221,7 @@ export default function StoryPage({ params }) {
         @media (max-width: 640px) {
           .hero-bg { display: none; }
           .hero-overlay { display: none; }
-          .hero-cover-panel { display: none; }
+        
           .hero-mobile-cover { display: block; }
           .hero-mobile-overlay { display: block; }
           .story-body { padding: 2.5rem 1.2rem 4rem; }
