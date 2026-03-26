@@ -62,7 +62,22 @@ export default function StoryPage({ params }) {
     }
     trackHit();
   }, [slug]);
-
+useEffect(() => {
+    if (!slug) return;
+    window.disqus_config = function () {
+      this.page.url = `https://calvaryscribblings.co.uk/stories/${slug}`;
+      this.page.identifier = slug;
+    };
+    const script = document.createElement('script');
+    script.src = 'https://calvaryscribblings.disqus.com/embed.js';
+    script.setAttribute('data-timestamp', +new Date());
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+      delete window.disqus_config;
+      if (window.DISQUS) window.DISQUS.reset({ reload: false });
+    };
+  }, [slug]);
   if (!story) {
     return (
       <div style={{ background: '#f0ead8', color: '#1a1a1a', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Cochin, Georgia, serif', fontSize: '1.2rem' }}>
