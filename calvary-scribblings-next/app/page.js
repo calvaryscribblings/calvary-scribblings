@@ -266,7 +266,7 @@ export default function Home() {
   }, []);
 
   const sorted = [...stories].map((s,i) => ({...s,_idx:i})).sort((a,b) => parseDate(b.date)-parseDate(a.date)||a._idx-b._idx);
-  const seed = Math.floor(Date.now() / (1000 * 60 * 60 * 6));
+  const seed = Math.floor(Date.now() / (1000 * 60 * 60 * 2));
 const pool = sorted.filter(s => s.category === 'news' || s.category === 'inspiring' || s.category === 'short');
 const carouselStories = [...pool].sort((a, b) => ((a.id.charCodeAt(0) * seed) % 7) - ((b.id.charCodeAt(0) * seed) % 7)).slice(0, 5);
   const justAdded = sorted.slice(0, 5);
