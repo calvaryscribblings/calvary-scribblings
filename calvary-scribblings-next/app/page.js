@@ -77,7 +77,7 @@ function StoryCard({ story, width = 190, height = 270 }) {
           {story.categoryName}
         </span>
         <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff', lineHeight: 1.35, marginBottom: '0.25rem' }}>{story.title}</div>
-        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.5)' }}>{story.author}</div>
+        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.75)' }}>{story.author}</div>
       </div>
     </a>
   );
@@ -100,7 +100,7 @@ function JustAddedCard({ story }) {
         style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#e8e0d4',
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 6 }}>
             {story.title}
           </div>
@@ -112,7 +112,7 @@ function JustAddedCard({ story }) {
             }}>NEW</span>
           )}
         </div>
-        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.45)' }}>
+        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.65)' }}>
           By {story.author} · {story.date}
         </div>
       </div>
@@ -124,7 +124,7 @@ function Row({ title, stories, seeAll }) {
   return (
     <section style={{ padding: '2rem 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 4%' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#e5e5e5', margin: 0 }}>{title}</h3>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>{title}</h3>
         <a href={seeAll}
           style={{ fontSize: '0.8rem', color: '#a78bfa', textDecoration: 'none', fontWeight: 600 }}
           onMouseEnter={e => e.target.style.color = '#c4b5fd'}
@@ -138,6 +138,7 @@ function Row({ title, stories, seeAll }) {
     </section>
   );
 }
+
 function Top10Card({ s, i }) {
   const [active, setActive] = useState(false);
 
@@ -185,11 +186,13 @@ function Top10Card({ s, i }) {
     </a>
   );
 }
+
 export default function Home() {
   const { user, logout } = useAuth();
-      const [heroIndex, setHeroIndex] = useState(0);
+  const [heroIndex, setHeroIndex] = useState(0);
   const [heroTransition, setHeroTransition] = useState(true);
-    const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 1024);
     check();
@@ -215,12 +218,6 @@ export default function Home() {
   }, [heroIndex, carouselStories.length, goTo]);
 
   useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 60);
-    window.addEventListener('scroll', fn);
-    return () => window.removeEventListener('scroll', fn);
-  }, []);
-
-  useEffect(() => {
     const timer = setInterval(next, 6000);
     return () => clearInterval(timer);
   }, [next]);
@@ -232,21 +229,20 @@ export default function Home() {
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: "'Cochin', Georgia, serif" }}>
 
       <style>{`
-  @media (max-width: 1024px) {
-    .nav-desktop { display: none !important; }
-    .nav-hamburger { display: flex !important; }
-  }
-  @media (min-width: 1025px) {
-    .nav-desktop { display: flex !important; }
-    .nav-hamburger { display: none !important; }
-  }
-`}</style>
+        @media (max-width: 1024px) {
+          .nav-desktop { display: none !important; }
+          .nav-hamburger { display: flex !important; }
+        }
+        @media (min-width: 1025px) {
+          .nav-desktop { display: flex !important; }
+          .nav-hamburger { display: none !important; }
+        }
+      `}</style>
+
       <Navbar />
 
       {/* Hero Carousel */}
       <section style={{ position: 'relative', height: '88vh', minHeight: 600, overflow: 'hidden' }}>
-
-        {/* Background images — all preloaded, only active one is visible */}
         {carouselStories.map((s, i) => (
           <img key={s.id} src={s.cover} alt={s.title}
             style={{
@@ -258,12 +254,9 @@ export default function Home() {
               zIndex: 0,
             }} />
         ))}
-
-        {/* Gradients */}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(105deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.5) 60%, transparent 100%)', zIndex: 1 }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #0a0a0a 0%, transparent 45%)', zIndex: 1 }} />
 
-        {/* Content */}
         <div style={{
           position: 'absolute', bottom: '12%', left: '4%', maxWidth: 560, zIndex: 2,
           opacity: heroTransition ? 1 : 0,
@@ -274,10 +267,10 @@ export default function Home() {
             <span style={{ width: 3, height: 18, background: 'linear-gradient(to bottom, #7c3aed, #a855f7)', borderRadius: 2, display: 'inline-block' }} />
             <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#c4b5fd' }}>Featured Story</span>
           </div>
-          <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', fontWeight: 700, lineHeight: 1.1, marginBottom: '0.75rem', color: '#fff', textShadow: '0 2px 30px rgba(0,0,0,0.6)' }}>
+          <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', fontWeight: 700, lineHeight: 1.1, marginBottom: '0.75rem', color: '#ffffff', textShadow: '0 2px 30px rgba(0,0,0,0.6)' }}>
             {featured.title}
           </h1>
-          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.95rem', marginBottom: '1.75rem' }}>
+          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.95rem', marginBottom: '1.75rem' }}>
             By {featured.author} · {featured.date}
           </p>
           <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -295,7 +288,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Carousel dots + prev/next */}
         <div style={{ position: 'absolute', bottom: '5%', left: '4%', zIndex: 3, display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             {carouselStories.map((_, i) => (
@@ -323,7 +315,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Thumbnail strip — right side */}
         <div style={{
           position: 'absolute', right: '3%', top: '50%', transform: 'translateY(-50%)',
           zIndex: 3, display: 'flex', flexDirection: 'column', gap: '0.6rem',
@@ -355,25 +346,25 @@ export default function Home() {
       </section>
 
       {/* Top 10 */}
-<section style={{ padding: '2.5rem 0' }}>
-  <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
-    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#e5e5e5', margin: 0 }}>🔥 Top 10 Stories</h3>
-  </div>
-  <div style={{ display: 'flex', gap: '0rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
-    {top10.map((s, i) => (
-      <Top10Card key={s.id} s={s} i={i} />
-    ))}
-  </div>
-</section>
-      
-        {/* Category Rows */}
-        <Row title="🗞️ News & Updates" stories={stories.filter(s => s.category === 'news')} seeAll="/news" />
-        <Row title="✨ Inspiring Stories" stories={stories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
-        <Row title="⚡ Flash Fiction" stories={stories.filter(s => s.category === 'flash')} seeAll="/flash" />
-        <Row title="📖 Short Stories" stories={stories.filter(s => s.category === 'short')} seeAll="/short" />
-        <Row title="🖊️ Poetry" stories={stories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
+      <section style={{ padding: '2.5rem 0' }}>
+        <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>🔥 Top 10 Stories</h3>
+        </div>
+        <div style={{ display: 'flex', gap: '0rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
+          {top10.map((s, i) => (
+            <Top10Card key={s.id} s={s} i={i} />
+          ))}
+        </div>
+      </section>
 
-{/* Subscribe */}
+      {/* Category Rows */}
+      <Row title="🗞️ News & Updates" stories={stories.filter(s => s.category === 'news')} seeAll="/news" />
+      <Row title="✨ Inspiring Stories" stories={stories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
+      <Row title="⚡ Flash Fiction" stories={stories.filter(s => s.category === 'flash')} seeAll="/flash" />
+      <Row title="📖 Short Stories" stories={stories.filter(s => s.category === 'short')} seeAll="/short" />
+      <Row title="🖊️ Poetry" stories={stories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
+
+      {/* Subscribe */}
       <section id="subscribe" style={{
         padding: '6rem 4%', textAlign: 'center',
         background: 'linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(168,85,247,0.06) 100%)',
@@ -381,8 +372,8 @@ export default function Home() {
         borderBottom: '1px solid rgba(255,255,255,0.04)',
       }}>
         <div style={{ maxWidth: 520, margin: '0 auto' }}>
-          <h2 style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '0.85rem', color: '#fff', lineHeight: 1.2 }}>Never Miss a Story</h2>
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '1rem', marginBottom: '2.5rem', lineHeight: 1.7 }}>
+          <h2 style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '0.85rem', color: '#ffffff', lineHeight: 1.2 }}>Never Miss a Story</h2>
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '1rem', marginBottom: '2.5rem', lineHeight: 1.7 }}>
             Subscribe to our newsletter and get the latest stories delivered to your inbox.
           </p>
           <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -408,14 +399,14 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer style={{ background: '#060606', padding: '4rem 4% 2rem', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+      <footer style={{ background: '#111111', padding: '4rem 4% 2rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '3rem', marginBottom: '3rem' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
               <img src="/logo-header.jpg" alt="CS" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} />
               <span style={{ fontSize: '1rem', fontWeight: 700, color: '#c4b5fd' }}>Calvary Scribblings</span>
             </div>
-            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.85rem', lineHeight: 1.7 }}>
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.85rem', lineHeight: 1.7 }}>
               A Calvary Media UK publication. Stories that inspire, inform, and illuminate.
             </p>
           </div>
@@ -429,9 +420,9 @@ export default function Home() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 {links.map(([label, href]) => (
                   <a key={href} href={href}
-                    style={{ color: 'rgba(255,255,255,0.35)', textDecoration: 'none', fontSize: '0.875rem', transition: 'color 0.2s' }}
+                    style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontSize: '0.875rem', transition: 'color 0.2s' }}
                     onMouseEnter={e => e.target.style.color = '#c4b5fd'}
-                    onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.35)'}>
+                    onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.55)'}>
                     {label}
                   </a>
                 ))}
@@ -439,7 +430,7 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: '0.8rem' }}>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.8rem' }}>
           © 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.
         </div>
       </footer>
