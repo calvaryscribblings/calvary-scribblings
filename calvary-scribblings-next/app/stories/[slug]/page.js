@@ -98,15 +98,52 @@ export default function StoryPage({ params }) {
         .nav-logo span { color: ${accentColor}; }
         .nav-meta { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(232,224,212,0.45); }
 
+        /* HERO — desktop: cinematic bg + cover panel; mobile: cover fills hero */
         .story-hero { position: relative; height: 88vh; min-height: 520px; display: flex; align-items: flex-end; overflow: hidden; background: #0a0a0a; }
-        .hero-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: heroZoom 12s ease-out forwards; }
+
+        /* Desktop background layer */
+        .hero-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; animation: heroZoom 12s ease-out forwards; filter: brightness(0.55); }
         @keyframes heroZoom { from { transform: scale(1.06); } to { transform: scale(1.0); } }
         .hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,10,10,1) 0%, rgba(10,10,10,0.72) 45%, rgba(10,10,10,0.15) 100%); }
-        .hero-content { position: relative; z-index: 2; padding: 3rem 2rem 3.5rem; max-width: 820px; animation: heroUp 1s cubic-bezier(0.22,1,0.36,1) 0.3s both; }
+
+        /* Desktop cover panel — book standing upright bottom-right */
+        .hero-cover-panel {
+          display: block;
+          position: absolute;
+          bottom: 0;
+          right: 4%;
+          width: 180px;
+          height: 260px;
+          object-fit: cover;
+          border-radius: 4px 8px 0 0;
+          box-shadow: -8px 0 30px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06);
+          z-index: 3;
+          transform: perspective(600px) rotateY(-4deg);
+          transform-origin: bottom right;
+        }
+
+        /* Mobile: hide bg + overlay + panel, show cover filling hero */
+        .hero-mobile-cover {
+          display: none;
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center top;
+        }
+        .hero-mobile-overlay {
+          display: none;
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(to top, rgba(10,10,10,1) 0%, rgba(10,10,10,0.5) 50%, transparent 100%);
+        }
+
+        .hero-content { position: relative; z-index: 2; padding: 3rem 2rem 3.5rem; max-width: 680px; animation: heroUp 1s cubic-bezier(0.22,1,0.36,1) 0.3s both; }
         @keyframes heroUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
         .story-badge-hero { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; padding: 0.3em 0.9em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; margin-bottom: 1.1rem; font-family: Cochin, Georgia, serif; }
         .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 300; line-height: 1.1; color: #f0ead8; margin-bottom: 1.1rem; font-family: 'Cormorant Garamond', Cochin, Georgia, serif; }
-        .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: rgba(232,224,212,0.55); }
+        .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: rgba(232,224,212,0.55); flex-wrap: wrap; }
         .byline-dot { width: 3px; height: 3px; border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
         .byline-by { font-style: italic; font-family: 'Cormorant Garamond', Georgia, serif; margin-right: -0.8rem; }
 
@@ -116,18 +153,13 @@ export default function StoryPage({ params }) {
         .back-link-row { margin-bottom: 2.2rem; padding-bottom: 1.2rem; border-bottom: 1px solid #e0dbd2; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
         .back-link { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: ${accentColor}; text-decoration: none; font-family: Cochin, Georgia, serif; }
         .back-link:hover { text-decoration: underline; }
-        .reading-time-pill { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: #999; font-family: Cochin, Georgia, serif; }
 
         .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cochin, Georgia, serif; font-weight: 400; }
         .prose p { margin-bottom: 1.75em; }
 
         .prose.has-dropcap > p:first-of-type::first-letter {
-          font-size: 4.2em;
-          font-weight: 600;
-          float: left;
-          line-height: 0.78;
-          margin: 0.06em 0.12em 0 0;
-          color: ${accentColor};
+          font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78;
+          margin: 0.06em 0.12em 0 0; color: ${accentColor};
           font-family: 'Cormorant Garamond', Cochin, Georgia, serif;
         }
 
@@ -140,7 +172,8 @@ export default function StoryPage({ params }) {
         .prose figure { margin: 2em 0; }
         .prose figcaption { font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
         .prose img + em { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: -1em; margin-bottom: 2em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose .image-caption { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; margin-bottom: 2em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }.prose .inline-image-caption { display: block; font-size: 0.82rem; color: #888; font-style: italic; text-align: right; margin-top: 0.4em; margin-bottom: 2em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose .image-caption { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; margin-bottom: 2em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose .inline-image-caption { display: block; font-size: 0.82rem; color: #888; font-style: italic; text-align: right; margin-top: 0.4em; margin-bottom: 2em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
 
         .prose .features-list { background: #e8e0f5; border-left: 4px solid ${accentColor}; border-radius: 0 8px 8px 0; padding: 1.25rem 1.5rem; margin: 1.5em 0 2em; }
         .prose .features-list ul { background: transparent; border: none; padding: 0; margin: 0; list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
@@ -184,7 +217,13 @@ export default function StoryPage({ params }) {
         .disqus-divider { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.5rem; font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: #bbb; }
         .disqus-divider::before, .disqus-divider::after { content: ''; flex: 1; height: 1px; background: #e0dbd2; }
 
+        /* MOBILE */
         @media (max-width: 640px) {
+          .hero-bg { display: none; }
+          .hero-overlay { display: none; }
+          .hero-cover-panel { display: none; }
+          .hero-mobile-cover { display: block; }
+          .hero-mobile-overlay { display: block; }
           .story-body { padding: 2.5rem 1.2rem 4rem; }
           .hero-content { padding: 2rem 1.2rem 2.5rem; }
           .prose { font-size: 1.05rem; }
@@ -202,8 +241,17 @@ export default function StoryPage({ params }) {
       </nav>
 
       <header className="story-hero">
-        <img className="hero-cover" src={story.cover} alt={story.title} />
+        {/* Desktop: blurred cinematic background */}
+        <img className="hero-bg" src={story.cover} alt="" aria-hidden="true" />
         <div className="hero-overlay" />
+
+        {/* Mobile: full cover fills hero */}
+        <img className="hero-mobile-cover" src={story.cover} alt={story.title} />
+        <div className="hero-mobile-overlay" />
+
+        {/* Desktop: cover panel standing upright bottom-right */}
+        <img className="hero-cover-panel" src={story.cover} alt={story.title} />
+
         <div className="hero-content">
           <div className="story-badge-hero">{story.categoryName}</div>
           <h1 className="story-title">{story.title}</h1>
