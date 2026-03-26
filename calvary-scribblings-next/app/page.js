@@ -149,6 +149,15 @@ function Top10Card({ s, i }) {
     return () => document.removeEventListener('touchstart', dismiss);
   }, [active]);
 
+  const CARD_WIDTH = 120;
+  const CARD_HEIGHT = 180;
+  const NUM_W = 60;
+  // SVG viewBox is taller than card so text isn't clipped
+  const VB_H = 300;
+  // Text baseline sits at bottom of card — y = VB_H means baseline at card bottom
+  const TEXT_Y = VB_H;
+  const strokeColor = active ? 'rgba(167,139,250,0.7)' : 'rgba(255,255,255,0.18)';
+
   return (
     <a href={s.url}
       onMouseEnter={() => setActive(true)}
@@ -159,27 +168,71 @@ function Top10Card({ s, i }) {
         setActive(true);
       }}
       style={{
-        textDecoration: 'none', flexShrink: 0, width: 200,
-        display: 'flex', alignItems: 'flex-end', position: 'relative',
+        textDecoration: 'none',
+        flexShrink: 0,
+        width: CARD_WIDTH + NUM_W,
+        height: CARD_HEIGHT,
+        display: 'block',
+        position: 'relative',
         transform: active ? 'scale(1.04)' : 'scale(1)',
         transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
-        marginRight: '-1.5rem',
+        marginRight: '0.25rem',
+        overflow: 'visible',
       }}>
-      <span style={{
-        fontSize: '7rem', fontWeight: 900, color: 'transparent',
-        WebkitTextStroke: active ? '2px rgba(167,139,250,0.5)' : '2px rgba(255,255,255,0.1)',
-        lineHeight: 1, zIndex: 1, flexShrink: 0, width: 80,
-        transition: 'all 0.3s', fontFamily: 'Georgia, serif',
-        textShadow: active ? '0 0 30px rgba(124,58,237,0.3)' : 'none',
-      }}>{i + 1}</span>
+
+      {/* SVG number — viewBox is taller than card, overflow visible, baseline pinned to card bottom */}
+      <svg
+        width={NUM_W}
+        height={CARD_HEIGHT}
+        viewBox={`0 0 ${NUM_W} ${VB_H}`}
+        preserveAspectRatio="xMaxYMax meet"
+        overflow="visible"
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          zIndex: 1,
+          overflow: 'visible',
+        }}
+      >
+        <text
+          x={NUM_W - 2}
+          y={VB_H}
+          textAnchor="end"
+          dominantBaseline="text-after-edge"
+          fontFamily="Georgia, serif"
+          fontSize="120"
+          fontWeight="900"
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="1.5"
+          paintOrder="stroke"
+        >
+          {i + 1}
+        </text>
+      </svg>
+
+      {/* Cover */}
       <div style={{
-        borderRadius: 6, overflow: 'hidden', flex: 1,
-        boxShadow: active ? '0 20px 50px rgba(0,0,0,0.9), 0 0 0 1px rgba(124,58,237,0.3)' : '0 4px 20px rgba(0,0,0,0.6)',
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        width: CARD_WIDTH,
+        height: CARD_HEIGHT,
+        borderRadius: 8,
+        overflow: 'hidden',
+        background: '#111',
+        boxShadow: active
+          ? '0 20px 50px rgba(0,0,0,0.9), 0 0 0 1px rgba(124,58,237,0.3)'
+          : '0 4px 20px rgba(0,0,0,0.6)',
         transition: 'box-shadow 0.3s',
       }}>
         <img src={s.cover} alt={s.title} style={{
-          width: '100%', height: 260, objectFit: 'cover', display: 'block',
-          filter: active ? 'brightness(0.8)' : 'brightness(0.95)',
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          display: 'block',
+          filter: active ? 'brightness(0.85)' : 'brightness(1)',
           transition: 'filter 0.3s',
         }} />
       </div>
@@ -192,6 +245,7 @@ export default function Home() {
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroTransition, setHeroTransition] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [top10, setTop10] = useState([...stories].slice(0, 10));
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 1024);
@@ -200,10 +254,42 @@ export default function Home() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  useEffect(() => {
+    async function fetchTop10() {
+      try {
+        const { initializeApp, getApps } = await import('firebase/app');
+        const { getDatabase, ref, get } = await import('firebase/database');
+        const firebaseConfig = {
+          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+          authDomain: 'calvary-scribblings.firebaseapp.com',
+          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+          projectId: 'calvary-scribblings',
+          storageBucket: 'calvary-scribblings.firebasestorage.app',
+          messagingSenderId: '1052137412283',
+          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+        };
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const snapshot = await get(ref(db, 'stories'));
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const withCounts = stories.map(s => ({
+            ...s,
+            hits: (data[s.id] && data[s.id].hits) || 0,
+          }));
+          const sorted = withCounts.sort((a, b) => b.hits - a.hits).slice(0, 10);
+          setTop10(sorted);
+        }
+      } catch (e) {
+        console.error('Firebase Top 10 error:', e);
+      }
+    }
+    fetchTop10();
+  }, []);
+
   const sorted = [...stories].map((s,i) => ({...s,_idx:i})).sort((a,b) => parseDate(b.date)-parseDate(a.date)||a._idx-b._idx);
   const carouselStories = sorted.filter(s => s.category === 'news' || s.category === 'inspiring' || s.category === 'short').slice(0, 5);
   const justAdded = sorted.slice(0, 5);
-  const top10 = [...stories].slice(0, 10);
 
   const goTo = useCallback((idx) => {
     setHeroTransition(false);
@@ -237,6 +323,8 @@ export default function Home() {
           .nav-desktop { display: flex !important; }
           .nav-hamburger { display: none !important; }
         }
+        .top10-scroll { scrollbar-width: none; }
+        .top10-scroll::-webkit-scrollbar { display: none; }
       `}</style>
 
       <Navbar />
@@ -273,19 +361,17 @@ export default function Home() {
           <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.95rem', marginBottom: '1.75rem' }}>
             By {featured.author} · {featured.date}
           </p>
-          <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <a href={featured.url} style={{
-              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-              background: '#fff', color: '#0a0a0a',
-              padding: '0.75rem 1.75rem', borderRadius: 6, fontWeight: 700, fontSize: '0.9rem',
-              textDecoration: 'none', transition: 'all 0.2s',
-              boxShadow: '0 4px 20px rgba(255,255,255,0.15)',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#e8e0ff'; e.currentTarget.style.transform = 'scale(1.03)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.transform = 'scale(1)'; }}>
-              ▶ Read Now
-            </a>
-          </div>
+          <a href={featured.url} style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            background: '#fff', color: '#0a0a0a',
+            padding: '0.75rem 1.75rem', borderRadius: 6, fontWeight: 700, fontSize: '0.9rem',
+            textDecoration: 'none', transition: 'all 0.2s',
+            boxShadow: '0 4px 20px rgba(255,255,255,0.15)',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#e8e0ff'; e.currentTarget.style.transform = 'scale(1.03)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.transform = 'scale(1)'; }}>
+            ▶ Read Now
+          </a>
         </div>
 
         <div style={{ position: 'absolute', bottom: '5%', left: '4%', zIndex: 3, display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
@@ -349,8 +435,9 @@ export default function Home() {
       <section style={{ padding: '2.5rem 0' }}>
         <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>🔥 Top 10 Stories</h3>
+          <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.3rem', letterSpacing: '0.05em' }}>Ranked by reads</p>
         </div>
-        <div style={{ display: 'flex', gap: '0rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
+        <div className="top10-scroll" style={{ display: 'flex', gap: '0', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem' }}>
           {top10.map((s, i) => (
             <Top10Card key={s.id} s={s} i={i} />
           ))}
