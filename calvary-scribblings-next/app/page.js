@@ -531,7 +531,7 @@ export default function Home() {
               ['Serial Stories', '/serial'],
             ]},
             { title: 'Connect', links: [
-              ['Newsletter', '/#subscribe'],
+              ['Newsletter', 'https://calvaryscribblings.co.uk/#subscribe'],
               ['Contact Us', '/contact'],
               ['About Us', '/about'],
             ]},
