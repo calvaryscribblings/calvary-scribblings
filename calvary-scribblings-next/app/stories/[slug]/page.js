@@ -65,9 +65,10 @@ export default function StoryPage({ params }) {
 useEffect(() => {
     if (!slug) return;
     window.disqus_config = function () {
-      this.page.url = `https://calvaryscribblings.co.uk/stories/${slug}`;
-      this.page.identifier = slug;
-    };
+  this.page.url = `https://calvaryscribblings.co.uk/stories/${slug}`;
+  this.page.identifier = slug;
+  this.page.colorScheme = 'light';
+};
     const script = document.createElement('script');
     script.src = 'https://calvaryscribblings.disqus.com/embed.js';
     script.setAttribute('data-timestamp', +new Date());
