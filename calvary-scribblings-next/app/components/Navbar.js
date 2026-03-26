@@ -93,7 +93,7 @@ export default function Navbar() {
           display: flex; flex-direction: column; padding: 1.5rem 4%;
           overflow-y: auto;
         }
-        .cs-drawer a {
+        .cs-drawer > a {
           color: rgba(255,255,255,0.85); text-decoration: none;
           font-size: 1.1rem; font-weight: 500; padding: 0.85rem 0;
           border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -106,31 +106,33 @@ export default function Navbar() {
           display: flex; align-items: center; justify-content: space-between;
           width: 100%; text-align: left;
         }
-        .cs-drawer-stories-btn span { font-size: 0.7rem; opacity: 0.5; transition: transform 0.2s; }
-        .cs-drawer-stories-btn.open span { transform: rotate(180deg); }
+        .cs-drawer-stories-btn .cs-arrow { font-size: 0.7rem; opacity: 0.5; transition: transform 0.2s; display: inline-block; }
+        .cs-drawer-stories-btn.open .cs-arrow { transform: rotate(180deg); }
+        
         .cs-drawer-subnav {
           display: flex; flex-direction: column;
           background: rgba(255,255,255,0.03);
           border-radius: 8px; margin-bottom: 0.25rem;
-          overflow: hidden;
+          border: 1px solid rgba(255,255,255,0.06);
         }
         .cs-drawer-sublabel {
           color: rgba(255,255,255,0.3); font-size: 0.62rem;
           letter-spacing: 0.12em; text-transform: uppercase;
           padding: 0.75rem 1rem 0.25rem;
+          border-bottom: none;
         }
-        .cs-drawer-subnav a {
-          color: rgba(255,255,255,0.85) !important;
-          padding: 0.7rem 1rem !important;
-          border-bottom: 1px solid rgba(255,255,255,0.04) !important;
-          font-size: 1rem !important;
+        .cs-drawer-subnav-item {
+          color: rgba(255,255,255,0.85) !important; text-decoration: none;
+          font-size: 1rem !important; font-weight: 500;
+          padding: 0.75rem 1rem !important;
+          border-bottom: 1px solid rgba(255,255,255,0.05) !important;
           display: flex !important; align-items: center; gap: 0.5em;
         }
-        .cs-drawer-subnav a:last-child { border-bottom: none !important; }
+        .cs-drawer-subnav-item:last-child { border-bottom: none !important; }
         .cs-drawer-subnav-divider {
-          height: 1px; background: rgba(255,255,255,0.07); margin: 0.25rem 0;
+          height: 1px; background: rgba(255,255,255,0.08); margin: 0;
         }
-        .cs-drawer-dot { color: #7c3aed; font-size: 1rem; }
+        .cs-drawer-dot { color: #7c3aed; }
         .cs-drawer-signin {
           margin-top: 1.5rem; background: #7c3aed; border: none;
           border-radius: 8px; padding: 1rem; color: #fff;
@@ -200,27 +202,31 @@ export default function Navbar() {
             className={'cs-drawer-stories-btn' + (storiesOpen ? ' open' : '')}
             onClick={() => setStoriesOpen(!storiesOpen)}
           >
-            Stories <span>▾</span>
+            Stories <span className="cs-arrow">▾</span>
           </button>
 
           {storiesOpen && (
             <div className="cs-drawer-subnav">
               <div className="cs-drawer-sublabel">Creative Writing</div>
-              <a href="/flash" onClick={() => setMenuOpen(false)}>
+              <a className="cs-drawer-subnav-item" href="/flash" onClick={() => setMenuOpen(false)}>
                 <span className="cs-drawer-dot">·</span>Flash Fiction
               </a>
-              <a href="/short" onClick={() => setMenuOpen(false)}>
+              <a className="cs-drawer-subnav-item" href="/short" onClick={() => setMenuOpen(false)}>
                 <span className="cs-drawer-dot">·</span>Short Stories
               </a>
-              <a href="/serial" onClick={() => setMenuOpen(false)}>
+              <a className="cs-drawer-subnav-item" href="/serial" onClick={() => setMenuOpen(false)}>
                 <span className="cs-drawer-dot">·</span>Serial Stories
               </a>
-              <a href="/poetry" onClick={() => setMenuOpen(false)}>
+              <a className="cs-drawer-subnav-item" href="/poetry" onClick={() => setMenuOpen(false)}>
                 <span className="cs-drawer-dot">·</span>Poetry
               </a>
               <div className="cs-drawer-subnav-divider" />
-              <a href="/news" onClick={() => setMenuOpen(false)}>News &amp; Updates</a>
-              <a href="/inspiring" onClick={() => setMenuOpen(false)}>Inspiring Stories</a>
+              <a className="cs-drawer-subnav-item" href="/news" onClick={() => setMenuOpen(false)}>
+                News &amp; Updates
+              </a>
+              <a className="cs-drawer-subnav-item" href="/inspiring" onClick={() => setMenuOpen(false)}>
+                Inspiring Stories
+              </a>
             </div>
           )}
 
