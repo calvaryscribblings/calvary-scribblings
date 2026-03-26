@@ -11,8 +11,8 @@ export default function AboutPage() {
         </h1>
         <div style={{ fontSize: '1.15rem', lineHeight: 1.85, color: 'rgba(255,255,255,0.75)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <p>Calvary Scribblings is a literary publication platform built for readers and writers who believe in the power of storytelling. We publish flash fiction, short stories, poetry, news, and inspiring narratives — stories that move, provoke, and illuminate.</p>
-          <p>We are a Calvary Media UK publication, committed to amplifying African voices and telling stories that reflect the full breadth of human experience — with particular attention to the Nigerian story.</p>
-          <p>Our contributors include writers from across Nigeria and the diaspora, united by a love of craft and a belief that every story deserves to be told well.</p>
+          <p>We are a Calvary Media UK publication, committed to the art of storytelling in all its forms. Our stories come from every corner of the world — from Lagos to London, from New York to Nairobi — because great stories know no borders.</p>
+          <p>Our contributors are writers united by a love of craft and a belief that every story, wherever it comes from, deserves to be told well.</p>
         </div>
       </section>
     </div>
