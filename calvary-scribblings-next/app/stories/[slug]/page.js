@@ -65,7 +65,7 @@ export default function StoryPage({ params }) {
 
   if (!story) {
     return (
-      <div style={{ background: '#f8f4ed', color: '#1a1a1a', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Cochin, Georgia, serif', fontSize: '1.2rem' }}>
+      <div style={{ background: '#f0ead8', color: '#1a1a1a', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Cochin, Georgia, serif', fontSize: '1.2rem' }}>
         Story not found.
       </div>
     );
@@ -94,7 +94,7 @@ export default function StoryPage({ params }) {
 
         .story-nav { position: fixed; top: 3px; left: 0; right: 0; z-index: 999; display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; background: rgba(10,10,10,0.88); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,0.06); transition: transform 0.3s ease; }
         .story-nav.hidden { transform: translateY(-100%); }
-        .nav-logo { font-family: Cochin, Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f5f0e8; text-decoration: none; letter-spacing: 0.02em; }
+        .nav-logo { font-family: Cochin, Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f0ead8; text-decoration: none; letter-spacing: 0.02em; }
         .nav-logo span { color: ${accentColor}; }
         .nav-meta { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(232,224,212,0.45); }
 
@@ -105,12 +105,12 @@ export default function StoryPage({ params }) {
         .hero-content { position: relative; z-index: 2; padding: 3rem 2rem 3.5rem; max-width: 820px; animation: heroUp 1s cubic-bezier(0.22,1,0.36,1) 0.3s both; }
         @keyframes heroUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
         .story-badge-hero { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; padding: 0.3em 0.9em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; margin-bottom: 1.1rem; font-family: Cochin, Georgia, serif; }
-        .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 300; line-height: 1.1; color: #f5f0e8; margin-bottom: 1.1rem; font-family: 'Cormorant Garamond', Cochin, Georgia, serif; }
+        .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 300; line-height: 1.1; color: #f0ead8; margin-bottom: 1.1rem; font-family: 'Cormorant Garamond', Cochin, Georgia, serif; }
         .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: rgba(232,224,212,0.55); }
         .byline-dot { width: 3px; height: 3px; border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
         .byline-by { font-style: italic; font-family: 'Cormorant Garamond', Georgia, serif; margin-right: -0.8rem; }
 
-        .story-body-wrap { background: #f8f4ed; }
+        .story-body-wrap { background: #f0ead8; }
         .story-body { max-width: 680px; margin: 0 auto; padding: 3rem 2rem 5rem; }
 
         .back-link-row { margin-bottom: 2.2rem; padding-bottom: 1.2rem; border-bottom: 1px solid #e0dbd2; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
@@ -168,12 +168,12 @@ export default function StoryPage({ params }) {
         .prose .poem-stanza p::first-letter { all: unset; }
         .prose .poem-stanza br { display: block; }
 
-        .hit-counter-row { text-align: center; padding: 1.8rem 2rem 1.5rem; color: #888; font-size: 0.9rem; font-family: Cochin, Georgia, serif; border-top: 1px solid #e0dbd2; max-width: 680px; margin: 0 auto; background: #f8f4ed; }
+        .hit-counter-row { text-align: center; padding: 1.8rem 2rem 1.5rem; color: #888; font-size: 0.9rem; font-family: Cochin, Georgia, serif; border-top: 1px solid #e0dbd2; max-width: 680px; margin: 0 auto; background: #f0ead8; }
 
-        .story-footer { background: #f8f4ed; max-width: 680px; margin: 0 auto; padding: 1rem 2rem 2rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: #888; gap: 1rem; flex-wrap: wrap; font-family: Cochin, Georgia, serif; border-top: 1px solid #e0dbd2; }
+        .story-footer { background: #f0ead8; max-width: 680px; margin: 0 auto; padding: 1rem 2rem 2rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: #888; gap: 1rem; flex-wrap: wrap; font-family: Cochin, Georgia, serif; border-top: 1px solid #e0dbd2; }
         .story-badge-footer { display: inline-block; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25em 0.8em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; }
 
-        .disqus-wrap { background: #f8f4ed; max-width: 680px; margin: 0 auto; padding: 2rem 2rem 6rem; }
+        .disqus-wrap { background: #f0ead8; max-width: 680px; margin: 0 auto; padding: 2rem 2rem 6rem; }
         .disqus-divider { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.5rem; font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: #bbb; }
         .disqus-divider::before, .disqus-divider::after { content: ''; flex: 1; height: 1px; background: #e0dbd2; }
 
@@ -208,7 +208,7 @@ export default function StoryPage({ params }) {
             {readingTime > 0 && (
               <>
                 <div className="byline-dot" />
-                <span>⏱ {readingTime} min read</span>
+                <span>⏱ {readingTime} MIN. READ</span>
               </>
             )}
           </div>
@@ -219,11 +219,8 @@ export default function StoryPage({ params }) {
         <main>
           <article className="story-body" ref={articleRef}>
             <div className="back-link-row">
-              <a href={`/${story.category}`} className="back-link">← {story.categoryName}</a>
-              {readingTime > 0 && (
-                <span className="reading-time-pill">⏱ {readingTime} min read</span>
-              )}
-            </div>
+  <a href={`/${story.category}`} className="back-link">← {story.categoryName}</a>
+</div>
             <div
               className={`prose${isPoetry ? '' : ' has-dropcap'}`}
               id="story-content"
