@@ -313,7 +313,7 @@ export default function Home() {
             style={{
               position: 'absolute', inset: 0, width: '100%', height: '100%',
               objectFit: 'cover', objectPosition: 'center top',
-              filter: 'brightness(0.35)',
+              filter: 'brightness(0.55)',
               opacity: i === heroIndex ? (heroTransition ? 1 : 0) : 0,
               transition: 'opacity 0.7s ease',
               zIndex: 0,
