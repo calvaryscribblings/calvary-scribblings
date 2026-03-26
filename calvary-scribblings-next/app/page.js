@@ -302,6 +302,8 @@ export default function Home() {
         }
         .top10-scroll { scrollbar-width: none; }
         .top10-scroll::-webkit-scrollbar { display: none; }
+        .just-added-scroll { scrollbar-width: none; }
+        .just-added-scroll::-webkit-scrollbar { display: none; }
       `}</style>
 
       <Navbar />
@@ -398,12 +400,12 @@ export default function Home() {
       </section>
 
       {/* Just Added */}
-      <section style={{ padding: '2rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', paddingLeft: '4%' }}>
           <span style={{ width: 6, height: 6, background: '#7c3aed', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px rgba(124,58,237,0.8)' }} />
           Just Added
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.75rem' }}>
+        <div className="just-added-scroll" style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
           {justAdded.map(s => <JustAddedCard key={s.id} story={s} />)}
         </div>
       </section>
