@@ -174,7 +174,7 @@ export default function Navbar() {
             )}
           </div>
           <a href="/about">About</a>
-          <a href="/subscribe">Subscribe</a>
+          <a href="https://calvaryscribblings.co.uk/#subscribe">Subscribe</a>
           <a href="/contact">Contact</a>
           <a href="/search">Search</a>
           {user ? (
@@ -231,7 +231,7 @@ export default function Navbar() {
           )}
 
           <a href="/about" onClick={() => setMenuOpen(false)}>About</a>
-          <a href="/subscribe" onClick={() => setMenuOpen(false)}>Subscribe</a>
+          <a href="https://calvaryscribblings.co.uk/#subscribe" onClick={() => setMenuOpen(false)}>Subscribe</a>
           <a href="/contact" onClick={() => setMenuOpen(false)}>Contact</a>
           <a href="/search" onClick={() => setMenuOpen(false)}>Search</a>
 
