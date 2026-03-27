@@ -45,7 +45,8 @@ const badgeStyle = {
 const _sorted = [...stories]
   .map((s, i) => ({ ...s, _idx: i }))
   .sort((a, b) => parseDate(b.date) - parseDate(a.date) || a._idx - b._idx);
-const carouselStories = _sorted.slice(0, 5); // top 5 most recent, all categories
+const _hour = Math.floor(Date.now() / 5000);
+const carouselStories = [..._sorted].sort((a, b) => ((a.id.charCodeAt(0) * _hour) % 13) - ((b.id.charCodeAt(0) * _hour) % 13)).slice(0, 5); // top 5 most recent, all categories
 const justAdded = _sorted.slice(0, 5);
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -284,7 +285,7 @@ export default function Home() {
         setHeroIndex(next);
         setHeroTransition(true);
       }, 300);
-    }, 3600000);
+    }, 5000);
     return () => clearInterval(timer);
   }, []);
 
