@@ -171,7 +171,7 @@ useEffect(() => {
         .back-link:hover { text-decoration: underline; }
 
         .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cochin, Georgia, serif; font-weight: 400; }
-        .prose p { margin-bottom: 1.75em; }
+        .prose p { margin-bottom: 0; } .prose p + p { text-indent: 1.5em; }
 
         .prose.has-dropcap > p:first-of-type::first-letter {
           font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78;
