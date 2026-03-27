@@ -283,7 +283,7 @@ export default function Home() {
         setHeroIndex(next);
         setHeroTransition(true);
       }, 300);
-    }, 10000);
+    }, 7200000);
     return () => clearInterval(timer);
   }, []);
 
