@@ -45,7 +45,8 @@ const badgeStyle = {
 const _sorted = [...stories]
   .map((s, i) => ({ ...s, _idx: i }))
   .sort((a, b) => parseDate(b.date) - parseDate(a.date) || a._idx - b._idx);
-const carouselStories = _sorted.slice(0, 5);
+const _hour = Math.floor(Date.now() / 5000);
+const carouselStories = [..._sorted].sort((a, b) => ((a.id.charCodeAt(0) * _hour) % 13) - ((b.id.charCodeAt(0) * _hour) % 13)).slice(0, 5); // top 5 most recent, all categories
 const justAdded = _sorted.slice(0, 5);
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -197,7 +198,6 @@ function Top10Card({ s, i }) {
 export default function Home() {
   const { user, logout } = useAuth();
   const [heroIndex, setHeroIndex] = useState(0);
-  const [carousel, setCarousel] = useState(carousel);
   const [heroTransition, setHeroTransition] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [top10, setTop10] = useState([...stories].slice(0, 10));
@@ -210,13 +210,6 @@ export default function Home() {
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
-  }, []);
-
-  useEffect(() => {
-    const get = () => { const h = Math.floor(Date.now() / 3600000); return [..._sorted].sort((a,b) => ((a.id.charCodeAt(0)*h)%13)-((b.id.charCodeAt(0)*h)%13)).slice(0,5); };
-    setCarousel(get());
-    const t = setInterval(() => { setHeroIndex(0); setCarousel(get()); }, 3600000);
-    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
@@ -285,7 +278,7 @@ export default function Home() {
   // Auto-rotation via ref — interval never restarts, no stale closure
   useEffect(() => {
     const timer = setInterval(() => {
-      const next = (heroIndexRef.current + 1) % carousel.length;
+      const next = (heroIndexRef.current + 1) % carouselStories.length;
       setHeroTransition(false);
       setTimeout(() => {
         heroIndexRef.current = next;
@@ -296,7 +289,7 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
-  const featured = carousel[heroIndex];
+  const featured = carouselStories[heroIndex];
   const badge = badgeStyle[featured.category] || badgeStyle.news;
 
   return (
@@ -312,7 +305,7 @@ export default function Home() {
 
       {/* Hero Carousel */}
       <section style={{ position: 'relative', height: '88vh', minHeight: 600, overflow: 'hidden' }}>
-        {carousel.map((s, i) => (
+        {carouselStories.map((s, i) => (
           <img key={s.id} src={s.cover} alt={s.title}
             style={{
               position: 'absolute', inset: 0, width: '100%', height: '100%',
@@ -357,7 +350,7 @@ export default function Home() {
 
         <div style={{ position: 'absolute', bottom: '5%', left: '4%', zIndex: 3, display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            {carousel.map((_, i) => (
+            {carouselStories.map((_, i) => (
               <button key={i} onClick={() => goTo(i)} style={{
                 width: i === heroIndex ? 24 : 8, height: 4, borderRadius: 2,
                 border: 'none', cursor: 'pointer',
@@ -367,11 +360,11 @@ export default function Home() {
             ))}
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button onClick={() => goTo((heroIndex - 1 + carousel.length) % carousel.length)}
+            <button onClick={() => goTo((heroIndex - 1 + carouselStories.length) % carouselStories.length)}
               style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#fff', cursor: 'pointer', fontSize: '0.9rem', backdropFilter: 'blur(8px)', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.target.style.background = 'rgba(124,58,237,0.4)'; e.target.style.borderColor = 'rgba(124,58,237,0.6)'; }}
               onMouseLeave={e => { e.target.style.background = 'rgba(0,0,0,0.4)'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}>‹</button>
-            <button onClick={() => goTo((heroIndex + 1) % carousel.length)}
+            <button onClick={() => goTo((heroIndex + 1) % carouselStories.length)}
               style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#fff', cursor: 'pointer', fontSize: '0.9rem', backdropFilter: 'blur(8px)', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.target.style.background = 'rgba(124,58,237,0.4)'; e.target.style.borderColor = 'rgba(124,58,237,0.6)'; }}
               onMouseLeave={e => { e.target.style.background = 'rgba(0,0,0,0.4)'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}>›</button>
@@ -382,7 +375,7 @@ export default function Home() {
           position: 'absolute', right: '3%', top: '50%', transform: 'translateY(-50%)',
           zIndex: 3, display: 'flex', flexDirection: 'column', gap: '0.6rem',
         }}>
-          {carousel.map((s, i) => (
+          {carouselStories.map((s, i) => (
             <button key={s.id} onClick={() => goTo(i)} style={{
               width: 56, height: 72, borderRadius: 6, overflow: 'hidden', border: 'none',
               cursor: 'pointer', padding: 0,
