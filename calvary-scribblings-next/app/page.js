@@ -40,6 +40,14 @@ const badgeStyle = {
   inspiring: { background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.4)' },
 };
 
+// ─── Carousel computed once at module level (stable across renders) ───────────
+const _sorted = [...stories].map((s, i) => ({ ...s, _idx: i })).sort((a, b) => parseDate(b.date) - parseDate(a.date) || a._idx - b._idx);
+const _seed = Math.floor(Date.now() / (1000 * 60 * 60 * 2));
+const _pool = _sorted.filter(s => s.category === 'news' || s.category === 'inspiring' || s.category === 'short');
+const carouselStories = [..._pool].sort((a, b) => ((a.id.charCodeAt(0) * _seed) % 7) - ((b.id.charCodeAt(0) * _seed) % 7)).slice(0, 5);
+const justAdded = _sorted.slice(0, 5);
+// ─────────────────────────────────────────────────────────────────────────────
+
 function StoryCard({ story, width = 160, height = 240 }) {
   const [hovered, setHovered] = useState(false);
   const badge = badgeStyle[story.category] || badgeStyle.news;
@@ -294,12 +302,6 @@ export default function Home() {
     }
   };
 
-  const sorted = [...stories].map((s,i) => ({...s,_idx:i})).sort((a,b) => parseDate(b.date)-parseDate(a.date)||a._idx-b._idx);
-  const seed = Math.floor(Date.now() / (1000 * 60 * 60 * 2));
-  const pool = sorted.filter(s => s.category === 'news' || s.category === 'inspiring' || s.category === 'short');
-  const carouselStories = [...pool].sort((a, b) => ((a.id.charCodeAt(0) * seed) % 7) - ((b.id.charCodeAt(0) * seed) % 7)).slice(0, 5);
-  const justAdded = sorted.slice(0, 5);
-
   const goTo = useCallback((idx) => {
     setHeroTransition(false);
     setTimeout(() => {
@@ -310,10 +312,10 @@ export default function Home() {
 
   const next = useCallback(() => {
     goTo((heroIndex + 1) % carouselStories.length);
-  }, [heroIndex, carouselStories.length, goTo]);
+  }, [heroIndex, goTo]);
 
   useEffect(() => {
-    const timer = setInterval(next, 6000);
+    const timer = setInterval(next, 7200000);
     return () => clearInterval(timer);
   }, [next]);
 
