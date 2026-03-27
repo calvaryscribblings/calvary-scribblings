@@ -5,6 +5,7 @@ import AuthModal from './components/AuthModal';
 import Navbar from './components/Navbar';
 
 const stories = [
+  { id: 'my-dream-man', title: 'My Dream Man', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/my-dream-man', cover: '/my-dream-man-cover.jpeg', author: 'Tricia Ajax', date: 'Mar 27, 2026' },
   { id: 'the-enabler', title: 'The Enabler', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/the-enabler', cover: '/the-enabler-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 26, 2026' },
   { id: 'rise-and-shine', title: 'Rise and Shine', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/rise-and-shine', cover: '/rise-and-shine-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 21, 2026' },
   { id: 'an-appetite-for-love', title: 'An Appetite for Love', category: 'poetry', categoryName: 'Poetry', url: '/stories/an-appetite-for-love', cover: '/an-appetite-for-love-cover.png', author: 'Ufedo Adaji', date: 'Mar 19, 2026' },
