@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './lib/AuthContext';
 import AuthModal from './components/AuthModal';
 import Navbar from './components/Navbar';
@@ -40,11 +40,14 @@ const badgeStyle = {
   inspiring: { background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.4)' },
 };
 
-// ─── Carousel & justAdded computed once at module level ───────────────────────
-const _sorted = [...stories].map((s, i) => ({ ...s, _idx: i })).sort((a, b) => parseDate(b.date) - parseDate(a.date) || a._idx - b._idx);
-const carouselStories = _sorted.filter(s => s.category === 'news' || s.category === 'inspiring' || s.category === 'short').slice(0, 5);
+// ─── Stable module-level data (computed once, never re-shuffled) ──────────────
+const _sorted = [...stories]
+  .map((s, i) => ({ ...s, _idx: i }))
+  .sort((a, b) => parseDate(b.date) - parseDate(a.date) || a._idx - b._idx);
+const carouselStories = _sorted.slice(0, 5); // top 5 most recent, all categories
 const justAdded = _sorted.slice(0, 5);
 // ─────────────────────────────────────────────────────────────────────────────
+
 function StoryCard({ story, width = 160, height = 240 }) {
   const [hovered, setHovered] = useState(false);
   const badge = badgeStyle[story.category] || badgeStyle.news;
@@ -147,74 +150,41 @@ function Row({ title, stories, seeAll }) {
 
 function Top10Card({ s, i }) {
   const [active, setActive] = useState(false);
-
   const CARD_WIDTH = 120;
   const CARD_HEIGHT = 180;
   const NUM_W = 60;
   const VB_H = 300;
   const strokeColor = active ? 'rgba(167,139,250,0.7)' : 'rgba(255,255,255,0.18)';
-
   return (
     <a href={s.url}
       onMouseEnter={() => setActive(true)}
       onMouseLeave={() => setActive(false)}
       style={{
-        textDecoration: 'none',
-        flexShrink: 0,
-        width: CARD_WIDTH + NUM_W,
-        height: CARD_HEIGHT,
-        display: 'block',
-        position: 'relative',
+        textDecoration: 'none', flexShrink: 0,
+        width: CARD_WIDTH + NUM_W, height: CARD_HEIGHT,
+        display: 'block', position: 'relative',
         transform: active ? 'scale(1.04)' : 'scale(1)',
         transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
-        marginRight: '0.25rem',
-        overflow: 'visible',
+        marginRight: '0.25rem', overflow: 'visible',
       }}>
-
-      <svg
-        width={NUM_W}
-        height={CARD_HEIGHT}
-        viewBox={`0 0 ${NUM_W} ${VB_H}`}
-        preserveAspectRatio="xMaxYMax meet"
-        overflow="visible"
-        style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, overflow: 'visible' }}
-      >
-        <text
-          x={NUM_W - 2}
-          y={VB_H}
-          textAnchor="end"
-          dominantBaseline="text-after-edge"
-          fontFamily="Georgia, serif"
-          fontSize="120"
-          fontWeight="900"
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth="1.5"
-          paintOrder="stroke"
-        >
+      <svg width={NUM_W} height={CARD_HEIGHT} viewBox={`0 0 ${NUM_W} ${VB_H}`}
+        preserveAspectRatio="xMaxYMax meet" overflow="visible"
+        style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, overflow: 'visible' }}>
+        <text x={NUM_W - 2} y={VB_H} textAnchor="end" dominantBaseline="text-after-edge"
+          fontFamily="Georgia, serif" fontSize="120" fontWeight="900"
+          fill="none" stroke={strokeColor} strokeWidth="1.5" paintOrder="stroke">
           {i + 1}
         </text>
       </svg>
-
       <div style={{
-        position: 'absolute',
-        top: 0,
-        right: 0,
-        width: CARD_WIDTH,
-        height: CARD_HEIGHT,
-        borderRadius: 8,
-        overflow: 'hidden',
-        background: '#111',
-        boxShadow: active
-          ? '0 20px 50px rgba(0,0,0,0.9), 0 0 0 1px rgba(124,58,237,0.3)'
-          : '0 4px 20px rgba(0,0,0,0.6)',
+        position: 'absolute', top: 0, right: 0,
+        width: CARD_WIDTH, height: CARD_HEIGHT,
+        borderRadius: 8, overflow: 'hidden', background: '#111',
+        boxShadow: active ? '0 20px 50px rgba(0,0,0,0.9), 0 0 0 1px rgba(124,58,237,0.3)' : '0 4px 20px rgba(0,0,0,0.6)',
         transition: 'box-shadow 0.3s',
       }}>
         <img src={s.cover} alt={s.title} style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          display: 'block',
+          width: '100%', height: '100%', objectFit: 'cover', display: 'block',
           filter: active ? 'brightness(0.85)' : 'brightness(1)',
           transition: 'filter 0.3s',
         }} />
@@ -231,6 +201,7 @@ export default function Home() {
   const [top10, setTop10] = useState([...stories].slice(0, 10));
   const [email, setEmail] = useState('');
   const [subscribeStatus, setSubscribeStatus] = useState('');
+  const heroIndexRef = useRef(0);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 1024);
@@ -258,12 +229,8 @@ export default function Home() {
         const snapshot = await get(ref(db, 'stories'));
         if (snapshot.exists()) {
           const data = snapshot.val();
-          const withCounts = stories.map(s => ({
-            ...s,
-            hits: (data[s.id] && data[s.id].hits) || 0,
-          }));
-          const sorted = withCounts.sort((a, b) => b.hits - a.hits).slice(0, 10);
-          setTop10(sorted);
+          const withCounts = stories.map(s => ({ ...s, hits: (data[s.id] && data[s.id].hits) || 0 }));
+          setTop10(withCounts.sort((a, b) => b.hits - a.hits).slice(0, 10));
         }
       } catch (e) {
         console.error('Firebase Top 10 error:', e);
@@ -273,10 +240,7 @@ export default function Home() {
   }, []);
 
   const handleSubscribe = async () => {
-    if (!email || !email.includes('@')) {
-      setSubscribeStatus('Please enter a valid email address.');
-      return;
-    }
+    if (!email || !email.includes('@')) { setSubscribeStatus('Please enter a valid email address.'); return; }
     try {
       const { initializeApp, getApps } = await import('firebase/app');
       const { getDatabase, ref, push } = await import('firebase/database');
@@ -292,54 +256,47 @@ export default function Home() {
       const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
       const db = getDatabase(app);
       await push(ref(db, 'subscribers'), { email, subscribedAt: new Date().toISOString() });
-      setSubscribeStatus('Thank you! You\'re now subscribed.');
+      setSubscribeStatus("Thank you! You're now subscribed.");
       setEmail('');
     } catch (e) {
       setSubscribeStatus('Something went wrong. Please try again.');
     }
   };
 
+  // goTo: used by manual dot/arrow buttons
   const goTo = useCallback((idx) => {
     setHeroTransition(false);
     setTimeout(() => {
+      heroIndexRef.current = idx;
       setHeroIndex(idx);
       setHeroTransition(true);
     }, 300);
   }, []);
 
-  const next = useCallback(() => {
-    setHeroIndex(prev => {
-      const nextIdx = (prev + 1) % carouselStories.length;
-      setHeroTransition(false);
-      setTimeout(() => setHeroTransition(true), 300);
-      return nextIdx;
-    });
-  }, []);
-
+  // Auto-rotation via ref — interval never restarts, no stale closure
   useEffect(() => {
-    const timer = setInterval(next, 7200000);
+    const timer = setInterval(() => {
+      const next = (heroIndexRef.current + 1) % carouselStories.length;
+      setHeroTransition(false);
+      setTimeout(() => {
+        heroIndexRef.current = next;
+        setHeroIndex(next);
+        setHeroTransition(true);
+      }, 300);
+    }, 7200000);
     return () => clearInterval(timer);
-  }, [next]);
+  }, []);
 
   const featured = carouselStories[heroIndex];
   const badge = badgeStyle[featured.category] || badgeStyle.news;
 
   return (
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: "'Cochin', Georgia, serif" }}>
-
       <style>{`
-        @media (max-width: 1024px) {
-          .nav-desktop { display: none !important; }
-          .nav-hamburger { display: flex !important; }
-        }
-        @media (min-width: 1025px) {
-          .nav-desktop { display: flex !important; }
-          .nav-hamburger { display: none !important; }
-        }
-        .top10-scroll { scrollbar-width: none; }
-        .top10-scroll::-webkit-scrollbar { display: none; }
-        .just-added-scroll { scrollbar-width: none; }
-        .just-added-scroll::-webkit-scrollbar { display: none; }
+        @media (max-width: 1024px) { .nav-desktop { display: none !important; } .nav-hamburger { display: flex !important; } }
+        @media (min-width: 1025px) { .nav-desktop { display: flex !important; } .nav-hamburger { display: none !important; } }
+        .top10-scroll { scrollbar-width: none; } .top10-scroll::-webkit-scrollbar { display: none; }
+        .just-added-scroll { scrollbar-width: none; } .just-added-scroll::-webkit-scrollbar { display: none; }
       `}</style>
 
       <Navbar />
@@ -393,8 +350,8 @@ export default function Home() {
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             {carouselStories.map((_, i) => (
               <button key={i} onClick={() => goTo(i)} style={{
-                width: i === heroIndex ? 24 : 8,
-                height: 4, borderRadius: 2, border: 'none', cursor: 'pointer',
+                width: i === heroIndex ? 24 : 8, height: 4, borderRadius: 2,
+                border: 'none', cursor: 'pointer',
                 background: i === heroIndex ? '#a855f7' : 'rgba(255,255,255,0.3)',
                 transition: 'all 0.3s ease', padding: 0,
               }} />
@@ -404,15 +361,11 @@ export default function Home() {
             <button onClick={() => goTo((heroIndex - 1 + carouselStories.length) % carouselStories.length)}
               style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#fff', cursor: 'pointer', fontSize: '0.9rem', backdropFilter: 'blur(8px)', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.target.style.background = 'rgba(124,58,237,0.4)'; e.target.style.borderColor = 'rgba(124,58,237,0.6)'; }}
-              onMouseLeave={e => { e.target.style.background = 'rgba(0,0,0,0.4)'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}>
-              ‹
-            </button>
-            <button onClick={next}
+              onMouseLeave={e => { e.target.style.background = 'rgba(0,0,0,0.4)'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}>‹</button>
+            <button onClick={() => goTo((heroIndex + 1) % carouselStories.length)}
               style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#fff', cursor: 'pointer', fontSize: '0.9rem', backdropFilter: 'blur(8px)', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.target.style.background = 'rgba(124,58,237,0.4)'; e.target.style.borderColor = 'rgba(124,58,237,0.6)'; }}
-              onMouseLeave={e => { e.target.style.background = 'rgba(0,0,0,0.4)'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}>
-              ›
-            </button>
+              onMouseLeave={e => { e.target.style.background = 'rgba(0,0,0,0.4)'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}>›</button>
           </div>
         </div>
 
@@ -453,9 +406,7 @@ export default function Home() {
           <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.3rem', letterSpacing: '0.05em' }}>Ranked by reads</p>
         </div>
         <div className="top10-scroll" style={{ display: 'flex', gap: '0', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem' }}>
-          {top10.map((s, i) => (
-            <Top10Card key={s.id} s={s} i={i} />
-          ))}
+          {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} />)}
         </div>
       </section>
 
@@ -479,27 +430,12 @@ export default function Home() {
             Subscribe to our newsletter and get the latest stories delivered to your inbox.
           </p>
           <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <input
-              type="email"
-              placeholder="Enter your email address"
-              value={email}
+            <input type="email" placeholder="Enter your email address" value={email}
               onChange={e => setEmail(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSubscribe()}
-              style={{
-                flex: 1, minWidth: 250, padding: '0.85rem 1.25rem', borderRadius: 6,
-                border: '1px solid rgba(124,58,237,0.3)', background: 'rgba(124,58,237,0.08)',
-                color: '#fff', fontSize: '0.9rem', outline: 'none', fontFamily: 'inherit',
-              }} />
-            <button
-              onClick={handleSubscribe}
-              style={{
-                background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-                color: '#fff', padding: '0.85rem 1.75rem', borderRadius: 6,
-                border: 'none', fontWeight: 700, fontSize: '0.9rem',
-                cursor: 'pointer', fontFamily: 'inherit',
-                boxShadow: '0 4px 20px rgba(124,58,237,0.4)',
-                transition: 'all 0.2s',
-              }}
+              style={{ flex: 1, minWidth: 250, padding: '0.85rem 1.25rem', borderRadius: 6, border: '1px solid rgba(124,58,237,0.3)', background: 'rgba(124,58,237,0.08)', color: '#fff', fontSize: '0.9rem', outline: 'none', fontFamily: 'inherit' }} />
+            <button onClick={handleSubscribe}
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', padding: '0.85rem 1.75rem', borderRadius: 6, border: 'none', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 20px rgba(124,58,237,0.4)', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.target.style.transform = 'scale(1.04)'; e.target.style.boxShadow = '0 6px 28px rgba(124,58,237,0.6)'; }}
               onMouseLeave={e => { e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = '0 4px 20px rgba(124,58,237,0.4)'; }}>
               Subscribe
@@ -526,19 +462,8 @@ export default function Home() {
             </p>
           </div>
           {[
-            { title: 'Explore', links: [
-              ['Flash Fiction', '/flash'],
-              ['Short Stories', '/short'],
-              ['Poetry', '/poetry'],
-              ['News & Updates', '/news'],
-              ['Inspiring Stories', '/inspiring'],
-              ['Serial Stories', '/serial'],
-            ]},
-            { title: 'Connect', links: [
-              ['Newsletter', 'https://calvaryscribblings.co.uk/#subscribe'],
-              ['Contact Us', '/contact'],
-              ['About Us', '/about'],
-            ]},
+            { title: 'Explore', links: [['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Poetry', '/poetry'], ['News & Updates', '/news'], ['Inspiring Stories', '/inspiring'], ['Serial Stories', '/serial']] },
+            { title: 'Connect', links: [['Newsletter', 'https://calvaryscribblings.co.uk/#subscribe'], ['Contact Us', '/contact'], ['About Us', '/about']] },
           ].map(({ title, links }) => (
             <div key={title}>
               <h5 style={{ color: '#a78bfa', marginBottom: '1rem', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{title}</h5>
@@ -559,7 +484,6 @@ export default function Home() {
           © 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.
         </div>
       </footer>
-
     </div>
   );
 }
