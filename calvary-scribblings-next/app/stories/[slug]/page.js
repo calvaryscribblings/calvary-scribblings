@@ -202,7 +202,7 @@ useEffect(() => {
         .back-link:hover { text-decoration: underline; }
 
         .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cochin, Georgia, serif; font-weight: 400; }
-        .prose p { margin-bottom: 0; } .prose p + p { text-indent: 1.5em; } .prose h3 { font-size: 1rem; font-weight: 700; color: #7c3aed; margin: 1.75em 0 0.25em; letter-spacing: 0.04em; font-family: Cochin, Georgia, serif; text-transform: none; }
+        .prose p { margin-bottom: 0; } .prose p + p { text-indent: 1.5em; }
 
         .prose.has-dropcap > p:first-of-type::first-letter {
           font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78;
