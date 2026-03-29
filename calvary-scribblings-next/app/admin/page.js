@@ -200,9 +200,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
     const selected = form.content.slice(start, end);
-    const html = selected
-      ? \`<h3>\${selected}</h3>\`
-      : '<h3>Subheading</h3>';
+    const html = selected ? '<h3>' + selected + '</h3>' : '<h3>Subheading</h3>';
     insertAtCursor(html);
   }
 
