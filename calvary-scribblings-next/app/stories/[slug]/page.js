@@ -334,7 +334,6 @@ useEffect(() => {
           </div>
         </main>
       </div>
-      </div>
     </>
   );
 }
