@@ -9,6 +9,7 @@ export default function StoryPage({ params }) {
   const { slug } = use(params);
   const [story, setStory] = useState(stories.find(s => s.id === slug) || null);
   const [storyReady, setStoryReady] = useState(!!stories.find(s => s.id === slug));
+  useEffect(() => { const t = setTimeout(() => setStoryReady(true), 3000); return () => clearTimeout(t); }, []);
 
   useEffect(() => {
     if (story && storyReady) return;
