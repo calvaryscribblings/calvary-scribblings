@@ -1,3 +1,28 @@
+export async function generateStaticParams() {
+  const hardcoded = (await import('../../lib/stories')).stories.map(s => ({ slug: s.id }));
+  try {
+    const { initializeApp, getApps } = await import('firebase/app');
+    const { getDatabase, ref, get } = await import('firebase/database');
+    const firebaseConfig = {
+      apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+      authDomain: "calvary-scribblings.firebaseapp.com",
+      databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "calvary-scribblings",
+      storageBucket: "calvary-scribblings.firebasestorage.app",
+      messagingSenderId: "1052137412283",
+      appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e",
+    };
+    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const snap = await get(ref(db, "cms_stories"));
+    if (snap.exists()) {
+      const cms = Object.keys(snap.val()).map(slug => ({ slug }));
+      return [...hardcoded, ...cms];
+    }
+  } catch(e) { console.error("generateStaticParams CMS error:", e); }
+  return hardcoded;
+}
+
 import { stories } from '../../lib/stories';
 
 export async function generateStaticParams() {
