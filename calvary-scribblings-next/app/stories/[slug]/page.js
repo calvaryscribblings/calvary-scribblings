@@ -119,6 +119,11 @@ useEffect(() => {
     inspiring: '#d97706',
     serial: '#6b46c1',
   };
+  if (!story) return (
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Cochin, Georgia, serif', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.4)' }}>Loading story…</div>
+    </div>
+  );
   const accentColor = categoryColors[story.category] || '#6b46c1';
   const isPoetry = story.category === 'poetry';
 
