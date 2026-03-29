@@ -1,9 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 
 const ADMIN_EMAIL = 'Ikennaworksfromhome@gmail.com';
+const IMGBB_KEY = '7370a63104ddbe33b9693fa1057979d2';
 
 const CATEGORIES = [
   { value: 'flash', label: 'Flash Fiction' },
@@ -24,7 +25,6 @@ function formatDate(d) {
   return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
-// Format a Date to datetime-local input value
 function toDatetimeLocal(d) {
   const pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -32,18 +32,25 @@ function toDatetimeLocal(d) {
 
 function getScheduleStatus(publishAt) {
   if (!publishAt) return null;
-  const now = Date.now();
-  const scheduled = new Date(publishAt).getTime();
-  if (scheduled > now) {
-    const diff = scheduled - now;
-    const days = Math.floor(diff / 86400000);
-    const hours = Math.floor((diff % 86400000) / 3600000);
-    const mins = Math.floor((diff % 3600000) / 60000);
-    if (days > 0) return `Scheduled · publishes in ${days}d ${hours}h`;
-    if (hours > 0) return `Scheduled · publishes in ${hours}h ${mins}m`;
-    return `Scheduled · publishes in ${mins}m`;
-  }
-  return 'Live';
+  const diff = new Date(publishAt).getTime() - Date.now();
+  if (diff <= 0) return 'Live';
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  if (days > 0) return `Scheduled · publishes in ${days}d ${hours}h`;
+  if (hours > 0) return `Scheduled · publishes in ${hours}h ${mins}m`;
+  return `Scheduled · publishes in ${mins}m`;
+}
+
+async function uploadToImgBB(file) {
+  const formData = new FormData();
+  formData.append('image', file);
+  const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
+    method: 'POST', body: formData,
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error?.message || 'Upload failed');
+  return data.data.url;
 }
 
 const s = {
@@ -58,6 +65,7 @@ const s = {
   btn: { background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', border: 'none', padding: '0.65rem 1.5rem', borderRadius: 6, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' },
   btnGhost: { background: 'transparent', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.4)', padding: '0.55rem 1.2rem', borderRadius: 6, fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' },
   btnDanger: { background: 'rgba(220,38,38,0.12)', color: '#f87171', border: '1px solid rgba(220,38,38,0.25)', padding: '0.45rem 0.9rem', borderRadius: 5, fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' },
+  btnImg: { background: 'rgba(124,58,237,0.15)', color: '#c4b5fd', border: '1px solid rgba(124,58,237,0.3)', padding: '0.45rem 0.9rem', borderRadius: 5, fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' },
   card: { background: '#171717', border: '1px solid #242424', borderRadius: 10, padding: '1.1rem 1.4rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1.1rem' },
   coverThumb: { width: 48, height: 64, objectFit: 'cover', borderRadius: 4, flexShrink: 0, background: '#2a2a2a' },
   cardInfo: { flex: 1, minWidth: 0 },
@@ -73,22 +81,112 @@ const s = {
   textarea: { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.85rem 1rem', color: '#fff', fontSize: '0.85rem', fontFamily: "'Courier New', monospace", outline: 'none', width: '100%', boxSizing: 'border-box', minHeight: 340, resize: 'vertical', lineHeight: 1.65 },
   select: { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.72rem 1rem', color: '#fff', fontSize: '0.9rem', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' },
   row2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.1rem' },
-  row3: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.1rem' },
   hint: { fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 },
+  hintGreen: { fontSize: '0.68rem', color: '#86efac', lineHeight: 1.5 },
   msg: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1.5rem' },
   scheduleBox: { background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: 8, padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' },
   scheduleToggle: { display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', userSelect: 'none' },
   formActions: { display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.5rem' },
   empty: { textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '4rem 0', fontSize: '0.88rem' },
   gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cochin', Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  modal: { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 10, padding: '1.75rem', width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: '1rem' },
+  modalTitle: { fontSize: '1rem', fontWeight: 700, color: '#fff', margin: 0 },
 };
 
+// ── Image Upload Modal (for inline story images) ───────────────────────────────
+function ImageModal({ onInsert, onClose }) {
+  const [file, setFile] = useState(null);
+  const [caption, setCaption] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const fileRef = useRef(null);
+
+  async function handleUpload() {
+    if (!file) { setError('Please select an image.'); return; }
+    setUploading(true); setError('');
+    try {
+      const url = await uploadToImgBB(file);
+      let html;
+      if (caption.trim()) {
+        html = `\n<figure style="margin:1.5em 0;">\n  <img src="${url}" style="width:100%; border-radius:6px;" alt="${caption.trim()}" />\n  <figcaption style="text-align:center; font-style:italic; font-size:0.85rem; color:#888; margin-top:0.5em;">${caption.trim()}</figcaption>\n</figure>\n`;
+      } else {
+        html = `\n<figure style="margin:1.5em 0;">\n  <img src="${url}" style="width:100%; border-radius:6px;" alt="" />\n</figure>\n`;
+      }
+      onInsert(html);
+      onClose();
+    } catch (e) { setError(e.message); }
+    setUploading(false);
+  }
+
+  return (
+    <div style={s.overlay} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={s.modal}>
+        <div style={s.modalTitle}>Insert Image</div>
+        <div style={s.fg}>
+          <label style={s.label}>Image File</label>
+          <button style={s.btnGhost} onClick={() => fileRef.current.click()}>
+            {file ? file.name : 'Choose image…'}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={e => setFile(e.target.files[0])} />
+        </div>
+        <div style={s.fg}>
+          <label style={s.label}>Caption (optional)</label>
+          <input style={s.input} value={caption} placeholder="Enter a caption…"
+            onChange={e => setCaption(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleUpload()} />
+          <div style={s.hint}>Caption will appear in italics below the image.</div>
+        </div>
+        {error && <div style={{ fontSize: '0.82rem', color: '#f87171' }}>{error}</div>}
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+          <button style={s.btnGhost} onClick={onClose}>Cancel</button>
+          <button style={{ ...s.btn, opacity: uploading ? 0.6 : 1 }} onClick={handleUpload} disabled={uploading}>
+            {uploading ? 'Uploading…' : 'Insert Image'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── StoryForm ─────────────────────────────────────────────────────────────────
 function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) {
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const textareaRef = useRef(null);
+  const coverInputRef = useRef(null);
   const isScheduled = !!form.publishAt;
   const scheduleStatus = form.publishAt ? getScheduleStatus(form.publishAt) : null;
 
+  async function handleCoverUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setCoverUploading(true);
+    try {
+      const url = await uploadToImgBB(file);
+      setForm(f => ({ ...f, coverFilename: url, coverPreview: url }));
+    } catch (err) {
+      alert('Cover upload failed: ' + err.message);
+    }
+    setCoverUploading(false);
+  }
+
+  function insertImageAtCursor(html) {
+    const ta = textareaRef.current;
+    if (!ta) { setForm(f => ({ ...f, content: f.content + html })); return; }
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const newContent = form.content.slice(0, start) + html + form.content.slice(end);
+    setForm(f => ({ ...f, content: newContent }));
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(start + html.length, start + html.length); }, 0);
+  }
+
+  const coverIsUrl = form.coverFilename && form.coverFilename.startsWith('http');
+
   return (
     <div>
+      {showImageModal && <ImageModal onInsert={insertImageAtCursor} onClose={() => setShowImageModal(false)} />}
       <div style={s.topBar}>
         <div>
           <h2 style={s.h2}>{editingId ? 'Edit Story' : 'New Story'}</h2>
@@ -128,10 +226,29 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
             <div style={s.hint}>Shown to readers on the story page.</div>
           </div>
           <div style={s.fg}>
-            <label style={s.label}>Cover Filename</label>
-            <input style={s.input} value={form.coverFilename} placeholder="my-story-cover.jpeg"
-              onChange={e => setForm(f => ({ ...f, coverFilename: e.target.value }))} />
-            <div style={s.hint}>Upload image to /public/ in the repo first.</div>
+            <label style={s.label}>Cover Image</label>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1 }}>
+                <input style={s.input} value={form.coverFilename} placeholder="my-story-cover.jpeg or upload →"
+                  onChange={e => setForm(f => ({ ...f, coverFilename: e.target.value, coverPreview: null }))} />
+              </div>
+              <button style={{ ...s.btnImg, flexShrink: 0 }}
+                onClick={() => coverInputRef.current.click()}
+                disabled={coverUploading}>
+                {coverUploading ? '…' : '⬆ Upload'}
+              </button>
+              <input ref={coverInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCoverUpload} />
+            </div>
+            {coverIsUrl && (
+              <div style={s.hintGreen}>✓ Uploaded to ImgBB</div>
+            )}
+            {!coverIsUrl && (
+              <div style={s.hint}>Upload via ImgBB, or enter a /public/ filename manually.</div>
+            )}
+            {(form.coverPreview || coverIsUrl) && (
+              <img src={form.coverPreview || form.coverFilename} alt="Cover preview"
+                style={{ width: 80, height: 106, objectFit: 'cover', borderRadius: 4, marginTop: '0.5rem' }} />
+            )}
           </div>
         </div>
 
@@ -140,8 +257,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
           <label style={s.scheduleToggle}>
             <input type="checkbox" checked={isScheduled}
               onChange={e => setForm(f => ({
-                ...f,
-                publishAt: e.target.checked ? toDatetimeLocal(new Date(Date.now() + 3600000)) : '',
+                ...f, publishAt: e.target.checked ? toDatetimeLocal(new Date(Date.now() + 3600000)) : '',
               }))} />
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#fcd34d', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               Schedule for later
@@ -149,12 +265,8 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
           </label>
           {isScheduled && (
             <>
-              <input
-                type="datetime-local"
-                style={{ ...s.input, marginTop: '0.5rem', colorScheme: 'dark' }}
-                value={form.publishAt}
-                onChange={e => setForm(f => ({ ...f, publishAt: e.target.value }))}
-              />
+              <input type="datetime-local" style={{ ...s.input, marginTop: '0.5rem', colorScheme: 'dark' }}
+                value={form.publishAt} onChange={e => setForm(f => ({ ...f, publishAt: e.target.value }))} />
               {scheduleStatus && (
                 <div style={{ fontSize: '0.72rem', color: '#fcd34d', marginTop: '0.25rem' }}>
                   {scheduleStatus === 'Live' ? '✓ This time is in the past — story will publish immediately.' : `⏰ ${scheduleStatus}`}
@@ -162,14 +274,18 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
               )}
             </>
           )}
-          {!isScheduled && (
-            <div style={s.hint}>Untick to publish immediately. Tick to choose a future date and time.</div>
-          )}
+          {!isScheduled && <div style={s.hint}>Untick to publish immediately. Tick to choose a future date and time.</div>}
         </div>
 
+        {/* Content */}
         <div style={s.fg}>
-          <label style={s.label}>Story Content (HTML)</label>
-          <textarea style={s.textarea} value={form.content}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label style={s.label}>Story Content (HTML)</label>
+            <button style={s.btnImg} onClick={() => setShowImageModal(true)}>
+              🖼 Insert Image
+            </button>
+          </div>
+          <textarea ref={textareaRef} style={s.textarea} value={form.content}
             onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
             placeholder={'<p>First paragraph — no indent.</p>\n<p style="text-indent:1.5em; margin-bottom:0">Indented paragraph.</p>'} />
           <div style={s.hint}>
@@ -190,6 +306,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
   );
 }
 
+// ── AdminPage ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user } = useAuth();
   const [view, setView] = useState('list');
@@ -199,10 +316,7 @@ export default function AdminPage() {
   const [msg, setMsg] = useState('');
   const [editingId, setEditingId] = useState(null);
 
-  const emptyForm = {
-    title: '', author: AUTHORS[0], category: 'flash',
-    date: formatDate(new Date()), coverFilename: '', content: '', publishAt: '',
-  };
+  const emptyForm = { title: '', author: AUTHORS[0], category: 'flash', date: formatDate(new Date()), coverFilename: '', coverPreview: null, content: '', publishAt: '' };
   const [form, setForm] = useState(emptyForm);
 
   const isAdmin = user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
@@ -231,24 +345,22 @@ export default function AdminPage() {
   const saveStory = async () => {
     if (!form.title.trim()) { setMsg('Title is required.'); return; }
     if (!form.content.trim()) { setMsg('Content is required.'); return; }
-    if (!form.coverFilename.trim()) { setMsg('Cover filename is required.'); return; }
+    if (!form.coverFilename.trim()) { setMsg('Cover image is required.'); return; }
     setSaving(true); setMsg('');
     try {
       const { ref, set } = await import('firebase/database');
       const slug = editingId || slugify(form.title);
       const categoryObj = CATEGORIES.find(c => c.value === form.category);
       const coverFilename = form.coverFilename.trim();
-      const coverPath = coverFilename.startsWith('/') ? coverFilename : `/${coverFilename}`;
+      // If it's a full URL (ImgBB), use as-is. Otherwise treat as /public/ filename.
+      const coverPath = coverFilename.startsWith('http') ? coverFilename : (coverFilename.startsWith('/') ? coverFilename : `/${coverFilename}`);
       const storyData = {
         title: form.title.trim(), author: form.author,
         category: form.category, categoryName: categoryObj.label,
         date: form.date, content: form.content.trim(),
         cover: coverPath, url: `/stories/${slug}`, published: true,
       };
-      // Only store publishAt if scheduling for the future
-      if (form.publishAt) {
-        storyData.publishAt = new Date(form.publishAt).toISOString();
-      }
+      if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       await set(ref(db, `cms_stories/${slug}`), storyData);
       const isScheduled = form.publishAt && new Date(form.publishAt) > new Date();
       setMsg(isScheduled
@@ -270,11 +382,7 @@ export default function AdminPage() {
   }
 
   function openEdit(story) {
-    setForm({
-      title: story.title, author: story.author, category: story.category,
-      date: story.date, coverFilename: story.cover, content: story.content,
-      publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
-    });
+    setForm({ title: story.title, author: story.author, category: story.category, date: story.date, coverFilename: story.cover, coverPreview: story.cover, content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '' });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
 
@@ -314,19 +422,15 @@ export default function AdminPage() {
       </header>
       <div style={s.body}>
         {(view === 'new' || view === 'edit') && (
-          <StoryForm
-            form={form} setForm={setForm} editingId={editingId}
-            saving={saving} msg={msg} onSave={saveStory} onCancel={handleCancel}
-          />
+          <StoryForm form={form} setForm={setForm} editingId={editingId}
+            saving={saving} msg={msg} onSave={saveStory} onCancel={handleCancel} />
         )}
         {view === 'list' && (
           <div>
             <div style={s.topBar}>
               <div>
                 <h2 style={s.h2}>Stories</h2>
-                <div style={s.h2sub}>
-                  {liveCount} live · {scheduledCount} scheduled
-                </div>
+                <div style={s.h2sub}>{liveCount} live · {scheduledCount} scheduled</div>
               </div>
               <button style={s.btn} onClick={openNew}>+ New Story</button>
             </div>
