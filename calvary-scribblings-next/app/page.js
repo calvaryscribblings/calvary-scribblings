@@ -209,6 +209,7 @@ export default function Home() {
   const [subscribeStatus, setSubscribeStatus] = useState('');
   const heroIndexRef = useRef(0);
   // carousel state — starts as top 5 recent for SSR safety, updated client-side
+  const [allStories, setAllStories] = useState(stories);
   const [carousel, setCarousel] = useState(_sorted.slice(0, 5));
 
   useEffect(() => {
@@ -216,6 +217,38 @@ export default function Home() {
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // Merge Firebase CMS stories with hardcoded ones
+  useEffect(() => {
+    async function fetchCMSStories() {
+      try {
+        const { initializeApp, getApps } = await import('firebase/app');
+        const { getDatabase, ref, get } = await import('firebase/database');
+        const firebaseConfig = {
+          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+          authDomain: 'calvary-scribblings.firebaseapp.com',
+          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+          projectId: 'calvary-scribblings',
+          storageBucket: 'calvary-scribblings.firebasestorage.app',
+          messagingSenderId: '1052137412283',
+          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+        };
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const snap = await get(ref(db, 'cms_stories'));
+        if (snap.exists()) {
+          const data = snap.val();
+          const cmsStories = Object.entries(data).map(([id, s]) => ({ ...s, id }));
+          setAllStories(prev => {
+            const merged = [...cmsStories, ...prev].filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
+            merged.sort((a, b) => parseDate(b.date) - parseDate(a.date));
+            return merged;
+          });
+        }
+      } catch(e) { console.error('CMS merge error:', e); }
+    }
+    fetchCMSStories();
   }, []);
 
   // Hourly carousel refresh — runs in browser, covers always match titles
@@ -412,7 +445,7 @@ export default function Home() {
           Just Added
         </h3>
         <div className="just-added-scroll" style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
-          {justAdded.map(s => <JustAddedCard key={s.id} story={s} />)}
+          {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map(s => <JustAddedCard key={s.id} story={s} />)}
         </div>
       </section>
 
@@ -428,11 +461,11 @@ export default function Home() {
       </section>
 
       {/* Category Rows */}
-      <Row title="⚡ Flash Fiction" stories={stories.filter(s => s.category === 'flash')} seeAll="/flash" />
-      <Row title="📖 Short Stories" stories={stories.filter(s => s.category === 'short')} seeAll="/short" />
-      <Row title="🖊️ Poetry" stories={stories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
-      <Row title="🗞️ News & Updates" stories={stories.filter(s => s.category === 'news')} seeAll="/news" />
-      <Row title="✨ Inspiring Stories" stories={stories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
+      <Row title="⚡ Flash Fiction" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" />
+      <Row title="📖 Short Stories" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" />
+      <Row title="🖊️ Poetry" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
+      <Row title="🗞️ News & Updates" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" />
+      <Row title="✨ Inspiring Stories" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
 
       {/* Subscribe */}
       <section id="subscribe" style={{
