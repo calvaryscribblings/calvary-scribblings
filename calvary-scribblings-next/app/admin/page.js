@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 
 const FIREBASE_CONFIG = {
@@ -33,12 +34,7 @@ function formatDate(d) {
   return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
-async function getDB() {
-  const { initializeApp, getApps } = await import('firebase/app');
-  const { getDatabase } = await import('firebase/database');
-  const app = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
-  return getDatabase(app);
-}
+
 
 const s = {
   page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
@@ -160,7 +156,7 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const { ref, get } = await import('firebase/database');
-      const db = await getDB();
+      
       const snap = await get(ref(db, 'cms_stories'));
       if (snap.exists()) {
         const data = snap.val();
@@ -179,7 +175,7 @@ export default function AdminPage() {
     setSaving(true); setMsg('');
     try {
       const { ref, set } = await import('firebase/database');
-      const db = await getDB();
+      
       const slug = editingId || slugify(form.title);
       const categoryObj = CATEGORIES.find(c => c.value === form.category);
       const coverFilename = form.coverFilename.trim();
@@ -201,7 +197,7 @@ export default function AdminPage() {
     if (!confirm('Delete this story? This cannot be undone.')) return;
     try {
       const { ref, remove } = await import('firebase/database');
-      const db = await getDB();
+      
       await remove(ref(db, `cms_stories/${id}`));
       setMsg('Story deleted.'); loadStories();
     } catch (e) { setMsg('Error: ' + e.message); }
