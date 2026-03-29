@@ -90,6 +90,12 @@ export default function StoryPage({ params }) {
         await runTransaction(hitRef, count => (count || 0) + 1);
         const snap = await get(hitRef);
         setHitCount(snap.val());
+        // Fallback for mobile using REST API
+        if (snap.val() === null) {
+          const res = await fetch(`https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app/stories/${slug}/hits.json`);
+          const val = await res.json();
+          if (val !== null) setHitCount(val);
+        }
       } catch (e) {
         console.error('Firebase error:', e);
       }
