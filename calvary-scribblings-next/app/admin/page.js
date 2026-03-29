@@ -42,6 +42,19 @@ function getScheduleStatus(publishAt) {
   return `Scheduled · publishes in ${mins}m`;
 }
 
+
+function convertToHTML(text) {
+  // If already contains HTML tags, return as-is
+  if (/<[a-z][\s\S]*>/i.test(text)) return text;
+  // Split on double newlines or single newlines
+  const paragraphs = text.split(/
++/).map(p => p.trim()).filter(p => p.length > 0);
+  return paragraphs.map((p, i) => {
+    if (i === 0) return `<p>${p}</p>`;
+    return `<p style="text-indent:1.5em; margin-bottom:0">${p}</p>`;
+  }).join(' ');
+}
+
 async function uploadToImgBB(file) {
   const formData = new FormData();
   formData.append('image', file);
@@ -357,7 +370,7 @@ export default function AdminPage() {
       const storyData = {
         title: form.title.trim(), author: form.author,
         category: form.category, categoryName: categoryObj.label,
-        date: form.date, content: form.content.trim(),
+        date: form.date, content: convertToHTML(form.content.trim()),
         cover: coverPath, url: `/stories/${slug}`, published: true,
       };
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
