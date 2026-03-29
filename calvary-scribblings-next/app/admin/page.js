@@ -3,16 +3,6 @@ import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 
-const FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-  authDomain: 'calvary-scribblings.firebaseapp.com',
-  databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-  projectId: 'calvary-scribblings',
-  storageBucket: 'calvary-scribblings.firebasestorage.app',
-  messagingSenderId: '1052137412283',
-  appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-};
-
 const ADMIN_EMAIL = 'Ikennaworksfromhome@gmail.com';
 
 const CATEGORIES = [
@@ -34,7 +24,27 @@ function formatDate(d) {
   return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
+// Format a Date to datetime-local input value
+function toDatetimeLocal(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
+function getScheduleStatus(publishAt) {
+  if (!publishAt) return null;
+  const now = Date.now();
+  const scheduled = new Date(publishAt).getTime();
+  if (scheduled > now) {
+    const diff = scheduled - now;
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    if (days > 0) return `Scheduled · publishes in ${days}d ${hours}h`;
+    if (hours > 0) return `Scheduled · publishes in ${hours}h ${mins}m`;
+    return `Scheduled · publishes in ${mins}m`;
+  }
+  return 'Live';
+}
 
 const s = {
   page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
@@ -54,6 +64,7 @@ const s = {
   cardTitle: { fontWeight: 700, fontSize: '0.92rem', color: '#fff', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   cardMeta: { fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)' },
   badge: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(124,58,237,0.2)', color: '#c4b5fd', border: '1px solid rgba(124,58,237,0.35)', marginLeft: '0.5rem', verticalAlign: 'middle' },
+  badgeScheduled: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.35)', marginLeft: '0.5rem', verticalAlign: 'middle' },
   cardActions: { display: 'flex', gap: '0.5rem', flexShrink: 0 },
   form: { display: 'flex', flexDirection: 'column', gap: '1.4rem' },
   fg: { display: 'flex', flexDirection: 'column', gap: '0.45rem' },
@@ -62,15 +73,20 @@ const s = {
   textarea: { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.85rem 1rem', color: '#fff', fontSize: '0.85rem', fontFamily: "'Courier New', monospace", outline: 'none', width: '100%', boxSizing: 'border-box', minHeight: 340, resize: 'vertical', lineHeight: 1.65 },
   select: { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.72rem 1rem', color: '#fff', fontSize: '0.9rem', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' },
   row2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.1rem' },
+  row3: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.1rem' },
   hint: { fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 },
   msg: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1.5rem' },
+  scheduleBox: { background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: 8, padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' },
+  scheduleToggle: { display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', userSelect: 'none' },
   formActions: { display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.5rem' },
   empty: { textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '4rem 0', fontSize: '0.88rem' },
   gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cochin', Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
 };
 
-// ── StoryForm lifted outside AdminPage to prevent re-mount on every render ────
 function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) {
+  const isScheduled = !!form.publishAt;
+  const scheduleStatus = form.publishAt ? getScheduleStatus(form.publishAt) : null;
+
   return (
     <div>
       <div style={s.topBar}>
@@ -82,11 +98,13 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
       </div>
       {msg && <div style={s.msg}>{msg}</div>}
       <div style={s.form}>
+
         <div style={s.fg}>
           <label style={s.label}>Title</label>
           <input style={s.input} value={form.title} placeholder="Story title"
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
         </div>
+
         <div style={s.row2}>
           <div style={s.fg}>
             <label style={s.label}>Author</label>
@@ -101,19 +119,54 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
             </select>
           </div>
         </div>
+
         <div style={s.row2}>
           <div style={s.fg}>
-            <label style={s.label}>Date</label>
+            <label style={s.label}>Display Date</label>
             <input style={s.input} value={form.date} placeholder="Mar 29, 2026"
               onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+            <div style={s.hint}>Shown to readers on the story page.</div>
           </div>
           <div style={s.fg}>
             <label style={s.label}>Cover Filename</label>
             <input style={s.input} value={form.coverFilename} placeholder="my-story-cover.jpeg"
               onChange={e => setForm(f => ({ ...f, coverFilename: e.target.value }))} />
-            <div style={s.hint}>Upload image to /public/ in the repo, then enter filename here.</div>
+            <div style={s.hint}>Upload image to /public/ in the repo first.</div>
           </div>
         </div>
+
+        {/* Scheduling */}
+        <div style={s.scheduleBox}>
+          <label style={s.scheduleToggle}>
+            <input type="checkbox" checked={isScheduled}
+              onChange={e => setForm(f => ({
+                ...f,
+                publishAt: e.target.checked ? toDatetimeLocal(new Date(Date.now() + 3600000)) : '',
+              }))} />
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#fcd34d', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Schedule for later
+            </span>
+          </label>
+          {isScheduled && (
+            <>
+              <input
+                type="datetime-local"
+                style={{ ...s.input, marginTop: '0.5rem', colorScheme: 'dark' }}
+                value={form.publishAt}
+                onChange={e => setForm(f => ({ ...f, publishAt: e.target.value }))}
+              />
+              {scheduleStatus && (
+                <div style={{ fontSize: '0.72rem', color: '#fcd34d', marginTop: '0.25rem' }}>
+                  {scheduleStatus === 'Live' ? '✓ This time is in the past — story will publish immediately.' : `⏰ ${scheduleStatus}`}
+                </div>
+              )}
+            </>
+          )}
+          {!isScheduled && (
+            <div style={s.hint}>Untick to publish immediately. Tick to choose a future date and time.</div>
+          )}
+        </div>
+
         <div style={s.fg}>
           <label style={s.label}>Story Content (HTML)</label>
           <textarea style={s.textarea} value={form.content}
@@ -125,10 +178,11 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
             Separator: &lt;p style="text-indent:1.5em; margin-bottom:0"&gt;***&lt;/p&gt;
           </div>
         </div>
+
         <div style={s.formActions}>
           <button style={s.btnGhost} onClick={onCancel}>Cancel</button>
           <button style={{ ...s.btn, opacity: saving ? 0.6 : 1 }} onClick={onSave} disabled={saving}>
-            {saving ? 'Saving…' : editingId ? 'Update Story' : 'Publish Story'}
+            {saving ? 'Saving…' : isScheduled ? 'Schedule Story' : editingId ? 'Update Story' : 'Publish Story'}
           </button>
         </div>
       </div>
@@ -145,7 +199,10 @@ export default function AdminPage() {
   const [msg, setMsg] = useState('');
   const [editingId, setEditingId] = useState(null);
 
-  const emptyForm = { title: '', author: AUTHORS[0], category: 'flash', date: formatDate(new Date()), coverFilename: '', content: '' };
+  const emptyForm = {
+    title: '', author: AUTHORS[0], category: 'flash',
+    date: formatDate(new Date()), coverFilename: '', content: '', publishAt: '',
+  };
   const [form, setForm] = useState(emptyForm);
 
   const isAdmin = user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
@@ -156,12 +213,15 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const { ref, get } = await import('firebase/database');
-      
       const snap = await get(ref(db, 'cms_stories'));
       if (snap.exists()) {
         const data = snap.val();
         const list = Object.entries(data).map(([id, s]) => ({ id, ...s }));
-        list.sort((a, b) => new Date(b.date) - new Date(a.date));
+        list.sort((a, b) => {
+          const aTime = a.publishAt ? new Date(a.publishAt).getTime() : new Date(a.date).getTime();
+          const bTime = b.publishAt ? new Date(b.publishAt).getTime() : new Date(b.date).getTime();
+          return bTime - aTime;
+        });
         setStories(list);
       } else { setStories([]); }
     } catch (e) { setMsg('Error loading: ' + e.message); }
@@ -175,18 +235,25 @@ export default function AdminPage() {
     setSaving(true); setMsg('');
     try {
       const { ref, set } = await import('firebase/database');
-      
       const slug = editingId || slugify(form.title);
       const categoryObj = CATEGORIES.find(c => c.value === form.category);
       const coverFilename = form.coverFilename.trim();
       const coverPath = coverFilename.startsWith('/') ? coverFilename : `/${coverFilename}`;
-      await set(ref(db, `cms_stories/${slug}`), {
+      const storyData = {
         title: form.title.trim(), author: form.author,
         category: form.category, categoryName: categoryObj.label,
         date: form.date, content: form.content.trim(),
         cover: coverPath, url: `/stories/${slug}`, published: true,
-      });
-      setMsg(editingId ? '✓ Story updated.' : '✓ Story published.');
+      };
+      // Only store publishAt if scheduling for the future
+      if (form.publishAt) {
+        storyData.publishAt = new Date(form.publishAt).toISOString();
+      }
+      await set(ref(db, `cms_stories/${slug}`), storyData);
+      const isScheduled = form.publishAt && new Date(form.publishAt) > new Date();
+      setMsg(isScheduled
+        ? `⏰ Story scheduled for ${new Date(form.publishAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}.`
+        : editingId ? '✓ Story updated.' : '✓ Story published.');
       setForm(emptyForm); setEditingId(null); setView('list');
       loadStories();
     } catch (e) { setMsg('Error saving: ' + e.message); }
@@ -197,14 +264,17 @@ export default function AdminPage() {
     if (!confirm('Delete this story? This cannot be undone.')) return;
     try {
       const { ref, remove } = await import('firebase/database');
-      
       await remove(ref(db, `cms_stories/${id}`));
       setMsg('Story deleted.'); loadStories();
     } catch (e) { setMsg('Error: ' + e.message); }
   }
 
   function openEdit(story) {
-    setForm({ title: story.title, author: story.author, category: story.category, date: story.date, coverFilename: story.cover, content: story.content });
+    setForm({
+      title: story.title, author: story.author, category: story.category,
+      date: story.date, coverFilename: story.cover, content: story.content,
+      publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
+    });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
 
@@ -226,6 +296,9 @@ export default function AdminPage() {
       <a href="/" style={{ color: '#c4b5fd', fontSize: '0.82rem' }}>← Back to site</a>
     </div>
   );
+
+  const liveCount = stories.filter(s => !s.publishAt || new Date(s.publishAt) <= new Date()).length;
+  const scheduledCount = stories.filter(s => s.publishAt && new Date(s.publishAt) > new Date()).length;
 
   return (
     <div style={s.page}>
@@ -251,7 +324,9 @@ export default function AdminPage() {
             <div style={s.topBar}>
               <div>
                 <h2 style={s.h2}>Stories</h2>
-                <div style={s.h2sub}>Firebase CMS · {stories.length} {stories.length === 1 ? 'story' : 'stories'} published</div>
+                <div style={s.h2sub}>
+                  {liveCount} live · {scheduledCount} scheduled
+                </div>
               </div>
               <button style={s.btn} onClick={openNew}>+ New Story</button>
             </div>
@@ -260,19 +335,31 @@ export default function AdminPage() {
               ? <div style={s.empty}>Loading…</div>
               : stories.length === 0
                 ? <div style={s.empty}>No stories yet.<br />Hit "+ New Story" to publish your first.</div>
-                : stories.map(story => (
-                  <div key={story.id} style={s.card}>
-                    <img src={story.cover} alt={story.title} style={s.coverThumb} onError={e => { e.target.style.opacity = 0.2; }} />
-                    <div style={s.cardInfo}>
-                      <div style={s.cardTitle}>{story.title}<span style={s.badge}>{story.categoryName}</span></div>
-                      <div style={s.cardMeta}>By {story.author} · {story.date} · <a href={story.url} target="_blank" rel="noreferrer" style={{ color: '#a78bfa', textDecoration: 'none' }}>View →</a></div>
-                    </div>
-                    <div style={s.cardActions}>
-                      <button style={s.btnGhost} onClick={() => openEdit(story)}>Edit</button>
-                      <button style={s.btnDanger} onClick={() => deleteStory(story.id)}>Delete</button>
-                    </div>
-                  </div>
-                ))
+                : stories.map(story => {
+                    const scheduled = story.publishAt && new Date(story.publishAt) > new Date();
+                    const status = story.publishAt ? getScheduleStatus(story.publishAt) : null;
+                    return (
+                      <div key={story.id} style={{ ...s.card, opacity: scheduled ? 0.75 : 1 }}>
+                        <img src={story.cover} alt={story.title} style={s.coverThumb} onError={e => { e.target.style.opacity = 0.2; }} />
+                        <div style={s.cardInfo}>
+                          <div style={s.cardTitle}>
+                            {story.title}
+                            <span style={s.badge}>{story.categoryName}</span>
+                            {scheduled && <span style={s.badgeScheduled}>Scheduled</span>}
+                          </div>
+                          <div style={s.cardMeta}>
+                            By {story.author} · {story.date}
+                            {status && status !== 'Live' && ` · ${status}`}
+                            {!scheduled && <> · <a href={story.url} target="_blank" rel="noreferrer" style={{ color: '#a78bfa', textDecoration: 'none' }}>View →</a></>}
+                          </div>
+                        </div>
+                        <div style={s.cardActions}>
+                          <button style={s.btnGhost} onClick={() => openEdit(story)}>Edit</button>
+                          <button style={s.btnDanger} onClick={() => deleteStory(story.id)}>Delete</button>
+                        </div>
+                      </div>
+                    );
+                  })
             }
           </div>
         )}
