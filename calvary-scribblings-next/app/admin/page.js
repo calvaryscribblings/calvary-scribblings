@@ -44,11 +44,8 @@ function getScheduleStatus(publishAt) {
 
 
 function convertToHTML(text) {
-  // If already contains HTML tags, return as-is
   if (/<[a-z][\s\S]*>/i.test(text)) return text;
-  // Split on double newlines or single newlines
-  const paragraphs = text.split(/
-+/).map(p => p.trim()).filter(p => p.length > 0);
+  const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
   return paragraphs.map((p, i) => {
     if (i === 0) return `<p>${p}</p>`;
     return `<p style="text-indent:1.5em; margin-bottom:0">${p}</p>`;
