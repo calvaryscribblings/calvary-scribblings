@@ -53,12 +53,14 @@ export default function StoryPage({ params }) {
   }, [lastScrollY]);
 
   useEffect(() => {
-    if (articleRef.current) {
-      const text = articleRef.current.innerText || '';
-      const words = text.trim().split(/\s+/).length;
-      setReadingTime(Math.ceil(words / 220));
+    if (articleRef.current && story) {
+      setTimeout(() => {
+        const text = articleRef.current ? articleRef.current.innerText || "" : "";
+        const words = text.trim().split(/\s+/).length;
+        setReadingTime(Math.ceil(words / 220));
+      }, 100);
     }
-  }, []);
+  }, [story]);
 
   useEffect(() => {
     if (!slug) return;
