@@ -123,6 +123,7 @@ useEffect(() => {
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
+        @keyframes storyFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { background: #0a0a0a; }
         body { background: #0a0a0a; color: #e8e0d4; font-family: Cochin, Georgia, serif; overflow-x: hidden; }
@@ -333,6 +334,7 @@ useEffect(() => {
           </div>
         </main>
       </div>
+    </div>
     </>
   );
 }
