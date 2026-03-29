@@ -44,7 +44,7 @@ function getScheduleStatus(publishAt) {
 
 
 function convertToHTML(text) {
-  if (/<[a-z][\s\S]*>/i.test(text)) return text;
+  if (/<p[\s>]/i.test(text)) return text;
   const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
   return paragraphs.map((p, i) => {
     if (i === 0) return `<p>${p}</p>`;
