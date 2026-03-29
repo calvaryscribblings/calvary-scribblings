@@ -74,7 +74,7 @@ export default function StoryPage({ params }) {
     async function trackHit() {
       try {
         const { initializeApp, getApps } = await import('firebase/app');
-        const { getDatabase, ref, runTransaction, onValue } = await import('firebase/database');
+        const { getDatabase, ref, runTransaction, get } = await import('firebase/database');
         const firebaseConfig = {
           apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
           authDomain: 'calvary-scribblings.firebaseapp.com',
@@ -88,7 +88,8 @@ export default function StoryPage({ params }) {
         const db = getDatabase(app);
         const hitRef = ref(db, `stories/${slug}/hits`);
         await runTransaction(hitRef, count => (count || 0) + 1);
-        onValue(hitRef, snap => setHitCount(snap.val()));
+        const snap = await get(hitRef);
+        setHitCount(snap.val());
       } catch (e) {
         console.error('Firebase error:', e);
       }
