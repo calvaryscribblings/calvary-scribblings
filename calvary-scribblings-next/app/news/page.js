@@ -1,4 +1,5 @@
 'use client';
+import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import { stories } from '../lib/stories';
 
