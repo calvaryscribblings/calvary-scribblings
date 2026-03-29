@@ -25,9 +25,6 @@ export async function generateStaticParams() {
 
 import { stories } from '../../lib/stories';
 
-export async function generateStaticParams() {
-  return stories.map((s) => ({ slug: s.id }));
-}
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
