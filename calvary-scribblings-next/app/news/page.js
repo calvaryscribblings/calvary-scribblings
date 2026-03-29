@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import { stories } from '../lib/stories';
 
+const cat = "news";
+const _filtered = stories.filter(s => s.category === cat).sort((a,b) => new Date(b.date) - new Date(a.date));
 const badgeStyle = {
   news: { background: 'rgba(220,38,38,0.2)', color: '#f87171', border: '1px solid rgba(220,38,38,0.4)' },
 };
