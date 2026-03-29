@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 
 const FIREBASE_CONFIG = {
@@ -172,7 +172,7 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  const saveStory = useCallback(async () => {
+  const saveStory = async () => {
     if (!form.title.trim()) { setMsg('Title is required.'); return; }
     if (!form.content.trim()) { setMsg('Content is required.'); return; }
     if (!form.coverFilename.trim()) { setMsg('Cover filename is required.'); return; }
@@ -195,7 +195,7 @@ export default function AdminPage() {
       loadStories();
     } catch (e) { setMsg('Error saving: ' + e.message); }
     setSaving(false);
-  }, [form, editingId]);
+  };
 
   async function deleteStory(id) {
     if (!confirm('Delete this story? This cannot be undone.')) return;
