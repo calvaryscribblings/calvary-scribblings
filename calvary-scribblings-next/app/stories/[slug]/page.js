@@ -88,8 +88,12 @@ export default function StoryPage({ params }) {
         const db = getDatabase(app);
         const hitRef = ref(db, `stories/${slug}/hits`);
         await runTransaction(hitRef, count => (count || 0) + 1);
-        const snap = await get(hitRef);
+        let snap = await get(hitRef);
         setHitCount(snap.val());
+        // Retry once after 2s for mobile
+        setTimeout(async () => {
+          try { const s = await get(hitRef); setHitCount(s.val()); } catch(e) {}
+        }, 2000);
       } catch (e) {
         console.error('Firebase error:', e);
       }
