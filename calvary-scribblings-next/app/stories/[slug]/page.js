@@ -88,9 +88,9 @@ export default function StoryPage({ params }) {
         const db = getDatabase(app);
         const hitRef = ref(db, `stories/${slug}/hits`);
         await runTransaction(hitRef, count => (count || 0) + 1);
-        const res = await fetch(`https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app/stories/${slug}/hits.json`);
+        const res = await fetch(`https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app/stories/${slug}/hits.json?auth=AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY`);
         const val = await res.json();
-        setHitCount(val);
+        setHitCount(typeof val === 'number' ? val : null);
         // Fallback for mobile using REST API
         if (snap.val() === null) {
           const res = await fetch(`https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app/stories/${slug}/hits.json`);
