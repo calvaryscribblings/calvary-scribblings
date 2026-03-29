@@ -87,13 +87,16 @@ export default function StoryPage({ params }) {
         const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
         const db = getDatabase(app);
         const hitRef = ref(db, `stories/${slug}/hits`);
-        await runTransaction(hitRef, count => (count || 0) + 1);
-        let snap = await get(hitRef);
-        setHitCount(snap.val());
-        // Retry once after 2s for mobile
-        setTimeout(async () => {
-          try { const s = await get(hitRef); setHitCount(s.val()); } catch(e) {}
-        }, 2000);
+        // Track hit silently
+        runTransaction(hitRef, count => (count || 0) + 1).catch(() => {});
+        // Fetch count separately with retries
+        for (let i = 0; i < 3; i++) {
+          try {
+            const snap = await get(hitRef);
+            if (snap.val() !== null) { setHitCount(snap.val()); break; }
+          } catch(e) {}
+          await new Promise(r => setTimeout(r, 1000));
+        }
       } catch (e) {
         console.error('Firebase error:', e);
       }
