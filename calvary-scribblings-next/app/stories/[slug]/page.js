@@ -105,13 +105,7 @@ useEffect(() => {
       if (window.DISQUS) window.DISQUS.reset({ reload: false });
     };
   }, [slug]);
-  if (!story) {
-    return (
-      <div style={{ background: '#f0ead8', color: '#1a1a1a', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Cochin, Georgia, serif', fontSize: '1.2rem' }}>
-        Story not found.
-      </div>
-    );
-  }
+
 
   const categoryColors = {
     news: '#ef4444',
@@ -121,9 +115,7 @@ useEffect(() => {
     inspiring: '#d97706',
     serial: '#6b46c1',
   };
-  if (!story) return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />
-  );
+  if (!story) return <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />;
   const accentColor = categoryColors[story.category] || '#6b46c1';
   const isPoetry = story.category === 'poetry';
 
