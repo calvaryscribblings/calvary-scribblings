@@ -73,10 +73,10 @@ export default function StoryPage({ params }) {
 
   useEffect(() => {
     if (!slug) return;
-            async function trackHit() {
+                async function trackHit() {
       try {
         const { initializeApp, getApps } = await import('firebase/app');
-        const { getDatabase, ref, runTransaction, useDatabaseEmulator } = await import('firebase/database');
+        const { getDatabase, ref, runTransaction } = await import('firebase/database');
         const firebaseConfig = {
           apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
           authDomain: 'calvary-scribblings.firebaseapp.com',
@@ -87,11 +87,11 @@ export default function StoryPage({ params }) {
           appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
         };
         const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-        const db = getDatabase(app, 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app?ns=calvary-scribblings-default-rtdb&mode=dataconnect&transport=http');
+        const db = getDatabase(app);
         const hitRef = ref(db, `stories/${slug}/hits`);
         const result = await runTransaction(hitRef, count => (count || 0) + 1);
         if (result.committed) { setHitCount(result.snapshot.val()); return; }
-      } catch(e) { console.error('SDK error:', e); }
+      } catch(e) {}
       try {
         const auth = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
         const url = `https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app/stories/${slug}/hits.json?auth=${auth}`;
