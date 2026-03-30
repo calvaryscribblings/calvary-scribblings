@@ -44,6 +44,7 @@ export default function StoryPage({ params }) {
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [hitCount, setHitCount] = useState(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const articleRef = useRef(null);
 
   useEffect(() => {
@@ -53,6 +54,7 @@ export default function StoryPage({ params }) {
       const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
       setScrollProgress(Math.min(progress, 100));
       setIsHeaderVisible(scrollTop < lastScrollY || scrollTop < 100);
+      setShowBackToTop(scrollTop > 600);
       setLastScrollY(scrollTop);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -72,30 +74,45 @@ export default function StoryPage({ params }) {
   useEffect(() => {
     if (!slug) return;
     async function trackHit() {
+      const base = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
+      const auth = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
+      const url = `${base}/stories/${slug}/hits.json?auth=${auth}`;
       try {
-        const base = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
-        const auth = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
-        const url = `${base}/stories/${slug}/hits.json?auth=${auth}`;
-        // Atomic increment using ETag transaction
-        for (let i = 0; i < 5; i++) {
-          const getRes = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
-          const etag = getRes.headers.get('ETag');
+        // Step 1: increment via SDK transaction (atomic, works on desktop)
+        const { initializeApp, getApps } = await import('firebase/app');
+        const { getDatabase, ref, runTransaction } = await import('firebase/database');
+        const firebaseConfig = {
+          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+          authDomain: 'calvary-scribblings.firebaseapp.com',
+          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+          projectId: 'calvary-scribblings',
+          storageBucket: 'calvary-scribblings.firebasestorage.app',
+          messagingSenderId: '1052137412283',
+          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+        };
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const hitRef = ref(db, `stories/${slug}/hits`);
+        await runTransaction(hitRef, count => (count || 0) + 1);
+      } catch(e) {
+        // SDK failed (mobile) — fall back to REST increment
+        try {
+          const getRes = await fetch(url);
           const current = await getRes.json();
           const newCount = (typeof current === 'number' ? current : 0) + 1;
-          const putRes = await fetch(url, {
+          await fetch(url, {
             method: 'PUT',
             body: JSON.stringify(newCount),
-            headers: { 'Content-Type': 'application/json', 'if-match': etag },
+            headers: { 'Content-Type': 'application/json' },
           });
-          if (putRes.status === 200) {
-            setHitCount(newCount);
-            break;
-          }
-          // 412 = conflict, retry
-        }
-      } catch (e) {
-        console.error('Hit count error:', e);
+        } catch(e2) { console.error('Hit increment failed:', e2); }
       }
+      // Step 2: always fetch display count via REST (works on all devices)
+      try {
+        const res = await fetch(url);
+        const val = await res.json();
+        if (typeof val === 'number') setHitCount(val);
+      } catch(e) { console.error('Hit display failed:', e); }
     }
     trackHit();
   }, [slug]);
@@ -211,6 +228,9 @@ export default function StoryPage({ params }) {
         .disqus-wrap { background: #f0ead8; max-width: 680px; margin: 0 auto; padding: 2rem 2rem 6rem; }
         .disqus-divider { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.5rem; font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: #bbb; }
         .disqus-divider::before, .disqus-divider::after { content: ''; flex: 1; height: 1px; background: #e0dbd2; }
+        .back-to-top { position: fixed; bottom: 2rem; right: 2rem; width: 44px; height: 44px; border-radius: 50%; background: rgba(124,58,237,0.85); border: 1px solid rgba(168,85,247,0.4); color: #fff; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease, transform 0.3s ease; z-index: 998; box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
+        .back-to-top:hover { background: rgba(124,58,237,1); transform: translateY(-2px); }
+        .back-to-top.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
         @media (max-width: 640px) {
           .hero-cover-panel { width: 100px; height: 145px; bottom: 0; right: 4%; z-index: 0; }
           .story-body { padding: 2.5rem 1.2rem 4rem; }
@@ -282,6 +302,12 @@ export default function StoryPage({ params }) {
           </main>
         </div>
       </div>
+      <button
+        className={showBackToTop ? 'back-to-top' : 'back-to-top hidden'}
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        aria-label="Back to top">
+        ↑
+      </button>
     </>
   );
 }
