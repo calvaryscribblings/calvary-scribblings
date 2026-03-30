@@ -71,17 +71,33 @@ export default function StoryPage({ params }) {
 
   useEffect(() => {
     if (!slug) return;
-        async function trackHit() {
+            async function trackHit() {
       try {
         const base = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
         const auth = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
         const url = `${base}/stories/${slug}/hits.json?auth=${auth}`;
-        // Use atomic increment via Firebase REST transaction
-        await fetch(url, {
-          method: 'POST',
-          body: JSON.stringify({".sv": "increment", ".value": 1}),
-          headers: { 'Content-Type': 'application/json' }
-        });
+        // Atomic increment using ETag-based transaction
+        let success = false;
+        for (let i = 0; i < 5 && !success; i++) {
+          const getRes = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
+          const etag = getRes.headers.get('ETag');
+          const current = await getRes.json();
+          const newCount = (typeof current === 'number' ? current : 0) + 1;
+          const putRes = await fetch(url, {
+            method: 'PUT',
+            body: JSON.stringify(newCount),
+            headers: { 'Content-Type': 'application/json', 'if-match': etag }
+          });
+          if (putRes.status === 200) {
+            setHitCount(newCount);
+            success = true;
+          }
+          // If 412 (conflict), retry
+        }
+      } catch (e) {
+        console.error('Hit count error:', e);
+      }
+    });
         const getRes = await fetch(url);
         const val = await getRes.json();
         setHitCount(typeof val === 'number' ? val : null);
