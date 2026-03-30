@@ -71,14 +71,13 @@ export default function StoryPage({ params }) {
 
   useEffect(() => {
     if (!slug) return;
-            async function trackHit() {
+    async function trackHit() {
       try {
         const base = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
         const auth = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
         const url = `${base}/stories/${slug}/hits.json?auth=${auth}`;
-        // Atomic increment using ETag-based transaction
-        let success = false;
-        for (let i = 0; i < 5 && !success; i++) {
+        // Atomic increment using ETag transaction
+        for (let i = 0; i < 5; i++) {
           const getRes = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
           const etag = getRes.headers.get('ETag');
           const current = await getRes.json();
@@ -86,18 +85,19 @@ export default function StoryPage({ params }) {
           const putRes = await fetch(url, {
             method: 'PUT',
             body: JSON.stringify(newCount),
-            headers: { 'Content-Type': 'application/json', 'if-match': etag }
+            headers: { 'Content-Type': 'application/json', 'if-match': etag },
           });
           if (putRes.status === 200) {
             setHitCount(newCount);
-            success = true;
+            break;
           }
-          // If 412 (conflict), retry
+          // 412 = conflict, retry
         }
       } catch (e) {
         console.error('Hit count error:', e);
       }
-        trackHit();
+    }
+    trackHit();
   }, [slug]);
 
   useEffect(() => {
@@ -224,7 +224,6 @@ export default function StoryPage({ params }) {
 
       <div className="reading-progress" style={{ width: `${scrollProgress}%` }} />
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
-
         <nav className={`story-nav${isHeaderVisible ? '' : ' hidden'}`}>
           <a href="/" className="nav-logo">Calvary <span>Scribblings</span></a>
           <span className="nav-meta">{story.categoryName}</span>
