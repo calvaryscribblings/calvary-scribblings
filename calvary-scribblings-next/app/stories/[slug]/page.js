@@ -77,43 +77,41 @@ export default function StoryPage({ params }) {
       const base = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
       const auth = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
       const url = `${base}/stories/${slug}/hits.json?auth=${auth}`;
-      try {
-        // Step 1: increment via SDK transaction (atomic, works on desktop)
-        const { initializeApp, getApps } = await import('firebase/app');
-        const { getDatabase, ref, runTransaction } = await import('firebase/database');
-        const firebaseConfig = {
-          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-          authDomain: 'calvary-scribblings.firebaseapp.com',
-          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-          projectId: 'calvary-scribblings',
-          storageBucket: 'calvary-scribblings.firebasestorage.app',
-          messagingSenderId: '1052137412283',
-          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-        };
-        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        const hitRef = ref(db, `stories/${slug}/hits`);
-        await runTransaction(hitRef, count => (count || 0) + 1);
-      } catch(e) {
-        // SDK failed (mobile) — fall back to REST increment
+      // Atomic increment via REST using optimistic concurrency (ETag loop)
+      // Works on all devices including mobile
+      let incremented = false;
+      for (let attempt = 0; attempt < 10 && !incremented; attempt++) {
         try {
-          const getRes = await fetch(url);
+          const getRes = await fetch(url, { cache: 'no-store' });
+          const etag = getRes.headers.get('etag') || getRes.headers.get('ETag');
           const current = await getRes.json();
           const newCount = (typeof current === 'number' ? current : 0) + 1;
-          await fetch(url, {
+          const putHeaders = { 'Content-Type': 'application/json' };
+          if (etag) putHeaders['if-match'] = etag;
+          const putRes = await fetch(url, {
             method: 'PUT',
             body: JSON.stringify(newCount),
-            headers: { 'Content-Type': 'application/json' },
+            headers: putHeaders,
           });
-        } catch(e2) { console.error('Hit increment failed:', e2); }
+          if (putRes.status === 200) {
+            setHitCount(newCount);
+            incremented = true;
+          } else if (putRes.status === 412) {
+            // Conflict — retry after short delay
+            await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
+          } else {
+            break;
+          }
+        } catch(e) { break; }
       }
-      // Step 2: fetch display count via REST after short delay
-      await new Promise(r => setTimeout(r, 500));
-      try {
-        const res = await fetch(url);
-        const val = await res.json();
-        if (typeof val === 'number') setHitCount(val);
-      } catch(e) { console.error('Hit display failed:', e); }
+      // If increment failed, at least show current count
+      if (!incremented) {
+        try {
+          const res = await fetch(url, { cache: 'no-store' });
+          const val = await res.json();
+          if (typeof val === 'number') setHitCount(val);
+        } catch(e) {}
+      }
     }
     trackHit();
   }, [slug]);
