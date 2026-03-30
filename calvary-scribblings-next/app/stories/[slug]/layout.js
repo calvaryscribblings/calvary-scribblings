@@ -51,7 +51,7 @@ export async function generateMetadata({ params }) {
   if (!story) return {};
 
   const url = `https://calvaryscribblings.co.uk/stories/${slug}`;
-  const image = story.cover && story.cover.startswith('http') if hasattr(story, 'cover') else None
+  const image = story.cover && story.cover.startsWith('http') ? story.cover : `https://calvaryscribblings.co.uk${story.cover}`
 
   return {
     title: `${story.title} — Calvary Scribblings`,
