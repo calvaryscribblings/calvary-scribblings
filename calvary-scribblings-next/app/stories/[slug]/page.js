@@ -73,45 +73,36 @@ export default function StoryPage({ params }) {
 
   useEffect(() => {
     if (!slug) return;
-    async function trackHit() {
-      const base = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
-      const auth = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
-      const url = `${base}/stories/${slug}/hits.json?auth=${auth}`;
-      // Atomic increment via REST using optimistic concurrency (ETag loop)
-      // Works on all devices including mobile
-      let incremented = false;
-      for (let attempt = 0; attempt < 10 && !incremented; attempt++) {
-        try {
-          const getRes = await fetch(url, { cache: 'no-store' });
-          const etag = getRes.headers.get('etag') || getRes.headers.get('ETag');
-          const current = await getRes.json();
-          const newCount = (typeof current === 'number' ? current : 0) + 1;
-          const putHeaders = { 'Content-Type': 'application/json' };
-          if (etag) putHeaders['if-match'] = etag;
-          const putRes = await fetch(url, {
-            method: 'PUT',
-            body: JSON.stringify(newCount),
-            headers: putHeaders,
-          });
-          if (putRes.status === 200) {
-            setHitCount(newCount);
-            incremented = true;
-          } else if (putRes.status === 412) {
-            // Conflict — retry after short delay
-            await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
-          } else {
-            break;
-          }
-        } catch(e) { break; }
-      }
-      // If increment failed, at least show current count
-      if (!incremented) {
-        try {
-          const res = await fetch(url, { cache: 'no-store' });
-          const val = await res.json();
-          if (typeof val === 'number') setHitCount(val);
-        } catch(e) {}
-      }
+        async function trackHit() {
+      try {
+        const { initializeApp, getApps } = await import('firebase/app');
+        const { getDatabase, ref, runTransaction, get } = await import('firebase/database');
+        const firebaseConfig = {
+          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+          authDomain: 'calvary-scribblings.firebaseapp.com',
+          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+          projectId: 'calvary-scribblings',
+          storageBucket: 'calvary-scribblings.firebasestorage.app',
+          messagingSenderId: '1052137412283',
+          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+        };
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const hitRef = ref(db, `stories/${slug}/hits`);
+        const result = await runTransaction(hitRef, count => (count || 0) + 1);
+        if (result.committed) {
+          setHitCount(result.snapshot.val());
+          return;
+        }
+      } catch(e) { console.error('SDK error:', e); }
+      // Fallback: just display current count via REST
+      try {
+        const auth = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
+        const url = `https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app/stories/${slug}/hits.json?auth=${auth}`;
+        const res = await fetch(url, { cache: 'no-store' });
+        const val = await res.json();
+        if (typeof val === 'number') setHitCount(val);
+      } catch(e) {}
     }
     trackHit();
   }, [slug]);
