@@ -210,8 +210,8 @@ export default function StoryPage({ params }) {
         }
       `}</style>
 
+      <div className="reading-progress" style={{ width: `${scrollProgress}%` }} />
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
-        <div className="reading-progress" style={{ width: `${scrollProgress}%` }} />
 
         <nav className={`story-nav${isHeaderVisible ? '' : ' hidden'}`}>
           <a href="/" className="nav-logo">Calvary <span>Scribblings</span></a>
