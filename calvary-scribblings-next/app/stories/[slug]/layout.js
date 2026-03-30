@@ -28,11 +28,30 @@ import { stories } from '../../lib/stories';
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  const story = stories.find(s => s.id === slug);
+  let story = stories.find(s => s.id === slug);
+  if (!story) {
+    try {
+      const { initializeApp, getApps } = await import('firebase/app');
+      const { getDatabase, ref, get } = await import('firebase/database');
+      const firebaseConfig = {
+        apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+        authDomain: 'calvary-scribblings.firebaseapp.com',
+        databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+        projectId: 'calvary-scribblings',
+        storageBucket: 'calvary-scribblings.firebasestorage.app',
+        messagingSenderId: '1052137412283',
+        appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+      };
+      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+      const snap = await get(ref(db, `cms_stories/${slug}`));
+      if (snap.exists()) story = { id: slug, ...snap.val() };
+    } catch(e) {}
+  }
   if (!story) return {};
 
   const url = `https://calvaryscribblings.co.uk/stories/${slug}`;
-  const image = `https://calvaryscribblings.co.uk${story.cover}`;
+  const image = story.cover && story.cover.startswith('http') if hasattr(story, 'cover') else None
 
   return {
     title: `${story.title} — Calvary Scribblings`,
