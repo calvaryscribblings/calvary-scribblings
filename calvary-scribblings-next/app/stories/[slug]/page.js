@@ -107,7 +107,8 @@ export default function StoryPage({ params }) {
           });
         } catch(e2) { console.error('Hit increment failed:', e2); }
       }
-      // Step 2: always fetch display count via REST (works on all devices)
+      // Step 2: fetch display count via REST after short delay
+      await new Promise(r => setTimeout(r, 500));
       try {
         const res = await fetch(url);
         const val = await res.json();
