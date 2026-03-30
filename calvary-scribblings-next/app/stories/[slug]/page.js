@@ -97,15 +97,7 @@ export default function StoryPage({ params }) {
       } catch (e) {
         console.error('Hit count error:', e);
       }
-    });
-        const getRes = await fetch(url);
-        const val = await getRes.json();
-        setHitCount(typeof val === 'number' ? val : null);
-      } catch (e) {
-        console.error('Hit count error:', e);
-      }
-    }
-    trackHit();
+        trackHit();
   }, [slug]);
 
   useEffect(() => {
