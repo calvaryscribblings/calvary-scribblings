@@ -76,11 +76,15 @@ export default function StoryPage({ params }) {
         const base = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
         const auth = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
         const url = `${base}/stories/${slug}/hits.json?auth=${auth}`;
+        // Use atomic increment via Firebase REST transaction
+        await fetch(url, {
+          method: 'POST',
+          body: JSON.stringify({".sv": "increment", ".value": 1}),
+          headers: { 'Content-Type': 'application/json' }
+        });
         const getRes = await fetch(url);
-        const current = await getRes.json();
-        const newCount = (typeof current === 'number' ? current : 0) + 1;
-        await fetch(url, { method: 'PUT', body: JSON.stringify(newCount), headers: { 'Content-Type': 'application/json' } });
-        setHitCount(newCount);
+        const val = await getRes.json();
+        setHitCount(typeof val === 'number' ? val : null);
       } catch (e) {
         console.error('Hit count error:', e);
       }
