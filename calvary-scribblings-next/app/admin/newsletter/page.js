@@ -243,7 +243,7 @@ export default function NewsletterPage() {
                 <div style={s.pvHeader}>
                   <div style={s.pvIssue}>Issue #{issueNumber || "—"} · Weekly Digest</div>
                   <div style={s.pvLogo}>Calvary Scribblings</div>
-                  <div style={s.pvTagline}>Stories that stay with you.</div>
+                  <div style={s.pvTagline}>The Story Island 🏝️</div>
                 </div>
                 <div style={s.pvIntro}>{intro || <em style={{ color: "#aaa" }}>( intro will appear here )</em>}</div>
                 <hr style={{ border: "none", borderTop: "1px solid #ede8f5", margin: "0 40px" }} />

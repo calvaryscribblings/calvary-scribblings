@@ -30,7 +30,7 @@ export default function WeeklyDigest({
               Calvary Scribblings
             </Heading>
             <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px", margin: 0, fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", letterSpacing: "1px" }}>
-              Stories that stay with you.
+              The Story Island 🏝️
             </Text>
           </Section>
           <Section style={{ padding: "36px 40px 24px" }}>
