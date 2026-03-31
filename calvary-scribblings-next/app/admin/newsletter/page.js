@@ -209,7 +209,7 @@ export default function NewsletterPage() {
                 <div style={s.storyPicker}>
                   {filteredStories.length === 0 && <div style={s.empty}>No stories found.</div>}
                   {filteredStories.map((st) => {
-                    const isSelected = selectedStories.find((x) => x.slug === st.slug);
+                    const isSelected = selectedStories.find((x) => x.slug === st.slug && x.title === st.title);
                     return (
                       <div key={st.id} onClick={() => toggleStory(st)} style={{ ...s.storyCard, ...(isSelected ? s.storyCardSelected : {}) }}>
                         {(st.cover || st.coverUrl) && <img src={st.cover || st.coverUrl} alt="" style={s.storyCover} />}
