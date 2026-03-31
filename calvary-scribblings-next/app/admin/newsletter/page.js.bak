@@ -90,7 +90,7 @@ export default function NewsletterPage() {
     try {
       const res = await fetch("https://calvary-newsletter.calvarymediauk.workers.dev/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca" },
+        headers:%20%7B%20%22Content-Type%22%3A%20%22application/json%22,%20Authorization:%20%60Bearer%20ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca%60%20%7D, },
         body: JSON.stringify({ subject: subject.trim(), intro: intro.trim(), stories: selectedStories, issueNumber: issueNumber ? parseInt(issueNumber) : undefined, testEmail: isTest ? testEmail.trim() : undefined }),
       });
       const data = await res.json();
