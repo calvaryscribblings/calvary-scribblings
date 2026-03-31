@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { db } from '../lib/firebase';
+import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 
 const ADMIN_EMAIL = 'Ikennaworksfromhome@gmail.com';
@@ -52,17 +52,14 @@ function convertToHTML(text) {
   }).join(' ');
 }
 
-async function uploadToImgBB(file) {
-  const formData = new FormData();
-  formData.append('image', file);
-  const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
-    method: 'POST', body: formData,
-  });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.error?.message || 'Upload failed');
-  return data.data.url;
+async function uploadToStorage(file) {
+  const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+  const filename = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+  const storageRef = ref(storage, 'covers/' + filename);
+  await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(storageRef);
+  return url;
 }
-
 const s = {
   page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
   header: { background: '#171717', borderBottom: '1px solid #2a2a2a', padding: '1.25rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
@@ -116,7 +113,7 @@ function ImageModal({ onInsert, onClose }) {
     if (!file) { setError('Please select an image.'); return; }
     setUploading(true); setError('');
     try {
-      const url = await uploadToImgBB(file);
+      const url = await uploadToStorage(file);
       let html;
       if (caption.trim()) {
         html = `\n<figure style="margin:1.5em 0;">\n  <img src="${url}" style="width:100%; border-radius:6px;" alt="${caption.trim()}" />\n  <figcaption style="text-align:center; font-style:italic; font-size:0.85rem; color:#888; margin-top:0.5em;">${caption.trim()}</figcaption>\n</figure>\n`;
@@ -174,7 +171,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
     if (!file) return;
     setCoverUploading(true);
     try {
-      const url = await uploadToImgBB(file);
+      const url = await uploadToStorage(file);
       setForm(f => ({ ...f, coverFilename: url, coverPreview: url }));
     } catch (err) {
       alert('Cover upload failed: ' + err.message);
@@ -262,10 +259,10 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
               <input ref={coverInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCoverUpload} />
             </div>
             {coverIsUrl && (
-              <div style={s.hintGreen}>✓ Uploaded to ImgBB</div>
+              <div style={s.hintGreen}>✓ Uploaded to Firebase</div>
             )}
             {!coverIsUrl && (
-              <div style={s.hint}>Upload via ImgBB, or enter a /public/ filename manually.</div>
+              <div style={s.hint}>Upload image, or enter a /public/ filename manually.</div>
             )}
             {(form.coverPreview || coverIsUrl) && (
               <img src={form.coverPreview || form.coverFilename} alt="Cover preview"
