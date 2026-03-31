@@ -68,9 +68,9 @@ export default function NewsletterPage() {
 
   function toggleStory(story) {
     setSelectedStories((prev) => {
-      const exists = prev.find((s) => s.slug === story.slug);
-      if (exists) return prev.filter((s) => s.slug !== story.slug);
-      return [...prev, { slug: story.slug, title: story.title, author: story.author, category: story.category, cover: story.cover || story.coverUrl || "", excerpt: story.excerpt || story.summary || "" }];
+      const exists = prev.find((s) => s.id === story.id);
+      if (exists) return prev.filter((s) => s.id !== story.id);
+      return [...prev, { id: story.id, slug: story.slug, title: story.title, author: story.author, category: story.category, cover: story.cover || story.coverUrl || "", excerpt: story.excerpt || story.summary || "" }];
     });
   }
 
@@ -209,7 +209,7 @@ export default function NewsletterPage() {
                 <div style={s.storyPicker}>
                   {filteredStories.length === 0 && <div style={s.empty}>No stories found.</div>}
                   {filteredStories.map((st) => {
-                    const isSelected = selectedStories.find((x) => x.slug === st.slug && x.title === st.title);
+                    const isSelected = selectedStories.find((x) => x.id === st.id);
                     return (
                       <div key={st.id} onClick={() => toggleStory(st)} style={{ ...s.storyCard, ...(isSelected ? s.storyCardSelected : {}) }}>
                         {(st.cover || st.coverUrl) && <img src={st.cover || st.coverUrl} alt="" style={s.storyCover} />}
