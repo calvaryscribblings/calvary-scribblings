@@ -88,7 +88,7 @@ export default function NewsletterPage() {
     setStatus("loading");
     setStatusMsg(isTest ? "Sending test email…" : "Sending to all subscribers…");
     try {
-      const res = await fetch("/api/newsletter/send", {
+      const res = await fetch("https://calvary-newsletter.calvarymediauk.workers.dev/send", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.NEXT_PUBLIC_NEWSLETTER_SEND_SECRET}` },
         body: JSON.stringify({ subject: subject.trim(), intro: intro.trim(), stories: selectedStories, issueNumber: issueNumber ? parseInt(issueNumber) : undefined, testEmail: isTest ? testEmail.trim() : undefined }),

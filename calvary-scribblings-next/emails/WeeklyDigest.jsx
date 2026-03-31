@@ -8,7 +8,7 @@ export default function WeeklyDigest({
   intro = "Here's what's been published this week — stories worth your time.",
   stories = [],
   issueNumber = 1,
-  unsubscribeUrl = "https://calvaryscribblings.co.uk/api/newsletter/unsubscribe?token=TOKEN",
+  unsubscribeUrl = "https://calvary-newsletter.calvarymediauk.workers.dev/unsubscribe?token=TOKEN",
 }) {
   const siteUrl = "https://calvaryscribblings.co.uk";
   const purple = "#6b2fad";
