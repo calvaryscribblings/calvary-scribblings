@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { Resend } from "resend";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getDatabase } from "firebase-admin/database";
