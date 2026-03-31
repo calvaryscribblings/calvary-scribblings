@@ -16,6 +16,7 @@ function getFirebaseApp() {
   return initializeApp(firebaseConfig);
 }
 
+const ALLOWED_EMAILS = ["Ikennaworksfromhome@gmail.com", "fynbecki@gmail.com"];
 const CATEGORY_COLOURS = { flash: "#e05c2a", short: "#2a7ae0", poetry: "#6b2fad", news: "#1a9e6b", inspiring: "#c4a200" };
 function categoryColour(cat) { return CATEGORY_COLOURS[(cat || "").toLowerCase()] || "#6b2fad"; }
 
@@ -107,6 +108,11 @@ export default function NewsletterPage() {
   });
 
   if (!authChecked) return <div style={s.centred}><div style={s.dot} /></div>;
+  if (user && !ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(user.email?.toLowerCase())) {
+    return (
+      <div style={s.centred}><div style={s.authCard}><div style={s.logoMark}>CS</div><h2 style={{color:"#1a1a2e",fontSize:20,marginBottom:8}}>Access denied</h2><p style={{color:"#666680",fontSize:14,marginBottom:24}}>You do not have permission to access the newsletter studio.</p><a href="/" style={s.btnPrimary}>Go to Homepage</a></div></div>
+    );
+  }
   if (!user) return (
     <div style={s.centred}>
       <div style={s.authCard}>
