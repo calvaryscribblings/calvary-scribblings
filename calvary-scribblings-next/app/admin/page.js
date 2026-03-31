@@ -386,6 +386,10 @@ export default function AdminPage() {
       };
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       await set(ref(db, `cms_stories/${slug}`), storyData);
+      // Trigger Cloudflare rebuild so new story slug is statically generated
+      try {
+        await fetch('https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/df2479ae-06a5-4ff3-a319-29b7b94dd106', { method: 'POST' });
+      } catch(e) { console.warn('Deploy hook failed:', e); }
       const isScheduled = form.publishAt && new Date(form.publishAt) > new Date();
       setMsg(isScheduled
         ? `⏰ Story scheduled for ${new Date(form.publishAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}.`
