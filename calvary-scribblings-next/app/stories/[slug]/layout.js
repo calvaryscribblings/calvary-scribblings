@@ -1,11 +1,8 @@
 export async function generateStaticParams() {
   const hardcoded = (await import('../../lib/stories')).stories.map(s => ({ slug: s.id }));
-  try {
-    const cmsSlugs = (await import('../../lib/cms-slugs.js')).cmsSlugs;
-    const cms = cmsSlugs.map(slug => ({ slug }));
-    return [...hardcoded, ...cms];
-  } catch(e) { console.error("generateStaticParams CMS slugs error:", e); }
-  return hardcoded;
+  const cmsSlugs = ["purple", "odeluwa", "my-dream-man"];
+  const cms = cmsSlugs.map(slug => ({ slug }));
+  return [...hardcoded, ...cms];
 }
 
 import { stories } from '../../lib/stories';
