@@ -35,6 +35,9 @@ export default function NewsletterPage() {
   const [status, setStatus] = useState(null);
   const [statusMsg, setStatusMsg] = useState("");
   const [storySearch, setStorySearch] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [draftId, setDraftId] = useState(null);
+  const [drafts, setDrafts] = useState([]);
 
   useEffect(() => {
     const app = getFirebaseApp();
@@ -59,7 +62,17 @@ export default function NewsletterPage() {
         setSubscriberCount(active.length);
       } else { setSubscriberCount(0); }
     });
-    get(ref(db, "newsletter_sends")).then((snap) => {
+    // Load drafts from Worker
+    fetch('https://calvary-newsletter.calvarymediauk.workers.dev/drafts', {
+      headers: { Authorization: 'Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca' }
+    }).then(r => r.json()).then(data => {
+      if (data && typeof data === 'object') {
+        const list = Object.values(data).sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+        setDrafts(list);
+      }
+    }).catch(() => {});
+
+    get(ref(db, 'newsletter_sends')).then((snap) => {
       if (snap.exists()) {
         const list = Object.entries(snap.val()).map(([id, s]) => ({ id, ...s })).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
         setSendHistory(list);
@@ -81,6 +94,39 @@ export default function NewsletterPage() {
     if (swap < 0 || swap >= next.length) return;
     [next[index], next[swap]] = [next[swap], next[index]];
     setSelectedStories(next);
+  }
+
+
+  async function handleSaveDraft(scheduleTime) {
+    if (!subject.trim() && !intro.trim()) {
+      setStatus("error");
+      setStatusMsg("Add a subject or intro before saving.");
+      return;
+    }
+    setStatus("loading");
+    setStatusMsg(scheduleTime ? "Scheduling newsletter..." : "Saving draft...");
+    try {
+      const res = await fetch("https://calvary-newsletter.calvarymediauk.workers.dev/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca" },
+        body: JSON.stringify({
+          id: draftId || undefined,
+          subject: subject.trim(),
+          intro: intro.trim(),
+          stories: selectedStories,
+          issueNumber: issueNumber ? parseInt(issueNumber) : undefined,
+          scheduledAt: scheduleTime || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Save failed");
+      setDraftId(data.id);
+      setStatus("success");
+      setStatusMsg(scheduleTime ? "Newsletter scheduled!" : "Draft saved!");
+    } catch (err) {
+      setStatus("error");
+      setStatusMsg(err.message);
+    }
   }
 
   async function handleSend(isTest) {
@@ -289,7 +335,36 @@ export default function NewsletterPage() {
               <h1 style={s.tabTitle}>Send History</h1>
               <p style={s.tabSubtitle}>A log of all newsletters sent from Calvary Scribblings.</p>
             </div>
-            {sendHistory.length === 0 ? (
+            
+              {drafts.length > 0 && (
+                <div style={{marginBottom: 24}}>
+                  <div style={{color: "#6b2fad", fontSize: 10, letterSpacing: 3, textTransform: "uppercase", fontWeight: 700, marginBottom: 12}}>Drafts & Scheduled</div>
+                  <div style={{display:"flex", flexDirection:"column", gap:8}}>
+                    {drafts.map((d) => (
+                      <div key={d.id} style={{background:"#fff", border:"1px solid #ede8f5", borderRadius:10, padding:"16px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:16}}>
+                        <div>
+                          <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:4}}>
+                            <span style={{background: d.status === "scheduled" ? "#edfaf3" : "#f3eefb", color: d.status === "scheduled" ? "#1a9e6b" : "#6b2fad", fontSize:10, fontWeight:700, letterSpacing:1, textTransform:"uppercase", padding:"2px 8px", borderRadius:4}}>{d.status}</span>
+                          </div>
+                          <div style={{fontSize:15, fontWeight:700, color:"#1a1a2e", marginBottom:4}}>{d.subject || "(no subject)"}</div>
+                          <div style={{fontSize:12, color:"#666680"}}>
+                            {d.status === "scheduled" ? "Sends: " + new Date(d.scheduledAt).toLocaleString("en-GB") : "Saved: " + new Date(d.savedAt).toLocaleString("en-GB")}
+                          </div>
+                        </div>
+                        <div style={{display:"flex", gap:8}}>
+                          <button onClick={() => { setSubject(d.subject||""); setIntro(d.intro||""); setSelectedStories(d.stories||[]); setIssueNumber(d.issueNumber||""); setDraftId(d.id); setScheduledAt(d.scheduledAt||""); setTab("compose"); }}
+                            style={{background:"#f3eefb", color:"#6b2fad", border:"none", borderRadius:6, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"}}>Edit</button>
+                          <button onClick={async () => {
+                            await fetch("https://calvary-newsletter.calvarymediauk.workers.dev/draft/" + d.id, { method:"DELETE", headers:{Authorization:"Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca"} });
+                            setDrafts(prev => prev.filter(x => x.id !== d.id));
+                          }} style={{background:"#fef2f2", color:"#dc2626", border:"none", borderRadius:6, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"}}>Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+{sendHistory.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 0" }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
                 <div style={{ color: "#666680", fontSize: 15 }}>No newsletters sent yet.</div>
