@@ -388,7 +388,7 @@ export default function AdminPage() {
       await set(ref(db, `cms_stories/${slug}`), storyData);
       // Trigger Cloudflare rebuild after short delay so Firebase write completes first
       try {
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 10000));
         await fetch('https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/df2479ae-06a5-4ff3-a319-29b7b94dd106', { method: 'POST' });
       } catch(e) { console.warn('Deploy hook failed:', e); }
       const isScheduled = form.publishAt && new Date(form.publishAt) > new Date();
