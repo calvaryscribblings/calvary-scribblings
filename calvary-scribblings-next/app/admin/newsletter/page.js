@@ -84,7 +84,7 @@ export default function NewsletterPage() {
     setSelectedStories((prev) => {
       const exists = prev.find((s) => s.id === story.id);
       if (exists) return prev.filter((s) => s.id !== story.id);
-      return [...prev, { id: story.id, slug: story.slug, title: story.title, author: story.author, category: story.category, cover: story.cover || story.coverUrl || "", excerpt: story.excerpt || story.summary || "" }];
+      return [...prev, { id: story.id, slug: story.slug || story.id, title: story.title, author: story.author, category: story.category, cover: story.cover || story.coverUrl || "", excerpt: story.excerpt || story.summary || "" }];
     });
   }
 
