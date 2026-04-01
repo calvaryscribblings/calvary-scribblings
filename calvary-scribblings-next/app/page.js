@@ -295,28 +295,26 @@ export default function Home() {
   }, []);
 
   const handleSubscribe = async () => {
-    if (!email || !email.includes('@')) { setSubscribeStatus('Please enter a valid email address.'); return; }
-    try {
-      const { initializeApp, getApps } = await import('firebase/app');
-      const { getDatabase, ref, push } = await import('firebase/database');
-      const firebaseConfig = {
-        apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-        authDomain: 'calvary-scribblings.firebaseapp.com',
-        databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-        projectId: 'calvary-scribblings',
-        storageBucket: 'calvary-scribblings.firebasestorage.app',
-        messagingSenderId: '1052137412283',
-        appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-      };
-      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-      const db = getDatabase(app);
-      await push(ref(db, 'subscribers'), { email, subscribedAt: new Date().toISOString() });
+  if (!email || !email.includes('@')) { setSubscribeStatus('Please enter a valid email address.'); return; }
+  try {
+    const res = await fetch('https://calvary-newsletter.calvarymediauk.workers.dev/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (res.ok) {
       setSubscribeStatus("Thank you! You're now subscribed.");
       setEmail('');
-    } catch (e) {
+    } else if (res.status === 409) {
+      setSubscribeStatus('You are already subscribed.');
+    } else {
       setSubscribeStatus('Something went wrong. Please try again.');
     }
-  };
+  } catch (e) {
+    setSubscribeStatus('Something went wrong. Please try again.');
+  }
+};
 
   const goTo = useCallback((idx) => {
     setHeroTransition(false);
