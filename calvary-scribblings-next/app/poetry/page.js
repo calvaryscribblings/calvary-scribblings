@@ -47,7 +47,7 @@ export default function PoetryPage() {
           const now = Date.now();
           const cms = Object.entries(snap.val())
             .map(([id, s]) => ({ ...s, id }))
-            .filter(s => s.category === cat && (!s.publishAt || new Date(s.publishAt).getTime() <= now));
+            .filter(s => s.category === cat && s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now));
           setAllStories(prev => {
             const merged = [...cms, ...prev].filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
             return merged.sort((a, b) => new Date(b.date) - new Date(a.date));

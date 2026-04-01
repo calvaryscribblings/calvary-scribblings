@@ -239,7 +239,10 @@ export default function Home() {
         const snap = await get(ref(db, 'cms_stories'));
         if (snap.exists()) {
           const data = snap.val();
-          const cmsStories = Object.entries(data).map(([id, s]) => ({ ...s, id }));
+          const now = new Date();
+          const cmsStories = Object.entries(data)
+            .map(([id, s]) => ({ ...s, id }))
+            .filter(s => s.published !== false && (!s.publishAt || new Date(s.publishAt) <= now));
           setAllStories(prev => {
             const merged = [...cmsStories, ...prev].filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
             merged.sort((a, b) => parseDate(b.date) - parseDate(a.date));

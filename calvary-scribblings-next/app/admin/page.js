@@ -382,7 +382,7 @@ export default function AdminPage() {
         title: form.title.trim(), author: form.author,
         category: form.category, categoryName: categoryObj.label,
         date: form.date, content: convertToHTML(form.content.trim()),
-        cover: coverPath, url: `/stories/${slug}`, published: true,
+        cover: coverPath, url: `/stories/${slug}`, published: !(form.publishAt && new Date(form.publishAt) > new Date()),
       };
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       await set(ref(db, `cms_stories/${slug}`), storyData);
