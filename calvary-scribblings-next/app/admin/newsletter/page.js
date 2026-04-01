@@ -244,9 +244,17 @@ export default function NewsletterPage() {
                   </div>
                 )}
                 <div style={s.sendRow}>
+                  <div style={s.fieldGroup}>
+                    <label style={s.label}>Schedule Send (optional)</label>
+                    <input style={s.input} type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+                  </div>
                   <div style={s.testRow}>
                     <input style={{ ...s.input, flex: 1, marginBottom: 0 }} type="email" placeholder="test@email.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} />
                     <button style={s.btnSecondary} onClick={() => handleSend(true)} disabled={status === "loading"}>Send Test</button>
+                  </div>
+                  <div style={s.testRow}>
+                    <button style={s.btnSecondary} onClick={() => handleSaveDraft(null)} disabled={status === "loading"}>Save Draft</button>
+                    {scheduledAt && <button style={{ ...s.btnSecondary, color: "#1a9e6b", border: "2px solid #1a9e6b" }} onClick={() => handleSaveDraft(scheduledAt)} disabled={status === "loading"}>Schedule</button>}
                   </div>
                   <button style={s.btnPrimary} onClick={() => handleSend(false)} disabled={status === "loading"}>
                     {status === "loading" ? "Sending…" : `Send to ${subscriberCount ?? "—"} Subscribers`}
