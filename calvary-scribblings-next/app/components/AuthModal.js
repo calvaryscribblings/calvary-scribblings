@@ -34,8 +34,19 @@ export default function AuthModal({ onClose }) {
       } else if (mode === 'register') {
         if (!name.trim()) { setError('Please enter your name.'); setLoading(false); return; }
         const cred = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(cred.user, { displayName: name.trim() });
-        onClose();
+await updateProfile(cred.user, { displayName: name.trim() });
+
+// Send welcome email — non-blocking
+fetch("https://calvary-auth.calvarymediauk.workers.dev/welcome", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_SECRET}`,
+  },
+  body: JSON.stringify({ email, firstName: name.trim().split(" ")[0] }),
+}).catch(() => {}); // silent fail — don't block sign-up
+
+onClose();
       } else if (mode === 'forgot') {
         await sendPasswordResetEmail(auth, email);
         setSuccess('Password reset email sent. Check your inbox.');
