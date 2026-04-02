@@ -86,22 +86,22 @@ export default function StoryPage({ params }) {
   }, [slug]);
 
   useEffect(() => {
-    if (!slug) return;
-    window.disqus_config = function () {
-      this.page.url = `https://calvaryscribblings.co.uk/stories/${slug}`;
-      this.page.identifier = slug;
-      this.page.colorScheme = 'light';
-    };
-    const script = document.createElement('script');
-    script.src = 'https://calvaryscribblings.disqus.com/embed.js';
-    script.setAttribute('data-timestamp', +new Date());
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-      delete window.disqus_config;
-      if (window.DISQUS) window.DISQUS.reset({ reload: false });
-    };
-  }, [slug]);
+  if (!slug || !storyReady) return;
+  window.disqus_config = function () {
+    this.page.url = `https://calvaryscribblings.co.uk/stories/${slug}`;
+    this.page.identifier = slug;
+    this.page.colorScheme = 'light';
+  };
+  const script = document.createElement('script');
+  script.src = 'https://calvaryscribblings.disqus.com/embed.js';
+  script.setAttribute('data-timestamp', +new Date());
+  document.body.appendChild(script);
+  return () => {
+    document.body.removeChild(script);
+    delete window.disqus_config;
+    if (window.DISQUS) window.DISQUS.reset({ reload: false });
+  };
+}, [slug, storyReady]);
 
   const categoryColors = {
     news: '#ef4444',
