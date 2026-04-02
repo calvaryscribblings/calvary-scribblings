@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #0a0a0a;
+  color: #fff;
+  font-family: 'Cochin', Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Hide scrollbars on scroll containers */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Remove default button styles */
+button {
+  font-family: inherit;
+}
+
+/* Remove default list styles */
+ul, ol {
+  list-style: none;
+}
+
+/* Smooth image rendering */
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Remove default anchor styles */
+a {
+  color: inherit;
+}
+.nav-desktop { display: flex !important; }
+.nav-hamburger { display: none !important; }
+
+@media (max-width: 1024px) {
+  .nav-desktop { display: none !important; }
+  .nav-hamburger { display: flex !important; }
+}
