@@ -1,6 +1,6 @@
 export async function generateStaticParams() {
   const hardcoded = (await import('../../lib/stories')).stories.map(s => ({ slug: s.id }));
-  const cmsSlugs = ["purple", "odeluwa", "my-dream-man", "notting-hill-carnival-a-new-spin", "dinner-at-my-family-table"];
+  const cmsSlugs = ["purple", "odeluwa", "my-dream-man", "notting-hill-carnival-a-new-spin", "dinner-at-my-family-table", "is-2026-shaping-up-to-be-the-year-for-peak-modern-cinema"];
   const cms = cmsSlugs.map(slug => ({ slug }));
   return [...hardcoded, ...cms];
 }
