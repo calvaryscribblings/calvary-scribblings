@@ -1,40 +1,55 @@
-export async function generateStaticParams() {
-  const hardcoded = (await import('../../lib/stories')).stories.map(s => ({ slug: s.id }));
-  const cmsSlugs = ["purple", "odeluwa", "my-dream-man", "notting-hill-carnival-a-new-spin", "dinner-at-my-family-table", "is-2026-shaping-up-to-be-the-year-for-peak-modern-cinema"];
-  const cms = cmsSlugs.map(slug => ({ slug }));
-  return [...hardcoded, ...cms];
-}
-
 import { stories } from '../../lib/stories';
 
+const firebaseConfig = {
+  apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+  authDomain: 'calvary-scribblings.firebaseapp.com',
+  databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+  projectId: 'calvary-scribblings',
+  storageBucket: 'calvary-scribblings.firebasestorage.app',
+  messagingSenderId: '1052137412283',
+  appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+};
+
+async function getFirebaseDB() {
+  const { initializeApp, getApps } = await import('firebase/app');
+  const { getDatabase } = await import('firebase/database');
+  const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+  return getDatabase(app);
+}
+
+export async function generateStaticParams() {
+  const hardcoded = stories.map(s => ({ slug: s.id }));
+  try {
+    const { ref, get } = await import('firebase/database');
+    const db = await getFirebaseDB();
+    const snap = await get(ref(db, 'cms_stories'));
+    if (snap.exists()) {
+      const cmsData = snap.val();
+      const cmsSlugs = Object.keys(cmsData).map(slug => ({ slug }));
+      return [...hardcoded, ...cmsSlugs];
+    }
+  } catch (e) {
+    console.error('generateStaticParams: Firebase fetch failed', e);
+  }
+  return hardcoded;
+}
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
   let story = stories.find(s => s.id === slug);
   if (!story) {
     try {
-      const { initializeApp, getApps } = await import('firebase/app');
-      const { getDatabase, ref, get } = await import('firebase/database');
-      const firebaseConfig = {
-        apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-        authDomain: 'calvary-scribblings.firebaseapp.com',
-        databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-        projectId: 'calvary-scribblings',
-        storageBucket: 'calvary-scribblings.firebasestorage.app',
-        messagingSenderId: '1052137412283',
-        appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-      };
-      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-      const db = getDatabase(app);
+      const { ref, get } = await import('firebase/database');
+      const db = await getFirebaseDB();
       const snap = await get(ref(db, `cms_stories/${slug}`));
       if (snap.exists()) story = { id: slug, ...snap.val() };
-    } catch(e) {}
+    } catch (e) {}
   }
   if (!story) return {};
-
   const url = `https://calvaryscribblings.co.uk/stories/${slug}`;
-  const image = story.cover && story.cover.startsWith('http') ? story.cover : `https://calvaryscribblings.co.uk${story.cover}`
-
+  const image = story.cover && story.cover.startsWith('http')
+    ? story.cover
+    : `https://calvaryscribblings.co.uk${story.cover}`;
   return {
     title: `${story.title} — Calvary Scribblings`,
     description: `By ${story.author} · ${story.categoryName} · Calvary Scribblings`,
