@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
@@ -13,7 +14,7 @@ import { getDatabase, ref, set } from 'firebase/database';
 import { auth } from '../lib/firebase';
 
 export default function AuthModal({ onClose }) {
-  const [mode, setMode] = useState('signin');
+  const [mode, setMode] = useState('signin'); // 'signin' | 'register' | 'forgot' | 'verify'
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +23,7 @@ export default function AuthModal({ onClose }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(false);
 
   const clearMessages = () => { setError(''); setSuccess(''); };
   const switchMode = (m) => { setMode(m); clearMessages(); };
@@ -42,6 +44,8 @@ export default function AuthModal({ onClose }) {
         // Save date of birth to Firebase
         const db = getDatabase();
         await set(ref(db, `users/${cred.user.uid}/dob`), dob);
+        // Send email verification
+        await sendEmailVerification(cred.user);
         // Send welcome email — non-blocking
         fetch('https://calvary-auth.calvarymediauk.workers.dev/welcome', {
           method: 'POST',
@@ -51,7 +55,8 @@ export default function AuthModal({ onClose }) {
           },
           body: JSON.stringify({ email, firstName: name.trim().split(' ')[0] }),
         }).catch(() => {});
-        onClose();
+        // Show verify screen
+        switchMode('verify');
       } else if (mode === 'forgot') {
         await sendPasswordResetEmail(auth, email);
         setSuccess('Password reset email sent. Check your inbox.');
@@ -81,15 +86,32 @@ export default function AuthModal({ onClose }) {
     }
   };
 
+  const handleResend = async () => {
+    if (resendCooldown) return;
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        await sendEmailVerification(user);
+        setResendCooldown(true);
+        setSuccess('Verification email resent.');
+        setTimeout(() => setResendCooldown(false), 30000);
+      }
+    } catch (e) {
+      setError('Could not resend. Please try again shortly.');
+    }
+  };
+
   const titles = {
     signin: 'Welcome back.',
     register: 'Join the island.',
     forgot: 'Reset password.',
+    verify: 'Check your inbox.',
   };
   const subtitles = {
     signin: 'Sign in to your account',
     register: 'Create your free reader account',
-    forgot: 'Enter your email and we\'ll send a reset link',
+    forgot: "Enter your email and we'll send a reset link",
+    verify: `We've sent a verification link to ${email}`,
   };
   const buttonLabels = {
     signin: 'Sign in',
@@ -134,7 +156,6 @@ export default function AuthModal({ onClose }) {
         }
 
         .auth-top-bar { height: 3px; background: #6b2fad; }
-
         .auth-inner { padding: 2.25rem 2.25rem 1.75rem; }
 
         .auth-close {
@@ -182,6 +203,7 @@ export default function AuthModal({ onClose }) {
           letter-spacing: 0.02em;
           font-family: 'Inter', sans-serif;
           font-weight: 300;
+          line-height: 1.5;
         }
 
         .auth-error {
@@ -371,6 +393,69 @@ export default function AuthModal({ onClose }) {
           transition: color 0.2s;
         }
         .auth-footer button:hover { color: #c4b5fd; }
+
+        .auth-verify-icon {
+          width: 52px;
+          height: 52px;
+          border-radius: 50%;
+          background: rgba(107,47,173,0.12);
+          border: 1px solid rgba(107,47,173,0.25);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 0 1.5rem;
+        }
+
+        .auth-verify-steps {
+          margin: 1.5rem 0;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+        .auth-verify-step {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75rem;
+          font-size: 0.78rem;
+          color: rgba(255,255,255,0.45);
+          font-family: 'Inter', sans-serif;
+          line-height: 1.5;
+        }
+        .auth-verify-step-num {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: rgba(107,47,173,0.2);
+          border: 1px solid rgba(107,47,173,0.3);
+          color: #9b6dff;
+          font-size: 0.6rem;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          margin-top: 1px;
+          font-family: 'Inter', sans-serif;
+        }
+
+        .auth-resend {
+          background: none;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 1px;
+          width: 100%;
+          padding: 0.78rem;
+          font-size: 0.68rem;
+          font-weight: 500;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(255,255,255,0.4);
+          cursor: pointer;
+          font-family: 'Inter', sans-serif;
+          transition: border-color 0.2s, color 0.2s;
+          margin-top: 0.75rem;
+        }
+        .auth-resend:hover:not(:disabled) { border-color: rgba(107,47,173,0.4); color: #9b6dff; }
+        .auth-resend:disabled { opacity: 0.35; cursor: not-allowed; }
       `}</style>
 
       <div className="auth-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -380,95 +465,136 @@ export default function AuthModal({ onClose }) {
 
           <div className="auth-inner">
             <div className="auth-eyebrow">Calvary <span>Scribblings</span></div>
-            <h2 className="auth-title">{titles[mode]}</h2>
-            <p className="auth-subtitle">{subtitles[mode]}</p>
 
-            {error && <div className="auth-error">{error}</div>}
-            {success && <div className="auth-success">{success}</div>}
-
-            {mode !== 'forgot' && (
+            {mode === 'verify' ? (
               <>
-                <button className="auth-google" onClick={handleGoogle}>
-                  <svg width="16" height="16" viewBox="0 0 48 48">
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                <div className="auth-verify-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9b6dff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
                   </svg>
-                  Continue with Google
+                </div>
+                <h2 className="auth-title">{titles.verify}</h2>
+                <p className="auth-subtitle">{subtitles.verify}</p>
+
+                {error && <div className="auth-error">{error}</div>}
+                {success && <div className="auth-success">{success}</div>}
+
+                <div className="auth-verify-steps">
+                  <div className="auth-verify-step">
+                    <div className="auth-verify-step-num">1</div>
+                    <span>Open the email from Calvary Scribblings in your inbox</span>
+                  </div>
+                  <div className="auth-verify-step">
+                    <div className="auth-verify-step-num">2</div>
+                    <span>Click the verification link inside</span>
+                  </div>
+                  <div className="auth-verify-step">
+                    <div className="auth-verify-step-num">3</div>
+                    <span>Come back and sign in to start reading</span>
+                  </div>
+                </div>
+
+                <button className="auth-btn" onClick={onClose}>Done — I'll verify shortly</button>
+                <button className="auth-resend" onClick={handleResend} disabled={resendCooldown}>
+                  {resendCooldown ? 'Email sent — check your inbox' : 'Resend verification email'}
                 </button>
-                <div className="auth-or"><span>or</span></div>
+              </>
+            ) : (
+              <>
+                <h2 className="auth-title">{titles[mode]}</h2>
+                <p className="auth-subtitle">{subtitles[mode]}</p>
+
+                {error && <div className="auth-error">{error}</div>}
+                {success && <div className="auth-success">{success}</div>}
+
+                {mode !== 'forgot' && (
+                  <>
+                    <button className="auth-google" onClick={handleGoogle}>
+                      <svg width="16" height="16" viewBox="0 0 48 48">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                      </svg>
+                      Continue with Google
+                    </button>
+                    <div className="auth-or"><span>or</span></div>
+                  </>
+                )}
+
+                {mode === 'register' && (
+                  <div className="auth-field">
+                    <label className="auth-label">Full name</label>
+                    <input className="auth-input" type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} />
+                  </div>
+                )}
+
+                <div className="auth-field">
+                  <label className="auth-label">Email address</label>
+                  <input className="auth-input" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+                </div>
+
+                {mode !== 'forgot' && (
+                  mode === 'register' ? (
+                    <div className="auth-row2">
+                      <div className="auth-field">
+                        <label className="auth-label">Password</label>
+                        <input className="auth-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+                      </div>
+                      <div className="auth-field">
+                        <label className="auth-label">Confirm password</label>
+                        <input className="auth-input" type="password" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="auth-field">
+                      <label className="auth-label">Password</label>
+                      <input
+                        className="auth-input"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                      />
+                    </div>
+                  )
+                )}
+
+                {mode === 'signin' && (
+                  <div className="auth-forgot">
+                    <button onClick={() => switchMode('forgot')}>Forgot password?</button>
+                  </div>
+                )}
+
+                {mode === 'register' && (
+                  <div className="auth-field">
+                    <label className="auth-label">
+                      Date of birth
+                      <span className="auth-dob-tag">Age Go</span>
+                    </label>
+                    <input className="auth-input" type="date" value={dob} onChange={e => setDob(e.target.value)} />
+                    <div className="auth-hint">Required to access age-restricted content</div>
+                  </div>
+                )}
+
+                <button className="auth-btn" onClick={handleSubmit} disabled={loading}>
+                  {loading ? 'Please wait...' : buttonLabels[mode]}
+                </button>
               </>
             )}
+          </div>
 
-            {mode === 'register' && (
-              <div className="auth-field">
-                <label className="auth-label">Full name</label>
-                <input className="auth-input" type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} />
-              </div>
-            )}
-
-            <div className="auth-field">
-              <label className="auth-label">Email address</label>
-              <input className="auth-input" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+          {mode !== 'verify' && (
+            <div className="auth-footer">
+              <p>
+                {mode === 'signin' && <>No account? <button onClick={() => switchMode('register')}>Create one — it's free</button></>}
+                {mode === 'register' && <>Already a member? <button onClick={() => switchMode('signin')}>Sign in</button></>}
+                {mode === 'forgot' && <>Remember your password? <button onClick={() => switchMode('signin')}>Sign in</button></>}
+              </p>
             </div>
-
-            {mode !== 'forgot' && (
-              mode === 'register' ? (
-                <div className="auth-row2">
-                  <div className="auth-field">
-                    <label className="auth-label">Password</label>
-                    <input className="auth-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
-                  </div>
-                  <div className="auth-field">
-                    <label className="auth-label">Confirm password</label>
-                    <input className="auth-input" type="password" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
-                  </div>
-                </div>
-              ) : (
-                <div className="auth-field">
-                  <label className="auth-label">Password</label>
-                  <input
-                    className="auth-input"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                  />
-                </div>
-              )
-            )}
-
-            {mode === 'signin' && (
-              <div className="auth-forgot">
-                <button onClick={() => switchMode('forgot')}>Forgot password?</button>
-              </div>
-            )}
-
-            {mode === 'register' && (
-              <div className="auth-field">
-                <label className="auth-label">
-                  Date of birth
-                  <span className="auth-dob-tag">Age Go</span>
-                </label>
-                <input className="auth-input" type="date" value={dob} onChange={e => setDob(e.target.value)} />
-                <div className="auth-hint">Required to access age-restricted content</div>
-              </div>
-            )}
-
-            <button className="auth-btn" onClick={handleSubmit} disabled={loading}>
-              {loading ? 'Please wait...' : buttonLabels[mode]}
-            </button>
-          </div>
-
-          <div className="auth-footer">
-            <p>
-              {mode === 'signin' && <>No account? <button onClick={() => switchMode('register')}>Create one — it's free</button></>}
-              {mode === 'register' && <>Already a member? <button onClick={() => switchMode('signin')}>Sign in</button></>}
-              {mode === 'forgot' && <>Remember your password? <button onClick={() => switchMode('signin')}>Sign in</button></>}
-            </p>
-          </div>
+          )}
         </div>
       </div>
     </>
