@@ -71,7 +71,7 @@ await set(ref(db, `users/${cred.user.uid}/dob`), dob);
         'auth/invalid-email': 'Please enter a valid email address.',
         'auth/invalid-credential': 'Incorrect email or password.',
       };
-      setError(msgs[e.code] || 'Something went wrong. Please try again.');
+      setError(msgs[e.code] || e.message || 'Something went wrong. Please try again.');
     }
     setLoading(false);
   };
