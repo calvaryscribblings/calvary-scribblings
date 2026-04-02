@@ -387,13 +387,7 @@ export default function AdminPage() {
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       await set(ref(db, `cms_stories/${slug}`), storyData);
       // Add slug to generateStaticParams via GitHub API
-      try {
-        await fetch('https://calvary-newsletter.calvarymediauk.workers.dev/add-slug', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca' },
-          body: JSON.stringify({ slug }),
-        });
-      } catch(e) { console.warn('add-slug failed:', e); }
+      
       // Trigger Cloudflare rebuild after short delay so Firebase write completes first
       try {
         await new Promise(r => setTimeout(r, 10000));
