@@ -42,8 +42,9 @@ export default function AuthModal({ onClose }) {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(cred.user, { displayName: name.trim() });
         // Save date of birth to Firebase
-        const db = getDatabase();
-        await set(ref(db, `users/${cred.user.uid}/dob`), dob);
+        const { getApp } = await import('firebase/app');
+const db = getDatabase(getApp());
+await set(ref(db, `users/${cred.user.uid}/dob`), dob);
         // Send email verification
         await sendEmailVerification(cred.user);
         // Send welcome email — non-blocking
