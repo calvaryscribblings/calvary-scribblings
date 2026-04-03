@@ -65,7 +65,7 @@ function CommentAvatar({ uid, initials, size = 'sm', isOwnComment }) {
   const [photoUrl, setPhotoUrl] = useState(null);
   const dim = size === 'xs' ? 26 : size === 'sm' ? 34 : 36;
   const fontSize = size === 'xs' ? 9 : size === 'sm' ? 11 : 12;
-  const href = isOwnComment ? '/profile' : `/user/${uid}`;
+  const href = isOwnComment ? '/profile' : `/user?id=${uid}`;
 
   useEffect(() => {
     if (!uid) return;
@@ -230,7 +230,7 @@ function CommentsSection({ slug }) {
                   <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size="sm" isOwnComment={isOwn} />
                   <div className="cs-comment-body">
                     <div className="cs-comment-header">
-                      <a href={isOwn ? '/profile' : `/user/${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
+                      <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
                       {comment.badgeTier && <BadgeDisplay tier={comment.badgeTier} label={comment.badgeLabel} color={comment.badgeColor} size={13} />}
                       <span className="cs-time">{timeAgo(comment.createdAt)}</span>
                     </div>
@@ -257,7 +257,7 @@ function CommentsSection({ slug }) {
                               <CommentAvatar uid={reply.authorUid} initials={reply.authorInitials} size="xs" isOwnComment={replyIsOwn} />
                               <div className="cs-comment-body">
                                 <div className="cs-comment-header">
-                                  <a href={replyIsOwn ? '/profile' : `/user/${reply.authorUid}`} className="cs-name cs-name-link">{reply.authorName}</a>
+                                  <a href={replyIsOwn ? '/profile' : `/user?id=${reply.authorUid}`} className="cs-name cs-name-link">{reply.authorName}</a>
                                   {reply.badgeTier && <BadgeDisplay tier={reply.badgeTier} label={reply.badgeLabel} color={reply.badgeColor} size={12} />}
                                   <span className="cs-time">{timeAgo(reply.createdAt)}</span>
                                 </div>

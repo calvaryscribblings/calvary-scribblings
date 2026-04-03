@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { use } from 'react';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -53,8 +52,8 @@ function formatJoinDate(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
-export default function UserProfileClient({ params }) {
-  const { uid } = use(params);
+export default function UserPage() {
+  const [uid, setUid] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [profileData, setProfileData] = useState(null);
   const [readCount, setReadCount] = useState(0);
@@ -65,6 +64,14 @@ export default function UserProfileClient({ params }) {
   const [followsYou, setFollowsYou] = useState(false);
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
+
+  // Read uid from query string
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+    if (id) setUid(id);
+    else setLoading(false);
+  }, []);
 
   useEffect(() => {
     if (!uid) return;
@@ -154,7 +161,7 @@ export default function UserProfileClient({ params }) {
 
   if (loading) return <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />;
 
-  if (!profileData) return (
+  if (!uid || !profileData) return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <p style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif', fontSize: '0.85rem' }}>User not found.</p>
     </div>
@@ -193,7 +200,7 @@ export default function UserProfileClient({ params }) {
         .up-follow-btn:hover { background: #6d28d9; }
         .up-follow-btn.following { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.5); }
         .up-follow-btn.following:hover { border-color: rgba(220,38,38,0.4); color: rgba(248,113,113,0.6); }
-        .up-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); border-radius: 2px; margin-bottom: 2rem; overflow: hidden; }
+        .up-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
         .up-stat { background: #0a0a0a; padding: 1.25rem; text-align: center; }
         .up-stat-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.3rem; }
         .up-stat-label { font-size: 0.58rem; color: rgba(255,255,255,0.25); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
