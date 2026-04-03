@@ -292,7 +292,7 @@ export default function ProfilePage() {
 
         <div className="pg-section">
           <div className="pg-section-header">
-            <div className="pg-section-title">Get Paid to Read</div>
+            <div className="pg-section-title">Reader's Reward</div>
             <div className="pg-section-meta">Coming soon</div>
           </div>
           <div className="pg-wallet">
