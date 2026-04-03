@@ -1,5 +1,9 @@
+import UserProfileClient from './UserProfileClient';
+
 export function generateStaticParams() {
   return [];
 }
 
-export { default } from './UserProfileClient';
+export default function Page({ params }) {
+  return <UserProfileClient params={params} />;
+}
