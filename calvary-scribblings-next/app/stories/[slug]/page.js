@@ -363,6 +363,23 @@ export default function StoryPage({ params }) {
         const data = await res.json();
         if (typeof data.count === 'number') setHitCount(data.count);
       } catch(e) { console.error('Hit count error:', e); }
+
+      // Track unique read per signed-in user
+      try {
+        const auth = await getFirebaseAuth();
+        const user = auth.currentUser;
+        if (user) {
+          const db = await getFirebaseDB();
+          const { ref, get, set, runTransaction } = await import('firebase/database');
+          const readRef = ref(db, `users/${user.uid}/readStories/${slug}`);
+          const snap = await get(readRef);
+          if (!snap.exists()) {
+            await set(readRef, true);
+            const countRef = ref(db, `users/${user.uid}/readCount`);
+            await runTransaction(countRef, (current) => (current || 0) + 1);
+          }
+        }
+      } catch(e) { console.error('Read tracking error:', e); }
     }
     trackHit();
   }, [slug]);
