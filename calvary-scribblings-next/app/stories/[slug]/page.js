@@ -29,7 +29,10 @@ async function getFirebaseAuth() {
   return getAuth(app);
 }
 
-function getBadge(readCount) {
+const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
+
+function getBadge(readCount, uid) {
+  if (uid === FOUNDER_UID) return { tier: 'founder', label: 'Founder', color: '#c8daea', isFounder: true };
   if (readCount >= 1000) return { tier: 'immortal', label: 'Immortal of the Island', color: '#9b6dff' };
   if (readCount >= 150) return { tier: 'legend', label: 'Legend of the Island', color: '#d4537e' };
   if (readCount >= 90) return { tier: 'islander', label: 'Story Islander', color: '#d4941a' };
@@ -41,11 +44,18 @@ function getBadge(readCount) {
 const BADGE_SVG_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
 const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
 
-function BadgeIcon({ color, size = 14 }) {
+function BadgeIcon({ color, size = 14, isFounder = false }) {
   const isLight = color === '#b4b2a9';
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-      <path fill={color} d={BADGE_SVG_PATH} />
+      <defs>
+        <linearGradient id="platGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#e8f0f8"/>
+          <stop offset="50%" stopColor="#c8daea"/>
+          <stop offset="100%" stopColor="#a8c0d6"/>
+        </linearGradient>
+      </defs>
+      <path fill={isFounder ? 'url(#platGrad)' : color} d={BADGE_SVG_PATH} />
       <path fill={isLight ? '#0a0a0a' : '#fff'} d={CHECK_PATH} />
     </svg>
   );
@@ -124,7 +134,7 @@ function CommentsSection({ slug, accentColor }) {
     try {
       const db = await getFirebaseDB();
       const { ref, push } = await import('firebase/database');
-      const badge = getBadge(userReadCount);
+      const badge = getBadge(userReadCount, user.uid);
       await push(ref(db, `comments/${slug}`), {
         text: commentText.trim(),
         authorName: user.displayName || 'Reader',
