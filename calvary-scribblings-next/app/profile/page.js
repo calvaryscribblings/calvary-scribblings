@@ -68,6 +68,35 @@ function formatJoinDate(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
+async function loadProfileData(uid) {
+  const db = await getDB();
+  const { ref, get } = await import('firebase/database');
+  const [avatarSnap, readCountSnap, commentsSnap, followersSnap, followingSnap] = await Promise.all([
+    get(ref(db, `users/${uid}/avatarUrl`)),
+    get(ref(db, `users/${uid}/readCount`)),
+    get(ref(db, 'comments')),
+    get(ref(db, `followers/${uid}`)),
+    get(ref(db, `following/${uid}`)),
+  ]);
+
+  let commentCount = 0;
+  if (commentsSnap.exists()) {
+    for (const storyComments of Object.values(commentsSnap.val())) {
+      for (const c of Object.values(storyComments)) {
+        if (c.authorUid === uid) commentCount++;
+      }
+    }
+  }
+
+  return {
+    avatarUrl: avatarSnap.exists() ? avatarSnap.val() : null,
+    readCount: readCountSnap.exists() ? readCountSnap.val() : 0,
+    commentCount,
+    followerCount: followersSnap.exists() ? Object.keys(followersSnap.val()).length : 0,
+    followingCount: followingSnap.exists() ? Object.keys(followingSnap.val()).length : 0,
+  };
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -87,40 +116,49 @@ export default function ProfilePage() {
     (async () => {
       const auth = await getAuth();
       const { onAuthStateChanged } = await import('firebase/auth');
+
       unsub = onAuthStateChanged(auth, async (u) => {
         if (!u) { router.push('/'); return; }
         setUser(u);
 
+        // First attempt
         try {
-          const db = await getDB();
-          const { ref, get } = await import('firebase/database');
+          const data = await loadProfileData(u.uid);
+          setAvatarUrl(data.avatarUrl);
+          setReadCount(data.readCount);
+          setCommentCount(data.commentCount);
+          setFollowerCount(data.followerCount);
+          setFollowingCount(data.followingCount);
 
-          // Fetch each key directly — no parent node read, no race condition
-          const [avatarSnap, readCountSnap, commentsSnap, followersSnap, followingSnap] = await Promise.all([
-            get(ref(db, `users/${u.uid}/avatarUrl`)),
-            get(ref(db, `users/${u.uid}/readCount`)),
-            get(ref(db, 'comments')),
-            get(ref(db, `followers/${u.uid}`)),
-            get(ref(db, `following/${u.uid}`)),
-          ]);
-
-          if (avatarSnap.exists()) setAvatarUrl(avatarSnap.val());
-          if (readCountSnap.exists()) setReadCount(readCountSnap.val());
-
-          if (commentsSnap.exists()) {
-            let count = 0;
-            for (const storyComments of Object.values(commentsSnap.val())) {
-              for (const c of Object.values(storyComments)) {
-                if (c.authorUid === u.uid) count++;
-              }
-            }
-            setCommentCount(count);
+          // If readCount came back 0 but we expect data, retry after 800ms
+          // to allow Firebase connection to fully establish
+          if (data.readCount === 0 && data.avatarUrl === null) {
+            setTimeout(async () => {
+              try {
+                const retry = await loadProfileData(u.uid);
+                if (retry.avatarUrl) setAvatarUrl(retry.avatarUrl);
+                if (retry.readCount > 0) setReadCount(retry.readCount);
+                if (retry.commentCount > 0) setCommentCount(retry.commentCount);
+                if (retry.followerCount > 0) setFollowerCount(retry.followerCount);
+                if (retry.followingCount > 0) setFollowingCount(retry.followingCount);
+              } catch (e) {}
+            }, 800);
           }
+        } catch (e) {
+          console.error('Profile load error:', e);
+          // Retry after delay on error
+          setTimeout(async () => {
+            try {
+              const retry = await loadProfileData(u.uid);
+              setAvatarUrl(retry.avatarUrl);
+              setReadCount(retry.readCount);
+              setCommentCount(retry.commentCount);
+              setFollowerCount(retry.followerCount);
+              setFollowingCount(retry.followingCount);
+            } catch (e2) {}
+          }, 1000);
+        }
 
-          setFollowerCount(followersSnap.exists() ? Object.keys(followersSnap.val()).length : 0);
-          setFollowingCount(followingSnap.exists() ? Object.keys(followingSnap.val()).length : 0);
-
-        } catch (e) { console.error('Profile load error:', e); }
         setLoading(false);
       });
     })();
