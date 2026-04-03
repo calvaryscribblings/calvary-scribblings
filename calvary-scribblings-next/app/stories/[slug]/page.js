@@ -5,7 +5,7 @@ import { stories } from '../../lib/stories';
 import { use } from 'react';
 import { storyContent } from '../../lib/storyContent';
 
-const FIREBASE_CONFIG = {
+const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
   authDomain: 'calvary-scribblings.firebaseapp.com',
   databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
@@ -15,19 +15,12 @@ const FIREBASE_CONFIG = {
   appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
 };
 
-async function getFirebaseDB() {
+async function getApp() {
   const { initializeApp, getApps } = await import('firebase/app');
-  const { getDatabase } = await import('firebase/database');
-  const app = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
-  return getDatabase(app);
+  return getApps().length ? getApps()[0] : initializeApp(FB);
 }
-
-async function getFirebaseAuth() {
-  const { initializeApp, getApps } = await import('firebase/app');
-  const { getAuth } = await import('firebase/auth');
-  const app = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
-  return getAuth(app);
-}
+async function getDB() { const { getDatabase } = await import('firebase/database'); return getDatabase(await getApp()); }
+async function getFirebaseAuth() { const { getAuth } = await import('firebase/auth'); return getAuth(await getApp()); }
 
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 
@@ -45,48 +38,40 @@ const BADGE_SVG_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.
 const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
 
 function BadgeIcon({ color, size = 14, isFounder = false }) {
-  const isLight = color === '#b4b2a9';
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
       <defs>
         <linearGradient id="platGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#e8f0f8"/>
-          <stop offset="50%" stopColor="#c8daea"/>
-          <stop offset="100%" stopColor="#a8c0d6"/>
+          <stop offset="0%" stopColor="#e8f0f8"/><stop offset="50%" stopColor="#c8daea"/><stop offset="100%" stopColor="#a8c0d6"/>
         </linearGradient>
       </defs>
       <path fill={isFounder ? 'url(#platGrad)' : color} d={BADGE_SVG_PATH} />
-      <path fill={isLight ? '#0a0a0a' : '#fff'} d={CHECK_PATH} />
+      <path fill={color === '#b4b2a9' ? '#0a0a0a' : '#fff'} d={CHECK_PATH} />
     </svg>
   );
 }
 
 function BadgeDisplay({ tier, label, color, size = 13 }) {
   if (!tier) return null;
-  const isFounder = tier === 'founder';
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-      <BadgeIcon color={color} size={size} isFounder={isFounder} />
-      <span style={{
-        fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em',
-        textTransform: 'uppercase', color: isFounder ? '#c8daea' : color,
-        fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
-      }}>{label}</span>
+      <BadgeIcon color={color} size={size} isFounder={tier === 'founder'} />
+      <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: tier === 'founder' ? '#c8daea' : color, fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>{label}</span>
     </span>
   );
 }
 
-// Fetches avatarUrl for a given uid from Firebase DB
-function CommentAvatar({ uid, initials, size = 'sm' }) {
+function CommentAvatar({ uid, initials, size = 'sm', isOwnComment }) {
   const [photoUrl, setPhotoUrl] = useState(null);
   const dim = size === 'xs' ? 26 : size === 'sm' ? 34 : 36;
   const fontSize = size === 'xs' ? 9 : size === 'sm' ? 11 : 12;
+  const href = isOwnComment ? '/profile' : `/user/${uid}`;
 
   useEffect(() => {
     if (!uid) return;
     (async () => {
       try {
-        const db = await getFirebaseDB();
+        const db = await getDB();
         const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, `users/${uid}/avatarUrl`));
         if (snap.exists()) setPhotoUrl(snap.val());
@@ -95,18 +80,15 @@ function CommentAvatar({ uid, initials, size = 'sm' }) {
   }, [uid]);
 
   return (
-    <div style={{
+    <a href={href} style={{
       width: dim, height: dim, borderRadius: '50%',
       background: 'rgba(107,47,173,0.25)', border: '1px solid rgba(107,47,173,0.3)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize, fontWeight: 500, color: '#9b6dff', flexShrink: 0,
-      fontFamily: 'Inter, sans-serif', overflow: 'hidden',
+      fontFamily: 'Inter, sans-serif', overflow: 'hidden', textDecoration: 'none',
     }}>
-      {photoUrl
-        ? <img src={photoUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        : initials
-      }
-    </div>
+      {photoUrl ? <img src={photoUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+    </a>
   );
 }
 
@@ -142,14 +124,14 @@ function CommentsSection({ slug }) {
         setUser(u);
         if (u) {
           try {
-            const db = await getFirebaseDB();
+            const db = await getDB();
             const { ref, get } = await import('firebase/database');
-            const snap = await get(ref(db, `users/${u.uid}`));
-            if (snap.exists()) {
-              const data = snap.val();
-              setUserReadCount(data.readCount || 0);
-              if (data.avatarUrl) setUserAvatarUrl(data.avatarUrl);
-            }
+            const [rcSnap, avSnap] = await Promise.all([
+              get(ref(db, `users/${u.uid}/readCount`)),
+              get(ref(db, `users/${u.uid}/avatarUrl`)),
+            ]);
+            if (rcSnap.exists()) setUserReadCount(rcSnap.val());
+            if (avSnap.exists()) setUserAvatarUrl(avSnap.val());
           } catch (e) {}
         }
       });
@@ -163,17 +145,13 @@ function CommentsSection({ slug }) {
     (async () => {
       setLoading(true);
       try {
-        const db = await getFirebaseDB();
+        const db = await getDB();
         const { ref, onValue } = await import('firebase/database');
         unsubDB = onValue(ref(db, `comments/${slug}`), (snap) => {
           if (snap.exists()) {
-            const list = Object.entries(snap.val())
-              .map(([id, c]) => ({ id, ...c }))
-              .sort((a, b) => b.createdAt - a.createdAt);
+            const list = Object.entries(snap.val()).map(([id, c]) => ({ id, ...c })).sort((a, b) => b.createdAt - a.createdAt);
             setComments(list);
-          } else {
-            setComments([]);
-          }
+          } else { setComments([]); }
           setLoading(false);
         });
       } catch (e) { setLoading(false); }
@@ -185,7 +163,7 @@ function CommentsSection({ slug }) {
     if (!commentText.trim() || !user) return;
     setPosting(true);
     try {
-      const db = await getFirebaseDB();
+      const db = await getDB();
       const { ref, push } = await import('firebase/database');
       const badge = getBadge(userReadCount, user.uid);
       await push(ref(db, `comments/${slug}`), {
@@ -199,8 +177,7 @@ function CommentsSection({ slug }) {
         parentId: parentId || null,
         createdAt: Date.now(),
       });
-      if (parentId) { setReplyText(''); setReplyTo(null); }
-      else setText('');
+      if (parentId) { setReplyText(''); setReplyTo(null); } else setText('');
     } catch (e) {}
     setPosting(false);
   };
@@ -208,41 +185,24 @@ function CommentsSection({ slug }) {
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
   const topLevel = comments.filter(c => !c.parentId);
   const getReplies = (id) => comments.filter(c => c.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
-  const totalCount = comments.length;
 
   return (
     <div className="cs-section">
       <div className="cs-header">
         <div className="cs-title">Discussion</div>
-        {totalCount > 0 && <div className="cs-count">{totalCount} {totalCount === 1 ? 'comment' : 'comments'}</div>}
+        {comments.length > 0 && <div className="cs-count">{comments.length} {comments.length === 1 ? 'comment' : 'comments'}</div>}
       </div>
 
       {user ? (
         <div className="cs-compose">
           <div className="cs-compose-row">
-            <div className="cs-avatar-compose">
-              {userAvatarUrl
-                ? <img src={userAvatarUrl} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                : userInitials
-              }
-            </div>
+            <a href="/profile" className="cs-avatar-compose">
+              {userAvatarUrl ? <img src={userAvatarUrl} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : userInitials}
+            </a>
             <div className="cs-input-wrap">
-              <textarea
-                className="cs-textarea"
-                placeholder="Share your thoughts on this story…"
-                value={text}
-                onChange={e => setText(e.target.value)}
-                rows={3}
-              />
-              <button
-                className={`cs-kite-btn${text.trim() ? ' active' : ''}`}
-                onClick={() => postComment(text)}
-                disabled={posting || !text.trim()}
-                title="Post comment"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/>
-                </svg>
+              <textarea className="cs-textarea" placeholder="Share your thoughts on this story…" value={text} onChange={e => setText(e.target.value)} rows={3} />
+              <button className={`cs-kite-btn${text.trim() ? ' active' : ''}`} onClick={() => postComment(text)} disabled={posting || !text.trim()} title="Post comment">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
               </button>
             </div>
           </div>
@@ -250,10 +210,7 @@ function CommentsSection({ slug }) {
       ) : (
         <div className="cs-signin-prompt">
           <p>Sign in to join the discussion</p>
-          <button className="cs-signin-btn" onClick={() => {
-            const btn = document.querySelector('[class*="signin"], .cs-signin-btn-nav');
-            if (btn) btn.click();
-          }}>Sign in to comment</button>
+          <button className="cs-signin-btn" onClick={() => { const btn = document.querySelector('[class*="signin"], .cs-signin-btn-nav'); if (btn) btn.click(); }}>Sign in to comment</button>
         </div>
       )}
 
@@ -265,67 +222,50 @@ function CommentsSection({ slug }) {
         <div className="cs-comments-list">
           {topLevel.map((comment, i) => {
             const replies = getReplies(comment.id);
+            const isOwn = user?.uid === comment.authorUid;
             return (
               <div key={comment.id}>
                 {i > 0 && <div className="cs-divider" />}
                 <div className="cs-comment">
-                  <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size="sm" />
+                  <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size="sm" isOwnComment={isOwn} />
                   <div className="cs-comment-body">
                     <div className="cs-comment-header">
-                      <span className="cs-name">{comment.authorName}</span>
-                      {comment.badgeTier && (
-                        <BadgeDisplay tier={comment.badgeTier} label={comment.badgeLabel} color={comment.badgeColor} size={13} />
-                      )}
+                      <a href={isOwn ? '/profile' : `/user/${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
+                      {comment.badgeTier && <BadgeDisplay tier={comment.badgeTier} label={comment.badgeLabel} color={comment.badgeColor} size={13} />}
                       <span className="cs-time">{timeAgo(comment.createdAt)}</span>
                     </div>
                     <div className="cs-comment-text">{comment.text}</div>
                     <div className="cs-comment-footer">
-                      {user && (
-                        <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>
-                          {replyTo === comment.id ? 'Cancel' : 'Reply'}
-                        </button>
-                      )}
+                      {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
                     </div>
                     {replyTo === comment.id && (
                       <div className="cs-reply-compose">
                         <div className="cs-input-wrap">
-                          <textarea
-                            className="cs-textarea cs-textarea-sm"
-                            placeholder={`Reply to ${comment.authorName}…`}
-                            value={replyText}
-                            onChange={e => setReplyText(e.target.value)}
-                            rows={2}
-                            autoFocus
-                          />
-                          <button
-                            className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`}
-                            onClick={() => postComment(replyText, comment.id)}
-                            disabled={posting || !replyText.trim()}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                              <path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/>
-                            </svg>
+                          <textarea className="cs-textarea cs-textarea-sm" placeholder={`Reply to ${comment.authorName}…`} value={replyText} onChange={e => setReplyText(e.target.value)} rows={2} autoFocus />
+                          <button className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`} onClick={() => postComment(replyText, comment.id)} disabled={posting || !replyText.trim()}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
                           </button>
                         </div>
                       </div>
                     )}
                     {replies.length > 0 && (
                       <div className="cs-replies">
-                        {replies.map(reply => (
-                          <div key={reply.id} className="cs-reply">
-                            <CommentAvatar uid={reply.authorUid} initials={reply.authorInitials} size="xs" />
-                            <div className="cs-comment-body">
-                              <div className="cs-comment-header">
-                                <span className="cs-name">{reply.authorName}</span>
-                                {reply.badgeTier && (
-                                  <BadgeDisplay tier={reply.badgeTier} label={reply.badgeLabel} color={reply.badgeColor} size={12} />
-                                )}
-                                <span className="cs-time">{timeAgo(reply.createdAt)}</span>
+                        {replies.map(reply => {
+                          const replyIsOwn = user?.uid === reply.authorUid;
+                          return (
+                            <div key={reply.id} className="cs-reply">
+                              <CommentAvatar uid={reply.authorUid} initials={reply.authorInitials} size="xs" isOwnComment={replyIsOwn} />
+                              <div className="cs-comment-body">
+                                <div className="cs-comment-header">
+                                  <a href={replyIsOwn ? '/profile' : `/user/${reply.authorUid}`} className="cs-name cs-name-link">{reply.authorName}</a>
+                                  {reply.badgeTier && <BadgeDisplay tier={reply.badgeTier} label={reply.badgeLabel} color={reply.badgeColor} size={12} />}
+                                  <span className="cs-time">{timeAgo(reply.createdAt)}</span>
+                                </div>
+                                <div className="cs-comment-text cs-comment-text-sm">{reply.text}</div>
                               </div>
-                              <div className="cs-comment-text cs-comment-text-sm">{reply.text}</div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -350,13 +290,10 @@ export default function StoryPage({ params }) {
     if (story) { setStoryReady(true); return; }
     async function fetchFromCMS() {
       try {
-        const db = await getFirebaseDB();
+        const db = await getDB();
         const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, 'cms_stories/' + slug));
-        if (snap.exists()) {
-          setStory({ id: slug, ...snap.val() });
-          setStoryReady(true);
-        }
+        if (snap.exists()) { setStory({ id: slug, ...snap.val() }); setStoryReady(true); }
       } catch(e) { console.error('CMS fetch error:', e); }
     }
     fetchFromCMS();
@@ -374,8 +311,7 @@ export default function StoryPage({ params }) {
     const handleScroll = () => {
       const scrollTop = window.scrollY;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-      setScrollProgress(Math.min(progress, 100));
+      setScrollProgress(docHeight > 0 ? Math.min((scrollTop / docHeight) * 100, 100) : 0);
       setIsHeaderVisible(scrollTop < lastScrollY || scrollTop < 100);
       setShowBackToTop(scrollTop > 600);
       setLastScrollY(scrollTop);
@@ -387,9 +323,8 @@ export default function StoryPage({ params }) {
   useEffect(() => {
     if (articleRef.current && story) {
       setTimeout(() => {
-        const text = articleRef.current ? articleRef.current.innerText || "" : "";
-        const words = text.trim().split(/\s+/).length;
-        setReadingTime(Math.ceil(words / 220));
+        const text = articleRef.current?.innerText || '';
+        setReadingTime(Math.ceil(text.trim().split(/\s+/).length / 220));
       }, 100);
     }
   }, [story]);
@@ -401,33 +336,27 @@ export default function StoryPage({ params }) {
         const res = await fetch(`/api/hit?slug=${slug}`, { method: 'POST' });
         const data = await res.json();
         if (typeof data.count === 'number') setHitCount(data.count);
-      } catch(e) { console.error('Hit count error:', e); }
+      } catch(e) {}
       try {
         const auth = await getFirebaseAuth();
         const user = auth.currentUser;
         if (user) {
-          const db = await getFirebaseDB();
+          const db = await getDB();
           const { ref, get, set, runTransaction } = await import('firebase/database');
           const readRef = ref(db, `users/${user.uid}/readStories/${slug}`);
           const snap = await get(readRef);
           if (!snap.exists()) {
             await set(readRef, true);
-            const countRef = ref(db, `users/${user.uid}/readCount`);
-            await runTransaction(countRef, (current) => (current || 0) + 1);
+            await runTransaction(ref(db, `users/${user.uid}/readCount`), (c) => (c || 0) + 1);
           }
         }
-      } catch(e) { console.error('Read tracking error:', e); }
+      } catch(e) {}
     }
     trackHit();
   }, [slug]);
 
-  const categoryColors = {
-    news: '#ef4444', flash: '#6b46c1', short: '#6b46c1',
-    poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1',
-  };
-
+  const categoryColors = { news: '#ef4444', flash: '#6b46c1', short: '#6b46c1', poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1' };
   if (!story) return <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />;
-
   const accentColor = categoryColors[story.category] || '#6b46c1';
   const isPoetry = story.category === 'poetry';
 
@@ -510,14 +439,13 @@ export default function StoryPage({ params }) {
         .back-to-top { position: fixed; bottom: 2rem; right: 2rem; width: 44px; height: 44px; border-radius: 50%; background: rgba(124,58,237,0.85); border: 1px solid rgba(168,85,247,0.4); color: #fff; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease, transform 0.3s ease; z-index: 998; box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
         .back-to-top:hover { background: rgba(124,58,237,1); transform: translateY(-2px); }
         .back-to-top.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
-        /* ── Comments ── */
         .cs-section { background: #0a0a0a; max-width: 680px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
         .cs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
         .cs-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; letter-spacing: 0.02em; }
         .cs-count { font-size: 0.68rem; color: rgba(255,255,255,0.25); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .cs-compose { margin-bottom: 2rem; }
         .cs-compose-row { display: flex; gap: 12px; align-items: flex-start; }
-        .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; overflow: hidden; }
+        .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; overflow: hidden; text-decoration: none; }
         .cs-input-wrap { flex: 1; position: relative; }
         .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 2px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
         .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; }
@@ -537,6 +465,8 @@ export default function StoryPage({ params }) {
         .cs-comment-body { flex: 1; min-width: 0; }
         .cs-comment-header { display: flex; align-items: center; gap: 6px; margin-bottom: 0.45rem; flex-wrap: wrap; }
         .cs-name { font-size: 0.8rem; font-weight: 500; color: #e8e0d4; font-family: 'Inter', sans-serif; }
+        .cs-name-link { text-decoration: none; transition: color 0.2s; }
+        .cs-name-link:hover { color: #a78bfa; }
         .cs-time { font-size: 0.65rem; color: rgba(255,255,255,0.22); font-family: 'Inter', sans-serif; }
         .cs-comment-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: rgba(232,224,212,0.75); line-height: 1.75; }
         .cs-comment-text-sm { font-size: 0.92rem; }
@@ -563,7 +493,6 @@ export default function StoryPage({ params }) {
           <a href="/" className="nav-logo">Calvary <span>Scribblings</span></a>
           <span className="nav-meta">{story.categoryName}</span>
         </nav>
-
         <header className="story-hero">
           <img className="hero-bg" src={story.cover} alt="" aria-hidden="true" />
           <div className="hero-overlay" />
@@ -578,47 +507,28 @@ export default function StoryPage({ params }) {
               <span>{story.author}</span>
               <div className="byline-dot" />
               <span>{story.date}</span>
-              {readingTime > 0 && (
-                <>
-                  <div className="byline-dot" />
-                  <span>⏱ {readingTime} MIN. READ</span>
-                </>
-              )}
+              {readingTime > 0 && (<><div className="byline-dot" /><span>⏱ {readingTime} MIN. READ</span></>)}
             </div>
           </div>
         </header>
-
         <div className="story-body-wrap">
           <main>
             <article className="story-body" ref={articleRef}>
               <div className="back-link-row">
                 <a href={`/${story.category}`} className="back-link">← {story.categoryName}</a>
               </div>
-              <div
-                className={`prose${isPoetry ? '' : ' has-dropcap'}`}
-                id="story-content"
-                dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }}
-              />
+              <div className={`prose${isPoetry ? '' : ' has-dropcap'}`} id="story-content" dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }} />
             </article>
-            <div className="hit-counter-row">
-              {hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}
-            </div>
+            <div className="hit-counter-row">{hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}</div>
             <div className="story-footer">
               <span>By {story.author} · {story.date}</span>
               <span className="story-badge-footer">{story.categoryName}</span>
             </div>
           </main>
         </div>
-
         <CommentsSection slug={slug} />
       </div>
-
-      <button
-        className={showBackToTop ? 'back-to-top' : 'back-to-top hidden'}
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        aria-label="Back to top">
-        ↑
-      </button>
+      <button className={showBackToTop ? 'back-to-top' : 'back-to-top hidden'} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Back to top">↑</button>
     </>
   );
 }
