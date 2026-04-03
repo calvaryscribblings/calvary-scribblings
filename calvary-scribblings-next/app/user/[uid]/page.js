@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { use } from 'react';
-
+export function generateStaticParams() {
+  return [];
+}
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
   authDomain: 'calvary-scribblings.firebaseapp.com',
