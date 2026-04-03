@@ -114,6 +114,8 @@ export default function ProfilePage() {
           ]);
           const uData = userSnap.exists() ? userSnap.val() : {};
           setUserData(uData);
+          // Load avatar from DB — persistent across sessions
+          if (uData.avatarUrl) setAvatarUrl(uData.avatarUrl);
           if (commentsSnap.exists()) {
             let count = 0;
             for (const storyComments of Object.values(commentsSnap.val())) {
@@ -123,13 +125,6 @@ export default function ProfilePage() {
             }
             setCommentCount(count);
           }
-          // Load avatar
-          try {
-            const storage = await getFirebaseStorage();
-            const { ref: sRef, getDownloadURL } = await import('firebase/storage');
-            const url = await getDownloadURL(sRef(storage, `avatars/${u.uid}`));
-            setAvatarUrl(url);
-          } catch (e) { setAvatarUrl(null); }
         } catch (e) {}
         setLoading(false);
       });
@@ -143,10 +138,14 @@ export default function ProfilePage() {
     setUploading(true);
     try {
       const storage = await getFirebaseStorage();
-      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const storageRef = ref(storage, `avatars/${user.uid}`);
+      const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const storageRef = sRef(storage, `avatars/${user.uid}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
+      // Save URL to Firebase DB so it persists and shows in comments + navbar
+      const db = await getFirebaseDB();
+      const { ref, set } = await import('firebase/database');
+      await set(ref(db, `users/${user.uid}/avatarUrl`), url);
       setAvatarUrl(url);
     } catch (e) { console.error('Avatar upload failed:', e); }
     setUploading(false);
@@ -256,10 +255,7 @@ export default function ProfilePage() {
         <div className="pg-hero">
           <div className="pg-avatar-wrap" onClick={() => !uploading && fileInputRef.current?.click()}>
             <div className="pg-avatar">
-              {avatarUrl
-                ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} />
-                : initials
-              }
+              {avatarUrl ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} /> : initials}
             </div>
             {uploading ? (
               <div className="pg-uploading"><div className="pg-spinner" /></div>
@@ -269,13 +265,7 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={handleAvatarUpload}
-          />
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
 
           <div className="pg-hero-info">
             <div className="pg-name">{user.displayName || 'Reader'}</div>

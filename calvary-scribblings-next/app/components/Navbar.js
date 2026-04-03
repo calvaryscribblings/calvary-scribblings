@@ -23,7 +23,7 @@ export default function Navbar() {
     (async () => {
       try {
         const { initializeApp, getApps } = await import('firebase/app');
-        const { getStorage, ref, getDownloadURL } = await import('firebase/storage');
+        const { getDatabase, ref, get } = await import('firebase/database');
         const firebaseConfig = {
           apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
           authDomain: 'calvary-scribblings.firebaseapp.com',
@@ -34,9 +34,10 @@ export default function Navbar() {
           appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
         };
         const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-        const storage = getStorage(app);
-        const url = await getDownloadURL(ref(storage, `avatars/${user.uid}`));
-        setAvatarUrl(url);
+        const db = getDatabase(app);
+        const snap = await get(ref(db, `users/${user.uid}/avatarUrl`));
+        if (snap.exists()) setAvatarUrl(snap.val());
+        else setAvatarUrl(null);
       } catch (e) {
         setAvatarUrl(null);
       }
@@ -111,9 +112,8 @@ export default function Navbar() {
           background: rgba(107,47,173,0.3); border: 1.5px solid rgba(107,47,173,0.5);
           display: flex; align-items: center; justify-content: center;
           font-size: 11px; font-weight: 600; color: #c4b5fd;
-          text-decoration: none; overflow: hidden; flex-shrink: 0;
-          transition: border-color 0.2s;
-          font-family: Inter, sans-serif;
+          text-decoration: none; flex-shrink: 0; overflow: hidden;
+          transition: border-color 0.2s; font-family: Inter, sans-serif;
         }
         .cs-nav-avatar:hover { border-color: rgba(167,139,250,0.8); }
         .cs-nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -158,8 +158,7 @@ export default function Navbar() {
         .cs-drawer-sublabel {
           color: rgba(255,255,255,0.3); font-size: 0.62rem;
           letter-spacing: 0.12em; text-transform: uppercase;
-          padding: 0.75rem 1rem 0.25rem;
-          border-bottom: none;
+          padding: 0.75rem 1rem 0.25rem; border-bottom: none;
         }
         .cs-drawer-subnav-item {
           color: rgba(255,255,255,0.85) !important; text-decoration: none;
@@ -211,9 +210,7 @@ export default function Navbar() {
         <div className="cs-desktop-links">
           <a href="/">Home</a>
           <div className="cs-stories-wrap" onMouseEnter={() => setDropdownOpen(true)} onMouseLeave={() => setDropdownOpen(false)}>
-            <button className="cs-stories-btn">
-              Stories <span>▾</span>
-            </button>
+            <button className="cs-stories-btn">Stories <span>▾</span></button>
             {dropdownOpen && (
               <div className="cs-dropdown">
                 <div className="cs-dropdown-label">Creative Writing</div>
@@ -233,10 +230,7 @@ export default function Navbar() {
           <a href="/search">Search</a>
           {user ? (
             <a href="/profile" className="cs-nav-avatar" title={user.displayName || 'Profile'}>
-              {avatarUrl
-                ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} />
-                : initials
-              }
+              {avatarUrl ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} /> : initials}
             </a>
           ) : (
             <button className="cs-signin-btn" onClick={() => setShowAuth(true)}>Sign In</button>
@@ -252,20 +246,17 @@ export default function Navbar() {
 
       {menuOpen && (
         <div className="cs-drawer">
-          {user ? (
+          {user && (
             <a href="/profile" className="cs-drawer-avatar-row" onClick={() => setMenuOpen(false)}>
               <div className="cs-drawer-avatar">
-                {avatarUrl
-                  ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} />
-                  : initials
-                }
+                {avatarUrl ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} /> : initials}
               </div>
               <div>
                 <div className="cs-drawer-avatar-name">{user.displayName || 'Reader'}</div>
                 <div className="cs-drawer-avatar-sub">View profile</div>
               </div>
             </a>
-          ) : null}
+          )}
 
           <a href="/" onClick={() => setMenuOpen(false)}>Home</a>
 
@@ -279,25 +270,13 @@ export default function Navbar() {
           {storiesOpen && (
             <div className="cs-drawer-subnav">
               <div className="cs-drawer-sublabel">Creative Writing</div>
-              <a className="cs-drawer-subnav-item" href="/flash" onClick={() => setMenuOpen(false)}>
-                <span className="cs-drawer-dot">·</span>Flash Fiction
-              </a>
-              <a className="cs-drawer-subnav-item" href="/short" onClick={() => setMenuOpen(false)}>
-                <span className="cs-drawer-dot">·</span>Short Stories
-              </a>
-              <a className="cs-drawer-subnav-item" href="/serial" onClick={() => setMenuOpen(false)}>
-                <span className="cs-drawer-dot">·</span>Serial Stories
-              </a>
-              <a className="cs-drawer-subnav-item" href="/poetry" onClick={() => setMenuOpen(false)}>
-                <span className="cs-drawer-dot">·</span>Poetry
-              </a>
+              <a className="cs-drawer-subnav-item" href="/flash" onClick={() => setMenuOpen(false)}><span className="cs-drawer-dot">·</span>Flash Fiction</a>
+              <a className="cs-drawer-subnav-item" href="/short" onClick={() => setMenuOpen(false)}><span className="cs-drawer-dot">·</span>Short Stories</a>
+              <a className="cs-drawer-subnav-item" href="/serial" onClick={() => setMenuOpen(false)}><span className="cs-drawer-dot">·</span>Serial Stories</a>
+              <a className="cs-drawer-subnav-item" href="/poetry" onClick={() => setMenuOpen(false)}><span className="cs-drawer-dot">·</span>Poetry</a>
               <div className="cs-drawer-subnav-divider" />
-              <a className="cs-drawer-subnav-item" href="/news" onClick={() => setMenuOpen(false)}>
-                News &amp; Updates
-              </a>
-              <a className="cs-drawer-subnav-item" href="/inspiring" onClick={() => setMenuOpen(false)}>
-                Inspiring Stories
-              </a>
+              <a className="cs-drawer-subnav-item" href="/news" onClick={() => setMenuOpen(false)}>News &amp; Updates</a>
+              <a className="cs-drawer-subnav-item" href="/inspiring" onClick={() => setMenuOpen(false)}>Inspiring Stories</a>
             </div>
           )}
 

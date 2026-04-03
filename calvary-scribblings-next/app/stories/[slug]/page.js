@@ -64,20 +64,49 @@ function BadgeIcon({ color, size = 14, isFounder = false }) {
 function BadgeDisplay({ tier, label, color, size = 13 }) {
   if (!tier) return null;
   const isFounder = tier === 'founder';
-  const isLight = color === '#b4b2a9';
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
       <BadgeIcon color={color} size={size} isFounder={isFounder} />
       <span style={{
-        fontSize: '0.6rem',
-        fontWeight: 600,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase',
-        color: isFounder ? '#c8daea' : color,
-        fontFamily: 'Inter, sans-serif',
-        whiteSpace: 'nowrap',
+        fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em',
+        textTransform: 'uppercase', color: isFounder ? '#c8daea' : color,
+        fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
       }}>{label}</span>
     </span>
+  );
+}
+
+// Fetches avatarUrl for a given uid from Firebase DB
+function CommentAvatar({ uid, initials, size = 'sm' }) {
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const dim = size === 'xs' ? 26 : size === 'sm' ? 34 : 36;
+  const fontSize = size === 'xs' ? 9 : size === 'sm' ? 11 : 12;
+
+  useEffect(() => {
+    if (!uid) return;
+    (async () => {
+      try {
+        const db = await getFirebaseDB();
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, `users/${uid}/avatarUrl`));
+        if (snap.exists()) setPhotoUrl(snap.val());
+      } catch (e) {}
+    })();
+  }, [uid]);
+
+  return (
+    <div style={{
+      width: dim, height: dim, borderRadius: '50%',
+      background: 'rgba(107,47,173,0.25)', border: '1px solid rgba(107,47,173,0.3)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize, fontWeight: 500, color: '#9b6dff', flexShrink: 0,
+      fontFamily: 'Inter, sans-serif', overflow: 'hidden',
+    }}>
+      {photoUrl
+        ? <img src={photoUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : initials
+      }
+    </div>
   );
 }
 
@@ -96,6 +125,7 @@ function timeAgo(ts) {
 function CommentsSection({ slug }) {
   const [user, setUser] = useState(null);
   const [userReadCount, setUserReadCount] = useState(0);
+  const [userAvatarUrl, setUserAvatarUrl] = useState(null);
   const [comments, setComments] = useState([]);
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -114,8 +144,12 @@ function CommentsSection({ slug }) {
           try {
             const db = await getFirebaseDB();
             const { ref, get } = await import('firebase/database');
-            const snap = await get(ref(db, `users/${u.uid}/readCount`));
-            setUserReadCount(snap.exists() ? snap.val() : 0);
+            const snap = await get(ref(db, `users/${u.uid}`));
+            if (snap.exists()) {
+              const data = snap.val();
+              setUserReadCount(data.readCount || 0);
+              if (data.avatarUrl) setUserAvatarUrl(data.avatarUrl);
+            }
           } catch (e) {}
         }
       });
@@ -133,8 +167,7 @@ function CommentsSection({ slug }) {
         const { ref, onValue } = await import('firebase/database');
         unsubDB = onValue(ref(db, `comments/${slug}`), (snap) => {
           if (snap.exists()) {
-            const data = snap.val();
-            const list = Object.entries(data)
+            const list = Object.entries(snap.val())
               .map(([id, c]) => ({ id, ...c }))
               .sort((a, b) => b.createdAt - a.createdAt);
             setComments(list);
@@ -172,6 +205,7 @@ function CommentsSection({ slug }) {
     setPosting(false);
   };
 
+  const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
   const topLevel = comments.filter(c => !c.parentId);
   const getReplies = (id) => comments.filter(c => c.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
   const totalCount = comments.length;
@@ -186,7 +220,12 @@ function CommentsSection({ slug }) {
       {user ? (
         <div className="cs-compose">
           <div className="cs-compose-row">
-            <div className="cs-avatar">{(user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}</div>
+            <div className="cs-avatar-compose">
+              {userAvatarUrl
+                ? <img src={userAvatarUrl} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                : userInitials
+              }
+            </div>
             <div className="cs-input-wrap">
               <textarea
                 className="cs-textarea"
@@ -230,7 +269,7 @@ function CommentsSection({ slug }) {
               <div key={comment.id}>
                 {i > 0 && <div className="cs-divider" />}
                 <div className="cs-comment">
-                  <div className="cs-avatar cs-avatar-sm">{comment.authorInitials}</div>
+                  <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size="sm" />
                   <div className="cs-comment-body">
                     <div className="cs-comment-header">
                       <span className="cs-name">{comment.authorName}</span>
@@ -274,7 +313,7 @@ function CommentsSection({ slug }) {
                       <div className="cs-replies">
                         {replies.map(reply => (
                           <div key={reply.id} className="cs-reply">
-                            <div className="cs-avatar cs-avatar-xs">{reply.authorInitials}</div>
+                            <CommentAvatar uid={reply.authorUid} initials={reply.authorInitials} size="xs" />
                             <div className="cs-comment-body">
                               <div className="cs-comment-header">
                                 <span className="cs-name">{reply.authorName}</span>
@@ -363,8 +402,6 @@ export default function StoryPage({ params }) {
         const data = await res.json();
         if (typeof data.count === 'number') setHitCount(data.count);
       } catch(e) { console.error('Hit count error:', e); }
-
-      // Track unique read per signed-in user
       try {
         const auth = await getFirebaseAuth();
         const user = auth.currentUser;
@@ -385,12 +422,8 @@ export default function StoryPage({ params }) {
   }, [slug]);
 
   const categoryColors = {
-    news: '#ef4444',
-    flash: '#6b46c1',
-    short: '#6b46c1',
-    poetry: '#6b46c1',
-    inspiring: '#d97706',
-    serial: '#6b46c1',
+    news: '#ef4444', flash: '#6b46c1', short: '#6b46c1',
+    poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1',
   };
 
   if (!story) return <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />;
@@ -477,7 +510,6 @@ export default function StoryPage({ params }) {
         .back-to-top { position: fixed; bottom: 2rem; right: 2rem; width: 44px; height: 44px; border-radius: 50%; background: rgba(124,58,237,0.85); border: 1px solid rgba(168,85,247,0.4); color: #fff; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease, transform 0.3s ease; z-index: 998; box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
         .back-to-top:hover { background: rgba(124,58,237,1); transform: translateY(-2px); }
         .back-to-top.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
-
         /* ── Comments ── */
         .cs-section { background: #0a0a0a; max-width: 680px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
         .cs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
@@ -485,9 +517,7 @@ export default function StoryPage({ params }) {
         .cs-count { font-size: 0.68rem; color: rgba(255,255,255,0.25); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .cs-compose { margin-bottom: 2rem; }
         .cs-compose-row { display: flex; gap: 12px; align-items: flex-start; }
-        .cs-avatar { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; }
-        .cs-avatar-sm { width: 34px; height: 34px; font-size: 11px; }
-        .cs-avatar-xs { width: 26px; height: 26px; font-size: 9px; }
+        .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; overflow: hidden; }
         .cs-input-wrap { flex: 1; position: relative; }
         .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 2px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
         .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; }
@@ -516,7 +546,6 @@ export default function StoryPage({ params }) {
         .cs-reply-compose { margin-top: 0.75rem; }
         .cs-replies { margin-top: 1rem; padding-left: 1rem; border-left: 1px solid rgba(107,47,173,0.2); display: flex; flex-direction: column; gap: 1rem; }
         .cs-reply { display: flex; gap: 10px; }
-
         @media (max-width: 640px) {
           .hero-cover-panel { width: 100px; height: 145px; bottom: 0; right: 4%; z-index: 0; }
           .story-body { padding: 2.5rem 1.2rem 4rem; }
@@ -571,11 +600,9 @@ export default function StoryPage({ params }) {
                 dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }}
               />
             </article>
-
             <div className="hit-counter-row">
               {hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}
             </div>
-
             <div className="story-footer">
               <span>By {story.author} · {story.date}</span>
               <span className="story-badge-footer">{story.categoryName}</span>
