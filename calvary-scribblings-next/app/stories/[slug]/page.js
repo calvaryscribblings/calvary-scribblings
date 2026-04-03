@@ -5,6 +5,269 @@ import { stories } from '../../lib/stories';
 import { use } from 'react';
 import { storyContent } from '../../lib/storyContent';
 
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+  authDomain: 'calvary-scribblings.firebaseapp.com',
+  databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+  projectId: 'calvary-scribblings',
+  storageBucket: 'calvary-scribblings.firebasestorage.app',
+  messagingSenderId: '1052137412283',
+  appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+};
+
+async function getFirebaseDB() {
+  const { initializeApp, getApps } = await import('firebase/app');
+  const { getDatabase } = await import('firebase/database');
+  const app = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
+  return getDatabase(app);
+}
+
+async function getFirebaseAuth() {
+  const { initializeApp, getApps } = await import('firebase/app');
+  const { getAuth } = await import('firebase/auth');
+  const app = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
+  return getAuth(app);
+}
+
+function getBadge(readCount) {
+  if (readCount >= 1000) return { tier: 'immortal', label: 'Immortal of the Island', color: '#9b6dff' };
+  if (readCount >= 150) return { tier: 'legend', label: 'Legend of the Island', color: '#d4537e' };
+  if (readCount >= 90) return { tier: 'islander', label: 'Story Islander', color: '#d4941a' };
+  if (readCount >= 60) return { tier: 'island', label: 'Island Reader', color: '#1d9e75' };
+  if (readCount >= 25) return { tier: 'reader', label: 'Reader', color: '#b4b2a9' };
+  return null;
+}
+
+const BADGE_SVG_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
+const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
+
+function BadgeIcon({ color, size = 14 }) {
+  const isLight = color === '#b4b2a9';
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <path fill={color} d={BADGE_SVG_PATH} />
+      <path fill={isLight ? '#0a0a0a' : '#fff'} d={CHECK_PATH} />
+    </svg>
+  );
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function CommentsSection({ slug, accentColor }) {
+  const [user, setUser] = useState(null);
+  const [userReadCount, setUserReadCount] = useState(0);
+  const [comments, setComments] = useState([]);
+  const [text, setText] = useState('');
+  const [replyTo, setReplyTo] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let unsubAuth;
+    (async () => {
+      const auth = await getFirebaseAuth();
+      const { onAuthStateChanged } = await import('firebase/auth');
+      unsubAuth = onAuthStateChanged(auth, async (u) => {
+        setUser(u);
+        if (u) {
+          try {
+            const db = await getFirebaseDB();
+            const { ref, get } = await import('firebase/database');
+            const snap = await get(ref(db, `users/${u.uid}/readCount`));
+            setUserReadCount(snap.exists() ? snap.val() : 0);
+          } catch (e) {}
+        }
+      });
+    })();
+    return () => { if (unsubAuth) unsubAuth(); };
+  }, []);
+
+  useEffect(() => {
+    if (!slug) return;
+    let unsubDB;
+    (async () => {
+      setLoading(true);
+      try {
+        const db = await getFirebaseDB();
+        const { ref, onValue } = await import('firebase/database');
+        unsubDB = onValue(ref(db, `comments/${slug}`), (snap) => {
+          if (snap.exists()) {
+            const data = snap.val();
+            const list = Object.entries(data)
+              .map(([id, c]) => ({ id, ...c }))
+              .sort((a, b) => b.createdAt - a.createdAt);
+            setComments(list);
+          } else {
+            setComments([]);
+          }
+          setLoading(false);
+        });
+      } catch (e) { setLoading(false); }
+    })();
+    return () => { if (unsubDB) unsubDB(); };
+  }, [slug]);
+
+  const postComment = async (commentText, parentId = null) => {
+    if (!commentText.trim() || !user) return;
+    setPosting(true);
+    try {
+      const db = await getFirebaseDB();
+      const { ref, push } = await import('firebase/database');
+      const badge = getBadge(userReadCount);
+      await push(ref(db, `comments/${slug}`), {
+        text: commentText.trim(),
+        authorName: user.displayName || 'Reader',
+        authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
+        authorUid: user.uid,
+        badgeTier: badge ? badge.tier : null,
+        badgeLabel: badge ? badge.label : null,
+        badgeColor: badge ? badge.color : null,
+        parentId: parentId || null,
+        createdAt: Date.now(),
+      });
+      if (parentId) { setReplyText(''); setReplyTo(null); }
+      else setText('');
+    } catch (e) {}
+    setPosting(false);
+  };
+
+  const topLevel = comments.filter(c => !c.parentId);
+  const getReplies = (id) => comments.filter(c => c.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
+  const totalCount = comments.length;
+
+  return (
+    <div className="cs-section">
+      <div className="cs-header">
+        <div className="cs-title">Discussion</div>
+        {totalCount > 0 && <div className="cs-count">{totalCount} {totalCount === 1 ? 'comment' : 'comments'}</div>}
+      </div>
+
+      {user ? (
+        <div className="cs-compose">
+          <div className="cs-compose-row">
+            <div className="cs-avatar">{(user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}</div>
+            <div className="cs-input-wrap">
+              <textarea
+                className="cs-textarea"
+                placeholder="Share your thoughts on this story…"
+                value={text}
+                onChange={e => setText(e.target.value)}
+                rows={3}
+              />
+              <button
+                className={`cs-kite-btn${text.trim() ? ' active' : ''}`}
+                onClick={() => postComment(text)}
+                disabled={posting || !text.trim()}
+                title="Post comment"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="cs-signin-prompt">
+          <p>Sign in to join the discussion</p>
+          <button className="cs-signin-btn" onClick={() => {
+            const btn = document.querySelector('.cs-signin-btn-nav, [class*="signin"]');
+            if (btn) btn.click();
+          }}>Sign in to comment</button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="cs-loading">Loading comments…</div>
+      ) : topLevel.length === 0 ? (
+        <div className="cs-empty">No comments yet. Be the first to share your thoughts.</div>
+      ) : (
+        <div className="cs-comments-list">
+          {topLevel.map((comment, i) => {
+            const replies = getReplies(comment.id);
+            return (
+              <div key={comment.id}>
+                {i > 0 && <div className="cs-divider" />}
+                <div className="cs-comment">
+                  <div className="cs-avatar cs-avatar-sm">{comment.authorInitials}</div>
+                  <div className="cs-comment-body">
+                    <div className="cs-comment-header">
+                      <span className="cs-name">{comment.authorName}</span>
+                      {comment.badgeTier && (
+                        <BadgeIcon color={comment.badgeColor} size={13} />
+                      )}
+                      <span className="cs-time">{timeAgo(comment.createdAt)}</span>
+                    </div>
+                    <div className="cs-comment-text">{comment.text}</div>
+                    <div className="cs-comment-footer">
+                      {user && (
+                        <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>
+                          {replyTo === comment.id ? 'Cancel' : 'Reply'}
+                        </button>
+                      )}
+                    </div>
+                    {replyTo === comment.id && (
+                      <div className="cs-reply-compose">
+                        <div className="cs-input-wrap">
+                          <textarea
+                            className="cs-textarea cs-textarea-sm"
+                            placeholder={`Reply to ${comment.authorName}…`}
+                            value={replyText}
+                            onChange={e => setReplyText(e.target.value)}
+                            rows={2}
+                            autoFocus
+                          />
+                          <button
+                            className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`}
+                            onClick={() => postComment(replyText, comment.id)}
+                            disabled={posting || !replyText.trim()}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                              <path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {replies.length > 0 && (
+                      <div className="cs-replies">
+                        {replies.map(reply => (
+                          <div key={reply.id} className="cs-reply">
+                            <div className="cs-avatar cs-avatar-xs">{reply.authorInitials}</div>
+                            <div className="cs-comment-body">
+                              <div className="cs-comment-header">
+                                <span className="cs-name">{reply.authorName}</span>
+                                {reply.badgeTier && <BadgeIcon color={reply.badgeColor} size={12} />}
+                                <span className="cs-time">{timeAgo(reply.createdAt)}</span>
+                              </div>
+                              <div className="cs-comment-text cs-comment-text-sm">{reply.text}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StoryPage({ params }) {
   const { slug } = use(params);
   const [story, setStory] = useState(stories.find(s => s.id === slug) || null);
@@ -16,19 +279,8 @@ export default function StoryPage({ params }) {
     if (story) { setStoryReady(true); return; }
     async function fetchFromCMS() {
       try {
-        const { initializeApp, getApps } = await import('firebase/app');
-        const { getDatabase, ref, get } = await import('firebase/database');
-        const firebaseConfig = {
-          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-          authDomain: 'calvary-scribblings.firebaseapp.com',
-          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-          projectId: 'calvary-scribblings',
-          storageBucket: 'calvary-scribblings.firebasestorage.app',
-          messagingSenderId: '1052137412283',
-          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-        };
-        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-        const db = getDatabase(app);
+        const db = await getFirebaseDB();
+        const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, 'cms_stories/' + slug));
         if (snap.exists()) {
           setStory({ id: slug, ...snap.val() });
@@ -73,35 +325,15 @@ export default function StoryPage({ params }) {
 
   useEffect(() => {
     if (!slug) return;
-                    async function trackHit() {
+    async function trackHit() {
       try {
         const res = await fetch(`/api/hit?slug=${slug}`, { method: 'POST' });
         const data = await res.json();
         if (typeof data.count === 'number') setHitCount(data.count);
-      } catch(e) {
-        console.error('Hit count error:', e);
-      }
+      } catch(e) { console.error('Hit count error:', e); }
     }
     trackHit();
   }, [slug]);
-
-  useEffect(() => {
-  if (!slug || !storyReady) return;
-  window.disqus_config = function () {
-    this.page.url = `https://calvaryscribblings.co.uk/stories/${slug}`;
-    this.page.identifier = slug;
-    this.page.colorScheme = 'light';
-  };
-  const script = document.createElement('script');
-  script.src = 'https://calvaryscribblings.disqus.com/embed.js';
-  script.setAttribute('data-timestamp', +new Date());
-  document.body.appendChild(script);
-  return () => {
-    document.body.removeChild(script);
-    delete window.disqus_config;
-    if (window.DISQUS) window.DISQUS.reset({ reload: false });
-  };
-}, [slug, storyReady]);
 
   const categoryColors = {
     news: '#ef4444',
@@ -120,7 +352,7 @@ export default function StoryPage({ params }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500&display=swap');
         @keyframes storyFadeIn { from { opacity: 0; } to { opacity: 1; } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { background: #0a0a0a; }
@@ -193,12 +425,49 @@ export default function StoryPage({ params }) {
         .hit-counter-row { text-align: center; padding: 1.8rem 2rem 1.5rem; color: #888; font-size: 0.9rem; font-family: Cochin, Georgia, serif; border-top: 1px solid #e0dbd2; max-width: 680px; margin: 0 auto; background: #f0ead8; }
         .story-footer { background: #f0ead8; max-width: 680px; margin: 0 auto; padding: 1rem 2rem 2rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: #888; gap: 1rem; flex-wrap: wrap; font-family: Cochin, Georgia, serif; border-top: 1px solid #e0dbd2; }
         .story-badge-footer { display: inline-block; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25em 0.8em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; }
-        .disqus-wrap { background: #f0ead8; max-width: 680px; margin: 0 auto; padding: 2rem 2rem 6rem; }
-        .disqus-divider { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.5rem; font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: #bbb; }
-        .disqus-divider::before, .disqus-divider::after { content: ''; flex: 1; height: 1px; background: #e0dbd2; }
         .back-to-top { position: fixed; bottom: 2rem; right: 2rem; width: 44px; height: 44px; border-radius: 50%; background: rgba(124,58,237,0.85); border: 1px solid rgba(168,85,247,0.4); color: #fff; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease, transform 0.3s ease; z-index: 998; box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
         .back-to-top:hover { background: rgba(124,58,237,1); transform: translateY(-2px); }
         .back-to-top.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
+
+        /* ── Comments ── */
+        .cs-section { background: #0a0a0a; max-width: 680px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
+        .cs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
+        .cs-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; letter-spacing: 0.02em; }
+        .cs-count { font-size: 0.68rem; color: rgba(255,255,255,0.25); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .cs-compose { margin-bottom: 2rem; }
+        .cs-compose-row { display: flex; gap: 12px; align-items: flex-start; }
+        .cs-avatar { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; }
+        .cs-avatar-sm { width: 34px; height: 34px; font-size: 11px; }
+        .cs-avatar-xs { width: 26px; height: 26px; font-size: 9px; }
+        .cs-input-wrap { flex: 1; position: relative; }
+        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 2px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
+        .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; }
+        .cs-textarea::placeholder { color: rgba(255,255,255,0.18); font-style: italic; }
+        .cs-textarea:focus { border-color: rgba(107,47,173,0.4); }
+        .cs-kite-btn { position: absolute; bottom: 8px; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; opacity: 0.2; transition: opacity 0.2s; }
+        .cs-kite-btn.active { opacity: 1; }
+        .cs-kite-btn:disabled { cursor: not-allowed; }
+        .cs-signin-prompt { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 2px; padding: 1.5rem; text-align: center; margin-bottom: 2rem; }
+        .cs-signin-prompt p { font-size: 0.82rem; color: rgba(255,255,255,0.3); margin-bottom: 0.75rem; font-family: 'Inter', sans-serif; }
+        .cs-signin-btn { background: none; border: 1px solid rgba(107,47,173,0.4); border-radius: 1px; padding: 0.55rem 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9b6dff; cursor: pointer; font-family: 'Inter', sans-serif; }
+        .cs-loading { font-size: 0.8rem; color: rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; padding: 1rem 0; }
+        .cs-empty { font-size: 0.88rem; color: rgba(255,255,255,0.2); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; padding: 1rem 0; }
+        .cs-comments-list { display: flex; flex-direction: column; }
+        .cs-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 0.25rem 0 1.75rem; }
+        .cs-comment { display: flex; gap: 12px; margin-bottom: 0.25rem; }
+        .cs-comment-body { flex: 1; min-width: 0; }
+        .cs-comment-header { display: flex; align-items: center; gap: 6px; margin-bottom: 0.45rem; flex-wrap: wrap; }
+        .cs-name { font-size: 0.8rem; font-weight: 500; color: #e8e0d4; font-family: 'Inter', sans-serif; }
+        .cs-time { font-size: 0.65rem; color: rgba(255,255,255,0.22); font-family: 'Inter', sans-serif; }
+        .cs-comment-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: rgba(232,224,212,0.75); line-height: 1.75; }
+        .cs-comment-text-sm { font-size: 0.92rem; }
+        .cs-comment-footer { margin-top: 0.5rem; }
+        .cs-reply-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.22); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; }
+        .cs-reply-btn:hover { color: #9b6dff; }
+        .cs-reply-compose { margin-top: 0.75rem; }
+        .cs-replies { margin-top: 1rem; padding-left: 1rem; border-left: 1px solid rgba(107,47,173,0.2); display: flex; flex-direction: column; gap: 1rem; }
+        .cs-reply { display: flex; gap: 10px; }
+
         @media (max-width: 640px) {
           .hero-cover-panel { width: 100px; height: 145px; bottom: 0; right: 4%; z-index: 0; }
           .story-body { padding: 2.5rem 1.2rem 4rem; }
@@ -206,7 +475,7 @@ export default function StoryPage({ params }) {
           .prose { font-size: 1.05rem; }
           .story-nav { padding: 0.85rem 1.2rem; }
           .hit-counter-row { padding: 1.5rem 1.2rem; }
-          .disqus-wrap { padding: 1.5rem 1.2rem 4rem; }
+          .cs-section { padding: 2rem 1.2rem 5rem; }
         }
       `}</style>
 
@@ -262,14 +531,12 @@ export default function StoryPage({ params }) {
               <span>By {story.author} · {story.date}</span>
               <span className="story-badge-footer">{story.categoryName}</span>
             </div>
-
-            <div className="disqus-wrap">
-              <div className="disqus-divider">Discussion</div>
-              <div id="disqus_thread" />
-            </div>
           </main>
         </div>
+
+        <CommentsSection slug={slug} accentColor={accentColor} />
       </div>
+
       <button
         className={showBackToTop ? 'back-to-top' : 'back-to-top hidden'}
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
