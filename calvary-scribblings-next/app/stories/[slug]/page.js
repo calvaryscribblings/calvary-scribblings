@@ -61,6 +61,26 @@ function BadgeIcon({ color, size = 14, isFounder = false }) {
   );
 }
 
+function BadgeDisplay({ tier, label, color, size = 13 }) {
+  if (!tier) return null;
+  const isFounder = tier === 'founder';
+  const isLight = color === '#b4b2a9';
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+      <BadgeIcon color={color} size={size} isFounder={isFounder} />
+      <span style={{
+        fontSize: '0.6rem',
+        fontWeight: 600,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        color: isFounder ? '#c8daea' : color,
+        fontFamily: 'Inter, sans-serif',
+        whiteSpace: 'nowrap',
+      }}>{label}</span>
+    </span>
+  );
+}
+
 function timeAgo(ts) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
@@ -73,7 +93,7 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-function CommentsSection({ slug, accentColor }) {
+function CommentsSection({ slug }) {
   const [user, setUser] = useState(null);
   const [userReadCount, setUserReadCount] = useState(0);
   const [comments, setComments] = useState([]);
@@ -192,7 +212,7 @@ function CommentsSection({ slug, accentColor }) {
         <div className="cs-signin-prompt">
           <p>Sign in to join the discussion</p>
           <button className="cs-signin-btn" onClick={() => {
-            const btn = document.querySelector('.cs-signin-btn-nav, [class*="signin"]');
+            const btn = document.querySelector('[class*="signin"], .cs-signin-btn-nav');
             if (btn) btn.click();
           }}>Sign in to comment</button>
         </div>
@@ -215,7 +235,7 @@ function CommentsSection({ slug, accentColor }) {
                     <div className="cs-comment-header">
                       <span className="cs-name">{comment.authorName}</span>
                       {comment.badgeTier && (
-                        <BadgeIcon color={comment.badgeColor} size={13} />
+                        <BadgeDisplay tier={comment.badgeTier} label={comment.badgeLabel} color={comment.badgeColor} size={13} />
                       )}
                       <span className="cs-time">{timeAgo(comment.createdAt)}</span>
                     </div>
@@ -258,7 +278,9 @@ function CommentsSection({ slug, accentColor }) {
                             <div className="cs-comment-body">
                               <div className="cs-comment-header">
                                 <span className="cs-name">{reply.authorName}</span>
-                                {reply.badgeTier && <BadgeIcon color={reply.badgeColor} size={12} />}
+                                {reply.badgeTier && (
+                                  <BadgeDisplay tier={reply.badgeTier} label={reply.badgeLabel} color={reply.badgeColor} size={12} />
+                                )}
                                 <span className="cs-time">{timeAgo(reply.createdAt)}</span>
                               </div>
                               <div className="cs-comment-text cs-comment-text-sm">{reply.text}</div>
@@ -544,7 +566,7 @@ export default function StoryPage({ params }) {
           </main>
         </div>
 
-        <CommentsSection slug={slug} accentColor={accentColor} />
+        <CommentsSection slug={slug} />
       </div>
 
       <button
