@@ -179,7 +179,7 @@ export default function Navbar() {
           <a href="/search">Search</a>
           {user ? (
             <>
-              <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.82rem' }}>{user.displayName || user.email}</span>
+              <a href="/profile" style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.82rem', textDecoration: 'none' }}>{user.displayName || user.email}</a>
               <button onClick={logout} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 3, padding: '0.3em 0.8em', color: 'rgba(255,255,255,0.65)', fontSize: '0.72rem', cursor: 'pointer' }}>Sign Out</button>
             </>
           ) : (
