@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 const FIREBASE_CONFIG = {
@@ -27,6 +27,13 @@ async function getFirebaseAuth() {
   return getAuth(app);
 }
 
+async function getFirebaseStorage() {
+  const { initializeApp, getApps } = await import('firebase/app');
+  const { getStorage } = await import('firebase/storage');
+  const app = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
+  return getStorage(app);
+}
+
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 
 function getBadge(readCount, uid) {
@@ -41,12 +48,17 @@ function getBadge(readCount, uid) {
 
 function getNextBadge(readCount, uid) {
   if (uid === FOUNDER_UID) return null;
-  if (readCount < 25) return { label: 'Reader', threshold: 25, color: '#b4b2a9' };
-  if (readCount < 60) return { label: 'Island Reader', threshold: 60, color: '#1d9e75' };
-  if (readCount < 90) return { label: 'Story Islander', threshold: 90, color: '#d4941a' };
-  if (readCount < 150) return { label: 'Legend of the Island', threshold: 150, color: '#d4537e' };
-  if (readCount < 1000) return { label: 'Immortal of the Island', threshold: 1000, color: '#9b6dff' };
+  if (readCount < 25) return { label: 'Reader', threshold: 25 };
+  if (readCount < 60) return { label: 'Island Reader', threshold: 60 };
+  if (readCount < 90) return { label: 'Story Islander', threshold: 90 };
+  if (readCount < 150) return { label: 'Legend of the Island', threshold: 150 };
+  if (readCount < 1000) return { label: 'Immortal of the Island', threshold: 1000 };
   return null;
+}
+
+function getPrevThreshold(nextThreshold) {
+  const map = { 25: 0, 60: 25, 90: 60, 150: 90, 1000: 150 };
+  return map[nextThreshold] || 0;
 }
 
 const BADGE_SVG_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
@@ -78,9 +90,12 @@ export default function ProfilePage() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [commentCount, setCommentCount] = useState(0);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [changingPassword, setChangingPassword] = useState(false);
   const [pwMsg, setPwMsg] = useState('');
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     let unsub;
@@ -99,23 +114,43 @@ export default function ProfilePage() {
           ]);
           const uData = userSnap.exists() ? userSnap.val() : {};
           setUserData(uData);
-          // Count comments across all stories
           if (commentsSnap.exists()) {
             let count = 0;
-            const allStories = commentsSnap.val();
-            for (const storyComments of Object.values(allStories)) {
+            for (const storyComments of Object.values(commentsSnap.val())) {
               for (const comment of Object.values(storyComments)) {
                 if (comment.authorUid === u.uid) count++;
               }
             }
             setCommentCount(count);
           }
+          // Load avatar
+          try {
+            const storage = await getFirebaseStorage();
+            const { ref: sRef, getDownloadURL } = await import('firebase/storage');
+            const url = await getDownloadURL(sRef(storage, `avatars/${u.uid}`));
+            setAvatarUrl(url);
+          } catch (e) { setAvatarUrl(null); }
         } catch (e) {}
         setLoading(false);
       });
     })();
     return () => { if (unsub) unsub(); };
   }, []);
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !user) return;
+    setUploading(true);
+    try {
+      const storage = await getFirebaseStorage();
+      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const storageRef = ref(storage, `avatars/${user.uid}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setAvatarUrl(url);
+    } catch (e) { console.error('Avatar upload failed:', e); }
+    setUploading(false);
+  };
 
   const handleSignOut = async () => {
     const auth = await getFirebaseAuth();
@@ -132,9 +167,7 @@ export default function ProfilePage() {
       const { sendPasswordResetEmail } = await import('firebase/auth');
       await sendPasswordResetEmail(auth, user.email);
       setPwMsg('Password reset email sent. Check your inbox.');
-    } catch (e) {
-      setPwMsg('Something went wrong. Please try again.');
-    }
+    } catch (e) { setPwMsg('Something went wrong. Please try again.'); }
     setChangingPassword(false);
   };
 
@@ -147,22 +180,8 @@ export default function ProfilePage() {
   const initials = (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const joinDate = user.metadata?.creationTime ? formatJoinDate(new Date(user.metadata.creationTime)) : 'Recently';
 
-  const progressPct = nextBadge
-    ? Math.min(100, Math.round((readCount / nextBadge.threshold) * 100))
-    : 100;
-
-  const prevThreshold = (() => {
-    if (!nextBadge) return 0;
-    if (nextBadge.threshold === 25) return 0;
-    if (nextBadge.threshold === 60) return 25;
-    if (nextBadge.threshold === 90) return 60;
-    if (nextBadge.threshold === 150) return 90;
-    if (nextBadge.threshold === 1000) return 150;
-    return 0;
-  })();
-
   const tierProgress = nextBadge
-    ? Math.min(100, Math.round(((readCount - prevThreshold) / (nextBadge.threshold - prevThreshold)) * 100))
+    ? Math.min(100, Math.round(((readCount - getPrevThreshold(nextBadge.threshold)) / (nextBadge.threshold - getPrevThreshold(nextBadge.threshold))) * 100))
     : 100;
 
   return (
@@ -178,7 +197,13 @@ export default function ProfilePage() {
         .pg-nav-back { font-size: 0.68rem; color: rgba(255,255,255,0.3); letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; text-decoration: none; transition: color 0.2s; }
         .pg-nav-back:hover { color: rgba(255,255,255,0.6); }
         .pg-hero { display: flex; align-items: flex-start; gap: 1.25rem; margin-bottom: 2rem; }
-        .pg-avatar { width: 68px; height: 68px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; }
+        .pg-avatar-wrap { position: relative; flex-shrink: 0; }
+        .pg-avatar { width: 72px; height: 72px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1.5px solid rgba(107,47,173,0.35); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 500; color: #9b6dff; overflow: hidden; font-family: 'Inter', sans-serif; cursor: pointer; }
+        .pg-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .pg-avatar-overlay { position: absolute; inset: 0; border-radius: 50%; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; cursor: pointer; }
+        .pg-avatar-wrap:hover .pg-avatar-overlay { opacity: 1; }
+        .pg-avatar-overlay-text { font-size: 0.55rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #fff; font-family: 'Inter', sans-serif; text-align: center; line-height: 1.4; }
+        .pg-uploading { position: absolute; inset: 0; border-radius: 50%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; }
         .pg-hero-info { flex: 1; padding-top: 4px; }
         .pg-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.75rem; font-weight: 300; color: #f5f0e8; line-height: 1.1; margin-bottom: 0.5rem; }
         .pg-badge-row { display: flex; align-items: center; gap: 6px; margin-bottom: 0.4rem; flex-wrap: wrap; }
@@ -213,11 +238,13 @@ export default function ProfilePage() {
         .pg-settings { display: flex; flex-direction: column; gap: 0.5rem; }
         .pg-setting-row { display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 1px; }
         .pg-setting-label { font-size: 0.8rem; color: rgba(255,255,255,0.45); font-family: 'Inter', sans-serif; }
-        .pg-setting-action { font-size: 0.62rem; color: #9b6dff; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; background: none; border: none; }
+        .pg-setting-action { font-size: 0.62rem; color: #9b6dff; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; background: none; border: none; transition: color 0.2s; }
         .pg-setting-action:hover { color: #c4b5fd; }
         .pg-pw-msg { font-size: 0.72rem; color: #86efac; font-family: 'Inter', sans-serif; margin-top: 0.5rem; padding: 0 1rem; }
         .pg-signout { width: 100%; margin-top: 1rem; background: none; border: 1px solid rgba(220,38,38,0.2); border-radius: 1px; padding: 0.75rem; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(248,113,113,0.45); cursor: pointer; font-family: 'Inter', sans-serif; transition: color 0.2s, border-color 0.2s; }
         .pg-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.4); }
+        .pg-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
 
       <div className="pg">
@@ -227,7 +254,29 @@ export default function ProfilePage() {
         </div>
 
         <div className="pg-hero">
-          <div className="pg-avatar">{initials}</div>
+          <div className="pg-avatar-wrap" onClick={() => !uploading && fileInputRef.current?.click()}>
+            <div className="pg-avatar">
+              {avatarUrl
+                ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} />
+                : initials
+              }
+            </div>
+            {uploading ? (
+              <div className="pg-uploading"><div className="pg-spinner" /></div>
+            ) : (
+              <div className="pg-avatar-overlay">
+                <div className="pg-avatar-overlay-text">Change<br/>photo</div>
+              </div>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleAvatarUpload}
+          />
+
           <div className="pg-hero-info">
             <div className="pg-name">{user.displayName || 'Reader'}</div>
             <div className="pg-badge-row">
@@ -275,17 +324,11 @@ export default function ProfilePage() {
             <div className="pg-progress-row">
               <div className="pg-progress-current">{readCount.toLocaleString()} {readCount === 1 ? 'story' : 'stories'} read</div>
               <div className="pg-progress-next">
-                {nextBadge ? `${nextBadge.label} at ${nextBadge.threshold}` : badge ? 'Maximum tier reached' : `Reader at 25`}
+                {nextBadge ? `${nextBadge.label} at ${nextBadge.threshold}` : badge ? 'Maximum tier reached' : 'Reader at 25'}
               </div>
             </div>
             <div className="pg-progress-bar-wrap">
-              <div
-                className="pg-progress-bar"
-                style={{
-                  width: `${tierProgress}%`,
-                  background: badge ? badge.color : '#444',
-                }}
-              />
+              <div className="pg-progress-bar" style={{ width: `${tierProgress}%`, background: badge ? badge.color : '#444' }} />
             </div>
           </div>
         </div>

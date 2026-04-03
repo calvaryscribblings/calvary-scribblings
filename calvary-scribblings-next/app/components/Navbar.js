@@ -10,12 +10,40 @@ export default function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [storiesOpen, setStoriesOpen] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!user) { setAvatarUrl(null); return; }
+    (async () => {
+      try {
+        const { initializeApp, getApps } = await import('firebase/app');
+        const { getStorage, ref, getDownloadURL } = await import('firebase/storage');
+        const firebaseConfig = {
+          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+          authDomain: 'calvary-scribblings.firebaseapp.com',
+          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+          projectId: 'calvary-scribblings',
+          storageBucket: 'calvary-scribblings.firebasestorage.app',
+          messagingSenderId: '1052137412283',
+          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+        };
+        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+        const storage = getStorage(app);
+        const url = await getDownloadURL(ref(storage, `avatars/${user.uid}`));
+        setAvatarUrl(url);
+      } catch (e) {
+        setAvatarUrl(null);
+      }
+    })();
+  }, [user]);
+
+  const initials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
 
   return (
     <>
@@ -78,6 +106,18 @@ export default function Navbar() {
           cursor: pointer;
         }
 
+        .cs-nav-avatar {
+          width: 34px; height: 34px; border-radius: 50%;
+          background: rgba(107,47,173,0.3); border: 1.5px solid rgba(107,47,173,0.5);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 11px; font-weight: 600; color: #c4b5fd;
+          text-decoration: none; overflow: hidden; flex-shrink: 0;
+          transition: border-color 0.2s;
+          font-family: Inter, sans-serif;
+        }
+        .cs-nav-avatar:hover { border-color: rgba(167,139,250,0.8); }
+        .cs-nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
         .cs-hamburger {
           display: none; flex-direction: column; gap: 5px;
           background: none; border: none; cursor: pointer; padding: 4px; z-index: 1001;
@@ -108,7 +148,7 @@ export default function Navbar() {
         }
         .cs-drawer-stories-btn .cs-arrow { font-size: 0.7rem; opacity: 0.5; transition: transform 0.2s; display: inline-block; }
         .cs-drawer-stories-btn.open .cs-arrow { transform: rotate(180deg); }
-        
+
         .cs-drawer-subnav {
           display: flex; flex-direction: column;
           background: rgba(255,255,255,0.03);
@@ -129,15 +169,29 @@ export default function Navbar() {
           display: flex !important; align-items: center; gap: 0.5em;
         }
         .cs-drawer-subnav-item:last-child { border-bottom: none !important; }
-        .cs-drawer-subnav-divider {
-          height: 1px; background: rgba(255,255,255,0.08); margin: 0;
-        }
+        .cs-drawer-subnav-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0; }
         .cs-drawer-dot { color: #7c3aed; }
         .cs-drawer-signin {
           margin-top: 1.5rem; background: #7c3aed; border: none;
           border-radius: 8px; padding: 1rem; color: #fff;
           font-size: 1rem; font-weight: 600; cursor: pointer; text-align: center;
         }
+
+        .cs-drawer-avatar-row {
+          display: flex; align-items: center; gap: 0.75rem;
+          padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+          text-decoration: none;
+        }
+        .cs-drawer-avatar {
+          width: 40px; height: 40px; border-radius: 50%;
+          background: rgba(107,47,173,0.3); border: 1.5px solid rgba(107,47,173,0.5);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 13px; font-weight: 600; color: #c4b5fd;
+          overflow: hidden; flex-shrink: 0; font-family: Inter, sans-serif;
+        }
+        .cs-drawer-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .cs-drawer-avatar-name { font-size: 0.95rem; font-weight: 500; color: rgba(255,255,255,0.85); }
+        .cs-drawer-avatar-sub { font-size: 0.68rem; color: rgba(255,255,255,0.3); margin-top: 1px; }
 
         @media (max-width: 768px) {
           .cs-desktop-links { display: none !important; }
@@ -178,10 +232,12 @@ export default function Navbar() {
           <a href="/contact">Contact</a>
           <a href="/search">Search</a>
           {user ? (
-            <>
-              <a href="/profile" style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.82rem', textDecoration: 'none' }}>{user.displayName || user.email}</a>
-              <button onClick={logout} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 3, padding: '0.3em 0.8em', color: 'rgba(255,255,255,0.65)', fontSize: '0.72rem', cursor: 'pointer' }}>Sign Out</button>
-            </>
+            <a href="/profile" className="cs-nav-avatar" title={user.displayName || 'Profile'}>
+              {avatarUrl
+                ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} />
+                : initials
+              }
+            </a>
           ) : (
             <button className="cs-signin-btn" onClick={() => setShowAuth(true)}>Sign In</button>
           )}
@@ -196,6 +252,21 @@ export default function Navbar() {
 
       {menuOpen && (
         <div className="cs-drawer">
+          {user ? (
+            <a href="/profile" className="cs-drawer-avatar-row" onClick={() => setMenuOpen(false)}>
+              <div className="cs-drawer-avatar">
+                {avatarUrl
+                  ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} />
+                  : initials
+                }
+              </div>
+              <div>
+                <div className="cs-drawer-avatar-name">{user.displayName || 'Reader'}</div>
+                <div className="cs-drawer-avatar-sub">View profile</div>
+              </div>
+            </a>
+          ) : null}
+
           <a href="/" onClick={() => setMenuOpen(false)}>Home</a>
 
           <button
