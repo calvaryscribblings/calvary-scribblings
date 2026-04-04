@@ -294,7 +294,7 @@ export default function StoryPage({ params }) {
         const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, 'cms_stories/' + slug));
         if (snap.exists()) { setStory({ id: slug, ...snap.val() }); setStoryReady(true); }
-      } catch(e) { console.error('CMS fetch error:', e); }
+      } catch (e) { console.error('CMS fetch error:', e); }
     }
     fetchFromCMS();
   }, [slug]);
@@ -331,28 +331,37 @@ export default function StoryPage({ params }) {
 
   useEffect(() => {
     if (!slug) return;
-    async function trackHit() {
-      try {
-        const res = await fetch(`/api/hit?slug=${slug}`, { method: 'POST' });
-        const data = await res.json();
-        if (typeof data.count === 'number') setHitCount(data.count);
-      } catch(e) {}
+
+    // Public hit counter
+    fetch(`/api/hit?slug=${slug}`, { method: 'POST' })
+      .then(r => r.json())
+      .then(data => { if (typeof data.count === 'number') setHitCount(data.count); })
+      .catch(() => {});
+
+    // Unique read tracking — wait for auth to fully restore before checking
+    let unsubRead;
+    (async () => {
       try {
         const auth = await getFirebaseAuth();
-        const user = auth.currentUser;
-        if (user) {
-          const db = await getDB();
-          const { ref, get, set, runTransaction } = await import('firebase/database');
-          const readRef = ref(db, `users/${user.uid}/readStories/${slug}`);
-          const snap = await get(readRef);
-          if (!snap.exists()) {
-            await set(readRef, true);
-            await runTransaction(ref(db, `users/${user.uid}/readCount`), (c) => (c || 0) + 1);
-          }
-        }
-      } catch(e) {}
-    }
-    trackHit();
+        const { onAuthStateChanged } = await import('firebase/auth');
+        unsubRead = onAuthStateChanged(auth, async (user) => {
+          if (!user) return;
+          unsubRead(); // unsubscribe immediately — only need one fire
+          try {
+            const db = await getDB();
+            const { ref, get, set, runTransaction } = await import('firebase/database');
+            const readRef = ref(db, `users/${user.uid}/readStories/${slug}`);
+            const snap = await get(readRef);
+            if (!snap.exists()) {
+              await set(readRef, true);
+              await runTransaction(ref(db, `users/${user.uid}/readCount`), (c) => (c || 0) + 1);
+            }
+          } catch (e) {}
+        });
+      } catch (e) {}
+    })();
+
+    return () => { if (unsubRead) unsubRead(); };
   }, [slug]);
 
   const categoryColors = { news: '#ef4444', flash: '#6b46c1', short: '#6b46c1', poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1' };
