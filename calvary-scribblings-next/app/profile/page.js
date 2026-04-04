@@ -92,11 +92,12 @@ export default function ProfilePage() {
       const auth = await getAuth();
       const { onAuthStateChanged } = await import('firebase/auth');
       unsub = onAuthStateChanged(auth, async (u) => {
-        if (!u) { router.push('/'); return; }
-        setUser(u);
-        try {
-          const db = await getDB();
-          const { ref, get } = await import('firebase/database');
+  if (!u) { router.push('/'); return; }
+  setUser(u);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  try {
+    const db = await getDB();
+    const { ref, get } = await import('firebase/database');
           const [avatarSnap, readCountSnap, commentsSnap, followersSnap, followingSnap, bioSnap] = await Promise.all([
             get(ref(db, `users/${u.uid}/avatarUrl`)),
             get(ref(db, `users/${u.uid}/readCount`)),
