@@ -18,7 +18,7 @@ async function getApp() {
   return getApps().length ? getApps()[0] : initializeApp(FB);
 }
 async function getDB() { const { getDatabase } = await import('firebase/database'); return getDatabase(await getApp()); }
-async function getAuth() { const { getAuth } = await import('firebase/auth'); return getAuth(await getApp()); }
+async function getFirebaseAuth() { const { getAuth } = await import('firebase/auth'); return getAuth(await getApp()); }
 async function getStorage() { const { getStorage } = await import('firebase/storage'); return getStorage(await getApp()); }
 
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
@@ -70,119 +70,177 @@ function formatJoinDate(ts) {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [user, setUser] = useState(null);
+  const [authUser, setAuthUser] = useState(null);
+  const [profileData, setProfileData] = useState(null);
   const [readCount, setReadCount] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
-  const [avatarUrl, setAvatarUrl] = useState(null);
-  const [bio, setBio] = useState('');
-  const [bioEdit, setBioEdit] = useState('');
-  const [editingBio, setEditingBio] = useState(false);
-  const [savingBio, setSavingBio] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const [showEdit, setShowEdit] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editAvatarFile, setEditAvatarFile] = useState(null);
+  const [editAvatarPreview, setEditAvatarPreview] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
   const [pwMsg, setPwMsg] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    let unsub;
+    let unsubAuth = null;
+    const unsubDB = [];
+
     (async () => {
-      const auth = await getAuth();
+      const auth = await getFirebaseAuth();
       const { onAuthStateChanged } = await import('firebase/auth');
-      unsub = onAuthStateChanged(auth, async (u) => {
-  if (!u) { router.push('/'); return; }
-  setUser(u);
-  await new Promise(resolve => setTimeout(resolve, 500));
-  try {
-    const db = await getDB();
-    const { ref, get } = await import('firebase/database');
-          const [avatarSnap, readCountSnap, commentsSnap, followersSnap, followingSnap, bioSnap] = await Promise.all([
-            get(ref(db, `users/${u.uid}/avatarUrl`)),
-            get(ref(db, `users/${u.uid}/readCount`)),
-            get(ref(db, 'comments')),
-            get(ref(db, `followers/${u.uid}`)),
-            get(ref(db, `following/${u.uid}`)),
-            get(ref(db, `users/${u.uid}/bio`)),
-          ]);
-          if (avatarSnap.exists()) setAvatarUrl(avatarSnap.val());
-          if (readCountSnap.exists()) setReadCount(readCountSnap.val());
-          if (bioSnap.exists()) { const b = bioSnap.val(); setBio(b); setBioEdit(b); }
+
+      unsubAuth = onAuthStateChanged(auth, async (u) => {
+        if (!u) { router.push('/'); return; }
+        setAuthUser(u);
+
+        const db = await getDB();
+        const { ref, onValue, get } = await import('firebase/database');
+
+        // Real-time: user profile node (avatar, bio, username, displayName, readCount)
+        const unsubProfile = onValue(ref(db, `users/${u.uid}`), (snap) => {
+          if (snap.exists()) {
+            const d = snap.val();
+            setProfileData(d);
+            setReadCount(d.readCount || 0);
+          }
+          setLoading(false);
+        });
+        unsubDB.push(unsubProfile);
+
+        // Real-time: followers
+        const unsubFollowers = onValue(ref(db, `followers/${u.uid}`), (snap) => {
+          setFollowerCount(snap.exists() ? Object.keys(snap.val()).length : 0);
+        });
+        unsubDB.push(unsubFollowers);
+
+        // Real-time: following
+        const unsubFollowing = onValue(ref(db, `following/${u.uid}`), (snap) => {
+          setFollowingCount(snap.exists() ? Object.keys(snap.val()).length : 0);
+        });
+        unsubDB.push(unsubFollowing);
+
+        // One-time: comment count
+        try {
+          const commentsSnap = await get(ref(db, 'comments'));
           if (commentsSnap.exists()) {
             let count = 0;
             for (const sc of Object.values(commentsSnap.val())) {
-              for (const c of Object.values(sc)) { if (c.authorUid === u.uid) count++; }
+              for (const c of Object.values(sc)) {
+                if (c.authorUid === u.uid) count++;
+              }
             }
             setCommentCount(count);
           }
-          setFollowerCount(followersSnap.exists() ? Object.keys(followersSnap.val()).length : 0);
-          setFollowingCount(followingSnap.exists() ? Object.keys(followingSnap.val()).length : 0);
-        } catch (e) { console.error('Profile load error:', e); }
-        setLoading(false);
+        } catch (e) {}
       });
     })();
-    return () => { if (unsub) unsub(); };
+
+    return () => {
+      if (unsubAuth) unsubAuth();
+      unsubDB.forEach(fn => fn());
+    };
   }, []);
 
-  const handleAvatarUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file || !user) return;
-    setUploading(true);
-    try {
-      const storage = await getStorage();
-      const db = await getDB();
-      const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const { ref, set } = await import('firebase/database');
-      const storageRef = sRef(storage, `avatars/${user.uid}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      await set(ref(db, `users/${user.uid}/avatarUrl`), url);
-      setAvatarUrl(url);
-    } catch (e) { console.error('Upload failed:', e); }
-    setUploading(false);
+  const openEdit = () => {
+    setEditName(profileData?.displayName || authUser?.displayName || '');
+    setEditUsername(profileData?.username || '');
+    setEditBio(profileData?.bio || '');
+    setEditAvatarFile(null);
+    setEditAvatarPreview(profileData?.avatarUrl || null);
+    setSaveError('');
+    setShowEdit(true);
   };
 
-  const handleSaveBio = async () => {
-    if (!user) return;
-    setSavingBio(true);
+  const handleEditAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setEditAvatarFile(file);
+    setEditAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleSave = async () => {
+    if (!authUser) return;
+    setSaving(true);
+    setSaveError('');
     try {
       const db = await getDB();
-      const { ref, set } = await import('firebase/database');
-      const trimmed = bioEdit.trim();
-      await set(ref(db, `users/${user.uid}/bio`), trimmed);
-      setBio(trimmed);
-      setEditingBio(false);
-    } catch (e) { console.error('Bio save failed:', e); }
-    setSavingBio(false);
+      const { ref, update } = await import('firebase/database');
+
+      let newAvatarUrl = profileData?.avatarUrl || null;
+      if (editAvatarFile) {
+        const storage = await getStorage();
+        const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const storageRef = sRef(storage, `avatars/${authUser.uid}`);
+        await uploadBytes(storageRef, editAvatarFile);
+        newAvatarUrl = await getDownloadURL(storageRef);
+      }
+
+      const username = editUsername.trim().replace(/^@/, '').toLowerCase();
+      if (username && !/^[a-z0-9_]{3,20}$/.test(username)) {
+        setSaveError('Username must be 3–20 characters: letters, numbers, underscores only.');
+        setSaving(false);
+        return;
+      }
+
+      const { updateProfile } = await import('firebase/auth');
+      const newName = editName.trim() || authUser.displayName;
+      await updateProfile(authUser, { displayName: newName });
+
+      await update(ref(db, `users/${authUser.uid}`), {
+        displayName: newName,
+        bio: editBio.trim(),
+        username: username || null,
+        avatarUrl: newAvatarUrl,
+      });
+
+      setShowEdit(false);
+    } catch (e) {
+      console.error('Save failed:', e);
+      setSaveError('Something went wrong. Please try again.');
+    }
+    setSaving(false);
   };
 
   const handleSignOut = async () => {
-    const auth = await getAuth();
+    const auth = await getFirebaseAuth();
     const { signOut } = await import('firebase/auth');
     await signOut(auth);
     router.push('/');
   };
 
   const handleResetPassword = async () => {
-    if (!user?.email) return;
+    if (!authUser?.email) return;
     setChangingPassword(true);
     try {
-      const auth = await getAuth();
+      const auth = await getFirebaseAuth();
       const { sendPasswordResetEmail } = await import('firebase/auth');
-      await sendPasswordResetEmail(auth, user.email);
+      await sendPasswordResetEmail(auth, authUser.email);
       setPwMsg('Password reset email sent. Check your inbox.');
     } catch (e) { setPwMsg('Something went wrong. Please try again.'); }
     setChangingPassword(false);
   };
 
   if (loading) return <div style={{ minHeight: '100vh', background: '#080808' }} />;
-  if (!user) return null;
+  if (!authUser) return null;
 
-  const badge = getBadge(readCount, user.uid);
-  const nextBadge = getNextBadge(readCount, user.uid);
-  const initials = (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-  const joinDate = user.metadata?.creationTime ? formatJoinDate(new Date(user.metadata.creationTime)) : 'Recently';
+  const avatarUrl = profileData?.avatarUrl || null;
+  const displayName = profileData?.displayName || authUser.displayName || 'Reader';
+  const username = profileData?.username || null;
+  const bio = profileData?.bio || null;
+  const badge = getBadge(readCount, authUser.uid);
+  const nextBadge = getNextBadge(readCount, authUser.uid);
+  const initials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const joinDate = authUser.metadata?.creationTime ? formatJoinDate(new Date(authUser.metadata.creationTime)) : 'Recently';
   const tierProgress = nextBadge
     ? Math.min(100, Math.round(((readCount - getPrevThreshold(nextBadge.threshold)) / (nextBadge.threshold - getPrevThreshold(nextBadge.threshold))) * 100))
     : 100;
@@ -194,50 +252,43 @@ export default function ProfilePage() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { background: #080808; color: #e8e0d4; font-family: 'Inter', sans-serif; min-height: 100vh; }
 
-        .pf-hero { position: relative; min-height: 340px; display: flex; align-items: flex-end; overflow: hidden; background: #080808; }
-        .pf-hero-gradient { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(107,47,173,0.15) 0%, rgba(8,8,8,0) 60%), linear-gradient(to top, rgba(8,8,8,1) 0%, rgba(8,8,8,0.4) 60%, rgba(8,8,8,0) 100%); z-index: 1; }
+        .pf-nav { display: flex; align-items: center; justify-content: space-between; max-width: 720px; margin: 0 auto; padding: 1.25rem 1.5rem; }
+        .pf-nav-logo { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; font-weight: 600; color: #f5f0e8; }
+        .pf-nav-logo span { color: #a78bfa; }
+        .pf-nav-back { font-size: 0.65rem; color: rgba(255,255,255,0.25); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; font-family: 'Inter', sans-serif; }
+        .pf-nav-back:hover { color: rgba(255,255,255,0.5); }
+
+        .pf-hero { position: relative; min-height: 320px; display: flex; align-items: flex-end; overflow: hidden; background: #080808; }
+        .pf-hero-gradient { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(107,47,173,0.15) 0%, transparent 60%), linear-gradient(to top, #080808 0%, rgba(8,8,8,0.4) 60%, transparent 100%); z-index: 1; }
         .pf-hero-pattern { position: absolute; inset: 0; opacity: 0.04; background-image: radial-gradient(circle, #a78bfa 1px, transparent 1px); background-size: 32px 32px; z-index: 0; }
         .pf-hero-content { position: relative; z-index: 2; width: 100%; max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 2.5rem; display: flex; align-items: flex-end; gap: 1.5rem; }
 
-        .pf-avatar-wrap { position: relative; flex-shrink: 0; cursor: pointer; }
-        .pf-avatar { width: 88px; height: 88px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.3); display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: 'Cormorant Garamond', Georgia, serif; transition: border-color 0.2s; }
-        .pf-avatar:hover { border-color: rgba(167,139,250,0.6); }
+        .pf-avatar { width: 88px; height: 88px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.3); display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: 'Cormorant Garamond', Georgia, serif; flex-shrink: 0; }
         .pf-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .pf-avatar-overlay { position: absolute; inset: 0; border-radius: 50%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; }
-        .pf-avatar-wrap:hover .pf-avatar-overlay { opacity: 1; }
-        .pf-avatar-overlay-text { font-size: 0.52rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.9); font-family: 'Inter', sans-serif; text-align: center; line-height: 1.5; }
-        .pf-uploading { position: absolute; inset: 0; border-radius: 50%; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; }
-        .pf-spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.15); border-top-color: #a78bfa; border-radius: 50%; animation: spin 0.7s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
 
         .pf-hero-info { flex: 1; padding-bottom: 4px; }
-        .pf-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2.4rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.6rem; letter-spacing: -0.01em; }
-        .pf-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem; flex-wrap: wrap; }
+        .pf-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2.4rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.3rem; letter-spacing: -0.01em; }
+        .pf-username { font-size: 0.78rem; color: rgba(167,139,250,0.55); font-family: 'Inter', sans-serif; margin-bottom: 0.5rem; }
+        .pf-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.4rem; flex-wrap: wrap; }
         .pf-badge-pill { display: inline-flex; align-items: center; gap: 5px; }
         .pf-badge-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .pf-sep { color: rgba(255,255,255,0.15); font-size: 0.6rem; }
         .pf-verified { display: inline-flex; align-items: center; gap: 3px; font-size: 0.6rem; color: #1d9e75; font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
         .pf-unverified { font-size: 0.6rem; color: rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
-        .pf-joined { font-size: 0.68rem; color: rgba(255,255,255,0.25); font-family: 'Inter', sans-serif; }
-        .pf-follow-row { display: flex; gap: 1.25rem; margin-top: 0.75rem; }
+        .pf-joined { font-size: 0.68rem; color: rgba(255,255,255,0.25); font-family: 'Inter', sans-serif; margin-bottom: 0.75rem; }
+        .pf-follow-row { display: flex; gap: 1.25rem; }
         .pf-follow-stat { display: flex; flex-direction: column; gap: 1px; }
         .pf-follow-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.2rem; font-weight: 300; color: #f5f0e8; line-height: 1; }
         .pf-follow-label { font-size: 0.56rem; color: rgba(255,255,255,0.3); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-body { max-width: 720px; margin: 0 auto; padding: 0 1.5rem 6rem; }
 
-        .pf-bio-wrap { padding: 1.5rem 0 2rem; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 2rem; }
-        .pf-bio-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.15rem; color: rgba(232,224,212,0.7); line-height: 1.75; font-style: italic; }
-        .pf-bio-empty { font-size: 0.82rem; color: rgba(255,255,255,0.18); font-family: 'Inter', sans-serif; cursor: pointer; letter-spacing: 0.02em; }
+        .pf-bio-wrap { padding: 1.25rem 0 1.75rem; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 2rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+        .pf-bio-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; color: rgba(232,224,212,0.65); line-height: 1.75; font-style: italic; flex: 1; }
+        .pf-bio-empty { font-size: 0.8rem; color: rgba(255,255,255,0.18); font-family: 'Inter', sans-serif; cursor: pointer; font-style: italic; flex: 1; }
         .pf-bio-empty:hover { color: rgba(255,255,255,0.35); }
-        .pf-bio-edit-btn { background: none; border: none; font-size: 0.6rem; color: rgba(255,255,255,0.2); cursor: pointer; padding: 0 0 0 8px; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; vertical-align: middle; }
-        .pf-bio-edit-btn:hover { color: #a78bfa; }
-        .pf-bio-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(167,139,250,0.2); border-radius: 12px; padding: 0.85rem 1rem; font-size: 1.05rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; line-height: 1.7; margin-top: 0.25rem; font-style: italic; }
-        .pf-bio-textarea:focus { border-color: rgba(167,139,250,0.45); }
-        .pf-bio-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
-        .pf-bio-save { background: #7c3aed; border: none; border-radius: 8px; padding: 0.5rem 1.2rem; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
-        .pf-bio-save:hover { background: #6d28d9; }
-        .pf-bio-cancel { background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.5rem 1.2rem; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); cursor: pointer; font-family: 'Inter', sans-serif; }
+        .pf-edit-btn { background: none; border: 1px solid rgba(167,139,250,0.2); border-radius: 8px; padding: 0.35rem 0.85rem; font-size: 0.6rem; color: rgba(167,139,250,0.6); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
+        .pf-edit-btn:hover { border-color: rgba(167,139,250,0.5); color: #a78bfa; }
 
         .pf-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; margin-bottom: 2.5rem; overflow: hidden; }
         .pf-stat { background: rgba(255,255,255,0.02); padding: 1.5rem 1.25rem; text-align: center; }
@@ -246,7 +297,7 @@ export default function ProfilePage() {
 
         .pf-section { margin-bottom: 2.5rem; }
         .pf-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .pf-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.2rem; font-weight: 300; color: #f5f0e8; letter-spacing: 0.01em; }
+        .pf-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.2rem; font-weight: 300; color: #f5f0e8; }
         .pf-section-meta { font-size: 0.6rem; color: rgba(255,255,255,0.2); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-badge-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 1.25rem; }
@@ -276,11 +327,38 @@ export default function ProfilePage() {
         .pf-signout { width: 100%; margin-top: 1rem; background: none; border: 1px solid rgba(220,38,38,0.15); border-radius: 12px; padding: 0.8rem; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(248,113,113,0.35); cursor: pointer; font-family: 'Inter', sans-serif; transition: color 0.2s, border-color 0.2s; }
         .pf-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.35); }
 
-        .pf-nav { display: flex; align-items: center; justify-content: space-between; max-width: 720px; margin: 0 auto; padding: 1.25rem 1.5rem; }
-        .pf-nav-logo { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; font-weight: 600; color: #f5f0e8; letter-spacing: 0.02em; }
-        .pf-nav-logo span { color: #a78bfa; }
-        .pf-nav-back { font-size: 0.65rem; color: rgba(255,255,255,0.25); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; font-family: 'Inter', sans-serif; }
-        .pf-nav-back:hover { color: rgba(255,255,255,0.5); }
+        .pf-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
+        @media (min-width: 600px) { .pf-modal-backdrop { align-items: center; } }
+        .pf-modal { background: #111; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px 20px 0 0; width: 100%; max-width: 520px; padding: 2rem 1.5rem 2.5rem; max-height: 90vh; overflow-y: auto; }
+        @media (min-width: 600px) { .pf-modal { border-radius: 20px; } }
+        .pf-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.75rem; }
+        .pf-modal-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; }
+        .pf-modal-close { background: none; border: none; color: rgba(255,255,255,0.3); font-size: 1.4rem; cursor: pointer; padding: 0; line-height: 1; transition: color 0.2s; }
+        .pf-modal-close:hover { color: rgba(255,255,255,0.6); }
+
+        .pf-modal-avatar-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+        .pf-modal-avatar { width: 64px; height: 64px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.3); display: flex; align-items: center; justify-content: center; font-size: 22px; color: #c4b5fd; overflow: hidden; font-family: 'Cormorant Garamond', Georgia, serif; flex-shrink: 0; }
+        .pf-modal-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .pf-modal-avatar-btn { background: none; border: 1px solid rgba(167,139,250,0.3); border-radius: 8px; padding: 0.45rem 1rem; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(167,139,250,0.7); cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; }
+        .pf-modal-avatar-btn:hover { border-color: rgba(167,139,250,0.6); color: #a78bfa; }
+
+        .pf-field { margin-bottom: 1.1rem; }
+        .pf-field-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); font-family: 'Inter', sans-serif; margin-bottom: 0.4rem; display: block; }
+        .pf-field-input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s; }
+        .pf-field-input:focus { border-color: rgba(167,139,250,0.4); }
+        .pf-field-textarea { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.95rem; color: rgba(232,224,212,0.85); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; outline: none; resize: none; line-height: 1.7; transition: border-color 0.2s; }
+        .pf-field-textarea:focus { border-color: rgba(167,139,250,0.4); }
+        .pf-field-hint { font-size: 0.6rem; color: rgba(255,255,255,0.18); font-family: 'Inter', sans-serif; margin-top: 0.3rem; }
+        .pf-username-wrap { position: relative; }
+        .pf-username-at { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: rgba(167,139,250,0.5); font-family: 'Inter', sans-serif; font-size: 0.9rem; pointer-events: none; }
+        .pf-username-input { padding-left: 1.75rem !important; }
+
+        .pf-save-error { font-size: 0.72rem; color: #f87171; font-family: 'Inter', sans-serif; margin-bottom: 0.75rem; }
+        .pf-modal-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+        .pf-modal-save { flex: 1; background: #7c3aed; border: none; border-radius: 10px; padding: 0.75rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
+        .pf-modal-save:hover { background: #6d28d9; }
+        .pf-modal-save:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pf-modal-cancel { background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 0.75rem 1.25rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); cursor: pointer; font-family: 'Inter', sans-serif; }
 
         @media (max-width: 480px) {
           .pf-hero-content { flex-direction: column; align-items: flex-start; gap: 1rem; }
@@ -298,22 +376,12 @@ export default function ProfilePage() {
         <div className="pf-hero-pattern" />
         <div className="pf-hero-gradient" />
         <div className="pf-hero-content">
-          <div className="pf-avatar-wrap" onClick={() => !uploading && fileInputRef.current?.click()}>
-            <div className="pf-avatar">
-              {avatarUrl ? <img src={avatarUrl} alt={initials} /> : initials}
-            </div>
-            {uploading ? (
-              <div className="pf-uploading"><div className="pf-spinner" /></div>
-            ) : (
-              <div className="pf-avatar-overlay">
-                <div className="pf-avatar-overlay-text">Change<br/>photo</div>
-              </div>
-            )}
+          <div className="pf-avatar">
+            {avatarUrl ? <img src={avatarUrl} alt={initials} /> : initials}
           </div>
-          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
-
           <div className="pf-hero-info">
-            <div className="pf-name">{user.displayName || 'Reader'}</div>
+            <div className="pf-name">{displayName}</div>
+            {username && <div className="pf-username">@{username}</div>}
             <div className="pf-meta-row">
               {badge && (
                 <span className="pf-badge-pill">
@@ -322,7 +390,7 @@ export default function ProfilePage() {
                 </span>
               )}
               {badge && <span className="pf-sep">·</span>}
-              {user.emailVerified ? (
+              {authUser.emailVerified ? (
                 <span className="pf-verified">
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1d9e75" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   Verified
@@ -348,32 +416,11 @@ export default function ProfilePage() {
 
       <div className="pf-body">
         <div className="pf-bio-wrap">
-          {editingBio ? (
-            <>
-              <textarea
-                className="pf-bio-textarea"
-                value={bioEdit}
-                onChange={e => setBioEdit(e.target.value)}
-                placeholder="Write a short bio…"
-                rows={3}
-                maxLength={240}
-                autoFocus
-              />
-              <div className="pf-bio-actions">
-                <button className="pf-bio-save" onClick={handleSaveBio} disabled={savingBio}>
-                  {savingBio ? 'Saving…' : 'Save'}
-                </button>
-                <button className="pf-bio-cancel" onClick={() => { setBioEdit(bio); setEditingBio(false); }}>Cancel</button>
-              </div>
-            </>
-          ) : bio ? (
-            <span>
-              <span className="pf-bio-text">{bio}</span>
-              <button className="pf-bio-edit-btn" onClick={() => setEditingBio(true)}>Edit</button>
-            </span>
-          ) : (
-            <span className="pf-bio-empty" onClick={() => setEditingBio(true)}>+ Add a bio</span>
-          )}
+          {bio
+            ? <span className="pf-bio-text">{bio}</span>
+            : <span className="pf-bio-empty" onClick={openEdit}>+ Add a bio</span>
+          }
+          <button className="pf-edit-btn" onClick={openEdit}>Edit profile</button>
         </div>
 
         <div className="pf-stats">
@@ -443,7 +490,7 @@ export default function ProfilePage() {
           </div>
           <div className="pf-account">
             <div className="pf-account-row">
-              <span className="pf-account-label">{user.email}</span>
+              <span className="pf-account-label">{authUser.email}</span>
             </div>
             <div className="pf-account-row">
               <span className="pf-account-label">Password</span>
@@ -456,6 +503,55 @@ export default function ProfilePage() {
           <button className="pf-signout" onClick={handleSignOut}>Sign out</button>
         </div>
       </div>
+
+      {showEdit && (
+        <div className="pf-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowEdit(false); }}>
+          <div className="pf-modal">
+            <div className="pf-modal-header">
+              <div className="pf-modal-title">Edit profile</div>
+              <button className="pf-modal-close" onClick={() => setShowEdit(false)}>×</button>
+            </div>
+
+            <div className="pf-modal-avatar-row">
+              <div className="pf-modal-avatar">
+                {editAvatarPreview ? <img src={editAvatarPreview} alt="" /> : initials}
+              </div>
+              <button className="pf-modal-avatar-btn" onClick={() => fileInputRef.current?.click()}>
+                Change photo
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEditAvatarChange} />
+            </div>
+
+            <div className="pf-field">
+              <label className="pf-field-label">Full name</label>
+              <input className="pf-field-input" type="text" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Your name" maxLength={60} />
+            </div>
+
+            <div className="pf-field">
+              <label className="pf-field-label">Username</label>
+              <div className="pf-username-wrap">
+                <span className="pf-username-at">@</span>
+                <input className="pf-field-input pf-username-input" type="text" value={editUsername} onChange={e => setEditUsername(e.target.value.replace(/^@/, '').toLowerCase())} placeholder="yourhandle" maxLength={20} />
+              </div>
+              <div className="pf-field-hint">3–20 characters. Letters, numbers, underscores only.</div>
+            </div>
+
+            <div className="pf-field">
+              <label className="pf-field-label">Bio</label>
+              <textarea className="pf-field-textarea" value={editBio} onChange={e => setEditBio(e.target.value)} placeholder="Write a short bio…" rows={3} maxLength={240} />
+            </div>
+
+            {saveError && <div className="pf-save-error">{saveError}</div>}
+
+            <div className="pf-modal-actions">
+              <button className="pf-modal-cancel" onClick={() => setShowEdit(false)}>Cancel</button>
+              <button className="pf-modal-save" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
