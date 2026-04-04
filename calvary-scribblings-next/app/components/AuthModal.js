@@ -83,10 +83,7 @@ export default function AuthModal({ onClose }) {
         await set(ref(db, `users/${cred.user.uid}/displayName`), name);
         await set(ref(db, `users/${cred.user.uid}/joinDate`), Date.now());
 
-        // Get ID token to pass to Worker
-        const idToken = await cred.user.getIdToken();
-
-        // Worker generates verification link silently + sends branded Resend email
+        // Send branded verification email via Worker — no idToken, Admin generates link silently
         await fetch('https://calvary-auth.calvarymediauk.workers.dev/send-verification', {
           method: 'POST',
           headers: {
@@ -96,7 +93,6 @@ export default function AuthModal({ onClose }) {
           body: JSON.stringify({
             email,
             firstName: name.trim().split(' ')[0],
-            idToken,
           }),
         });
 
@@ -138,7 +134,6 @@ export default function AuthModal({ onClose }) {
       setResendCooldown(true);
       setSuccess('Verification email resent.');
       setTimeout(() => setResendCooldown(false), 30000);
-      const idToken = await user.getIdToken();
       await fetch('https://calvary-auth.calvarymediauk.workers.dev/send-verification', {
         method: 'POST',
         headers: {
@@ -148,7 +143,6 @@ export default function AuthModal({ onClose }) {
         body: JSON.stringify({
           email: user.email,
           firstName: user.displayName?.split(' ')[0] || 'there',
-          idToken,
         }),
       });
     } catch {
