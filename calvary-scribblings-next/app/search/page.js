@@ -63,9 +63,7 @@ function getBadgeClass(cat) {
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('stories'); // 'stories' | 'users'
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [results, setResults] = useState([]);
+  const [storyResults, setStoryResults] = useState([]);
   const [userResults, setUserResults] = useState([]);
   const [searched, setSearched] = useState(false);
   const [searchingUsers, setSearchingUsers] = useState(false);
@@ -78,27 +76,29 @@ export default function SearchPage() {
     }
   }, []);
 
-  // Story search
   useEffect(() => {
-    if (!query.trim()) { setSearched(false); setResults([]); return; }
+    if (!query.trim()) {
+      setSearched(false);
+      setStoryResults([]);
+      setUserResults([]);
+      return;
+    }
     setSearched(true);
-    const q = query.toLowerCase();
-    const filtered = stories.filter(s => {
-      const matchesFilter = activeFilter === 'all' || s.category === activeFilter;
-      const matchesQuery =
-        s.title.toLowerCase().includes(q) ||
-        s.author.toLowerCase().includes(q) ||
-        (s.categoryName || '').toLowerCase().includes(q) ||
-        (s.date || '').toLowerCase().includes(q);
-      return matchesFilter && matchesQuery;
-    });
-    setResults(filtered);
-  }, [query, activeFilter]);
 
-  // User search
-  useEffect(() => {
-    if (!query.trim() || activeTab !== 'users') { setUserResults([]); return; }
-    const q = query.toLowerCase();
+    // Strip @ for username matching
+    const raw = query.trim();
+    const q = raw.startsWith('@') ? raw.slice(1).toLowerCase() : raw.toLowerCase();
+
+    // Story search — instant from local data
+    const matchedStories = stories.filter(s =>
+      s.title.toLowerCase().includes(q) ||
+      s.author.toLowerCase().includes(q) ||
+      (s.categoryName || '').toLowerCase().includes(q) ||
+      (s.date || '').toLowerCase().includes(q)
+    );
+    setStoryResults(matchedStories);
+
+    // User search — from Firebase
     setSearchingUsers(true);
     (async () => {
       try {
@@ -111,7 +111,8 @@ export default function SearchPage() {
             .filter(([uid, data]) => {
               const name = (data.displayName || '').toLowerCase();
               const username = (data.username || '').toLowerCase();
-              return name.includes(q) || username.includes(q);
+              const bio = (data.bio || '').toLowerCase();
+              return name.includes(q) || username.includes(q) || bio.includes(q);
             })
             .map(([uid, data]) => ({ uid, ...data }));
           setUserResults(matched);
@@ -119,16 +120,9 @@ export default function SearchPage() {
       } catch (e) { setUserResults([]); }
       setSearchingUsers(false);
     })();
-  }, [query, activeTab]);
+  }, [query]);
 
-  const filters = [
-    { label: 'All', value: 'all' },
-    { label: 'News', value: 'news' },
-    { label: 'Short Stories', value: 'short' },
-    { label: 'Flash Fiction', value: 'flash' },
-    { label: 'Poetry', value: 'poetry' },
-    { label: 'Inspiring', value: 'inspiring' },
-  ];
+  const totalResults = storyResults.length + userResults.length;
 
   const SearchIcon = () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -155,21 +149,10 @@ export default function SearchPage() {
         .search-input::placeholder { color: rgba(255,255,255,0.3); }
         .search-input:focus { border-color: #8b5cf6; background: rgba(255,255,255,0.09); box-shadow: 0 0 0 4px rgba(139,92,246,0.15); }
         .search-icon-wrap { position: absolute; right: 1.1rem; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.3); pointer-events: none; }
-
-        .search-tabs { display: flex; gap: 0; justify-content: center; margin-top: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); max-width: 640px; margin-left: auto; margin-right: auto; }
-        .search-tab { font-size: 0.78rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.6rem 1.5rem; background: transparent; border: none; color: rgba(255,255,255,0.35); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.2s; font-family: 'Inter', sans-serif; }
-        .search-tab.active { color: #c4b5fd; border-bottom-color: #8b5cf6; }
-        .search-tab:hover { color: rgba(255,255,255,0.6); }
-
-        .search-filters { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; margin-top: 1.25rem; }
-        .filter-btn { font-size: 0.78rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 50px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: rgba(255,255,255,0.5); cursor: pointer; transition: all 0.2s; }
-        .filter-btn:hover { border-color: rgba(139,92,246,0.5); color: #c4b5fd; }
-        .filter-btn.active { background: #6b46c1; border-color: #6b46c1; color: #fff; }
-
         .search-body { max-width: 860px; margin: 0 auto; padding: 3rem 2rem 5rem; }
-        .results-meta { font-size: 0.85rem; color: #999; margin-bottom: 2rem; min-height: 1.2rem; }
+        .results-meta { font-size: 0.85rem; color: #999; margin-bottom: 2rem; }
         .results-meta strong { color: #6b46c1; }
-
+        .section-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #bbb; margin: 2rem 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #ede9f7; font-family: 'Inter', sans-serif; }
         .result-card { display: flex; gap: 1.25rem; align-items: center; padding: 1.25rem 1rem; border-bottom: 1px solid #ede9f7; text-decoration: none; transition: background 0.15s; border-radius: 8px; margin: 0 -1rem; animation: fadeSlideIn 0.2s ease both; }
         .result-card:hover { background: #f3f0ff; }
         .result-card:hover .result-title { color: #6b46c1; }
@@ -186,7 +169,6 @@ export default function SearchPage() {
         .badge-flash { background: #fee2e2; color: #991b1b; }
         .badge-poetry { background: #ede9fe; color: #5b21b6; }
         .badge-inspiring { background: #fef3c7; color: #92400e; }
-
         .user-card { display: flex; align-items: center; gap: 1rem; padding: 0.85rem 1rem; border-bottom: 1px solid #ede9f7; text-decoration: none; transition: background 0.15s; border-radius: 8px; margin: 0 -1rem; animation: fadeSlideIn 0.2s ease both; }
         .user-card:hover { background: #f3f0ff; }
         .user-avatar { width: 44px; height: 44px; border-radius: 50%; background: rgba(107,47,173,0.12); border: 1.5px solid rgba(107,47,173,0.2); display: flex; align-items: center; justify-content: center; font-size: 15px; color: #7c3aed; overflow: hidden; flex-shrink: 0; font-family: 'Cormorant Garamond', Georgia, serif; }
@@ -194,7 +176,6 @@ export default function SearchPage() {
         .user-info { flex: 1; min-width: 0; }
         .user-name { font-size: 0.95rem; font-weight: 500; color: #1a1a2e; font-family: 'Inter', sans-serif; }
         .user-handle { font-size: 0.78rem; color: #8b5cf6; font-family: 'Inter', sans-serif; }
-
         .state-message { text-align: center; padding: 4rem 1rem; }
         .state-icon { font-size: 3rem; margin-bottom: 1rem; display: block; opacity: 0.4; }
         .state-message p { font-size: 1rem; color: #aaa; }
@@ -216,13 +197,13 @@ export default function SearchPage() {
       <div className="search-page">
         <div className="search-hero">
           <div className="search-hero-eyebrow">Calvary Scribblings</div>
-          <h1>Find a <em>story</em></h1>
-          <p>Search stories and readers</p>
+          <h1>Search <em>everything</em></h1>
+          <p>Stories, readers, authors — all in one place</p>
           <div className="search-input-wrap">
             <input
               type="text"
               className="search-input"
-              placeholder="Try Nigeria, Calvary, 1967..."
+              placeholder="Try @byokpara, Nigeria, Tricia Ajax..."
               value={query}
               onChange={e => setQuery(e.target.value)}
               autoComplete="off"
@@ -231,100 +212,86 @@ export default function SearchPage() {
             />
             <div className="search-icon-wrap"><SearchIcon /></div>
           </div>
-
-          <div className="search-tabs" style={{ marginTop: '1.5rem' }}>
-            <button className={`search-tab${activeTab === 'stories' ? ' active' : ''}`} onClick={() => setActiveTab('stories')}>Stories</button>
-            <button className={`search-tab${activeTab === 'users' ? ' active' : ''}`} onClick={() => setActiveTab('users')}>Readers</button>
-          </div>
-
-          {activeTab === 'stories' && (
-            <div className="search-filters">
-              {filters.map(f => (
-                <button key={f.value} className={'filter-btn' + (activeFilter === f.value ? ' active' : '')} onClick={() => setActiveFilter(f.value)}>{f.label}</button>
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="search-body">
-          {activeTab === 'stories' ? (
-            !searched ? (
-              <>
-                <div className="state-message">
-                  <span className="state-icon">🔍</span>
-                  <p>Start typing to search across all stories</p>
-                </div>
-                <div className="suggestions">
-                  <div className="suggestions-label">Try searching for</div>
-                  <div className="suggestion-pills">
-                    {suggestions.map(s => (
-                      <span key={s} className="suggestion-pill" onClick={() => setQuery(s)}>{s}</span>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : results.length === 0 ? (
-              <div className="state-message">
-                <span className="state-icon">📭</span>
-                <p>No stories found for <strong>{query}</strong>. Try a different keyword.</p>
-              </div>
-            ) : (
-              <>
-                <div className="results-meta">Showing <strong>{results.length}</strong> result{results.length !== 1 ? 's' : ''} for <strong>{query}</strong></div>
-                {results.map((s, i) => (
-                  <a key={s.id} href={'/stories/' + s.id} className="result-card" style={{ animationDelay: (i * 0.02) + 's' }}>
-                    <div className="result-thumb-wrap">
-                      <img src={s.cover} alt={s.title} className="result-thumb" />
-                    </div>
-                    <div className="result-body">
-                      <div className="result-title" dangerouslySetInnerHTML={{ __html: highlight(s.title, query) }} />
-                      <div className="result-meta">
-                        <span className={'result-badge ' + getBadgeClass(s.category)}>{s.categoryName}</span>
-                        <span dangerouslySetInnerHTML={{ __html: highlight(s.author, query) }} />
-                        <span>{s.date}</span>
-                      </div>
-                    </div>
-                  </a>
-                ))}
-              </>
-            )
-          ) : (
-            !query.trim() ? (
-              <div className="state-message">
-                <span className="state-icon">👤</span>
-                <p>Search for readers by name or @username</p>
-              </div>
-            ) : searchingUsers ? (
+          {!searched ? (
+            <>
               <div className="state-message">
                 <span className="state-icon">🔍</span>
-                <p>Searching readers…</p>
+                <p>Search stories, authors, and readers — type to begin</p>
               </div>
-            ) : userResults.length === 0 ? (
-              <div className="state-message">
-                <span className="state-icon">📭</span>
-                <p>No readers found for <strong>{query}</strong>.</p>
+              <div className="suggestions">
+                <div className="suggestions-label">Try searching for</div>
+                <div className="suggestion-pills">
+                  {suggestions.map(s => (
+                    <span key={s} className="suggestion-pill" onClick={() => setQuery(s)}>{s}</span>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <>
-                <div className="results-meta">Showing <strong>{userResults.length}</strong> reader{userResults.length !== 1 ? 's' : ''} for <strong>{query}</strong></div>
-                {userResults.map((u, i) => {
-                  const initials = (u.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-                  const badge = getBadge(u.readCount || 0, u.uid);
-                  return (
-                    <a key={u.uid} href={`/user?id=${u.uid}`} className="user-card" style={{ animationDelay: (i * 0.02) + 's' }}>
-                      <div className="user-avatar">
-                        {u.avatarUrl ? <img src={u.avatarUrl} alt={initials} /> : initials}
+            </>
+          ) : (searchingUsers && storyResults.length === 0) ? (
+            <div className="state-message">
+              <span className="state-icon">🔍</span>
+              <p>Searching…</p>
+            </div>
+          ) : (totalResults === 0 && !searchingUsers) ? (
+            <div className="state-message">
+              <span className="state-icon">📭</span>
+              <p>Nothing found for <strong>{query}</strong>. Try a different keyword.</p>
+            </div>
+          ) : (
+            <>
+              <div className="results-meta">
+                {!searchingUsers
+                  ? <><strong>{totalResults}</strong> result{totalResults !== 1 ? 's' : ''} for <strong>{query}</strong></>
+                  : <><strong>{storyResults.length}</strong> stor{storyResults.length !== 1 ? 'ies' : 'y'} · searching readers…</>
+                }
+              </div>
+
+              {userResults.length > 0 && (
+                <>
+                  <div className="section-label">Readers</div>
+                  {userResults.map((u, i) => {
+                    const initials = (u.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+                    const badge = getBadge(u.readCount || 0, u.uid);
+                    return (
+                      <a key={u.uid} href={`/user?id=${u.uid}`} className="user-card" style={{ animationDelay: (i * 0.02) + 's' }}>
+                        <div className="user-avatar">
+                          {u.avatarUrl ? <img src={u.avatarUrl} alt={initials} /> : initials}
+                        </div>
+                        <div className="user-info">
+                          <div className="user-name">{u.displayName || 'Reader'}</div>
+                          {u.username && <div className="user-handle">@{u.username}</div>}
+                        </div>
+                        {badge && <BadgeIcon color={badge.color} isFounder={badge.isFounder} />}
+                      </a>
+                    );
+                  })}
+                </>
+              )}
+
+              {storyResults.length > 0 && (
+                <>
+                  <div className="section-label">Stories</div>
+                  {storyResults.map((s, i) => (
+                    <a key={s.id} href={'/stories/' + s.id} className="result-card" style={{ animationDelay: (i * 0.02) + 's' }}>
+                      <div className="result-thumb-wrap">
+                        <img src={s.cover} alt={s.title} className="result-thumb" />
                       </div>
-                      <div className="user-info">
-                        <div className="user-name">{u.displayName || 'Reader'}</div>
-                        {u.username && <div className="user-handle">@{u.username}</div>}
+                      <div className="result-body">
+                        <div className="result-title" dangerouslySetInnerHTML={{ __html: highlight(s.title, query) }} />
+                        <div className="result-meta">
+                          <span className={'result-badge ' + getBadgeClass(s.category)}>{s.categoryName}</span>
+                          <span dangerouslySetInnerHTML={{ __html: highlight(s.author, query) }} />
+                          <span>{s.date}</span>
+                        </div>
                       </div>
-                      {badge && <BadgeIcon color={badge.color} isFounder={badge.isFounder} />}
                     </a>
-                  );
-                })}
-              </>
-            )
+                  ))}
+                </>
+              )}
+            </>
           )}
         </div>
       </div>
