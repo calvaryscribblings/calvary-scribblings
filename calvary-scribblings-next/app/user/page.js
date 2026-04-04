@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { stories as allStories } from '../lib/stories';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -60,12 +61,12 @@ export default function UserPage() {
   const [commentCount, setCommentCount] = useState(0);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [readStorySlugs, setReadStorySlugs] = useState([]);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followsYou, setFollowsYou] = useState(false);
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
 
-  // Read uid from query string
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
@@ -87,10 +88,7 @@ export default function UserPage() {
 
         try {
           const fetches = [
-            get(ref(db, `users/${uid}/avatarUrl`)),
-            get(ref(db, `users/${uid}/readCount`)),
-            get(ref(db, `users/${uid}/displayName`)),
-            get(ref(db, `users/${uid}/joinDate`)),
+            get(ref(db, `users/${uid}`)),
             get(ref(db, 'comments')),
             get(ref(db, `followers/${uid}`)),
             get(ref(db, `following/${uid}`)),
@@ -101,19 +99,19 @@ export default function UserPage() {
           }
 
           const results = await Promise.all(fetches);
-          const [avatarSnap, readCountSnap, nameSnap, joinSnap, commentsSnap, followersSnap, followingSnap] = results;
+          const [userSnap, commentsSnap, followersSnap, followingSnap] = results;
 
-          setProfileData({
-            avatarUrl: avatarSnap.exists() ? avatarSnap.val() : null,
-            displayName: nameSnap.exists() ? nameSnap.val() : 'Reader',
-            joinDate: joinSnap.exists() ? joinSnap.val() : null,
-          });
-          setReadCount(readCountSnap.exists() ? readCountSnap.val() : 0);
+          if (userSnap.exists()) {
+            const d = userSnap.val();
+            setProfileData(d);
+            setReadCount(d.readCount || 0);
+            if (d.readStories) setReadStorySlugs(Object.keys(d.readStories));
+          }
 
           if (commentsSnap.exists()) {
             let count = 0;
-            for (const storyComments of Object.values(commentsSnap.val())) {
-              for (const c of Object.values(storyComments)) {
+            for (const sc of Object.values(commentsSnap.val())) {
+              for (const c of Object.values(sc)) {
                 if (c.authorUid === uid) count++;
               }
             }
@@ -125,8 +123,8 @@ export default function UserPage() {
           setFollowingCount(followingSnap.exists() ? Object.keys(followingSnap.val()).length : 0);
 
           if (u) {
-            setIsFollowing(results[7]?.exists() || false);
-            setFollowsYou(results[8]?.exists() || false);
+            setIsFollowing(results[4]?.exists() || false);
+            setFollowsYou(results[5]?.exists() || false);
           }
         } catch (e) { console.error('User profile error:', e); }
         setLoading(false);
@@ -171,6 +169,11 @@ export default function UserPage() {
   const initials = (profileData.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const joinDate = profileData.joinDate ? formatJoinDate(profileData.joinDate) : null;
 
+  const readStories = readStorySlugs
+    .map(slug => allStories.find(s => s.id === slug))
+    .filter(Boolean)
+    .slice(0, 30);
+
   return (
     <>
       <style>{`
@@ -183,11 +186,12 @@ export default function UserPage() {
         .up-nav-logo span { color: #a78bfa; }
         .up-nav-back { font-size: 0.68rem; color: rgba(255,255,255,0.3); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; }
         .up-nav-back:hover { color: rgba(255,255,255,0.6); }
-        .up-hero { display: flex; align-items: flex-start; gap: 1.25rem; margin-bottom: 2rem; }
+        .up-hero { display: flex; align-items: flex-start; gap: 1.25rem; margin-bottom: 1.5rem; }
         .up-avatar { width: 72px; height: 72px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1.5px solid rgba(107,47,173,0.35); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 500; color: #9b6dff; overflow: hidden; flex-shrink: 0; font-family: 'Inter', sans-serif; }
         .up-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .up-hero-info { flex: 1; padding-top: 4px; }
-        .up-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.75rem; font-weight: 300; color: #f5f0e8; line-height: 1.1; margin-bottom: 0.5rem; }
+        .up-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.75rem; font-weight: 300; color: #f5f0e8; line-height: 1.1; margin-bottom: 0.2rem; }
+        .up-username { font-size: 0.75rem; color: rgba(167,139,250,0.55); font-family: 'Inter', sans-serif; margin-bottom: 0.5rem; }
         .up-badge-row { display: flex; align-items: center; gap: 6px; margin-bottom: 0.5rem; flex-wrap: wrap; }
         .up-badge-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .up-follows-you { display: inline-flex; align-items: center; font-size: 0.6rem; color: rgba(255,255,255,0.35); font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 0.15em 0.65em; }
@@ -196,15 +200,30 @@ export default function UserPage() {
         .up-follow-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; font-weight: 300; color: #f5f0e8; line-height: 1; }
         .up-follow-label { font-size: 0.58rem; color: rgba(255,255,255,0.25); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .up-joined { font-size: 0.7rem; color: rgba(255,255,255,0.22); font-family: 'Inter', sans-serif; margin-bottom: 0.75rem; }
-        .up-follow-btn { background: #7c3aed; border: none; border-radius: 2px; padding: 0.5rem 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
+        .up-follow-btn { background: #7c3aed; border: none; border-radius: 8px; padding: 0.5rem 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
         .up-follow-btn:hover { background: #6d28d9; }
         .up-follow-btn.following { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.5); }
         .up-follow-btn.following:hover { border-color: rgba(220,38,38,0.4); color: rgba(248,113,113,0.6); }
-        .up-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+        .up-bio { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: rgba(232,224,212,0.6); line-height: 1.7; font-style: italic; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .up-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; overflow: hidden; margin-bottom: 2rem; }
         .up-stat { background: #0a0a0a; padding: 1.25rem; text-align: center; }
         .up-stat-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.3rem; }
         .up-stat-label { font-size: 0.58rem; color: rgba(255,255,255,0.25); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .up-section { margin-bottom: 2rem; }
+        .up-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .up-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; font-weight: 300; color: #f5f0e8; }
+        .up-section-meta { font-size: 0.6rem; color: rgba(255,255,255,0.2); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .up-stories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.65rem; }
+        .up-story-card { display: block; text-decoration: none; border-radius: 8px; overflow: hidden; position: relative; aspect-ratio: 2/3; background: rgba(255,255,255,0.04); transition: transform 0.2s, opacity 0.2s; }
+        .up-story-card:hover { transform: scale(1.03); opacity: 0.9; }
+        .up-story-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .up-story-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 50%); display: flex; align-items: flex-end; padding: 0.5rem; opacity: 0; transition: opacity 0.2s; }
+        .up-story-card:hover .up-story-card-overlay { opacity: 1; }
+        .up-story-card-title { font-size: 0.58rem; color: #fff; font-family: 'Cormorant Garamond', Georgia, serif; line-height: 1.3; }
         .up-signin-prompt { font-size: 0.78rem; color: rgba(255,255,255,0.25); font-family: 'Inter', sans-serif; font-style: italic; padding: 0.75rem 0; }
+        @media (max-width: 480px) {
+          .up-stories-grid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+        }
       `}</style>
 
       <div className="up">
@@ -218,7 +237,8 @@ export default function UserPage() {
             {profileData.avatarUrl ? <img src={profileData.avatarUrl} alt={initials} /> : initials}
           </div>
           <div className="up-hero-info">
-            <div className="up-name">{profileData.displayName}</div>
+            <div className="up-name">{profileData.displayName || 'Reader'}</div>
+            {profileData.username && <div className="up-username">@{profileData.username}</div>}
             <div className="up-badge-row">
               {badge && (
                 <>
@@ -240,11 +260,7 @@ export default function UserPage() {
             </div>
             {joinDate && <div className="up-joined">Member since {joinDate}</div>}
             {currentUser ? (
-              <button
-                className={`up-follow-btn${isFollowing ? ' following' : ''}`}
-                onClick={handleFollow}
-                disabled={followLoading}
-              >
+              <button className={`up-follow-btn${isFollowing ? ' following' : ''}`} onClick={handleFollow} disabled={followLoading}>
                 {followLoading ? '…' : isFollowing ? 'Following' : 'Follow'}
               </button>
             ) : (
@@ -252,6 +268,8 @@ export default function UserPage() {
             )}
           </div>
         </div>
+
+        {profileData.bio && <div className="up-bio">{profileData.bio}</div>}
 
         <div className="up-stats">
           <div className="up-stat">
@@ -267,6 +285,25 @@ export default function UserPage() {
             <div className="up-stat-label">Bookmarks</div>
           </div>
         </div>
+
+        {readStories.length > 0 && (
+          <div className="up-section">
+            <div className="up-section-header">
+              <div className="up-section-title">Stories read</div>
+              <div className="up-section-meta">{readStories.length} shown</div>
+            </div>
+            <div className="up-stories-grid">
+              {readStories.map(s => (
+                <a key={s.id} href={`/stories/${s.id}`} className="up-story-card" title={s.title}>
+                  <img src={s.cover} alt={s.title} loading="lazy" />
+                  <div className="up-story-card-overlay">
+                    <div className="up-story-card-title">{s.title}</div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

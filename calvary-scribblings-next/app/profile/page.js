@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { stories as allStories } from '../lib/stories';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -133,6 +134,7 @@ export default function ProfilePage() {
   const [followingCount, setFollowingCount] = useState(0);
   const [followerUids, setFollowerUids] = useState([]);
   const [followingUids, setFollowingUids] = useState([]);
+  const [readStorySlugs, setReadStorySlugs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [showEdit, setShowEdit] = useState(false);
@@ -171,6 +173,10 @@ export default function ProfilePage() {
             const d = snap.val();
             setProfileData(d);
             setReadCount(d.readCount || 0);
+            // Extract read story slugs
+            if (d.readStories) {
+              setReadStorySlugs(Object.keys(d.readStories));
+            }
           }
           setLoading(false);
         });
@@ -181,10 +187,7 @@ export default function ProfilePage() {
             const uids = Object.keys(snap.val());
             setFollowerCount(uids.length);
             setFollowerUids(uids);
-          } else {
-            setFollowerCount(0);
-            setFollowerUids([]);
-          }
+          } else { setFollowerCount(0); setFollowerUids([]); }
         });
         unsubDB.push(unsubFollowers);
 
@@ -193,10 +196,7 @@ export default function ProfilePage() {
             const uids = Object.keys(snap.val());
             setFollowingCount(uids.length);
             setFollowingUids(uids);
-          } else {
-            setFollowingCount(0);
-            setFollowingUids([]);
-          }
+          } else { setFollowingCount(0); setFollowingUids([]); }
         });
         unsubDB.push(unsubFollowing);
 
@@ -245,7 +245,6 @@ export default function ProfilePage() {
     try {
       const db = await getDB();
       const { ref, update } = await import('firebase/database');
-
       let newAvatarUrl = profileData?.avatarUrl || null;
       if (editAvatarFile) {
         const storage = await getStorage();
@@ -254,25 +253,21 @@ export default function ProfilePage() {
         await uploadBytes(storageRef, editAvatarFile);
         newAvatarUrl = await getDownloadURL(storageRef);
       }
-
       const username = editUsername.trim().replace(/^@/, '').toLowerCase();
       if (username && !/^[a-z0-9_]{3,20}$/.test(username)) {
         setSaveError('Username must be 3–20 characters: letters, numbers, underscores only.');
         setSaving(false);
         return;
       }
-
       const { updateProfile } = await import('firebase/auth');
       const newName = editName.trim() || authUser.displayName;
       await updateProfile(authUser, { displayName: newName });
-
       await update(ref(db, `users/${authUser.uid}`), {
         displayName: newName,
         bio: editBio.trim(),
         username: username || null,
         avatarUrl: newAvatarUrl,
       });
-
       setShowEdit(false);
     } catch (e) {
       console.error('Save failed:', e);
@@ -314,6 +309,12 @@ export default function ProfilePage() {
   const tierProgress = nextBadge
     ? Math.min(100, Math.round(((readCount - getPrevThreshold(nextBadge.threshold)) / (nextBadge.threshold - getPrevThreshold(nextBadge.threshold))) * 100))
     : 100;
+
+  // Build stories-read list from slugs
+  const readStories = readStorySlugs
+    .map(slug => allStories.find(s => s.id === slug))
+    .filter(Boolean)
+    .slice(0, 30); // show up to 30
 
   return (
     <>
@@ -371,6 +372,14 @@ export default function ProfilePage() {
         .pf-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.2rem; font-weight: 300; color: #f5f0e8; }
         .pf-section-meta { font-size: 0.6rem; color: rgba(255,255,255,0.2); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
+        .pf-stories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.75rem; }
+        .pf-story-card { display: block; text-decoration: none; border-radius: 8px; overflow: hidden; position: relative; aspect-ratio: 2/3; background: rgba(255,255,255,0.04); transition: transform 0.2s, opacity 0.2s; }
+        .pf-story-card:hover { transform: scale(1.03); opacity: 0.9; }
+        .pf-story-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .pf-story-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 50%); display: flex; align-items: flex-end; padding: 0.5rem; opacity: 0; transition: opacity 0.2s; }
+        .pf-story-card:hover .pf-story-card-overlay { opacity: 1; }
+        .pf-story-card-title { font-size: 0.6rem; color: #fff; font-family: 'Cormorant Garamond', Georgia, serif; line-height: 1.3; }
+
         .pf-badge-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 1.25rem; }
         .pf-progress-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.85rem; }
         .pf-progress-current { font-size: 0.75rem; color: rgba(255,255,255,0.35); font-family: 'Inter', sans-serif; }
@@ -406,13 +415,11 @@ export default function ProfilePage() {
         .pf-modal-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; }
         .pf-modal-close { background: none; border: none; color: rgba(255,255,255,0.3); font-size: 1.4rem; cursor: pointer; padding: 0; line-height: 1; transition: color 0.2s; }
         .pf-modal-close:hover { color: rgba(255,255,255,0.6); }
-
         .pf-modal-avatar-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
         .pf-modal-avatar { width: 64px; height: 64px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.3); display: flex; align-items: center; justify-content: center; font-size: 22px; color: #c4b5fd; overflow: hidden; font-family: 'Cormorant Garamond', Georgia, serif; flex-shrink: 0; }
         .pf-modal-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .pf-modal-avatar-btn { background: none; border: 1px solid rgba(167,139,250,0.3); border-radius: 8px; padding: 0.45rem 1rem; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(167,139,250,0.7); cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; }
         .pf-modal-avatar-btn:hover { border-color: rgba(167,139,250,0.6); color: #a78bfa; }
-
         .pf-field { margin-bottom: 1.1rem; }
         .pf-field-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); font-family: 'Inter', sans-serif; margin-bottom: 0.4rem; display: block; }
         .pf-field-input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s; }
@@ -423,7 +430,6 @@ export default function ProfilePage() {
         .pf-username-wrap { position: relative; }
         .pf-username-at { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: rgba(167,139,250,0.5); font-family: 'Inter', sans-serif; font-size: 0.9rem; pointer-events: none; }
         .pf-username-input { padding-left: 1.75rem !important; }
-
         .pf-save-error { font-size: 0.72rem; color: #f87171; font-family: 'Inter', sans-serif; margin-bottom: 0.75rem; }
         .pf-modal-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
         .pf-modal-save { flex: 1; background: #7c3aed; border: none; border-radius: 10px; padding: 0.75rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
@@ -435,6 +441,7 @@ export default function ProfilePage() {
           .pf-hero-content { flex-direction: column; align-items: flex-start; gap: 1rem; }
           .pf-name { font-size: 1.9rem; }
           .pf-avatar { width: 72px; height: 72px; font-size: 24px; }
+          .pf-stories-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
         }
       `}</style>
 
@@ -509,6 +516,25 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {readStories.length > 0 && (
+          <div className="pf-section">
+            <div className="pf-section-header">
+              <div className="pf-section-title">Stories read</div>
+              <div className="pf-section-meta">{readStories.length} shown</div>
+            </div>
+            <div className="pf-stories-grid">
+              {readStories.map(s => (
+                <a key={s.id} href={`/stories/${s.id}`} className="pf-story-card" title={s.title}>
+                  <img src={s.cover} alt={s.title} loading="lazy" />
+                  <div className="pf-story-card-overlay">
+                    <div className="pf-story-card-title">{s.title}</div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="pf-section">
           <div className="pf-section-header">
             <div className="pf-section-title">Reading badge</div>
@@ -575,12 +601,8 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {showFollowers && (
-        <UserListModal title={`Followers · ${followerCount}`} uids={followerUids} onClose={() => setShowFollowers(false)} />
-      )}
-      {showFollowing && (
-        <UserListModal title={`Following · ${followingCount}`} uids={followingUids} onClose={() => setShowFollowing(false)} />
-      )}
+      {showFollowers && <UserListModal title={`Followers · ${followerCount}`} uids={followerUids} onClose={() => setShowFollowers(false)} />}
+      {showFollowing && <UserListModal title={`Following · ${followingCount}`} uids={followingUids} onClose={() => setShowFollowing(false)} />}
 
       {showEdit && (
         <div className="pf-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowEdit(false); }}>
@@ -589,22 +611,17 @@ export default function ProfilePage() {
               <div className="pf-modal-title">Edit profile</div>
               <button className="pf-modal-close" onClick={() => setShowEdit(false)}>×</button>
             </div>
-
             <div className="pf-modal-avatar-row">
               <div className="pf-modal-avatar">
                 {editAvatarPreview ? <img src={editAvatarPreview} alt="" /> : initials}
               </div>
-              <button className="pf-modal-avatar-btn" onClick={() => fileInputRef.current?.click()}>
-                Change photo
-              </button>
+              <button className="pf-modal-avatar-btn" onClick={() => fileInputRef.current?.click()}>Change photo</button>
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEditAvatarChange} />
             </div>
-
             <div className="pf-field">
               <label className="pf-field-label">Full name</label>
               <input className="pf-field-input" type="text" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Your name" maxLength={60} />
             </div>
-
             <div className="pf-field">
               <label className="pf-field-label">Username</label>
               <div className="pf-username-wrap">
@@ -613,19 +630,14 @@ export default function ProfilePage() {
               </div>
               <div className="pf-field-hint">3–20 characters. Letters, numbers, underscores only.</div>
             </div>
-
             <div className="pf-field">
               <label className="pf-field-label">Bio</label>
               <textarea className="pf-field-textarea" value={editBio} onChange={e => setEditBio(e.target.value)} placeholder="Write a short bio…" rows={3} maxLength={240} />
             </div>
-
             {saveError && <div className="pf-save-error">{saveError}</div>}
-
             <div className="pf-modal-actions">
               <button className="pf-modal-cancel" onClick={() => setShowEdit(false)}>Cancel</button>
-              <button className="pf-modal-save" onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving…' : 'Save changes'}
-              </button>
+              <button className="pf-modal-save" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
             </div>
           </div>
         </div>

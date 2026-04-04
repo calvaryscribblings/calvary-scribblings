@@ -294,7 +294,7 @@ export default function StoryPage({ params }) {
         const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, 'cms_stories/' + slug));
         if (snap.exists()) { setStory({ id: slug, ...snap.val() }); setStoryReady(true); }
-      } catch (e) { console.error('CMS fetch error:', e); }
+      } catch(e) { console.error('CMS fetch error:', e); }
     }
     fetchFromCMS();
   }, [slug]);
@@ -332,13 +332,13 @@ export default function StoryPage({ params }) {
   useEffect(() => {
     if (!slug) return;
 
-    // Public hit counter
+    // Hit counter — no auth needed
     fetch(`/api/hit?slug=${slug}`, { method: 'POST' })
       .then(r => r.json())
       .then(data => { if (typeof data.count === 'number') setHitCount(data.count); })
       .catch(() => {});
 
-    // Unique read tracking — wait for auth to fully restore before checking
+    // Read tracking — wait for auth to be ready
     let unsubRead;
     (async () => {
       try {
@@ -346,7 +346,7 @@ export default function StoryPage({ params }) {
         const { onAuthStateChanged } = await import('firebase/auth');
         unsubRead = onAuthStateChanged(auth, async (user) => {
           if (!user) return;
-          unsubRead(); // unsubscribe immediately — only need one fire
+          unsubRead(); // one-time only
           try {
             const db = await getDB();
             const { ref, get, set, runTransaction } = await import('firebase/database');
@@ -356,9 +356,9 @@ export default function StoryPage({ params }) {
               await set(readRef, true);
               await runTransaction(ref(db, `users/${user.uid}/readCount`), (c) => (c || 0) + 1);
             }
-          } catch (e) {}
+          } catch(e) {}
         });
-      } catch (e) {}
+      } catch(e) {}
     })();
 
     return () => { if (unsubRead) unsubRead(); };
