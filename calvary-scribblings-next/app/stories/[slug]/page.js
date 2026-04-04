@@ -92,6 +92,23 @@ function CommentAvatar({ uid, initials, size = 'sm', isOwnComment }) {
   );
 }
 
+function CommentUsername({ uid }) {
+  const [username, setUsername] = useState(null);
+  useEffect(() => {
+    if (!uid) return;
+    (async () => {
+      try {
+        const db = await getDB();
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, `users/${uid}/username`));
+        if (snap.exists()) setUsername(snap.val());
+      } catch (e) {}
+    })();
+  }, [uid]);
+  if (!username) return null;
+  return <span style={{ fontSize: '0.62rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{username}</span>;
+}
+
 function timeAgo(ts) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
@@ -231,6 +248,7 @@ function CommentsSection({ slug }) {
                   <div className="cs-comment-body">
                     <div className="cs-comment-header">
                       <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
+                      <CommentUsername uid={comment.authorUid} />
                       {comment.badgeTier && <BadgeDisplay tier={comment.badgeTier} label={comment.badgeLabel} color={comment.badgeColor} size={13} />}
                       <span className="cs-time">{timeAgo(comment.createdAt)}</span>
                     </div>
@@ -258,6 +276,7 @@ function CommentsSection({ slug }) {
                               <div className="cs-comment-body">
                                 <div className="cs-comment-header">
                                   <a href={replyIsOwn ? '/profile' : `/user?id=${reply.authorUid}`} className="cs-name cs-name-link">{reply.authorName}</a>
+                                  <CommentUsername uid={reply.authorUid} />
                                   {reply.badgeTier && <BadgeDisplay tier={reply.badgeTier} label={reply.badgeLabel} color={reply.badgeColor} size={12} />}
                                   <span className="cs-time">{timeAgo(reply.createdAt)}</span>
                                 </div>
@@ -294,7 +313,7 @@ export default function StoryPage({ params }) {
         const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, 'cms_stories/' + slug));
         if (snap.exists()) { setStory({ id: slug, ...snap.val() }); setStoryReady(true); }
-      } catch(e) { console.error('CMS fetch error:', e); }
+      } catch (e) { console.error('CMS fetch error:', e); }
     }
     fetchFromCMS();
   }, [slug]);
@@ -332,13 +351,11 @@ export default function StoryPage({ params }) {
   useEffect(() => {
     if (!slug) return;
 
-    // Hit counter — no auth needed
     fetch(`/api/hit?slug=${slug}`, { method: 'POST' })
       .then(r => r.json())
       .then(data => { if (typeof data.count === 'number') setHitCount(data.count); })
       .catch(() => {});
 
-    // Read tracking — wait for auth to be ready
     let unsubRead;
     (async () => {
       try {
@@ -346,7 +363,7 @@ export default function StoryPage({ params }) {
         const { onAuthStateChanged } = await import('firebase/auth');
         unsubRead = onAuthStateChanged(auth, async (user) => {
           if (!user) return;
-          unsubRead(); // one-time only
+          unsubRead();
           try {
             const db = await getDB();
             const { ref, get, set, runTransaction } = await import('firebase/database');
@@ -356,9 +373,9 @@ export default function StoryPage({ params }) {
               await set(readRef, true);
               await runTransaction(ref(db, `users/${user.uid}/readCount`), (c) => (c || 0) + 1);
             }
-          } catch(e) {}
+          } catch (e) {}
         });
-      } catch(e) {}
+      } catch (e) {}
     })();
 
     return () => { if (unsubRead) unsubRead(); };
