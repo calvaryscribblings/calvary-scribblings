@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  sendEmailVerification,
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
@@ -14,7 +13,7 @@ import { getDatabase, ref, set } from 'firebase/database';
 import { auth } from '../lib/firebase';
 
 export default function AuthModal({ onClose }) {
-  const [mode, setMode] = useState('signin'); // 'signin' | 'register' | 'forgot' | 'verify'
+  const [mode, setMode] = useState('signin');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,6 +23,41 @@ export default function AuthModal({ onClose }) {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(false);
+  const pollingRef = useRef(null);
+  const welcomeSentRef = useRef(false);
+
+  useEffect(() => {
+    if (mode !== 'verify') return;
+    welcomeSentRef.current = false;
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        await user.reload();
+        if (user.emailVerified && !welcomeSentRef.current) {
+          welcomeSentRef.current = true;
+          clearInterval(pollingRef.current);
+          fetch('https://calvary-auth.calvarymediauk.workers.dev/welcome', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_SECRET}`,
+            },
+            body: JSON.stringify({
+              email: user.email,
+              firstName: user.displayName?.split(' ')[0] || 'there',
+            }),
+          }).catch(() => {});
+          onClose();
+        }
+      } catch {
+        // Silent — polling will retry
+      }
+    }, 3000);
+
+    return () => clearInterval(pollingRef.current);
+  }, [mode]);
 
   const clearMessages = () => { setError(''); setSuccess(''); };
   const switchMode = (m) => { setMode(m); clearMessages(); };
@@ -39,25 +73,33 @@ export default function AuthModal({ onClose }) {
         if (!name.trim()) { setError('Please enter your name.'); setLoading(false); return; }
         if (password !== confirmPassword) { setError('Passwords do not match.'); setLoading(false); return; }
         if (!dob) { setError('Please enter your date of birth.'); setLoading(false); return; }
+
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(cred.user, { displayName: name.trim() });
-        // Save date of birth to Firebase
+
         const { getApp } = await import('firebase/app');
-const db = getDatabase(getApp());
-await set(ref(db, `users/${cred.user.uid}/dob`), dob); await set(ref(db, `users/${cred.user.uid}/displayName`), name);
-await set(ref(db, `users/${cred.user.uid}/joinDate`), Date.now());
-        // Send email verification
-        await sendEmailVerification(cred.user);
-        // Send welcome email — non-blocking
-        fetch('https://calvary-auth.calvarymediauk.workers.dev/welcome', {
+        const db = getDatabase(getApp());
+        await set(ref(db, `users/${cred.user.uid}/dob`), dob);
+        await set(ref(db, `users/${cred.user.uid}/displayName`), name);
+        await set(ref(db, `users/${cred.user.uid}/joinDate`), Date.now());
+
+        // Get ID token to pass to Worker
+        const idToken = await cred.user.getIdToken();
+
+        // Worker generates verification link silently + sends branded Resend email
+        await fetch('https://calvary-auth.calvarymediauk.workers.dev/send-verification', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_SECRET}`,
           },
-          body: JSON.stringify({ email, firstName: name.trim().split(' ')[0] }),
-        }).catch(() => {});
-        // Show verify screen
+          body: JSON.stringify({
+            email,
+            firstName: name.trim().split(' ')[0],
+            idToken,
+          }),
+        });
+
         switchMode('verify');
       } else if (mode === 'forgot') {
         await sendPasswordResetEmail(auth, email);
@@ -92,13 +134,24 @@ await set(ref(db, `users/${cred.user.uid}/joinDate`), Date.now());
     if (resendCooldown) return;
     try {
       const user = auth.currentUser;
-      if (user) {
-        await sendEmailVerification(user);
-        setResendCooldown(true);
-        setSuccess('Verification email resent.');
-        setTimeout(() => setResendCooldown(false), 30000);
-      }
-    } catch (e) {
+      if (!user) return;
+      setResendCooldown(true);
+      setSuccess('Verification email resent.');
+      setTimeout(() => setResendCooldown(false), 30000);
+      const idToken = await user.getIdToken();
+      await fetch('https://calvary-auth.calvarymediauk.workers.dev/send-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_SECRET}`,
+        },
+        body: JSON.stringify({
+          email: user.email,
+          firstName: user.displayName?.split(' ')[0] || 'there',
+          idToken,
+        }),
+      });
+    } catch {
       setError('Could not resend. Please try again shortly.');
     }
   };
@@ -493,7 +546,7 @@ await set(ref(db, `users/${cred.user.uid}/joinDate`), Date.now());
                   </div>
                   <div className="auth-verify-step">
                     <div className="auth-verify-step-num">3</div>
-                    <span>Come back and sign in to start reading</span>
+                    <span>Return here — your account will activate automatically</span>
                   </div>
                 </div>
 
