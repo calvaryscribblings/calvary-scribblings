@@ -61,6 +61,25 @@ function BadgeDisplay({ tier, label, color, size = 13 }) {
   );
 }
 
+// Fetches live badge from Firebase for a given uid
+function CommentBadge({ uid, size = 13 }) {
+  const [badge, setBadge] = useState(null);
+  useEffect(() => {
+    if (!uid) return;
+    (async () => {
+      try {
+        const db = await getDB();
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, `users/${uid}/readCount`));
+        const readCount = snap.exists() ? snap.val() : 0;
+        setBadge(getBadge(readCount, uid));
+      } catch (e) {}
+    })();
+  }, [uid]);
+  if (!badge) return null;
+  return <BadgeDisplay tier={badge.tier} label={badge.label} color={badge.color} size={size} />;
+}
+
 function CommentAvatar({ uid, initials, size = 'sm', isOwnComment }) {
   const [photoUrl, setPhotoUrl] = useState(null);
   const dim = size === 'xs' ? 26 : size === 'sm' ? 34 : 36;
@@ -182,15 +201,11 @@ function CommentsSection({ slug }) {
     try {
       const db = await getDB();
       const { ref, push } = await import('firebase/database');
-      const badge = getBadge(userReadCount, user.uid);
       await push(ref(db, `comments/${slug}`), {
         text: commentText.trim(),
         authorName: user.displayName || 'Reader',
         authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
         authorUid: user.uid,
-        badgeTier: badge ? badge.tier : null,
-        badgeLabel: badge ? badge.label : null,
-        badgeColor: badge ? badge.color : null,
         parentId: parentId || null,
         createdAt: Date.now(),
       });
@@ -249,7 +264,7 @@ function CommentsSection({ slug }) {
                     <div className="cs-comment-header">
                       <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
                       <CommentUsername uid={comment.authorUid} />
-                      {comment.badgeTier && <BadgeDisplay tier={comment.badgeTier} label={comment.badgeLabel} color={comment.badgeColor} size={13} />}
+                      <CommentBadge uid={comment.authorUid} size={13} />
                       <span className="cs-time">{timeAgo(comment.createdAt)}</span>
                     </div>
                     <div className="cs-comment-text">{comment.text}</div>
@@ -277,7 +292,7 @@ function CommentsSection({ slug }) {
                                 <div className="cs-comment-header">
                                   <a href={replyIsOwn ? '/profile' : `/user?id=${reply.authorUid}`} className="cs-name cs-name-link">{reply.authorName}</a>
                                   <CommentUsername uid={reply.authorUid} />
-                                  {reply.badgeTier && <BadgeDisplay tier={reply.badgeTier} label={reply.badgeLabel} color={reply.badgeColor} size={12} />}
+                                  <CommentBadge uid={reply.authorUid} size={12} />
                                   <span className="cs-time">{timeAgo(reply.createdAt)}</span>
                                 </div>
                                 <div className="cs-comment-text cs-comment-text-sm">{reply.text}</div>
