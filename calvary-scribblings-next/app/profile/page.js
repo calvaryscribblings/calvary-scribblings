@@ -68,35 +68,6 @@ function formatJoinDate(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
-async function loadProfileData(uid) {
-  const db = await getDB();
-  const { ref, get } = await import('firebase/database');
-  const [avatarSnap, readCountSnap, commentsSnap, followersSnap, followingSnap] = await Promise.all([
-    get(ref(db, `users/${uid}/avatarUrl`)),
-    get(ref(db, `users/${uid}/readCount`)),
-    get(ref(db, 'comments')),
-    get(ref(db, `followers/${uid}`)),
-    get(ref(db, `following/${uid}`)),
-  ]);
-
-  let commentCount = 0;
-  if (commentsSnap.exists()) {
-    for (const storyComments of Object.values(commentsSnap.val())) {
-      for (const c of Object.values(storyComments)) {
-        if (c.authorUid === uid) commentCount++;
-      }
-    }
-  }
-
-  return {
-    avatarUrl: avatarSnap.exists() ? avatarSnap.val() : null,
-    readCount: readCountSnap.exists() ? readCountSnap.val() : 0,
-    commentCount,
-    followerCount: followersSnap.exists() ? Object.keys(followersSnap.val()).length : 0,
-    followingCount: followingSnap.exists() ? Object.keys(followingSnap.val()).length : 0,
-  };
-}
-
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -105,6 +76,10 @@ export default function ProfilePage() {
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [bio, setBio] = useState('');
+  const [bioEdit, setBioEdit] = useState('');
+  const [editingBio, setEditingBio] = useState(false);
+  const [savingBio, setSavingBio] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pwMsg, setPwMsg] = useState('');
@@ -116,49 +91,35 @@ export default function ProfilePage() {
     (async () => {
       const auth = await getAuth();
       const { onAuthStateChanged } = await import('firebase/auth');
-
       unsub = onAuthStateChanged(auth, async (u) => {
         if (!u) { router.push('/'); return; }
         setUser(u);
-
-        // First attempt
         try {
-          const data = await loadProfileData(u.uid);
-          setAvatarUrl(data.avatarUrl);
-          setReadCount(data.readCount);
-          setCommentCount(data.commentCount);
-          setFollowerCount(data.followerCount);
-          setFollowingCount(data.followingCount);
-
-          // If readCount came back 0 but we expect data, retry after 800ms
-          // to allow Firebase connection to fully establish
-          if (data.readCount === 0 && data.avatarUrl === null) {
-            setTimeout(async () => {
-              try {
-                const retry = await loadProfileData(u.uid);
-                if (retry.avatarUrl) setAvatarUrl(retry.avatarUrl);
-                if (retry.readCount > 0) setReadCount(retry.readCount);
-                if (retry.commentCount > 0) setCommentCount(retry.commentCount);
-                if (retry.followerCount > 0) setFollowerCount(retry.followerCount);
-                if (retry.followingCount > 0) setFollowingCount(retry.followingCount);
-              } catch (e) {}
-            }, 800);
+          const db = await getDB();
+          const { ref, get } = await import('firebase/database');
+          const [avatarSnap, readCountSnap, commentsSnap, followersSnap, followingSnap, bioSnap] = await Promise.all([
+            get(ref(db, `users/${u.uid}/avatarUrl`)),
+            get(ref(db, `users/${u.uid}/readCount`)),
+            get(ref(db, 'comments')),
+            get(ref(db, `followers/${u.uid}`)),
+            get(ref(db, `following/${u.uid}`)),
+            get(ref(db, `users/${u.uid}/bio`)),
+          ]);
+          if (avatarSnap.exists()) setAvatarUrl(avatarSnap.val());
+          if (readCountSnap.exists()) setReadCount(readCountSnap.val());
+          if (bioSnap.exists()) { setBio(bioSnap.val()); setBioEdit(bioSnap.val()); }
+          if (commentsSnap.exists()) {
+            let count = 0;
+            for (const sc of Object.values(commentsSnap.val())) {
+              for (const c of Object.values(sc)) {
+                if (c.authorUid === u.uid) count++;
+              }
+            }
+            setCommentCount(count);
           }
-        } catch (e) {
-          console.error('Profile load error:', e);
-          // Retry after delay on error
-          setTimeout(async () => {
-            try {
-              const retry = await loadProfileData(u.uid);
-              setAvatarUrl(retry.avatarUrl);
-              setReadCount(retry.readCount);
-              setCommentCount(retry.commentCount);
-              setFollowerCount(retry.followerCount);
-              setFollowingCount(retry.followingCount);
-            } catch (e2) {}
-          }, 1000);
-        }
-
+          setFollowerCount(followersSnap.exists() ? Object.keys(followersSnap.val()).length : 0);
+          setFollowingCount(followingSnap.exists() ? Object.keys(followingSnap.val()).length : 0);
+        } catch (e) { console.error('Profile load error:', e); }
         setLoading(false);
       });
     })();
@@ -181,6 +142,19 @@ export default function ProfilePage() {
       setAvatarUrl(url);
     } catch (e) { console.error('Upload failed:', e); }
     setUploading(false);
+  };
+
+  const handleSaveBio = async () => {
+    if (!user) return;
+    setSavingBio(true);
+    try {
+      const db = await getDB();
+      const { ref, set } = await import('firebase/database');
+      await set(ref(db, `users/${user.uid}/bio`), bioEdit.trim());
+      setBio(bioEdit.trim());
+      setEditingBio(false);
+    } catch (e) { console.error('Bio save failed:', e); }
+    setSavingBio(false);
   };
 
   const handleSignOut = async () => {
@@ -247,6 +221,18 @@ export default function ProfilePage() {
         .pg-follow-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; font-weight: 300; color: #f5f0e8; line-height: 1; }
         .pg-follow-label { font-size: 0.58rem; color: rgba(255,255,255,0.25); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .pg-joined { font-size: 0.7rem; color: rgba(255,255,255,0.22); font-family: 'Inter', sans-serif; }
+        .pg-bio-section { margin-top: 1rem; }
+        .pg-bio-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 0.95rem; color: rgba(232,224,212,0.6); line-height: 1.6; font-style: italic; }
+        .pg-bio-empty { font-size: 0.78rem; color: rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; font-style: italic; cursor: pointer; }
+        .pg-bio-empty:hover { color: rgba(255,255,255,0.4); }
+        .pg-bio-edit-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.25); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; margin-left: 8px; transition: color 0.2s; }
+        .pg-bio-edit-btn:hover { color: #9b6dff; }
+        .pg-bio-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(107,47,173,0.3); border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; line-height: 1.6; margin-top: 0.5rem; }
+        .pg-bio-textarea:focus { border-color: rgba(107,47,173,0.6); }
+        .pg-bio-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+        .pg-bio-save { background: #7c3aed; border: none; border-radius: 6px; padding: 0.45rem 1rem; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
+        .pg-bio-save:hover { background: #6d28d9; }
+        .pg-bio-cancel { background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 0.45rem 1rem; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); cursor: pointer; font-family: 'Inter', sans-serif; }
         .pg-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); border-radius: 2px; margin-bottom: 2rem; overflow: hidden; }
         .pg-stat { background: #0a0a0a; padding: 1.25rem; text-align: center; }
         .pg-stat-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.3rem; }
@@ -271,12 +257,12 @@ export default function ProfilePage() {
         .pg-bookmarks-empty { padding: 1.5rem; text-align: center; border: 1px solid rgba(255,255,255,0.05); border-radius: 2px; }
         .pg-bookmarks-empty p { font-size: 0.85rem; color: rgba(255,255,255,0.2); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; }
         .pg-settings { display: flex; flex-direction: column; gap: 0.5rem; }
-        .pg-setting-row { display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 1px; }
+        .pg-setting-row { display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; }
         .pg-setting-label { font-size: 0.8rem; color: rgba(255,255,255,0.45); font-family: 'Inter', sans-serif; }
         .pg-setting-action { font-size: 0.62rem; color: #9b6dff; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; background: none; border: none; transition: color 0.2s; }
         .pg-setting-action:hover { color: #c4b5fd; }
         .pg-pw-msg { font-size: 0.72rem; color: #86efac; font-family: 'Inter', sans-serif; margin-top: 0.5rem; padding: 0 1rem; }
-        .pg-signout { width: 100%; margin-top: 1rem; background: none; border: 1px solid rgba(220,38,38,0.2); border-radius: 1px; padding: 0.75rem; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(248,113,113,0.45); cursor: pointer; font-family: 'Inter', sans-serif; transition: color 0.2s, border-color 0.2s; }
+        .pg-signout { width: 100%; margin-top: 1rem; background: none; border: 1px solid rgba(220,38,38,0.2); border-radius: 8px; padding: 0.75rem; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(248,113,113,0.45); cursor: pointer; font-family: 'Inter', sans-serif; transition: color 0.2s, border-color 0.2s; }
         .pg-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.4); }
       `}</style>
 
@@ -331,6 +317,36 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="pg-joined">Member since {joinDate}</div>
+
+            <div className="pg-bio-section">
+              {editingBio ? (
+                <>
+                  <textarea
+                    className="pg-bio-textarea"
+                    value={bioEdit}
+                    onChange={e => setBioEdit(e.target.value)}
+                    placeholder="Write a short bio…"
+                    rows={3}
+                    maxLength={200}
+                    autoFocus
+                  />
+                  <div className="pg-bio-actions">
+                    <button className="pg-bio-save" onClick={handleSaveBio} disabled={savingBio}>
+                      {savingBio ? 'Saving…' : 'Save'}
+                    </button>
+                    <button className="pg-bio-cancel" onClick={() => { setBioEdit(bio); setEditingBio(false); }}>Cancel</button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                  {bio
+                    ? <span className="pg-bio-text">{bio}</span>
+                    : <span className="pg-bio-empty" onClick={() => setEditingBio(true)}>Add a bio…</span>
+                  }
+                  {bio && <button className="pg-bio-edit-btn" onClick={() => setEditingBio(true)}>Edit</button>}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

@@ -447,16 +447,16 @@ export default function StoryPage({ params }) {
         .cs-compose-row { display: flex; gap: 12px; align-items: flex-start; }
         .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; overflow: hidden; text-decoration: none; }
         .cs-input-wrap { flex: 1; position: relative; }
-        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 2px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
-        .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; }
+        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
+        .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; border-radius: 10px; }
         .cs-textarea::placeholder { color: rgba(255,255,255,0.18); font-style: italic; }
         .cs-textarea:focus { border-color: rgba(107,47,173,0.4); }
         .cs-kite-btn { position: absolute; bottom: 8px; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; opacity: 0.2; transition: opacity 0.2s; }
         .cs-kite-btn.active { opacity: 1; }
         .cs-kite-btn:disabled { cursor: not-allowed; }
-        .cs-signin-prompt { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 2px; padding: 1.5rem; text-align: center; margin-bottom: 2rem; }
+        .cs-signin-prompt { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 1.5rem; text-align: center; margin-bottom: 2rem; }
         .cs-signin-prompt p { font-size: 0.82rem; color: rgba(255,255,255,0.3); margin-bottom: 0.75rem; font-family: 'Inter', sans-serif; }
-        .cs-signin-btn { background: none; border: 1px solid rgba(107,47,173,0.4); border-radius: 1px; padding: 0.55rem 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9b6dff; cursor: pointer; font-family: 'Inter', sans-serif; }
+        .cs-signin-btn { background: none; border: 1px solid rgba(107,47,173,0.4); border-radius: 8px; padding: 0.55rem 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9b6dff; cursor: pointer; font-family: 'Inter', sans-serif; }
         .cs-loading { font-size: 0.8rem; color: rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; padding: 1rem 0; }
         .cs-empty { font-size: 0.88rem; color: rgba(255,255,255,0.2); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; padding: 1rem 0; }
         .cs-comments-list { display: flex; flex-direction: column; }
