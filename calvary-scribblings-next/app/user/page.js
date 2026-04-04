@@ -146,7 +146,7 @@ export default function UserPage() {
         const parsed = Object.entries(data).map(([id, s]) => ({
           id,
           title: s.title || '',
-          cover: s.coverUrl || '',
+          cover:s.cover|| '',
           category: s.category || '',
         }));
         setCmsStories(parsed);
