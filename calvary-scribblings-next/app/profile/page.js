@@ -135,6 +135,7 @@ export default function ProfilePage() {
   const [followerUids, setFollowerUids] = useState([]);
   const [followingUids, setFollowingUids] = useState([]);
   const [readStorySlugs, setReadStorySlugs] = useState([]);
+  const [cmsStories, setCmsStories] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [showEdit, setShowEdit] = useState(false);
@@ -152,6 +153,25 @@ export default function ProfilePage() {
   const [pwMsg, setPwMsg] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Fetch CMS stories from Firebase
+  useEffect(() => {
+    (async () => {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const snap = await get(ref(db, 'cms_stories'));
+      if (snap.exists()) {
+        const data = snap.val();
+        const parsed = Object.entries(data).map(([id, s]) => ({
+          id,
+          title: s.title || '',
+          cover: s.coverUrl || '',
+          category: s.category || '',
+        }));
+        setCmsStories(parsed);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     let unsubAuth = null;
@@ -173,9 +193,10 @@ export default function ProfilePage() {
             const d = snap.val();
             setProfileData(d);
             setReadCount(d.readCount || 0);
-            // Extract read story slugs
             if (d.readStories) {
               setReadStorySlugs(Object.keys(d.readStories));
+            } else {
+              setReadStorySlugs([]);
             }
           }
           setLoading(false);
@@ -310,11 +331,15 @@ export default function ProfilePage() {
     ? Math.min(100, Math.round(((readCount - getPrevThreshold(nextBadge.threshold)) / (nextBadge.threshold - getPrevThreshold(nextBadge.threshold))) * 100))
     : 100;
 
-  // Build stories-read list from slugs
+  // Merge static + CMS stories, then map slugs
+  const allStoriesMerged = [
+    ...allStories,
+    ...cmsStories.filter(cs => !allStories.find(s => s.id === cs.id)),
+  ];
   const readStories = readStorySlugs
-    .map(slug => allStories.find(s => s.id === slug))
+    .map(slug => allStoriesMerged.find(s => s.id === slug))
     .filter(Boolean)
-    .slice(0, 30); // show up to 30
+    .slice(0, 30);
 
   return (
     <>
@@ -479,11 +504,11 @@ export default function ProfilePage() {
             </div>
             <div className="pf-joined">Member since {joinDate}</div>
             <div className="pf-follow-row">
-              <div className="pf-follow-stat" onClick={() => followerCount > 0 && setShowFollowers(true)}>
+              <div className="pf-follow-stat" onClick={() => setShowFollowers(true)}>
                 <div className="pf-follow-num">{followerCount}</div>
                 <div className="pf-follow-label">Followers</div>
               </div>
-              <div className="pf-follow-stat" onClick={() => followingCount > 0 && setShowFollowing(true)}>
+              <div className="pf-follow-stat" onClick={() => setShowFollowing(true)}>
                 <div className="pf-follow-num">{followingCount}</div>
                 <div className="pf-follow-label">Following</div>
               </div>
