@@ -530,19 +530,19 @@ export default function AuthModal({ onClose }) {
                 {success && <div className="auth-success">{success}</div>}
 
                 <div className="auth-verify-steps">
-                  <div className="auth-verify-step">
-                    <div className="auth-verify-step-num">1</div>
-                    <span>Open the email from Calvary Scribblings in your inbox</span>
-                  </div>
-                  <div className="auth-verify-step">
-                    <div className="auth-verify-step-num">2</div>
-                    <span>Click the verification link inside</span>
-                  </div>
-                  <div className="auth-verify-step">
-                    <div className="auth-verify-step-num">3</div>
-                    <span>Return here — your account will activate automatically</span>
-                  </div>
-                </div>
+  <div className="auth-verify-step">
+    <div className="auth-verify-step-num">1</div>
+    <span>Check your inbox for an email from Calvary Scribblings — and your junk or spam folder if you don't see it</span>
+  </div>
+  <div className="auth-verify-step">
+    <div className="auth-verify-step-num">2</div>
+    <span>Click the verification link inside</span>
+  </div>
+  <div className="auth-verify-step">
+    <div className="auth-verify-step-num">3</div>
+    <span>Return here — your account will activate automatically</span>
+  </div>
+</div>
 
                 <button className="auth-btn" onClick={onClose}>Done — I'll verify shortly</button>
                 <button className="auth-resend" onClick={handleResend} disabled={resendCooldown}>
