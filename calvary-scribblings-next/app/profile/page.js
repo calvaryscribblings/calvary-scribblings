@@ -129,19 +129,19 @@ export default function ProfilePage() {
         });
         unsubDB.push(unsubFollowing);
 
-        // One-time: comment count
-        try {
-          const commentsSnap = await get(ref(db, 'comments'));
-          if (commentsSnap.exists()) {
-            let count = 0;
-            for (const sc of Object.values(commentsSnap.val())) {
-              for (const c of Object.values(sc)) {
-                if (c.authorUid === u.uid) count++;
-              }
-            }
-            setCommentCount(count);
-          }
-        } catch (e) {}
+        // Real-time: comment count
+const unsubComments = onValue(ref(db, 'comments'), (commentsSnap) => {
+  if (commentsSnap.exists()) {
+    let count = 0;
+    for (const sc of Object.values(commentsSnap.val())) {
+      for (const c of Object.values(sc)) {
+        if (c.authorUid === u.uid) count++;
+      }
+    }
+    setCommentCount(count);
+  }
+});
+unsubDB.push(unsubComments);
       });
     })();
 
