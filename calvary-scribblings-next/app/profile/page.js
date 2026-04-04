@@ -68,6 +68,61 @@ function formatJoinDate(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
+function UserListModal({ title, uids, onClose }) {
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  useEffect(() => {
+    if (!uids || uids.length === 0) { setLoadingUsers(false); return; }
+    (async () => {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const results = await Promise.all(
+        uids.map(uid => get(ref(db, `users/${uid}`)).then(snap => ({ uid, data: snap.exists() ? snap.val() : null })))
+      );
+      setUsers(results.filter(u => u.data));
+      setLoadingUsers(false);
+    })();
+  }, [uids]);
+
+  return (
+    <div className="pf-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pf-modal">
+        <div className="pf-modal-header">
+          <div className="pf-modal-title">{title}</div>
+          <button className="pf-modal-close" onClick={onClose}>×</button>
+        </div>
+        {loadingUsers ? (
+          <div style={{ padding: '1.5rem 0', color: 'rgba(255,255,255,0.3)', fontSize: '0.82rem', fontFamily: 'Inter, sans-serif' }}>Loading…</div>
+        ) : users.length === 0 ? (
+          <div style={{ padding: '1.5rem 0', color: 'rgba(255,255,255,0.2)', fontSize: '0.85rem', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No one here yet.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {users.map(({ uid, data }) => {
+              const initials = (data.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+              const badge = getBadge(data.readCount || 0, uid);
+              return (
+                <a key={uid} href={`/user?id=${uid}`} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', textDecoration: 'none', padding: '0.6rem 0.75rem', borderRadius: '10px', transition: 'background 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
+                    {data.avatarUrl ? <img src={data.avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.88rem', color: '#f5f0e8', fontFamily: 'Inter, sans-serif', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.displayName || 'Reader'}</div>
+                    {data.username && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.55)', fontFamily: 'Inter, sans-serif' }}>@{data.username}</div>}
+                  </div>
+                  {badge && <BadgeIcon color={badge.color} size={14} isFounder={badge.isFounder} />}
+                </a>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const [authUser, setAuthUser] = useState(null);
@@ -76,9 +131,14 @@ export default function ProfilePage() {
   const [commentCount, setCommentCount] = useState(0);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [followerUids, setFollowerUids] = useState([]);
+  const [followingUids, setFollowingUids] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [showEdit, setShowEdit] = useState(false);
+  const [showFollowers, setShowFollowers] = useState(false);
+  const [showFollowing, setShowFollowing] = useState(false);
+
   const [editName, setEditName] = useState('');
   const [editUsername, setEditUsername] = useState('');
   const [editBio, setEditBio] = useState('');
@@ -104,9 +164,8 @@ export default function ProfilePage() {
         setAuthUser(u);
 
         const db = await getDB();
-        const { ref, onValue, get } = await import('firebase/database');
+        const { ref, onValue } = await import('firebase/database');
 
-        // Real-time: user profile node (avatar, bio, username, displayName, readCount)
         const unsubProfile = onValue(ref(db, `users/${u.uid}`), (snap) => {
           if (snap.exists()) {
             const d = snap.val();
@@ -117,31 +176,42 @@ export default function ProfilePage() {
         });
         unsubDB.push(unsubProfile);
 
-        // Real-time: followers
         const unsubFollowers = onValue(ref(db, `followers/${u.uid}`), (snap) => {
-          setFollowerCount(snap.exists() ? Object.keys(snap.val()).length : 0);
+          if (snap.exists()) {
+            const uids = Object.keys(snap.val());
+            setFollowerCount(uids.length);
+            setFollowerUids(uids);
+          } else {
+            setFollowerCount(0);
+            setFollowerUids([]);
+          }
         });
         unsubDB.push(unsubFollowers);
 
-        // Real-time: following
         const unsubFollowing = onValue(ref(db, `following/${u.uid}`), (snap) => {
-          setFollowingCount(snap.exists() ? Object.keys(snap.val()).length : 0);
+          if (snap.exists()) {
+            const uids = Object.keys(snap.val());
+            setFollowingCount(uids.length);
+            setFollowingUids(uids);
+          } else {
+            setFollowingCount(0);
+            setFollowingUids([]);
+          }
         });
         unsubDB.push(unsubFollowing);
 
-        // Real-time: comment count
-const unsubComments = onValue(ref(db, 'comments'), (commentsSnap) => {
-  if (commentsSnap.exists()) {
-    let count = 0;
-    for (const sc of Object.values(commentsSnap.val())) {
-      for (const c of Object.values(sc)) {
-        if (c.authorUid === u.uid) count++;
-      }
-    }
-    setCommentCount(count);
-  }
-});
-unsubDB.push(unsubComments);
+        const unsubComments = onValue(ref(db, 'comments'), (commentsSnap) => {
+          if (commentsSnap.exists()) {
+            let count = 0;
+            for (const sc of Object.values(commentsSnap.val())) {
+              for (const c of Object.values(sc)) {
+                if (c.authorUid === u.uid) count++;
+              }
+            }
+            setCommentCount(count);
+          }
+        });
+        unsubDB.push(unsubComments);
       });
     })();
 
@@ -277,8 +347,9 @@ unsubDB.push(unsubComments);
         .pf-unverified { font-size: 0.6rem; color: rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
         .pf-joined { font-size: 0.68rem; color: rgba(255,255,255,0.25); font-family: 'Inter', sans-serif; margin-bottom: 0.75rem; }
         .pf-follow-row { display: flex; gap: 1.25rem; }
-        .pf-follow-stat { display: flex; flex-direction: column; gap: 1px; }
-        .pf-follow-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.2rem; font-weight: 300; color: #f5f0e8; line-height: 1; }
+        .pf-follow-stat { display: flex; flex-direction: column; gap: 1px; cursor: pointer; }
+        .pf-follow-stat:hover .pf-follow-num { color: #a78bfa; }
+        .pf-follow-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.2rem; font-weight: 300; color: #f5f0e8; line-height: 1; transition: color 0.2s; }
         .pf-follow-label { font-size: 0.56rem; color: rgba(255,255,255,0.3); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-body { max-width: 720px; margin: 0 auto; padding: 0 1.5rem 6rem; }
@@ -401,11 +472,11 @@ unsubDB.push(unsubComments);
             </div>
             <div className="pf-joined">Member since {joinDate}</div>
             <div className="pf-follow-row">
-              <div className="pf-follow-stat">
+              <div className="pf-follow-stat" onClick={() => followerCount > 0 && setShowFollowers(true)}>
                 <div className="pf-follow-num">{followerCount}</div>
                 <div className="pf-follow-label">Followers</div>
               </div>
-              <div className="pf-follow-stat">
+              <div className="pf-follow-stat" onClick={() => followingCount > 0 && setShowFollowing(true)}>
                 <div className="pf-follow-num">{followingCount}</div>
                 <div className="pf-follow-label">Following</div>
               </div>
@@ -503,6 +574,13 @@ unsubDB.push(unsubComments);
           <button className="pf-signout" onClick={handleSignOut}>Sign out</button>
         </div>
       </div>
+
+      {showFollowers && (
+        <UserListModal title={`Followers · ${followerCount}`} uids={followerUids} onClose={() => setShowFollowers(false)} />
+      )}
+      {showFollowing && (
+        <UserListModal title={`Following · ${followingCount}`} uids={followingUids} onClose={() => setShowFollowing(false)} />
+      )}
 
       {showEdit && (
         <div className="pf-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowEdit(false); }}>
