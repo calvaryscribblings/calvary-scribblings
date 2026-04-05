@@ -64,18 +64,23 @@ function BadgeDisplay({ tier, label, color, size = 13 }) {
 // Fetches live badge from Firebase for a given uid
 function CommentBadge({ uid, size = 13 }) {
   const [badge, setBadge] = useState(null);
+  const [isAuthor, setIsAuthor] = useState(false);
   useEffect(() => {
     if (!uid) return;
     (async () => {
       try {
         const db = await getDB();
         const { ref, get } = await import('firebase/database');
-        const snap = await get(ref(db, `users/${uid}/readCount`));
-        const readCount = snap.exists() ? snap.val() : 0;
-        setBadge(getBadge(readCount, uid));
+        const snap = await get(ref(db, `users/${uid}`));
+        if (snap.exists()) {
+          const data = snap.val();
+          setIsAuthor(data.isAuthor || false);
+          setBadge(getBadge(data.readCount || 0, uid));
+        }
       } catch (e) {}
     })();
   }, [uid]);
+  if (isAuthor) return <WriterBadge size={size} />;
   if (!badge) return null;
   return <BadgeDisplay tier={badge.tier} label={badge.label} color={badge.color} size={size} />;
 }
@@ -544,12 +549,22 @@ export default function StoryPage({ params }) {
             <div className="story-badge-hero">{story.categoryName}</div>
             <h1 className="story-title">{story.title}</h1>
             <div className="story-byline">
-              <span className="byline-by">by</span>
-              <span>{story.author}</span>
-              <div className="byline-dot" />
-              <span>{story.date}</span>
-              {readingTime > 0 && (<><div className="byline-dot" /><span>⏱ {readingTime} MIN. READ</span></>)}
-            </div>
+  <span className="byline-by">by</span>
+  <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <span>{story.author}</span>
+    {story.authorHandle && (
+      <a href={`/search?q=${story.authorHandle}`}
+        style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Inter, sans-serif' }}
+        onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
+        onMouseLeave={e => e.currentTarget.style.color = 'rgba(167,139,250,0.65)'}>
+        @{story.authorHandle}
+      </a>
+    )}
+  </span>
+  <div className="byline-dot" />
+  <span>{story.date}</span>
+  {readingTime > 0 && (<><div className="byline-dot" /><span>⏱ {readingTime} MIN. READ</span></>)}
+</div>
           </div>
         </header>
         <div className="story-body-wrap">
@@ -562,7 +577,14 @@ export default function StoryPage({ params }) {
             </article>
             <div className="hit-counter-row">{hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}</div>
             <div className="story-footer">
-              <span>By {story.author} · {story.date}</span>
+              <span>
+  By {story.author}
+  {story.authorHandle && (
+    <a href={`/search?q=${story.authorHandle}`} style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }}>
+      @{story.authorHandle}
+    </a>
+  )} · {story.date}
+</span>
               <span className="story-badge-footer">{story.categoryName}</span>
             </div>
           </main>
