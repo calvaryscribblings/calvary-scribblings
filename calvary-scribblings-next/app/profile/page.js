@@ -50,6 +50,7 @@ function getPrevThreshold(t) {
 
 const BADGE_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
 const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
+const HEART_PATH = "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z";
 
 function BadgeIcon({ color, size = 14, isFounder = false }) {
   return (
@@ -62,6 +63,27 @@ function BadgeIcon({ color, size = 14, isFounder = false }) {
       <path fill={isFounder ? 'url(#pgPlat)' : color} d={BADGE_PATH} />
       <path fill={color === '#b4b2a9' ? '#0a0a0a' : '#fff'} d={CHECK_PATH} />
     </svg>
+  );
+}
+
+function WriterBadge({ size = 13 }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+      <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+        <path fill="#581c87" d={BADGE_PATH} />
+        <path fill="#e9d5ff" d={CHECK_PATH} />
+      </svg>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: '3px',
+        background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)',
+        borderRadius: '6px', padding: '1px 7px 1px 5px',
+      }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+          <path fill="#d4537e" d={HEART_PATH} />
+        </svg>
+        <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>Writer</span>
+      </span>
+    </span>
   );
 }
 
@@ -113,7 +135,7 @@ function UserListModal({ title, uids, onClose }) {
                     <div style={{ fontSize: '0.88rem', color: '#f5f0e8', fontFamily: 'Inter, sans-serif', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.displayName || 'Reader'}</div>
                     {data.username && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.55)', fontFamily: 'Inter, sans-serif' }}>@{data.username}</div>}
                   </div>
-                  {badge && <BadgeIcon color={badge.color} size={14} isFounder={badge.isFounder} />}
+                  {data.isAuthor ? <WriterBadge size={13} /> : badge && <BadgeIcon color={badge.color} size={14} isFounder={badge.isFounder} />}
                 </a>
               );
             })}
@@ -154,7 +176,6 @@ export default function ProfilePage() {
   const [changingPassword, setChangingPassword] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Fetch CMS stories from Firebase
   useEffect(() => {
     (async () => {
       const db = await getDB();
@@ -165,7 +186,7 @@ export default function ProfilePage() {
         const parsed = Object.entries(data).map(([id, s]) => ({
           id,
           title: s.title || '',
-          cover:s.cover|| '',
+          cover: s.cover || '',
           category: s.category || '',
         }));
         setCmsStories(parsed);
@@ -265,7 +286,7 @@ export default function ProfilePage() {
     setSaveError('');
     try {
       const db = await getDB();
-      const { ref, update } = await import('firebase/database');
+      const { ref, update, set, remove } = await import('firebase/database');
       let newAvatarUrl = profileData?.avatarUrl || null;
       if (editAvatarFile) {
         const storage = await getStorage();
@@ -289,6 +310,16 @@ export default function ProfilePage() {
         username: username || null,
         avatarUrl: newAvatarUrl,
       });
+
+      // Keep usernames index in sync
+      if (username) {
+        await set(ref(db, `usernames/${username}`), authUser.uid);
+      }
+      const oldUsername = profileData?.username;
+      if (oldUsername && oldUsername !== username) {
+        await remove(ref(db, `usernames/${oldUsername}`));
+      }
+
       setShowEdit(false);
     } catch (e) {
       console.error('Save failed:', e);
@@ -323,6 +354,7 @@ export default function ProfilePage() {
   const displayName = profileData?.displayName || authUser.displayName || 'Reader';
   const username = profileData?.username || null;
   const bio = profileData?.bio || null;
+  const isAuthor = profileData?.isAuthor || false;
   const badge = getBadge(readCount, authUser.uid);
   const nextBadge = getNextBadge(readCount, authUser.uid);
   const initials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -331,7 +363,6 @@ export default function ProfilePage() {
     ? Math.min(100, Math.round(((readCount - getPrevThreshold(nextBadge.threshold)) / (nextBadge.threshold - getPrevThreshold(nextBadge.threshold))) * 100))
     : 100;
 
-  // Merge static + CMS stories, then map slugs
   const allStoriesMerged = [
     ...allStories,
     ...cmsStories.filter(cs => !allStories.find(s => s.id === cs.id)),
@@ -486,13 +517,15 @@ export default function ProfilePage() {
             <div className="pf-name">{displayName}</div>
             {username && <div className="pf-username">@{username}</div>}
             <div className="pf-meta-row">
-              {badge && (
+              {isAuthor ? (
+                <WriterBadge size={13} />
+              ) : badge ? (
                 <span className="pf-badge-pill">
                   <BadgeIcon color={badge.color} size={13} isFounder={badge.isFounder} />
                   <span className="pf-badge-label" style={{ color: badge.color }}>{badge.label}</span>
                 </span>
-              )}
-              {badge && <span className="pf-sep">·</span>}
+              ) : null}
+              <span className="pf-sep">·</span>
               {authUser.emailVerified ? (
                 <span className="pf-verified">
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1d9e75" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -563,17 +596,17 @@ export default function ProfilePage() {
         <div className="pf-section">
           <div className="pf-section-header">
             <div className="pf-section-title">Reading badge</div>
-            <div className="pf-section-meta">{badge ? badge.label : 'No badge yet'}</div>
+            <div className="pf-section-meta">{isAuthor ? 'Writer' : badge ? badge.label : 'No badge yet'}</div>
           </div>
           <div className="pf-badge-card">
             <div className="pf-progress-row">
               <div className="pf-progress-current">{readCount.toLocaleString()} {readCount === 1 ? 'story' : 'stories'} read</div>
               <div className="pf-progress-next">
-                {nextBadge ? `${nextBadge.label} at ${nextBadge.threshold}` : badge ? 'Maximum tier reached' : 'Reader at 25'}
+                {isAuthor ? 'Platform writer' : nextBadge ? `${nextBadge.label} at ${nextBadge.threshold}` : badge ? 'Maximum tier reached' : 'Reader at 25'}
               </div>
             </div>
             <div className="pf-progress-bar-wrap">
-              <div className="pf-progress-bar" style={{ width: `${tierProgress}%`, background: badge ? badge.color : '#333' }} />
+              <div className="pf-progress-bar" style={{ width: isAuthor ? '100%' : `${tierProgress}%`, background: isAuthor ? '#581c87' : badge ? badge.color : '#333' }} />
             </div>
           </div>
         </div>
