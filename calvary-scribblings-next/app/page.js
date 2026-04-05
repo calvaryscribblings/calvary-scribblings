@@ -33,6 +33,29 @@ const stories = [
 function parseDate(str) { return new Date(str); }
 function isNew(s) { return (Date.now() - parseDate(s.date)) / 86400000 <= 7; }
 
+function isSquareOpen() {
+  const gmtHour = new Date().getUTCHours();
+  return gmtHour >= 20 && gmtHour < 24;
+}
+
+function getCountdown() {
+  const now = new Date();
+  const gmtHour = now.getUTCHours();
+  const gmtMin = now.getUTCMinutes();
+  const gmtSec = now.getUTCSeconds();
+  let secsUntil8pm;
+  if (gmtHour >= 20) {
+    secsUntil8pm = (24 - gmtHour - 1) * 3600 + (60 - gmtMin - 1) * 60 + (60 - gmtSec);
+    secsUntil8pm += 20 * 3600;
+  } else {
+    secsUntil8pm = (20 - gmtHour - 1) * 3600 + (60 - gmtMin - 1) * 60 + (60 - gmtSec);
+  }
+  const h = Math.floor(secsUntil8pm / 3600);
+  const m = Math.floor((secsUntil8pm % 3600) / 60);
+  const s = secsUntil8pm % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 const badgeStyle = {
   news: { background: 'rgba(220,38,38,0.2)', color: '#f87171', border: '1px solid rgba(220,38,38,0.4)' },
   flash: { background: 'rgba(124,58,237,0.25)', color: '#c4b5fd', border: '1px solid rgba(124,58,237,0.5)' },
@@ -41,18 +64,15 @@ const badgeStyle = {
   inspiring: { background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.4)' },
 };
 
-// ─── Stable module-level data ─────────────────────────────────────────────────
 const _sorted = [...stories]
   .map((s, i) => ({ ...s, _idx: i }))
   .sort((a, b) => parseDate(b.date) - parseDate(a.date) || a._idx - b._idx);
 const justAdded = _sorted.slice(0, 5);
 
-// Helper: picks 5 stories based on current hour (runs client-side only)
 function getHourlyCarousel() {
   const h = Math.floor(Date.now() / 3600000);
   return [..._sorted].sort((a, b) => ((a.id.charCodeAt(0) * h) % 13) - ((b.id.charCodeAt(0) * h) % 13)).slice(0, 5);
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
 function StoryCard({ story, width = 160, height = 240 }) {
   const [hovered, setHovered] = useState(false);
@@ -199,6 +219,109 @@ function Top10Card({ s, i }) {
   );
 }
 
+function SquareBanner({ squareOpen, countdown }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <section style={{ padding: '0 4%', margin: '1.5rem 0' }}>
+      <a href="/square"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem',
+          padding: '14px 20px', borderRadius: 14, textDecoration: 'none',
+          background: squareOpen
+            ? hovered ? 'rgba(107,47,173,0.15)' : 'rgba(107,47,173,0.08)'
+            : 'rgba(255,255,255,0.02)',
+          border: squareOpen
+            ? `1px solid rgba(107,47,173,${hovered ? '0.45' : '0.28'})`
+            : '1px solid rgba(255,255,255,0.06)',
+          transition: 'all 0.2s',
+        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+            background: squareOpen ? '#6b2fad' : 'rgba(107,47,173,0.15)',
+            border: squareOpen ? 'none' : '1px solid rgba(107,47,173,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: squareOpen ? 'none' : 'sq-lockglow 1.8s ease-in-out infinite',
+          }}>
+            {squareOpen ? (
+              <span style={{ fontFamily: 'Georgia, serif', fontSize: 20, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9b6dff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            )}
+          </div>
+          <div>
+            <div style={{ fontFamily: 'Georgia, serif', fontSize: 15, color: squareOpen ? '#f5f0e8' : 'rgba(255,255,255,0.35)', marginBottom: 3 }}>
+              The Scribblings Square
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+              {squareOpen ? (
+                <>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#1d9e75', display: 'inline-block', animation: 'sq-pulse 2s infinite' }} />
+                  <span style={{ color: '#1d9e75', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Open now</span>
+                  <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
+                  <span style={{ color: 'rgba(255,255,255,0.35)' }}>Join the conversation</span>
+                </>
+              ) : (
+                <span style={{ color: 'rgba(255,255,255,0.22)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Opens tonight at 8pm GMT</span>
+              )}
+            </div>
+          </div>
+        </div>
+        {squareOpen ? (
+          <div style={{
+            background: '#6b2fad', borderRadius: 8, padding: '7px 18px',
+            fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+            color: '#fff', flexShrink: 0, whiteSpace: 'nowrap',
+          }}>
+            Enter the Square
+          </div>
+        ) : (
+          <div style={{ fontFamily: 'Georgia, serif', fontSize: 15, color: 'rgba(155,109,255,0.55)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            {countdown}
+          </div>
+        )}
+      </a>
+    </section>
+  );
+}
+
+function SquareFAB({ squareOpen }) {
+  return (
+    <a href="/square" style={{
+      position: 'fixed', bottom: 24, right: 20, zIndex: 900,
+      display: 'flex', alignItems: 'center', gap: 8,
+      background: '#6b2fad', borderRadius: 40,
+      padding: '11px 18px 11px 14px',
+      textDecoration: 'none',
+      boxShadow: '0 4px 24px rgba(107,47,173,0.5)',
+    }}>
+      <div style={{
+        width: 18, height: 18, borderRadius: 5,
+        background: 'rgba(255,255,255,0.2)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <span style={{ fontFamily: 'Georgia, serif', fontSize: 11, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff' }}>
+        The Square
+      </span>
+      {squareOpen && (
+        <span style={{
+          width: 7, height: 7, borderRadius: '50%',
+          background: '#1d9e75',
+          border: '1.5px solid #6b2fad',
+          animation: 'sq-pulse 2s infinite',
+          display: 'inline-block',
+        }} />
+      )}
+    </a>
+  );
+}
+
 export default function Home() {
   const { user, logout } = useAuth();
   const [heroIndex, setHeroIndex] = useState(0);
@@ -207,8 +330,9 @@ export default function Home() {
   const [top10, setTop10] = useState([...stories].slice(0, 10));
   const [email, setEmail] = useState('');
   const [subscribeStatus, setSubscribeStatus] = useState('');
+  const [squareOpen, setSquareOpen] = useState(false);
+  const [countdown, setCountdown] = useState('');
   const heroIndexRef = useRef(0);
-  // carousel state — starts as top 5 recent for SSR safety, updated client-side
   const [allStories, setAllStories] = useState(stories);
   const [carousel, setCarousel] = useState(_sorted.slice(0, 5));
 
@@ -219,7 +343,17 @@ export default function Home() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Merge Firebase CMS stories with hardcoded ones
+  // Square open/closed + countdown
+  useEffect(() => {
+    const tick = () => {
+      setSquareOpen(isSquareOpen());
+      setCountdown(getCountdown());
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     async function fetchCMSStories() {
       try {
@@ -254,7 +388,6 @@ export default function Home() {
     fetchCMSStories();
   }, []);
 
-  // Hourly carousel refresh — runs in browser, covers always match titles
   useEffect(() => {
     setCarousel(getHourlyCarousel());
     const hourTimer = setInterval(() => {
@@ -295,26 +428,26 @@ export default function Home() {
   }, []);
 
   const handleSubscribe = async () => {
-  if (!email || !email.includes('@')) { setSubscribeStatus('Please enter a valid email address.'); return; }
-  try {
-    const res = await fetch('https://calvary-newsletter.calvarymediauk.workers.dev/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setSubscribeStatus("Thank you! You're now subscribed.");
-      setEmail('');
-    } else if (res.status === 409) {
-      setSubscribeStatus('You are already subscribed.');
-    } else {
+    if (!email || !email.includes('@')) { setSubscribeStatus('Please enter a valid email address.'); return; }
+    try {
+      const res = await fetch('https://calvary-newsletter.calvarymediauk.workers.dev/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSubscribeStatus("Thank you! You're now subscribed.");
+        setEmail('');
+      } else if (res.status === 409) {
+        setSubscribeStatus('You are already subscribed.');
+      } else {
+        setSubscribeStatus('Something went wrong. Please try again.');
+      }
+    } catch (e) {
       setSubscribeStatus('Something went wrong. Please try again.');
     }
-  } catch (e) {
-    setSubscribeStatus('Something went wrong. Please try again.');
-  }
-};
+  };
 
   const goTo = useCallback((idx) => {
     setHeroTransition(false);
@@ -348,6 +481,14 @@ export default function Home() {
         @media (min-width: 1025px) { .nav-desktop { display: flex !important; } .nav-hamburger { display: none !important; } }
         .top10-scroll { scrollbar-width: none; } .top10-scroll::-webkit-scrollbar { display: none; }
         .just-added-scroll { scrollbar-width: none; } .just-added-scroll::-webkit-scrollbar { display: none; }
+        .sq-banner-desktop { display: block; }
+        .sq-fab-mobile { display: none; }
+        @media (max-width: 1024px) {
+          .sq-banner-desktop { display: none !important; }
+          .sq-fab-mobile { display: flex !important; }
+        }
+        @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        @keyframes sq-lockglow { 0%,100%{background:rgba(107,47,173,0.1)} 50%{background:rgba(107,47,173,0.22)} }
       `}</style>
 
       <Navbar />
@@ -439,6 +580,11 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Square Banner — desktop only */}
+      <div className="sq-banner-desktop">
+        <SquareBanner squareOpen={squareOpen} countdown={countdown} />
+      </div>
+
       {/* Just Added */}
       <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', paddingLeft: '4%' }}>
@@ -461,7 +607,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Category Rows */}
       <Row title="⚡ Flash Fiction" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" />
       <Row title="📖 Short Stories" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" />
       <Row title="🖊️ Poetry" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
@@ -535,6 +680,11 @@ export default function Home() {
           © 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.
         </div>
       </footer>
+
+      {/* FAB — mobile only */}
+      <div className="sq-fab-mobile">
+        <SquareFAB squareOpen={squareOpen} />
+      </div>
     </div>
   );
 }
