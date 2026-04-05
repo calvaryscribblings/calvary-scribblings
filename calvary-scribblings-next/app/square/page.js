@@ -25,19 +25,14 @@ const BADGE_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-
 const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
 const HEART_PATH = "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z";
 
-function isSquareOpen() {
-  return true;
-}
+function isSquareOpen() { return true; }
 
 function getCountdown() {
   const now = new Date();
   const h = now.getUTCHours(), m = now.getUTCMinutes(), s = now.getUTCSeconds();
   let secs;
-  if (h >= 20) {
-    secs = (24 - h - 1) * 3600 + (59 - m) * 60 + (60 - s) + 20 * 3600;
-  } else {
-    secs = (20 - h - 1) * 3600 + (59 - m) * 60 + (60 - s);
-  }
+  if (h >= 20) { secs = (24 - h - 1) * 3600 + (59 - m) * 60 + (60 - s) + 20 * 3600; }
+  else { secs = (20 - h - 1) * 3600 + (59 - m) * 60 + (60 - s); }
   const hh = Math.floor(secs / 3600), mm = Math.floor((secs % 3600) / 60), ss = secs % 60;
   return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
 }
@@ -53,9 +48,7 @@ function getBadge(readCount, uid) {
 }
 
 function getMaxChars(readCount, uid, isAuthor) {
-  if (isAuthor) return 500;
-  if (uid === FOUNDER_UID) return 500;
-  if (readCount >= 150) return 500;
+  if (isAuthor || uid === FOUNDER_UID || readCount >= 150) return 500;
   return 200;
 }
 
@@ -128,7 +121,7 @@ function Avatar({ uid, initials, size = 36, isAuthor, avatarUrl }) {
       border: isAuthor ? '1.5px solid rgba(88,28,135,0.5)' : '1.5px solid rgba(107,47,173,0.3)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.3, fontWeight: 500, color: '#9b6dff',
-      overflow: 'hidden', textDecoration: 'none', fontFamily: 'Inter, sans-serif', flexShrink: 0,
+      overflow: 'hidden', textDecoration: 'none', fontFamily: 'Inter, sans-serif',
     }}>
       {avatarUrl ? <img src={avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
     </a>
@@ -156,7 +149,7 @@ function MentionDropdown({ query, onSelect }) {
   return (
     <div style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: 0, background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 10, overflow: 'hidden', zIndex: 100 }}>
       {results.map(u => (
-        <div key={u.uid} onClick={() => onSelect(u.username)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer', transition: 'background 0.15s' }}
+        <div key={u.uid} onClick={() => onSelect(u.username)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer' }}
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#9b6dff', overflow: 'hidden', flexShrink: 0 }}>
@@ -168,6 +161,70 @@ function MentionDropdown({ query, onSelect }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── 3-dot Post Menu ───────────────────────────────────────────────────────────
+
+function PostMenu({ post, user, onEdit, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+  const isOwn = user?.uid === post.authorUid;
+  const canEdit = isOwn && (Date.now() - post.createdAt) < 5 * 60 * 1000;
+
+  useEffect(() => {
+    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/square#${post.id}`);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={menuRef} style={{ position: 'relative', marginLeft: 'auto' }}>
+      <button onClick={() => setOpen(!open)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', padding: '2px 4px', fontSize: 14, lineHeight: 1, transition: 'color 0.2s' }}
+        onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.2)'}>
+        ···
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 10, minWidth: 140, zIndex: 200, overflow: 'hidden' }}>
+          {isOwn && canEdit && (
+            <button onClick={() => { onEdit(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(232,224,212,0.8)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Edit post
+            </button>
+          )}
+          {isOwn && (
+            <button onClick={() => { onDelete(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(220,38,38,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              Delete post
+            </button>
+          )}
+          <button onClick={copyLink} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(232,224,212,0.8)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            Copy link
+          </button>
+          {!isOwn && (
+            <button onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(232,224,212,0.5)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+              Report
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -186,12 +243,8 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
           <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Attach a story</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
-        <input
-          placeholder="Search stories…"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.7rem 1rem', color: '#e8e0d4', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' }}
-        />
+        <input placeholder="Search stories…" value={query} onChange={e => setQuery(e.target.value)}
+          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.7rem 1rem', color: '#e8e0d4', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(s => (
             <div key={s.id} onClick={() => onSelect(s)} style={{ display: 'flex', gap: 10, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', transition: 'all 0.15s' }}
@@ -217,8 +270,7 @@ function StoryEmbed({ story }) {
   const [hovered, setHovered] = useState(false);
   return (
     <a href={story.url || `/stories/${story.id}`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{ display: 'flex', gap: 10, background: hovered ? 'rgba(107,47,173,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${hovered ? 'rgba(107,47,173,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 10, padding: '9px 12px', marginTop: 8, alignItems: 'center', textDecoration: 'none', transition: 'all 0.15s' }}>
       <div style={{ width: 32, height: 46, borderRadius: 3, overflow: 'hidden', flexShrink: 0, background: 'rgba(107,47,173,0.2)' }}>
         {story.cover && <img src={story.cover} alt={story.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
@@ -233,7 +285,7 @@ function StoryEmbed({ story }) {
   );
 }
 
-// ── DM Components ─────────────────────────────────────────────────────────────
+// ── DM Panel ──────────────────────────────────────────────────────────────────
 
 function DMPanel({ user, onClose }) {
   const [conversations, setConversations] = useState([]);
@@ -243,6 +295,9 @@ function DMPanel({ user, onClose }) {
   const [sending, setSending] = useState(false);
   const [dmImageFile, setDmImageFile] = useState(null);
   const [loadingConvs, setLoadingConvs] = useState(true);
+  const [newMsgSearch, setNewMsgSearch] = useState('');
+  const [newMsgResults, setNewMsgResults] = useState([]);
+  const [showNewMsg, setShowNewMsg] = useState(false);
   const messagesEndRef = useRef(null);
   const dmFileRef = useRef(null);
 
@@ -292,13 +347,42 @@ function DMPanel({ user, onClose }) {
     })();
   }, [activeConv]);
 
+  // Search users for new message
+  useEffect(() => {
+    if (!newMsgSearch.trim()) { setNewMsgResults([]); return; }
+    (async () => {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const snap = await get(ref(db, 'users'));
+      if (!snap.exists()) return;
+      const all = snap.val();
+      const matches = Object.entries(all)
+        .filter(([uid, u]) => {
+          if (uid === user.uid) return false;
+          const q = newMsgSearch.toLowerCase();
+          return (u.displayName || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q);
+        })
+        .slice(0, 6)
+        .map(([uid, u]) => ({ uid, displayName: u.displayName, username: u.username, avatarUrl: u.avatarUrl }));
+      setNewMsgResults(matches);
+    })();
+  }, [newMsgSearch]);
+
+  const startConversation = async (otherUid, otherUser) => {
+    const convId = [user.uid, otherUid].sort().join('_');
+    setActiveConv({ convId, otherUid, otherUser });
+    setShowNewMsg(false);
+    setNewMsgSearch('');
+    setNewMsgResults([]);
+  };
+
   const sendDM = async () => {
     if (!dmText.trim() && !dmImageFile) return;
     if (!activeConv) return;
     setSending(true);
     try {
       const db = await getDB();
-      const { ref, push, update, serverTimestamp } = await import('firebase/database');
+      const { ref, push, update } = await import('firebase/database');
       let imageUrl = null;
       if (dmImageFile) {
         const { getStorage, ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
@@ -317,22 +401,11 @@ function DMPanel({ user, onClose }) {
     setSending(false);
   };
 
-  const startConversation = async (otherUid) => {
-    if (!user) return;
-    const convId = [user.uid, otherUid].sort().join('_');
-    const db = await getDB();
-    const { ref, get } = await import('firebase/database');
-    const otherSnap = await get(ref(db, `users/${otherUid}`));
-    const otherUser = otherSnap.exists() ? otherSnap.val() : {};
-    setActiveConv({ convId, otherUid, otherUser });
-  };
-
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Header */}
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           {activeConv ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -348,16 +421,52 @@ function DMPanel({ user, onClose }) {
           ) : (
             <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Messages</div>
           )}
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {!activeConv && (
+              <button onClick={() => setShowNewMsg(!showNewMsg)} style={{ background: 'rgba(107,47,173,0.12)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 7, padding: '5px 10px', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(155,109,255,0.8)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                + New
+              </button>
+            )}
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
+          </div>
         </div>
 
-        {/* Body */}
+        {/* New message search */}
+        {showNewMsg && !activeConv && (
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+            <input
+              autoFocus
+              placeholder="Search by name or @handle…"
+              value={newMsgSearch}
+              onChange={e => setNewMsgSearch(e.target.value)}
+              style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '8px 12px', color: '#e8e0d4', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }}
+            />
+            {newMsgResults.length > 0 && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {newMsgResults.map(u => (
+                  <div key={u.uid} onClick={() => startConversation(u.uid, u)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.12)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#9b6dff', overflow: 'hidden', flexShrink: 0 }}>
+                      {u.avatarUrl ? <img src={u.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (u.displayName || 'R')[0]}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Inter, sans-serif' }}>{u.displayName || 'Reader'}</div>
+                      {u.username && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{u.username}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {!activeConv ? (
           <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
             {loadingConvs ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
             ) : conversations.length === 0 ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No messages yet. Follow someone to start a conversation.</div>
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No messages yet. Tap + New to start a conversation.</div>
             ) : conversations.map(conv => (
               <div key={conv.convId} onClick={() => setActiveConv(conv)}
                 style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
@@ -407,13 +516,9 @@ function DMPanel({ user, onClose }) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
               </button>
               <input ref={dmFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => setDmImageFile(e.target.files[0])} />
-              <input
-                value={dmText}
-                onChange={e => setDmText(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendDM()}
+              <input value={dmText} onChange={e => setDmText(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendDM()}
                 placeholder={`Message ${activeConv.otherUser.displayName || 'Reader'}…`}
-                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '8px 14px', fontSize: '0.88rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', outline: 'none' }}
-              />
+                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '8px 14px', fontSize: '0.88rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', outline: 'none' }} />
               <button onClick={sendDM} disabled={sending || (!dmText.trim() && !dmImageFile)} style={{ width: 32, height: 32, borderRadius: '50%', background: '#6b2fad', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, opacity: (!dmText.trim() && !dmImageFile) ? 0.4 : 1 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#fff"/></svg>
               </button>
@@ -431,7 +536,9 @@ function DMPanel({ user, onClose }) {
   );
 }
 
-function NotificationsPanel({ user, onClose, onDMOpen }) {
+// ── Notifications Panel ───────────────────────────────────────────────────────
+
+function NotificationsPanel({ user, onClose }) {
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -442,10 +549,7 @@ function NotificationsPanel({ user, onClose, onDMOpen }) {
       const { ref, onValue, update } = await import('firebase/database');
       const unsubNotifs = onValue(ref(db, `notifications/${user.uid}`), (snap) => {
         if (!snap.exists()) { setNotifs([]); setLoading(false); return; }
-        const list = Object.entries(snap.val())
-          .map(([id, n]) => ({ id, ...n }))
-          .sort((a, b) => b.createdAt - a.createdAt)
-          .slice(0, 30);
+        const list = Object.entries(snap.val()).map(([id, n]) => ({ id, ...n })).sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
         setNotifs(list);
         setLoading(false);
         const updates = {};
@@ -514,10 +618,11 @@ export default function SquarePage() {
   const [mentionQueryReply, setMentionQueryReply] = useState('');
   const [showAuth, setShowAuth] = useState(false);
   const [likedPosts, setLikedPosts] = useState({});
+  const [editingPost, setEditingPost] = useState(null);
+  const [editText, setEditText] = useState('');
   const textareaRef = useRef(null);
   const replyTextareaRef = useRef(null);
 
-  // Open/closed tick
   useEffect(() => {
     const tick = () => { setSquareOpen(isSquareOpen()); setCountdown(getCountdown()); };
     tick();
@@ -525,7 +630,6 @@ export default function SquarePage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Auth
   useEffect(() => {
     (async () => {
       const auth = await getFirebaseAuth();
@@ -534,26 +638,20 @@ export default function SquarePage() {
         setUser(u);
         if (u) {
           const db = await getDB();
-          const { ref, get, onValue } = await import('firebase/database');
+          const { ref, get, onValue, set, onDisconnect } = await import('firebase/database');
           const snap = await get(ref(db, `users/${u.uid}`));
           if (snap.exists()) setUserData(snap.val());
-          // Unread notifs count
           onValue(ref(db, `notifications/${u.uid}`), (snap) => {
             if (!snap.exists()) { setUnreadNotifs(0); return; }
             setUnreadNotifs(Object.values(snap.val()).filter(n => !n.read).length);
           });
-          // Liked posts
           onValue(ref(db, `square_likes`), (snap) => {
             if (!snap.exists()) return;
             const liked = {};
-            Object.entries(snap.val()).forEach(([postId, likes]) => {
-              if (likes[u.uid]) liked[postId] = true;
-            });
+            Object.entries(snap.val()).forEach(([postId, likes]) => { if (likes[u.uid]) liked[postId] = true; });
             setLikedPosts(liked);
           });
-          // Presence
           const presRef = ref(db, `square_presence/${u.uid}`);
-          const { set, onDisconnect, serverTimestamp } = await import('firebase/database');
           await set(presRef, true);
           onDisconnect(presRef).remove();
         }
@@ -562,7 +660,6 @@ export default function SquarePage() {
     })();
   }, []);
 
-  // Presence count
   useEffect(() => {
     (async () => {
       const db = await getDB();
@@ -574,16 +671,13 @@ export default function SquarePage() {
     })();
   }, []);
 
-  // Posts
   useEffect(() => {
     (async () => {
       const db = await getDB();
       const { ref, onValue } = await import('firebase/database');
       const unsub = onValue(ref(db, 'square_posts'), (snap) => {
         if (!snap.exists()) { setPosts([]); setLoading(false); return; }
-        const list = Object.entries(snap.val())
-          .map(([id, p]) => ({ id, ...p }))
-          .sort((a, b) => b.createdAt - a.createdAt);
+        const list = Object.entries(snap.val()).map(([id, p]) => ({ id, ...p })).sort((a, b) => b.createdAt - a.createdAt);
         setPosts(list);
         setLoading(false);
       });
@@ -591,7 +685,6 @@ export default function SquarePage() {
     })();
   }, []);
 
-  // CMS stories
   useEffect(() => {
     (async () => {
       const db = await getDB();
@@ -603,34 +696,11 @@ export default function SquarePage() {
     })();
   }, []);
 
-  const extractMentionQuery = (text) => {
-    const match = text.match(/@(\w*)$/);
-    return match ? match[1] : '';
-  };
-
-  const handleTextChange = (val) => {
-    setText(val);
-    setMentionQuery(extractMentionQuery(val));
-  };
-
-  const handleReplyTextChange = (val) => {
-    setReplyText(val);
-    setMentionQueryReply(extractMentionQuery(val));
-  };
-
-  const insertMention = (username) => {
-    const newText = text.replace(/@\w*$/, `@${username} `);
-    setText(newText);
-    setMentionQuery('');
-    textareaRef.current?.focus();
-  };
-
-  const insertMentionReply = (username) => {
-    const newText = replyText.replace(/@\w*$/, `@${username} `);
-    setReplyText(newText);
-    setMentionQueryReply('');
-    replyTextareaRef.current?.focus();
-  };
+  const extractMentionQuery = (t) => { const match = t.match(/@(\w*)$/); return match ? match[1] : ''; };
+  const handleTextChange = (val) => { setText(val); setMentionQuery(extractMentionQuery(val)); };
+  const handleReplyTextChange = (val) => { setReplyText(val); setMentionQueryReply(extractMentionQuery(val)); };
+  const insertMention = (username) => { setText(text.replace(/@\w*$/, `@${username} `)); setMentionQuery(''); textareaRef.current?.focus(); };
+  const insertMentionReply = (username) => { setReplyText(replyText.replace(/@\w*$/, `@${username} `)); setMentionQueryReply(''); replyTextareaRef.current?.focus(); };
 
   const sendNotifications = async (text, postId, type = 'mention', replyAuthorUid = null) => {
     const db = await getDB();
@@ -638,43 +708,39 @@ export default function SquarePage() {
     const mentions = [...text.matchAll(/@(\w+)/g)].map(m => m[1]);
 
     for (const handle of mentions) {
+      // Try usernames index first, fall back to scanning users
+      let targetUid = null;
       const usernameSnap = await get(ref(db, `usernames/${handle}`));
-      if (!usernameSnap.exists()) continue;
-      const targetUid = usernameSnap.val();
-      if (targetUid === user.uid) continue;
+      if (usernameSnap.exists()) {
+        targetUid = usernameSnap.val();
+      } else {
+        const usersSnap = await get(ref(db, 'users'));
+        if (usersSnap.exists()) {
+          const entry = Object.entries(usersSnap.val()).find(([, u]) => u.username === handle);
+          if (entry) targetUid = entry[0];
+        }
+      }
+      if (!targetUid || targetUid === user.uid) continue;
       await push(ref(db, `notifications/${targetUid}`), {
-        type: 'mention',
-        fromUid: user.uid,
-        fromName: user.displayName || 'Reader',
-        postId,
-        read: false,
-        createdAt: Date.now(),
+        type: 'mention', fromUid: user.uid, fromName: user.displayName || 'Reader',
+        postId, read: false, createdAt: Date.now(),
       });
     }
 
     if (type === 'reply' && replyAuthorUid && replyAuthorUid !== user.uid) {
       await push(ref(db, `notifications/${replyAuthorUid}`), {
-        type: 'reply',
-        fromUid: user.uid,
-        fromName: user.displayName || 'Reader',
-        postId,
-        read: false,
-        createdAt: Date.now(),
+        type: 'reply', fromUid: user.uid, fromName: user.displayName || 'Reader',
+        postId, read: false, createdAt: Date.now(),
       });
     }
 
-    // Notify followers of new post
     if (type === 'post') {
       const followersSnap = await get(ref(db, `followers/${user.uid}`));
       if (followersSnap.exists()) {
         for (const followerUid of Object.keys(followersSnap.val())) {
           await push(ref(db, `notifications/${followerUid}`), {
-            type: 'square_post',
-            fromUid: user.uid,
-            fromName: user.displayName || 'Reader',
-            postId,
-            read: false,
-            createdAt: Date.now(),
+            type: 'square_post', fromUid: user.uid, fromName: user.displayName || 'Reader',
+            postId, read: false, createdAt: Date.now(),
           });
         }
       }
@@ -690,22 +756,15 @@ export default function SquarePage() {
       const db = await getDB();
       const { ref, push } = await import('firebase/database');
       const postData = {
-        text: text.trim(),
-        authorUid: user.uid,
-        authorName: user.displayName || 'Reader',
+        text: text.trim(), authorUid: user.uid, authorName: user.displayName || 'Reader',
         authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
-        authorAvatarUrl: userData?.avatarUrl || null,
-        authorReadCount: userData?.readCount || 0,
-        isAuthor: userData?.isAuthor || false,
-        attachedStory: attachedStory || null,
-        parentId: null,
-        likeCount: 0,
-        createdAt: Date.now(),
+        authorAvatarUrl: userData?.avatarUrl || null, authorReadCount: userData?.readCount || 0,
+        isAuthor: userData?.isAuthor || false, attachedStory: attachedStory || null,
+        parentId: null, likeCount: 0, createdAt: Date.now(),
       };
       const newPost = await push(ref(db, 'square_posts'), postData);
       await sendNotifications(text.trim(), newPost.key, 'post');
-      setText('');
-      setAttachedStory(null);
+      setText(''); setAttachedStory(null);
     } catch (e) { console.error('Post error:', e); }
     setPosting(false);
   };
@@ -717,21 +776,14 @@ export default function SquarePage() {
       const db = await getDB();
       const { ref, push } = await import('firebase/database');
       const replyData = {
-        text: replyText.trim(),
-        authorUid: user.uid,
-        authorName: user.displayName || 'Reader',
+        text: replyText.trim(), authorUid: user.uid, authorName: user.displayName || 'Reader',
         authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
-        authorAvatarUrl: userData?.avatarUrl || null,
-        authorReadCount: userData?.readCount || 0,
-        isAuthor: userData?.isAuthor || false,
-        parentId: parentPost.id,
-        likeCount: 0,
-        createdAt: Date.now(),
+        authorAvatarUrl: userData?.avatarUrl || null, authorReadCount: userData?.readCount || 0,
+        isAuthor: userData?.isAuthor || false, parentId: parentPost.id, likeCount: 0, createdAt: Date.now(),
       };
       const newReply = await push(ref(db, 'square_posts'), replyData);
       await sendNotifications(replyText.trim(), newReply.key, 'reply', parentPost.authorUid);
-      setReplyText('');
-      setReplyTo(null);
+      setReplyText(''); setReplyTo(null);
     } catch (e) { console.error('Reply error:', e); }
     setPosting(false);
   };
@@ -751,6 +803,26 @@ export default function SquarePage() {
     }
   };
 
+  const handleEdit = (p) => { setEditingPost(p.id); setEditText(p.text); };
+
+  const saveEdit = async (postId) => {
+    if (!editText.trim()) return;
+    const db = await getDB();
+    const { ref, update } = await import('firebase/database');
+    await update(ref(db, `square_posts/${postId}`), { text: editText.trim(), edited: true });
+    setEditingPost(null); setEditText('');
+  };
+
+  const handleDelete = async (p) => {
+    if (!confirm('Delete this post?')) return;
+    const db = await getDB();
+    const { ref, remove } = await import('firebase/database');
+    await remove(ref(db, `square_posts/${p.id}`));
+    // Remove replies too
+    const repliesToDelete = posts.filter(r => r.parentId === p.id);
+    await Promise.all(repliesToDelete.map(r => remove(ref(db, `square_posts/${r.id}`))));
+  };
+
   const maxChars = user ? getMaxChars(userData?.readCount || 0, user.uid, userData?.isAuthor) : 200;
   const topLevel = posts.filter(p => !p.parentId);
   const getReplies = (id) => posts.filter(p => p.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
@@ -765,7 +837,7 @@ export default function SquarePage() {
         @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes sq-lockglow { 0%,100%{background:rgba(107,47,173,0.08)} 50%{background:rgba(107,47,173,0.18)} }
         @keyframes sq-lockpulse { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.04)} }
-        .sq-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.95rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; line-height: 1.65; }
+        .sq-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.95rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; line-height: 1.65; box-sizing: border-box; }
         .sq-textarea:focus { border-color: rgba(107,47,173,0.4); }
         .sq-textarea::placeholder { color: rgba(255,255,255,0.18); font-style: italic; }
         .sq-post-btn { background: #6b2fad; border: none; border-radius: 8px; padding: 7px 18px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
@@ -814,9 +886,7 @@ export default function SquarePage() {
             </>
           )}
           {!user && (
-            <button onClick={() => setShowAuth(true)} style={{ background: '#6b2fad', border: 'none', borderRadius: 7, padding: '6px 14px', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-              Sign in
-            </button>
+            <button onClick={() => setShowAuth(true)} style={{ background: '#6b2fad', border: 'none', borderRadius: 7, padding: '6px 14px', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Sign in</button>
           )}
           <a href="/" style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.22)', letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none', fontFamily: 'Inter, sans-serif' }}>← Home</a>
         </div>
@@ -840,9 +910,7 @@ export default function SquarePage() {
             <div style={{ display: 'flex', gap: 16, marginBottom: 28 }}>
               {['Hours', 'Minutes', 'Seconds'].map((label, i) => (
                 <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '2.5rem', fontWeight: 300, color: '#9b6dff', lineHeight: 1 }}>
-                    {countdown.split(':')[i] || '00'}
-                  </div>
+                  <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '2.5rem', fontWeight: 300, color: '#9b6dff', lineHeight: 1 }}>{countdown.split(':')[i] || '00'}</div>
                   <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>{label}</div>
                 </div>
               ))}
@@ -851,8 +919,6 @@ export default function SquarePage() {
               Opens at <span style={{ color: 'rgba(155,109,255,0.6)' }}>8:00pm GMT</span> tonight
             </div>
           </div>
-
-          {/* Last night's posts dimmed */}
           {posts.length > 0 && (
             <div style={{ opacity: 0.35 }}>
               <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginBottom: 12 }}>Last night in the Square</div>
@@ -882,17 +948,8 @@ export default function SquarePage() {
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 <Avatar uid={user.uid} initials={userInitials} size={36} isAuthor={userData?.isAuthor} avatarUrl={userData?.avatarUrl} />
                 <div style={{ flex: 1, position: 'relative' }}>
-                  <textarea
-                    ref={textareaRef}
-                    className="sq-textarea"
-                    placeholder="What's on your mind? Type @ to mention someone…"
-                    value={text}
-                    onChange={e => handleTextChange(e.target.value)}
-                    rows={3}
-                  />
-                  {mentionQuery !== '' && (
-                    <MentionDropdown query={mentionQuery} onSelect={insertMention} />
-                  )}
+                  <textarea ref={textareaRef} className="sq-textarea" placeholder="What's on your mind? Type @ to mention someone…" value={text} onChange={e => handleTextChange(e.target.value)} rows={3} />
+                  {mentionQuery !== '' && <MentionDropdown query={mentionQuery} onSelect={insertMention} />}
                   {attachedStory && (
                     <div style={{ marginTop: 8 }}>
                       <StoryEmbed story={attachedStory} />
@@ -907,15 +964,13 @@ export default function SquarePage() {
                       </button>
                       <span style={{ fontSize: '0.65rem', color: text.length > maxChars ? '#f87171' : 'rgba(255,255,255,0.18)', fontFamily: 'Inter, sans-serif' }}>{text.length} / {maxChars}</span>
                     </div>
-                    <button className="sq-post-btn" onClick={post} disabled={posting || !text.trim() || text.length > maxChars}>
-                      {posting ? 'Posting…' : 'Post'}
-                    </button>
+                    <button className="sq-post-btn" onClick={post} disabled={posting || !text.trim() || text.length > maxChars}>{posting ? 'Posting…' : 'Post'}</button>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div style={{ marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '1.5rem', textAlign: 'center' }}>
+            <div style={{ marginBottom: '2rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '1.5rem', textAlign: 'center' }}>
               <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: 'rgba(255,255,255,0.4)', marginBottom: 12, fontStyle: 'italic' }}>Sign in to join the conversation</div>
               <button onClick={() => setShowAuth(true)} style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.6rem 1.5rem', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Sign in</button>
             </div>
@@ -932,8 +987,9 @@ export default function SquarePage() {
                 const replies = getReplies(p.id);
                 const isOwn = user?.uid === p.authorUid;
                 const liked = likedPosts[p.id] || false;
+                const isEditing = editingPost === p.id;
                 return (
-                  <div key={p.id}>
+                  <div key={p.id} id={p.id}>
                     {i > 0 && <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '0.25rem 0 1.25rem' }} />}
                     <div style={{ display: 'flex', gap: 10 }}>
                       <Avatar uid={p.authorUid} initials={p.authorInitials} size={34} isAuthor={p.isAuthor} avatarUrl={p.authorAvatarUrl} />
@@ -941,16 +997,27 @@ export default function SquarePage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                           <a href={isOwn ? '/profile' : `/user?id=${p.authorUid}`} style={{ fontSize: '0.82rem', fontWeight: 500, color: '#e8e0d4', fontFamily: 'Inter, sans-serif', textDecoration: 'none' }}
                             onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
-                            onMouseLeave={e => e.currentTarget.style.color = '#e8e0d4'}>
-                            {p.authorName}
-                          </a>
+                            onMouseLeave={e => e.currentTarget.style.color = '#e8e0d4'}>{p.authorName}</a>
                           <UserBadge uid={p.authorUid} readCount={p.authorReadCount} isAuthor={p.isAuthor} />
-                          <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.18)', fontFamily: 'Inter, sans-serif', marginLeft: 'auto' }}>{timeAgo(p.createdAt)}</span>
+                          <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.18)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}{p.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
+                          {user && <PostMenu post={p} user={user} onEdit={handleEdit} onDelete={handleDelete} />}
                         </div>
-                        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: 'rgba(232,224,212,0.82)', lineHeight: 1.7, marginBottom: 6 }}>
-                          {renderText(p.text)}
-                        </div>
-                        {p.attachedStory && <StoryEmbed story={p.attachedStory} />}
+
+                        {isEditing ? (
+                          <div style={{ marginBottom: 8 }}>
+                            <textarea className="sq-textarea" value={editText} onChange={e => setEditText(e.target.value)} rows={3} autoFocus style={{ marginBottom: 6 }} />
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                              <button onClick={() => setEditingPost(null)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 12px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                              <button className="sq-post-btn" onClick={() => saveEdit(p.id)} disabled={!editText.trim()}>Save</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: 'rgba(232,224,212,0.82)', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
+                            {p.attachedStory && <StoryEmbed story={p.attachedStory} />}
+                          </>
+                        )}
+
                         <div style={{ display: 'flex', gap: 14, marginTop: 8 }}>
                           <button className={`sq-action-btn${liked ? ' liked' : ''}`} onClick={() => toggleLike(p.id)}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill={liked ? '#d4537e' : 'none'} stroke={liked ? '#d4537e' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={HEART_PATH}/></svg>
@@ -964,31 +1031,16 @@ export default function SquarePage() {
                           )}
                         </div>
 
-                        {/* Reply composer */}
                         {replyTo === p.id && (
                           <div style={{ marginTop: 10, position: 'relative' }}>
-                            <textarea
-                              ref={replyTextareaRef}
-                              className="sq-textarea"
-                              placeholder={`Reply to ${p.authorName}…`}
-                              value={replyText}
-                              onChange={e => handleReplyTextChange(e.target.value)}
-                              rows={2}
-                              autoFocus
-                              style={{ fontSize: '0.88rem' }}
-                            />
-                            {mentionQueryReply !== '' && (
-                              <MentionDropdown query={mentionQueryReply} onSelect={insertMentionReply} />
-                            )}
+                            <textarea ref={replyTextareaRef} className="sq-textarea" placeholder={`Reply to ${p.authorName}…`} value={replyText} onChange={e => handleReplyTextChange(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem' }} />
+                            {mentionQueryReply !== '' && <MentionDropdown query={mentionQueryReply} onSelect={insertMentionReply} />}
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-                              <button className="sq-post-btn" onClick={() => reply(p)} disabled={posting || !replyText.trim()}>
-                                {posting ? '…' : 'Reply'}
-                              </button>
+                              <button className="sq-post-btn" onClick={() => reply(p)} disabled={posting || !replyText.trim()}>{posting ? '…' : 'Reply'}</button>
                             </div>
                           </div>
                         )}
 
-                        {/* Replies */}
                         {replies.length > 0 && (
                           <div style={{ marginTop: 12, paddingLeft: 12, borderLeft: '1px solid rgba(107,47,173,0.2)', display: 'flex', flexDirection: 'column', gap: 12 }}>
                             {replies.map(r => {
@@ -1001,14 +1053,21 @@ export default function SquarePage() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3, flexWrap: 'wrap' }}>
                                       <a href={rIsOwn ? '/profile' : `/user?id=${r.authorUid}`} style={{ fontSize: '0.75rem', fontWeight: 500, color: '#e8e0d4', fontFamily: 'Inter, sans-serif', textDecoration: 'none' }}
                                         onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
-                                        onMouseLeave={e => e.currentTarget.style.color = '#e8e0d4'}>
-                                        {r.authorName}
-                                      </a>
+                                        onMouseLeave={e => e.currentTarget.style.color = '#e8e0d4'}>{r.authorName}</a>
                                       <UserBadge uid={r.authorUid} readCount={r.authorReadCount} isAuthor={r.isAuthor} />
-                                      <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.18)', fontFamily: 'Inter, sans-serif', marginLeft: 'auto' }}>{timeAgo(r.createdAt)}</span>
+                                      <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.18)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(r.createdAt)}{r.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
+                                      {user && <PostMenu post={r} user={user} onEdit={handleEdit} onDelete={handleDelete} />}
                                     </div>
                                     <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: 'rgba(232,224,212,0.75)', lineHeight: 1.65 }}>
-                                      {renderText(r.text)}
+                                      {editingPost === r.id ? (
+                                        <div>
+                                          <textarea className="sq-textarea" value={editText} onChange={e => setEditText(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem', marginBottom: 6 }} />
+                                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                            <button onClick={() => setEditingPost(null)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                                            <button className="sq-post-btn" onClick={() => saveEdit(r.id)} disabled={!editText.trim()}>Save</button>
+                                          </div>
+                                        </div>
+                                      ) : renderText(r.text)}
                                     </div>
                                     <button className={`sq-action-btn${rLiked ? ' liked' : ''}`} style={{ marginTop: 5 }} onClick={() => toggleLike(r.id)}>
                                       <svg width="11" height="11" viewBox="0 0 24 24" fill={rLiked ? '#d4537e' : 'none'} stroke={rLiked ? '#d4537e' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={HEART_PATH}/></svg>
@@ -1030,23 +1089,13 @@ export default function SquarePage() {
         </div>
       )}
 
-      {showStoryAttach && (
-        <StoryAttachModal
-          onSelect={(s) => { setAttachedStory(s); setShowStoryAttach(false); }}
-          onClose={() => setShowStoryAttach(false)}
-          cmsStories={cmsStories}
-        />
-      )}
-
+      {showStoryAttach && <StoryAttachModal onSelect={(s) => { setAttachedStory(s); setShowStoryAttach(false); }} onClose={() => setShowStoryAttach(false)} cmsStories={cmsStories} />}
       {showDM && user && <DMPanel user={user} onClose={() => setShowDM(false)} />}
       {showNotifs && user && <NotificationsPanel user={user} onClose={() => setShowNotifs(false)} />}
 
       {showAuth && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 3000 }}>
-          {(() => {
-            const AuthModal = require('../components/AuthModal').default;
-            return <AuthModal onClose={() => setShowAuth(false)} />;
-          })()}
+          {(() => { const AuthModal = require('../components/AuthModal').default; return <AuthModal onClose={() => setShowAuth(false)} />; })()}
         </div>
       )}
     </>
