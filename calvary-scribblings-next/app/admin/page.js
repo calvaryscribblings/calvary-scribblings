@@ -176,7 +176,7 @@ function ImageModal({ onInsert, onClose }) {
   );
 }
 
-function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, authorHandles }) {
+function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, authorHandles, authorUids }) {
   const [showImageModal, setShowImageModal] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const textareaRef = useRef(null);
@@ -185,6 +185,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
   const scheduleStatus = form.publishAt ? getScheduleStatus(form.publishAt) : null;
   const isNews = form.category === 'news';
   const currentHandle = authorHandles[form.author] || '';
+  const currentUid = authorUids[form.author] || '';
 
   async function handleCoverUpload(e) {
     const file = e.target.files[0];
@@ -243,7 +244,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
               {AUTHORS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
             {currentHandle
-              ? <div style={s.hintGreen}>@{currentHandle}</div>
+              ? <div style={s.hintGreen}>@{currentHandle}{currentUid ? ` · UID found ✓` : ''}</div>
               : <div style={s.hint}>No handle set — author must save their profile.</div>
             }
           </div>
@@ -358,13 +359,13 @@ export default function AdminPage() {
   const [msg, setMsg] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [authorHandles, setAuthorHandles] = useState({});
+  const [authorUids, setAuthorUids] = useState({});
 
   const emptyForm = { title: '', author: AUTHORS[0], category: 'flash', subcategory: '', date: formatDate(new Date()), coverFilename: '', coverPreview: null, content: '', publishAt: '' };
   const [form, setForm] = useState(emptyForm);
 
   const isAdmin = user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-  // Fetch all author handles from Firebase on load
   useEffect(() => {
     if (!isAdmin) return;
     (async () => {
@@ -373,10 +374,13 @@ export default function AdminPage() {
         const snap = await get(ref(db, 'users'));
         if (!snap.exists()) return;
         const handles = {};
-        Object.values(snap.val()).forEach(u => {
+        const uids = {};
+        Object.entries(snap.val()).forEach(([uid, u]) => {
           if (u.displayName && u.username) handles[u.displayName] = u.username;
+          if (u.displayName) uids[u.displayName] = uid;
         });
         setAuthorHandles(handles);
+        setAuthorUids(uids);
       } catch (e) {}
     })();
     loadStories();
@@ -416,6 +420,7 @@ export default function AdminPage() {
         title: form.title.trim(),
         author: form.author,
         authorHandle: authorHandles[form.author] || '',
+        authorUid: authorUids[form.author] || '',
         category: form.category,
         categoryName: categoryObj.label,
         subcategory: form.category === 'news' ? (form.subcategory || '') : '',
@@ -498,7 +503,7 @@ export default function AdminPage() {
         {(view === 'new' || view === 'edit') && (
           <StoryForm form={form} setForm={setForm} editingId={editingId}
             saving={saving} msg={msg} onSave={saveStory} onCancel={handleCancel}
-            authorHandles={authorHandles} />
+            authorHandles={authorHandles} authorUids={authorUids} />
         )}
         {view === 'list' && (
           <div>

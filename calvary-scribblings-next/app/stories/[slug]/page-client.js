@@ -579,13 +579,13 @@ export default function StoryPageClient({ params }) {
               <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span>{story.author}</span>
                 {story.authorHandle && (
-                  <a href={`/search?q=${story.authorHandle}`}
-                    style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Inter, sans-serif' }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
-                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(167,139,250,0.65)'}>
-                    @{story.authorHandle}
-                  </a>
-                )}
+  <a href={story.authorUid ? `/user?id=${story.authorUid}` : `/search?q=${story.authorHandle}`}
+    style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Inter, sans-serif' }}
+    onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
+    onMouseLeave={e => e.currentTarget.style.color = 'rgba(167,139,250,0.65)'}>
+    @{story.authorHandle}
+  </a>
+)}
               </span>
               <div className="byline-dot" />
               <span>{story.date}</span>
@@ -606,7 +606,7 @@ export default function StoryPageClient({ params }) {
               <span>
                 By {story.author}
                 {story.authorHandle && (
-                  <a href={`/search?q=${story.authorHandle}`} style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }}>
+                  <a href={story.authorUid ? `/user?id=${story.authorUid}` : `/search?q=${story.authorHandle}`} style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }}>
                     @{story.authorHandle}
                   </a>
                 )} · {story.date}
