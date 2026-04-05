@@ -20,6 +20,12 @@ async function getDB() {
   return getDatabase(app);
 }
 
+function isSquareOpen() {
+  const now = new Date();
+  const gmtHour = now.getUTCHours();
+  return gmtHour >= 20 && gmtHour < 24;
+}
+
 export default function Navbar() {
   const { user, logout } = useAuth();
   const [scrolled, setScrolled] = useState(false);
@@ -28,6 +34,13 @@ export default function Navbar() {
   const [storiesOpen, setStoriesOpen] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [squareOpen, setSquareOpen] = useState(false);
+
+  useEffect(() => {
+    setSquareOpen(isSquareOpen());
+    const interval = setInterval(() => setSquareOpen(isSquareOpen()), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -75,6 +88,20 @@ export default function Navbar() {
         .cs-nav-avatar { width: 34px; height: 34px; border-radius: 50%; background: rgba(107,47,173,0.3); border: 1.5px solid rgba(107,47,173,0.5); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #c4b5fd; text-decoration: none; flex-shrink: 0; overflow: hidden; transition: border-color 0.2s; font-family: Inter, sans-serif; }
         .cs-nav-avatar:hover { border-color: rgba(167,139,250,0.8); }
         .cs-nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Square button */
+        .cs-square-btn { display: inline-flex; align-items: center; gap: 5px; border-radius: 7px; padding: 5px 11px; text-decoration: none; transition: background 0.2s, border-color 0.2s; cursor: pointer; border: 1px solid; white-space: nowrap; }
+        .cs-square-btn.open { background: rgba(107,47,173,0.15); border-color: rgba(107,47,173,0.4); }
+        .cs-square-btn.open:hover { background: rgba(107,47,173,0.25); }
+        .cs-square-btn.closed { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08); }
+        .cs-square-btn-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+        .cs-square-btn-dot.open { background: #1d9e75; animation: sq-pulse 2s infinite; }
+        .cs-square-btn-dot.closed { background: rgba(255,255,255,0.2); }
+        .cs-square-btn-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+        .cs-square-btn-label.open { color: #a78bfa; }
+        .cs-square-btn-label.closed { color: rgba(255,255,255,0.22); }
+        @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
         .cs-hamburger { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 4px; z-index: 1001; }
         .cs-hamburger span { display: block; width: 24px; height: 2px; background: #fff; border-radius: 2px; transition: all 0.3s; }
         .cs-drawer { position: fixed; top: 68px; left: 0; right: 0; bottom: 0; background: rgba(10,10,10,0.98); z-index: 999; display: flex; flex-direction: column; padding: 1.5rem 4%; overflow-y: auto; }
@@ -94,6 +121,18 @@ export default function Navbar() {
         .cs-drawer-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .cs-drawer-avatar-name { font-size: 0.95rem; font-weight: 500; color: rgba(255,255,255,0.85); }
         .cs-drawer-avatar-sub { font-size: 0.68rem; color: rgba(255,255,255,0.3); margin-top: 1px; }
+
+        /* Mobile Square row in drawer */
+        .cs-drawer-square { display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); text-decoration: none; }
+        .cs-drawer-square-left { display: flex; align-items: center; gap: 0.6rem; }
+        .cs-drawer-square-label { font-size: 1.1rem; font-weight: 500; color: rgba(255,255,255,0.85); }
+        .cs-drawer-square-status { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+        .cs-drawer-square-status.open { color: #1d9e75; }
+        .cs-drawer-square-status.closed { color: rgba(255,255,255,0.2); }
+        .cs-drawer-square-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+        .cs-drawer-square-dot.open { background: #1d9e75; animation: sq-pulse 2s infinite; }
+        .cs-drawer-square-dot.closed { background: rgba(255,255,255,0.2); }
+
         @media (max-width: 768px) { .cs-desktop-links { display: none !important; } .cs-hamburger { display: flex !important; } }
       `}</style>
 
@@ -126,6 +165,10 @@ export default function Navbar() {
           <a href="https://calvaryscribblings.co.uk/#subscribe">Subscribe</a>
           <a href="/contact">Contact</a>
           <a href="/search">Search</a>
+          <a href="/square" className={`cs-square-btn ${squareOpen ? 'open' : 'closed'}`}>
+            <div className={`cs-square-btn-dot ${squareOpen ? 'open' : 'closed'}`} />
+            <span className={`cs-square-btn-label ${squareOpen ? 'open' : 'closed'}`}>The Square</span>
+          </a>
           {user ? (
             <a href="/profile" className="cs-nav-avatar" title={user.displayName || 'Profile'}>
               {avatarUrl ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} /> : initials}
@@ -155,6 +198,15 @@ export default function Navbar() {
             </a>
           )}
           <a href="/" onClick={() => setMenuOpen(false)}>Home</a>
+          <a href="/square" className="cs-drawer-square" onClick={() => setMenuOpen(false)}>
+            <div className="cs-drawer-square-left">
+              <div className={`cs-drawer-square-dot ${squareOpen ? 'open' : 'closed'}`} />
+              <span className="cs-drawer-square-label">The Square</span>
+            </div>
+            <span className={`cs-drawer-square-status ${squareOpen ? 'open' : 'closed'}`}>
+              {squareOpen ? 'Open now' : 'Closed'}
+            </span>
+          </a>
           <button className={'cs-drawer-stories-btn' + (storiesOpen ? ' open' : '')} onClick={() => setStoriesOpen(!storiesOpen)}>
             Stories <span className="cs-arrow">▾</span>
           </button>
