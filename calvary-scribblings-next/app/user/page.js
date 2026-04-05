@@ -281,32 +281,6 @@ export default function UserPage() {
         .up-stat-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2.4rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.4rem; }
         .up-stat-label { font-size: 0.56rem; color: rgba(255,255,255,0.28); letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
-        /* ── Cinematic Rewards Button ── */
-        .up-rewards-btn {
-          display: block; width: 100%; text-decoration: none; position: relative; overflow: hidden;
-          background: linear-gradient(135deg, #1a0a2e 0%, #0d1a12 50%, #1a0a2e 100%);
-          border: 1px solid rgba(107,47,173,0.3); border-radius: 20px; padding: 1.75rem 2rem;
-          transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-          cursor: pointer; margin-bottom: 2.5rem;
-        }
-        .up-rewards-btn::before {
-          content: ''; position: absolute; inset: 0;
-          background: linear-gradient(135deg, rgba(107,47,173,0.15) 0%, rgba(29,158,117,0.08) 50%, rgba(107,47,173,0.15) 100%);
-          opacity: 0; transition: opacity 0.3s ease;
-        }
-        .up-rewards-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(107,47,173,0.25), 0 0 0 1px rgba(107,47,173,0.4); border-color: rgba(107,47,173,0.5); }
-        .up-rewards-btn:hover::before { opacity: 1; }
-        .up-rewards-inner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }
-        .up-rewards-left { display: flex; flex-direction: column; gap: 0.4rem; }
-        .up-rewards-eyebrow { font-size: 0.58rem; color: rgba(155,109,255,0.6); letter-spacing: 0.2em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
-        .up-rewards-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.5rem; font-weight: 300; color: #f5f0e8; line-height: 1.1; }
-        .up-rewards-sub { font-size: 0.7rem; color: rgba(232,224,212,0.35); font-family: 'Inter', sans-serif; }
-        .up-rewards-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }
-        .up-rewards-arrow { font-size: 1.2rem; color: rgba(167,139,250,0.4); transition: transform 0.2s, color 0.2s; }
-        .up-rewards-btn:hover .up-rewards-arrow { transform: translateX(4px); color: rgba(167,139,250,0.8); }
-        .up-rewards-shimmer { position: absolute; top: 0; left: -100%; width: 60%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent); animation: up-shimmer 3s infinite; }
-        @keyframes up-shimmer { 0% { left: -100%; } 100% { left: 200%; } }
-
         .up-section { margin-bottom: 2rem; }
         .up-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
         .up-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; }
@@ -381,21 +355,6 @@ export default function UserPage() {
             <div className="up-stat-label">Bookmarks</div>
           </div>
         </div>
-
-        {/* ── Cinematic Rewards Button ── */}
-        <a href="/rewards" className="up-rewards-btn">
-          <div className="up-rewards-shimmer" />
-          <div className="up-rewards-inner">
-            <div className="up-rewards-left">
-              <div className="up-rewards-eyebrow">The Story Island</div>
-              <div className="up-rewards-title">Reader's Reward</div>
-              <div className="up-rewards-sub">Read · Comment · Earn · Cash out</div>
-            </div>
-            <div className="up-rewards-right">
-              <div className="up-rewards-arrow">→</div>
-            </div>
-          </div>
-        </a>
 
         {readStories.length > 0 && (
           <div className="up-section">
