@@ -36,6 +36,7 @@ function getBadge(readCount, uid) {
 
 const BADGE_SVG_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
 const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
+const HEART_PATH = "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z";
 
 function BadgeIcon({ color, size = 14, isFounder = false }) {
   return (
@@ -61,7 +62,22 @@ function BadgeDisplay({ tier, label, color, size = 13 }) {
   );
 }
 
-// Fetches live badge from Firebase for a given uid
+// ── WriterBadge must be defined BEFORE CommentBadge ──
+function WriterBadge({ size = 13 }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+        <path fill="#581c87" d={BADGE_SVG_PATH} />
+        <path fill="#e9d5ff" d={CHECK_PATH} />
+      </svg>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)', borderRadius: 6, padding: '1px 7px 1px 5px' }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path fill="#d4537e" d={HEART_PATH} /></svg>
+        <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>Writer</span>
+      </span>
+    </span>
+  );
+}
+
 function CommentBadge({ uid, size = 13 }) {
   const [badge, setBadge] = useState(null);
   const [isAuthor, setIsAuthor] = useState(false);
@@ -147,7 +163,6 @@ function timeAgo(ts) {
 
 function CommentsSection({ slug }) {
   const [user, setUser] = useState(null);
-  const [userReadCount, setUserReadCount] = useState(0);
   const [userAvatarUrl, setUserAvatarUrl] = useState(null);
   const [comments, setComments] = useState([]);
   const [text, setText] = useState('');
@@ -167,11 +182,7 @@ function CommentsSection({ slug }) {
           try {
             const db = await getDB();
             const { ref, get } = await import('firebase/database');
-            const [rcSnap, avSnap] = await Promise.all([
-              get(ref(db, `users/${u.uid}/readCount`)),
-              get(ref(db, `users/${u.uid}/avatarUrl`)),
-            ]);
-            if (rcSnap.exists()) setUserReadCount(rcSnap.val());
+            const avSnap = await get(ref(db, `users/${u.uid}/avatarUrl`));
             if (avSnap.exists()) setUserAvatarUrl(avSnap.val());
           } catch (e) {}
         }
@@ -229,7 +240,6 @@ function CommentsSection({ slug }) {
         <div className="cs-title">Discussion</div>
         {comments.length > 0 && <div className="cs-count">{comments.length} {comments.length === 1 ? 'comment' : 'comments'}</div>}
       </div>
-
       {user ? (
         <div className="cs-compose">
           <div className="cs-compose-row">
@@ -247,10 +257,9 @@ function CommentsSection({ slug }) {
       ) : (
         <div className="cs-signin-prompt">
           <p>Sign in to join the discussion</p>
-          <button className="cs-signin-btn" onClick={() => { const btn = document.querySelector('[class*="signin"], .cs-signin-btn-nav'); if (btn) btn.click(); }}>Sign in to comment</button>
+          <button className="cs-signin-btn">Sign in to comment</button>
         </div>
       )}
-
       {loading ? (
         <div className="cs-loading">Loading comments…</div>
       ) : topLevel.length === 0 ? (
@@ -318,6 +327,26 @@ function CommentsSection({ slug }) {
   );
 }
 
+// ── generateStaticParams — fetches CMS slugs at build time ──
+export async function generateStaticParams() {
+  const staticSlugs = stories.map(s => ({ slug: s.id }));
+  try {
+    const { initializeApp, getApps } = await import('firebase/app');
+    const { getDatabase, ref, get } = await import('firebase/database');
+    const app = getApps().length ? getApps()[0] : initializeApp(FB);
+    const db = getDatabase(app);
+    const snap = await get(ref(db, 'cms_stories'));
+    if (snap.exists()) {
+      const cmsSlugs = Object.keys(snap.val()).map(slug => ({ slug }));
+      const all = [...staticSlugs, ...cmsSlugs].filter((s, i, arr) => arr.findIndex(x => x.slug === s.slug) === i);
+      return all;
+    }
+  } catch (e) {
+    console.error('generateStaticParams error:', e);
+  }
+  return staticSlugs;
+}
+
 export default function StoryPage({ params }) {
   const { slug } = use(params);
   const [story, setStory] = useState(stories.find(s => s.id === slug) || null);
@@ -370,12 +399,10 @@ export default function StoryPage({ params }) {
 
   useEffect(() => {
     if (!slug) return;
-
     fetch(`/api/hit?slug=${slug}`, { method: 'POST' })
       .then(r => r.json())
       .then(data => { if (typeof data.count === 'number') setHitCount(data.count); })
       .catch(() => {});
-
     let unsubRead;
     (async () => {
       try {
@@ -397,7 +424,6 @@ export default function StoryPage({ params }) {
         });
       } catch (e) {}
     })();
-
     return () => { if (unsubRead) unsubRead(); };
   }, [slug]);
 
@@ -549,22 +575,22 @@ export default function StoryPage({ params }) {
             <div className="story-badge-hero">{story.categoryName}</div>
             <h1 className="story-title">{story.title}</h1>
             <div className="story-byline">
-  <span className="byline-by">by</span>
-  <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-    <span>{story.author}</span>
-    {story.authorHandle && (
-      <a href={`/search?q=${story.authorHandle}`}
-        style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Inter, sans-serif' }}
-        onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
-        onMouseLeave={e => e.currentTarget.style.color = 'rgba(167,139,250,0.65)'}>
-        @{story.authorHandle}
-      </a>
-    )}
-  </span>
-  <div className="byline-dot" />
-  <span>{story.date}</span>
-  {readingTime > 0 && (<><div className="byline-dot" /><span>⏱ {readingTime} MIN. READ</span></>)}
-</div>
+              <span className="byline-by">by</span>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span>{story.author}</span>
+                {story.authorHandle && (
+                  <a href={`/search?q=${story.authorHandle}`}
+                    style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Inter, sans-serif' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(167,139,250,0.65)'}>
+                    @{story.authorHandle}
+                  </a>
+                )}
+              </span>
+              <div className="byline-dot" />
+              <span>{story.date}</span>
+              {readingTime > 0 && (<><div className="byline-dot" /><span>⏱ {readingTime} MIN. READ</span></>)}
+            </div>
           </div>
         </header>
         <div className="story-body-wrap">
@@ -578,13 +604,13 @@ export default function StoryPage({ params }) {
             <div className="hit-counter-row">{hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}</div>
             <div className="story-footer">
               <span>
-  By {story.author}
-  {story.authorHandle && (
-    <a href={`/search?q=${story.authorHandle}`} style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }}>
-      @{story.authorHandle}
-    </a>
-  )} · {story.date}
-</span>
+                By {story.author}
+                {story.authorHandle && (
+                  <a href={`/search?q=${story.authorHandle}`} style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }}>
+                    @{story.authorHandle}
+                  </a>
+                )} · {story.date}
+              </span>
               <span className="story-badge-footer">{story.categoryName}</span>
             </div>
           </main>
