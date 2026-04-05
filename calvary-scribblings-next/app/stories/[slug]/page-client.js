@@ -62,7 +62,6 @@ function BadgeDisplay({ tier, label, color, size = 13 }) {
   );
 }
 
-// ── WriterBadge must be defined BEFORE CommentBadge ──
 function WriterBadge({ size = 13 }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -149,6 +148,29 @@ function CommentUsername({ uid }) {
   return <span style={{ fontSize: '0.62rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{username}</span>;
 }
 
+function AuthorHandleLink({ handle, style }) {
+  const [uid, setUid] = useState(null);
+  useEffect(() => {
+    if (!handle) return;
+    (async () => {
+      try {
+        const db = await getDB();
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, `usernames/${handle}`));
+        if (snap.exists()) setUid(snap.val());
+      } catch (e) {}
+    })();
+  }, [handle]);
+  if (!handle) return null;
+  return (
+    <a href={uid ? `/user?id=${uid}` : `/search?q=${handle}`} style={style}
+      onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
+      onMouseLeave={e => e.currentTarget.style.color = style.color}>
+      @{handle}
+    </a>
+  );
+}
+
 function timeAgo(ts) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
@@ -161,6 +183,173 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
+// ── Exercise Section ──────────────────────────────────────────────────────────
+function ExerciseSection({ slug }) {
+  const [user, setUser] = useState(null);
+  const [exercise, setExercise] = useState(null);
+  const [submission, setSubmission] = useState(null);
+  const [answers, setAnswers] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      const auth = await getFirebaseAuth();
+      const { onAuthStateChanged } = await import('firebase/auth');
+      onAuthStateChanged(auth, u => setUser(u));
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!slug) return;
+    (async () => {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const snap = await get(ref(db, `story_exercises/${slug}`));
+      if (snap.exists() && snap.val().questions) {
+        const qs = snap.val().questions;
+        setExercise(qs);
+        setAnswers(qs.map(q => q.type === 'mcq' ? null : ''));
+      }
+    })();
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug || !user) return;
+    (async () => {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const snap = await get(ref(db, `exercise_submissions/${user.uid}/${slug}`));
+      if (snap.exists()) {
+        setSubmission(snap.val());
+        setSubmitted(true);
+      }
+    })();
+  }, [slug, user]);
+
+  const submit = async () => {
+    if (!user || !exercise) return;
+    const allAnswered = answers.every((a, i) => exercise[i].type === 'essay' ? a.trim().length > 0 : a !== null);
+    if (!allAnswered) { setMsg('Please answer all questions before submitting.'); return; }
+    setSubmitting(true);
+
+    const db = await getDB();
+    const { ref, set, push, update, get } = await import('firebase/database');
+    const now = Date.now();
+
+    let autoPoints = 0;
+    let hasEssay = false;
+    const processedAnswers = exercise.map((q, i) => {
+      if (q.type === 'mcq') {
+        const correct = answers[i] === q.correctAnswer;
+        if (correct) autoPoints += q.points;
+        return { type: 'mcq', questionIndex: i, question: q.question, selected: answers[i], correct, awardedPoints: correct ? q.points : 0, maxPoints: q.points, marked: true };
+      } else {
+        hasEssay = true;
+        return { type: 'essay', questionIndex: i, question: q.question, response: answers[i], maxPoints: q.points, marked: false, awardedPoints: 0 };
+      }
+    });
+
+    const status = hasEssay ? 'pending_review' : 'auto_marked';
+    await set(ref(db, `exercise_submissions/${user.uid}/${slug}`), {
+      answers: processedAnswers, status, submittedAt: now, totalScore: autoPoints,
+    });
+
+    if (autoPoints > 0) {
+      await push(ref(db, `points/${user.uid}/history`), {
+        type: 'exercise', amount: autoPoints,
+        description: `Exercise completed — ${slug.replace(/-/g, ' ')}`,
+        createdAt: now,
+      });
+      const pointsSnap = await get(ref(db, `points/${user.uid}/total`));
+      const current = pointsSnap.exists() ? pointsSnap.val() : 0;
+      await update(ref(db, `points/${user.uid}`), { total: current + autoPoints });
+    }
+
+    setSubmission({ answers: processedAnswers, status, totalScore: autoPoints });
+    setSubmitted(true);
+    setSubmitting(false);
+  };
+
+  if (!exercise || exercise.length === 0) return null;
+
+  return (
+    <div style={{ background: '#f0ead8', maxWidth: 680, margin: '0 auto', padding: '0 2rem 3rem' }}>
+      <div style={{ borderTop: '1px solid #e0dbd2', paddingTop: '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+          <div>
+            <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>Story Exercise</div>
+            <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif' }}>{exercise.length} question{exercise.length !== 1 ? 's' : ''} · Up to {exercise.reduce((s, q) => s + q.points, 0)} pts</div>
+          </div>
+          {submitted && (
+            <div style={{ background: 'rgba(107,47,173,0.1)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 8, padding: '0.4rem 0.9rem', fontSize: '0.72rem', color: '#6b2fad', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+              {submission.status === 'pending_review' ? '⏳ Essay pending review' : `✓ ${submission.totalScore} pts earned`}
+            </div>
+          )}
+        </div>
+
+        {submitted ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {submission.answers.map((a, i) => (
+              <div key={i} style={{ background: '#fff', border: `1px solid ${a.type === 'mcq' ? (a.correct ? 'rgba(29,158,117,0.3)' : 'rgba(220,38,38,0.3)') : 'rgba(107,47,173,0.2)'}`, borderRadius: 10, padding: '1rem' }}>
+                <div style={{ fontSize: '0.78rem', color: '#888', fontFamily: 'Inter, sans-serif', marginBottom: '0.4rem' }}>Q{i + 1} · {a.type === 'mcq' ? 'Multiple Choice' : 'Essay'}</div>
+                <div style={{ fontSize: '0.92rem', color: '#1a1a1a', fontFamily: 'Cochin, Georgia, serif', marginBottom: '0.5rem' }}>{a.question}</div>
+                {a.type === 'mcq' ? (
+                  <div style={{ fontSize: '0.82rem', fontFamily: 'Inter, sans-serif', color: a.correct ? '#1d9e75' : '#dc2626', fontWeight: 600 }}>
+                    {a.correct ? `✓ Correct — +${a.awardedPoints} pts` : '✗ Incorrect — 0 pts'}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.82rem', fontFamily: 'Inter, sans-serif', color: a.marked ? '#1d9e75' : '#d97706' }}>
+                    {a.marked ? `✓ Marked — ${a.awardedPoints} pts` : '⏳ Awaiting review'}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : user ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {exercise.map((q, i) => (
+              <div key={i} style={{ background: '#fff', border: '1px solid #e0dbd2', borderRadius: 10, padding: '1.25rem' }}>
+                <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif', marginBottom: '0.4rem' }}>Q{i + 1} · {q.type === 'mcq' ? 'Multiple Choice' : 'Essay'} · {q.points} pts</div>
+                <div style={{ fontSize: '1rem', color: '#1a1a1a', fontFamily: 'Cochin, Georgia, serif', marginBottom: '1rem', lineHeight: 1.6 }}>{q.question}</div>
+                {q.type === 'mcq' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {q.options.filter(o => o.trim()).map((opt, oi) => (
+                      <label key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', padding: '0.6rem 0.75rem', borderRadius: 8, border: `1px solid ${answers[i] === oi ? 'rgba(107,47,173,0.4)' : '#e0dbd2'}`, background: answers[i] === oi ? 'rgba(107,47,173,0.06)' : 'transparent', transition: 'all 0.15s' }}>
+                        <input type="radio" name={`q${i}`} checked={answers[i] === oi} onChange={() => setAnswers(a => a.map((v, idx) => idx === i ? oi : v))} style={{ accentColor: '#6b2fad' }} />
+                        <span style={{ fontSize: '0.9rem', color: '#1a1a1a', fontFamily: 'Cochin, Georgia, serif' }}>{opt}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <textarea
+                    value={answers[i] || ''}
+                    onChange={e => setAnswers(a => a.map((v, idx) => idx === i ? e.target.value : v))}
+                    placeholder="Write your response here…"
+                    rows={5}
+                    style={{ width: '100%', border: '1px solid #e0dbd2', borderRadius: 8, padding: '0.75rem', fontSize: '0.92rem', fontFamily: 'Cochin, Georgia, serif', color: '#1a1a1a', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.7 }}
+                  />
+                )}
+              </div>
+            ))}
+            {msg && <div style={{ fontSize: '0.82rem', color: '#dc2626', fontFamily: 'Inter, sans-serif' }}>{msg}</div>}
+            <button onClick={submit} disabled={submitting}
+              style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.85rem 2rem', color: '#fff', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Inter, sans-serif', opacity: submitting ? 0.6 : 1 }}>
+              {submitting ? 'Submitting…' : 'Submit Exercise'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ background: 'rgba(107,47,173,0.06)', border: '1px solid rgba(107,47,173,0.15)', borderRadius: 10, padding: '1.5rem', textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Cochin, Georgia, serif', color: '#555', marginBottom: '0.5rem' }}>Sign in to attempt this exercise and earn points.</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Comments Section ──────────────────────────────────────────────────────────
 function CommentsSection({ slug }) {
   const [user, setUser] = useState(null);
   const [userAvatarUrl, setUserAvatarUrl] = useState(null);
@@ -216,7 +405,7 @@ function CommentsSection({ slug }) {
     setPosting(true);
     try {
       const db = await getDB();
-      const { ref, push } = await import('firebase/database');
+      const { ref, push, get, update } = await import('firebase/database');
       await push(ref(db, `comments/${slug}`), {
         text: commentText.trim(),
         authorName: user.displayName || 'Reader',
@@ -226,6 +415,27 @@ function CommentsSection({ slug }) {
         createdAt: Date.now(),
       });
       if (parentId) { setReplyText(''); setReplyTo(null); } else setText('');
+
+      // Award points for comment milestones (every 50 comments = 10 pts)
+      try {
+        const commentsSnap = await get(ref(db, 'comments'));
+        let userCommentCount = 0;
+        if (commentsSnap.exists()) {
+          Object.values(commentsSnap.val()).forEach(slugComments => {
+            Object.values(slugComments).forEach(c => { if (c.authorUid === user.uid) userCommentCount++; });
+          });
+        }
+        if (userCommentCount > 0 && userCommentCount % 50 === 0) {
+          const pointsSnap = await get(ref(db, `points/${user.uid}/total`));
+          const current = pointsSnap.exists() ? pointsSnap.val() : 0;
+          await update(ref(db, `points/${user.uid}`), { total: current + 10 });
+          await push(ref(db, `points/${user.uid}/history`), {
+            type: 'comment', amount: 10,
+            description: `${userCommentCount} comments milestone`,
+            createdAt: Date.now(),
+          });
+        }
+      } catch (e) {}
     } catch (e) {}
     setPosting(false);
   };
@@ -327,26 +537,6 @@ function CommentsSection({ slug }) {
   );
 }
 
-// ── generateStaticParams — fetches CMS slugs at build time ──
-export async function generateStaticParams() {
-  const staticSlugs = stories.map(s => ({ slug: s.id }));
-  try {
-    const { initializeApp, getApps } = await import('firebase/app');
-    const { getDatabase, ref, get } = await import('firebase/database');
-    const app = getApps().length ? getApps()[0] : initializeApp(FB);
-    const db = getDatabase(app);
-    const snap = await get(ref(db, 'cms_stories'));
-    if (snap.exists()) {
-      const cmsSlugs = Object.keys(snap.val()).map(slug => ({ slug }));
-      const all = [...staticSlugs, ...cmsSlugs].filter((s, i, arr) => arr.findIndex(x => x.slug === s.slug) === i);
-      return all;
-    }
-  } catch (e) {
-    console.error('generateStaticParams error:', e);
-  }
-  return staticSlugs;
-}
-
 export default function StoryPageClient({ params }) {
   const { slug } = use(params);
   const [story, setStory] = useState(stories.find(s => s.id === slug) || null);
@@ -403,6 +593,7 @@ export default function StoryPageClient({ params }) {
       .then(r => r.json())
       .then(data => { if (typeof data.count === 'number') setHitCount(data.count); })
       .catch(() => {});
+
     let unsubRead;
     (async () => {
       try {
@@ -413,12 +604,28 @@ export default function StoryPageClient({ params }) {
           unsubRead();
           try {
             const db = await getDB();
-            const { ref, get, set, runTransaction } = await import('firebase/database');
+            const { ref, get, set, runTransaction, push, update } = await import('firebase/database');
             const readRef = ref(db, `users/${user.uid}/readStories/${slug}`);
             const snap = await get(readRef);
             if (!snap.exists()) {
               await set(readRef, true);
               await runTransaction(ref(db, `users/${user.uid}/readCount`), (c) => (c || 0) + 1);
+
+              // Award points for read milestones (every 10 reads = 5 pts)
+              try {
+                const countSnap = await get(ref(db, `users/${user.uid}/readCount`));
+                const newCount = countSnap.exists() ? countSnap.val() : 1;
+                if (newCount > 0 && newCount % 10 === 0) {
+                  const pointsSnap = await get(ref(db, `points/${user.uid}/total`));
+                  const current = pointsSnap.exists() ? pointsSnap.val() : 0;
+                  await update(ref(db, `points/${user.uid}`), { total: current + 5 });
+                  await push(ref(db, `points/${user.uid}/history`), {
+                    type: 'read', amount: 5,
+                    description: `${newCount} stories read milestone`,
+                    createdAt: Date.now(),
+                  });
+                }
+              } catch (e) {}
             }
           } catch (e) {}
         });
@@ -579,13 +786,9 @@ export default function StoryPageClient({ params }) {
               <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span>{story.author}</span>
                 {story.authorHandle && (
-  <a href={story.authorUid ? `/user?id=${story.authorUid}` : `/search?q=${story.authorHandle}`}
-    style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Inter, sans-serif' }}
-    onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
-    onMouseLeave={e => e.currentTarget.style.color = 'rgba(167,139,250,0.65)'}>
-    @{story.authorHandle}
-  </a>
-)}
+                  <AuthorHandleLink handle={story.authorHandle}
+                    style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Inter, sans-serif' }} />
+                )}
               </span>
               <div className="byline-dot" />
               <span>{story.date}</span>
@@ -606,15 +809,15 @@ export default function StoryPageClient({ params }) {
               <span>
                 By {story.author}
                 {story.authorHandle && (
-                  <a href={story.authorUid ? `/user?id=${story.authorUid}` : `/search?q=${story.authorHandle}`} style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }}>
-                    @{story.authorHandle}
-                  </a>
+                  <AuthorHandleLink handle={story.authorHandle}
+                    style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }} />
                 )} · {story.date}
               </span>
               <span className="story-badge-footer">{story.categoryName}</span>
             </div>
           </main>
         </div>
+        <ExerciseSection slug={slug} />
         <CommentsSection slug={slug} />
       </div>
       <button className={showBackToTop ? 'back-to-top' : 'back-to-top hidden'} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Back to top">↑</button>
