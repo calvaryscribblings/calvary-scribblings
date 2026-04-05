@@ -73,14 +73,8 @@ function WriterBadge({ size = 13 }) {
         <path fill="#581c87" d={BADGE_PATH} />
         <path fill="#e9d5ff" d={CHECK_PATH} />
       </svg>
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', gap: '3px',
-        background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)',
-        borderRadius: '6px', padding: '1px 7px 1px 5px',
-      }}>
-        <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-          <path fill="#d4537e" d={HEART_PATH} />
-        </svg>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)', borderRadius: '6px', padding: '1px 7px 1px 5px' }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path fill="#d4537e" d={HEART_PATH} /></svg>
         <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>Writer</span>
       </span>
     </span>
@@ -89,6 +83,10 @@ function WriterBadge({ size = 13 }) {
 
 function formatJoinDate(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+}
+
+function formatPence(pence) {
+  return `£${(pence / 100).toFixed(2)}`;
 }
 
 function UserListModal({ title, uids, onClose }) {
@@ -100,9 +98,7 @@ function UserListModal({ title, uids, onClose }) {
     (async () => {
       const db = await getDB();
       const { ref, get } = await import('firebase/database');
-      const results = await Promise.all(
-        uids.map(uid => get(ref(db, `users/${uid}`)).then(snap => ({ uid, data: snap.exists() ? snap.val() : null })))
-      );
+      const results = await Promise.all(uids.map(uid => get(ref(db, `users/${uid}`)).then(snap => ({ uid, data: snap.exists() ? snap.val() : null }))));
       setUsers(results.filter(u => u.data));
       setLoadingUsers(false);
     })();
@@ -158,6 +154,8 @@ export default function ProfilePage() {
   const [followingUids, setFollowingUids] = useState([]);
   const [readStorySlugs, setReadStorySlugs] = useState([]);
   const [cmsStories, setCmsStories] = useState([]);
+  const [points, setPoints] = useState(0);
+  const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [showEdit, setShowEdit] = useState(false);
@@ -171,7 +169,6 @@ export default function ProfilePage() {
   const [editAvatarPreview, setEditAvatarPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
-
   const [pwMsg, setPwMsg] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
   const fileInputRef = useRef(null);
@@ -182,14 +179,7 @@ export default function ProfilePage() {
       const { ref, get } = await import('firebase/database');
       const snap = await get(ref(db, 'cms_stories'));
       if (snap.exists()) {
-        const data = snap.val();
-        const parsed = Object.entries(data).map(([id, s]) => ({
-          id,
-          title: s.title || '',
-          cover: s.cover || '',
-          category: s.category || '',
-        }));
-        setCmsStories(parsed);
+        setCmsStories(Object.entries(snap.val()).map(([id, s]) => ({ id, title: s.title || '', cover: s.cover || '', category: s.category || '' })));
       }
     })();
   }, []);
@@ -197,70 +187,60 @@ export default function ProfilePage() {
   useEffect(() => {
     let unsubAuth = null;
     const unsubDB = [];
-
     (async () => {
       const auth = await getFirebaseAuth();
       const { onAuthStateChanged } = await import('firebase/auth');
-
       unsubAuth = onAuthStateChanged(auth, async (u) => {
         if (!u) { router.push('/'); return; }
         setAuthUser(u);
-
         const db = await getDB();
-        const { ref, onValue } = await import('firebase/database');
+        const { ref, onValue, get } = await import('firebase/database');
 
         const unsubProfile = onValue(ref(db, `users/${u.uid}`), (snap) => {
           if (snap.exists()) {
             const d = snap.val();
             setProfileData(d);
             setReadCount(d.readCount || 0);
-            if (d.readStories) {
-              setReadStorySlugs(Object.keys(d.readStories));
-            } else {
-              setReadStorySlugs([]);
-            }
+            setReadStorySlugs(d.readStories ? Object.keys(d.readStories) : []);
           }
           setLoading(false);
         });
         unsubDB.push(unsubProfile);
 
         const unsubFollowers = onValue(ref(db, `followers/${u.uid}`), (snap) => {
-          if (snap.exists()) {
-            const uids = Object.keys(snap.val());
-            setFollowerCount(uids.length);
-            setFollowerUids(uids);
-          } else { setFollowerCount(0); setFollowerUids([]); }
+          const uids = snap.exists() ? Object.keys(snap.val()) : [];
+          setFollowerCount(uids.length); setFollowerUids(uids);
         });
         unsubDB.push(unsubFollowers);
 
         const unsubFollowing = onValue(ref(db, `following/${u.uid}`), (snap) => {
-          if (snap.exists()) {
-            const uids = Object.keys(snap.val());
-            setFollowingCount(uids.length);
-            setFollowingUids(uids);
-          } else { setFollowingCount(0); setFollowingUids([]); }
+          const uids = snap.exists() ? Object.keys(snap.val()) : [];
+          setFollowingCount(uids.length); setFollowingUids(uids);
         });
         unsubDB.push(unsubFollowing);
 
         const unsubComments = onValue(ref(db, 'comments'), (commentsSnap) => {
-          if (commentsSnap.exists()) {
-            let count = 0;
-            for (const sc of Object.values(commentsSnap.val())) {
-              for (const c of Object.values(sc)) {
-                if (c.authorUid === u.uid) count++;
-              }
-            }
-            setCommentCount(count);
-          }
+          if (!commentsSnap.exists()) return;
+          let count = 0;
+          for (const sc of Object.values(commentsSnap.val()))
+            for (const c of Object.values(sc))
+              if (c.authorUid === u.uid) count++;
+          setCommentCount(count);
         });
         unsubDB.push(unsubComments);
+
+        // Load points and wallet
+        try {
+          const [pointsSnap, walletSnap] = await Promise.all([
+            get(ref(db, `points/${u.uid}/total`)),
+            get(ref(db, `wallet/${u.uid}/balance`)),
+          ]);
+          if (pointsSnap.exists()) setPoints(pointsSnap.val());
+          if (walletSnap.exists()) setWalletBalance(walletSnap.val());
+        } catch (e) {}
       });
     })();
-
-    return () => {
-      if (unsubAuth) unsubAuth();
-      unsubDB.forEach(fn => fn());
-    };
+    return () => { if (unsubAuth) unsubAuth(); unsubDB.forEach(fn => fn()); };
   }, []);
 
   const openEdit = () => {
@@ -282,8 +262,7 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     if (!authUser) return;
-    setSaving(true);
-    setSaveError('');
+    setSaving(true); setSaveError('');
     try {
       const db = await getDB();
       const { ref, update, set, remove } = await import('firebase/database');
@@ -298,33 +277,17 @@ export default function ProfilePage() {
       const username = editUsername.trim().replace(/^@/, '').toLowerCase();
       if (username && !/^[a-z0-9_]{3,20}$/.test(username)) {
         setSaveError('Username must be 3–20 characters: letters, numbers, underscores only.');
-        setSaving(false);
-        return;
+        setSaving(false); return;
       }
       const { updateProfile } = await import('firebase/auth');
       const newName = editName.trim() || authUser.displayName;
       await updateProfile(authUser, { displayName: newName });
-      await update(ref(db, `users/${authUser.uid}`), {
-        displayName: newName,
-        bio: editBio.trim(),
-        username: username || null,
-        avatarUrl: newAvatarUrl,
-      });
-
-      // Keep usernames index in sync
-      if (username) {
-        await set(ref(db, `usernames/${username}`), authUser.uid);
-      }
+      await update(ref(db, `users/${authUser.uid}`), { displayName: newName, bio: editBio.trim(), username: username || null, avatarUrl: newAvatarUrl });
+      if (username) await set(ref(db, `usernames/${username}`), authUser.uid);
       const oldUsername = profileData?.username;
-      if (oldUsername && oldUsername !== username) {
-        await remove(ref(db, `usernames/${oldUsername}`));
-      }
-
+      if (oldUsername && oldUsername !== username) await remove(ref(db, `usernames/${oldUsername}`));
       setShowEdit(false);
-    } catch (e) {
-      console.error('Save failed:', e);
-      setSaveError('Something went wrong. Please try again.');
-    }
+    } catch (e) { setSaveError('Something went wrong. Please try again.'); }
     setSaving(false);
   };
 
@@ -347,7 +310,7 @@ export default function ProfilePage() {
     setChangingPassword(false);
   };
 
-  if (loading) return <div style={{ minHeight: '100vh', background: '#080808' }} />;
+  if (loading) return <div style={{ minHeight: '100vh', background: '#0d0d0d' }} />;
   if (!authUser) return null;
 
   const avatarUrl = profileData?.avatarUrl || null;
@@ -359,116 +322,130 @@ export default function ProfilePage() {
   const nextBadge = getNextBadge(readCount, authUser.uid);
   const initials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const joinDate = authUser.metadata?.creationTime ? formatJoinDate(new Date(authUser.metadata.creationTime)) : 'Recently';
-  const tierProgress = nextBadge
-    ? Math.min(100, Math.round(((readCount - getPrevThreshold(nextBadge.threshold)) / (nextBadge.threshold - getPrevThreshold(nextBadge.threshold))) * 100))
-    : 100;
+  const tierProgress = nextBadge ? Math.min(100, Math.round(((readCount - getPrevThreshold(nextBadge.threshold)) / (nextBadge.threshold - getPrevThreshold(nextBadge.threshold))) * 100)) : 100;
 
-  const allStoriesMerged = [
-    ...allStories,
-    ...cmsStories.filter(cs => !allStories.find(s => s.id === cs.id)),
-  ];
-  const readStories = readStorySlugs
-    .map(slug => allStoriesMerged.find(s => s.id === slug))
-    .filter(Boolean)
-    .slice(0, 30);
+  const allStoriesMerged = [...allStories, ...cmsStories.filter(cs => !allStories.find(s => s.id === cs.id))];
+  const readStories = readStorySlugs.map(slug => allStoriesMerged.find(s => s.id === slug)).filter(Boolean).slice(0, 30);
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: #080808; color: #e8e0d4; font-family: 'Inter', sans-serif; min-height: 100vh; }
+        html, body { background: #0d0d0d; color: #e8e0d4; font-family: 'Inter', sans-serif; min-height: 100vh; }
 
-        .pf-nav { display: flex; align-items: center; justify-content: space-between; max-width: 720px; margin: 0 auto; padding: 1.25rem 1.5rem; }
-        .pf-nav-logo { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; font-weight: 600; color: #f5f0e8; }
+        .pf-nav { display: flex; align-items: center; justify-content: space-between; max-width: 740px; margin: 0 auto; padding: 1.25rem 1.5rem; }
+        .pf-nav-logo { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f5f0e8; letter-spacing: 0.01em; }
         .pf-nav-logo span { color: #a78bfa; }
-        .pf-nav-back { font-size: 0.65rem; color: rgba(255,255,255,0.25); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; font-family: 'Inter', sans-serif; }
-        .pf-nav-back:hover { color: rgba(255,255,255,0.5); }
+        .pf-nav-back { font-size: 0.65rem; color: rgba(255,255,255,0.3); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; font-family: 'Inter', sans-serif; }
+        .pf-nav-back:hover { color: rgba(255,255,255,0.6); }
 
-        .pf-hero { position: relative; min-height: 320px; display: flex; align-items: flex-end; overflow: hidden; background: #080808; }
-        .pf-hero-gradient { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(107,47,173,0.15) 0%, transparent 60%), linear-gradient(to top, #080808 0%, rgba(8,8,8,0.4) 60%, transparent 100%); z-index: 1; }
-        .pf-hero-pattern { position: absolute; inset: 0; opacity: 0.04; background-image: radial-gradient(circle, #a78bfa 1px, transparent 1px); background-size: 32px 32px; z-index: 0; }
-        .pf-hero-content { position: relative; z-index: 2; width: 100%; max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 2.5rem; display: flex; align-items: flex-end; gap: 1.5rem; }
+        .pf-hero { position: relative; min-height: 340px; display: flex; align-items: flex-end; overflow: hidden; background: #0d0d0d; }
+        .pf-hero-gradient { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(107,47,173,0.18) 0%, transparent 60%), linear-gradient(to top, #0d0d0d 0%, rgba(13,13,13,0.3) 60%, transparent 100%); z-index: 1; }
+        .pf-hero-pattern { position: absolute; inset: 0; opacity: 0.035; background-image: radial-gradient(circle, #a78bfa 1px, transparent 1px); background-size: 30px 30px; z-index: 0; }
+        .pf-hero-content { position: relative; z-index: 2; width: 100%; max-width: 740px; margin: 0 auto; padding: 2.5rem 1.5rem 3rem; display: flex; align-items: flex-end; gap: 1.75rem; }
 
-        .pf-avatar { width: 88px; height: 88px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.3); display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: 'Cormorant Garamond', Georgia, serif; flex-shrink: 0; }
+        .pf-avatar { width: 96px; height: 96px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.35); display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: 'Cormorant Garamond', Georgia, serif; flex-shrink: 0; box-shadow: 0 0 40px rgba(107,47,173,0.2); }
         .pf-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
         .pf-hero-info { flex: 1; padding-bottom: 4px; }
-        .pf-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2.4rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.3rem; letter-spacing: -0.01em; }
-        .pf-username { font-size: 0.78rem; color: rgba(167,139,250,0.55); font-family: 'Inter', sans-serif; margin-bottom: 0.5rem; }
-        .pf-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.4rem; flex-wrap: wrap; }
+        .pf-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.3rem; letter-spacing: -0.01em; }
+        .pf-username { font-size: 0.8rem; color: rgba(167,139,250,0.6); font-family: 'Inter', sans-serif; margin-bottom: 0.6rem; }
+        .pf-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem; flex-wrap: wrap; }
         .pf-badge-pill { display: inline-flex; align-items: center; gap: 5px; }
-        .pf-badge-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
-        .pf-sep { color: rgba(255,255,255,0.15); font-size: 0.6rem; }
-        .pf-verified { display: inline-flex; align-items: center; gap: 3px; font-size: 0.6rem; color: #1d9e75; font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
-        .pf-unverified { font-size: 0.6rem; color: rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
-        .pf-joined { font-size: 0.68rem; color: rgba(255,255,255,0.25); font-family: 'Inter', sans-serif; margin-bottom: 0.75rem; }
-        .pf-follow-row { display: flex; gap: 1.25rem; }
-        .pf-follow-stat { display: flex; flex-direction: column; gap: 1px; cursor: pointer; }
+        .pf-badge-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .pf-sep { color: rgba(255,255,255,0.15); font-size: 0.7rem; }
+        .pf-verified { display: inline-flex; align-items: center; gap: 3px; font-size: 0.62rem; color: #1d9e75; font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+        .pf-unverified { font-size: 0.62rem; color: rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+        .pf-joined { font-size: 0.7rem; color: rgba(255,255,255,0.28); font-family: 'Inter', sans-serif; margin-bottom: 0.85rem; }
+        .pf-follow-row { display: flex; gap: 1.5rem; }
+        .pf-follow-stat { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
         .pf-follow-stat:hover .pf-follow-num { color: #a78bfa; }
-        .pf-follow-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.2rem; font-weight: 300; color: #f5f0e8; line-height: 1; transition: color 0.2s; }
+        .pf-follow-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; line-height: 1; transition: color 0.2s; }
         .pf-follow-label { font-size: 0.56rem; color: rgba(255,255,255,0.3); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
-        .pf-body { max-width: 720px; margin: 0 auto; padding: 0 1.5rem 6rem; }
+        .pf-body { max-width: 740px; margin: 0 auto; padding: 0 1.5rem 6rem; }
 
-        .pf-bio-wrap { padding: 1.25rem 0 1.75rem; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 2rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-        .pf-bio-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; color: rgba(232,224,212,0.65); line-height: 1.75; font-style: italic; flex: 1; }
-        .pf-bio-empty { font-size: 0.8rem; color: rgba(255,255,255,0.18); font-family: 'Inter', sans-serif; cursor: pointer; font-style: italic; flex: 1; }
-        .pf-bio-empty:hover { color: rgba(255,255,255,0.35); }
-        .pf-edit-btn { background: none; border: 1px solid rgba(167,139,250,0.2); border-radius: 8px; padding: 0.35rem 0.85rem; font-size: 0.6rem; color: rgba(167,139,250,0.6); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
-        .pf-edit-btn:hover { border-color: rgba(167,139,250,0.5); color: #a78bfa; }
+        .pf-bio-wrap { padding: 1.5rem 0 2rem; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 2.5rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+        .pf-bio-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.15rem; color: rgba(232,224,212,0.7); line-height: 1.8; font-style: italic; flex: 1; }
+        .pf-bio-empty { font-size: 0.82rem; color: rgba(255,255,255,0.2); font-family: 'Inter', sans-serif; cursor: pointer; font-style: italic; flex: 1; transition: color 0.2s; }
+        .pf-bio-empty:hover { color: rgba(255,255,255,0.4); }
+        .pf-edit-btn { background: none; border: 1px solid rgba(167,139,250,0.25); border-radius: 8px; padding: 0.4rem 1rem; font-size: 0.62rem; color: rgba(167,139,250,0.65); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
+        .pf-edit-btn:hover { border-color: rgba(167,139,250,0.55); color: #a78bfa; }
 
-        .pf-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; margin-bottom: 2.5rem; overflow: hidden; }
-        .pf-stat { background: rgba(255,255,255,0.02); padding: 1.5rem 1.25rem; text-align: center; }
-        .pf-stat-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2.2rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.4rem; }
-        .pf-stat-label { font-size: 0.58rem; color: rgba(255,255,255,0.25); letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .pf-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; margin-bottom: 2.5rem; overflow: hidden; }
+        .pf-stat { background: rgba(255,255,255,0.03); padding: 1.75rem 1.25rem; text-align: center; transition: background 0.2s; }
+        .pf-stat:hover { background: rgba(255,255,255,0.05); }
+        .pf-stat-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2.6rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.5rem; }
+        .pf-stat-label { font-size: 0.58rem; color: rgba(255,255,255,0.3); letter-spacing: 0.16em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-section { margin-bottom: 2.5rem; }
-        .pf-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .pf-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.2rem; font-weight: 300; color: #f5f0e8; }
-        .pf-section-meta { font-size: 0.6rem; color: rgba(255,255,255,0.2); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .pf-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.1rem; padding-bottom: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
+        .pf-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; letter-spacing: 0.01em; }
+        .pf-section-meta { font-size: 0.6rem; color: rgba(255,255,255,0.22); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-stories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.75rem; }
-        .pf-story-card { display: block; text-decoration: none; border-radius: 8px; overflow: hidden; position: relative; aspect-ratio: 2/3; background: rgba(255,255,255,0.04); transition: transform 0.2s, opacity 0.2s; }
+        .pf-story-card { display: block; text-decoration: none; border-radius: 8px; overflow: hidden; position: relative; aspect-ratio: 2/3; background: rgba(255,255,255,0.05); transition: transform 0.2s, opacity 0.2s; }
         .pf-story-card:hover { transform: scale(1.03); opacity: 0.9; }
         .pf-story-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .pf-story-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 50%); display: flex; align-items: flex-end; padding: 0.5rem; opacity: 0; transition: opacity 0.2s; }
+        .pf-story-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 55%); display: flex; align-items: flex-end; padding: 0.5rem; opacity: 0; transition: opacity 0.2s; }
         .pf-story-card:hover .pf-story-card-overlay { opacity: 1; }
         .pf-story-card-title { font-size: 0.6rem; color: #fff; font-family: 'Cormorant Garamond', Georgia, serif; line-height: 1.3; }
 
-        .pf-badge-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 1.25rem; }
-        .pf-progress-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.85rem; }
-        .pf-progress-current { font-size: 0.75rem; color: rgba(255,255,255,0.35); font-family: 'Inter', sans-serif; }
-        .pf-progress-next { font-size: 0.62rem; color: rgba(255,255,255,0.18); font-family: 'Inter', sans-serif; }
-        .pf-progress-bar-wrap { height: 2px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
-        .pf-progress-bar { height: 100%; border-radius: 2px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
+        .pf-badge-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 1.5rem; }
+        .pf-progress-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+        .pf-progress-current { font-size: 0.78rem; color: rgba(255,255,255,0.45); font-family: 'Inter', sans-serif; }
+        .pf-progress-next { font-size: 0.65rem; color: rgba(255,255,255,0.22); font-family: 'Inter', sans-serif; }
+        .pf-progress-bar-wrap { height: 3px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; }
+        .pf-progress-bar { height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
 
-        .pf-wallet { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 1.25rem; display: flex; align-items: center; justify-content: space-between; opacity: 0.35; }
-        .pf-wallet-label { font-size: 0.58rem; color: rgba(255,255,255,0.3); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; margin-bottom: 4px; }
-        .pf-wallet-amount { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.8rem; font-weight: 300; color: #f5f0e8; margin-bottom: 4px; }
-        .pf-wallet-coming { font-size: 0.62rem; color: rgba(255,255,255,0.18); font-family: 'Inter', sans-serif; font-style: italic; }
-        .pf-points-pill { background: rgba(107,47,173,0.1); border: 1px solid rgba(107,47,173,0.2); border-radius: 12px; padding: 0.6rem 1.25rem; text-align: center; }
-        .pf-points-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.6rem; color: #9b6dff; line-height: 1; margin-bottom: 3px; }
-        .pf-points-label { font-size: 0.52rem; color: rgba(155,109,255,0.4); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        /* ── Cinematic Rewards Button ── */
+        .pf-rewards-btn {
+          display: block; width: 100%; text-decoration: none; position: relative; overflow: hidden;
+          background: linear-gradient(135deg, #1a0a2e 0%, #0d1a12 50%, #1a0a2e 100%);
+          border: 1px solid rgba(107,47,173,0.3); border-radius: 20px; padding: 2rem 2rem;
+          transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+          cursor: pointer;
+        }
+        .pf-rewards-btn::before {
+          content: ''; position: absolute; inset: 0;
+          background: linear-gradient(135deg, rgba(107,47,173,0.15) 0%, rgba(29,158,117,0.08) 50%, rgba(107,47,173,0.15) 100%);
+          opacity: 0; transition: opacity 0.3s ease;
+        }
+        .pf-rewards-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(107,47,173,0.25), 0 0 0 1px rgba(107,47,173,0.4); border-color: rgba(107,47,173,0.5); }
+        .pf-rewards-btn:hover::before { opacity: 1; }
+        .pf-rewards-btn-inner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }
+        .pf-rewards-left { display: flex; flex-direction: column; gap: 0.5rem; }
+        .pf-rewards-eyebrow { font-size: 0.58rem; color: rgba(155,109,255,0.6); letter-spacing: 0.2em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .pf-rewards-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.6rem; font-weight: 300; color: #f5f0e8; line-height: 1.1; }
+        .pf-rewards-sub { font-size: 0.72rem; color: rgba(232,224,212,0.4); font-family: 'Inter', sans-serif; margin-top: 0.25rem; }
+        .pf-rewards-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
+        .pf-rewards-points { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2.8rem; font-weight: 300; color: #9b6dff; line-height: 1; }
+        .pf-rewards-points-label { font-size: 0.55rem; color: rgba(155,109,255,0.45); letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .pf-rewards-wallet { font-size: 0.72rem; color: rgba(29,158,117,0.7); font-family: 'Inter', sans-serif; margin-top: 0.25rem; }
+        .pf-rewards-arrow { font-size: 1.2rem; color: rgba(167,139,250,0.4); margin-top: 0.5rem; transition: transform 0.2s, color 0.2s; }
+        .pf-rewards-btn:hover .pf-rewards-arrow { transform: translateX(4px); color: rgba(167,139,250,0.8); }
+        .pf-rewards-shimmer { position: absolute; top: 0; left: -100%; width: 60%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent); animation: pf-shimmer 3s infinite; }
+        @keyframes pf-shimmer { 0% { left: -100%; } 100% { left: 200%; } }
 
-        .pf-placeholder { padding: 2rem; text-align: center; border: 1px solid rgba(255,255,255,0.04); border-radius: 16px; }
-        .pf-placeholder p { font-size: 0.85rem; color: rgba(255,255,255,0.18); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; }
+        .pf-placeholder { padding: 2rem; text-align: center; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; background: rgba(255,255,255,0.01); }
+        .pf-placeholder p { font-size: 0.88rem; color: rgba(255,255,255,0.2); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; }
 
         .pf-account { display: flex; flex-direction: column; gap: 0.5rem; }
-        .pf-account-row { display: flex; align-items: center; justify-content: space-between; padding: 0.9rem 1.1rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; }
-        .pf-account-label { font-size: 0.8rem; color: rgba(255,255,255,0.35); font-family: 'Inter', sans-serif; }
-        .pf-account-action { font-size: 0.6rem; color: #9b6dff; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; background: none; border: none; transition: color 0.2s; }
+        .pf-account-row { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; }
+        .pf-account-label { font-size: 0.82rem; color: rgba(255,255,255,0.4); font-family: 'Inter', sans-serif; }
+        .pf-account-action { font-size: 0.62rem; color: #9b6dff; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; background: none; border: none; transition: color 0.2s; }
         .pf-account-action:hover { color: #c4b5fd; }
         .pf-pw-msg { font-size: 0.72rem; color: #86efac; font-family: 'Inter', sans-serif; margin-top: 0.5rem; padding: 0 0.5rem; }
-        .pf-signout { width: 100%; margin-top: 1rem; background: none; border: 1px solid rgba(220,38,38,0.15); border-radius: 12px; padding: 0.8rem; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(248,113,113,0.35); cursor: pointer; font-family: 'Inter', sans-serif; transition: color 0.2s, border-color 0.2s; }
-        .pf-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.35); }
+        .pf-signout { width: 100%; margin-top: 1rem; background: none; border: 1px solid rgba(220,38,38,0.15); border-radius: 12px; padding: 0.9rem; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(248,113,113,0.35); cursor: pointer; font-family: 'Inter', sans-serif; transition: color 0.2s, border-color 0.2s; }
+        .pf-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.4); }
 
-        .pf-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
+        .pf-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
         @media (min-width: 600px) { .pf-modal-backdrop { align-items: center; } }
-        .pf-modal { background: #111; border: 1px solid rgba(255,255,255,0.08); border-radius: 20px 20px 0 0; width: 100%; max-width: 520px; padding: 2rem 1.5rem 2.5rem; max-height: 90vh; overflow-y: auto; }
+        .pf-modal { background: #141414; border: 1px solid rgba(255,255,255,0.09); border-radius: 20px 20px 0 0; width: 100%; max-width: 520px; padding: 2rem 1.5rem 2.5rem; max-height: 90vh; overflow-y: auto; }
         @media (min-width: 600px) { .pf-modal { border-radius: 20px; } }
         .pf-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.75rem; }
-        .pf-modal-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; }
+        .pf-modal-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.4rem; font-weight: 300; color: #f5f0e8; }
         .pf-modal-close { background: none; border: none; color: rgba(255,255,255,0.3); font-size: 1.4rem; cursor: pointer; padding: 0; line-height: 1; transition: color 0.2s; }
         .pf-modal-close:hover { color: rgba(255,255,255,0.6); }
         .pf-modal-avatar-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
@@ -477,27 +454,29 @@ export default function ProfilePage() {
         .pf-modal-avatar-btn { background: none; border: 1px solid rgba(167,139,250,0.3); border-radius: 8px; padding: 0.45rem 1rem; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(167,139,250,0.7); cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; }
         .pf-modal-avatar-btn:hover { border-color: rgba(167,139,250,0.6); color: #a78bfa; }
         .pf-field { margin-bottom: 1.1rem; }
-        .pf-field-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); font-family: 'Inter', sans-serif; margin-bottom: 0.4rem; display: block; }
-        .pf-field-input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s; }
-        .pf-field-input:focus { border-color: rgba(167,139,250,0.4); }
-        .pf-field-textarea { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.95rem; color: rgba(232,224,212,0.85); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; outline: none; resize: none; line-height: 1.7; transition: border-color 0.2s; }
-        .pf-field-textarea:focus { border-color: rgba(167,139,250,0.4); }
-        .pf-field-hint { font-size: 0.6rem; color: rgba(255,255,255,0.18); font-family: 'Inter', sans-serif; margin-top: 0.3rem; }
+        .pf-field-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); font-family: 'Inter', sans-serif; margin-bottom: 0.4rem; display: block; }
+        .pf-field-input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 0.8rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s; }
+        .pf-field-input:focus { border-color: rgba(167,139,250,0.45); }
+        .pf-field-textarea { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 0.8rem 1rem; font-size: 1rem; color: rgba(232,224,212,0.85); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; outline: none; resize: none; line-height: 1.75; transition: border-color 0.2s; }
+        .pf-field-textarea:focus { border-color: rgba(167,139,250,0.45); }
+        .pf-field-hint { font-size: 0.62rem; color: rgba(255,255,255,0.18); font-family: 'Inter', sans-serif; margin-top: 0.3rem; }
         .pf-username-wrap { position: relative; }
         .pf-username-at { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: rgba(167,139,250,0.5); font-family: 'Inter', sans-serif; font-size: 0.9rem; pointer-events: none; }
         .pf-username-input { padding-left: 1.75rem !important; }
         .pf-save-error { font-size: 0.72rem; color: #f87171; font-family: 'Inter', sans-serif; margin-bottom: 0.75rem; }
         .pf-modal-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
-        .pf-modal-save { flex: 1; background: #7c3aed; border: none; border-radius: 10px; padding: 0.75rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
+        .pf-modal-save { flex: 1; background: #7c3aed; border: none; border-radius: 10px; padding: 0.8rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
         .pf-modal-save:hover { background: #6d28d9; }
         .pf-modal-save:disabled { opacity: 0.5; cursor: not-allowed; }
-        .pf-modal-cancel { background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 0.75rem 1.25rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); cursor: pointer; font-family: 'Inter', sans-serif; }
+        .pf-modal-cancel { background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 0.8rem 1.25rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); cursor: pointer; font-family: 'Inter', sans-serif; }
 
         @media (max-width: 480px) {
-          .pf-hero-content { flex-direction: column; align-items: flex-start; gap: 1rem; }
-          .pf-name { font-size: 1.9rem; }
-          .pf-avatar { width: 72px; height: 72px; font-size: 24px; }
+          .pf-hero-content { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
+          .pf-name { font-size: 2rem; }
+          .pf-avatar { width: 76px; height: 76px; font-size: 26px; }
           .pf-stories-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+          .pf-rewards-title { font-size: 1.3rem; }
+          .pf-rewards-points { font-size: 2.2rem; }
         }
       `}</style>
 
@@ -517,9 +496,7 @@ export default function ProfilePage() {
             <div className="pf-name">{displayName}</div>
             {username && <div className="pf-username">@{username}</div>}
             <div className="pf-meta-row">
-              {isAuthor ? (
-                <WriterBadge size={13} />
-              ) : badge ? (
+              {isAuthor ? <WriterBadge size={13} /> : badge ? (
                 <span className="pf-badge-pill">
                   <BadgeIcon color={badge.color} size={13} isFounder={badge.isFounder} />
                   <span className="pf-badge-label" style={{ color: badge.color }}>{badge.label}</span>
@@ -531,9 +508,7 @@ export default function ProfilePage() {
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1d9e75" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   Verified
                 </span>
-              ) : (
-                <span className="pf-unverified">Unverified</span>
-              )}
+              ) : <span className="pf-unverified">Unverified</span>}
             </div>
             <div className="pf-joined">Member since {joinDate}</div>
             <div className="pf-follow-row">
@@ -552,10 +527,7 @@ export default function ProfilePage() {
 
       <div className="pf-body">
         <div className="pf-bio-wrap">
-          {bio
-            ? <span className="pf-bio-text">{bio}</span>
-            : <span className="pf-bio-empty" onClick={openEdit}>+ Add a bio</span>
-          }
+          {bio ? <span className="pf-bio-text">{bio}</span> : <span className="pf-bio-empty" onClick={openEdit}>+ Add a bio</span>}
           <button className="pf-edit-btn" onClick={openEdit}>Edit profile</button>
         </div>
 
@@ -584,9 +556,7 @@ export default function ProfilePage() {
               {readStories.map(s => (
                 <a key={s.id} href={`/stories/${s.id}`} className="pf-story-card" title={s.title}>
                   <img src={s.cover} alt={s.title} loading="lazy" />
-                  <div className="pf-story-card-overlay">
-                    <div className="pf-story-card-title">{s.title}</div>
-                  </div>
+                  <div className="pf-story-card-overlay"><div className="pf-story-card-title">{s.title}</div></div>
                 </a>
               ))}
             </div>
@@ -611,22 +581,27 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* ── Cinematic Reader's Reward Button ── */}
         <div className="pf-section">
           <div className="pf-section-header">
             <div className="pf-section-title">Reader's Reward</div>
-            <div className="pf-section-meta">Coming soon</div>
           </div>
-          <div className="pf-wallet">
-            <div>
-              <div className="pf-wallet-label">Wallet balance</div>
-              <div className="pf-wallet-amount">£0.00</div>
-              <div className="pf-wallet-coming">Points system launching soon</div>
+          <a href="/rewards" className="pf-rewards-btn">
+            <div className="pf-rewards-shimmer" />
+            <div className="pf-rewards-btn-inner">
+              <div className="pf-rewards-left">
+                <div className="pf-rewards-eyebrow">The Story Island</div>
+                <div className="pf-rewards-title">Your Rewards</div>
+                <div className="pf-rewards-sub">Read · Comment · Earn · Cash out</div>
+              </div>
+              <div className="pf-rewards-right">
+                <div className="pf-rewards-points">{points}</div>
+                <div className="pf-rewards-points-label">Points</div>
+                {walletBalance > 0 && <div className="pf-rewards-wallet">{formatPence(walletBalance)} in wallet</div>}
+                <div className="pf-rewards-arrow">→</div>
+              </div>
             </div>
-            <div className="pf-points-pill">
-              <div className="pf-points-num">0</div>
-              <div className="pf-points-label">Points</div>
-            </div>
-          </div>
+          </a>
         </div>
 
         <div className="pf-section">

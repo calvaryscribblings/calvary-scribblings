@@ -57,14 +57,8 @@ function WriterBadge({ size = 13 }) {
         <path fill="#581c87" d={BADGE_PATH} />
         <path fill="#e9d5ff" d={CHECK_PATH} />
       </svg>
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', gap: '3px',
-        background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)',
-        borderRadius: '6px', padding: '1px 7px 1px 5px',
-      }}>
-        <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-          <path fill="#d4537e" d={HEART_PATH} />
-        </svg>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)', borderRadius: '6px', padding: '1px 7px 1px 5px' }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path fill="#d4537e" d={HEART_PATH} /></svg>
         <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>Writer</span>
       </span>
     </span>
@@ -84,20 +78,18 @@ function UserListModal({ title, uids, onClose }) {
     (async () => {
       const db = await getDB();
       const { ref, get } = await import('firebase/database');
-      const results = await Promise.all(
-        uids.map(uid => get(ref(db, `users/${uid}`)).then(snap => ({ uid, data: snap.exists() ? snap.val() : null })))
-      );
+      const results = await Promise.all(uids.map(uid => get(ref(db, `users/${uid}`)).then(snap => ({ uid, data: snap.exists() ? snap.val() : null }))));
       setUsers(results.filter(u => u.data));
       setLoadingUsers(false);
     })();
   }, [uids]);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '2rem 1.5rem 2.5rem', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div style={{ background: '#141414', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '2rem 1.5rem 2.5rem', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.75rem' }}>
-          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.3rem', fontWeight: 300, color: '#f5f0e8' }}>{title}</div>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.4rem', fontWeight: 300, color: '#f5f0e8' }}>{title}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '1.4rem', cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
         </div>
         {loadingUsers ? (
@@ -163,14 +155,7 @@ export default function UserPage() {
       const { ref, get } = await import('firebase/database');
       const snap = await get(ref(db, 'cms_stories'));
       if (snap.exists()) {
-        const data = snap.val();
-        const parsed = Object.entries(data).map(([id, s]) => ({
-          id,
-          title: s.title || '',
-          cover: s.cover || '',
-          category: s.category || '',
-        }));
-        setCmsStories(parsed);
+        setCmsStories(Object.entries(snap.val()).map(([id, s]) => ({ id, title: s.title || '', cover: s.cover || '', category: s.category || '' })));
       }
     })();
   }, []);
@@ -186,7 +171,6 @@ export default function UserPage() {
       onAuthStateChanged(auth, async (u) => {
         setCurrentUser(u);
         if (u && u.uid === uid) { window.location.href = '/profile'; return; }
-
         try {
           const fetches = [
             get(ref(db, `users/${uid}`)),
@@ -198,41 +182,26 @@ export default function UserPage() {
             fetches.push(get(ref(db, `followers/${uid}/${u.uid}`)));
             fetches.push(get(ref(db, `followers/${u.uid}/${uid}`)));
           }
-
           const results = await Promise.all(fetches);
           const [userSnap, commentsSnap, followersSnap, followingSnap] = results;
-
           if (userSnap.exists()) {
             const d = userSnap.val();
             setProfileData(d);
             setReadCount(d.readCount || 0);
             if (d.readStories) setReadStorySlugs(Object.keys(d.readStories));
           }
-
           if (commentsSnap.exists()) {
             let count = 0;
-            for (const sc of Object.values(commentsSnap.val())) {
-              for (const c of Object.values(sc)) {
+            for (const sc of Object.values(commentsSnap.val()))
+              for (const c of Object.values(sc))
                 if (c.authorUid === uid) count++;
-              }
-            }
             setCommentCount(count);
           }
-
-          const followers = followersSnap.exists() ? followersSnap.val() : {};
-          const followerUidList = Object.keys(followers);
-          setFollowerCount(followerUidList.length);
-          setFollowerUids(followerUidList);
-
-          const followingVal = followingSnap.exists() ? followingSnap.val() : {};
-          const followingUidList = Object.keys(followingVal);
-          setFollowingCount(followingUidList.length);
-          setFollowingUids(followingUidList);
-
-          if (u) {
-            setIsFollowing(results[4]?.exists() || false);
-            setFollowsYou(results[5]?.exists() || false);
-          }
+          const followerUidList = followersSnap.exists() ? Object.keys(followersSnap.val()) : [];
+          setFollowerCount(followerUidList.length); setFollowerUids(followerUidList);
+          const followingUidList = followingSnap.exists() ? Object.keys(followingSnap.val()) : [];
+          setFollowingCount(followingUidList.length); setFollowingUids(followingUidList);
+          if (u) { setIsFollowing(results[4]?.exists() || false); setFollowsYou(results[5]?.exists() || false); }
         } catch (e) { console.error('User profile error:', e); }
         setLoading(false);
       });
@@ -246,28 +215,19 @@ export default function UserPage() {
       const db = await getDB();
       const { ref, set, remove } = await import('firebase/database');
       if (isFollowing) {
-        await Promise.all([
-          remove(ref(db, `followers/${uid}/${currentUser.uid}`)),
-          remove(ref(db, `following/${currentUser.uid}/${uid}`)),
-        ]);
-        setIsFollowing(false);
-        setFollowerCount(c => Math.max(0, c - 1));
+        await Promise.all([remove(ref(db, `followers/${uid}/${currentUser.uid}`)), remove(ref(db, `following/${currentUser.uid}/${uid}`))]);
+        setIsFollowing(false); setFollowerCount(c => Math.max(0, c - 1));
       } else {
-        await Promise.all([
-          set(ref(db, `followers/${uid}/${currentUser.uid}`), true),
-          set(ref(db, `following/${currentUser.uid}/${uid}`), true),
-        ]);
-        setIsFollowing(true);
-        setFollowerCount(c => c + 1);
+        await Promise.all([set(ref(db, `followers/${uid}/${currentUser.uid}`), true), set(ref(db, `following/${currentUser.uid}/${uid}`), true)]);
+        setIsFollowing(true); setFollowerCount(c => c + 1);
       }
     } catch (e) { console.error('Follow error:', e); }
     setFollowLoading(false);
   };
 
-  if (loading) return <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />;
-
+  if (loading) return <div style={{ minHeight: '100vh', background: '#0d0d0d' }} />;
   if (!uid || !profileData) return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: '#0d0d0d', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <p style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif', fontSize: '0.85rem' }}>User not found.</p>
     </div>
   );
@@ -276,66 +236,94 @@ export default function UserPage() {
   const badge = getBadge(readCount, uid);
   const initials = (profileData.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const joinDate = profileData.joinDate ? formatJoinDate(profileData.joinDate) : null;
-
-  const allStoriesMerged = [
-    ...allStories,
-    ...cmsStories.filter(cs => !allStories.find(s => s.id === cs.id)),
-  ];
-  const readStories = readStorySlugs
-    .map(slug => allStoriesMerged.find(s => s.id === slug))
-    .filter(Boolean)
-    .slice(0, 30);
+  const allStoriesMerged = [...allStories, ...cmsStories.filter(cs => !allStories.find(s => s.id === cs.id))];
+  const readStories = readStorySlugs.map(slug => allStoriesMerged.find(s => s.id === slug)).filter(Boolean).slice(0, 30);
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: #0a0a0a; color: #e8e0d4; font-family: 'Inter', sans-serif; }
-        .up { max-width: 680px; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
-        .up-nav { display: flex; align-items: center; justify-content: space-between; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 2.5rem; }
-        .up-nav-logo { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; font-weight: 600; color: #f5f0e8; }
+        html, body { background: #0d0d0d; color: #e8e0d4; font-family: 'Inter', sans-serif; }
+
+        .up { max-width: 700px; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
+        .up-nav { display: flex; align-items: center; justify-content: space-between; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 2.5rem; }
+        .up-nav-logo { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f5f0e8; letter-spacing: 0.01em; }
         .up-nav-logo span { color: #a78bfa; }
-        .up-nav-back { font-size: 0.68rem; color: rgba(255,255,255,0.3); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; }
+        .up-nav-back { font-size: 0.65rem; color: rgba(255,255,255,0.3); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; }
         .up-nav-back:hover { color: rgba(255,255,255,0.6); }
-        .up-hero { display: flex; align-items: flex-start; gap: 1.25rem; margin-bottom: 1.5rem; }
-        .up-avatar { width: 72px; height: 72px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1.5px solid rgba(107,47,173,0.35); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 500; color: #9b6dff; overflow: hidden; flex-shrink: 0; font-family: 'Inter', sans-serif; }
+
+        .up-hero { display: flex; align-items: flex-start; gap: 1.5rem; margin-bottom: 2rem; }
+        .up-avatar { width: 84px; height: 84px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(107,47,173,0.35); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 400; color: #c4b5fd; overflow: hidden; flex-shrink: 0; font-family: 'Cormorant Garamond', Georgia, serif; box-shadow: 0 0 30px rgba(107,47,173,0.15); }
         .up-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .up-hero-info { flex: 1; padding-top: 4px; }
-        .up-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.75rem; font-weight: 300; color: #f5f0e8; line-height: 1.1; margin-bottom: 0.2rem; }
-        .up-username { font-size: 0.75rem; color: rgba(167,139,250,0.55); font-family: 'Inter', sans-serif; margin-bottom: 0.5rem; }
-        .up-badge-row { display: flex; align-items: center; gap: 6px; margin-bottom: 0.5rem; flex-wrap: wrap; }
-        .up-badge-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .up-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 300; color: #f5f0e8; line-height: 1.1; margin-bottom: 0.25rem; }
+        .up-username { font-size: 0.78rem; color: rgba(167,139,250,0.6); font-family: 'Inter', sans-serif; margin-bottom: 0.6rem; }
+        .up-badge-row { display: flex; align-items: center; gap: 6px; margin-bottom: 0.6rem; flex-wrap: wrap; }
+        .up-badge-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .up-follows-you { display: inline-flex; align-items: center; font-size: 0.6rem; color: rgba(255,255,255,0.35); font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 0.15em 0.65em; }
-        .up-follow-row { display: flex; gap: 1.5rem; margin-bottom: 0.5rem; }
+        .up-follow-row { display: flex; gap: 1.5rem; margin-bottom: 0.6rem; }
         .up-follow-stat { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
         .up-follow-stat:hover .up-follow-num { color: #a78bfa; }
-        .up-follow-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; font-weight: 300; color: #f5f0e8; line-height: 1; transition: color 0.2s; }
-        .up-follow-label { font-size: 0.58rem; color: rgba(255,255,255,0.25); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
-        .up-joined { font-size: 0.7rem; color: rgba(255,255,255,0.22); font-family: 'Inter', sans-serif; margin-bottom: 0.75rem; }
-        .up-follow-btn { background: #7c3aed; border: none; border-radius: 8px; padding: 0.5rem 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
+        .up-follow-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.2rem; font-weight: 300; color: #f5f0e8; line-height: 1; transition: color 0.2s; }
+        .up-follow-label { font-size: 0.56rem; color: rgba(255,255,255,0.28); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .up-joined { font-size: 0.7rem; color: rgba(255,255,255,0.25); font-family: 'Inter', sans-serif; margin-bottom: 0.85rem; }
+        .up-follow-btn { background: #7c3aed; border: none; border-radius: 8px; padding: 0.55rem 1.5rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
         .up-follow-btn:hover { background: #6d28d9; }
         .up-follow-btn.following { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.5); }
         .up-follow-btn.following:hover { border-color: rgba(220,38,38,0.4); color: rgba(248,113,113,0.6); }
-        .up-bio { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: rgba(232,224,212,0.6); line-height: 1.7; font-style: italic; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .up-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; overflow: hidden; margin-bottom: 2rem; }
-        .up-stat { background: #0a0a0a; padding: 1.25rem; text-align: center; }
-        .up-stat-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.3rem; }
-        .up-stat-label { font-size: 0.58rem; color: rgba(255,255,255,0.25); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+
+        .up-bio { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.05rem; color: rgba(232,224,212,0.65); line-height: 1.8; font-style: italic; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
+
+        .up-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; overflow: hidden; margin-bottom: 2.5rem; }
+        .up-stat { background: rgba(255,255,255,0.03); padding: 1.5rem; text-align: center; transition: background 0.2s; }
+        .up-stat:hover { background: rgba(255,255,255,0.05); }
+        .up-stat-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2.4rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.4rem; }
+        .up-stat-label { font-size: 0.56rem; color: rgba(255,255,255,0.28); letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+
+        /* ── Cinematic Rewards Button ── */
+        .up-rewards-btn {
+          display: block; width: 100%; text-decoration: none; position: relative; overflow: hidden;
+          background: linear-gradient(135deg, #1a0a2e 0%, #0d1a12 50%, #1a0a2e 100%);
+          border: 1px solid rgba(107,47,173,0.3); border-radius: 20px; padding: 1.75rem 2rem;
+          transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+          cursor: pointer; margin-bottom: 2.5rem;
+        }
+        .up-rewards-btn::before {
+          content: ''; position: absolute; inset: 0;
+          background: linear-gradient(135deg, rgba(107,47,173,0.15) 0%, rgba(29,158,117,0.08) 50%, rgba(107,47,173,0.15) 100%);
+          opacity: 0; transition: opacity 0.3s ease;
+        }
+        .up-rewards-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(107,47,173,0.25), 0 0 0 1px rgba(107,47,173,0.4); border-color: rgba(107,47,173,0.5); }
+        .up-rewards-btn:hover::before { opacity: 1; }
+        .up-rewards-inner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }
+        .up-rewards-left { display: flex; flex-direction: column; gap: 0.4rem; }
+        .up-rewards-eyebrow { font-size: 0.58rem; color: rgba(155,109,255,0.6); letter-spacing: 0.2em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .up-rewards-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.5rem; font-weight: 300; color: #f5f0e8; line-height: 1.1; }
+        .up-rewards-sub { font-size: 0.7rem; color: rgba(232,224,212,0.35); font-family: 'Inter', sans-serif; }
+        .up-rewards-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }
+        .up-rewards-arrow { font-size: 1.2rem; color: rgba(167,139,250,0.4); transition: transform 0.2s, color 0.2s; }
+        .up-rewards-btn:hover .up-rewards-arrow { transform: translateX(4px); color: rgba(167,139,250,0.8); }
+        .up-rewards-shimmer { position: absolute; top: 0; left: -100%; width: 60%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent); animation: up-shimmer 3s infinite; }
+        @keyframes up-shimmer { 0% { left: -100%; } 100% { left: 200%; } }
+
         .up-section { margin-bottom: 2rem; }
-        .up-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .up-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; font-weight: 300; color: #f5f0e8; }
-        .up-section-meta { font-size: 0.6rem; color: rgba(255,255,255,0.2); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .up-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
+        .up-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; }
+        .up-section-meta { font-size: 0.6rem; color: rgba(255,255,255,0.22); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .up-stories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.65rem; }
-        .up-story-card { display: block; text-decoration: none; border-radius: 8px; overflow: hidden; position: relative; aspect-ratio: 2/3; background: rgba(255,255,255,0.04); transition: transform 0.2s, opacity 0.2s; }
+        .up-story-card { display: block; text-decoration: none; border-radius: 8px; overflow: hidden; position: relative; aspect-ratio: 2/3; background: rgba(255,255,255,0.05); transition: transform 0.2s, opacity 0.2s; }
         .up-story-card:hover { transform: scale(1.03); opacity: 0.9; }
         .up-story-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .up-story-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 50%); display: flex; align-items: flex-end; padding: 0.5rem; opacity: 0; transition: opacity 0.2s; }
+        .up-story-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 55%); display: flex; align-items: flex-end; padding: 0.5rem; opacity: 0; transition: opacity 0.2s; }
         .up-story-card:hover .up-story-card-overlay { opacity: 1; }
         .up-story-card-title { font-size: 0.58rem; color: #fff; font-family: 'Cormorant Garamond', Georgia, serif; line-height: 1.3; }
         .up-signin-prompt { font-size: 0.78rem; color: rgba(255,255,255,0.25); font-family: 'Inter', sans-serif; font-style: italic; padding: 0.75rem 0; }
         @media (max-width: 480px) {
+          .up-hero { gap: 1rem; }
+          .up-avatar { width: 68px; height: 68px; font-size: 22px; }
           .up-stories-grid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+          .up-rewards-title { font-size: 1.25rem; }
         }
       `}</style>
 
@@ -353,13 +341,8 @@ export default function UserPage() {
             <div className="up-name">{profileData.displayName || 'Reader'}</div>
             {profileData.username && <div className="up-username">@{profileData.username}</div>}
             <div className="up-badge-row">
-              {isAuthor ? (
-                <WriterBadge size={13} />
-              ) : badge ? (
-                <>
-                  <BadgeIcon color={badge.color} size={14} isFounder={badge.isFounder} />
-                  <span className="up-badge-label" style={{ color: badge.color }}>{badge.label}</span>
-                </>
+              {isAuthor ? <WriterBadge size={13} /> : badge ? (
+                <><BadgeIcon color={badge.color} size={14} isFounder={badge.isFounder} /><span className="up-badge-label" style={{ color: badge.color }}>{badge.label}</span></>
               ) : null}
               {followsYou && <span className="up-follows-you">Follows you</span>}
             </div>
@@ -378,9 +361,7 @@ export default function UserPage() {
               <button className={`up-follow-btn${isFollowing ? ' following' : ''}`} onClick={handleFollow} disabled={followLoading}>
                 {followLoading ? '…' : isFollowing ? 'Following' : 'Follow'}
               </button>
-            ) : (
-              <div className="up-signin-prompt">Sign in to follow this reader.</div>
-            )}
+            ) : <div className="up-signin-prompt">Sign in to follow this reader.</div>}
           </div>
         </div>
 
@@ -401,6 +382,21 @@ export default function UserPage() {
           </div>
         </div>
 
+        {/* ── Cinematic Rewards Button ── */}
+        <a href="/rewards" className="up-rewards-btn">
+          <div className="up-rewards-shimmer" />
+          <div className="up-rewards-inner">
+            <div className="up-rewards-left">
+              <div className="up-rewards-eyebrow">The Story Island</div>
+              <div className="up-rewards-title">Reader's Reward</div>
+              <div className="up-rewards-sub">Read · Comment · Earn · Cash out</div>
+            </div>
+            <div className="up-rewards-right">
+              <div className="up-rewards-arrow">→</div>
+            </div>
+          </div>
+        </a>
+
         {readStories.length > 0 && (
           <div className="up-section">
             <div className="up-section-header">
@@ -411,9 +407,7 @@ export default function UserPage() {
               {readStories.map(s => (
                 <a key={s.id} href={`/stories/${s.id}`} className="up-story-card" title={s.title}>
                   <img src={s.cover} alt={s.title} loading="lazy" />
-                  <div className="up-story-card-overlay">
-                    <div className="up-story-card-title">{s.title}</div>
-                  </div>
+                  <div className="up-story-card-overlay"><div className="up-story-card-title">{s.title}</div></div>
                 </a>
               ))}
             </div>
