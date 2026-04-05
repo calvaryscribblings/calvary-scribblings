@@ -289,25 +289,38 @@ function SquareBanner({ squareOpen, countdown }) {
   );
 }
 
-function SquareFAB({ squareOpen }) {
+function SquareFAB({ squareOpen, countdown }) {
   return (
     <a href="/square" style={{
       position: 'fixed', bottom: 24, right: 20, zIndex: 900,
       display: 'flex', alignItems: 'center', gap: 8,
-      background: '#6b2fad', borderRadius: 40,
+      background: squareOpen ? '#6b2fad' : 'rgba(10,10,10,0.95)',
+      border: squareOpen ? 'none' : '1px solid rgba(107,47,173,0.4)',
+      borderRadius: 40,
       padding: '11px 18px 11px 14px',
       textDecoration: 'none',
-      boxShadow: '0 4px 24px rgba(107,47,173,0.5)',
+      boxShadow: squareOpen
+        ? '0 4px 24px rgba(107,47,173,0.5)'
+        : '0 4px 24px rgba(0,0,0,0.6)',
     }}>
-      <div style={{
-        width: 18, height: 18, borderRadius: 5,
-        background: 'rgba(255,255,255,0.2)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      {squareOpen ? (
+        <div style={{
+          width: 18, height: 18, borderRadius: 5,
+          background: 'rgba(255,255,255,0.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ fontFamily: 'Georgia, serif', fontSize: 11, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
+        </div>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9b6dff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'sq-lockglow-icon 1.8s ease-in-out infinite', flexShrink: 0 }}>
+          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      )}
+      <span style={{
+        fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+        color: squareOpen ? '#fff' : 'rgba(155,109,255,0.8)',
       }}>
-        <span style={{ fontFamily: 'Georgia, serif', fontSize: 11, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
-      </div>
-      <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff' }}>
-        The Square
+        {squareOpen ? 'The Square' : countdown}
       </span>
       {squareOpen && (
         <span style={{
@@ -489,6 +502,7 @@ export default function Home() {
         }
         @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes sq-lockglow { 0%,100%{background:rgba(107,47,173,0.1)} 50%{background:rgba(107,47,173,0.22)} }
+        @keyframes sq-lockglow-icon { 0%,100%{opacity:0.6} 50%{opacity:1} }
       `}</style>
 
       <Navbar />
@@ -683,7 +697,7 @@ export default function Home() {
 
       {/* FAB — mobile only */}
       <div className="sq-fab-mobile">
-        <SquareFAB squareOpen={squareOpen} />
+        <SquareFAB squareOpen={squareOpen} countdown={countdown} />
       </div>
     </div>
   );
