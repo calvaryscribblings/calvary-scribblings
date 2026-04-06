@@ -21,23 +21,55 @@ async function getDB() { const { getDatabase } = await import('firebase/database
 async function getFirebaseAuth() { const { getAuth } = await import('firebase/auth'); return getAuth(await getApp()); }
 
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
+const MOD_UIDS = [FOUNDER_UID]; // add @calvaryscribblings UID here once known
+const CALVARY_UID = FOUNDER_UID; // system post author
+
 const BADGE_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
 const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
 const HEART_PATH = "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z";
 
+// ── Time helpers (London/BST aware) ───────────────────────────────────────────
+function getLondonHour() {
+  const now = new Date();
+  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
+  return londonTime.getHours();
+}
+
+function getLondonMinute() {
+  const now = new Date();
+  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
+  return londonTime.getMinutes();
+}
+
 function isSquareOpen() {
-  const h = new Date().getUTCHours();
+  const h = getLondonHour();
   return h >= 20 && h < 24;
 }
 
 function getCountdown() {
   const now = new Date();
-  const h = now.getUTCHours(), m = now.getUTCMinutes(), s = now.getUTCSeconds();
+  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
+  const h = londonTime.getHours(), m = londonTime.getMinutes(), s = londonTime.getSeconds();
   let secs;
-  if (h >= 20) { secs = (24 - h - 1) * 3600 + (59 - m) * 60 + (60 - s) + 20 * 3600; }
-  else { secs = (20 - h - 1) * 3600 + (59 - m) * 60 + (60 - s); }
+  if (h >= 20) {
+    secs = (24 - h - 1) * 3600 + (59 - m) * 60 + (60 - s);
+  } else {
+    secs = (20 - h - 1) * 3600 + (59 - m) * 60 + (60 - s);
+  }
   const hh = Math.floor(secs / 3600), mm = Math.floor((secs % 3600) / 60), ss = secs % 60;
   return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+}
+
+function isFriday() {
+  const now = new Date();
+  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
+  return londonTime.getDay() === 5;
+}
+
+function isMonday() {
+  const now = new Date();
+  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
+  return londonTime.getDay() === 1;
 }
 
 function getBadge(readCount, uid) {
@@ -81,6 +113,48 @@ function WriterBadge({ size = 13 }) {
         <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>Writer</span>
       </span>
     </span>
+  );
+}
+
+// Reaction SVG icons
+function HeartIcon({ filled, size = 12 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#d4537e' : 'none'} stroke={filled ? '#d4537e' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d={HEART_PATH}/>
+    </svg>
+  );
+}
+
+function ClapIcon({ filled, size = 12 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#d4941a' : 'none'} stroke={filled ? '#d4941a' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8.5 2.5l.5 3M12 2l.5 3M15.5 3.5l-.5 3M6 7c0-1 .5-2 1.5-2s1.5 1 1.5 2v1M9 8c0-1 .5-2 1.5-2s1.5 1 1.5 2v1M12 9c0-1 .5-2 1.5-2s1.5 1 1.5 2M6 8v7a5 5 0 0 0 10 0V9"/>
+    </svg>
+  );
+}
+
+function FlameIcon({ filled, size = 12 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#ef4444' : 'none'} stroke={filled ? '#ef4444' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2c0 0-4 4-4 9a4 4 0 0 0 8 0c0-2-1-4-1-4s-1 2-3 2c0-3 3-5 3-5s0-2-3-2z"/>
+      <path d="M12 22c-2.5 0-4-1.5-4-4 0-1.5 1-3 2-4 0 2 1 3 2 3s2-1 2-3c1 1 2 2.5 2 4 0 2.5-1.5 4-4 4z"/>
+    </svg>
+  );
+}
+
+function PinIcon({ size = 12 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l3 7h5l-4 3 1.5 7L12 16l-5.5 3L8 12 4 9h5z"/>
+    </svg>
+  );
+}
+
+function PollIcon({ size = 12 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/>
+    </svg>
   );
 }
 
@@ -140,8 +214,7 @@ function MentionDropdown({ query, onSelect }) {
       const { ref, get } = await import('firebase/database');
       const snap = await get(ref(db, 'users'));
       if (!snap.exists()) return;
-      const all = snap.val();
-      const matches = Object.entries(all)
+      const matches = Object.entries(snap.val())
         .filter(([, u]) => u.username && u.username.toLowerCase().includes(query.toLowerCase()))
         .slice(0, 5)
         .map(([uid, u]) => ({ uid, username: u.username, displayName: u.displayName, avatarUrl: u.avatarUrl }));
@@ -168,13 +241,69 @@ function MentionDropdown({ query, onSelect }) {
   );
 }
 
-// ── 3-dot Post Menu ───────────────────────────────────────────────────────────
+// ── Poll Component ────────────────────────────────────────────────────────────
+function PollDisplay({ poll, postId, user }) {
+  const [voted, setVoted] = useState(null);
+  const [votes, setVotes] = useState(poll.votes || {});
 
-function PostMenu({ post, user, onEdit, onDelete }) {
+  useEffect(() => {
+    if (!user) return;
+    if (votes[user.uid]) setVoted(votes[user.uid]);
+  }, [user, votes]);
+
+  const totalVotes = Object.values(votes).filter(v => typeof v === 'string').length;
+
+  const castVote = async (optionIndex) => {
+    if (!user || voted) return;
+    const db = await getDB();
+    const { ref, update } = await import('firebase/database');
+    await update(ref(db, `square_posts/${postId}/poll/votes`), { [user.uid]: String(optionIndex) });
+    setVotes(v => ({ ...v, [user.uid]: String(optionIndex) }));
+    setVoted(String(optionIndex));
+  };
+
+  const now = Date.now();
+  const closed = poll.closesAt && now > poll.closesAt;
+  const showResults = voted !== null || closed;
+
+  return (
+    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {poll.question && (
+        <div style={{ fontSize: '0.85rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600, marginBottom: 4 }}>{poll.question}</div>
+      )}
+      {poll.options.map((opt, i) => {
+        const optVotes = Object.values(votes).filter(v => v === String(i)).length;
+        const pct = totalVotes > 0 ? Math.round((optVotes / totalVotes) * 100) : 0;
+        const isVoted = voted === String(i);
+        return (
+          <div key={i} onClick={() => !voted && !closed && castVote(i)}
+            style={{ position: 'relative', border: `1px solid ${isVoted ? 'rgba(107,47,173,0.6)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 8, padding: '8px 12px', cursor: (!voted && !closed) ? 'pointer' : 'default', overflow: 'hidden', transition: 'border-color 0.2s' }}
+            onMouseEnter={e => { if (!voted && !closed) e.currentTarget.style.borderColor = 'rgba(107,47,173,0.4)'; }}
+            onMouseLeave={e => { if (!voted && !closed) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}>
+            {showResults && (
+              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: isVoted ? 'rgba(107,47,173,0.2)' : 'rgba(255,255,255,0.04)', transition: 'width 0.5s ease', borderRadius: 8 }} />
+            )}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.82rem', color: isVoted ? '#c4b5fd' : 'rgba(232,224,212,0.8)', fontFamily: 'Inter, sans-serif' }}>{opt}</span>
+              {showResults && <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>{pct}%</span>}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif' }}>
+        {totalVotes} vote{totalVotes !== 1 ? 's' : ''}{closed ? ' · Closed' : poll.closesAt ? ` · Closes ${timeAgo(poll.closesAt)}` : ''}
+      </div>
+    </div>
+  );
+}
+
+// ── Post Menu ─────────────────────────────────────────────────────────────────
+function PostMenu({ post, user, onEdit, onDelete, onPin, isMod }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const isOwn = user?.uid === post.authorUid;
   const canEdit = isOwn && (Date.now() - post.createdAt) < 5 * 60 * 1000;
+  const isPinned = post.pinned || false;
 
   useEffect(() => {
     const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false); };
@@ -191,11 +320,9 @@ function PostMenu({ post, user, onEdit, onDelete }) {
     <div ref={menuRef} style={{ position: 'relative', marginLeft: 'auto' }}>
       <button onClick={() => setOpen(!open)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', padding: '2px 4px', fontSize: 14, lineHeight: 1, transition: 'color 0.2s' }}
         onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
-        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.2)'}>
-        ···
-      </button>
+        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.2)'}>···</button>
       {open && (
-        <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 10, minWidth: 140, zIndex: 200, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 10, minWidth: 160, zIndex: 200, overflow: 'hidden' }}>
           {isOwn && canEdit && (
             <button onClick={() => { onEdit(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(232,224,212,0.8)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
@@ -204,7 +331,15 @@ function PostMenu({ post, user, onEdit, onDelete }) {
               Edit post
             </button>
           )}
-          {isOwn && (
+          {isMod && (
+            <button onClick={() => { onPin(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: isPinned ? '#fcd34d' : 'rgba(232,224,212,0.8)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <PinIcon size={12} />
+              {isPinned ? 'Unpin post' : 'Pin post'}
+            </button>
+          )}
+          {(isOwn || isMod) && (
             <button onClick={() => { onDelete(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(220,38,38,0.08)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -228,6 +363,66 @@ function PostMenu({ post, user, onEdit, onDelete }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Poll Creator (mod only) ───────────────────────────────────────────────────
+function PollCreatorModal({ onCreate, onClose }) {
+  const [question, setQuestion] = useState('');
+  const [options, setOptions] = useState(['', '']);
+  const [duration, setDuration] = useState(60); // minutes
+
+  const addOption = () => { if (options.length < 6) setOptions(o => [...o, '']); };
+  const removeOption = (i) => { if (options.length > 2) setOptions(o => o.filter((_, idx) => idx !== i)); };
+  const updateOption = (i, val) => setOptions(o => o.map((v, idx) => idx === i ? val : v));
+
+  const create = () => {
+    const validOptions = options.filter(o => o.trim());
+    if (validOptions.length < 2) return;
+    onCreate({ question: question.trim(), options: validOptions, closesAt: Date.now() + duration * 60 * 1000 });
+    onClose();
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '1.5rem', maxHeight: '80vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Create Poll</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
+        </div>
+        <input placeholder="Question (optional)…" value={question} onChange={e => setQuestion(e.target.value)}
+          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.7rem 1rem', color: '#e8e0d4', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '1rem' }}>
+          {options.map((opt, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`Option ${i + 1}`}
+                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0.6rem 0.9rem', color: '#e8e0d4', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
+              {options.length > 2 && (
+                <button onClick={() => removeOption(i)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px' }}>×</button>
+              )}
+            </div>
+          ))}
+          {options.length < 6 && (
+            <button onClick={addOption} style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.5rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>+ Add option</button>
+          )}
+        </div>
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', display: 'block', marginBottom: 6 }}>Poll duration</label>
+          <select value={duration} onChange={e => setDuration(Number(e.target.value))}
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0.6rem 0.9rem', color: '#e8e0d4', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif', outline: 'none', width: '100%' }}>
+            <option value={30}>30 minutes</option>
+            <option value={60}>1 hour</option>
+            <option value={90}>1.5 hours</option>
+            <option value={120}>2 hours</option>
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.6rem 1.2rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+          <button onClick={create} style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.6rem 1.5rem', color: '#fff', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Create Poll</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -289,7 +484,6 @@ function StoryEmbed({ story }) {
 }
 
 // ── DM Panel ──────────────────────────────────────────────────────────────────
-
 function DMPanel({ user, onClose }) {
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
@@ -309,7 +503,7 @@ function DMPanel({ user, onClose }) {
     (async () => {
       const db = await getDB();
       const { ref, onValue } = await import('firebase/database');
-      const unsubConvs = onValue(ref(db, `dm_conversations/${user.uid}`), async (snap) => {
+      onValue(ref(db, `dm_conversations/${user.uid}`), async (snap) => {
         if (!snap.exists()) { setConversations([]); setLoadingConvs(false); return; }
         const convData = snap.val();
         const convIds = Object.keys(convData);
@@ -331,7 +525,6 @@ function DMPanel({ user, onClose }) {
         setConversations(convDetails.sort((a, b) => (b.lastMsg?.createdAt || 0) - (a.lastMsg?.createdAt || 0)));
         setLoadingConvs(false);
       });
-      return () => unsubConvs();
     })();
   }, [user]);
 
@@ -340,17 +533,15 @@ function DMPanel({ user, onClose }) {
     (async () => {
       const db = await getDB();
       const { ref, onValue, update } = await import('firebase/database');
-      const unsubMsgs = onValue(ref(db, `dm_messages/${activeConv.convId}`), (snap) => {
+      onValue(ref(db, `dm_messages/${activeConv.convId}`), (snap) => {
         if (!snap.exists()) { setMessages([]); return; }
         setMessages(Object.entries(snap.val()).map(([id, m]) => ({ id, ...m })).sort((a, b) => a.createdAt - b.createdAt));
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       });
       await update(ref(db, `dm_conversations/${user.uid}/${activeConv.convId}`), { unread: 0 });
-      return () => unsubMsgs();
     })();
   }, [activeConv]);
 
-  // Search users for new message
   useEffect(() => {
     if (!newMsgSearch.trim()) { setNewMsgResults([]); return; }
     (async () => {
@@ -358,8 +549,7 @@ function DMPanel({ user, onClose }) {
       const { ref, get } = await import('firebase/database');
       const snap = await get(ref(db, 'users'));
       if (!snap.exists()) return;
-      const all = snap.val();
-      const matches = Object.entries(all)
+      const matches = Object.entries(snap.val())
         .filter(([uid, u]) => {
           if (uid === user.uid) return false;
           const q = newMsgSearch.toLowerCase();
@@ -374,9 +564,7 @@ function DMPanel({ user, onClose }) {
   const startConversation = async (otherUid, otherUser) => {
     const convId = [user.uid, otherUid].sort().join('_');
     setActiveConv({ convId, otherUid, otherUser });
-    setShowNewMsg(false);
-    setNewMsgSearch('');
-    setNewMsgResults([]);
+    setShowNewMsg(false); setNewMsgSearch(''); setNewMsgResults([]);
   };
 
   const sendDM = async () => {
@@ -408,7 +596,6 @@ function DMPanel({ user, onClose }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           {activeConv ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -426,24 +613,15 @@ function DMPanel({ user, onClose }) {
           )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {!activeConv && (
-              <button onClick={() => setShowNewMsg(!showNewMsg)} style={{ background: 'rgba(107,47,173,0.12)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 7, padding: '5px 10px', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(155,109,255,0.8)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                + New
-              </button>
+              <button onClick={() => setShowNewMsg(!showNewMsg)} style={{ background: 'rgba(107,47,173,0.12)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 7, padding: '5px 10px', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(155,109,255,0.8)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>+ New</button>
             )}
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
           </div>
         </div>
-
-        {/* New message search */}
         {showNewMsg && !activeConv && (
           <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-            <input
-              autoFocus
-              placeholder="Search by name or @handle…"
-              value={newMsgSearch}
-              onChange={e => setNewMsgSearch(e.target.value)}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '8px 12px', color: '#e8e0d4', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }}
-            />
+            <input autoFocus placeholder="Search by name or @handle…" value={newMsgSearch} onChange={e => setNewMsgSearch(e.target.value)}
+              style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '8px 12px', color: '#e8e0d4', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
             {newMsgResults.length > 0 && (
               <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {newMsgResults.map(u => (
@@ -463,7 +641,6 @@ function DMPanel({ user, onClose }) {
             )}
           </div>
         )}
-
         {!activeConv ? (
           <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
             {loadingConvs ? (
@@ -496,10 +673,7 @@ function DMPanel({ user, onClose }) {
                 return (
                   <div key={msg.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexDirection: isMine ? 'row-reverse' : 'row' }}>
                     <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#9b6dff', overflow: 'hidden', flexShrink: 0 }}>
-                      {isMine
-                        ? (user.photoURL ? <img src={user.photoURL} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (user.displayName || 'R')[0])
-                        : (activeConv.otherUser.avatarUrl ? <img src={activeConv.otherUser.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (activeConv.otherUser.displayName || 'R')[0])
-                      }
+                      {isMine ? (user.photoURL ? <img src={user.photoURL} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (user.displayName || 'R')[0]) : (activeConv.otherUser.avatarUrl ? <img src={activeConv.otherUser.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (activeConv.otherUser.displayName || 'R')[0])}
                     </div>
                     <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', gap: 4, alignItems: isMine ? 'flex-end' : 'flex-start' }}>
                       {msg.imageUrl && <img src={msg.imageUrl} alt="shared" style={{ maxWidth: 180, borderRadius: 10, display: 'block' }} />}
@@ -540,7 +714,6 @@ function DMPanel({ user, onClose }) {
 }
 
 // ── Notifications Panel ───────────────────────────────────────────────────────
-
 function NotificationsPanel({ user, onClose }) {
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -550,7 +723,7 @@ function NotificationsPanel({ user, onClose }) {
     (async () => {
       const db = await getDB();
       const { ref, onValue, update } = await import('firebase/database');
-      const unsubNotifs = onValue(ref(db, `notifications/${user.uid}`), (snap) => {
+      onValue(ref(db, `notifications/${user.uid}`), (snap) => {
         if (!snap.exists()) { setNotifs([]); setLoading(false); return; }
         const list = Object.entries(snap.val()).map(([id, n]) => ({ id, ...n })).sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
         setNotifs(list);
@@ -559,9 +732,19 @@ function NotificationsPanel({ user, onClose }) {
         list.filter(n => !n.read).forEach(n => { updates[`${n.id}/read`] = true; });
         if (Object.keys(updates).length) update(ref(db, `notifications/${user.uid}`), updates);
       });
-      return () => unsubNotifs();
     })();
   }, [user]);
+
+  const notifLabel = (n) => {
+    if (n.type === 'mention') return ' mentioned you in the Square';
+    if (n.type === 'reply') return ' replied to your post';
+    if (n.type === 'follow') return ' started following you';
+    if (n.type === 'square_post') return ' posted in the Square';
+    if (n.type === 'like') return ' liked your post';
+    if (n.type === 'clap') return ' clapped for your post';
+    if (n.type === 'fire') return ' reacted 🔥 to your post';
+    return '';
+  };
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
@@ -581,11 +764,7 @@ function NotificationsPanel({ user, onClose }) {
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: n.read ? 'transparent' : '#9b6dff', marginTop: 5, flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '0.82rem', color: '#e8e0d4', fontFamily: 'Inter, sans-serif', lineHeight: 1.5 }}>
-                  <span style={{ color: '#a78bfa', fontWeight: 500 }}>{n.fromName}</span>
-                  {n.type === 'mention' && ' mentioned you in the Square'}
-                  {n.type === 'reply' && ' replied to your post'}
-                  {n.type === 'follow' && ' started following you'}
-                  {n.type === 'square_post' && ' posted in the Square'}
+                  <span style={{ color: '#a78bfa', fontWeight: 500 }}>{n.fromName}</span>{notifLabel(n)}
                 </div>
                 <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.22)', marginTop: 3, fontFamily: 'Inter, sans-serif' }}>{timeAgo(n.createdAt)}</div>
               </div>
@@ -598,7 +777,6 @@ function NotificationsPanel({ user, onClose }) {
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
-
 export default function SquarePage() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
@@ -611,6 +789,7 @@ export default function SquarePage() {
   const [showStoryAttach, setShowStoryAttach] = useState(false);
   const [showDM, setShowDM] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
+  const [showPollCreator, setShowPollCreator] = useState(false);
   const [presenceCount, setPresenceCount] = useState(0);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [squareOpen, setSquareOpen] = useState(false);
@@ -619,12 +798,16 @@ export default function SquarePage() {
   const [cmsStories, setCmsStories] = useState([]);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionQueryReply, setMentionQueryReply] = useState('');
+  const [mentionQueryEdit, setMentionQueryEdit] = useState('');
   const [showAuth, setShowAuth] = useState(false);
-  const [likedPosts, setLikedPosts] = useState({});
+  const [reactions, setReactions] = useState({});
   const [editingPost, setEditingPost] = useState(null);
   const [editText, setEditText] = useState('');
   const textareaRef = useRef(null);
   const replyTextareaRef = useRef(null);
+  const editTextareaRef = useRef(null);
+
+  const isMod = user && MOD_UIDS.includes(user.uid);
 
   useEffect(() => {
     const tick = () => { setSquareOpen(isSquareOpen()); setCountdown(getCountdown()); };
@@ -637,7 +820,7 @@ export default function SquarePage() {
     (async () => {
       const auth = await getFirebaseAuth();
       const { onAuthStateChanged } = await import('firebase/auth');
-      const unsub = onAuthStateChanged(auth, async (u) => {
+      onAuthStateChanged(auth, async (u) => {
         setUser(u);
         if (u) {
           const db = await getDB();
@@ -645,21 +828,25 @@ export default function SquarePage() {
           const snap = await get(ref(db, `users/${u.uid}`));
           if (snap.exists()) setUserData(snap.val());
           onValue(ref(db, `notifications/${u.uid}`), (snap) => {
-            if (!snap.exists()) { setUnreadNotifs(0); return; }
-            setUnreadNotifs(Object.values(snap.val()).filter(n => !n.read).length);
+            setUnreadNotifs(snap.exists() ? Object.values(snap.val()).filter(n => !n.read).length : 0);
           });
-          onValue(ref(db, `square_likes`), (snap) => {
+          // Load reactions for all posts
+          onValue(ref(db, `square_reactions`), (snap) => {
             if (!snap.exists()) return;
-            const liked = {};
-            Object.entries(snap.val()).forEach(([postId, likes]) => { if (likes[u.uid]) liked[postId] = true; });
-            setLikedPosts(liked);
+            const r = {};
+            Object.entries(snap.val()).forEach(([postId, reactionData]) => {
+              r[postId] = {};
+              ['like', 'clap', 'fire'].forEach(type => {
+                if (reactionData[type] && reactionData[type][u.uid]) r[postId][type] = true;
+              });
+            });
+            setReactions(r);
           });
           const presRef = ref(db, `square_presence/${u.uid}`);
           await set(presRef, true);
           onDisconnect(presRef).remove();
         }
       });
-      return () => unsub();
     })();
   }, []);
 
@@ -667,10 +854,9 @@ export default function SquarePage() {
     (async () => {
       const db = await getDB();
       const { ref, onValue } = await import('firebase/database');
-      const unsub = onValue(ref(db, 'square_presence'), (snap) => {
+      onValue(ref(db, 'square_presence'), (snap) => {
         setPresenceCount(snap.exists() ? Object.keys(snap.val()).length : 0);
       });
-      return () => unsub();
     })();
   }, []);
 
@@ -678,13 +864,18 @@ export default function SquarePage() {
     (async () => {
       const db = await getDB();
       const { ref, onValue } = await import('firebase/database');
-      const unsub = onValue(ref(db, 'square_posts'), (snap) => {
+      onValue(ref(db, 'square_posts'), (snap) => {
         if (!snap.exists()) { setPosts([]); setLoading(false); return; }
-        const list = Object.entries(snap.val()).map(([id, p]) => ({ id, ...p })).sort((a, b) => b.createdAt - a.createdAt);
+        const list = Object.entries(snap.val()).map(([id, p]) => ({ id, ...p }));
+        // Pinned posts first, then by date
+        list.sort((a, b) => {
+          if (a.pinned && !b.pinned) return -1;
+          if (!a.pinned && b.pinned) return 1;
+          return b.createdAt - a.createdAt;
+        });
         setPosts(list);
         setLoading(false);
       });
-      return () => unsub();
     })();
   }, []);
 
@@ -702,21 +893,20 @@ export default function SquarePage() {
   const extractMentionQuery = (t) => { const match = t.match(/@(\w*)$/); return match ? match[1] : ''; };
   const handleTextChange = (val) => { setText(val); setMentionQuery(extractMentionQuery(val)); };
   const handleReplyTextChange = (val) => { setReplyText(val); setMentionQueryReply(extractMentionQuery(val)); };
+  const handleEditTextChange = (val) => { setEditText(val); setMentionQueryEdit(extractMentionQuery(val)); };
   const insertMention = (username) => { setText(text.replace(/@\w*$/, `@${username} `)); setMentionQuery(''); textareaRef.current?.focus(); };
   const insertMentionReply = (username) => { setReplyText(replyText.replace(/@\w*$/, `@${username} `)); setMentionQueryReply(''); replyTextareaRef.current?.focus(); };
+  const insertMentionEdit = (username) => { setEditText(editText.replace(/@\w*$/, `@${username} `)); setMentionQueryEdit(''); editTextareaRef.current?.focus(); };
 
   const sendNotifications = async (text, postId, type = 'mention', replyAuthorUid = null) => {
     const db = await getDB();
     const { ref, push, get } = await import('firebase/database');
     const mentions = [...text.matchAll(/@(\w+)/g)].map(m => m[1]);
-
     for (const handle of mentions) {
-      // Try usernames index first, fall back to scanning users
       let targetUid = null;
       const usernameSnap = await get(ref(db, `usernames/${handle}`));
-      if (usernameSnap.exists()) {
-        targetUid = usernameSnap.val();
-      } else {
+      if (usernameSnap.exists()) { targetUid = usernameSnap.val(); }
+      else {
         const usersSnap = await get(ref(db, 'users'));
         if (usersSnap.exists()) {
           const entry = Object.entries(usersSnap.val()).find(([, u]) => u.username === handle);
@@ -729,14 +919,12 @@ export default function SquarePage() {
         postId, read: false, createdAt: Date.now(),
       });
     }
-
     if (type === 'reply' && replyAuthorUid && replyAuthorUid !== user.uid) {
       await push(ref(db, `notifications/${replyAuthorUid}`), {
         type: 'reply', fromUid: user.uid, fromName: user.displayName || 'Reader',
         postId, read: false, createdAt: Date.now(),
       });
     }
-
     if (type === 'post') {
       const followersSnap = await get(ref(db, `followers/${user.uid}`));
       if (followersSnap.exists()) {
@@ -750,8 +938,15 @@ export default function SquarePage() {
     }
   };
 
-  const post = async () => {
-    if (!text.trim() || !user) return;
+  const mirrorToUserPosts = async (postId, postData) => {
+    const db = await getDB();
+    const { ref, set } = await import('firebase/database');
+    await set(ref(db, `user_square_posts/${postData.authorUid}/${postId}`), postData);
+  };
+
+  const post = async (pollData = null) => {
+    if (!text.trim() && !pollData) return;
+    if (!user) return;
     const maxChars = getMaxChars(userData?.readCount || 0, user.uid, userData?.isAuthor);
     if (text.length > maxChars) return;
     setPosting(true);
@@ -763,9 +958,13 @@ export default function SquarePage() {
         authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
         authorAvatarUrl: userData?.avatarUrl || null, authorReadCount: userData?.readCount || 0,
         isAuthor: userData?.isAuthor || false, attachedStory: attachedStory || null,
-        parentId: null, likeCount: 0, createdAt: Date.now(),
+        parentId: null, likeCount: 0, pinned: false,
+        unpinnedAt: null,
+        createdAt: Date.now(),
       };
+      if (pollData) postData.poll = { ...pollData, votes: {} };
       const newPost = await push(ref(db, 'square_posts'), postData);
+      await mirrorToUserPosts(newPost.key, postData);
       await sendNotifications(text.trim(), newPost.key, 'post');
       setText(''); setAttachedStory(null);
     } catch (e) { console.error('Post error:', e); }
@@ -782,38 +981,62 @@ export default function SquarePage() {
         text: replyText.trim(), authorUid: user.uid, authorName: user.displayName || 'Reader',
         authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
         authorAvatarUrl: userData?.avatarUrl || null, authorReadCount: userData?.readCount || 0,
-        isAuthor: userData?.isAuthor || false, parentId: parentPost.id, likeCount: 0, createdAt: Date.now(),
+        isAuthor: userData?.isAuthor || false, parentId: parentPost.id, likeCount: 0,
+        pinned: false, unpinnedAt: null, createdAt: Date.now(),
       };
       const newReply = await push(ref(db, 'square_posts'), replyData);
+      await mirrorToUserPosts(newReply.key, replyData);
       await sendNotifications(replyText.trim(), newReply.key, 'reply', parentPost.authorUid);
       setReplyText(''); setReplyTo(null);
     } catch (e) { console.error('Reply error:', e); }
     setPosting(false);
   };
 
-  const toggleLike = async (postId) => {
+  const toggleReaction = async (postId, type) => {
     if (!user) return;
     const db = await getDB();
-    const { ref, set, remove, runTransaction } = await import('firebase/database');
-    const likeRef = ref(db, `square_likes/${postId}/${user.uid}`);
-    const countRef = ref(db, `square_posts/${postId}/likeCount`);
-    if (likedPosts[postId]) {
-      await remove(likeRef);
+    const { ref, set, remove, runTransaction, push } = await import('firebase/database');
+    const reactionRef = ref(db, `square_reactions/${postId}/${type}/${user.uid}`);
+    const countRef = ref(db, `square_posts/${postId}/${type}Count`);
+    const hasReacted = reactions[postId]?.[type];
+
+    if (hasReacted) {
+      await remove(reactionRef);
       await runTransaction(countRef, c => Math.max(0, (c || 0) - 1));
     } else {
-      await set(likeRef, true);
+      await set(reactionRef, true);
       await runTransaction(countRef, c => (c || 0) + 1);
+      // Send notification to post author
+      const post = posts.find(p => p.id === postId);
+      if (post && post.authorUid !== user.uid) {
+        await push(ref(db, `notifications/${post.authorUid}`), {
+          type, fromUid: user.uid, fromName: user.displayName || 'Reader',
+          postId, read: false, createdAt: Date.now(),
+        });
+      }
     }
   };
 
-  const handleEdit = (p) => { setEditingPost(p.id); setEditText(p.text); };
+  const handlePin = async (p) => {
+    if (!isMod) return;
+    const db = await getDB();
+    const { ref, update } = await import('firebase/database');
+    if (p.pinned) {
+      // Unpin — start 2-day deletion countdown
+      await update(ref(db, `square_posts/${p.id}`), { pinned: false, unpinnedAt: Date.now() });
+    } else {
+      await update(ref(db, `square_posts/${p.id}`), { pinned: true, unpinnedAt: null });
+    }
+  };
+
+  const handleEdit = (p) => { setEditingPost(p.id); setEditText(p.text); setMentionQueryEdit(''); };
 
   const saveEdit = async (postId) => {
     if (!editText.trim()) return;
     const db = await getDB();
     const { ref, update } = await import('firebase/database');
     await update(ref(db, `square_posts/${postId}`), { text: editText.trim(), edited: true });
-    setEditingPost(null); setEditText('');
+    setEditingPost(null); setEditText(''); setMentionQueryEdit('');
   };
 
   const handleDelete = async (p) => {
@@ -821,15 +1044,50 @@ export default function SquarePage() {
     const db = await getDB();
     const { ref, remove } = await import('firebase/database');
     await remove(ref(db, `square_posts/${p.id}`));
-    // Remove replies too
+    await remove(ref(db, `user_square_posts/${p.authorUid}/${p.id}`));
     const repliesToDelete = posts.filter(r => r.parentId === p.id);
-    await Promise.all(repliesToDelete.map(r => remove(ref(db, `square_posts/${r.id}`))));
+    await Promise.all(repliesToDelete.map(r => Promise.all([
+      remove(ref(db, `square_posts/${r.id}`)),
+      remove(ref(db, `user_square_posts/${r.authorUid}/${r.id}`)),
+    ])));
+  };
+
+  const createPoll = async (pollData) => {
+    await post(pollData);
   };
 
   const maxChars = user ? getMaxChars(userData?.readCount || 0, user.uid, userData?.isAuthor) : 200;
   const topLevel = posts.filter(p => !p.parentId);
   const getReplies = (id) => posts.filter(p => p.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
+
+  const ReactionBar = ({ p, size = 12 }) => {
+    const postReactions = reactions[p.id] || {};
+    return (
+      <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+        {[
+          { type: 'like', Icon: HeartIcon, activeColor: '#d4537e', count: p.likeCount || 0 },
+          { type: 'clap', Icon: ClapIcon, activeColor: '#d4941a', count: p.clapCount || 0 },
+          { type: 'fire', Icon: FlameIcon, activeColor: '#ef4444', count: p.fireCount || 0 },
+        ].map(({ type, Icon, activeColor, count }) => {
+          const active = postReactions[type] || false;
+          return (
+            <button key={type} onClick={() => toggleReaction(p.id, type)}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, color: active ? activeColor : 'rgba(255,255,255,0.22)', fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', transition: 'color 0.2s', letterSpacing: '0.08em' }}>
+              <Icon filled={active} size={size} />
+              {count > 0 && count}
+            </button>
+          );
+        })}
+        {user && (
+          <button className="sq-action-btn" onClick={() => setReplyTo(replyTo === p.id ? null : p.id)}>
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            {replyTo === p.id ? 'Cancel' : 'Reply'}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -848,7 +1106,8 @@ export default function SquarePage() {
         .sq-post-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .sq-action-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.22); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; display: flex; align-items: center; gap: 4px; }
         .sq-action-btn:hover { color: #9b6dff; }
-        .sq-action-btn.liked { color: #d4537e; }
+        .sq-pinned-bar { background: rgba(252,211,77,0.06); border-left: 2px solid rgba(252,211,77,0.4); padding: 3px 8px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; border-radius: 0 4px 4px 0; }
+        .sq-pinned-label { font-size: 0.58rem; color: rgba(252,211,77,0.6); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
       `}</style>
 
       {/* Nav */}
@@ -868,7 +1127,7 @@ export default function SquarePage() {
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>{presenceCount} in the room</span>
                 </>
               ) : (
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Closed · Opens at 8pm GMT</span>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Closed · Opens at 8pm London time</span>
               )}
             </div>
           </div>
@@ -908,7 +1167,7 @@ export default function SquarePage() {
             </div>
             <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '2rem', fontWeight: 300, color: '#f5f0e8', marginBottom: 10 }}>The Square is closed.</div>
             <div style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.7, maxWidth: 300, fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', marginBottom: 28 }}>
-              The Scribblings Square opens every evening at 8pm GMT. Come back then — the conversation continues.
+              The Scribblings Square opens every evening at 8pm London time. Come back then — the conversation continues.
             </div>
             <div style={{ display: 'flex', gap: 16, marginBottom: 28 }}>
               {['Hours', 'Minutes', 'Seconds'].map((label, i) => (
@@ -919,7 +1178,7 @@ export default function SquarePage() {
               ))}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
-              Opens at <span style={{ color: 'rgba(155,109,255,0.6)' }}>8:00pm GMT</span> tonight
+              Opens at <span style={{ color: 'rgba(155,109,255,0.6)' }}>8:00pm London time</span> tonight
             </div>
           </div>
           {posts.length > 0 && (
@@ -960,14 +1219,20 @@ export default function SquarePage() {
                     </div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       <button onClick={() => setShowStoryAttach(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(107,47,173,0.08)', border: '1px solid rgba(107,47,173,0.2)', borderRadius: 6, padding: '4px 10px', fontSize: '0.68rem', color: 'rgba(155,109,255,0.65)', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
                         Attach story
                       </button>
+                      {isMod && (
+                        <button onClick={() => setShowPollCreator(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.2)', borderRadius: 6, padding: '4px 10px', fontSize: '0.68rem', color: 'rgba(29,158,117,0.65)', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                          <PollIcon size={11} />
+                          Create poll
+                        </button>
+                      )}
                       <span style={{ fontSize: '0.65rem', color: text.length > maxChars ? '#f87171' : 'rgba(255,255,255,0.18)', fontFamily: 'Inter, sans-serif' }}>{text.length} / {maxChars}</span>
                     </div>
-                    <button className="sq-post-btn" onClick={post} disabled={posting || !text.trim() || text.length > maxChars}>{posting ? 'Posting…' : 'Post'}</button>
+                    <button className="sq-post-btn" onClick={() => post()} disabled={posting || !text.trim() || text.length > maxChars}>{posting ? 'Posting…' : 'Post'}</button>
                   </div>
                 </div>
               </div>
@@ -989,11 +1254,16 @@ export default function SquarePage() {
               {topLevel.map((p, i) => {
                 const replies = getReplies(p.id);
                 const isOwn = user?.uid === p.authorUid;
-                const liked = likedPosts[p.id] || false;
                 const isEditing = editingPost === p.id;
                 return (
                   <div key={p.id} id={p.id}>
                     {i > 0 && <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '0.25rem 0 1.25rem' }} />}
+                    {p.pinned && (
+                      <div className="sq-pinned-bar">
+                        <PinIcon size={10} />
+                        <span className="sq-pinned-label">Pinned</span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 10 }}>
                       <Avatar uid={p.authorUid} initials={p.authorInitials} size={34} isAuthor={p.isAuthor} avatarUrl={p.authorAvatarUrl} />
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -1003,14 +1273,15 @@ export default function SquarePage() {
                             onMouseLeave={e => e.currentTarget.style.color = '#e8e0d4'}>{p.authorName}</a>
                           <UserBadge uid={p.authorUid} readCount={p.authorReadCount} isAuthor={p.isAuthor} />
                           <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.18)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}{p.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
-                          {user && <PostMenu post={p} user={user} onEdit={handleEdit} onDelete={handleDelete} />}
+                          {user && <PostMenu post={p} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} isMod={isMod} />}
                         </div>
 
                         {isEditing ? (
-                          <div style={{ marginBottom: 8 }}>
-                            <textarea className="sq-textarea" value={editText} onChange={e => setEditText(e.target.value)} rows={3} autoFocus style={{ marginBottom: 6 }} />
+                          <div style={{ marginBottom: 8, position: 'relative' }}>
+                            <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={3} autoFocus style={{ marginBottom: 6 }} />
+                            {mentionQueryEdit !== '' && <MentionDropdown query={mentionQueryEdit} onSelect={insertMentionEdit} />}
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                              <button onClick={() => setEditingPost(null)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 12px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                              <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 12px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
                               <button className="sq-post-btn" onClick={() => saveEdit(p.id)} disabled={!editText.trim()}>Save</button>
                             </div>
                           </div>
@@ -1018,21 +1289,11 @@ export default function SquarePage() {
                           <>
                             <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: 'rgba(232,224,212,0.82)', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
                             {p.attachedStory && <StoryEmbed story={p.attachedStory} />}
+                            {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
                           </>
                         )}
 
-                        <div style={{ display: 'flex', gap: 14, marginTop: 8 }}>
-                          <button className={`sq-action-btn${liked ? ' liked' : ''}`} onClick={() => toggleLike(p.id)}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill={liked ? '#d4537e' : 'none'} stroke={liked ? '#d4537e' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={HEART_PATH}/></svg>
-                            {p.likeCount > 0 && p.likeCount}
-                          </button>
-                          {user && (
-                            <button className="sq-action-btn" onClick={() => setReplyTo(replyTo === p.id ? null : p.id)}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                              {replyTo === p.id ? 'Cancel' : 'Reply'}
-                            </button>
-                          )}
-                        </div>
+                        <ReactionBar p={p} size={12} />
 
                         {replyTo === p.id && (
                           <div style={{ marginTop: 10, position: 'relative' }}>
@@ -1047,7 +1308,6 @@ export default function SquarePage() {
                         {replies.length > 0 && (
                           <div style={{ marginTop: 12, paddingLeft: 12, borderLeft: '1px solid rgba(107,47,173,0.2)', display: 'flex', flexDirection: 'column', gap: 12 }}>
                             {replies.map(r => {
-                              const rLiked = likedPosts[r.id] || false;
                               const rIsOwn = user?.uid === r.authorUid;
                               return (
                                 <div key={r.id} style={{ display: 'flex', gap: 8 }}>
@@ -1059,23 +1319,21 @@ export default function SquarePage() {
                                         onMouseLeave={e => e.currentTarget.style.color = '#e8e0d4'}>{r.authorName}</a>
                                       <UserBadge uid={r.authorUid} readCount={r.authorReadCount} isAuthor={r.isAuthor} />
                                       <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.18)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(r.createdAt)}{r.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
-                                      {user && <PostMenu post={r} user={user} onEdit={handleEdit} onDelete={handleDelete} />}
+                                      {user && <PostMenu post={r} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} isMod={isMod} />}
                                     </div>
-                                    <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: 'rgba(232,224,212,0.75)', lineHeight: 1.65 }}>
-                                      {editingPost === r.id ? (
-                                        <div>
-                                          <textarea className="sq-textarea" value={editText} onChange={e => setEditText(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem', marginBottom: 6 }} />
-                                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                            <button onClick={() => setEditingPost(null)} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
-                                            <button className="sq-post-btn" onClick={() => saveEdit(r.id)} disabled={!editText.trim()}>Save</button>
-                                          </div>
+                                    {editingPost === r.id ? (
+                                      <div style={{ position: 'relative' }}>
+                                        <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem', marginBottom: 6 }} />
+                                        {mentionQueryEdit !== '' && <MentionDropdown query={mentionQueryEdit} onSelect={insertMentionEdit} />}
+                                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                          <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                                          <button className="sq-post-btn" onClick={() => saveEdit(r.id)} disabled={!editText.trim()}>Save</button>
                                         </div>
-                                      ) : renderText(r.text)}
-                                    </div>
-                                    <button className={`sq-action-btn${rLiked ? ' liked' : ''}`} style={{ marginTop: 5 }} onClick={() => toggleLike(r.id)}>
-                                      <svg width="11" height="11" viewBox="0 0 24 24" fill={rLiked ? '#d4537e' : 'none'} stroke={rLiked ? '#d4537e' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={HEART_PATH}/></svg>
-                                      {r.likeCount > 0 && r.likeCount}
-                                    </button>
+                                      </div>
+                                    ) : (
+                                      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: 'rgba(232,224,212,0.75)', lineHeight: 1.65 }}>{renderText(r.text)}</div>
+                                    )}
+                                    <ReactionBar p={r} size={11} />
                                   </div>
                                 </div>
                               );
@@ -1093,6 +1351,7 @@ export default function SquarePage() {
       )}
 
       {showStoryAttach && <StoryAttachModal onSelect={(s) => { setAttachedStory(s); setShowStoryAttach(false); }} onClose={() => setShowStoryAttach(false)} cmsStories={cmsStories} />}
+      {showPollCreator && <PollCreatorModal onCreate={createPoll} onClose={() => setShowPollCreator(false)} />}
       {showDM && user && <DMPanel user={user} onClose={() => setShowDM(false)} />}
       {showNotifs && user && <NotificationsPanel user={user} onClose={() => setShowNotifs(false)} />}
 

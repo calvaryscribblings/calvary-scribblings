@@ -69,6 +69,18 @@ function formatJoinDate(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 function UserListModal({ title, uids, onClose }) {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -105,7 +117,7 @@ function UserListModal({ title, uids, onClose }) {
                 <a key={uid} href={`/user?id=${uid}`} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', textDecoration: 'none', padding: '0.6rem 0.75rem', borderRadius: '10px', transition: 'background 0.15s' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0 }}>
                     {data.avatarUrl ? <img src={data.avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -118,6 +130,102 @@ function UserListModal({ title, uids, onClose }) {
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Comment History Modal ─────────────────────────────────────────────────────
+function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const snap = await get(ref(db, 'comments'));
+      if (!snap.exists()) { setLoading(false); return; }
+      const all = [];
+      Object.entries(snap.val()).forEach(([slug, slugComments]) => {
+        Object.entries(slugComments).forEach(([id, c]) => {
+          if (c.authorUid === uid) all.push({ id, slug, ...c });
+        });
+      });
+      all.sort((a, b) => b.createdAt - a.createdAt);
+      setComments(all);
+      setLoading(false);
+    })();
+  }, [uid]);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: '#141414', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '2rem 1.5rem 2.5rem', maxHeight: '85vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.3rem', fontWeight: 300, color: '#f5f0e8' }}>Comments by {displayName}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '1.4rem', cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+        {loading ? (
+          <div style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem', padding: '1rem 0' }}>Loading…</div>
+        ) : comments.length === 0 ? (
+          <div style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No comments yet.</div>
+        ) : comments.map(c => {
+          const story = allStoriesMerged.find(s => s.id === c.slug);
+          return (
+            <a key={c.id} href={`/stories/${c.slug}`} style={{ display: 'block', textDecoration: 'none', padding: '0.85rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'opacity 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+              {story && (
+                <div style={{ fontSize: '0.68rem', color: 'rgba(155,109,255,0.6)', fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+                  {story.title}
+                </div>
+              )}
+              <div style={{ fontSize: '0.9rem', color: 'rgba(232,224,212,0.8)', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.65, marginBottom: 4 }}>{c.text}</div>
+              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(c.createdAt)}</div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Square Posts Modal ────────────────────────────────────────────────────────
+function SquarePostsModal({ uid, displayName, onClose }) {
+  const [squarePosts, setSquarePosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const snap = await get(ref(db, `user_square_posts/${uid}`));
+      if (!snap.exists()) { setLoading(false); return; }
+      const list = Object.entries(snap.val()).map(([id, p]) => ({ id, ...p })).sort((a, b) => b.createdAt - a.createdAt);
+      setSquarePosts(list);
+      setLoading(false);
+    })();
+  }, [uid]);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: '#141414', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '2rem 1.5rem 2.5rem', maxHeight: '85vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.3rem', fontWeight: 300, color: '#f5f0e8' }}>Posts by {displayName}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '1.4rem', cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+        </div>
+        {loading ? (
+          <div style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem', padding: '1rem 0' }}>Loading…</div>
+        ) : squarePosts.length === 0 ? (
+          <div style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No Square posts yet.</div>
+        ) : squarePosts.map(p => (
+          <div key={p.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ fontSize: '0.92rem', color: 'rgba(232,224,212,0.8)', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, marginBottom: 4 }}>{p.text}</div>
+            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -141,6 +249,9 @@ export default function UserPage() {
   const [followLoading, setFollowLoading] = useState(false);
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [showSquarePosts, setShowSquarePosts] = useState(false);
+  const [showAllStories, setShowAllStories] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -237,7 +348,8 @@ export default function UserPage() {
   const initials = (profileData.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const joinDate = profileData.joinDate ? formatJoinDate(profileData.joinDate) : null;
   const allStoriesMerged = [...allStories, ...cmsStories.filter(cs => !allStories.find(s => s.id === cs.id))];
-  const readStories = readStorySlugs.map(slug => allStoriesMerged.find(s => s.id === slug)).filter(Boolean).slice(0, 30);
+  const readStories = readStorySlugs.map(slug => allStoriesMerged.find(s => s.id === slug)).filter(Boolean);
+  const visibleStories = showAllStories ? readStories : readStories.slice(0, 10);
 
   return (
     <>
@@ -276,8 +388,8 @@ export default function UserPage() {
         .up-bio { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.05rem; color: rgba(232,224,212,0.65); line-height: 1.8; font-style: italic; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
 
         .up-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; overflow: hidden; margin-bottom: 2.5rem; }
-        .up-stat { background: rgba(255,255,255,0.03); padding: 1.5rem; text-align: center; transition: background 0.2s; }
-        .up-stat:hover { background: rgba(255,255,255,0.05); }
+        .up-stat { background: rgba(255,255,255,0.03); padding: 1.5rem; text-align: center; transition: background 0.2s; cursor: pointer; }
+        .up-stat:hover { background: rgba(255,255,255,0.06); }
         .up-stat-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 2.4rem; font-weight: 300; color: #f5f0e8; line-height: 1; margin-bottom: 0.4rem; }
         .up-stat-label { font-size: 0.56rem; color: rgba(255,255,255,0.28); letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
@@ -285,19 +397,27 @@ export default function UserPage() {
         .up-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
         .up-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; }
         .up-section-meta { font-size: 0.6rem; color: rgba(255,255,255,0.22); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
-        .up-stories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.65rem; }
-        .up-story-card { display: block; text-decoration: none; border-radius: 8px; overflow: hidden; position: relative; aspect-ratio: 2/3; background: rgba(255,255,255,0.05); transition: transform 0.2s, opacity 0.2s; }
-        .up-story-card:hover { transform: scale(1.03); opacity: 0.9; }
-        .up-story-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .up-story-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 55%); display: flex; align-items: flex-end; padding: 0.5rem; opacity: 0; transition: opacity 0.2s; }
-        .up-story-card:hover .up-story-card-overlay { opacity: 1; }
-        .up-story-card-title { font-size: 0.58rem; color: #fff; font-family: 'Cormorant Garamond', Georgia, serif; line-height: 1.3; }
+
+        .up-story-list { display: flex; flex-direction: column; gap: 0; }
+        .up-story-row { display: flex; align-items: center; gap: 12px; padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); text-decoration: none; transition: opacity 0.2s; }
+        .up-story-row:hover { opacity: 0.75; }
+        .up-story-thumb { width: 36px; height: 52px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: rgba(107,47,173,0.15); }
+        .up-story-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .up-story-info { flex: 1; min-width: 0; }
+        .up-story-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 0.92rem; color: #f5f0e8; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .up-story-author { font-size: 0.68rem; color: rgba(255,255,255,0.28); font-family: 'Inter, sans-serif'; margin-top: 2px; }
+        .up-more-btn { background: none; border: none; font-size: 0.72rem; color: rgba(155,109,255,0.6); font-family: 'Inter', sans-serif; cursor: pointer; padding: 0.75rem 0 0; letter-spacing: 0.08em; text-decoration: underline; text-underline-offset: 2px; }
+        .up-more-btn:hover { color: #a78bfa; }
+
+        .up-square-section-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; background: rgba(107,47,173,0.06); border: 1px solid rgba(107,47,173,0.18); border-radius: 12px; padding: 1rem 1.25rem; cursor: pointer; text-align: left; transition: all 0.2s; }
+        .up-square-section-btn:hover { background: rgba(107,47,173,0.12); border-color: rgba(107,47,173,0.35); }
+        .up-square-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: #f5f0e8; }
+        .up-square-section-sub { font-size: 0.68rem; color: rgba(155,109,255,0.5); font-family: 'Inter', sans-serif; margin-top: 2px; }
+
         .up-signin-prompt { font-size: 0.78rem; color: rgba(255,255,255,0.25); font-family: 'Inter', sans-serif; font-style: italic; padding: 0.75rem 0; }
         @media (max-width: 480px) {
           .up-hero { gap: 1rem; }
           .up-avatar { width: 68px; height: 68px; font-size: 22px; }
-          .up-stories-grid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
-          .up-rewards-title { font-size: 1.25rem; }
         }
       `}</style>
 
@@ -341,14 +461,15 @@ export default function UserPage() {
 
         {profileData.bio && <div className="up-bio">{profileData.bio}</div>}
 
+        {/* Stats — comments clickable */}
         <div className="up-stats">
           <div className="up-stat">
             <div className="up-stat-num">{readCount.toLocaleString()}</div>
             <div className="up-stat-label">Stories read</div>
           </div>
-          <div className="up-stat">
+          <div className="up-stat" onClick={() => setShowComments(true)} title="View comment history">
             <div className="up-stat-num">{commentCount}</div>
-            <div className="up-stat-label">Comments</div>
+            <div className="up-stat-label">Comments ↗</div>
           </div>
           <div className="up-stat">
             <div className="up-stat-num">—</div>
@@ -356,26 +477,53 @@ export default function UserPage() {
           </div>
         </div>
 
+        {/* Reading history — list of 10 */}
         {readStories.length > 0 && (
           <div className="up-section">
             <div className="up-section-header">
               <div className="up-section-title">Stories read</div>
-              <div className="up-section-meta">{readStories.length} shown</div>
+              <div className="up-section-meta">{readStories.length} total</div>
             </div>
-            <div className="up-stories-grid">
-              {readStories.map(s => (
-                <a key={s.id} href={`/stories/${s.id}`} className="up-story-card" title={s.title}>
-                  <img src={s.cover} alt={s.title} loading="lazy" />
-                  <div className="up-story-card-overlay"><div className="up-story-card-title">{s.title}</div></div>
+            <div className="up-story-list">
+              {visibleStories.map(s => (
+                <a key={s.id} href={`/stories/${s.id}`} className="up-story-row">
+                  <div className="up-story-thumb">
+                    {s.cover && <img src={s.cover} alt={s.title} loading="lazy" />}
+                  </div>
+                  <div className="up-story-info">
+                    <div className="up-story-title">{s.title}</div>
+                    <div className="up-story-author">by {s.author}</div>
+                  </div>
                 </a>
               ))}
             </div>
+            {readStories.length > 10 && !showAllStories && (
+              <button className="up-more-btn" onClick={() => setShowAllStories(true)}>
+                more… ({readStories.length - 10} more stories)
+              </button>
+            )}
           </div>
         )}
+
+        {/* Square Posts section */}
+        <div className="up-section">
+          <div className="up-section-header">
+            <div className="up-section-title">The Scribblings Square</div>
+          </div>
+          <button className="up-square-section-btn" onClick={() => setShowSquarePosts(true)}>
+            <div>
+              <div className="up-square-section-title">Posts on The Square</div>
+              <div className="up-square-section-sub">View {profileData.displayName?.split(' ')[0] || 'their'}'s contributions to the Square</div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
       </div>
 
       {showFollowers && <UserListModal title={`Followers · ${followerCount}`} uids={followerUids} onClose={() => setShowFollowers(false)} />}
       {showFollowing && <UserListModal title={`Following · ${followingCount}`} uids={followingUids} onClose={() => setShowFollowing(false)} />}
+      {showComments && <CommentHistoryModal uid={uid} displayName={profileData.displayName || 'Reader'} onClose={() => setShowComments(false)} allStoriesMerged={allStoriesMerged} />}
+      {showSquarePosts && <SquarePostsModal uid={uid} displayName={profileData.displayName || 'Reader'} onClose={() => setShowSquarePosts(false)} />}
     </>
   );
 }
