@@ -413,33 +413,34 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    async function fetchTop10() {
-      try {
-        const { initializeApp, getApps } = await import('firebase/app');
-        const { getDatabase, ref, get } = await import('firebase/database');
-        const firebaseConfig = {
-          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-          authDomain: 'calvary-scribblings.firebaseapp.com',
-          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-          projectId: 'calvary-scribblings',
-          storageBucket: 'calvary-scribblings.firebasestorage.app',
-          messagingSenderId: '1052137412283',
-          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-        };
-        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        const snapshot = await get(ref(db, 'stories'));
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const withCounts = stories.map(s => ({ ...s, hits: (data[s.id] && data[s.id].hits) || 0 }));
-          setTop10(withCounts.sort((a, b) => b.hits - a.hits).slice(0, 10));
-        }
-      } catch (e) {
-        console.error('Firebase Top 10 error:', e);
+  if (allStories.length === 0) return;
+  async function fetchTop10() {
+    try {
+      const { initializeApp, getApps } = await import('firebase/app');
+      const { getDatabase, ref, get } = await import('firebase/database');
+      const firebaseConfig = {
+        apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+        authDomain: 'calvary-scribblings.firebaseapp.com',
+        databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+        projectId: 'calvary-scribblings',
+        storageBucket: 'calvary-scribblings.firebasestorage.app',
+        messagingSenderId: '1052137412283',
+        appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+      };
+      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+      const snapshot = await get(ref(db, 'stories'));
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const withCounts = allStories.map(s => ({ ...s, hits: (data[s.id] && data[s.id].hits) || 0 }));
+        setTop10(withCounts.sort((a, b) => b.hits - a.hits).slice(0, 10));
       }
+    } catch (e) {
+      console.error('Firebase Top 10 error:', e);
     }
-    fetchTop10();
-  }, []);
+  }
+  fetchTop10();
+}, [allStories]);
 
   const handleSubscribe = async () => {
     if (!email || !email.includes('@')) { setSubscribeStatus('Please enter a valid email address.'); return; }
