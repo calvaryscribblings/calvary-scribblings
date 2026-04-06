@@ -33,27 +33,28 @@ const stories = [
 function parseDate(str) { return new Date(str); }
 function isNew(s) { return (Date.now() - parseDate(s.date)) / 86400000 <= 7; }
 
+function getLondonHour() {
+  const now = new Date();
+  return parseInt(now.toLocaleString('en-GB', { timeZone: 'Europe/London', hour: 'numeric', hour12: false }), 10);
+}
+
 function isSquareOpen() {
-  const gmtHour = new Date().getUTCHours();
-  return gmtHour >= 20 && gmtHour < 24;
+  const h = getLondonHour();
+  return h >= 20 && h < 24;
 }
 
 function getCountdown() {
   const now = new Date();
-  const gmtHour = now.getUTCHours();
-  const gmtMin = now.getUTCMinutes();
-  const gmtSec = now.getUTCSeconds();
-  let secsUntil8pm;
-  if (gmtHour >= 20) {
-    secsUntil8pm = (24 - gmtHour - 1) * 3600 + (60 - gmtMin - 1) * 60 + (60 - gmtSec);
-    secsUntil8pm += 20 * 3600;
+  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
+  const h = londonTime.getHours(), m = londonTime.getMinutes(), s = londonTime.getSeconds();
+  let secs;
+  if (h >= 20) {
+    secs = (24 - h - 1) * 3600 + (59 - m) * 60 + (60 - s);
   } else {
-    secsUntil8pm = (20 - gmtHour - 1) * 3600 + (60 - gmtMin - 1) * 60 + (60 - gmtSec);
+    secs = (20 - h - 1) * 3600 + (59 - m) * 60 + (60 - s);
   }
-  const h = Math.floor(secsUntil8pm / 3600);
-  const m = Math.floor((secsUntil8pm % 3600) / 60);
-  const s = secsUntil8pm % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  const hh = Math.floor(secs / 3600), mm = Math.floor((secs % 3600) / 60), ss = secs % 60;
+  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
 }
 
 const badgeStyle = {
@@ -266,7 +267,7 @@ function SquareBanner({ squareOpen, countdown }) {
                   <span style={{ color: 'rgba(255,255,255,0.35)' }}>Join the conversation</span>
                 </>
               ) : (
-                <span style={{ color: 'rgba(255,255,255,0.22)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Opens tonight at 8pm GMT</span>
+                <span style={{ color: 'rgba(255,255,255,0.22)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Opens tonight at 8pm London time</span>
               )}
             </div>
           </div>

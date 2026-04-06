@@ -89,6 +89,18 @@ function formatPence(pence) {
   return `£${(pence / 100).toFixed(2)}`;
 }
 
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 function UserListModal({ title, uids, onClose }) {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -124,7 +136,7 @@ function UserListModal({ title, uids, onClose }) {
                 <a key={uid} href={`/user?id=${uid}`} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', textDecoration: 'none', padding: '0.6rem 0.75rem', borderRadius: '10px', transition: 'background 0.15s' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0 }}>
                     {data.avatarUrl ? <img src={data.avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -137,6 +149,98 @@ function UserListModal({ title, uids, onClose }) {
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const snap = await get(ref(db, 'comments'));
+      if (!snap.exists()) { setLoading(false); return; }
+      const all = [];
+      Object.entries(snap.val()).forEach(([slug, slugComments]) => {
+        Object.entries(slugComments).forEach(([id, c]) => {
+          if (c.authorUid === uid) all.push({ id, slug, ...c });
+        });
+      });
+      all.sort((a, b) => b.createdAt - a.createdAt);
+      setComments(all);
+      setLoading(false);
+    })();
+  }, [uid]);
+
+  return (
+    <div className="pf-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pf-modal">
+        <div className="pf-modal-header">
+          <div className="pf-modal-title">My Comments</div>
+          <button className="pf-modal-close" onClick={onClose}>×</button>
+        </div>
+        {loading ? (
+          <div style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem', padding: '1rem 0' }}>Loading…</div>
+        ) : comments.length === 0 ? (
+          <div style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No comments yet.</div>
+        ) : comments.map(c => {
+          const story = allStoriesMerged.find(s => s.id === c.slug);
+          return (
+            <a key={c.id} href={`/stories/${c.slug}`} style={{ display: 'block', textDecoration: 'none', padding: '0.85rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'opacity 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+              {story && (
+                <div style={{ fontSize: '0.68rem', color: 'rgba(155,109,255,0.6)', fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+                  {story.title}
+                </div>
+              )}
+              <div style={{ fontSize: '0.9rem', color: 'rgba(232,224,212,0.8)', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.65, marginBottom: 4 }}>{c.text}</div>
+              <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(c.createdAt)}</div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SquarePostsModal({ uid, onClose }) {
+  const [squarePosts, setSquarePosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const snap = await get(ref(db, `user_square_posts/${uid}`));
+      if (!snap.exists()) { setLoading(false); return; }
+      const list = Object.entries(snap.val()).map(([id, p]) => ({ id, ...p })).sort((a, b) => b.createdAt - a.createdAt);
+      setSquarePosts(list);
+      setLoading(false);
+    })();
+  }, [uid]);
+
+  return (
+    <div className="pf-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="pf-modal">
+        <div className="pf-modal-header">
+          <div className="pf-modal-title">My Square Posts</div>
+          <button className="pf-modal-close" onClick={onClose}>×</button>
+        </div>
+        {loading ? (
+          <div style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem', padding: '1rem 0' }}>Loading…</div>
+        ) : squarePosts.length === 0 ? (
+          <div style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No Square posts yet.</div>
+        ) : squarePosts.map(p => (
+          <div key={p.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ fontSize: '0.92rem', color: 'rgba(232,224,212,0.8)', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, marginBottom: 4 }}>{p.text}</div>
+            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -157,11 +261,12 @@ export default function ProfilePage() {
   const [points, setPoints] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
-
   const [showEdit, setShowEdit] = useState(false);
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
-
+  const [showComments, setShowComments] = useState(false);
+  const [showSquarePosts, setShowSquarePosts] = useState(false);
+  const [showAllStories, setShowAllStories] = useState(false);
   const [editName, setEditName] = useState('');
   const [editUsername, setEditUsername] = useState('');
   const [editBio, setEditBio] = useState('');
@@ -229,7 +334,6 @@ export default function ProfilePage() {
         });
         unsubDB.push(unsubComments);
 
-        // Load points and wallet
         try {
           const [pointsSnap, walletSnap] = await Promise.all([
             get(ref(db, `points/${u.uid}/total`)),
@@ -325,7 +429,8 @@ export default function ProfilePage() {
   const tierProgress = nextBadge ? Math.min(100, Math.round(((readCount - getPrevThreshold(nextBadge.threshold)) / (nextBadge.threshold - getPrevThreshold(nextBadge.threshold))) * 100)) : 100;
 
   const allStoriesMerged = [...allStories, ...cmsStories.filter(cs => !allStories.find(s => s.id === cs.id))];
-  const readStories = readStorySlugs.map(slug => allStoriesMerged.find(s => s.id === slug)).filter(Boolean).slice(0, 30);
+  const readStories = readStorySlugs.map(slug => allStoriesMerged.find(s => s.id === slug)).filter(Boolean);
+  const visibleStories = showAllStories ? readStories : readStories.slice(0, 10);
 
   return (
     <>
@@ -384,13 +489,16 @@ export default function ProfilePage() {
         .pf-section-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; letter-spacing: 0.01em; }
         .pf-section-meta { font-size: 0.6rem; color: rgba(255,255,255,0.22); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
-        .pf-stories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.75rem; }
-        .pf-story-card { display: block; text-decoration: none; border-radius: 8px; overflow: hidden; position: relative; aspect-ratio: 2/3; background: rgba(255,255,255,0.05); transition: transform 0.2s, opacity 0.2s; }
-        .pf-story-card:hover { transform: scale(1.03); opacity: 0.9; }
-        .pf-story-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .pf-story-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 55%); display: flex; align-items: flex-end; padding: 0.5rem; opacity: 0; transition: opacity 0.2s; }
-        .pf-story-card:hover .pf-story-card-overlay { opacity: 1; }
-        .pf-story-card-title { font-size: 0.6rem; color: #fff; font-family: 'Cormorant Garamond', Georgia, serif; line-height: 1.3; }
+        .pf-story-list { display: flex; flex-direction: column; }
+        .pf-story-row { display: flex; align-items: center; gap: 12px; padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); text-decoration: none; transition: opacity 0.2s; }
+        .pf-story-row:hover { opacity: 0.75; }
+        .pf-story-thumb { width: 36px; height: 52px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: rgba(107,47,173,0.15); }
+        .pf-story-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .pf-story-info { flex: 1; min-width: 0; }
+        .pf-story-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 0.92rem; color: #f5f0e8; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pf-story-author { font-size: 0.68rem; color: rgba(255,255,255,0.28); font-family: 'Inter', sans-serif; margin-top: 2px; }
+        .pf-more-btn { background: none; border: none; font-size: 0.72rem; color: rgba(155,109,255,0.6); font-family: 'Inter', sans-serif; cursor: pointer; padding: 0.75rem 0 0; letter-spacing: 0.08em; text-decoration: underline; text-underline-offset: 2px; }
+        .pf-more-btn:hover { color: #a78bfa; }
 
         .pf-badge-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 1.5rem; }
         .pf-progress-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
@@ -399,19 +507,8 @@ export default function ProfilePage() {
         .pf-progress-bar-wrap { height: 3px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; }
         .pf-progress-bar { height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
 
-        /* ── Cinematic Rewards Button ── */
-        .pf-rewards-btn {
-          display: block; width: 100%; text-decoration: none; position: relative; overflow: hidden;
-          background: linear-gradient(135deg, #1a0a2e 0%, #0d1a12 50%, #1a0a2e 100%);
-          border: 1px solid rgba(107,47,173,0.3); border-radius: 20px; padding: 2rem 2rem;
-          transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-          cursor: pointer;
-        }
-        .pf-rewards-btn::before {
-          content: ''; position: absolute; inset: 0;
-          background: linear-gradient(135deg, rgba(107,47,173,0.15) 0%, rgba(29,158,117,0.08) 50%, rgba(107,47,173,0.15) 100%);
-          opacity: 0; transition: opacity 0.3s ease;
-        }
+        .pf-rewards-btn { display: block; width: 100%; text-decoration: none; position: relative; overflow: hidden; background: linear-gradient(135deg, #1a0a2e 0%, #0d1a12 50%, #1a0a2e 100%); border: 1px solid rgba(107,47,173,0.3); border-radius: 20px; padding: 2rem; transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease; cursor: pointer; }
+        .pf-rewards-btn::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(107,47,173,0.15) 0%, rgba(29,158,117,0.08) 50%, rgba(107,47,173,0.15) 100%); opacity: 0; transition: opacity 0.3s ease; }
         .pf-rewards-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(107,47,173,0.25), 0 0 0 1px rgba(107,47,173,0.4); border-color: rgba(107,47,173,0.5); }
         .pf-rewards-btn:hover::before { opacity: 1; }
         .pf-rewards-btn-inner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }
@@ -427,6 +524,9 @@ export default function ProfilePage() {
         .pf-rewards-btn:hover .pf-rewards-arrow { transform: translateX(4px); color: rgba(167,139,250,0.8); }
         .pf-rewards-shimmer { position: absolute; top: 0; left: -100%; width: 60%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent); animation: pf-shimmer 3s infinite; }
         @keyframes pf-shimmer { 0% { left: -100%; } 100% { left: 200%; } }
+
+        .pf-square-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; background: rgba(107,47,173,0.06); border: 1px solid rgba(107,47,173,0.18); border-radius: 12px; padding: 1rem 1.25rem; cursor: pointer; text-align: left; transition: all 0.2s; }
+        .pf-square-btn:hover { background: rgba(107,47,173,0.12); border-color: rgba(107,47,173,0.35); }
 
         .pf-placeholder { padding: 2rem; text-align: center; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; background: rgba(255,255,255,0.01); }
         .pf-placeholder p { font-size: 0.88rem; color: rgba(255,255,255,0.2); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; }
@@ -474,7 +574,6 @@ export default function ProfilePage() {
           .pf-hero-content { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
           .pf-name { font-size: 2rem; }
           .pf-avatar { width: 76px; height: 76px; font-size: 26px; }
-          .pf-stories-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
           .pf-rewards-title { font-size: 1.3rem; }
           .pf-rewards-points { font-size: 2.2rem; }
         }
@@ -531,14 +630,15 @@ export default function ProfilePage() {
           <button className="pf-edit-btn" onClick={openEdit}>Edit profile</button>
         </div>
 
+        {/* Stats */}
         <div className="pf-stats">
           <div className="pf-stat">
             <div className="pf-stat-num">{readCount.toLocaleString()}</div>
             <div className="pf-stat-label">Stories read</div>
           </div>
-          <div className="pf-stat">
+          <div className="pf-stat" onClick={() => setShowComments(true)} style={{ cursor: 'pointer' }}>
             <div className="pf-stat-num">{commentCount}</div>
-            <div className="pf-stat-label">Comments</div>
+            <div className="pf-stat-label">Comments ↗</div>
           </div>
           <div className="pf-stat">
             <div className="pf-stat-num">—</div>
@@ -546,23 +646,35 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Stories read — list */}
         {readStories.length > 0 && (
           <div className="pf-section">
             <div className="pf-section-header">
               <div className="pf-section-title">Stories read</div>
-              <div className="pf-section-meta">{readStories.length} shown</div>
+              <div className="pf-section-meta">{readStories.length} total</div>
             </div>
-            <div className="pf-stories-grid">
-              {readStories.map(s => (
-                <a key={s.id} href={`/stories/${s.id}`} className="pf-story-card" title={s.title}>
-                  <img src={s.cover} alt={s.title} loading="lazy" />
-                  <div className="pf-story-card-overlay"><div className="pf-story-card-title">{s.title}</div></div>
+            <div className="pf-story-list">
+              {visibleStories.map(s => (
+                <a key={s.id} href={`/stories/${s.id}`} className="pf-story-row">
+                  <div className="pf-story-thumb">
+                    {s.cover && <img src={s.cover} alt={s.title} loading="lazy" />}
+                  </div>
+                  <div className="pf-story-info">
+                    <div className="pf-story-title">{s.title}</div>
+                    <div className="pf-story-author">by {s.author}</div>
+                  </div>
                 </a>
               ))}
             </div>
+            {readStories.length > 10 && !showAllStories && (
+              <button className="pf-more-btn" onClick={() => setShowAllStories(true)}>
+                more… ({readStories.length - 10} more stories)
+              </button>
+            )}
           </div>
         )}
 
+        {/* Reading badge */}
         <div className="pf-section">
           <div className="pf-section-header">
             <div className="pf-section-title">Reading badge</div>
@@ -581,7 +693,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* ── Cinematic Reader's Reward Button ── */}
+        {/* Reader's Reward */}
         <div className="pf-section">
           <div className="pf-section-header">
             <div className="pf-section-title">Reader's Reward</div>
@@ -604,6 +716,21 @@ export default function ProfilePage() {
           </a>
         </div>
 
+        {/* Square posts */}
+        <div className="pf-section">
+          <div className="pf-section-header">
+            <div className="pf-section-title">The Scribblings Square</div>
+          </div>
+          <button className="pf-square-btn" onClick={() => setShowSquarePosts(true)}>
+            <div>
+              <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#f5f0e8' }}>Posts on The Square</div>
+              <div style={{ fontSize: '0.68rem', color: 'rgba(155,109,255,0.5)', fontFamily: 'Inter, sans-serif', marginTop: 2 }}>View your contributions to the Square</div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+
+        {/* Bookmarks */}
         <div className="pf-section">
           <div className="pf-section-header">
             <div className="pf-section-title">Bookmarks</div>
@@ -614,6 +741,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Account */}
         <div className="pf-section">
           <div className="pf-section-header">
             <div className="pf-section-title">Account</div>
@@ -636,6 +764,8 @@ export default function ProfilePage() {
 
       {showFollowers && <UserListModal title={`Followers · ${followerCount}`} uids={followerUids} onClose={() => setShowFollowers(false)} />}
       {showFollowing && <UserListModal title={`Following · ${followingCount}`} uids={followingUids} onClose={() => setShowFollowing(false)} />}
+      {showComments && <CommentHistoryModal uid={authUser.uid} displayName={displayName} onClose={() => setShowComments(false)} allStoriesMerged={allStoriesMerged} />}
+      {showSquarePosts && <SquarePostsModal uid={authUser.uid} onClose={() => setShowSquarePosts(false)} />}
 
       {showEdit && (
         <div className="pf-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowEdit(false); }}>
