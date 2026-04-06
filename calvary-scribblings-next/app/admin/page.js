@@ -17,6 +17,7 @@ const NEWS_SUBCATEGORIES = [
   { value: '', label: 'General' },
   { value: 'Op-Ed', label: 'Op-Ed' },
   { value: 'Music', label: 'Music' },
+  { value: 'Culture', label: 'Culture' },
   { value: 'Tech', label: 'Tech' },
   { value: 'Film', label: 'Film' },
   { value: 'Fitness', label: 'Fitness' },
