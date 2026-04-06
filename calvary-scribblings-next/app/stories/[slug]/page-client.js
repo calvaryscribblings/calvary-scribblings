@@ -416,7 +416,6 @@ function CommentsSection({ slug }) {
       });
       if (parentId) { setReplyText(''); setReplyTo(null); } else setText('');
 
-      // Award points for comment milestones (every 50 comments = 10 pts)
       try {
         const commentsSnap = await get(ref(db, 'comments'));
         let userCommentCount = 0;
@@ -611,7 +610,6 @@ export default function StoryPageClient({ params }) {
               await set(readRef, true);
               await runTransaction(ref(db, `users/${user.uid}/readCount`), (c) => (c || 0) + 1);
 
-              // Award points for read milestones (every 10 reads = 5 pts)
               try {
                 const countSnap = await get(ref(db, `users/${user.uid}/readCount`));
                 const newCount = countSnap.exists() ? countSnap.val() : 1;
@@ -637,6 +635,11 @@ export default function StoryPageClient({ params }) {
   const categoryColors = { news: '#ef4444', flash: '#6b46c1', short: '#6b46c1', poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1' };
   if (!story) return <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />;
   const accentColor = categoryColors[story.category] || '#6b46c1';
+
+  // ── Derived display values — works for both hardcoded and CMS stories ──
+  const displayCategory = story.categoryName || story.category || 'News & Updates';
+  const displaySubcategory = story.subcategory || null;
+
   const isPoetry = story.category === 'poetry';
 
   return (
@@ -770,7 +773,7 @@ export default function StoryPageClient({ params }) {
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
         <nav className={`story-nav${isHeaderVisible ? '' : ' hidden'}`}>
           <a href="/" className="nav-logo">Calvary <span>Scribblings</span></a>
-          <span className="nav-meta">{story.categoryName}</span>
+          <span className="nav-meta">{displayCategory}</span>
         </nav>
         <header className="story-hero">
           <img className="hero-bg" src={story.cover} alt="" aria-hidden="true" />
@@ -779,7 +782,9 @@ export default function StoryPageClient({ params }) {
           <div className="hero-mobile-overlay" />
           <img className="hero-cover-panel" src={story.cover} alt={story.title} />
           <div className="hero-content">
-            <div className="story-badge-hero">{story.categoryName}</div>
+            <div className="story-badge-hero">
+              {displaySubcategory || displayCategory}
+            </div>
             <h1 className="story-title">{story.title}</h1>
             <div className="story-byline">
               <span className="byline-by">by</span>
@@ -800,7 +805,9 @@ export default function StoryPageClient({ params }) {
           <main>
             <article className="story-body" ref={articleRef}>
               <div className="back-link-row">
-                <a href={`/${story.category}`} className="back-link">← {story.categoryName}</a>
+                <a href={`/${story.category}`} className="back-link">
+                  ← {displayCategory}{displaySubcategory ? ` · ${displaySubcategory}` : ''}
+                </a>
               </div>
               <div className={`prose${isPoetry ? '' : ' has-dropcap'}`} id="story-content" dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }} />
             </article>
@@ -813,7 +820,9 @@ export default function StoryPageClient({ params }) {
                     style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }} />
                 )} · {story.date}
               </span>
-              <span className="story-badge-footer">{story.categoryName}</span>
+              <span className="story-badge-footer">
+                {displaySubcategory || displayCategory}
+              </span>
             </div>
           </main>
         </div>
