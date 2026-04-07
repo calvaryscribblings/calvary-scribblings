@@ -51,7 +51,7 @@ function PDFPageCanvas({ pdfDoc, pageNum, width, height }) {
   }, [pdfDoc, pageNum, width, height]);
 
   return (
-    <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', margin: '0 auto' }} />
+    <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', margin: '0 auto', mixBlendMode: 'multiply' }} />
   );
 }
 
@@ -103,7 +103,7 @@ export default function StoryReaderClient({ params }) {
   const [showCover, setShowCover] = useState(true);
   const [showEnd, setShowEnd] = useState(false);
   const [hitCount, setHitCount] = useState(null);
-  const [touch, setTouch] = useState(null);
+  const touchRef = useRef(null);
   const bookRef = useRef(null);
   const htmlBuilt = useRef(false);
 
@@ -237,12 +237,12 @@ export default function StoryReaderClient({ params }) {
     return () => window.removeEventListener('keydown', fn);
   }, [goNext, goPrev]);
 
-  const onTS = e => setTouch(e.touches[0].clientX);
+  const onTS = e => { touchRef.current = e.touches[0].clientX; };
   const onTE = e => {
-    if (touch === null) return;
-    const d = touch - e.changedTouches[0].clientX;
+    if (touchRef.current === null) return;
+    const d = touchRef.current - e.changedTouches[0].clientX;
     if (Math.abs(d) > 50) d > 0 ? goNext() : goPrev();
-    setTouch(null);
+    touchRef.current = null;
   };
 
   if (!story) return (
