@@ -57,10 +57,10 @@ export default function AgeGate({ children, story }) {
       });
       const data = await res.json();
       if (data.launchUrl) {
-        // Open Yoti in a new window
-        window.open(data.launchUrl, '_blank', 'width=800,height=700');
-        // Poll for completion
-        pollForVerification(data.sessionId);
+        // Save return URL so we can come back after verification
+        localStorage.setItem('cs_age_return', window.location.href);
+        // Redirect in same tab — avoids Safari popup blocker
+        window.location.href = data.launchUrl;
       } else {
         setError('Could not start verification. Please try again.');
         setLoading(false);
@@ -69,36 +69,6 @@ export default function AgeGate({ children, story }) {
       setError('Something went wrong. Please try again.');
       setLoading(false);
     }
-  }
-
-  function pollForVerification(sessionId) {
-    let attempts = 0;
-    const maxAttempts = 60; // Poll for up to 5 minutes
-    const interval = setInterval(async () => {
-      attempts++;
-      if (attempts > maxAttempts) {
-        clearInterval(interval);
-        setLoading(false);
-        setError('Verification timed out. Please try again.');
-        return;
-      }
-      try {
-        const res = await fetch(`${WORKER_URL}/check-session?sessionId=${sessionId}`);
-        const data = await res.json();
-        if (data.passed) {
-          clearInterval(interval);
-          localStorage.setItem(VERIFIED_KEY, 'true');
-          setVerified(true);
-          setLoading(false);
-        } else if (data.status === 'FAIL' || data.status === 'CANCELLED' || data.status === 'ERROR') {
-          clearInterval(interval);
-          setLoading(false);
-          setError('Age verification failed. You must be 18 or over to access this content.');
-        }
-      } catch (e) {
-        // Continue polling on network errors
-      }
-    }, 5000); // Check every 5 seconds
   }
 
   // Still checking
