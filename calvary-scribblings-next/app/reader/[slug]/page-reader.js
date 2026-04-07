@@ -31,32 +31,42 @@ async function getFirebaseAuth() {
 // ── PDF canvas component ──────────────────────────────────────────────────────
 function PDFPageCanvas({ pdfDoc, pageNum, width, height, zoomLevel = 1 }) {
   const canvasRef = useRef(null);
+  const [ready, setReady] = useState(false);
+
   useEffect(() => {
     if (!pdfDoc || !canvasRef.current) return;
+    setReady(false);
+    let cancelled = false;
     (async () => {
       try {
         const page = await pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1 });
         const dpr = Math.min(window.devicePixelRatio * 1.5 || 3, 4);
-        // At zoom > 1.25, fit to width so text is larger and still fully visible
         const fitWidth = (width / viewport.width) * 0.95;
         const fitHeight = (height / viewport.height) * 0.95;
         const baseFit = zoomLevel > 1.25 ? fitWidth : Math.min(fitWidth, fitHeight);
         const scale = baseFit * zoomLevel;
         const sv = page.getViewport({ scale: scale * dpr });
         const canvas = canvasRef.current;
+        if (!canvas || cancelled) return;
         canvas.width = sv.width;
         canvas.height = sv.height;
         canvas.style.width = (sv.width / dpr) + 'px';
         canvas.style.height = (sv.height / dpr) + 'px';
         const ctx = canvas.getContext('2d');
         await page.render({ canvasContext: ctx, viewport: sv }).promise;
+        if (!cancelled) setReady(true);
       } catch (e) { console.error('PDF render error:', e); }
     })();
+    return () => { cancelled = true; };
   }, [pdfDoc, pageNum, width, height, zoomLevel]);
 
   return (
-    <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', margin: '0 auto', mixBlendMode: 'multiply', background: 'transparent' }} />
+    <canvas ref={canvasRef} style={{
+      maxWidth: '100%', maxHeight: '100%', display: 'block', margin: '0 auto',
+      mixBlendMode: 'multiply', background: 'transparent',
+      opacity: ready ? 1 : 0, transition: 'opacity 0.25s ease',
+    }} />
   );
 }
 
