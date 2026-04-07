@@ -431,7 +431,7 @@ export default function StoryReaderClient({ params }) {
                     <div className="bpc">
                       <div className="pdfwrap">
                         <PDFPageCanvas
-                          key={`beneath-${dir === 'next' ? page + 2 : page}`}
+                          key={`beneath-${dir === 'next' ? page + 2 : page}-z${zoom}`}
                           pdfDoc={pdfDoc}
                           pageNum={dir === 'next' ? page + 2 : page}
                           width={bW - 96}
@@ -444,7 +444,7 @@ export default function StoryReaderClient({ params }) {
                 <div className={`bp${animating ? ` t${dir}` : ''}`} style={{ zIndex: animating ? 10 : 2 }}>
                   <div className="bpc">
                     <div className="pdfwrap">
-                      <PDFPageCanvas key={`current-${page + 1}`} pdfDoc={pdfDoc} pageNum={page + 1} width={bW - 96} height={bH - 80} zoomLevel={zoom} />
+                      <PDFPageCanvas key={`current-${page + 1}-z${zoom}`} pdfDoc={pdfDoc} pageNum={page + 1} width={bW - 96} height={bH - 80} zoomLevel={zoom} />
                     </div>
                     <div className="bpnum">{page + 1} of {total}</div>
                   </div>
@@ -453,7 +453,7 @@ export default function StoryReaderClient({ params }) {
                 {/* Preload next page invisibly to prevent flash */}
                 {!animating && page + 1 < total && (
                   <div style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
-                    <PDFPageCanvas key={`preload-${page + 2}`} pdfDoc={pdfDoc} pageNum={page + 2} width={bW - 96} height={bH - 80} zoomLevel={zoom} />
+                    <PDFPageCanvas key={`preload-${page + 2}-z${zoom}`} pdfDoc={pdfDoc} pageNum={page + 2} width={bW - 96} height={bH - 80} zoomLevel={zoom} />
                   </div>
                 )}
               </>
