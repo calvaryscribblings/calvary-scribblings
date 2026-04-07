@@ -40,18 +40,22 @@ function PDFPageCanvas({ pdfDoc, pageNum, width, height }) {
       try {
         const page = await pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1 });
+        const dpr = window.devicePixelRatio || 2;
         const scale = Math.min(width / viewport.width, height / viewport.height) * 0.95;
-        const sv = page.getViewport({ scale });
+        const sv = page.getViewport({ scale: scale * dpr });
         const canvas = canvasRef.current;
         canvas.width = sv.width;
         canvas.height = sv.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport: sv }).promise;
+        canvas.style.width = (sv.width / dpr) + 'px';
+        canvas.style.height = (sv.height / dpr) + 'px';
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport: sv }).promise;
       } catch (e) { console.error('PDF render error:', e); }
     })();
   }, [pdfDoc, pageNum, width, height]);
 
   return (
-    <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', margin: '0 auto', mixBlendMode: 'multiply' }} />
+    <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', margin: '0 auto' }} />
   );
 }
 
@@ -310,7 +314,7 @@ export default function StoryReaderClient({ params }) {
         .bprose blockquote{border-left:2px solid #c9a44c;padding:.4em 1em;margin:1.4em 0;font-style:italic;color:#5a3820;background:rgba(201,164,76,.05)}
         .bprose strong{color:#1a0a00;font-weight:700}
 
-        .pdfwrap{flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center}
+        .pdfwrap{flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#f6f0e2;border-radius:2px}
         .bpnum{flex-shrink:0;text-align:center;padding-top:10px;font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.18em;color:rgba(107,47,173,.3)}
 
         .bcover{position:absolute;inset:0;background:linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%);border-radius:2px 8px 8px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;text-align:center;box-shadow:6px 10px 48px rgba(0,0,0,.85),0 0 0 1px rgba(201,164,76,.18);overflow:hidden;cursor:pointer;animation:fadeUp .7s ease forwards}
