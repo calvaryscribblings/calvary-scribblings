@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { stories } from '../../lib/stories';
 import { use } from 'react';
 import { storyContent } from '../../lib/storyContent';
+import AuthModal from '../../components/AuthModal';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -350,7 +351,7 @@ function ExerciseSection({ slug }) {
 }
 
 // ── Comments Section ──────────────────────────────────────────────────────────
-function CommentsSection({ slug }) {
+function CommentsSection({ slug, onSignIn }) {
   const [user, setUser] = useState(null);
   const [userAvatarUrl, setUserAvatarUrl] = useState(null);
   const [comments, setComments] = useState([]);
@@ -466,7 +467,7 @@ function CommentsSection({ slug }) {
       ) : (
         <div className="cs-signin-prompt">
           <p>Sign in to join the discussion</p>
-          <button className="cs-signin-btn">Sign in to comment</button>
+          <button className="cs-signin-btn" onClick={onSignIn}>Sign in to comment</button>
         </div>
       )}
       {loading ? (
@@ -562,6 +563,7 @@ export default function StoryPageClient({ params }) {
   const [lastScrollY, setLastScrollY] = useState(0);
   const [hitCount, setHitCount] = useState(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const articleRef = useRef(null);
 
   useEffect(() => {
@@ -840,7 +842,12 @@ export default function StoryPageClient({ params }) {
           </main>
         </div>
         <ExerciseSection slug={slug} />
-        <CommentsSection slug={slug} />
+        <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
+        {showAuthModal && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>
+            <AuthModal onClose={() => setShowAuthModal(false)} />
+          </div>
+        )}
       </div>
       <button className={showBackToTop ? 'back-to-top' : 'back-to-top hidden'} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Back to top">↑</button>
     </>
