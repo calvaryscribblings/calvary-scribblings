@@ -471,7 +471,7 @@ export default function AdminPage() {
 
   const saveStory = async () => {
     if (!form.title.trim()) { setMsg('Title is required.'); return; }
-    if (!form.content.trim()) { setMsg('Content is required.'); return; }
+    if (!form.content.trim() && !form.pdfUrl) { setMsg('Content is required.'); return; }
     if (!form.coverFilename.trim()) { setMsg('Cover image is required.'); return; }
     setSaving(true); setMsg('');
     try {
