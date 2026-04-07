@@ -805,10 +805,23 @@ export default function StoryPageClient({ params }) {
           <main>
             <article className="story-body" ref={articleRef}>
               <div className="back-link-row">
-                <a href={`/${story.category}`} className="back-link">
-                  ← {displayCategory}{displaySubcategory ? ` · ${displaySubcategory}` : ''}
-                </a>
-              </div>
+  <a href={`/${story.category}`} className="back-link">
+    ← {displayCategory}{displaySubcategory ? ` · ${displaySubcategory}` : ''}
+  </a>
+  {story.readerMode && (
+    <a href={`/reader/${slug}`} style={{
+      display: 'inline-flex', alignItems: 'center', gap: '0.4em',
+      fontSize: '0.78rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+      color: '#c9a44c', textDecoration: 'none', fontFamily: 'Cochin, Georgia, serif',
+      border: '1px solid rgba(201,164,76,0.4)', padding: '0.3em 0.8em', borderRadius: '2px',
+      transition: 'all 0.2s',
+    }}
+    onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,164,76,0.08)'}
+    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+      📖 Read in Book Reader
+    </a>
+  )}
+</div>
               <div className={`prose${isPoetry ? '' : ' has-dropcap'}`} id="story-content" dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }} />
             </article>
             <div className="hit-counter-row">{hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}</div>
