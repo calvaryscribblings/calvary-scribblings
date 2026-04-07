@@ -38,7 +38,11 @@ function PDFPageCanvas({ pdfDoc, pageNum, width, height, zoomLevel = 1 }) {
         const page = await pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1 });
         const dpr = Math.min(window.devicePixelRatio * 1.5 || 3, 4);
-        const scale = Math.min(width / viewport.width, height / viewport.height) * 0.95 * zoomLevel;
+        // At zoom > 1.25, fit to width so text is larger and still fully visible
+        const fitWidth = (width / viewport.width) * 0.95;
+        const fitHeight = (height / viewport.height) * 0.95;
+        const baseFit = zoomLevel > 1.25 ? fitWidth : Math.min(fitWidth, fitHeight);
+        const scale = baseFit * zoomLevel;
         const sv = page.getViewport({ scale: scale * dpr });
         const canvas = canvasRef.current;
         canvas.width = sv.width;
