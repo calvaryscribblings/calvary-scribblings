@@ -29,7 +29,7 @@ async function getFirebaseAuth() {
 }
 
 // ── PDF canvas component ──────────────────────────────────────────────────────
-function PDFPageCanvas({ pdfDoc, pageNum, width, height }) {
+function PDFPageCanvas({ pdfDoc, pageNum, width, height, zoomLevel = 1 }) {
   const canvasRef = useRef(null);
   useEffect(() => {
     if (!pdfDoc || !canvasRef.current) return;
@@ -38,7 +38,7 @@ function PDFPageCanvas({ pdfDoc, pageNum, width, height }) {
         const page = await pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1 });
         const dpr = Math.min(window.devicePixelRatio * 1.5 || 3, 4);
-        const scale = Math.min(width / viewport.width, height / viewport.height) * 0.95;
+        const scale = Math.min(width / viewport.width, height / viewport.height) * 0.95 * zoomLevel;
         const sv = page.getViewport({ scale: scale * dpr });
         const canvas = canvasRef.current;
         canvas.width = sv.width;
@@ -107,6 +107,8 @@ export default function StoryReaderClient({ params }) {
   const touchRef = useRef(null);
   const bookRef = useRef(null);
   const htmlBuilt = useRef(false);
+  const [zoom, setZoom] = useState(1);
+  const ZOOM_LEVELS = [1, 1.25, 1.5];
 
   const isPDF = story?.pdfUrl;
   const total = isPDF ? pdfTotal : htmlPages.length;
@@ -214,7 +216,7 @@ export default function StoryReaderClient({ params }) {
 
   // Navigation
   const stateRef = useRef({});
-  stateRef.current = { animating, showCover, showEnd, page, total };
+  stateRef.current = { animating, showCover, showEnd, page, total, zoom };
 
   const goNext = useCallback(() => {
     const { animating, showCover, page, total } = stateRef.current;
@@ -367,7 +369,27 @@ export default function StoryReaderClient({ params }) {
         <div className="rtop">
           <a href="/" className="rlogo">Calvary Scribblings</a>
           <span className="rtitle">{story.title}</span>
-          <a href={`/stories/${slug}`} className="rclose">← Standard View</a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              onClick={() => setZoom(z => {
+                const idx = ZOOM_LEVELS.indexOf(z);
+                return ZOOM_LEVELS[(idx + 1) % ZOOM_LEVELS.length];
+              })}
+              style={{
+                background: 'none', border: '1px solid rgba(201,164,76,0.35)',
+                borderRadius: '4px', color: 'rgba(201,164,76,0.7)',
+                fontFamily: "'Cinzel', serif", fontSize: '0.52rem',
+                letterSpacing: '0.14em', textTransform: 'uppercase',
+                padding: '5px 10px', cursor: 'pointer', transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#c9a44c'; e.currentTarget.style.borderColor = 'rgba(201,164,76,0.7)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(201,164,76,0.7)'; e.currentTarget.style.borderColor = 'rgba(201,164,76,0.35)'; }}
+              title="Cycle zoom level"
+            >
+              {zoom === 1 ? '🔍 Zoom' : zoom === 1.25 ? '🔍 1.25×' : '🔍 1.5×'}
+            </button>
+            <a href={`/stories/${slug}`} className="rclose">← Standard View</a>
+          </div>
         </div>
 
         {/* Book */}
@@ -422,7 +444,7 @@ export default function StoryReaderClient({ params }) {
                 <div className={`bp${animating ? ` t${dir}` : ''}`} style={{ zIndex: animating ? 10 : 2 }}>
                   <div className="bpc">
                     <div className="pdfwrap">
-                      <PDFPageCanvas key={`current-${page + 1}`} pdfDoc={pdfDoc} pageNum={page + 1} width={bW - 96} height={bH - 80} />
+                      <PDFPageCanvas key={`current-${page + 1}`} pdfDoc={pdfDoc} pageNum={page + 1} width={bW - 96} height={bH - 80} zoomLevel={zoom} />
                     </div>
                     <div className="bpnum">{page + 1} of {total}</div>
                   </div>
@@ -431,7 +453,7 @@ export default function StoryReaderClient({ params }) {
                 {/* Preload next page invisibly to prevent flash */}
                 {!animating && page + 1 < total && (
                   <div style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
-                    <PDFPageCanvas key={`preload-${page + 2}`} pdfDoc={pdfDoc} pageNum={page + 2} width={bW - 96} height={bH - 80} />
+                    <PDFPageCanvas key={`preload-${page + 2}`} pdfDoc={pdfDoc} pageNum={page + 2} width={bW - 96} height={bH - 80} zoomLevel={zoom} />
                   </div>
                 )}
               </>
