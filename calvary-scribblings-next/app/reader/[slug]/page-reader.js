@@ -31,11 +31,8 @@ async function getFirebaseAuth() {
 // ── PDF canvas component ──────────────────────────────────────────────────────
 function PDFPageCanvas({ pdfDoc, pageNum, width, height }) {
   const canvasRef = useRef(null);
-  const rendered = useRef(false);
-
   useEffect(() => {
-    if (!pdfDoc || !canvasRef.current || rendered.current) return;
-    rendered.current = true;
+    if (!pdfDoc || !canvasRef.current) return;
     (async () => {
       try {
         const page = await pdfDoc.getPage(pageNum);
@@ -216,21 +213,26 @@ export default function StoryReaderClient({ params }) {
   }, [slug]);
 
   // Navigation
+  const stateRef = useRef({});
+  stateRef.current = { animating, showCover, showEnd, page, total };
+
   const goNext = useCallback(() => {
+    const { animating, showCover, page, total } = stateRef.current;
     if (animating) return;
     if (showCover) { setShowCover(false); return; }
     if (page >= total - 1) { setShowEnd(true); return; }
     setDir('next'); setAnimating(true);
     setTimeout(() => { setPage(p => p + 1); setAnimating(false); }, 650);
-  }, [animating, showCover, page, total]);
+  }, []);
 
   const goPrev = useCallback(() => {
+    const { animating, showEnd, page } = stateRef.current;
     if (animating) return;
     if (showEnd) { setShowEnd(false); return; }
     if (page === 0) { setShowCover(true); return; }
     setDir('prev'); setAnimating(true);
     setTimeout(() => { setPage(p => p - 1); setAnimating(false); }, 650);
-  }, [animating, showEnd, page]);
+  }, []);
 
   useEffect(() => {
     const fn = e => {
@@ -406,7 +408,7 @@ export default function StoryReaderClient({ params }) {
                   <div className="bp" style={{ zIndex: 0 }}>
                     <div className="bpc">
                       <div className="pdfwrap">
-                        <PDFPageCanvas pdfDoc={pdfDoc} pageNum={dir === 'next' ? page : page + 2} width={bW - 96} height={bH - 80} />
+                        <PDFPageCanvas key={dir === 'next' ? page : page + 2} pdfDoc={pdfDoc} pageNum={dir === 'next' ? page : page + 2} width={bW - 96} height={bH - 80} />
                       </div>
                     </div>
                   </div>
@@ -414,7 +416,7 @@ export default function StoryReaderClient({ params }) {
                 <div className={`bp${animating ? ` t${dir}` : ''}`} style={{ zIndex: animating ? 10 : 2 }}>
                   <div className="bpc">
                     <div className="pdfwrap">
-                      <PDFPageCanvas pdfDoc={pdfDoc} pageNum={page + 1} width={bW - 96} height={bH - 80} />
+                      <PDFPageCanvas key={page + 1} pdfDoc={pdfDoc} pageNum={page + 1} width={bW - 96} height={bH - 80} />
                     </div>
                     <div className="bpnum">{page + 1} of {total}</div>
                   </div>
