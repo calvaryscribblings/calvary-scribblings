@@ -340,9 +340,9 @@ export default function StoryReaderClient({ params }) {
 
         .bcover{position:absolute;inset:0;background:linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%);border-radius:2px 8px 8px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;text-align:center;box-shadow:6px 10px 48px rgba(0,0,0,.85),0 0 0 1px rgba(201,164,76,.18);overflow:hidden;cursor:pointer;animation:fadeUp .7s ease forwards}
         .bcover::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 65% at 50% 38%,rgba(107,47,173,.28) 0%,transparent 68%)}
-        .bcimg{width:110px;height:155px;object-fit:cover;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 8px 36px rgba(0,0,0,.65),0 0 0 1px rgba(201,164,76,.18),inset -2px 0 6px rgba(0,0,0,.3);margin-bottom:22px}
-        .bcorn{font-size:.6rem;letter-spacing:.4em;color:rgba(201,164,76,.3);margin-bottom:14px;position:relative;z-index:1}
-        .bctitle{font-family:'Cormorant Garamond',serif;font-size:clamp(1.3rem,3.5vw,1.9rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:10px;position:relative;z-index:1;font-style:italic}
+        .bcimg{width:min(240px,38vw);height:min(340px,52vh);object-fit:cover;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2),inset -3px 0 8px rgba(0,0,0,.35);margin-bottom:18px}
+        .bcorn{font-size:.55rem;letter-spacing:.4em;color:rgba(201,164,76,.3);margin-bottom:10px;position:relative;z-index:1}
+        .bctitle{font-family:'Cormorant Garamond',serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
         .bcauthor{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.24em;color:rgba(201,164,76,.65);text-transform:uppercase;position:relative;z-index:1}
         .bccta{position:absolute;bottom:22px;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;color:rgba(201,164,76,.4);text-transform:uppercase;animation:blink 2.2s ease-in-out infinite}
         .bcpages{position:absolute;bottom:22px;right:22px;font-family:'Cinzel',serif;font-size:.48rem;letter-spacing:.14em;color:rgba(255,255,255,.18)}
@@ -464,12 +464,12 @@ export default function StoryReaderClient({ params }) {
                   </div>
                   <div className="pcorner" onClick={goNext} />
                 </div>
-                {/* Preload next page invisibly to prevent flash */}
-                {!animating && page + 1 < total && (
-                  <div style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
-                    <PDFPageCanvas key={`preload-${page + 2}-z${zoom}`} pdfDoc={pdfDoc} pageNum={page + 2} width={bW - 96} height={bH - 80} zoomLevel={zoom} />
+                {/* Preload next 3 pages invisibly to prevent flash */}
+                {!animating && [1, 2, 3].map(offset => page + offset < total && (
+                  <div key={`preload-${page + offset + 1}-z${zoom}`} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', zIndex: -1, width: bW - 96, height: bH - 80 }}>
+                    <PDFPageCanvas pdfDoc={pdfDoc} pageNum={page + offset + 1} width={bW - 96} height={bH - 80} zoomLevel={zoom} />
                   </div>
-                )}
+                ))}
               </>
             )}
 
