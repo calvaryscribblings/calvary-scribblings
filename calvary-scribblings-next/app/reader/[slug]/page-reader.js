@@ -40,7 +40,7 @@ function PDFPageCanvas({ pdfDoc, pageNum, width, height }) {
       try {
         const page = await pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1 });
-        const dpr = window.devicePixelRatio || 2;
+        const dpr = Math.min(window.devicePixelRatio * 1.5 || 3, 4);
         const scale = Math.min(width / viewport.width, height / viewport.height) * 0.95;
         const sv = page.getViewport({ scale: scale * dpr });
         const canvas = canvasRef.current;
@@ -241,13 +241,16 @@ export default function StoryReaderClient({ params }) {
     return () => window.removeEventListener('keydown', fn);
   }, [goNext, goPrev]);
 
-  const onTS = e => { touchRef.current = e.touches[0].clientX; };
-  const onTE = e => {
+  const onTS = useCallback(e => {
+    touchRef.current = e.touches[0].clientX;
+  }, []);
+
+  const onTE = useCallback(e => {
     if (touchRef.current === null) return;
     const d = touchRef.current - e.changedTouches[0].clientX;
-    if (Math.abs(d) > 50) d > 0 ? goNext() : goPrev();
     touchRef.current = null;
-  };
+    if (Math.abs(d) > 50) { d > 0 ? goNext() : goPrev(); }
+  }, [goNext, goPrev]);
 
   if (!story) return (
     <div style={{ minHeight: '100vh', background: '#1a0f0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -292,7 +295,7 @@ export default function StoryReaderClient({ params }) {
         .bstage{position:relative;z-index:1;width:min(680px,92vw);transform-style:preserve-3d}
         .bbody{position:relative;width:100%;height:min(580px,75vh);transform-style:preserve-3d}
 
-        .bp{position:absolute;inset:0;background:#f6f0e2;border-radius:2px 8px 8px 2px;overflow:hidden;transform-style:preserve-3d;backface-visibility:hidden;box-shadow:inset -4px 0 10px rgba(0,0,0,.12),inset 2px 0 6px rgba(0,0,0,.06),6px 10px 48px rgba(0,0,0,.75),-2px 4px 16px rgba(0,0,0,.35),0 0 0 1px rgba(201,164,76,.12)}
+        .bp{position:absolute;inset:0;background:#f6f0e2 !important;border-radius:2px 8px 8px 2px;overflow:hidden;transform-style:preserve-3d;backface-visibility:hidden;box-shadow:inset -4px 0 10px rgba(0,0,0,.12),inset 2px 0 6px rgba(0,0,0,.06),6px 10px 48px rgba(0,0,0,.75),-2px 4px 16px rgba(0,0,0,.35),0 0 0 1px rgba(201,164,76,.12)}
         .bp::before{content:'';position:absolute;left:0;top:0;bottom:0;width:22px;background:linear-gradient(to right,rgba(0,0,0,.2),transparent);z-index:5;pointer-events:none}
         .bp::after{content:'';position:absolute;inset:0;z-index:6;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 300 300' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.038'/%3E%3C/svg%3E");pointer-events:none}
 
