@@ -128,22 +128,48 @@ export default function StoryReaderClient({ params }) {
   useEffect(() => {
     if (!story?.pdfUrl) return;
     setPdfLoading(true);
-    (async () => {
-      try {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-        script.onload = async () => {
-          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-          const pdf = await window.pdfjsLib.getDocument(story.pdfUrl).promise;
+    setPdfError('');
+
+    function loadPDFWithLib(pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      pdfjsLib.getDocument({
+        url: story.pdfUrl,
+        cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+        cMapPacked: true,
+      }).promise
+        .then(pdf => {
           setPdfDoc(pdf);
           setPdfTotal(pdf.numPages);
           setPdfLoading(false);
-        };
-        script.onerror = () => { setPdfError('Could not load PDF engine.'); setPdfLoading(false); };
-        document.head.appendChild(script);
-      } catch (e) { setPdfError('Could not load this book.'); setPdfLoading(false); }
-    })();
+        })
+        .catch(err => {
+          console.error('PDF load error:', err);
+          setPdfError('Could not load this book. Please try again.');
+          setPdfLoading(false);
+        });
+    }
+
+    if (window.pdfjsLib) {
+      loadPDFWithLib(window.pdfjsLib);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload = () => {
+      if (window.pdfjsLib) {
+        loadPDFWithLib(window.pdfjsLib);
+      } else {
+        setPdfError('PDF engine failed to initialise.');
+        setPdfLoading(false);
+      }
+    };
+    script.onerror = () => {
+      setPdfError('Could not load PDF engine. Check your connection.');
+      setPdfLoading(false);
+    };
+    document.head.appendChild(script);
   }, [story?.pdfUrl]);
 
   // Build HTML pages
