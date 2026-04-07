@@ -11,6 +11,7 @@ const CATEGORIES = [
   { value: 'poetry', label: 'Poetry' },
   { value: 'news', label: 'News & Updates' },
   { value: 'inspiring', label: 'Inspiring' },
+  { value: 'novel', label: 'Novel' },
 ];
 
 const NEWS_SUBCATEGORIES = [
@@ -80,6 +81,14 @@ async function uploadToStorage(file) {
   return await getDownloadURL(storageRef);
 }
 
+async function uploadPDFToStorage(file) {
+  const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+  const filename = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+  const storageRef = ref(storage, 'pdfs/' + filename);
+  await uploadBytes(storageRef, file);
+  return await getDownloadURL(storageRef);
+}
+
 const s = {
   page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
   header: { background: '#171717', borderBottom: '1px solid #2a2a2a', padding: '1.25rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
@@ -101,6 +110,7 @@ const s = {
   badge: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(124,58,237,0.2)', color: '#c4b5fd', border: '1px solid rgba(124,58,237,0.35)', marginLeft: '0.5rem', verticalAlign: 'middle' },
   badgeScheduled: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.35)', marginLeft: '0.5rem', verticalAlign: 'middle' },
   badgeSub: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(220,38,38,0.15)', color: '#f87171', border: '1px solid rgba(220,38,38,0.3)', marginLeft: '0.5rem', verticalAlign: 'middle' },
+  badgeReader: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(201,164,76,0.15)', color: '#fcd34d', border: '1px solid rgba(201,164,76,0.3)', marginLeft: '0.5rem', verticalAlign: 'middle' },
   cardActions: { display: 'flex', gap: '0.5rem', flexShrink: 0 },
   form: { display: 'flex', flexDirection: 'column', gap: '1.4rem' },
   fg: { display: 'flex', flexDirection: 'column', gap: '0.45rem' },
@@ -114,6 +124,7 @@ const s = {
   msg: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1.5rem' },
   scheduleBox: { background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: 8, padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' },
   scheduleToggle: { display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', userSelect: 'none' },
+  readerBox: { background: 'rgba(107,47,173,0.08)', border: '1px solid rgba(107,47,173,0.2)', borderRadius: 8, padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' },
   formActions: { display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.5rem' },
   empty: { textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '4rem 0', fontSize: '0.88rem' },
   gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cochin', Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
@@ -180,8 +191,10 @@ function ImageModal({ onInsert, onClose }) {
 function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, authorHandles, authorUids }) {
   const [showImageModal, setShowImageModal] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [pdfUploading, setPdfUploading] = useState(false);
   const textareaRef = useRef(null);
   const coverInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
   const isScheduled = !!form.publishAt;
   const scheduleStatus = form.publishAt ? getScheduleStatus(form.publishAt) : null;
   const isNews = form.category === 'news';
@@ -197,6 +210,17 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
       setForm(f => ({ ...f, coverFilename: url, coverPreview: url }));
     } catch (err) { alert('Cover upload failed: ' + err.message); }
     setCoverUploading(false);
+  }
+
+  async function handlePDFUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPdfUploading(true);
+    try {
+      const url = await uploadPDFToStorage(file);
+      setForm(f => ({ ...f, pdfUrl: url }));
+    } catch (err) { alert('PDF upload failed: ' + err.message); }
+    setPdfUploading(false);
   }
 
   function insertAtCursor(html) {
@@ -217,6 +241,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
   }
 
   const coverIsUrl = form.coverFilename && form.coverFilename.startsWith('http');
+  const pdfIsUrl = form.pdfUrl && form.pdfUrl.startsWith('http');
 
   return (
     <div>
@@ -298,6 +323,40 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
           </div>
         </div>
 
+        {/* PDF Upload */}
+        <div style={s.fg}>
+          <label style={s.label}>
+            PDF File <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for book reader)</span>
+          </label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
+              <input style={s.input} value={form.pdfUrl || ''} placeholder="Upload a PDF or paste a URL"
+                onChange={e => setForm(f => ({ ...f, pdfUrl: e.target.value }))} />
+            </div>
+            <button style={{ ...s.btnImg, flexShrink: 0 }}
+              onClick={() => pdfInputRef.current.click()} disabled={pdfUploading}>
+              {pdfUploading ? '…' : '⬆ Upload PDF'}
+            </button>
+            <input ref={pdfInputRef} type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handlePDFUpload} />
+          </div>
+          {pdfIsUrl && <div style={s.hintGreen}>✓ PDF uploaded to Firebase</div>}
+          <div style={s.hint}>When a PDF is attached, the book reader will render it page by page.</div>
+        </div>
+
+        {/* Book Reader Mode toggle */}
+        <div style={s.readerBox}>
+          <label style={s.scheduleToggle}>
+            <input type="checkbox" checked={form.readerMode || false}
+              onChange={e => setForm(f => ({ ...f, readerMode: e.target.checked }))} />
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c4b5fd', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Book Reader Mode
+            </span>
+          </label>
+          <div style={s.hint}>
+            When enabled, a "Read in Book Reader" link will appear on the story page, opening the cinematic page-turn reader at /reader/[slug].
+          </div>
+        </div>
+
         <div style={s.scheduleBox}>
           <label style={s.scheduleToggle}>
             <input type="checkbox" checked={isScheduled}
@@ -362,7 +421,11 @@ export default function AdminPage() {
   const [authorHandles, setAuthorHandles] = useState({});
   const [authorUids, setAuthorUids] = useState({});
 
-  const emptyForm = { title: '', author: AUTHORS[0], category: 'flash', subcategory: '', date: formatDate(new Date()), coverFilename: '', coverPreview: null, content: '', publishAt: '' };
+  const emptyForm = {
+    title: '', author: AUTHORS[0], category: 'flash', subcategory: '',
+    date: formatDate(new Date()), coverFilename: '', coverPreview: null,
+    content: '', publishAt: '', pdfUrl: '', readerMode: false,
+  };
   const [form, setForm] = useState(emptyForm);
 
   const isAdmin = user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
@@ -430,6 +493,8 @@ export default function AdminPage() {
         cover: coverPath,
         url: `/stories/${slug}`,
         published: !(form.publishAt && new Date(form.publishAt) > new Date()),
+        pdfUrl: form.pdfUrl || '',
+        readerMode: form.readerMode || false,
       };
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       await set(ref(db, `cms_stories/${slug}`), storyData);
@@ -462,6 +527,8 @@ export default function AdminPage() {
       subcategory: story.subcategory || '', date: story.date,
       coverFilename: story.cover, coverPreview: story.cover,
       content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
+      pdfUrl: story.pdfUrl || '',
+      readerMode: story.readerMode || false,
     });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
@@ -531,12 +598,14 @@ export default function AdminPage() {
                             {story.title}
                             <span style={s.badge}>{story.categoryName}</span>
                             {story.subcategory && <span style={s.badgeSub}>{story.subcategory}</span>}
+                            {story.readerMode && <span style={s.badgeReader}>Book Reader</span>}
                             {scheduled && <span style={s.badgeScheduled}>Scheduled</span>}
                           </div>
                           <div style={s.cardMeta}>
                             By {story.author}{story.authorHandle ? ` (@${story.authorHandle})` : ''} · {story.date}
                             {status && status !== 'Live' && ` · ${status}`}
                             {!scheduled && <> · <a href={story.url} target="_blank" rel="noreferrer" style={{ color: '#a78bfa', textDecoration: 'none' }}>View →</a></>}
+                            {story.readerMode && <> · <a href={`/reader/${story.id}`} target="_blank" rel="noreferrer" style={{ color: '#fcd34d', textDecoration: 'none' }}>Book Reader →</a></>}
                           </div>
                         </div>
                         <div style={s.cardActions}>
