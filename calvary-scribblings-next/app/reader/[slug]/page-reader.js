@@ -52,7 +52,7 @@ function PDFPageCanvas({ pdfDoc, pageNum, width, height }) {
   }, [pdfDoc, pageNum, width, height]);
 
   return (
-    <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', margin: '0 auto' }} />
+    <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', margin: '0 auto', mixBlendMode: 'multiply', background: 'transparent' }} />
   );
 }
 
@@ -319,7 +319,7 @@ export default function StoryReaderClient({ params }) {
         .bprose blockquote{border-left:2px solid #c9a44c;padding:.4em 1em;margin:1.4em 0;font-style:italic;color:#5a3820;background:rgba(201,164,76,.05)}
         .bprose strong{color:#1a0a00;font-weight:700}
 
-        .pdfwrap{flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#f6f0e2;border-radius:2px}
+        .pdfwrap{flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#f6f0e2;border-radius:2px;position:relative;z-index:8}
         .bpnum{flex-shrink:0;text-align:center;padding-top:10px;font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.18em;color:rgba(107,47,173,.3)}
 
         .bcover{position:absolute;inset:0;background:linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%);border-radius:2px 8px 8px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;text-align:center;box-shadow:6px 10px 48px rgba(0,0,0,.85),0 0 0 1px rgba(201,164,76,.18);overflow:hidden;cursor:pointer;animation:fadeUp .7s ease forwards}
@@ -408,7 +408,13 @@ export default function StoryReaderClient({ params }) {
                   <div className="bp" style={{ zIndex: 0 }}>
                     <div className="bpc">
                       <div className="pdfwrap">
-                        <PDFPageCanvas key={dir === 'next' ? page : page + 2} pdfDoc={pdfDoc} pageNum={dir === 'next' ? page : page + 2} width={bW - 96} height={bH - 80} />
+                        <PDFPageCanvas
+                          key={`beneath-${dir === 'next' ? page + 2 : page}`}
+                          pdfDoc={pdfDoc}
+                          pageNum={dir === 'next' ? page + 2 : page}
+                          width={bW - 96}
+                          height={bH - 80}
+                        />
                       </div>
                     </div>
                   </div>
@@ -416,12 +422,18 @@ export default function StoryReaderClient({ params }) {
                 <div className={`bp${animating ? ` t${dir}` : ''}`} style={{ zIndex: animating ? 10 : 2 }}>
                   <div className="bpc">
                     <div className="pdfwrap">
-                      <PDFPageCanvas key={page + 1} pdfDoc={pdfDoc} pageNum={page + 1} width={bW - 96} height={bH - 80} />
+                      <PDFPageCanvas key={`current-${page + 1}`} pdfDoc={pdfDoc} pageNum={page + 1} width={bW - 96} height={bH - 80} />
                     </div>
                     <div className="bpnum">{page + 1} of {total}</div>
                   </div>
                   <div className="pcorner" onClick={goNext} />
                 </div>
+                {/* Preload next page invisibly to prevent flash */}
+                {!animating && page + 1 < total && (
+                  <div style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
+                    <PDFPageCanvas key={`preload-${page + 2}`} pdfDoc={pdfDoc} pageNum={page + 2} width={bW - 96} height={bH - 80} />
+                  </div>
+                )}
               </>
             )}
 
