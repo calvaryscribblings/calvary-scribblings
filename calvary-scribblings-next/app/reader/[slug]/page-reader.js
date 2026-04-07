@@ -108,7 +108,7 @@ export default function StoryReaderClient({ params }) {
   const bookRef = useRef(null);
   const htmlBuilt = useRef(false);
   const [zoom, setZoom] = useState(1);
-  const ZOOM_LEVELS = [1, 1.25, 1.5];
+  const ZOOM_LEVELS = [1, 1.25, 1.5, 1.75, 2];
 
   const isPDF = story?.pdfUrl;
   const total = isPDF ? pdfTotal : htmlPages.length;
@@ -386,7 +386,7 @@ export default function StoryReaderClient({ params }) {
               onMouseLeave={e => { e.currentTarget.style.color = 'rgba(201,164,76,0.7)'; e.currentTarget.style.borderColor = 'rgba(201,164,76,0.35)'; }}
               title="Cycle zoom level"
             >
-              {zoom === 1 ? '🔍 Zoom' : zoom === 1.25 ? '🔍 1.25×' : '🔍 1.5×'}
+              {zoom === 1 ? '🔍 Zoom' : `🔍 ${zoom}×`}
             </button>
             <a href={`/stories/${slug}`} className="rclose">← Standard View</a>
           </div>
