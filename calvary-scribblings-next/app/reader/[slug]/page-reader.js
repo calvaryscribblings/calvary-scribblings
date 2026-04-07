@@ -277,8 +277,8 @@ export default function StoryReaderClient({ params }) {
     </div>
   );
 
-  const bW = typeof window !== 'undefined' ? Math.min(680, window.innerWidth * 0.92) : 680;
-  const bH = typeof window !== 'undefined' ? Math.min(580, window.innerHeight * 0.75) : 580;
+  const bW = typeof window !== 'undefined' ? Math.min(760, window.innerWidth * 0.92) : 760;
+  const bH = typeof window !== 'undefined' ? Math.min(window.innerHeight * 0.82, window.innerWidth > 768 ? 720 : 580) : 680;
 
   return (
     <>
@@ -310,8 +310,8 @@ export default function StoryReaderClient({ params }) {
         .rclose{font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.14em;color:rgba(201,164,76,.4);text-decoration:none;text-transform:uppercase;transition:color .2s}
         .rclose:hover{color:rgba(201,164,76,.85)}
 
-        .bstage{position:relative;z-index:1;width:min(680px,92vw);transform-style:preserve-3d}
-        .bbody{position:relative;width:100%;height:min(580px,75vh);transform-style:preserve-3d}
+        .bstage{position:relative;z-index:1;width:min(760px,92vw);transform-style:preserve-3d}
+        .bbody{position:relative;width:100%;height:min(82vh,720px);transform-style:preserve-3d}
 
         .bp{position:absolute;inset:0;background:#f6f0e2 !important;border-radius:2px 8px 8px 2px;overflow:hidden;transform-style:preserve-3d;backface-visibility:hidden;box-shadow:inset -4px 0 10px rgba(0,0,0,.12),inset 2px 0 6px rgba(0,0,0,.06),6px 10px 48px rgba(0,0,0,.75),-2px 4px 16px rgba(0,0,0,.35),0 0 0 1px rgba(201,164,76,.12)}
         .bp::before{content:'';position:absolute;left:0;top:0;bottom:0;width:22px;background:linear-gradient(to right,rgba(0,0,0,.2),transparent);z-index:5;pointer-events:none}
@@ -340,7 +340,7 @@ export default function StoryReaderClient({ params }) {
 
         .bcover{position:absolute;inset:0;background:linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%);border-radius:2px 8px 8px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;text-align:center;box-shadow:6px 10px 48px rgba(0,0,0,.85),0 0 0 1px rgba(201,164,76,.18);overflow:hidden;cursor:pointer;animation:fadeUp .7s ease forwards}
         .bcover::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 65% at 50% 38%,rgba(107,47,173,.28) 0%,transparent 68%)}
-        .bcimg{width:min(240px,38vw);height:min(340px,52vh);object-fit:cover;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2),inset -3px 0 8px rgba(0,0,0,.35);margin-bottom:18px}
+        .bcimg{width:min(280px,62vw);height:min(400px,42vh);object-fit:cover;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2),inset -3px 0 8px rgba(0,0,0,.35);margin-bottom:14px}
         .bcorn{font-size:.55rem;letter-spacing:.4em;color:rgba(201,164,76,.3);margin-bottom:10px;position:relative;z-index:1}
         .bctitle{font-family:'Cormorant Garamond',serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
         .bcauthor{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.24em;color:rgba(201,164,76,.65);text-transform:uppercase;position:relative;z-index:1}
