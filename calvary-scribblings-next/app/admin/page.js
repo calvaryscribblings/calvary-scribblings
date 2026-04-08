@@ -269,10 +269,13 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
               onChange={e => setForm(f => ({ ...f, author: e.target.value }))}>
               {AUTHORS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
-            {currentHandle
-              ? <div style={s.hintGreen}>@{currentHandle}{currentUid ? ` · UID found ✓` : ''}</div>
-              : <div style={s.hint}>No handle set — author must save their profile.</div>
-            }
+            <input style={{ ...s.input, marginTop: '0.35rem' }} value={form.authorHandle || ''} 
+  placeholder={currentHandle ? `@${currentHandle} (auto)` : 'Enter @handle manually…'}
+  onChange={e => setForm(f => ({ ...f, authorHandle: e.target.value.replace(/^@/, '') }))} />
+{currentHandle
+  ? <div style={s.hintGreen}>Auto-lookup found @{currentHandle} — override above if different.</div>
+  : <div style={s.hint}>No auto-match — enter the writer's @handle manually.</div>
+}
           </div>
           <div style={s.fg}>
             <label style={s.label}>Category</label>
@@ -439,6 +442,7 @@ export default function AdminPage() {
     title: '', author: AUTHORS[0], category: 'flash', subcategory: '',
     date: formatDate(new Date()), coverFilename: '', coverPreview: null,
     content: '', publishAt: '', pdfUrl: '', readerMode: false, ageRestricted: false,
+    authorHandle: '',
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -498,7 +502,7 @@ if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content i
       const storyData = {
         title: form.title.trim(),
         author: form.author,
-        authorHandle: authorHandles[form.author] || '',
+        authorHandle: form.authorHandle || authorHandles[form.author] || '',
         authorUid: authorUids[form.author] || '',
         category: form.category,
         categoryName: categoryObj.label,
@@ -546,6 +550,7 @@ if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content i
       pdfUrl: story.pdfUrl || '',
       readerMode: story.readerMode || false,
       ageRestricted: story.ageRestricted || false,
+      authorhandle: story.authorHandle || '',
     });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
