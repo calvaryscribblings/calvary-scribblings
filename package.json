@@ -3,5 +3,12 @@
     "@react-email/components": "^1.0.10",
     "firebase-admin": "^13.7.0",
     "resend": "^6.9.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4.81.0"
+  },
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   }
 }
