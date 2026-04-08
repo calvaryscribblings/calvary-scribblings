@@ -66,8 +66,10 @@ function getScheduleStatus(publishAt) {
 
 function convertToHTML(text) {
   if (/<p[\s>]/i.test(text)) return text;
+  const blockTags = /^<(figure|img|h[1-6]|ul|ol|li|blockquote|div|table|hr)/i;
   const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
   return paragraphs.map((p, i) => {
+    if (blockTags.test(p)) return p;
     if (i === 0) return `<p>${p}</p>`;
     return `<p style="text-indent:1.5em; margin-bottom:0">${p}</p>`;
   }).join(' ');

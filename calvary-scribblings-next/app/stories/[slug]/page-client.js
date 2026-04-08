@@ -648,7 +648,14 @@ export default function StoryPageClient({ params }) {
     })();
     return () => { if (unsubRead) unsubRead(); };
   }, [slug]);
-
+useEffect(() => {
+    const images = document.querySelectorAll('.prose img');
+    images.forEach(img => {
+      img.loading = 'lazy';
+      if (img.complete) img.classList.add('loaded');
+      else img.addEventListener('load', () => img.classList.add('loaded'));
+    });
+  }, [storyReady]);
   const categoryColors = { news: '#ef4444', flash: '#6b46c1', short: '#6b46c1', poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1' };
   if (!story) return <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />;
   const accentColor = categoryColors[story.category] || '#6b46c1';
@@ -700,7 +707,8 @@ export default function StoryPageClient({ params }) {
         .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cochin, Georgia, serif; line-height: 1.3; }
         .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
         .prose h4 { font-size: 1rem; font-weight: 700; color: #1a1a1a; margin: 1.5em 0 0.4em; font-family: Cochin, Georgia, serif; }
-        .prose img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; margin: 2em 0 0.5em; }
+        .prose img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; margin: 2em 0 0.5em; min-height: 200px; background: #e8e0d4; }
+.prose img.loaded { min-height: unset; background: none; }
         .prose .article-image { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 8px; margin: 2em 0 0.5em; }
         .prose figure { margin: 2em 0; }
         .prose figcaption { font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
@@ -785,7 +793,8 @@ export default function StoryPageClient({ params }) {
           .hit-counter-row { padding: 1.5rem 1.2rem; }
           .cs-section { padding: 2rem 1.2rem 5rem; }
         }
-      `}</style>
+      .prose figure { margin: 2em 0; }
+.prose figure img { margin: 0; }`}</style>
 
       <div className="reading-progress" style={{ width: `${scrollProgress}%` }} />
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
