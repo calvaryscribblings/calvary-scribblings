@@ -277,7 +277,12 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
 {currentHandle
   ? <div style={s.hintGreen}>Auto-lookup found @{currentHandle} — override above if different.</div>
   : <div style={s.hint}>No auto-match — enter the writer's @handle manually.</div>
-}
+} <div style={s.fg}>
+            <label style={s.label}>Author Override <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for guest authors)</span></label>
+            <input style={s.input} value={form.authorOverride || ''} placeholder="e.g. Ikenna Okpara & Jane Smith"
+              onChange={e => setForm(f => ({ ...f, authorOverride: e.target.value }))} />
+            <div style={s.hint}>If filled, this replaces the dropdown selection on the story page.</div>
+          </div>
           </div>
           <div style={s.fg}>
             <label style={s.label}>Category</label>
@@ -445,6 +450,7 @@ export default function AdminPage() {
     date: formatDate(new Date()), coverFilename: '', coverPreview: null,
     content: '', publishAt: '', pdfUrl: '', readerMode: false, ageRestricted: false,
     authorHandle: '',
+    authoroverride:'',
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -503,7 +509,7 @@ if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content i
       const coverPath = coverFilename.startsWith('http') ? coverFilename : (coverFilename.startsWith('/') ? coverFilename : `/${coverFilename}`);
       const storyData = {
         title: form.title.trim(),
-        author: form.author,
+        author: form.authorOverride?.trim()|| form.author,
         authorHandle: form.authorHandle || authorHandles[form.author] || '',
         authorUid: authorUids[form.author] || '',
         category: form.category,
@@ -553,6 +559,7 @@ if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content i
       readerMode: story.readerMode || false,
       ageRestricted: story.ageRestricted || false,
       authorhandle: story.authorHandle || '',
+      authoroverride: story.authorOverride ||''
     });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
