@@ -546,13 +546,27 @@ export default function StoryPageClient({ params }) {
 
   useEffect(() => {
     if (story && storyReady) return;
-    if (story) { setStoryReady(true); return; }
+    if (story) {
+      setStoryReady(true);
+      if (story.category === 'poetry' || story.category === 'novel') {
+        window.location.replace(`/reader/${slug}`);
+      }
+      return;
+    }
     async function fetchFromCMS() {
       try {
         const db = await getDB();
         const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, 'cms_stories/' + slug));
-        if (snap.exists()) { setStory({ id: slug, ...snap.val() }); setStoryReady(true); }
+        if (snap.exists()) {
+          const data = { id: slug, ...snap.val() };
+          if (data.category === 'poetry' || data.category === 'novel') {
+            window.location.replace(`/reader/${slug}`);
+            return;
+          }
+          setStory(data);
+          setStoryReady(true);
+        }
       } catch (e) { console.error('CMS fetch error:', e); }
     }
     fetchFromCMS();
