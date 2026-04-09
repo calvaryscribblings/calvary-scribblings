@@ -47,7 +47,7 @@ export async function generateMetadata({ params }) {
   }
   if (!story) return {};
   const url = `https://calvaryscribblings.co.uk/stories/${slug}`;
-  const image = `https://calvaryscribblings.co.uk/og/image?slug=${slug}`;
+  const image = `https://og.calvaryscribblings.co.uk/?slug=${slug}`;
   return {
     title: `${story.title} — Calvary Scribblings`,
     description: `By ${story.author} · ${story.categoryName} · Calvary Scribblings`,
