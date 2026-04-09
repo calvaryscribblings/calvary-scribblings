@@ -128,7 +128,8 @@ function HeartIcon({ filled, size = 12 }) {
 function ClapIcon({ filled, size = 12 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#d4941a' : 'none'} stroke={filled ? '#d4941a' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8.5 2.5l.5 3M12 2l.5 3M15.5 3.5l-.5 3M6 7c0-1 .5-2 1.5-2s1.5 1 1.5 2v1M9 8c0-1 .5-2 1.5-2s1.5 1 1.5 2v1M12 9c0-1 .5-2 1.5-2s1.5 1 1.5 2M6 8v7a5 5 0 0 0 10 0V9"/>
+      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+      <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
     </svg>
   );
 }
@@ -136,8 +137,8 @@ function ClapIcon({ filled, size = 12 }) {
 function FlameIcon({ filled, size = 12 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#ef4444' : 'none'} stroke={filled ? '#ef4444' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2c0 0-4 4-4 9a4 4 0 0 0 8 0c0-2-1-4-1-4s-1 2-3 2c0-3 3-5 3-5s0-2-3-2z"/>
-      <path d="M12 22c-2.5 0-4-1.5-4-4 0-1.5 1-3 2-4 0 2 1 3 2 3s2-1 2-3c1 1 2 2.5 2 4 0 2.5-1.5 4-4 4z"/>
+      <path d="M12 2c0 0-5 5-5 11a5 5 0 0 0 10 0c0-6-5-11-5-11z"/>
+      <path d="M12 12c0 2.5-2 4-2 5.5a2 2 0 0 0 4 0c0-1.5-2-3-2-5.5z"/>
     </svg>
   );
 }
