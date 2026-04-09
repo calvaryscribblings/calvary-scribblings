@@ -5,7 +5,7 @@ import { stories } from '../../lib/stories';
 import { use } from 'react';
 import { storyContent } from '../../lib/storyContent';
 import AuthModal from '../../components/AuthModal';
-import AgeGate from '../../components/AgeGate';
+
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -667,7 +667,7 @@ useEffect(() => {
   const isPoetry = story.category === 'poetry';
 
   return (
-    <AgeGate story={story}>
+    
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500&display=swap');
@@ -876,6 +876,6 @@ useEffect(() => {
       </div>
       <button className={showBackToTop ? 'back-to-top' : 'back-to-top hidden'} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Back to top">↑</button>
     </>
-    </AgeGate>
+    
   );
 }

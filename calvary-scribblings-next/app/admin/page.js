@@ -367,20 +367,6 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
           </div>
         </div>
 
-        {/* Age Restriction toggle */}
-        <div style={{ background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 8, padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-          <label style={s.scheduleToggle}>
-            <input type="checkbox" checked={form.ageRestricted || false}
-              onChange={e => setForm(f => ({ ...f, ageRestricted: e.target.checked }))} />
-            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f87171', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Age Restricted (18+)
-            </span>
-          </label>
-          <div style={s.hint}>
-            When enabled, readers must verify their age with Yoti before accessing this story. Use for adult content only.
-          </div>
-        </div>
-
         <div style={s.scheduleBox}>
           <label style={s.scheduleToggle}>
             <input type="checkbox" checked={isScheduled}
@@ -448,7 +434,7 @@ export default function AdminPage() {
   const emptyForm = {
     title: '', author: AUTHORS[0], category: 'flash', subcategory: '',
     date: formatDate(new Date()), coverFilename: '', coverPreview: null,
-    content: '', publishAt: '', pdfUrl: '', readerMode: false, ageRestricted: false,
+    content: '', publishAt: '', pdfUrl: '', readerMode: false,
     authorHandle: '',
     authoroverride:'',
   };
@@ -522,7 +508,6 @@ if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content i
         published: !(form.publishAt && new Date(form.publishAt) > new Date()),
         pdfUrl: form.pdfUrl || '',
         readerMode: form.readerMode || false,
-        ageRestricted: form.ageRestricted || false,
       };
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       await set(ref(db, `cms_stories/${slug}`), storyData);
@@ -557,7 +542,6 @@ if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content i
       content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
       pdfUrl: story.pdfUrl || '',
       readerMode: story.readerMode || false,
-      ageRestricted: story.ageRestricted || false,
       authorhandle: story.authorHandle || '',
       authoroverride: story.authorOverride ||''
     });
