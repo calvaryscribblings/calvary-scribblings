@@ -3,7 +3,7 @@ export default {
     const url = new URL(request.url);
 
     // Proxy /api/og-image to the dedicated Worker
-    if (url.pathname.startsWith('/api/og-image')) {
+    if (url.pathname.startsWith('/og/image')) {
       return fetch(`https://calvary-og-image.calvarymediauk.workers.dev${url.search}`);
     }
 
