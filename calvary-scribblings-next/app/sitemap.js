@@ -1,3 +1,4 @@
+export const dynamic = 'force-static';
 import { stories } from './lib/stories';
 
 const BASE_URL = 'https://www.calvaryscribblings.co.uk';
