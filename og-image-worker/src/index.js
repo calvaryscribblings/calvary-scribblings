@@ -24,12 +24,15 @@ export default {
       const contentType = imageRes.headers.get('content-type') || 'image/jpeg';
 
       return new Response(imageBuffer, {
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': 'public, max-age=86400',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
+  headers: {
+    'Content-Type': contentType,
+    'Cache-Control': 'public, max-age=86400',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET',
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Length': imageBuffer.byteLength.toString(),
+  },
+});
     } catch (e) {
       return new Response('Error: ' + e.message, { status: 500 });
     }
