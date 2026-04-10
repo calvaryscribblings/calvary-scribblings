@@ -548,7 +548,7 @@ export default function StoryPageClient({ params }) {
     if (story && storyReady) return;
     if (story) {
       setStoryReady(true);
-      if (data.category === 'poetry' || data.category === 'novel' || data.readerMode) {
+      if (story.category === 'poetry' || story.category === 'novel' || story.readerMode) {
   window.location.replace(`/reader/${slug}`);
   return;
 }
@@ -560,7 +560,7 @@ export default function StoryPageClient({ params }) {
         const snap = await get(ref(db, 'cms_stories/' + slug));
         if (snap.exists()) {
           const data = { id: slug, ...snap.val() };
-          if (data.category === 'poetry' || data.category === 'novel') {
+          if (data.category === 'poetry' || data.category === 'novel' || data.readerMode) {
             window.location.replace(`/reader/${slug}`);
             return;
           }
