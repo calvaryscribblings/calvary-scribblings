@@ -483,7 +483,7 @@ export default function AdminPage() {
 
   const saveStory = async () => {
     if (!form.title.trim()) { setMsg('Title is required.'); return; }
-    const isPdfCategory = form.category === 'poetry' || form.category === 'novel';
+    const isPdfCategory = form.category === 'poetry' || form.category === 'novel' || form.category === 'short';
 if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content is required (or upload a PDF for Poetry/Novel).'); return; }
     if (!form.coverFilename.trim()) { setMsg('Cover image is required.'); return; }
     setSaving(true); setMsg('');
