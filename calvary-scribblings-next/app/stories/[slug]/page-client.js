@@ -548,10 +548,10 @@ export default function StoryPageClient({ params }) {
     if (story && storyReady) return;
     if (story) {
       setStoryReady(true);
-      if (data.category === 'poetry' || data.category === 'novel') {
-        window.location.replace(`/reader/${slug}`);
-      }
-      return;
+      if (data.category === 'poetry' || data.category === 'novel' || data.readerMode) {
+  window.location.replace(`/reader/${slug}`);
+  return;
+}
     }
     async function fetchFromCMS() {
       try {
