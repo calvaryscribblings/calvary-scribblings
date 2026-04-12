@@ -96,7 +96,7 @@ function getCSS(){
 }
 view.open(url).then(()=>{
   view.renderer?.setStyles?.(getCSS())
-  return view.goTo('chapter-1.xhtml')
+  view.renderer?.next()
 }).catch(err=>{console.error(err);loading.classList.add('hidden');error.classList.add('show')})
 }
 </script>
