@@ -21,7 +21,8 @@ foliate-view{display:block;width:100%;height:100%;background:#f6f0e2}
 #btn-next{right:max(4px,1vw)}
 #progress-bar{position:fixed;bottom:0;left:0;right:0;height:2px;background:rgba(201,164,76,0.07);z-index:50}
 #progress-fill{height:100%;background:linear-gradient(90deg,#6b2fad,#c9a44c);width:0%;transition:width 0.45s ease}
-#page-info{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:50;font-family:'Cinzel',serif;font-size:0.48rem;letter-spacing:0.2em;color:rgba(201,164,76,0.25);text-transform:uppercase;white-space:nowrap;pointer-events:none}
+#page-info{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:50;font-family:'Cinzel',serif;font-size:0.48rem;letter-spacing:0.2em;color:rgba(201,164,76,0.35);text-transform:uppercase;white-space:nowrap;pointer-events:none}
+@media(max-width:768px){.nav-btn{padding:12px 6px}}
 </style>
 <div id="loading"><div id="loading-spinner"></div><div id="loading-text">Opening book…</div></div>
 <div id="error"><div id="error-text">Could not open this book. Please try again.</div></div>
@@ -33,24 +34,48 @@ foliate-view{display:block;width:100%;height:100%;background:#f6f0e2}
 import './view.js'
 const params=new URLSearchParams(location.search)
 const url=params.get('url')
-const title=params.get('title')||''
 const loading=document.getElementById('loading')
 const error=document.getElementById('error')
 const progressFill=document.getElementById('progress-fill')
 const pageInfo=document.getElementById('page-info')
+let currentFontSize=1
+const fontSizes=[14,16,18,20,22]
+let atEnd=false
+let totalPages=0
+let currentPage=0
+
+window.addEventListener('message',e=>{
+  if(e.data.type==='setFontSize'){
+    currentFontSize=e.data.index
+    if(window._view)window._view.renderer?.setStyles?.(getCSS())
+  }
+  if(e.data.type==='setFlow'){
+    if(window._view)window._view.renderer?.setAttribute('flow',e.data.value)
+  }
+})
+
 if(!url){loading.classList.add('hidden');error.classList.add('show');document.getElementById('error-text').textContent='No book URL provided.'}
 else{
 const view=document.createElement('foliate-view')
+window._view=view
 document.body.append(view)
 view.addEventListener('relocate',({detail})=>{
-const{fraction,location,pageItem}=detail
-progressFill.style.width=fraction*100+'%'
-const loc=pageItem?'Page '+pageItem.label:location?.current?'Loc '+location.current:''
-pageInfo.textContent=title?(title+(loc?' - '+loc:'')):(loc)
+  const{fraction,location,pageItem}=detail
+  progressFill.style.width=fraction*100+'%'
+  if(pageItem){
+    pageInfo.textContent='Page '+pageItem.label
+  } else if(location&&location.current!=null&&location.total!=null){
+    currentPage=location.current
+    totalPages=location.total
+    pageInfo.textContent='Page '+(currentPage+1)+' of '+totalPages
+  }
+  window.parent.postMessage({type:'relocate',fraction},'*')
+  if(fraction>=0.99&&!atEnd){atEnd=true;window.parent.postMessage({type:'ended'},'*')}
 })
 view.addEventListener('load',({detail:{doc}})=>{
-loading.classList.add('hidden')
-doc.addEventListener('keydown',handleKey)
+  loading.classList.add('hidden')
+  window.parent.postMessage({type:'loaded'},'*')
+  doc.addEventListener('keydown',handleKey)
 })
 document.getElementById('btn-prev').addEventListener('click',()=>view.goLeft())
 document.getElementById('btn-next').addEventListener('click',()=>view.goRight())
@@ -59,7 +84,10 @@ let touchX=null
 document.addEventListener('touchstart',e=>{touchX=e.touches[0].clientX},{passive:true})
 document.addEventListener('touchend',e=>{if(touchX===null)return;const diff=touchX-e.changedTouches[0].clientX;touchX=null;if(Math.abs(diff)>50)diff>0?view.goRight():view.goLeft()})
 function handleKey(e){if(e.key==='ArrowLeft'||e.key==='ArrowUp')view.goLeft();else if(e.key==='ArrowRight'||e.key==='ArrowDown')view.goRight()}
-const css=`body,p,div{font-family:'Cormorant Garamond',Cochin,Georgia,serif!important;color:#2a1a0e!important;background:#f6f0e2!important}p,li,blockquote{font-size:1.05rem;line-height:1.9;text-align:justify;hyphens:auto;-webkit-hyphens:auto}p+p{text-indent:1.5em}h1,h2{font-weight:300;color:#1a0a00}h3{font-style:italic;color:#6b2fad;font-weight:400}blockquote{border-left:2px solid #c9a44c;padding:0.4em 1em;font-style:italic;color:#5a3820}a{color:#6b2fad}`
-view.open(url).then(()=>{view.renderer?.setStyles?.(css);view.renderer?.next()}).catch(err=>{console.error(err);loading.classList.add('hidden');error.classList.add('show')})
+function getCSS(){
+  const sz=fontSizes[currentFontSize]
+  return 'body,p,div{font-family:'Cormorant Garamond',Cochin,Georgia,serif!important;color:#2a1a0e!important;background:#f6f0e2!important}p,li,blockquote{font-size:'+sz+'px;line-height:1.9;text-align:justify;hyphens:auto;-webkit-hyphens:auto}p+p{text-indent:1.5em}h1,h2{font-weight:300;color:#1a0a00}h3{font-style:italic;color:#6b2fad;font-weight:400}blockquote{border-left:2px solid #c9a44c;padding:0.4em 1em;font-style:italic;color:#5a3820}a{color:#6b2fad}'
+}
+view.open(url).then(()=>{view.renderer?.setStyles?.(getCSS());view.renderer?.next()}).catch(err=>{console.error(err);loading.classList.add('hidden');error.classList.add('show')})
 }
 </script>
