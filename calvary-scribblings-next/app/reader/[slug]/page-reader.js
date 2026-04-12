@@ -138,7 +138,7 @@ export default function StoryReaderClient({ params }) {
         .bemeta{font-family:'Cormorant Garamond',serif;font-size:.85rem;font-style:italic;color:#aaa;margin-bottom:24px}
         .bebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#6b2fad;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
         .bebtn:hover{background:rgba(107,47,173,.07);border-color:#6b2fad}
-        .reader-frame{position:fixed;top:48px;left:0;right:0;bottom:32px;border:none;width:100%;height:calc(100vh - 80px)}
+        .reader-frame{position:fixed;top:48px;left:0;right:0;bottom:32px;border:none;width:100%;height:calc(100vh - 96px)}
         .rbot{position:fixed;bottom:0;left:0;right:0;height:32px;background:rgba(26,15,10,0.92);display:flex;align-items:center;justify-content:center;z-index:200}
         .rprog{position:absolute;top:0;left:0;right:0;height:2px;background:rgba(201,164,76,0.07)}
         .rprogf{height:100%;background:linear-gradient(90deg,#6b2fad,#c9a44c);transition:width 0.45s ease}
