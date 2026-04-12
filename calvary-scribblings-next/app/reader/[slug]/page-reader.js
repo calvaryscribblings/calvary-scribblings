@@ -109,7 +109,6 @@ export default function StoryReaderClient({ params }) {
       <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         html,body{height:100%;overflow:hidden;background:#1a0f0a}
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Cinzel:wght@400;600&display=swap');
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes blink{0%,100%{opacity:0.35}50%{opacity:0.9}}
         @keyframes spin{to{transform:rotate(360deg)}}
