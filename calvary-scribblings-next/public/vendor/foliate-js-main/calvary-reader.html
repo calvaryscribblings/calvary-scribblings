@@ -98,6 +98,10 @@ function getCSS(){
     pre{white-space:pre-wrap!important}
   `
 }
-view.open(url).then(()=>{view.renderer?.setStyles?.(getCSS());view.renderer?.next()}).catch(err=>{console.error(err);loading.classList.add('hidden');error.classList.add('show')})
+view.open(url).then(()=>{
+  view.renderer?.setStyles?.(getCSS())
+  view.renderer?.setAttribute('margin','32px 24px')
+  view.renderer?.next()
+}).catch(err=>{console.error(err);loading.classList.add('hidden');error.classList.add('show')})
 }
 </script>
