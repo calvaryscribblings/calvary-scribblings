@@ -94,10 +94,9 @@ function getCSS(){
     pre{white-space:pre-wrap!important}
   `
 }
-sessionStorage.clear()
 view.open(url).then(()=>{
   view.renderer?.setStyles?.(getCSS())
-  view.renderer?.next()
+  return view.goTo('chapter-1.xhtml')
 }).catch(err=>{console.error(err);loading.classList.add('hidden');error.classList.add('show')})
 }
 </script>
