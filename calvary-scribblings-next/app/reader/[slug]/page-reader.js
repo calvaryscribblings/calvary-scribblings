@@ -35,11 +35,11 @@ export default function StoryReaderClient({ params }) {
   const [showEnd, setShowEnd] = useState(false);
   const [hitCount, setHitCount] = useState(null);
   const [fontIndex, setFontIndex] = useState(1);
+  const [pageInfo, setPageInfo] = useState('');
+  const [progress, setProgress] = useState(0);
   const iframeRef = useRef(null);
   const iframeReady = useRef(false);
   const pendingFont = useRef(1);
-  const [pageInfo, setPageInfo] = useState('');
-  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (story) return;
@@ -84,21 +84,19 @@ export default function StoryReaderClient({ params }) {
       if (e.data.type === 'ready') {
         iframeReady.current = true;
         iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
-          }
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
 
   const onIframeLoad = () => {
-    // Poll until Foliate signals ready
     const poll = setInterval(() => {
       try {
         if (iframeRef.current?.contentWindow?._foliateReady) {
           clearInterval(poll);
           iframeReady.current = true;
           iframeRef.current.contentWindow.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
-          if (pendingFlip.current) iframeRef.current.contentWindow.postMessage({ type: 'setFlow', value: 'paginated' }, '*');
         }
       } catch(e) { clearInterval(poll); }
     }, 200);
@@ -111,7 +109,6 @@ export default function StoryReaderClient({ params }) {
     pendingFont.current = next;
     iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: next }, '*');
   };
-
 
   if (!story) return (
     <div style={{ minHeight: '100vh', background: '#1a0f0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -139,7 +136,6 @@ export default function StoryReaderClient({ params }) {
         .rtop-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
         .rbtn{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.5);text-transform:uppercase;background:none;border:1px solid rgba(201,164,76,.25);border-radius:3px;padding:4px 9px;cursor:pointer;transition:all .2s;white-space:nowrap}
         .rbtn:hover{color:rgba(201,164,76,.9);border-color:rgba(201,164,76,.6)}
-        .rbtn.active{color:rgba(107,47,173,.9);border-color:rgba(107,47,173,.5)}
         .rclose{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.4);text-decoration:none;text-transform:uppercase;transition:color .2s;white-space:nowrap}
         .rclose:hover{color:rgba(201,164,76,.85)}
         .bcover{position:fixed;inset:0;background:linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;text-align:center;z-index:150;cursor:pointer;animation:fadeUp .7s ease forwards}
@@ -163,14 +159,11 @@ export default function StoryReaderClient({ params }) {
       `}</style>
 
       <div style={{ width: '100vw', height: '100vh', background: '#1a0f0a', overflow: 'hidden' }}>
-
         <div className="rtop">
           <a href="/" className="rlogo">Calvary Scribblings</a>
           <span className="rtitle">{story.title}</span>
           <div className="rtop-right">
-            <button className="rbtn" onClick={cycleFont} title="Change font size">
-              Aa {FONT_SIZES[fontIndex]}px
-            </button>
+            <button className="rbtn" onClick={cycleFont}>Aa {FONT_SIZES[fontIndex]}px</button>
             <a href={'/stories/' + slug} className="rclose">← View</a>
           </div>
         </div>
@@ -202,14 +195,13 @@ export default function StoryReaderClient({ params }) {
         {!showCover && !showEnd && (iframeSrc
           ? <>
               <iframe ref={iframeRef} className="reader-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" onLoad={onIframeLoad} />
-              <div style={{position:'fixed',bottom:0,left:0,right:0,height:'28px',background:'linear-gradient(to top,rgba(26,15,10,0.85),transparent)',zIndex:200}}>
+              <div style={{position:'fixed',bottom:0,left:0,right:0,height:'2px',background:'rgba(201,164,76,0.07)',zIndex:200}}>
                 <div style={{height:'100%',background:'linear-gradient(90deg,#6b2fad,#c9a44c)',width:progress+'%',transition:'width 0.45s ease'}} />
               </div>
-              {pageInfo && <div style={{position:'fixed',bottom:'6px',left:'50%',transform:'translateX(-50%)',zIndex:200,fontFamily:"'Cinzel',serif",fontSize:'0.48rem',letterSpacing:'0.2em',color:'rgba(201,164,76,0.75)',textTransform:'uppercase',whiteSpace:'nowrap',pointerEvents:'none'}}>{pageInfo}</div>}
+              {pageInfo && <div style={{position:'fixed',bottom:'8px',left:'50%',transform:'translateX(-50%)',zIndex:200,fontFamily:"'Cinzel',serif",fontSize:'0.48rem',letterSpacing:'0.2em',color:'rgba(201,164,76,0.75)',textTransform:'uppercase',whiteSpace:'nowrap',pointerEvents:'none'}}>{pageInfo}</div>}
             </>
           : <div className="no-epub">No EPUB file available for this book.</div>
         )}
-
       </div>
     </>
   );
