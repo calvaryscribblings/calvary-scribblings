@@ -103,7 +103,7 @@ function BestsellersStrip({ items, label }) {
 
 function Featured({ book, eyebrow }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3rem', alignItems: 'center', padding: '2.5rem', marginBottom: '3.5rem', background: 'rgba(201,164,76,.03)', border: '1px solid rgba(201,164,76,.1)', position: 'relative' }}>
+    <div className="featured-inner" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3rem', alignItems: 'center', padding: '2.5rem', marginBottom: '3.5rem', background: 'rgba(201,164,76,.03)', border: '1px solid rgba(201,164,76,.1)', position: 'relative' }}>
       <div style={{ position: 'absolute', top: '1.2rem', right: '1.5rem', fontFamily: "'Cinzel',serif", fontSize: '.52rem', letterSpacing: '.28em', color: 'rgba(201,164,76,.4)' }}>FEATURED</div>
       <Cover color={book.color} title={book.title} author={book.author} size="featured" />
       <div>
@@ -224,7 +224,7 @@ export default function BookStorePage() {
           .shelf{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:2rem 1rem}
           .hero-doors{flex-direction:column;align-items:center}
           .door{width:100%;max-width:260px}
-          .featured-inner{grid-template-columns:1fr !important}
+          .featured-inner{grid-template-columns:1fr !important;gap:1.5rem !important}
         }
       `}</style>
 
