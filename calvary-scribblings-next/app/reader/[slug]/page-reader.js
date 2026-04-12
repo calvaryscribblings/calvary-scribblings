@@ -157,7 +157,7 @@ export default function StoryReaderClient({ params }) {
         .bemeta{font-family:'Cormorant Garamond',serif;font-size:.85rem;font-style:italic;color:#aaa;margin-bottom:24px}
         .bebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#6b2fad;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
         .bebtn:hover{background:rgba(107,47,173,.07);border-color:#6b2fad}
-        .reader-frame{position:fixed;inset:0;top:48px;border:none;width:100%;height:calc(100vh - 48px)}.rbot{position:fixed;bottom:0;left:0;right:0;z-index:200;height:36px;background:linear-gradient(to top,rgba(26,15,10,.95) 60%,transparent);display:flex;align-items:center;justify-content:center;pointer-events:none}
+        .reader-frame{position:fixed;inset:0;top:48px;border:none;width:100%;height:calc(100vh - 48px)}
         .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-style:italic;color:#888;font-size:1rem}
         @media(max-width:600px){.rtitle{display:none}.rbtn{font-size:.44rem;padding:3px 7px}}
       `}</style>
@@ -202,10 +202,10 @@ export default function StoryReaderClient({ params }) {
         {!showCover && !showEnd && (iframeSrc
           ? <>
               <iframe ref={iframeRef} className="reader-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" onLoad={onIframeLoad} />
-              <div style={{position:'fixed',bottom:0,left:0,right:0,height:'2px',background:'rgba(201,164,76,0.07)',zIndex:200}}>
+              <div style={{position:'fixed',bottom:0,left:0,right:0,height:'28px',background:'linear-gradient(to top,rgba(26,15,10,0.85),transparent)',zIndex:200}}>
                 <div style={{height:'100%',background:'linear-gradient(90deg,#6b2fad,#c9a44c)',width:progress+'%',transition:'width 0.45s ease'}} />
               </div>
-              <div className="rbot">{pageInfo && <span style={{fontFamily:"'Cinzel',serif",fontSize:'0.48rem',letterSpacing:'0.2em',color:'rgba(201,164,76,0.75)',textTransform:'uppercase',whiteSpace:'nowrap'}}>{pageInfo}</span>}</div>
+              {pageInfo && <div style={{position:'fixed',bottom:'6px',left:'50%',transform:'translateX(-50%)',zIndex:200,fontFamily:"'Cinzel',serif",fontSize:'0.48rem',letterSpacing:'0.2em',color:'rgba(201,164,76,0.75)',textTransform:'uppercase',whiteSpace:'nowrap',pointerEvents:'none'}}>{pageInfo}</div>}
             </>
           : <div className="no-epub">No EPUB file available for this book.</div>
         )}
