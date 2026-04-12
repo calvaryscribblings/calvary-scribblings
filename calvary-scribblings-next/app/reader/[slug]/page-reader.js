@@ -83,15 +83,18 @@ export default function StoryReaderClient({ params }) {
       if (e.data.type === 'ended') setShowEnd(true);
       if (e.data.type === 'pageInfo') setPageInfo(e.data.text);
       if (e.data.type === 'relocate') setProgress(e.data.fraction * 100);
+      if (e.data.type === 'ready') {
+        iframeReady.current = true;
+        iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
+        if (pendingFlip.current) iframeRef.current?.contentWindow?.postMessage({ type: 'setFlow', value: 'paginated' }, '*');
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
 
   const onIframeLoad = () => {
-    iframeReady.current = true;
-    iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
-    if (pendingFlip.current) iframeRef.current?.contentWindow?.postMessage({ type: 'setFlow', value: 'paginated' }, '*');
+    // HTML loaded but Foliate not ready yet - wait for 'ready' message
   };
 
   const cycleFont = () => {
