@@ -62,14 +62,12 @@ document.body.append(view)
 view.addEventListener('relocate',({detail})=>{
   const{fraction,location,pageItem}=detail
   progressFill.style.width=fraction*100+'%'
-  if(pageItem){
-    pageInfo.textContent='Page '+pageItem.label
-  } else if(location&&location.current!=null&&location.total!=null){
-    currentPage=location.current
-    totalPages=location.total
-    pageInfo.textContent='Page '+(currentPage+1)+' of '+totalPages
-  }
+  let infoText=''
+  if(pageItem){infoText='Page '+pageItem.label}
+  else if(location&&location.current!=null&&location.total!=null){infoText='Page '+(location.current+1)+' of '+location.total}
+  if(infoText)pageInfo.textContent=infoText
   window.parent.postMessage({type:'relocate',fraction},'*')
+  window.parent.postMessage({type:'pageInfo',text:infoText},'*')
   if(fraction>=0.99&&!atEnd){atEnd=true;window.parent.postMessage({type:'ended'},'*')}
 })
 view.addEventListener('load',({detail:{doc}})=>{

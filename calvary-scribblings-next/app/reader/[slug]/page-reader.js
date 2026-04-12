@@ -37,6 +37,11 @@ export default function StoryReaderClient({ params }) {
   const [fontIndex, setFontIndex] = useState(1);
   const [flipMode, setFlipMode] = useState(false);
   const iframeRef = useRef(null);
+  const iframeReady = useRef(false);
+  const pendingFont = useRef(1);
+  const pendingFlip = useRef(false);
+  const [pageInfo, setPageInfo] = useState('');
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (story) return;
@@ -76,20 +81,30 @@ export default function StoryReaderClient({ params }) {
   useEffect(() => {
     const handler = e => {
       if (e.data.type === 'ended') setShowEnd(true);
+      if (e.data.type === 'pageInfo') setPageInfo(e.data.text);
+      if (e.data.type === 'relocate') setProgress(e.data.fraction * 100);
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
 
+  const onIframeLoad = () => {
+    iframeReady.current = true;
+    iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
+    if (pendingFlip.current) iframeRef.current?.contentWindow?.postMessage({ type: 'setFlow', value: 'paginated' }, '*');
+  };
+
   const cycleFont = () => {
     const next = (fontIndex + 1) % FONT_SIZES.length;
     setFontIndex(next);
+    pendingFont.current = next;
     iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: next }, '*');
   };
 
   const toggleFlip = () => {
     const next = !flipMode;
     setFlipMode(next);
+    pendingFlip.current = next;
     iframeRef.current?.contentWindow?.postMessage({ type: 'setFlow', value: next ? 'paginated' : 'scrolled-doc' }, '*');
   };
 
@@ -183,7 +198,13 @@ export default function StoryReaderClient({ params }) {
         )}
 
         {!showCover && !showEnd && (iframeSrc
-          ? <iframe ref={iframeRef} className="reader-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" />
+          ? <>
+              <iframe ref={iframeRef} className="reader-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" onLoad={onIframeLoad} />
+              <div style={{position:'fixed',bottom:0,left:0,right:0,height:'2px',background:'rgba(201,164,76,0.07)',zIndex:200}}>
+                <div style={{height:'100%',background:'linear-gradient(90deg,#6b2fad,#c9a44c)',width:progress+'%',transition:'width 0.45s ease'}} />
+              </div>
+              {pageInfo && <div style={{position:'fixed',bottom:'10px',left:'50%',transform:'translateX(-50%)',zIndex:200,fontFamily:"'Cinzel',serif",fontSize:'0.48rem',letterSpacing:'0.2em',color:'rgba(201,164,76,0.35)',textTransform:'uppercase',whiteSpace:'nowrap',pointerEvents:'none'}}>{pageInfo}</div>}
+            </>
           : <div className="no-epub">No EPUB file available for this book.</div>
         )}
 
