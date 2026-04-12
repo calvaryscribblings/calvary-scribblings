@@ -35,11 +35,9 @@ export default function StoryReaderClient({ params }) {
   const [showEnd, setShowEnd] = useState(false);
   const [hitCount, setHitCount] = useState(null);
   const [fontIndex, setFontIndex] = useState(1);
-  const [flipMode, setFlipMode] = useState(false);
   const iframeRef = useRef(null);
   const iframeReady = useRef(false);
   const pendingFont = useRef(1);
-  const pendingFlip = useRef(false);
   const [pageInfo, setPageInfo] = useState('');
   const [progress, setProgress] = useState(0);
 
@@ -86,8 +84,7 @@ export default function StoryReaderClient({ params }) {
       if (e.data.type === 'ready') {
         iframeReady.current = true;
         iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
-        if (pendingFlip.current) iframeRef.current?.contentWindow?.postMessage({ type: 'setFlow', value: 'paginated' }, '*');
-      }
+          }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -115,12 +112,6 @@ export default function StoryReaderClient({ params }) {
     iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: next }, '*');
   };
 
-  const toggleFlip = () => {
-    const next = !flipMode;
-    setFlipMode(next);
-    pendingFlip.current = next;
-    iframeRef.current?.contentWindow?.postMessage({ type: 'setFlow', value: next ? 'paginated' : 'scrolled-doc' }, '*');
-  };
 
   if (!story) return (
     <div style={{ minHeight: '100vh', background: '#1a0f0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -179,9 +170,6 @@ export default function StoryReaderClient({ params }) {
           <div className="rtop-right">
             <button className="rbtn" onClick={cycleFont} title="Change font size">
               Aa {FONT_SIZES[fontIndex]}px
-            </button>
-            <button className={`rbtn${flipMode ? ' active' : ''}`} onClick={toggleFlip} title="Toggle page flip">
-              {flipMode ? 'Flip' : 'Slide'}
             </button>
             <a href={'/stories/' + slug} className="rclose">← View</a>
           </div>
