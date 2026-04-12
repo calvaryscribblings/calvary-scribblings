@@ -94,6 +94,7 @@ function getCSS(){
     pre{white-space:pre-wrap!important}
   `
 }
+sessionStorage.clear()
 view.open(url).then(()=>{
   view.renderer?.setStyles?.(getCSS())
   view.renderer?.next()
