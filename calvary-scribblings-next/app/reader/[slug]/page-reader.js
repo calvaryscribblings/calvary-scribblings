@@ -139,21 +139,31 @@ export default function StoryReaderClient({ params }) {
       initEpub(window.ePub);
       return;
     }
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.93/epub.min.js';
-    script.onload = () => {
-      if (window.ePub) {
-        initEpub(window.ePub);
-      } else {
-        setEpubError('EPUB engine failed to initialise.');
+    // Load JSZip first, then epub.js
+    const jszip = document.createElement('script');
+    jszip.src = '/vendor/jszip.min.js';
+    jszip.onload = () => {
+      const script = document.createElement('script');
+      script.src = '/vendor/epub.min.js';
+      script.onload = () => {
+        if (window.ePub) {
+          initEpub(window.ePub);
+        } else {
+          setEpubError('EPUB engine failed to initialise.');
+          setEpubLoading(false);
+        }
+      };
+      script.onerror = () => {
+        setEpubError('Could not load EPUB engine. Check your connection.');
         setEpubLoading(false);
-      }
+      };
+      document.head.appendChild(script);
     };
-    script.onerror = () => {
+    jszip.onerror = () => {
       setEpubError('Could not load EPUB engine. Check your connection.');
       setEpubLoading(false);
     };
-    document.head.appendChild(script);
+    document.head.appendChild(jszip);
 
     return () => {
       if (renditionRef.current) { try { renditionRef.current.destroy(); } catch(e) {} }
