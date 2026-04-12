@@ -86,7 +86,7 @@ document.addEventListener('touchend',e=>{if(touchX===null)return;const diff=touc
 function handleKey(e){if(e.key==='ArrowLeft'||e.key==='ArrowUp')view.goLeft();else if(e.key==='ArrowRight'||e.key==='ArrowDown')view.goRight()}
 function getCSS(){
   const sz=fontSizes[currentFontSize]
-  return 'body,p,div{font-family:'Cormorant Garamond',Cochin,Georgia,serif!important;color:#2a1a0e!important;background:#f6f0e2!important}p,li,blockquote{font-size:'+sz+'px;line-height:1.9;text-align:justify;hyphens:auto;-webkit-hyphens:auto}p+p{text-indent:1.5em}h1,h2{font-weight:300;color:#1a0a00}h3{font-style:italic;color:#6b2fad;font-weight:400}blockquote{border-left:2px solid #c9a44c;padding:0.4em 1em;font-style:italic;color:#5a3820}a{color:#6b2fad}'
+  return `body,p,div{font-family:'Cormorant Garamond',Cochin,Georgia,serif!important;color:#2a1a0e!important;background:#f6f0e2!important}p,li,blockquote{font-size:${sz}px;line-height:1.9;text-align:justify;hyphens:auto;-webkit-hyphens:auto}p+p{text-indent:1.5em}h1,h2{font-weight:300;color:#1a0a00}h3{font-style:italic;color:#6b2fad;font-weight:400}blockquote{border-left:2px solid #c9a44c;padding:0.4em 1em;font-style:italic;color:#5a3820}a{color:#6b2fad}`
 }
 view.open(url).then(()=>{view.renderer?.setStyles?.(getCSS());view.renderer?.next()}).catch(err=>{console.error(err);loading.classList.add('hidden');error.classList.add('show')})
 }
