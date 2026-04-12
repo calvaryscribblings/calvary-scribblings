@@ -100,7 +100,7 @@ function getCSS(){
 }
 view.open(url).then(()=>{
   view.renderer?.setStyles?.(getCSS())
-  view.renderer?.setAttribute('margin','32px 24px')
+  view.renderer?.setAttribute('margin','0px 24px')
   view.renderer?.next()
 }).catch(err=>{console.error(err);loading.classList.add('hidden');error.classList.add('show')})
 }
