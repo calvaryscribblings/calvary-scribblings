@@ -35,7 +35,6 @@ const url=params.get('url')
 const loading=document.getElementById('loading')
 const error=document.getElementById('error')
 const progressFill=document.getElementById('progress-fill')
-const pageInfo=document.getElementById('page-info')
 const fontSizes=[14,16,18,20,22]
 const fsParm=parseInt(params.get('fs')||'16')
 let currentFontSize=fontSizes.indexOf(fsParm)
@@ -65,7 +64,6 @@ view.addEventListener('relocate',({detail})=>{
   let infoText=''
   if(pageItem){infoText='Page '+pageItem.label}
   else if(location&&location.current!=null&&location.total!=null){infoText='Page '+(location.current+1)+' of '+location.total}
-  if(infoText)pageInfo.textContent=infoText
   window.parent.postMessage({type:'relocate',fraction},'*')
   window.parent.postMessage({type:'pageInfo',text:infoText},'*')
   if(fraction>=0.99&&!atEnd){atEnd=true;window.parent.postMessage({type:'ended'},'*')}
@@ -86,7 +84,7 @@ function getCSS(){
   const sz=fontSizes[currentFontSize]
   return `
     @namespace epub "http://www.idpf.org/2007/ops";
-    body{font-family:'Cormorant Garamond',Cochin,Georgia,serif!important;color:#2a1a0e!important;background:#f6f0e2!important;padding:32px 24px 64px!important;font-size:${sz}px!important;max-width:100%!important;box-sizing:border-box!important}
+    body{font-family:'Cormorant Garamond',Cochin,Georgia,serif!important;color:#2a1a0e!important;background:#f6f0e2!important;font-size:${sz}px!important}
     p,li,blockquote,dd{font-family:'Cormorant Garamond',Cochin,Georgia,serif!important;font-size:${sz}px!important;line-height:1.9!important;text-align:justify!important;hyphens:auto!important;-webkit-hyphens:auto!important}
     p+p{text-indent:1.5em!important}
     h1,h2{font-weight:300!important;color:#1a0a00!important}
@@ -98,7 +96,6 @@ function getCSS(){
 }
 view.open(url).then(()=>{
   view.renderer?.setStyles?.(getCSS())
-  view.renderer?.setAttribute('margin','20')
   view.renderer?.next()
 }).catch(err=>{console.error(err);loading.classList.add('hidden');error.classList.add('show')})
 }
