@@ -94,7 +94,18 @@ export default function StoryReaderClient({ params }) {
   }, []);
 
   const onIframeLoad = () => {
-    // HTML loaded but Foliate not ready yet - wait for 'ready' message
+    // Poll until Foliate signals ready
+    const poll = setInterval(() => {
+      try {
+        if (iframeRef.current?.contentWindow?._foliateReady) {
+          clearInterval(poll);
+          iframeReady.current = true;
+          iframeRef.current.contentWindow.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
+          if (pendingFlip.current) iframeRef.current.contentWindow.postMessage({ type: 'setFlow', value: 'paginated' }, '*');
+        }
+      } catch(e) { clearInterval(poll); }
+    }, 200);
+    setTimeout(() => clearInterval(poll), 15000);
   };
 
   const cycleFont = () => {
@@ -206,7 +217,7 @@ export default function StoryReaderClient({ params }) {
               <div style={{position:'fixed',bottom:0,left:0,right:0,height:'2px',background:'rgba(201,164,76,0.07)',zIndex:200}}>
                 <div style={{height:'100%',background:'linear-gradient(90deg,#6b2fad,#c9a44c)',width:progress+'%',transition:'width 0.45s ease'}} />
               </div>
-              {pageInfo && <div style={{position:'fixed',bottom:'10px',left:'50%',transform:'translateX(-50%)',zIndex:200,fontFamily:"'Cinzel',serif",fontSize:'0.48rem',letterSpacing:'0.2em',color:'rgba(201,164,76,0.35)',textTransform:'uppercase',whiteSpace:'nowrap',pointerEvents:'none'}}>{pageInfo}</div>}
+              {pageInfo && <div style={{position:'fixed',bottom:'10px',left:'50%',transform:'translateX(-50%)',zIndex:200,fontFamily:"'Cinzel',serif",fontSize:'0.48rem',letterSpacing:'0.2em',color:'rgba(201,164,76,0.75)',textTransform:'uppercase',whiteSpace:'nowrap',pointerEvents:'none'}}>{pageInfo}</div>}
             </>
           : <div className="no-epub">No EPUB file available for this book.</div>
         )}

@@ -72,7 +72,7 @@ view.addEventListener('relocate',({detail})=>{
 })
 view.addEventListener('load',({detail:{doc}})=>{
   loading.classList.add('hidden')
-  window.parent.postMessage({type:'ready'},'*')
+  window.parent.postMessage({type:'ready'},'*');window._foliateReady=true
   doc.addEventListener('keydown',handleKey)
 })
 document.getElementById('btn-prev').addEventListener('click',()=>view.goLeft())
