@@ -33,7 +33,7 @@ const FICTION_BOOKS = [
 ];
 
 const NONFICTION_BOOKS = [
-  { color: 'c4', title: 'The African Century', author: 'Arthur Eze', genre: 'Politics & Society', stars: '★★★★★', rating: '4.8 (247)', price: '£5.99', sales: '932 sold', badge: null, featured: true, blurb: 'A bold, unflinching examination of Africa''s place in the 21st century — what was promised, what was stolen, and what is still possible.' },
+  { color: 'c4', title: 'The African Century', author: 'Arthur Eze', genre: 'Politics & Society', stars: '★★★★★', rating: '4.8 (247)', price: '£5.99', sales: '932 sold', badge: null, featured: true, blurb: 'A bold, unflinching examination of Africa’s place in the 21st century — what was promised, what was stolen, and what is still possible.' },
   { color: 'c7', title: 'My Own Kind of Free', author: 'Ufedo Adaji', genre: 'Memoir', stars: '★★★★★', rating: '4.7 (132)', price: '£4.49', sales: '764 sold', badge: 'New' },
   { color: 'c2', title: 'Build Without Permission', author: 'Okere Josiah', genre: 'Business', stars: '★★★★☆', rating: '4.4 (88)', price: '£5.49', sales: '612 sold', badge: 'Popular' },
   { color: 'c5', title: 'Notes on Living Well', author: 'Calvary', genre: 'Essays', stars: '★★★★★', rating: '4.9 (74)', price: '£2.99', sales: '489 sold', badge: null },
