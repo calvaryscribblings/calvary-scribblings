@@ -38,7 +38,6 @@ export default function StoryReaderClient({ params }) {
   const [pageInfo, setPageInfo] = useState('');
   const [progress, setProgress] = useState(0);
   const iframeRef = useRef(null);
-  const iframeReady = useRef(false);
   const pendingFont = useRef(1);
 
   useEffect(() => {
@@ -82,26 +81,12 @@ export default function StoryReaderClient({ params }) {
       if (e.data.type === 'pageInfo') setPageInfo(e.data.text);
       if (e.data.type === 'relocate') setProgress(e.data.fraction * 100);
       if (e.data.type === 'ready') {
-        iframeReady.current = true;
         iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
-
-  const onIframeLoad = () => {
-    const poll = setInterval(() => {
-      try {
-        if (iframeRef.current?.contentWindow?._foliateReady) {
-          clearInterval(poll);
-          iframeReady.current = true;
-          iframeRef.current.contentWindow.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
-        }
-      } catch(e) { clearInterval(poll); }
-    }, 200);
-    setTimeout(() => clearInterval(poll), 15000);
-  };
 
   const cycleFont = () => {
     const next = (fontIndex + 1) % FONT_SIZES.length;
@@ -118,7 +103,7 @@ export default function StoryReaderClient({ params }) {
   );
 
   const iframeSrc = story.epubUrl
-    ? '/vendor/foliate-js-main/calvary-reader.html?url=' + encodeURIComponent(story.epubUrl) + '&title=' + encodeURIComponent(story.title) + '&fs=' + FONT_SIZES[fontIndex]
+    ? '/vendor/foliate-js-main/calvary-reader.html?url=' + encodeURIComponent(story.epubUrl) + '&fs=' + FONT_SIZES[fontIndex]
     : null;
 
   return (
@@ -130,13 +115,13 @@ export default function StoryReaderClient({ params }) {
         @keyframes blink{0%,100%{opacity:0.35}50%{opacity:0.9}}
         @keyframes spin{to{transform:rotate(360deg)}}
         .rtop{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:linear-gradient(to bottom,rgba(26,15,10,.96) 60%,transparent);gap:8px}
-        .rlogo{font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.2em;color:rgba(201,164,76,.45);text-decoration:none;text-transform:uppercase;transition:color .2s;white-space:nowrap}
+        .rlogo{font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.2em;color:rgba(201,164,76,.45);text-decoration:none;text-transform:uppercase;white-space:nowrap}
         .rlogo:hover{color:rgba(201,164,76,.85)}
         .rtitle{font-family:'Cormorant Garamond',serif;font-size:.72rem;font-style:italic;color:rgba(240,234,216,.28);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center}
         .rtop-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
         .rbtn{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.5);text-transform:uppercase;background:none;border:1px solid rgba(201,164,76,.25);border-radius:3px;padding:4px 9px;cursor:pointer;transition:all .2s;white-space:nowrap}
         .rbtn:hover{color:rgba(201,164,76,.9);border-color:rgba(201,164,76,.6)}
-        .rclose{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.4);text-decoration:none;text-transform:uppercase;transition:color .2s;white-space:nowrap}
+        .rclose{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.4);text-decoration:none;text-transform:uppercase;white-space:nowrap}
         .rclose:hover{color:rgba(201,164,76,.85)}
         .bcover{position:fixed;inset:0;background:linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;text-align:center;z-index:150;cursor:pointer;animation:fadeUp .7s ease forwards}
         .bcover::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 65% at 50% 38%,rgba(107,47,173,.28) 0%,transparent 68%)}
@@ -153,7 +138,11 @@ export default function StoryReaderClient({ params }) {
         .bemeta{font-family:'Cormorant Garamond',serif;font-size:.85rem;font-style:italic;color:#aaa;margin-bottom:24px}
         .bebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#6b2fad;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
         .bebtn:hover{background:rgba(107,47,173,.07);border-color:#6b2fad}
-        .reader-frame{position:fixed;inset:0;top:48px;border:none;width:100%;height:calc(100vh - 48px)}
+        .reader-frame{position:fixed;top:48px;left:0;right:0;bottom:32px;border:none;width:100%}
+        .rbot{position:fixed;bottom:0;left:0;right:0;height:32px;background:rgba(26,15,10,0.92);display:flex;align-items:center;justify-content:center;z-index:200}
+        .rprog{position:absolute;top:0;left:0;right:0;height:2px;background:rgba(201,164,76,0.07)}
+        .rprogf{height:100%;background:linear-gradient(90deg,#6b2fad,#c9a44c);transition:width 0.45s ease}
+        .rpageinfo{font-family:'Cinzel',serif;font-size:.45rem;letter-spacing:.2em;color:rgba(201,164,76,0.6);text-transform:uppercase;white-space:nowrap;pointer-events:none}
         .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-style:italic;color:#888;font-size:1rem}
         @media(max-width:600px){.rtitle{display:none}.rbtn{font-size:.44rem;padding:3px 7px}}
       `}</style>
@@ -193,14 +182,15 @@ export default function StoryReaderClient({ params }) {
         )}
 
         {!showCover && !showEnd && (iframeSrc
-          ? <>
-              <iframe ref={iframeRef} className="reader-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" onLoad={onIframeLoad} />
-              <div style={{position:'fixed',bottom:0,left:0,right:0,height:'2px',background:'rgba(201,164,76,0.07)',zIndex:200}}>
-                <div style={{height:'100%',background:'linear-gradient(90deg,#6b2fad,#c9a44c)',width:progress+'%',transition:'width 0.45s ease'}} />
-              </div>
-              {pageInfo && <div style={{position:'fixed',bottom:'8px',left:'50%',transform:'translateX(-50%)',zIndex:200,fontFamily:"'Cinzel',serif",fontSize:'0.48rem',letterSpacing:'0.2em',color:'rgba(201,164,76,0.75)',textTransform:'uppercase',whiteSpace:'nowrap',pointerEvents:'none'}}>{pageInfo}</div>}
-            </>
+          ? <iframe ref={iframeRef} className="reader-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" />
           : <div className="no-epub">No EPUB file available for this book.</div>
+        )}
+
+        {!showCover && !showEnd && (
+          <div className="rbot">
+            <div className="rprog"><div className="rprogf" style={{ width: progress + '%' }} /></div>
+            {pageInfo && <span className="rpageinfo">{pageInfo}</span>}
+          </div>
         )}
       </div>
     </>
