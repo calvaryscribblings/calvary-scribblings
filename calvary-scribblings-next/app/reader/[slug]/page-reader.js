@@ -78,7 +78,7 @@ export default function StoryReaderClient({ params }) {
 
   return (
     <>
-      <style>{\`
+      <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         html,body{height:100%;overflow:hidden;background:#1a0f0a}
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Cinzel:wght@400;600&display=swap');
@@ -100,7 +100,7 @@ export default function StoryReaderClient({ params }) {
         .reader-frame{position:fixed;inset:0;top:48px;border:none;width:100%;height:calc(100vh - 48px)}
         .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-style:italic;color:#888;font-size:1rem}
         @media(max-width:768px){.rtitle{display:none}}
-      \`}</style>
+      `}</style>
 
       <div style={{ width: '100vw', height: '100vh', background: '#1a0f0a', overflow: 'hidden' }}>
         <div className="rtop">
