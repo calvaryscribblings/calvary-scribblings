@@ -130,7 +130,7 @@ export default function StoryReaderClient({ params }) {
   );
 
   const iframeSrc = story.epubUrl
-    ? '/vendor/foliate-js-main/calvary-reader.html?url=' + encodeURIComponent(story.epubUrl) + '&title=' + encodeURIComponent(story.title)
+    ? '/vendor/foliate-js-main/calvary-reader.html?url=' + encodeURIComponent(story.epubUrl) + '&title=' + encodeURIComponent(story.title) + '&fs=' + FONT_SIZES[fontIndex]
     : null;
 
   return (
