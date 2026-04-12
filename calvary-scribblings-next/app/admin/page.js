@@ -83,10 +83,10 @@ async function uploadToStorage(file) {
   return await getDownloadURL(storageRef);
 }
 
-async function uploadPDFToStorage(file) {
+async function uploadEPUBToStorage(file) {
   const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
   const filename = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-  const storageRef = ref(storage, 'pdfs/' + filename);
+  const storageRef = ref(storage, 'epubs/' + filename);
   await uploadBytes(storageRef, file);
   return await getDownloadURL(storageRef);
 }
@@ -193,10 +193,10 @@ function ImageModal({ onInsert, onClose }) {
 function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, authorHandles, authorUids }) {
   const [showImageModal, setShowImageModal] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
-  const [pdfUploading, setPdfUploading] = useState(false);
+  const [epubUploading, setEpubUploading] = useState(false);
   const textareaRef = useRef(null);
   const coverInputRef = useRef(null);
-  const pdfInputRef = useRef(null);
+  const epubInputRef = useRef(null);
   const isScheduled = !!form.publishAt;
   const scheduleStatus = form.publishAt ? getScheduleStatus(form.publishAt) : null;
   const isNews = form.category === 'news';
@@ -214,15 +214,15 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
     setCoverUploading(false);
   }
 
-  async function handlePDFUpload(e) {
+  async function handleEPUBUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
-    setPdfUploading(true);
+    setEpubUploading(true);
     try {
-      const url = await uploadPDFToStorage(file);
-      setForm(f => ({ ...f, pdfUrl: url }));
-    } catch (err) { alert('PDF upload failed: ' + err.message); }
-    setPdfUploading(false);
+      const url = await uploadEPUBToStorage(file);
+      setForm(f => ({ ...f, epubUrl: url }));
+    } catch (err) { alert('EPUB upload failed: ' + err.message); }
+    setEpubUploading(false);
   }
 
   function insertAtCursor(html) {
@@ -243,7 +243,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
   }
 
   const coverIsUrl = form.coverFilename && form.coverFilename.startsWith('http');
-  const pdfIsUrl = form.pdfUrl && form.pdfUrl.startsWith('http');
+  const epubIsUrl = form.epubUrl && form.epubUrl.startsWith('http');
 
   return (
     <div>
@@ -271,18 +271,19 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
               onChange={e => setForm(f => ({ ...f, author: e.target.value }))}>
               {AUTHORS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
-            <input style={{ ...s.input, marginTop: '0.35rem' }} value={form.authorHandle || ''} 
-  placeholder={currentHandle ? `@${currentHandle} (auto)` : 'Enter @handle manually…'}
-  onChange={e => setForm(f => ({ ...f, authorHandle: e.target.value.replace(/^@/, '') }))} />
-{currentHandle
-  ? <div style={s.hintGreen}>Auto-lookup found @{currentHandle} — override above if different.</div>
-  : <div style={s.hint}>No auto-match — enter the writer's @handle manually.</div>
-} <div style={s.fg}>
-            <label style={s.label}>Author Override <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for guest authors)</span></label>
-            <input style={s.input} value={form.authorOverride || ''} placeholder="e.g. Ikenna Okpara & Jane Smith"
-              onChange={e => setForm(f => ({ ...f, authorOverride: e.target.value }))} />
-            <div style={s.hint}>If filled, this replaces the dropdown selection on the story page.</div>
-          </div>
+            <input style={{ ...s.input, marginTop: '0.35rem' }} value={form.authorHandle || ''}
+              placeholder={currentHandle ? `@${currentHandle} (auto)` : 'Enter @handle manually…'}
+              onChange={e => setForm(f => ({ ...f, authorHandle: e.target.value.replace(/^@/, '') }))} />
+            {currentHandle
+              ? <div style={s.hintGreen}>Auto-lookup found @{currentHandle} — override above if different.</div>
+              : <div style={s.hint}>No auto-match — enter the writer's @handle manually.</div>
+            }
+            <div style={s.fg}>
+              <label style={s.label}>Author Override <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for guest authors)</span></label>
+              <input style={s.input} value={form.authorOverride || ''} placeholder="e.g. Ikenna Okpara & Jane Smith"
+                onChange={e => setForm(f => ({ ...f, authorOverride: e.target.value }))} />
+              <div style={s.hint}>If filled, this replaces the dropdown selection on the story page.</div>
+            </div>
           </div>
           <div style={s.fg}>
             <label style={s.label}>Category</label>
@@ -333,24 +334,24 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
           </div>
         </div>
 
-        {/* PDF Upload */}
+        {/* EPUB Upload */}
         <div style={s.fg}>
           <label style={s.label}>
-            PDF File <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for book reader)</span>
+            EPUB File <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for book reader)</span>
           </label>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
             <div style={{ flex: 1 }}>
-              <input style={s.input} value={form.pdfUrl || ''} placeholder="Upload a PDF or paste a URL"
-                onChange={e => setForm(f => ({ ...f, pdfUrl: e.target.value }))} />
+              <input style={s.input} value={form.epubUrl || ''} placeholder="Upload an EPUB file"
+                onChange={e => setForm(f => ({ ...f, epubUrl: e.target.value }))} />
             </div>
             <button style={{ ...s.btnImg, flexShrink: 0 }}
-              onClick={() => pdfInputRef.current.click()} disabled={pdfUploading}>
-              {pdfUploading ? '…' : '⬆ Upload PDF'}
+              onClick={() => epubInputRef.current.click()} disabled={epubUploading}>
+              {epubUploading ? '…' : '⬆ Upload EPUB'}
             </button>
-            <input ref={pdfInputRef} type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handlePDFUpload} />
+            <input ref={epubInputRef} type="file" accept=".epub,application/epub+zip" style={{ display: 'none' }} onChange={handleEPUBUpload} />
           </div>
-          {pdfIsUrl && <div style={s.hintGreen}>✓ PDF uploaded to Firebase</div>}
-          <div style={s.hint}>When a PDF is attached, the book reader will render it page by page.</div>
+          {epubIsUrl && <div style={s.hintGreen}>✓ EPUB uploaded to Firebase</div>}
+          <div style={s.hint}>Upload an EPUB file for the cinematic book reader. Convert from Word/Google Docs using Calibre (free).</div>
         </div>
 
         {/* Book Reader Mode toggle */}
@@ -363,7 +364,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
             </span>
           </label>
           <div style={s.hint}>
-            When enabled, a "Read in Book Reader" link will appear on the story page, opening the cinematic page-turn reader at /reader/[slug].
+            When enabled, the story opens in the cinematic EPUB reader at /reader/[slug].
           </div>
         </div>
 
@@ -434,9 +435,8 @@ export default function AdminPage() {
   const emptyForm = {
     title: '', author: AUTHORS[0], category: 'flash', subcategory: '',
     date: formatDate(new Date()), coverFilename: '', coverPreview: null,
-    content: '', publishAt: '', pdfUrl: '', readerMode: false,
-    authorHandle: '',
-    authoroverride:'',
+    content: '', publishAt: '', epubUrl: '', readerMode: false,
+    authorHandle: '', authorOverride: '',
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -483,8 +483,8 @@ export default function AdminPage() {
 
   const saveStory = async () => {
     if (!form.title.trim()) { setMsg('Title is required.'); return; }
-    const isPdfCategory = form.category === 'poetry' || form.category === 'novel' || form.category === 'short';
-if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content is required (or upload a PDF for Poetry/Novel).'); return; }
+    const isEpubCategory = form.category === 'poetry' || form.category === 'novel' || form.category === 'short';
+    if (!form.content.trim() && !(isEpubCategory && form.epubUrl)) { setMsg('Content is required (or upload an EPUB for Poetry/Novel/Short Story).'); return; }
     if (!form.coverFilename.trim()) { setMsg('Cover image is required.'); return; }
     setSaving(true); setMsg('');
     try {
@@ -495,7 +495,7 @@ if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content i
       const coverPath = coverFilename.startsWith('http') ? coverFilename : (coverFilename.startsWith('/') ? coverFilename : `/${coverFilename}`);
       const storyData = {
         title: form.title.trim(),
-        author: form.authorOverride?.trim()|| form.author,
+        author: form.authorOverride?.trim() || form.author,
         authorHandle: form.authorHandle || authorHandles[form.author] || '',
         authorUid: authorUids[form.author] || '',
         category: form.category,
@@ -506,7 +506,7 @@ if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content i
         cover: coverPath,
         url: `/stories/${slug}`,
         published: !(form.publishAt && new Date(form.publishAt) > new Date()),
-        pdfUrl: form.pdfUrl || '',
+        epubUrl: form.epubUrl || '',
         readerMode: form.readerMode || false,
       };
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
@@ -540,10 +540,10 @@ if (!form.content.trim() && !(isPdfCategory && form.pdfUrl)) { setMsg('Content i
       subcategory: story.subcategory || '', date: story.date,
       coverFilename: story.cover, coverPreview: story.cover,
       content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
-      pdfUrl: story.pdfUrl || '',
+      epubUrl: story.epubUrl || '',
       readerMode: story.readerMode || false,
-      authorhandle: story.authorHandle || '',
-      authoroverride: story.authorOverride ||''
+      authorHandle: story.authorHandle || '',
+      authorOverride: story.authorOverride || '',
     });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
