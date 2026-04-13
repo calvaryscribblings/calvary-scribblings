@@ -78,8 +78,17 @@ export default function StoryReaderClient({ params }) {
   useEffect(() => {
     const handler = e => {
       if (e.data.type === 'ended') setShowEnd(true);
-      if (e.data.type === 'pageInfo') setPageInfo(e.data.text);
-      if (e.data.type === 'relocate') setProgress(e.data.fraction * 100);
+      if (e.data.type === 'relocate') {
+        const fr = e.data.fraction;
+        setProgress(fr * 100);
+        if (fr > 0 && e.data.step > 0) {
+          const total = Math.max(1, Math.round(1 / e.data.step));
+          const current = Math.min(total, Math.max(1, Math.round(fr / e.data.step)));
+          setPageInfo('Page ' + current + ' of ' + total);
+        } else if (fr > 0) {
+          setPageInfo('');
+        }
+      }
       if (e.data.type === 'ready') {
         iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
       }
