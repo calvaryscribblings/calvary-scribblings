@@ -532,6 +532,10 @@ export default function StoryReaderClient({ params }) {
                 <button className="bebtn" onClick={() => setShowEnd(false)}>← Back to book</button>
                 <a href={'/' + (story.category || '')} className="bebtn">More stories</a>
               </div>
+              <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+                <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '.78rem', fontStyle: 'italic', color: 'rgba(201,164,76,0.5)' }}>Slide to discuss</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12l7 7 7-7" stroke="#c9a44c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/></svg>
+              </div>
             </div>
             <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
           </div>
