@@ -79,15 +79,22 @@ if (!url) {
 
   let lastFraction = 0
   let stepSize = 0
+  let stuckCount = 0
   view.addEventListener('relocate', ({ detail }) => {
     const { fraction } = detail
     if (lastFraction > 0 && fraction > lastFraction) {
       const diff = fraction - lastFraction
       if (diff < 0.5) stepSize = diff
+      stuckCount = 0
+    } else if (lastFraction > 0 && fraction === lastFraction) {
+      stuckCount++
+      if (stuckCount >= 2 && !atEnd) {
+        atEnd = true
+        window.parent.postMessage({ type: 'ended' }, '*')
+      }
     }
     lastFraction = fraction
     window.parent.postMessage({ type: 'relocate', fraction, step: stepSize }, '*')
-    if (fraction >= 0.88 && !atEnd) { atEnd = true; window.parent.postMessage({ type: 'ended' }, '*') }
   })
 
   view.addEventListener('load', ({ detail: { doc } }) => {
