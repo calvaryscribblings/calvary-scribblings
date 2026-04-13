@@ -18,14 +18,12 @@ foliate-view{display:block;width:100%;height:100%;background:#f6f0e2}
 .nav-btn:hover{opacity:0.85}
 #btn-prev{left:max(4px,1vw)}
 #btn-next{right:max(4px,1vw)}
-#progress-bar{position:fixed;bottom:0;left:0;right:0;height:2px;background:rgba(201,164,76,0.07);z-index:50}
-#progress-fill{height:100%;background:linear-gradient(90deg,#6b2fad,#c9a44c);width:0%;transition:width 0.45s ease}
 </style>
 <div id="loading"><div id="loading-spinner"></div><div id="loading-text">Opening book…</div></div>
 <div id="error"><div id="error-text">Could not open this book. Please try again.</div></div>
 <button id="btn-prev" class="nav-btn"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
 <button id="btn-next" class="nav-btn"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
-<div id="progress-bar"><div id="progress-fill"></div></div>
+
 <script type="module">
 import './view.js'
 const params = new URLSearchParams(location.search)
