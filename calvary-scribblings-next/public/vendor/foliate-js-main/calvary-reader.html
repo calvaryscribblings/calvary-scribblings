@@ -79,14 +79,12 @@ if (!url) {
 
   view.addEventListener('relocate', ({ detail }) => {
     const { fraction, location, pageItem } = detail
-    document.getElementById('progress-fill').style.width = (fraction * 100) + '%'
     let infoText = ''
-    if (pageItem) infoText = 'Page ' + pageItem.label
     else if (location && location.current != null && location.total != null)
       infoText = 'Page ' + (location.current + 1) + ' of ' + location.total
     window.parent.postMessage({ type: 'relocate', fraction }, '*')
     window.parent.postMessage({ type: 'pageInfo', text: infoText }, '*')
-    if (fraction >= 0.99 && !atEnd) { atEnd = true; window.parent.postMessage({ type: 'ended' }, '*') }
+    if (fraction >= 0.95 && !atEnd) { atEnd = true; window.parent.postMessage({ type: 'ended' }, '*') }
   })
 
   view.addEventListener('load', ({ detail: { doc } }) => {
