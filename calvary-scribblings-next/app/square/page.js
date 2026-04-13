@@ -29,27 +29,22 @@ const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.2
 const HEART_PATH = "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z";
 
 // ── Time helpers (London/BST aware) ───────────────────────────────────────────
-function getLondonHour() {
+function getLondonTime() {
   const now = new Date();
-  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
-  return londonTime.getHours();
+  const parts = now.toLocaleString('en-GB', { timeZone: 'Europe/London', hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false }).split(':');
+  const h = parseInt(parts[0], 10), m = parseInt(parts[1], 10), s = parseInt(parts[2], 10);
+  const dayStr = now.toLocaleString('en-GB', { timeZone: 'Europe/London', weekday: 'short' });
+  const day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(dayStr);
+  return { h: isNaN(h) ? 0 : h, m: isNaN(m) ? 0 : m, s: isNaN(s) ? 0 : s, day };
 }
-
-function getLondonMinute() {
-  const now = new Date();
-  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
-  return londonTime.getMinutes();
-}
-
+function getLondonHour() { return getLondonTime().h; }
+function getLondonMinute() { return getLondonTime().m; }
 function isSquareOpen() {
-  const h = getLondonHour();
+  const { h } = getLondonTime();
   return h >= 20 && h < 24;
 }
-
 function getCountdown() {
-  const now = new Date();
-  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
-  const h = londonTime.getHours(), m = londonTime.getMinutes(), s = londonTime.getSeconds();
+  const { h, m, s } = getLondonTime();
   let secs;
   if (h >= 20) {
     secs = (24 - h - 1) * 3600 + (59 - m) * 60 + (60 - s);
@@ -57,20 +52,10 @@ function getCountdown() {
     secs = (20 - h - 1) * 3600 + (59 - m) * 60 + (60 - s);
   }
   const hh = Math.floor(secs / 3600), mm = Math.floor((secs % 3600) / 60), ss = secs % 60;
-  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  return String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
 }
-
-function isFriday() {
-  const now = new Date();
-  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
-  return londonTime.getDay() === 5;
-}
-
-function isMonday() {
-  const now = new Date();
-  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
-  return londonTime.getDay() === 1;
-}
+function isFriday() { return getLondonTime().day === 5; }
+function isMonday() { return getLondonTime().day === 1; }
 
 function getBadge(readCount, uid) {
   if (uid === FOUNDER_UID) return { tier: 'founder', label: 'Founder', color: '#c8daea', isFounder: true };
