@@ -44,8 +44,10 @@ function isSquareOpen() {
 
 function getCountdown() {
   const now = new Date();
-  const londonTime = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }));
-  const h = londonTime.getHours(), m = londonTime.getMinutes(), s = londonTime.getSeconds();
+  const londonStr = now.toLocaleString('en-GB', { timeZone: 'Europe/London', hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false });
+  const parts = londonStr.split(':');
+  const h = parseInt(parts[0], 10), m = parseInt(parts[1], 10), s = parseInt(parts[2], 10);
+  if (isNaN(h) || isNaN(m) || isNaN(s)) return '--:--:--';
   let secs;
   if (h >= 20) {
     secs = (24 - h - 1) * 3600 + (59 - m) * 60 + (60 - s);
@@ -53,7 +55,7 @@ function getCountdown() {
     secs = (20 - h - 1) * 3600 + (59 - m) * 60 + (60 - s);
   }
   const hh = Math.floor(secs / 3600), mm = Math.floor((secs % 3600) / 60), ss = secs % 60;
-  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  return String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
 }
 
 const badgeStyle = {
