@@ -88,9 +88,9 @@ if (!url) {
       if (diff < 0.5) stepSize = diff
       stuckCount = 0
       hasNavigated = true
-    } else if (hasNavigated && lastFraction > 0 && fraction === lastFraction) {
+    } else if (hasNavigated && fraction > 0.1 && lastFraction > 0 && fraction === lastFraction) {
       stuckCount++
-      if (stuckCount >= 2 && !atEnd) {
+      if (stuckCount >= 3 && !atEnd) {
         atEnd = true
         window.parent.postMessage({ type: 'ended' }, '*')
       }
