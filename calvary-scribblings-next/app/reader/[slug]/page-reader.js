@@ -505,8 +505,7 @@ export default function StoryReaderClient({ params }) {
           <a href="/" className="rlogo">Calvary Scribblings</a>
           <span className="rtitle">{story.title}</span>
           <div className="rtop-right">
-            {progress > 90 && <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '.72rem', fontStyle: 'italic', color: 'rgba(201,164,76,0.55)', whiteSpace: 'nowrap' }}>slide to discuss →</span>}
-            <button className="rbtn" onClick={cycleFont}>Aa {FONT_SIZES[fontIndex]}px</button>
+<button className="rbtn" onClick={cycleFont}>Aa {FONT_SIZES[fontIndex]}px</button>
             <a href={'/stories/' + slug} className="rclose">← View</a>
           </div>
         </div>
@@ -539,6 +538,23 @@ export default function StoryReaderClient({ params }) {
           </div>
         )}
 
+        {!showCover && !showEnd && progress > 90 && (
+          <button
+            onClick={() => setShowEnd(true)}
+            style={{
+              position: 'fixed', bottom: '52px', left: '50%', transform: 'translateX(-50%)',
+              background: '#6b2fad', border: 'none', borderRadius: '999px',
+              padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '8px',
+              fontFamily: "'Cinzel',serif", fontSize: '.58rem', letterSpacing: '.18em',
+              textTransform: 'uppercase', color: '#fff', cursor: 'pointer', zIndex: 300,
+              boxShadow: '0 4px 24px rgba(107,47,173,0.5)',
+              animation: 'fadeUp .4s ease forwards',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Discuss
+          </button>
+        )}
         {!showCover && !showEnd && (iframeSrc
           ? <iframe ref={iframeRef} className="reader-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" />
           : <div className="no-epub">No EPUB file available for this book.</div>
