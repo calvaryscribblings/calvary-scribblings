@@ -80,7 +80,7 @@ if (!url) {
   view.addEventListener('relocate', ({ detail }) => {
     const { fraction, location, pageItem } = detail
     let infoText = ''
-    else if (location && location.current != null && location.total != null)
+    if (location && location.current != null && location.total != null)
       infoText = 'Page ' + (location.current + 1) + ' of ' + location.total
     window.parent.postMessage({ type: 'relocate', fraction }, '*')
     window.parent.postMessage({ type: 'pageInfo', text: infoText }, '*')
