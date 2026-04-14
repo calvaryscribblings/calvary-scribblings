@@ -356,7 +356,7 @@ export default function StoryReaderClient({ params }) {
   const [bookmarkLoaded, setBookmarkLoaded] = useState(false);
   const [showBookmarkToast, setShowBookmarkToast] = useState(false);
   const [toastFading, setToastFading] = useState(false);
-  const [bookmarkSaveTimer, setBookmarkSaveTimer] = useState(null);
+  const [bookmarkSaved, setBookmarkSaved] = useState(false);
   const [progress, setProgress] = useState(0);
   const iframeRef = useRef(null);
   const pendingFont = useRef(1);
@@ -419,26 +419,11 @@ export default function StoryReaderClient({ params }) {
   }, [slug]);
 
   useEffect(() => {
-    const handler = e => {
+    const handler = async e => {
       if (e.data.type === 'ended') setShowEnd(true);
       if (e.data.type === 'relocate') {
         const fr = e.data.fraction;
-        if (fr > 0.01) {
-          if (bookmarkSaveTimer) clearTimeout(bookmarkSaveTimer);
-          const timer = setTimeout(async () => {
-            try {
-              const auth = await getFirebaseAuth();
-              const { onAuthStateChanged } = await import('firebase/auth');
-              const unsub = onAuthStateChanged(auth, async (user) => {
-                if (!user) return; unsub();
-                const db = await getDB();
-                const { ref, set } = await import('firebase/database');
-                await set(ref(db, 'bookmarks/' + user.uid + '/' + slug), fr);
-              });
-            } catch (e) {}
-          }, 2000);
-          setBookmarkSaveTimer(timer);
-        }
+
         setProgress(fr * 100);
         if (fr > 0 && e.data.step > 0) {
           const total = Math.max(1, Math.round(1 / e.data.step));
@@ -447,6 +432,22 @@ export default function StoryReaderClient({ params }) {
         } else if (fr > 0) {
           setPageInfo('');
         }
+      }
+      if (e.data.type === 'bookmarkSaved') {
+        const fr = e.data.fraction;
+        setBookmark(fr);
+        setBookmarkSaved(true);
+        setTimeout(() => setBookmarkSaved(false), 2000);
+        try {
+          const auth = await getFirebaseAuth();
+          const { onAuthStateChanged } = await import('firebase/auth');
+          const unsub = onAuthStateChanged(auth, async (user) => {
+            if (!user) return; unsub();
+            const db = await getDB();
+            const { ref, set } = await import('firebase/database');
+            await set(ref(db, 'bookmarks/' + user.uid + '/' + slug), fr);
+          });
+        } catch (e) {}
       }
       if (e.data.type === 'ready') {
         iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');

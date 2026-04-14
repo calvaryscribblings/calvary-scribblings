@@ -108,16 +108,17 @@ if (!url) {
     window.parent.postMessage({ type: 'ready' }, '*')
     doc.addEventListener('keydown', handleKey)
     if (bookmarkFraction > 0.01) {
-      let restored = false
-      const restoreBookmark = () => {
-        if (restored) return
-        restored = true
-        try { view.goToFraction(bookmarkFraction) } catch(e) { console.warn('bookmark restore failed', e) }
-      }
-      setTimeout(restoreBookmark, 1200)
+      setTimeout(() => {
+        try { view.goToFraction(bookmarkFraction) } catch(e) {}
+      }, 1200)
     }
   })
 
+  window.addEventListener('message', e => {
+    if (e.data.type === 'saveBookmark') {
+      window.parent.postMessage({ type: 'bookmarkSaved', fraction: lastFraction }, '*')
+    }
+  })
   document.getElementById('btn-prev').addEventListener('click', () => view.goLeft())
   document.getElementById('btn-next').addEventListener('click', () => view.goRight())
   document.addEventListener('keydown', handleKey)
