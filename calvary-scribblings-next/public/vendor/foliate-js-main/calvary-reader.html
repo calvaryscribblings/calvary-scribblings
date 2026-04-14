@@ -82,7 +82,8 @@ if (!url) {
   let stuckCount = 0
   let hasNavigated = false
   view.addEventListener('relocate', ({ detail }) => {
-    const { fraction, cfi } = detail
+    const { fraction } = detail
+    const cfi = detail.cfi || (view.lastLocation && view.lastLocation.cfi) || ''
     if (cfi) window._lastCFI = cfi
     if (lastFraction > 0 && fraction > lastFraction) {
       const diff = fraction - lastFraction
