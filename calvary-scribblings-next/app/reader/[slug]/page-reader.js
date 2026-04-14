@@ -359,6 +359,7 @@ export default function StoryReaderClient({ params }) {
   const [showBookmarkToast, setShowBookmarkToast] = useState(false);
   const [toastFading, setToastFading] = useState(false);
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
+  const [debugMsg, setDebugMsg] = useState('');
   const [progress, setProgress] = useState(0);
   const iframeRef = useRef(null);
   const pendingFont = useRef(1);
@@ -439,6 +440,7 @@ export default function StoryReaderClient({ params }) {
       if (e.data.type === 'bookmarkSaved') {
         const fr = currentFraction.current || e.data.fraction;
         if (e.data.cfi) bookmarkCFI.current = e.data.cfi;
+        setDebugMsg('Saved CFI: ' + (e.data.cfi ? e.data.cfi.slice(0,30) : 'NONE') + ' fr:' + (currentFraction.current||0).toFixed(3));
         setBookmarkSaved(true);
         setTimeout(() => setBookmarkSaved(false), 2000);
         try {
@@ -457,6 +459,7 @@ export default function StoryReaderClient({ params }) {
         if (bookmark) {
           setTimeout(() => {
             setDebugMsg('Restoring to: ' + bookmark);
+            setDebugMsg('Restoring CFI: ' + (bookmarkCFI.current ? bookmarkCFI.current.slice(0,30) : 'NONE'));
             iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: bookmark, cfi: bookmarkCFI.current || '' }, '*');
           }, 1500);
         }
@@ -652,6 +655,7 @@ export default function StoryReaderClient({ params }) {
             </div>
           </div>
         )}
+        {debugMsg ? <div style={{ position: 'fixed', top: '52px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.85)', color: '#c9a44c', fontFamily: 'monospace', fontSize: '10px', padding: '4px 10px', borderRadius: '4px', zIndex: 400, whiteSpace: 'nowrap', maxWidth: '90vw', overflow: 'hidden' }}>{debugMsg}</div> : null}
         {showBookmarkToast && (
           <div className={'bookmark-toast ' + (toastFading ? 'out' : 'in')}>
             Continue where you left off on the Island 🏝️
