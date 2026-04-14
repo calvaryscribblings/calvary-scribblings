@@ -116,7 +116,16 @@ if (!url) {
       window.parent.postMessage({ type: 'bookmarkSaved', fraction: lastFraction }, '*')
     }
     if (e.data.type === 'restoreBookmark' && e.data.fraction > 0.01) {
-      try { view.goToFraction(e.data.fraction) } catch(err) { console.warn('restore failed', err) }
+      const target = e.data.fraction
+      let attempts = 0
+      const tryRestore = () => {
+        attempts++
+        try {
+          view.goToFraction(target)
+        } catch(err) {}
+        if (attempts < 5) setTimeout(tryRestore, 800)
+      }
+      setTimeout(tryRestore, 500)
     }
     if (e.data.type === 'setFontSize') {
       const sizes = [14,16,18,20,22]
