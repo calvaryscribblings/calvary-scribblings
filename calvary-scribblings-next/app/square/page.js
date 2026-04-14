@@ -1,4 +1,5 @@
 'use client';
+import TipBox from '../components/TipBox';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { stories as allStaticStories } from '../lib/stories';
@@ -1167,6 +1168,7 @@ export default function SquarePage() {
               Opens at <span style={{ color: 'rgba(155,109,255,0.6)' }}>8:00pm London time</span> tonight
             </div>
           </div>
+          <div style={{ margin: '1.5rem 0' }}><TipBox variant="square" /></div>
           {posts.length > 0 && (
             <div style={{ opacity: 0.35 }}>
               <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginBottom: 12 }}>Last night in the Square</div>
@@ -1189,6 +1191,7 @@ export default function SquarePage() {
       {/* Open state */}
       {squareOpen && (
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '1.5rem 1.5rem 6rem' }}>
+          <div style={{ marginBottom: '1.5rem' }}><TipBox variant="square" /></div>
 
           {/* Composer */}
           {user ? (
