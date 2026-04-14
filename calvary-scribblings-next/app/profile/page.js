@@ -126,7 +126,7 @@ function UserListModal({ title, uids, onClose }) {
         {loadingUsers ? (
           <div style={{ padding: '1.5rem 0', color: 'rgba(255,255,255,0.95)', fontSize: '0.82rem', fontFamily: 'Inter, sans-serif' }}>Loading…</div>
         ) : users.length === 0 ? (
-          <div style={{ padding: '1.5rem 0', color: '#ffffff', fontSize: '0.85rem', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontStyle: 'italic' }}>No one here yet.</div>
+          <div style={{ padding: '1.5rem 0', color: '#ffffff', fontSize: '0.85rem', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No one here yet.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {users.map(({ uid, data }) => {
@@ -157,6 +157,9 @@ function UserListModal({ title, uids, onClose }) {
 function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [libNotifs, setLibNotifs] = useState([]);
+  const [showLibNotifs, setShowLibNotifs] = useState(false);
+  const [libNotifsRead, setLibNotifsRead] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -186,7 +189,7 @@ function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
         {loading ? (
           <div style={{ color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem', padding: '1rem 0' }}>Loading…</div>
         ) : comments.length === 0 ? (
-          <div style={{ color: '#ffffff', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No comments yet.</div>
+          <div style={{ color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No comments yet.</div>
         ) : comments.map(c => {
           const story = allStoriesMerged.find(s => s.id === c.slug);
           return (
@@ -198,7 +201,7 @@ function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
                   {story.title}
                 </div>
               )}
-              <div style={{ fontSize: '0.9rem', color: '#ffffff', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', lineHeight: 1.65, marginBottom: 4 }}>{c.text}</div>
+              <div style={{ fontSize: '0.9rem', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', lineHeight: 1.65, marginBottom: 4 }}>{c.text}</div>
               <div style={{ fontSize: '0.65rem', color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{timeAgo(c.createdAt)}</div>
             </a>
           );
@@ -211,6 +214,9 @@ function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
 function SquarePostsModal({ uid, onClose }) {
   const [squarePosts, setSquarePosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [libNotifs, setLibNotifs] = useState([]);
+  const [showLibNotifs, setShowLibNotifs] = useState(false);
+  const [libNotifsRead, setLibNotifsRead] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -234,10 +240,10 @@ function SquarePostsModal({ uid, onClose }) {
         {loading ? (
           <div style={{ color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem', padding: '1rem 0' }}>Loading…</div>
         ) : squarePosts.length === 0 ? (
-          <div style={{ color: '#ffffff', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No Square posts yet.</div>
+          <div style={{ color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No Square posts yet.</div>
         ) : squarePosts.map(p => (
           <div key={p.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <div style={{ fontSize: '0.92rem', color: '#ffffff', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', lineHeight: 1.7, marginBottom: 4 }}>{p.text}</div>
+            <div style={{ fontSize: '0.92rem', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', lineHeight: 1.7, marginBottom: 4 }}>{p.text}</div>
             <div style={{ fontSize: '0.65rem', color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}</div>
           </div>
         ))}
@@ -261,6 +267,9 @@ export default function ProfilePage() {
   const [points, setPoints] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [libNotifs, setLibNotifs] = useState([]);
+  const [showLibNotifs, setShowLibNotifs] = useState(false);
+  const [libNotifsRead, setLibNotifsRead] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
@@ -440,7 +449,7 @@ export default function ProfilePage() {
         html, body { background: #0d0d0d; color: #e8e0d4; font-family: 'Inter', sans-serif; min-height: 100vh; }
 
         .pf-nav { display: flex; align-items: center; justify-content: space-between; max-width: 740px; margin: 0 auto; padding: 1.25rem 1.5rem; }
-        .pf-nav-logo { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f5f0e8; letter-spacing: 0.01em; }
+        .pf-nav-logo { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f5f0e8; letter-spacing: 0.01em; }
         .pf-nav-logo span { color: #a78bfa; }
         .pf-nav-back { font-size: 0.65rem; color: rgba(255,255,255,0.95); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; font-family: 'Inter', sans-serif; }
         .pf-nav-back:hover { color: rgba(255,255,255,0.95); }
@@ -450,11 +459,11 @@ export default function ProfilePage() {
         .pf-hero-pattern { position: absolute; inset: 0; opacity: 0.035; background-image: radial-gradient(circle, #a78bfa 1px, transparent 1px); background-size: 30px 30px; z-index: 0; }
         .pf-hero-content { position: relative; z-index: 2; width: 100%; max-width: 740px; margin: 0 auto; padding: 2.5rem 1.5rem 3rem; display: flex; align-items: flex-end; gap: 1.75rem; }
 
-        .pf-avatar { width: 96px; height: 96px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.35); display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; flex-shrink: 0; box-shadow: 0 0 40px rgba(107,47,173,0.2); }
+        .pf-avatar { width: 96px; height: 96px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.35); display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; flex-shrink: 0; box-shadow: 0 0 40px rgba(107,47,173,0.2); }
         .pf-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
         .pf-hero-info { flex: 1; padding-bottom: 4px; }
-        .pf-name { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 400; color: #f5f0e8; line-height: 1; margin-bottom: 0.3rem; letter-spacing: -0.01em; }
+        .pf-name { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 400; color: #f5f0e8; line-height: 1; margin-bottom: 0.3rem; letter-spacing: -0.01em; }
         .pf-username { font-size: 0.8rem; color: rgba(167,139,250,0.6); font-family: 'Inter', sans-serif; margin-bottom: 0.6rem; }
         .pf-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem; flex-wrap: wrap; }
         .pf-badge-pill { display: inline-flex; align-items: center; gap: 5px; }
@@ -466,13 +475,13 @@ export default function ProfilePage() {
         .pf-follow-row { display: flex; gap: 1.5rem; }
         .pf-follow-stat { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
         .pf-follow-stat:hover .pf-follow-num { color: #a78bfa; }
-        .pf-follow-num { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; line-height: 1; transition: color 0.2s; }
+        .pf-follow-num { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; line-height: 1; transition: color 0.2s; }
         .pf-follow-label { font-size: 0.56rem; color: rgba(255,255,255,0.95); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-body { max-width: 740px; margin: 0 auto; padding: 0 1.5rem 6rem; }
 
         .pf-bio-wrap { padding: 1.5rem 0 2rem; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 2.5rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-        .pf-bio-text { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 1.15rem; color: #f5f0e8; line-height: 1.8; font-style: italic; flex: 1; }
+        .pf-bio-text { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.15rem; color: #f5f0e8; line-height: 1.8; font-style: italic; flex: 1; }
         .pf-bio-empty { font-size: 0.82rem; color: #ffffff; font-family: 'Inter', sans-serif; cursor: pointer; font-style: italic; flex: 1; transition: color 0.2s; }
         .pf-bio-empty:hover { color: rgba(255,255,255,0.4); }
         .pf-edit-btn { background: none; border: 1px solid rgba(167,139,250,0.25); border-radius: 8px; padding: 0.4rem 1rem; font-size: 0.62rem; color: rgba(167,139,250,0.65); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
@@ -481,12 +490,12 @@ export default function ProfilePage() {
         .pf-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; margin-bottom: 2.5rem; overflow: hidden; }
         .pf-stat { background: rgba(255,255,255,0.03); padding: 1.75rem 1.25rem; text-align: center; transition: background 0.2s; }
         .pf-stat:hover { background: rgba(255,255,255,0.05); }
-        .pf-stat-num { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 2.6rem; font-weight: 400; color: #f5f0e8; line-height: 1; margin-bottom: 0.5rem; }
+        .pf-stat-num { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 2.6rem; font-weight: 400; color: #f5f0e8; line-height: 1; margin-bottom: 0.5rem; }
         .pf-stat-label { font-size: 0.58rem; color: rgba(255,255,255,0.95); letter-spacing: 0.16em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-section { margin-bottom: 2.5rem; }
         .pf-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.1rem; padding-bottom: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
-        .pf-section-title { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; letter-spacing: 0.01em; }
+        .pf-section-title { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; letter-spacing: 0.01em; }
         .pf-section-meta { font-size: 0.6rem; color: #ffffff; letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-story-list { display: flex; flex-direction: column; }
@@ -495,7 +504,7 @@ export default function ProfilePage() {
         .pf-story-thumb { width: 36px; height: 52px; border-radius: 4px; overflow: hidden; flex-shrink: 0; background: rgba(107,47,173,0.15); }
         .pf-story-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .pf-story-info { flex: 1; min-width: 0; }
-        .pf-story-title { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 0.92rem; color: #f5f0e8; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pf-story-title { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 0.92rem; color: #f5f0e8; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .pf-story-author { font-size: 0.68rem; color: rgba(255,255,255,0.92); font-family: 'Inter', sans-serif; margin-top: 2px; }
         .pf-more-btn { background: none; border: none; font-size: 0.72rem; color: rgba(155,109,255,0.6); font-family: 'Inter', sans-serif; cursor: pointer; padding: 0.75rem 0 0; letter-spacing: 0.08em; text-decoration: underline; text-underline-offset: 2px; }
         .pf-more-btn:hover { color: #a78bfa; }
@@ -514,10 +523,10 @@ export default function ProfilePage() {
         .pf-rewards-btn-inner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }
         .pf-rewards-left { display: flex; flex-direction: column; gap: 0.5rem; }
         .pf-rewards-eyebrow { font-size: 0.58rem; color: rgba(155,109,255,0.6); letter-spacing: 0.2em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
-        .pf-rewards-title { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 1.6rem; font-weight: 400; color: #f5f0e8; line-height: 1.1; }
+        .pf-rewards-title { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.6rem; font-weight: 400; color: #f5f0e8; line-height: 1.1; }
         .pf-rewards-sub { font-size: 0.72rem; color: rgba(232,224,212,0.4); font-family: 'Inter', sans-serif; margin-top: 0.25rem; }
         .pf-rewards-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
-        .pf-rewards-points { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 2.8rem; font-weight: 400; color: #9b6dff; line-height: 1; }
+        .pf-rewards-points { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 2.8rem; font-weight: 400; color: #9b6dff; line-height: 1; }
         .pf-rewards-points-label { font-size: 0.55rem; color: rgba(155,109,255,0.45); letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .pf-rewards-wallet { font-size: 0.72rem; color: rgba(29,158,117,0.7); font-family: 'Inter', sans-serif; margin-top: 0.25rem; }
         .pf-rewards-arrow { font-size: 1.2rem; color: rgba(167,139,250,0.4); margin-top: 0.5rem; transition: transform 0.2s, color 0.2s; }
@@ -529,7 +538,7 @@ export default function ProfilePage() {
         .pf-square-btn:hover { background: rgba(107,47,173,0.12); border-color: rgba(107,47,173,0.35); }
 
         .pf-placeholder { padding: 2rem; text-align: center; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; background: rgba(255,255,255,0.01); }
-        .pf-placeholder p { font-size: 0.88rem; color: #ffffff; font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-style: italic; }
+        .pf-placeholder p { font-size: 0.88rem; color: #ffffff; font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-style: italic; }
 
         .pf-account { display: flex; flex-direction: column; gap: 0.5rem; }
         .pf-account-row { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; }
@@ -541,15 +550,19 @@ export default function ProfilePage() {
         .pf-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.4); }
 
         .pf-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
+        .lib-notif-panel { position: fixed; top: 0; right: 0; width: min(380px, 100vw); height: 100vh; background: #0d0d0d; border-left: 1px solid rgba(255,255,255,0.08); z-index: 2000; display: flex; flex-direction: column; animation: slideInRight 0.3s ease; }
+        @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .lib-notif-item { padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px; align-items: flex-start; }
+        .lib-notif-item.unread { background: rgba(107,47,173,0.06); }
         @media (min-width: 600px) { .pf-modal-backdrop { align-items: center; } }
         .pf-modal { background: #141414; border: 1px solid rgba(255,255,255,0.09); border-radius: 20px 20px 0 0; width: 100%; max-width: 520px; padding: 2rem 1.5rem 2.5rem; max-height: 90vh; overflow-y: auto; }
         @media (min-width: 600px) { .pf-modal { border-radius: 20px; } }
         .pf-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.75rem; }
-        .pf-modal-title { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 1.4rem; font-weight: 400; color: #f5f0e8; }
+        .pf-modal-title { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.4rem; font-weight: 400; color: #f5f0e8; }
         .pf-modal-close { background: none; border: none; color: rgba(255,255,255,0.95); font-size: 1.4rem; cursor: pointer; padding: 0; line-height: 1; transition: color 0.2s; }
         .pf-modal-close:hover { color: rgba(255,255,255,0.95); }
         .pf-modal-avatar-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
-        .pf-modal-avatar { width: 64px; height: 64px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.3); display: flex; align-items: center; justify-content: center; font-size: 22px; color: #c4b5fd; overflow: hidden; font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; flex-shrink: 0; }
+        .pf-modal-avatar { width: 64px; height: 64px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.3); display: flex; align-items: center; justify-content: center; font-size: 22px; color: #c4b5fd; overflow: hidden; font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; flex-shrink: 0; }
         .pf-modal-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .pf-modal-avatar-btn { background: none; border: 1px solid rgba(167,139,250,0.3); border-radius: 8px; padding: 0.45rem 1rem; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(167,139,250,0.7); cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; }
         .pf-modal-avatar-btn:hover { border-color: rgba(167,139,250,0.6); color: #a78bfa; }
@@ -557,7 +570,7 @@ export default function ProfilePage() {
         .pf-field-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.95); font-family: 'Inter', sans-serif; margin-bottom: 0.4rem; display: block; }
         .pf-field-input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 0.8rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s; }
         .pf-field-input:focus { border-color: rgba(167,139,250,0.45); }
-        .pf-field-textarea { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 0.8rem 1rem; font-size: 1rem; color: rgba(232,224,212,0.85); font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-style: italic; outline: none; resize: none; line-height: 1.75; transition: border-color 0.2s; }
+        .pf-field-textarea { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 0.8rem 1rem; font-size: 1rem; color: rgba(232,224,212,0.85); font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-style: italic; outline: none; resize: none; line-height: 1.75; transition: border-color 0.2s; }
         .pf-field-textarea:focus { border-color: rgba(167,139,250,0.45); }
         .pf-field-hint { font-size: 0.62rem; color: #ffffff; font-family: 'Inter', sans-serif; margin-top: 0.3rem; }
         .pf-username-wrap { position: relative; }
@@ -581,7 +594,20 @@ export default function ProfilePage() {
 
       <div className="pf-nav">
         <div className="pf-nav-logo">Calvary <span>Scribblings</span></div>
-        <a href="/" className="pf-nav-back">← Back to stories</a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <button onClick={() => { setShowLibNotifs(true); markLibNotifsRead(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            {libNotifs.filter(n => !n.read).length > 0 && !libNotifsRead && (
+              <span style={{ position: 'absolute', top: -4, right: -4, background: '#6b2fad', color: '#fff', fontSize: '0.5rem', fontFamily: 'Inter, sans-serif', fontWeight: 700, borderRadius: '999px', minWidth: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>
+                {libNotifs.filter(n => !n.read).length}
+              </span>
+            )}
+          </button>
+          <a href="/" className="pf-nav-back">← Back to stories</a>
+        </div>
       </div>
 
       <div className="pf-hero">
@@ -723,7 +749,7 @@ export default function ProfilePage() {
           </div>
           <button className="pf-square-btn" onClick={() => setShowSquarePosts(true)}>
             <div>
-              <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '1rem', color: '#ffffff' }}>Posts on The Square</div>
+              <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff' }}>Posts on The Square</div>
               <div style={{ fontSize: '0.68rem', color: 'rgba(155,109,255,0.5)', fontFamily: 'Inter, sans-serif', marginTop: 2 }}>View your contributions to the Square</div>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
@@ -804,6 +830,44 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+      )}
+      {showLibNotifs && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setShowLibNotifs(false)} />
+          <div className="lib-notif-panel">
+            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontFamily: "Cochin, Cormorant Garamond, Georgia, serif", fontSize: '1.1rem', color: '#ffffff' }}>Notifications</span>
+              <button onClick={() => setShowLibNotifs(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: '1.2rem' }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {libNotifs.length === 0
+                ? <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontFamily: "Cochin, Cormorant Garamond, Georgia, serif", fontStyle: 'italic' }}>No notifications yet.</div>
+                : libNotifs.map(n => (
+                  <div key={n.id} className={`lib-notif-item${n.read ? '' : ' unread'}`}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(107,47,173,0.25)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#a78bfa', flexShrink: 0 }}>
+                      {(n.fromName || 'R')[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.82rem', color: '#ffffff', fontFamily: 'Inter, sans-serif', lineHeight: 1.5 }}>
+                        <span style={{ fontWeight: 600 }}>{n.fromName}</span>
+                        {n.type === 'reply' && ' replied to your comment'}
+                        {n.type === 'heart' && ' loved your comment'}
+                        {n.type === 'clap' && ' liked your comment'}
+                        {n.type === 'fire' && ' reacted 🔥 to your comment'}
+                        {n.type === 'follow' && ' started following you'}
+                        {n.type === 'new_story' && ` published: ${n.storyTitle || 'a new story'}`}
+                        {n.type === 'reward' && (n.message || ' — you earned points!')}
+                      </div>
+                      <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', marginTop: 3, fontFamily: 'Inter, sans-serif' }}>
+                        {n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </>
       )}
     </>
   );

@@ -255,7 +255,7 @@ function PollDisplay({ poll, postId, user }) {
   return (
     <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
       {poll.question && (
-        <div style={{ fontSize: '0.85rem', color: '#ffffff', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontWeight: 600, marginBottom: 4 }}>{poll.question}</div>
+        <div style={{ fontSize: '0.85rem', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontWeight: 600, marginBottom: 4 }}>{poll.question}</div>
       )}
       {poll.options.map((opt, i) => {
         const optVotes = Object.values(votes).filter(v => v === String(i)).length;
@@ -375,7 +375,7 @@ function PollCreatorModal({ onCreate, onClose }) {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '1.5rem', maxHeight: '80vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Create Poll</div>
+          <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Create Poll</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
         <input placeholder="Question (optional)…" value={question} onChange={e => setQuestion(e.target.value)}
@@ -424,7 +424,7 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '1.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-          <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Attach a story</div>
+          <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Attach a story</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
         <input placeholder="Search stories…" value={query} onChange={e => setQuery(e.target.value)}
@@ -439,7 +439,7 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '0.78rem', color: 'rgba(155,109,255,0.6)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>{s.categoryName}</div>
-                <div style={{ fontSize: '0.88rem', color: '#ffffff', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', lineHeight: 1.3 }}>{s.title}</div>
+                <div style={{ fontSize: '0.88rem', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{s.title}</div>
                 <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.95)', marginTop: 2 }}>by {s.author}</div>
               </div>
             </div>
@@ -461,7 +461,7 @@ function StoryEmbed({ story }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: '0.62rem', color: 'rgba(155,109,255,0.6)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{story.categoryName}</div>
-        <div style={{ fontSize: '0.82rem', color: '#ffffff', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', lineHeight: 1.3 }}>{story.title}</div>
+        <div style={{ fontSize: '0.82rem', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{story.title}</div>
         <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.95)', marginTop: 1 }}>by {story.author}</div>
       </div>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -595,7 +595,7 @@ function DMPanel({ user, onClose }) {
               </div>
             </div>
           ) : (
-            <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Messages</div>
+            <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Messages</div>
           )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {!activeConv && (
@@ -632,7 +632,7 @@ function DMPanel({ user, onClose }) {
             {loadingConvs ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
             ) : conversations.length === 0 ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No messages yet. Tap + New to start a conversation.</div>
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No messages yet. Tap + New to start a conversation.</div>
             ) : conversations.map(conv => (
               <div key={conv.convId} onClick={() => setActiveConv(conv)}
                 style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
@@ -643,7 +643,7 @@ function DMPanel({ user, onClose }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif', marginBottom: 2 }}>{conv.otherUser.displayName || 'Reader'}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.92)', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMsg?.text || 'Image'}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.92)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMsg?.text || 'Image'}</div>
                 </div>
                 {conv.unread > 0 && (
                   <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#6b2fad', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 500, flexShrink: 0 }}>{conv.unread}</div>
@@ -664,7 +664,7 @@ function DMPanel({ user, onClose }) {
                     <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', gap: 4, alignItems: isMine ? 'flex-end' : 'flex-start' }}>
                       {msg.imageUrl && <img src={msg.imageUrl} alt="shared" style={{ maxWidth: 180, borderRadius: 10, display: 'block' }} />}
                       {msg.text && (
-                        <div style={{ padding: '8px 12px', borderRadius: isMine ? '12px 12px 3px 12px' : '12px 12px 12px 3px', background: isMine ? '#6b2fad' : 'rgba(255,255,255,0.06)', color: isMine ? '#fff' : 'rgba(232,224,212,0.85)', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '0.88rem', lineHeight: 1.6 }}>
+                        <div style={{ padding: '8px 12px', borderRadius: isMine ? '12px 12px 3px 12px' : '12px 12px 12px 3px', background: isMine ? '#6b2fad' : 'rgba(255,255,255,0.06)', color: isMine ? '#fff' : 'rgba(232,224,212,0.85)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.88rem', lineHeight: 1.6 }}>
                           {msg.text}
                         </div>
                       )}
@@ -681,7 +681,7 @@ function DMPanel({ user, onClose }) {
               <input ref={dmFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => setDmImageFile(e.target.files[0])} />
               <input value={dmText} onChange={e => setDmText(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendDM()}
                 placeholder={`Message ${activeConv.otherUser.displayName || 'Reader'}…`}
-                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '8px 14px', fontSize: '0.88rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', outline: 'none' }} />
+                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '8px 14px', fontSize: '0.88rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', outline: 'none' }} />
               <button onClick={sendDM} disabled={sending || (!dmText.trim() && !dmImageFile)} style={{ width: 32, height: 32, borderRadius: '50%', background: '#6b2fad', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, opacity: (!dmText.trim() && !dmImageFile) ? 0.4 : 1 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#fff"/></svg>
               </button>
@@ -743,14 +743,14 @@ function NotificationsPanel({ user, onClose }) {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: '75vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Notifications</div>
+          <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Notifications</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {loading ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
           ) : notifs.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet.</div>
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet.</div>
           ) : notifs.map(n => (
             <div key={n.id} style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start', background: n.read ? 'transparent' : 'rgba(107,47,173,0.05)' }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: n.read ? 'transparent' : '#9b6dff', marginTop: 5, flexShrink: 0 }} />
@@ -1090,7 +1090,7 @@ export default function SquarePage() {
         @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes sq-lockglow { 0%,100%{background:rgba(107,47,173,0.08)} 50%{background:rgba(107,47,173,0.18)} }
         @keyframes sq-lockpulse { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.04)} }
-        .sq-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.95rem; color: #ffffff; font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; line-height: 1.65; box-sizing: border-box; }
+        .sq-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.95rem; color: #ffffff; font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; resize: none; outline: none; line-height: 1.65; box-sizing: border-box; }
         .sq-textarea:focus { border-color: rgba(107,47,173,0.4); }
         .sq-textarea::placeholder { color: rgba(255,255,255,0.45); font-style: italic; }
         .sq-post-btn { background: #6b2fad; border: none; border-radius: 8px; padding: 7px 18px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
@@ -1106,10 +1106,10 @@ export default function SquarePage() {
       <div style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <a href="/" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, background: '#6b2fad', borderRadius: 7, textDecoration: 'none' }}>
-            <span style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: 17, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
+            <span style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: 17, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
           </a>
           <div>
-            <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: 16, color: '#f5f0e8', lineHeight: 1 }}>The Scribblings Square</div>
+            <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: 16, color: '#f5f0e8', lineHeight: 1 }}>The Scribblings Square</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
               {squareOpen ? (
                 <>
@@ -1157,14 +1157,14 @@ export default function SquarePage() {
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9b6dff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               </div>
             </div>
-            <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '2rem', fontWeight: 400, color: '#f5f0e8', marginBottom: 10 }}>The Square is closed.</div>
-            <div style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.95)', lineHeight: 1.7, maxWidth: 300, fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontStyle: 'italic', marginBottom: 28 }}>
+            <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '2rem', fontWeight: 400, color: '#f5f0e8', marginBottom: 10 }}>The Square is closed.</div>
+            <div style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.95)', lineHeight: 1.7, maxWidth: 300, fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontStyle: 'italic', marginBottom: 28 }}>
               The Scribblings Square opens every evening at 8pm London time. Come back then — the conversation continues.
             </div>
             <div style={{ display: 'flex', gap: 16, marginBottom: 28 }}>
               {['Hours', 'Minutes', 'Seconds'].map((label, i) => (
                 <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '2.5rem', fontWeight: 400, color: '#9b6dff', lineHeight: 1 }}>{countdown.split(':')[i] || '00'}</div>
+                  <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '2.5rem', fontWeight: 400, color: '#9b6dff', lineHeight: 1 }}>{countdown.split(':')[i] || '00'}</div>
                   <div style={{ fontSize: '0.6rem', color: '#ffffff', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>{label}</div>
                 </div>
               ))}
@@ -1184,7 +1184,7 @@ export default function SquarePage() {
                   </div>
                   <div>
                     <div style={{ fontSize: '0.75rem', fontWeight: 500, color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif', marginBottom: 3 }}>{p.authorName}</div>
-                    <div style={{ fontSize: '0.88rem', color: 'rgba(232,224,212,0.5)', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', lineHeight: 1.6 }}>{p.text}</div>
+                    <div style={{ fontSize: '0.88rem', color: 'rgba(232,224,212,0.5)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', lineHeight: 1.6 }}>{p.text}</div>
                   </div>
                 </div>
               ))}
@@ -1233,7 +1233,7 @@ export default function SquarePage() {
             </div>
           ) : (
             <div style={{ marginBottom: '2rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '1.5rem', textAlign: 'center' }}>
-              <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '1rem', color: 'rgba(255,255,255,0.4)', marginBottom: 12, fontStyle: 'italic' }}>Sign in to join the conversation</div>
+              <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: 'rgba(255,255,255,0.4)', marginBottom: 12, fontStyle: 'italic' }}>Sign in to join the conversation</div>
               <button onClick={() => setShowAuth(true)} style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.6rem 1.5rem', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Sign in</button>
             </div>
           )}
@@ -1242,7 +1242,7 @@ export default function SquarePage() {
           {loading ? (
             <div style={{ textAlign: 'center', padding: '2rem', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
           ) : topLevel.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '1rem', fontStyle: 'italic' }}>No posts yet. Be the first to say something.</div>
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', fontStyle: 'italic' }}>No posts yet. Be the first to say something.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               {topLevel.map((p, i) => {
@@ -1284,7 +1284,7 @@ export default function SquarePage() {
                           </div>
                         ) : (
                           <>
-                            <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '1rem', color: '#ffffff', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
+                            <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
                             {p.attachedStory && <StoryEmbed story={p.attachedStory} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
                           </>
@@ -1328,7 +1328,7 @@ export default function SquarePage() {
                                         </div>
                                       </div>
                                     ) : (
-                                      <div style={{ fontFamily: 'Cochin, 'Cormorant Garamond', Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.65 }}>{renderText(r.text)}</div>
+                                      <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.65 }}>{renderText(r.text)}</div>
                                     )}
                                     <ReactionBar p={r} size={11} />
                                   </div>
