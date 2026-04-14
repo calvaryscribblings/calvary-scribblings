@@ -358,6 +358,7 @@ export default function StoryReaderClient({ params }) {
   const [showBookmarkToast, setShowBookmarkToast] = useState(false);
   const [toastFading, setToastFading] = useState(false);
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
+  const [debugMsg, setDebugMsg] = useState('');
   const [progress, setProgress] = useState(0);
   const iframeRef = useRef(null);
   const pendingFont = useRef(1);
@@ -436,8 +437,8 @@ export default function StoryReaderClient({ params }) {
         }
       }
       if (e.data.type === 'bookmarkSaved') {
-        console.log('bookmarkSaved received, fraction:', e.data.fraction, 'currentFraction:', currentFraction.current);
         const fr = currentFraction.current || e.data.fraction;
+        setDebugMsg('Saved fraction: ' + fr.toFixed(4));
         setBookmarkSaved(true);
         setTimeout(() => setBookmarkSaved(false), 2000);
         try {
@@ -453,10 +454,10 @@ export default function StoryReaderClient({ params }) {
       }
       if (e.data.type === 'ready') {
         iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
-        console.log('ready event, bookmark:', bookmark);
+        setDebugMsg('Ready. Bookmark: ' + (bookmark || 'none'));
         if (bookmark) {
           setTimeout(() => {
-            console.log('sending restoreBookmark', bookmark);
+            setDebugMsg('Restoring to: ' + bookmark);
             iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: bookmark }, '*');
           }, 1500);
         }
@@ -652,6 +653,7 @@ export default function StoryReaderClient({ params }) {
             </div>
           </div>
         )}
+        {debugMsg ? <div style={{ position: 'fixed', top: '52px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.8)', color: '#c9a44c', fontFamily: 'monospace', fontSize: '11px', padding: '4px 12px', borderRadius: '4px', zIndex: 400, whiteSpace: 'nowrap' }}>{debugMsg}</div> : null}
         {showBookmarkToast && (
           <div className={'bookmark-toast ' + (toastFading ? 'out' : 'in')}>
             Continue where you left off on the Island 🏝️
