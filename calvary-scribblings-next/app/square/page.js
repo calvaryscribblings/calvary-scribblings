@@ -729,6 +729,8 @@ function NotificationsPanel({ user, onClose }) {
     if (n.type === 'heart') return ' loved your post';
     if (n.type === 'clap') return ' applauded your post';
     if (n.type === 'fire') return ' fired up your post';
+    if (n.type === 'new_story') return ` published a new story: ${n.storyTitle || 'a new story'}`;
+    if (n.type === 'reward') return n.message || ' — you earned points!';
     if (n.type === 'follow') return ' started following you';
     if (n.type === 'square_post') return ' posted in the Square';
     if (n.type === 'like') return ' liked your post';

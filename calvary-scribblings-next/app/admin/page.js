@@ -511,6 +511,25 @@ export default function AdminPage() {
       };
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       await set(ref(db, `cms_stories/${slug}`), storyData);
+      // Notify followers of this author if publishing now (not scheduled)
+      if (!form.publishAt || new Date(form.publishAt) <= new Date()) {
+        const authorUid = authorUids[form.author] || storyData.authorUid;
+        if (authorUid) {
+          try {
+            const { get: getSnap, push: pushNotif } = await import('firebase/database');
+            const followersSnap = await getSnap(ref(db, `followers/${authorUid}`));
+            if (followersSnap.exists()) {
+              const followerIds = Object.keys(followersSnap.val());
+              await Promise.all(followerIds.map(fid => pushNotif(ref(db, `notifications/${fid}`), {
+                type: 'new_story', fromUid: authorUid,
+                fromName: storyData.author,
+                storySlug: slug, storyTitle: storyData.title,
+                read: false, createdAt: Date.now(),
+              })));
+            }
+          } catch(e) { console.warn('Follower notifications failed:', e); }
+        }
+      }
       try {
         await new Promise(r => setTimeout(r, 10000));
         await fetch('https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/df2479ae-06a5-4ff3-a319-29b7b94dd106', { method: 'POST' });

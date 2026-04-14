@@ -446,6 +446,11 @@ function CommentsSection({ slug, onSignIn }) {
             description: `${userCommentCount} comments milestone`,
             createdAt: Date.now(),
           });
+          await push(ref(db, `notifications/${user.uid}`), {
+            type: 'reward', fromName: 'Calvary Scribblings',
+            message: `You earned 10 points — ${userCommentCount} comments milestone!`,
+            read: false, createdAt: Date.now(),
+          });
         }
       } catch (e) {}
     } catch (e) {}
@@ -649,6 +654,11 @@ export default function StoryPageClient({ params }) {
                     type: 'read', amount: 5,
                     description: `${newCount} stories read milestone`,
                     createdAt: Date.now(),
+                  });
+                  await push(ref(db, `notifications/${user.uid}`), {
+                    type: 'reward', fromName: 'Calvary Scribblings',
+                    message: `You earned 5 points — ${newCount} stories read milestone!`,
+                    read: false, createdAt: Date.now(),
                   });
                 }
               } catch (e) {}
