@@ -27,7 +27,7 @@ export default function TipBox({ variant = 'story' }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '0.6rem' }}>
         <span style={{ fontFamily: "'Cinzel', serif", fontSize: '0.58rem', letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(201,164,76,0.7)' }}>Support the Island</span>
       </div>
-      <p style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: isSquare ? '0.88rem' : '0.95rem', fontStyle: 'italic', color: isReader ? 'rgba(240,234,216,0.55)' : 'rgba(26,10,14,0.6)', lineHeight: 1.65, marginBottom: '1.25rem' }}>
+      <p style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: isSquare ? '0.88rem' : '0.95rem', fontStyle: 'italic', color: (isReader || isSquare) ? 'rgba(240,234,216,0.55)' : 'rgba(26,10,14,0.6)', lineHeight: 1.65, marginBottom: '1.25rem' }}>
         Calvary Scribblings is a labour of love — free to read, free to join. If the stories move you, a small tip keeps the island alive.
       </p>
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -35,7 +35,7 @@ export default function TipBox({ variant = 'story' }) {
           const isActive = selected === tip.label;
           const isHov = hovered === tip.label;
           return (
-            <button key={tip.label} onMouseEnter={() => setHovered(tip.label)} onMouseLeave={() => setHovered(null)} onClick={() => setSelected(tip.label)} style={{ padding: '7px 16px', borderRadius: '999px', border: '1px solid ' + (isActive ? '#6b2fad' : 'rgba(201,164,76,0.3)'), background: isActive ? '#6b2fad' : isHov ? 'rgba(107,47,173,0.08)' : 'transparent', color: isActive ? '#fff' : isReader ? 'rgba(240,234,216,0.7)' : 'rgba(26,10,14,0.65)', fontFamily: "'Cinzel', serif", fontSize: '0.6rem', letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s' }}>
+            <button key={tip.label} onMouseEnter={() => setHovered(tip.label)} onMouseLeave={() => setHovered(null)} onClick={() => setSelected(tip.label)} style={{ padding: '7px 16px', borderRadius: '999px', border: '1px solid ' + (isActive ? '#6b2fad' : 'rgba(201,164,76,0.3)'), background: isActive ? '#6b2fad' : isHov ? 'rgba(107,47,173,0.08)' : 'transparent', color: isActive ? '#fff' : (isReader || isSquare) ? 'rgba(240,234,216,0.7)' : 'rgba(26,10,14,0.65)', fontFamily: "'Cinzel', serif", fontSize: '0.6rem', letterSpacing: '0.1em', cursor: 'pointer', transition: 'all 0.2s' }}>
               {tip.label}
             </button>
           );
