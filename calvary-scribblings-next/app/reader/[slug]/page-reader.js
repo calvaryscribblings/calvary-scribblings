@@ -428,6 +428,7 @@ export default function StoryReaderClient({ params }) {
       if (e.data.type === 'relocate') {
         const fr = e.data.fraction;
         currentFraction.current = fr;
+        if (e.data.cfi) bookmarkCFI.current = e.data.cfi;
 
         setProgress(fr * 100);
         if (fr > 0 && e.data.step > 0) {
@@ -440,8 +441,7 @@ export default function StoryReaderClient({ params }) {
       }
       if (e.data.type === 'bookmarkSaved') {
         const fr = currentFraction.current || e.data.fraction;
-        if (e.data.cfi) bookmarkCFI.current = e.data.cfi;
-        setDebugMsg('Saved CFI: ' + (e.data.cfi ? e.data.cfi.slice(0,30) : 'NONE') + ' fr:' + (currentFraction.current||0).toFixed(3));
+        setDebugMsg('Saved CFI: ' + (bookmarkCFI.current ? bookmarkCFI.current.slice(0,30) : 'NONE') + ' fr:' + (currentFraction.current||0).toFixed(3));
         setBookmarkSaved(true);
         setTimeout(() => setBookmarkSaved(false), 2000);
         try {
