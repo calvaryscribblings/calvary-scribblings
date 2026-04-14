@@ -353,6 +353,7 @@ export default function StoryReaderClient({ params }) {
   const [fontIndex, setFontIndex] = useState(1);
   const [pageInfo, setPageInfo] = useState('');
   const [bookmark, setBookmark] = useState(null);
+  const currentFraction = useRef(0);
   const [bookmarkLoaded, setBookmarkLoaded] = useState(false);
   const [showBookmarkToast, setShowBookmarkToast] = useState(false);
   const [toastFading, setToastFading] = useState(false);
@@ -423,6 +424,7 @@ export default function StoryReaderClient({ params }) {
       if (e.data.type === 'ended') setShowEnd(true);
       if (e.data.type === 'relocate') {
         const fr = e.data.fraction;
+        currentFraction.current = fr;
 
         setProgress(fr * 100);
         if (fr > 0 && e.data.step > 0) {
@@ -434,8 +436,7 @@ export default function StoryReaderClient({ params }) {
         }
       }
       if (e.data.type === 'bookmarkSaved') {
-        const fr = e.data.fraction;
-        setBookmark(fr);
+        const fr = currentFraction.current || e.data.fraction;
         setBookmarkSaved(true);
         setTimeout(() => setBookmarkSaved(false), 2000);
         try {
@@ -451,6 +452,11 @@ export default function StoryReaderClient({ params }) {
       }
       if (e.data.type === 'ready') {
         iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
+        if (bookmark) {
+          setTimeout(() => {
+            iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: bookmark }, '*');
+          }, 1500);
+        }
       }
     };
     window.addEventListener('message', handler);
@@ -472,7 +478,7 @@ export default function StoryReaderClient({ params }) {
   );
 
   const iframeSrc = story.epubUrl
-    ? '/vendor/foliate-js-main/calvary-reader.html?url=' + encodeURIComponent(story.epubUrl) + '&fs=' + FONT_SIZES[fontIndex] + (bookmark ? '&bookmark=' + bookmark : '')
+    ? '/vendor/foliate-js-main/calvary-reader.html?url=' + encodeURIComponent(story.epubUrl) + '&fs=' + FONT_SIZES[fontIndex]
     : null;
 
   return (

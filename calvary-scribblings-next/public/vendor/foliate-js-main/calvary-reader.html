@@ -107,16 +107,20 @@ if (!url) {
     window._foliateReady = true
     window.parent.postMessage({ type: 'ready' }, '*')
     doc.addEventListener('keydown', handleKey)
-    if (bookmarkFraction > 0.01) {
-      setTimeout(() => {
-        try { view.goToFraction(bookmarkFraction) } catch(e) {}
-      }, 1200)
-    }
+  
   })
 
   window.addEventListener('message', e => {
     if (e.data.type === 'saveBookmark') {
       window.parent.postMessage({ type: 'bookmarkSaved', fraction: lastFraction }, '*')
+    }
+    if (e.data.type === 'restoreBookmark' && e.data.fraction > 0.01) {
+      try { view.goToFraction(e.data.fraction) } catch(err) { console.warn('restore failed', err) }
+    }
+    if (e.data.type === 'setFontSize') {
+      const sizes = [14,16,18,20,22]
+      const size = sizes[e.data.index] || 16
+      document.documentElement.style.setProperty('--fs', size + 'px')
     }
   })
   document.getElementById('btn-prev').addEventListener('click', () => view.goLeft())
