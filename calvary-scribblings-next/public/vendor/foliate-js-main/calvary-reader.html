@@ -82,7 +82,8 @@ if (!url) {
   let stuckCount = 0
   let hasNavigated = false
   view.addEventListener('relocate', ({ detail }) => {
-    const { fraction } = detail
+    const { fraction, cfi } = detail
+    if (cfi) window._lastCFI = cfi
     if (lastFraction > 0 && fraction > lastFraction) {
       const diff = fraction - lastFraction
       if (diff < 0.5) stepSize = diff
@@ -115,17 +116,28 @@ if (!url) {
       console.log('saveBookmark received, lastFraction:', lastFraction)
       window.parent.postMessage({ type: 'bookmarkSaved', fraction: lastFraction }, '*')
     }
-    if (e.data.type === 'restoreBookmark' && e.data.fraction > 0.01) {
-      const target = e.data.fraction
-      let attempts = 0
-      const tryRestore = () => {
-        attempts++
-        try {
-          view.goToFraction(target)
-        } catch(err) {}
-        if (attempts < 5) setTimeout(tryRestore, 800)
+    if (e.data.type === 'restoreBookmark') {
+      const cfi = e.data.cfi
+      const fraction = e.data.fraction
+      if (cfi) {
+        let attempts = 0
+        const tryRestore = () => {
+          attempts++
+          try { view.goTo(cfi) } catch(err) {
+            if (attempts < 5) setTimeout(tryRestore, 600)
+          }
+        }
+        setTimeout(tryRestore, 400)
+      } else if (fraction > 0.01) {
+        let attempts = 0
+        const tryRestore = () => {
+          attempts++
+          try { view.goToFraction(fraction) } catch(err) {
+            if (attempts < 5) setTimeout(tryRestore, 600)
+          }
+        }
+        setTimeout(tryRestore, 400)
       }
-      setTimeout(tryRestore, 500)
     }
     if (e.data.type === 'setFontSize') {
       const sizes = [14,16,18,20,22]

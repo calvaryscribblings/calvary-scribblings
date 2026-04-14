@@ -353,6 +353,7 @@ export default function StoryReaderClient({ params }) {
   const [fontIndex, setFontIndex] = useState(1);
   const [pageInfo, setPageInfo] = useState('');
   const [bookmark, setBookmark] = useState(null);
+  const bookmarkCFI = useRef(null);
   const currentFraction = useRef(0);
   const [bookmarkLoaded, setBookmarkLoaded] = useState(false);
   const [showBookmarkToast, setShowBookmarkToast] = useState(false);
@@ -388,7 +389,7 @@ export default function StoryReaderClient({ params }) {
             const db = await getDB();
             const { ref, get } = await import('firebase/database');
             const snap = await get(ref(db, 'bookmarks/' + user.uid + '/' + slug));
-            if (snap.exists()) { setBookmark(snap.val()); setShowBookmarkToast(true); setTimeout(() => setToastFading(true), 3500); setTimeout(() => setShowBookmarkToast(false), 4000); }
+            if (snap.exists()) { const bm = snap.val(); const fraction = typeof bm === 'object' ? bm.fraction : bm; const cfi = typeof bm === 'object' ? bm.cfi : ''; bookmarkCFI.current = cfi; setBookmark(fraction); setShowBookmarkToast(true); setTimeout(() => setToastFading(true), 3500); setTimeout(() => setShowBookmarkToast(false), 4000); }
           } catch (e) {}
           setBookmarkLoaded(true);
         });
@@ -437,6 +438,7 @@ export default function StoryReaderClient({ params }) {
       }
       if (e.data.type === 'bookmarkSaved') {
         const fr = currentFraction.current || e.data.fraction;
+        if (e.data.cfi) bookmarkCFI.current = e.data.cfi;
         setBookmarkSaved(true);
         setTimeout(() => setBookmarkSaved(false), 2000);
         try {
@@ -455,7 +457,7 @@ export default function StoryReaderClient({ params }) {
         if (bookmark) {
           setTimeout(() => {
             setDebugMsg('Restoring to: ' + bookmark);
-            iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: bookmark }, '*');
+            iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: bookmark, cfi: bookmarkCFI.current || '' }, '*');
           }, 1500);
         }
       }
