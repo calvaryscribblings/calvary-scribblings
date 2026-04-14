@@ -784,10 +784,10 @@ useEffect(() => {
         .hero-content { position: relative; z-index: 2; padding: 3rem 2rem 3.5rem; max-width: 680px; animation: heroUp 1s cubic-bezier(0.22,1,0.36,1) 0.3s both; }
         @keyframes heroUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
         .story-badge-hero { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; padding: 0.3em 0.9em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; margin-bottom: 1.1rem; font-family: Cochin, Georgia, serif; }
-        .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 300; line-height: 1.1; color: #f0ead8; margin-bottom: 1.1rem; font-family: 'Cormorant Garamond', Cochin, Georgia, serif; }
+        .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 400; line-height: 1.1; color: #f0ead8; margin-bottom: 1.1rem; font-family: Cochin, 'Cormorant Garamond', Cochin, Georgia, serif; }
         .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: #f5f0e8; flex-wrap: wrap; }
         .byline-dot { width: 3px; height: 3px; border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
-        .byline-by { font-style: italic; font-family: 'Cormorant Garamond', Georgia, serif; margin-right: -0.8rem; }
+        .byline-by { font-style: italic; font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; margin-right: -0.8rem; }
         .story-body-wrap { background: #f0ead8; }
         .story-body { max-width: 680px; margin: 0 auto; padding: 3rem 2rem 5rem; }
         .back-link-row { margin-bottom: 2.2rem; padding-bottom: 1.2rem; border-bottom: 1px solid #e0dbd2; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
@@ -795,38 +795,38 @@ useEffect(() => {
         .back-link:hover { text-decoration: underline; }
         .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cochin, Georgia, serif; font-weight: 400; }
         .prose p { margin-bottom: 0; } .prose p + p { text-indent: 1.5em; }
-        .prose.has-dropcap > p:first-of-type::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: 'Cormorant Garamond', Cochin, Georgia, serif; }
+        .prose.has-dropcap > p:first-of-type::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: Cochin, 'Cormorant Garamond', Cochin, Georgia, serif; }
         .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cochin, Georgia, serif; line-height: 1.3; }
-        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
         .prose h4 { font-size: 1rem; font-weight: 700; color: #1a1a1a; margin: 1.5em 0 0.4em; font-family: Cochin, Georgia, serif; }
         .prose img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; margin: 2em 0 0.5em; min-height: 200px; background: #e8e0d4; }
 .prose img.loaded { min-height: unset; background: none; }
         .prose .article-image { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 8px; margin: 2em 0 0.5em; }
         .prose figure { margin: 2em 0; }
-        .prose figcaption { font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose img + em { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: -1em; margin-bottom: 2em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose .image-caption { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; margin-bottom: 2em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose .inline-image-caption { display: block; font-size: 0.82rem; color: #888; font-style: italic; text-align: right; margin-top: 0.4em; margin-bottom: 2em; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose figcaption { font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose img + em { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: -1em; margin-bottom: 2em; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose .image-caption { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; margin-bottom: 2em; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose .inline-image-caption { display: block; font-size: 0.82rem; color: #888; font-style: italic; text-align: right; margin-top: 0.4em; margin-bottom: 2em; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
         .prose .features-list { background: #e8e0f5; border-left: 4px solid ${accentColor}; border-radius: 0 8px 8px 0; padding: 1.25rem 1.5rem; margin: 1.5em 0 2em; }
         .prose .features-list ul { background: transparent; border: none; padding: 0; margin: 0; list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
         .prose .features-list ul li { padding-left: 1.2rem; position: relative; font-size: 1.05rem; line-height: 1.6; color: #1a1a1a; }
         .prose .features-list ul li::before { content: '•'; position: absolute; left: 0; color: ${accentColor}; font-weight: 700; }
-        .prose blockquote { margin: 2.2em 0; padding: 1.2em 1.6em; border-left: 4px solid ${accentColor}; background: rgba(107,70,193,0.07); font-size: 1.1rem; font-style: italic; color: ${accentColor}; line-height: 1.7; border-radius: 0 4px 4px 0; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose blockquote p { margin-bottom: 0; color: ${accentColor}; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose blockquote { margin: 2.2em 0; padding: 1.2em 1.6em; border-left: 4px solid ${accentColor}; background: rgba(107,70,193,0.07); font-size: 1.1rem; font-style: italic; color: ${accentColor}; line-height: 1.7; border-radius: 0 4px 4px 0; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose blockquote p { margin-bottom: 0; color: ${accentColor}; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
         .prose ul { margin: 1.8em 0; padding: 1.2em 1.5em 1.2em 2em; background: #ede6f5; border-left: 4px solid ${accentColor}; border-radius: 0 4px 4px 0; list-style: disc; }
         .prose ul li { margin-bottom: 0.55em; color: #1a1a1a; font-size: 1.05rem; line-height: 1.75; }
         .prose ul li::marker { color: ${accentColor}; }
         .prose ol { margin: 1.5em 0; padding-left: 1.8em; }
         .prose ol li { margin-bottom: 0.5em; color: #1a1a1a; }
         .prose hr { border: none; height: 2px; background: linear-gradient(90deg, transparent, ${accentColor}, transparent); width: 100px; margin: 3em auto; display: block; }
-        .prose em { font-style: italic; color: inherit; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose i { font-style: italic; color: inherit; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose em { font-style: italic; color: inherit; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose i { font-style: italic; color: inherit; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
         .prose strong { font-weight: 700; color: #1a1a1a; }
-        .prose .poem-collection-intro { font-style: italic; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; color: #555; margin-bottom: 1.5em; display: block; font-size: 1.1rem; }
+        .prose .poem-collection-intro { font-style: italic; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; color: #555; margin-bottom: 1.5em; display: block; font-size: 1.1rem; }
         .prose .poem-contents { border-left: 4px solid ${accentColor}; padding: 0.8em 1.2em; margin: 1.5em 0; background: #ede6f5; border-radius: 0 4px 4px 0; }
         .prose .poem-contents p { margin-bottom: 0.5em; font-weight: 600; color: #1a1a1a; }
         .prose .poem-contents ol, .prose .poem-contents ul { background: transparent; border: none; padding: 0 0 0 1.2em; margin: 0; }
-        .prose .poem-contents li { font-style: italic; color: #444; font-family: 'Cormorant Garamond', 'Times New Roman', Georgia, serif; font-size: 1.1rem; }
+        .prose .poem-contents li { font-style: italic; color: #444; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; font-size: 1.1rem; }
         .prose .poem-block { margin-bottom: 3.5em; display: block; }
         .prose .poem-title { font-size: 1.5rem; font-style: normal; color: ${accentColor}; margin-bottom: 1.2em; display: block; font-family: Cochin, Georgia, serif; font-weight: 700; }
         .prose .poem-stanza { font-family: Cochin, Georgia, serif; margin-bottom: 1.8em; display: block; white-space: pre-line; line-height: 1.75; color: #1a1a1a; font-size: 1.15rem; }
@@ -841,13 +841,13 @@ useEffect(() => {
         .back-to-top.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
         .cs-section { background: #0a0a0a; max-width: 680px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
         .cs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
-        .cs-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; letter-spacing: 0.02em; }
+        .cs-title { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; letter-spacing: 0.02em; }
         .cs-count { font-size: 0.68rem; color: rgba(255,255,255,0.92); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .cs-compose { margin-bottom: 2rem; }
         .cs-compose-row { display: flex; gap: 12px; align-items: flex-start; }
         .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; overflow: hidden; text-decoration: none; }
         .cs-input-wrap { flex: 1; position: relative; }
-        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
+        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
         .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; border-radius: 10px; }
         .cs-textarea::placeholder { color: #ffffff; font-style: italic; }
         .cs-textarea:focus { border-color: rgba(107,47,173,0.4); }
@@ -858,7 +858,7 @@ useEffect(() => {
         .cs-signin-prompt p { font-size: 0.82rem; color: rgba(255,255,255,0.95); margin-bottom: 0.75rem; font-family: 'Inter', sans-serif; }
         .cs-signin-btn { background: none; border: 1px solid rgba(107,47,173,0.4); border-radius: 8px; padding: 0.55rem 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9b6dff; cursor: pointer; font-family: 'Inter', sans-serif; }
         .cs-loading { font-size: 0.8rem; color: #ffffff; font-family: 'Inter', sans-serif; padding: 1rem 0; }
-        .cs-empty { font-size: 0.88rem; color: #ffffff; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; padding: 1rem 0; }
+        .cs-empty { font-size: 0.88rem; color: #ffffff; font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-style: italic; padding: 1rem 0; }
         .cs-comments-list { display: flex; flex-direction: column; }
         .cs-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 0.25rem 0 1.75rem; }
         .cs-comment { display: flex; gap: 12px; margin-bottom: 0.25rem; }
@@ -868,7 +868,7 @@ useEffect(() => {
         .cs-name-link { text-decoration: none; transition: color 0.2s; }
         .cs-name-link:hover { color: #a78bfa; }
         .cs-time { font-size: 0.65rem; color: rgba(255,255,255,0.4); font-family: 'Inter', sans-serif; }
-        .cs-comment-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: #ffffff; line-height: 1.75; }
+        .cs-comment-text { font-family: Cochin, Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: #ffffff; line-height: 1.75; }
         .cs-comment-text-sm { font-size: 0.92rem; }
         .cs-comment-footer { margin-top: 0.5rem; }
         .cs-reply-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.4); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; }
