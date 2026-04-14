@@ -108,9 +108,13 @@ if (!url) {
     window.parent.postMessage({ type: 'ready' }, '*')
     doc.addEventListener('keydown', handleKey)
     if (bookmarkFraction > 0.01) {
-      setTimeout(() => {
-        try { view.goToFraction(bookmarkFraction) } catch(e) {}
-      }, 500)
+      let restored = false
+      const restoreBookmark = () => {
+        if (restored) return
+        restored = true
+        try { view.goToFraction(bookmarkFraction) } catch(e) { console.warn('bookmark restore failed', e) }
+      }
+      setTimeout(restoreBookmark, 1200)
     }
   })
 
