@@ -1284,7 +1284,7 @@ export default function SquarePage() {
                           </div>
                         ) : (
                           <>
-                            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: 'rgba(232,224,212,0.82)', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
+                            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
                             {p.attachedStory && <StoryEmbed story={p.attachedStory} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
                           </>
