@@ -390,7 +390,7 @@ export default function StoryReaderClient({ params }) {
             const db = await getDB();
             const { ref, get } = await import('firebase/database');
             const snap = await get(ref(db, 'bookmarks/' + user.uid + '/' + slug));
-            if (snap.exists()) { const bm = snap.val(); const fraction = typeof bm === 'object' ? bm.fraction : bm; const cfi = typeof bm === 'object' ? bm.cfi : ''; bookmarkCFI.current = cfi; setBookmark(fraction); setShowBookmarkToast(true); setTimeout(() => setToastFading(true), 3500); setTimeout(() => setShowBookmarkToast(false), 4000); }
+            if (snap.exists()) { const bm = snap.val(); const fraction = typeof bm === 'object' ? bm.fraction : bm; const cfi = typeof bm === 'object' ? bm.cfi : ''; bookmarkCFI.current = cfi; setBookmark(fraction); setDebugMsg('Loaded bm type:' + typeof bm + ' fraction:' + fraction + ' cfi:' + (cfi ? cfi.slice(0,20) : 'NONE')); setShowBookmarkToast(true); setTimeout(() => setToastFading(true), 3500); setTimeout(() => setShowBookmarkToast(false), 4000); }
           } catch (e) {}
           setBookmarkLoaded(true);
         });
