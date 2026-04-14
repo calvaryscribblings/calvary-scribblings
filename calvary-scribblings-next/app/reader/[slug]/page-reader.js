@@ -565,6 +565,10 @@ export default function StoryReaderClient({ params }) {
           <a href="/" className="rlogo">Calvary Scribblings</a>
           <span className="rtitle">{story.title}</span>
           <div className="rtop-right">
+            <button className="rbtn" onClick={() => iframeRef.current?.contentWindow?.postMessage({ type: 'saveBookmark' }, '*')} title="Bookmark" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill={bookmarkSaved ? '#c9a44c' : 'none'} stroke="rgba(201,164,76,0.7)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+              {bookmarkSaved ? 'Saved' : 'Mark'}
+            </button>
 <button className="rbtn" onClick={cycleFont}>Aa {FONT_SIZES[fontIndex]}px</button>
             <a href={'/stories/' + slug} className="rclose">← View</a>
           </div>
