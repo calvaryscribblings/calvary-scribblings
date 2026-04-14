@@ -451,7 +451,7 @@ export default function StoryReaderClient({ params }) {
             if (!user) return; unsub();
             const db = await getDB();
             const { ref, set } = await import('firebase/database');
-            await set(ref(db, 'bookmarks/' + user.uid + '/' + slug), fr);
+            await set(ref(db, 'bookmarks/' + user.uid + '/' + slug), { fraction: fr, cfi: bookmarkCFI.current || '' });
           });
         } catch (e) {}
       }
