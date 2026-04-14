@@ -84,7 +84,9 @@ if (!url) {
   view.addEventListener('relocate', ({ detail }) => {
     const { fraction } = detail
     const cfi = detail.cfi || (view.lastLocation && view.lastLocation.cfi) || ''
-    if (cfi) window._lastCFI = cfi
+    window._lastCFI = cfi
+    window._lastFraction = fraction
+    window.parent.postMessage({ type: 'debugDetail', keys: Object.keys(detail).join(','), cfi: cfi ? cfi.slice(0,40) : 'NONE', fraction }, '*')
     if (lastFraction > 0 && fraction > lastFraction) {
       const diff = fraction - lastFraction
       if (diff < 0.5) stepSize = diff

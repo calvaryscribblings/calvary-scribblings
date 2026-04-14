@@ -423,6 +423,7 @@ export default function StoryReaderClient({ params }) {
 
   useEffect(() => {
     const handler = async e => {
+      if (e.data.type === 'debugDetail') { setDebugMsg('keys:' + e.data.keys + ' cfi:' + e.data.cfi); }
       if (e.data.type === 'ended') setShowEnd(true);
       if (e.data.type === 'relocate') {
         const fr = e.data.fraction;
