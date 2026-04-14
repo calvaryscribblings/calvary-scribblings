@@ -99,11 +99,19 @@ if (!url) {
     window.parent.postMessage({ type: 'relocate', fraction, step: stepSize }, '*')
   })
 
+  const params = new URLSearchParams(location.search)
+  const bookmarkFraction = parseFloat(params.get('bookmark') || '0')
+
   view.addEventListener('load', ({ detail: { doc } }) => {
     document.getElementById('loading').classList.add('hidden')
     window._foliateReady = true
     window.parent.postMessage({ type: 'ready' }, '*')
     doc.addEventListener('keydown', handleKey)
+    if (bookmarkFraction > 0.01) {
+      setTimeout(() => {
+        try { view.goToFraction(bookmarkFraction) } catch(e) {}
+      }, 500)
+    }
   })
 
   document.getElementById('btn-prev').addEventListener('click', () => view.goLeft())

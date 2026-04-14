@@ -352,6 +352,8 @@ export default function StoryReaderClient({ params }) {
   const [hitCount, setHitCount] = useState(null);
   const [fontIndex, setFontIndex] = useState(1);
   const [pageInfo, setPageInfo] = useState('');
+  const [bookmark, setBookmark] = useState(null);
+  const [bookmarkSaveTimer, setBookmarkSaveTimer] = useState(null);
   const [progress, setProgress] = useState(0);
   const iframeRef = useRef(null);
   const pendingFont = useRef(1);
@@ -364,6 +366,23 @@ export default function StoryReaderClient({ params }) {
         const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, 'cms_stories/' + slug));
         if (snap.exists()) setStory({ id: slug, ...snap.val() });
+      } catch (e) {}
+    })();
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+    (async () => {
+      try {
+        const auth = await getFirebaseAuth();
+        const { onAuthStateChanged } = await import('firebase/auth');
+        const unsub = onAuthStateChanged(auth, async (user) => {
+          if (!user) return; unsub();
+          const db = await getDB();
+          const { ref, get } = await import('firebase/database');
+          const snap = await get(ref(db, 'bookmarks/' + user.uid + '/' + slug));
+          if (snap.exists()) setBookmark(snap.val());
+        });
       } catch (e) {}
     })();
   }, [slug]);
@@ -396,6 +415,22 @@ export default function StoryReaderClient({ params }) {
       if (e.data.type === 'ended') setShowEnd(true);
       if (e.data.type === 'relocate') {
         const fr = e.data.fraction;
+        if (fr > 0.01) {
+          if (bookmarkSaveTimer) clearTimeout(bookmarkSaveTimer);
+          const timer = setTimeout(async () => {
+            try {
+              const auth = await getFirebaseAuth();
+              const { onAuthStateChanged } = await import('firebase/auth');
+              const unsub = onAuthStateChanged(auth, async (user) => {
+                if (!user) return; unsub();
+                const db = await getDB();
+                const { ref, set } = await import('firebase/database');
+                await set(ref(db, 'bookmarks/' + user.uid + '/' + slug), fr);
+              });
+            } catch (e) {}
+          }, 2000);
+          setBookmarkSaveTimer(timer);
+        }
         setProgress(fr * 100);
         if (fr > 0 && e.data.step > 0) {
           const total = Math.max(1, Math.round(1 / e.data.step));
@@ -428,7 +463,7 @@ export default function StoryReaderClient({ params }) {
   );
 
   const iframeSrc = story.epubUrl
-    ? '/vendor/foliate-js-main/calvary-reader.html?url=' + encodeURIComponent(story.epubUrl) + '&fs=' + FONT_SIZES[fontIndex]
+    ? '/vendor/foliate-js-main/calvary-reader.html?url=' + encodeURIComponent(story.epubUrl) + '&fs=' + FONT_SIZES[fontIndex] + (bookmark ? '&bookmark=' + bookmark : '')
     : null;
 
   return (
