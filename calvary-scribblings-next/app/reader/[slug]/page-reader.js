@@ -338,17 +338,17 @@ function CommentsSection({ slug, onSignIn }) {
                     <div className="cs-comment-footer">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         {[
-                          { type: 'heart', emoji: '♥', activeColor: '#d4537e' },
-                          { type: 'clap', emoji: '👍', activeColor: '#d4941a' },
-                          { type: 'fire', emoji: '🔥', activeColor: '#ef4444' },
-                        ].map(({ type, emoji, activeColor }) => {
+                          { type: 'heart', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
+                          { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
+                          { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
+                        ].map(({ type, activeColor, d }) => {
                           const active = commentReactions[comment.id]?.[type];
                           const count = comment[type + 'Count'] || 0;
                           return (
                             <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
-                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: active ? activeColor : '#ffffff', transition: 'color 0.2s', fontFamily: 'Inter, sans-serif' }}>
-                              <span style={{ fontSize: '11px', filter: active ? 'none' : 'grayscale(1)', opacity: active ? 1 : 0.5 }}>{emoji}</span>
-                              {count > 0 && <span style={{ fontSize: '0.6rem' }}>{count}</span>}
+                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
+                              {count > 0 && <span style={{ fontSize: '0.6rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
                             </button>
                           );
                         })}
