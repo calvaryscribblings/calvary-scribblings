@@ -590,7 +590,17 @@ export default function StoryReaderClient({ params }) {
         </div>
 
         {showCover && (
-          <div className="bcover" onClick={() => setShowCover(false)}>
+          <div className="bcover" onClick={() => {
+            const snapFraction = bookmark;
+            const snapCFI = bookmarkCFI.current || '';
+            setShowCover(false);
+            if (snapFraction) {
+              setTimeout(() => {
+                setDebugMsg('Sending restore fr:' + (snapFraction||0).toFixed(3) + ' cfi:' + (snapCFI ? snapCFI.slice(0,20) : 'NONE'));
+                iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: snapFraction, cfi: snapCFI }, '*');
+              }, 2000);
+            }
+          }}>
             <div className="bcorn">✦ ✦ ✦</div>
             <img src={story.cover} alt={story.title} className="bcimg" />
             <div className="bctitle">{story.title}</div>
