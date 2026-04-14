@@ -112,6 +112,7 @@ if (!url) {
 
   window.addEventListener('message', e => {
     if (e.data.type === 'saveBookmark') {
+      console.log('saveBookmark received, lastFraction:', lastFraction)
       window.parent.postMessage({ type: 'bookmarkSaved', fraction: lastFraction }, '*')
     }
     if (e.data.type === 'restoreBookmark' && e.data.fraction > 0.01) {

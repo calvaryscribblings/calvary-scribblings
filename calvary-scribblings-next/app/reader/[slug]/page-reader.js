@@ -436,6 +436,7 @@ export default function StoryReaderClient({ params }) {
         }
       }
       if (e.data.type === 'bookmarkSaved') {
+        console.log('bookmarkSaved received, fraction:', e.data.fraction, 'currentFraction:', currentFraction.current);
         const fr = currentFraction.current || e.data.fraction;
         setBookmarkSaved(true);
         setTimeout(() => setBookmarkSaved(false), 2000);
@@ -452,8 +453,10 @@ export default function StoryReaderClient({ params }) {
       }
       if (e.data.type === 'ready') {
         iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
+        console.log('ready event, bookmark:', bookmark);
         if (bookmark) {
           setTimeout(() => {
+            console.log('sending restoreBookmark', bookmark);
             iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: bookmark }, '*');
           }, 1500);
         }
