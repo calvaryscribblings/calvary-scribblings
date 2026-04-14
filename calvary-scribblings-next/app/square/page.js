@@ -948,7 +948,7 @@ export default function SquarePage() {
       const postData = {
         text: text.trim(), authorUid: user.uid, authorName: user.displayName || 'Reader',
         authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
-        authorAvatarUrl: userData?.avatarUrl || null, authorReadCount: userData?.readCount || 0,
+        authorAvatarUrl: userData?.avatarUrl || null, authorHandle: userData?.username || '', authorReadCount: userData?.readCount || 0,
         isAuthor: userData?.isAuthor || false, attachedStory: attachedStory || null,
         parentId: null, likeCount: 0, pinned: false,
         unpinnedAt: null,
@@ -972,7 +972,7 @@ export default function SquarePage() {
       const replyData = {
         text: replyText.trim(), authorUid: user.uid, authorName: user.displayName || 'Reader',
         authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
-        authorAvatarUrl: userData?.avatarUrl || null, authorReadCount: userData?.readCount || 0,
+        authorAvatarUrl: userData?.avatarUrl || null, authorHandle: userData?.username || '', authorReadCount: userData?.readCount || 0,
         isAuthor: userData?.isAuthor || false, parentId: parentPost.id, likeCount: 0,
         pinned: false, unpinnedAt: null, createdAt: Date.now(),
       };
@@ -1090,7 +1090,7 @@ export default function SquarePage() {
         @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes sq-lockglow { 0%,100%{background:rgba(107,47,173,0.08)} 50%{background:rgba(107,47,173,0.18)} }
         @keyframes sq-lockpulse { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.04)} }
-        .sq-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.95rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; line-height: 1.65; box-sizing: border-box; }
+        .sq-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.95rem; color: #ffffff; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; line-height: 1.65; box-sizing: border-box; }
         .sq-textarea:focus { border-color: rgba(107,47,173,0.4); }
         .sq-textarea::placeholder { color: rgba(255,255,255,0.45); font-style: italic; }
         .sq-post-btn { background: #6b2fad; border: none; border-radius: 8px; padding: 7px 18px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
