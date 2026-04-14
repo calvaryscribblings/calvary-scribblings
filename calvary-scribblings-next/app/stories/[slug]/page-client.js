@@ -557,7 +557,7 @@ function CommentsSection({ slug, onSignIn }) {
                           const count = comment[type + 'Count'] || 0;
                           return (
                             <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
-                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: active ? activeColor : 'rgba(255,255,255,0.52)', transition: 'color 0.2s', fontFamily: 'Inter, sans-serif' }}>
+                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: active ? activeColor : 'rgba(255,255,255,0.75)', transition: 'color 0.2s', fontFamily: 'Inter, sans-serif' }}>
                               <span style={{ fontSize: '11px', filter: active ? 'none' : 'grayscale(1)', opacity: active ? 1 : 0.5 }}>{emoji}</span>
                               {count > 0 && <span style={{ fontSize: '0.6rem' }}>{count}</span>}
                             </button>
@@ -756,7 +756,7 @@ useEffect(() => {
         .story-nav.hidden { transform: translateY(-100%); }
         .nav-logo { font-family: Cochin, Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f0ead8; text-decoration: none; letter-spacing: 0.02em; }
         .nav-logo span { color: ${accentColor}; }
-        .nav-meta { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(232,224,212,0.7); }
+        .nav-meta { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(245,240,232,0.88); }
         .story-hero { position: relative; height: 88vh; min-height: 520px; display: flex; align-items: flex-end; overflow: hidden; background: #0a0a0a; }
         .hero-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; animation: heroZoom 12s ease-out forwards; filter: brightness(0.55); }
         @keyframes heroZoom { from { transform: scale(1.06); } to { transform: scale(1.0); } }
@@ -768,7 +768,7 @@ useEffect(() => {
         @keyframes heroUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
         .story-badge-hero { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; padding: 0.3em 0.9em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; margin-bottom: 1.1rem; font-family: Cochin, Georgia, serif; }
         .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 300; line-height: 1.1; color: #f0ead8; margin-bottom: 1.1rem; font-family: 'Cormorant Garamond', Cochin, Georgia, serif; }
-        .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: rgba(232,224,212,0.88); flex-wrap: wrap; }
+        .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: rgba(245,240,232,0.95); flex-wrap: wrap; }
         .byline-dot { width: 3px; height: 3px; border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
         .byline-by { font-style: italic; font-family: 'Cormorant Garamond', Georgia, serif; margin-right: -0.8rem; }
         .story-body-wrap { background: #f0ead8; }
@@ -825,23 +825,23 @@ useEffect(() => {
         .cs-section { background: #0a0a0a; max-width: 680px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
         .cs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
         .cs-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.3rem; font-weight: 300; color: #f5f0e8; letter-spacing: 0.02em; }
-        .cs-count { font-size: 0.68rem; color: rgba(255,255,255,0.55); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .cs-count { font-size: 0.68rem; color: rgba(255,255,255,0.78); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .cs-compose { margin-bottom: 2rem; }
         .cs-compose-row { display: flex; gap: 12px; align-items: flex-start; }
         .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; overflow: hidden; text-decoration: none; }
         .cs-input-wrap { flex: 1; position: relative; }
         .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: 'Cormorant Garamond', Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
         .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; border-radius: 10px; }
-        .cs-textarea::placeholder { color: rgba(255,255,255,0.45); font-style: italic; }
+        .cs-textarea::placeholder { color: rgba(255,255,255,0.72); font-style: italic; }
         .cs-textarea:focus { border-color: rgba(107,47,173,0.4); }
         .cs-kite-btn { position: absolute; bottom: 8px; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; opacity: 0.2; transition: opacity 0.2s; }
         .cs-kite-btn.active { opacity: 1; }
         .cs-kite-btn:disabled { cursor: not-allowed; }
         .cs-signin-prompt { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 1.5rem; text-align: center; margin-bottom: 2rem; }
-        .cs-signin-prompt p { font-size: 0.82rem; color: rgba(255,255,255,0.6); margin-bottom: 0.75rem; font-family: 'Inter', sans-serif; }
+        .cs-signin-prompt p { font-size: 0.82rem; color: rgba(255,255,255,0.82); margin-bottom: 0.75rem; font-family: 'Inter', sans-serif; }
         .cs-signin-btn { background: none; border: 1px solid rgba(107,47,173,0.4); border-radius: 8px; padding: 0.55rem 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9b6dff; cursor: pointer; font-family: 'Inter', sans-serif; }
-        .cs-loading { font-size: 0.8rem; color: rgba(255,255,255,0.5); font-family: 'Inter', sans-serif; padding: 1rem 0; }
-        .cs-empty { font-size: 0.88rem; color: rgba(255,255,255,0.5); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; padding: 1rem 0; }
+        .cs-loading { font-size: 0.8rem; color: rgba(255,255,255,0.75); font-family: 'Inter', sans-serif; padding: 1rem 0; }
+        .cs-empty { font-size: 0.88rem; color: rgba(255,255,255,0.75); font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; padding: 1rem 0; }
         .cs-comments-list { display: flex; flex-direction: column; }
         .cs-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 0.25rem 0 1.75rem; }
         .cs-comment { display: flex; gap: 12px; margin-bottom: 0.25rem; }
@@ -850,11 +850,11 @@ useEffect(() => {
         .cs-name { font-size: 0.8rem; font-weight: 500; color: #e8e0d4; font-family: 'Inter', sans-serif; }
         .cs-name-link { text-decoration: none; transition: color 0.2s; }
         .cs-name-link:hover { color: #a78bfa; }
-        .cs-time { font-size: 0.65rem; color: rgba(255,255,255,0.52); font-family: 'Inter', sans-serif; }
-        .cs-comment-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: rgba(232,224,212,0.88); line-height: 1.75; }
+        .cs-time { font-size: 0.65rem; color: rgba(255,255,255,0.75); font-family: 'Inter', sans-serif; }
+        .cs-comment-text { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1rem; color: rgba(245,240,232,0.95); line-height: 1.75; }
         .cs-comment-text-sm { font-size: 0.92rem; }
         .cs-comment-footer { margin-top: 0.5rem; }
-        .cs-reply-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.52); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; }
+        .cs-reply-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.75); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; }
         .cs-reply-btn:hover { color: #9b6dff; }
         .cs-reply-compose { margin-top: 0.75rem; }
         .cs-replies { margin-top: 1rem; padding-left: 1rem; border-left: 1px solid rgba(107,47,173,0.2); display: flex; flex-direction: column; gap: 1rem; }

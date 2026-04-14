@@ -346,7 +346,7 @@ function CommentsSection({ slug, onSignIn }) {
                           const count = comment[type + 'Count'] || 0;
                           return (
                             <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
-                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: active ? activeColor : 'rgba(255,255,255,0.52)', transition: 'color 0.2s', fontFamily: 'Inter, sans-serif' }}>
+                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: active ? activeColor : 'rgba(255,255,255,0.75)', transition: 'color 0.2s', fontFamily: 'Inter, sans-serif' }}>
                               <span style={{ fontSize: '11px', filter: active ? 'none' : 'grayscale(1)', opacity: active ? 1 : 0.5 }}>{emoji}</span>
                               {count > 0 && <span style={{ fontSize: '0.6rem' }}>{count}</span>}
                             </button>
@@ -614,7 +614,7 @@ export default function StoryReaderClient({ params }) {
         .cs-name-link{text-decoration:none;transition:color .2s}
         .cs-name-link:hover{color:#a78bfa}
         .cs-time{font-size:.65rem;color:rgba(255,255,255,.22);font-family:'Inter',sans-serif}
-        .cs-comment-text{font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;color:rgba(232,224,212,0.9);line-height:1.75}
+        .cs-comment-text{font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;color:#f5f0e8;line-height:1.75}
         .cs-comment-text-sm{font-size:.92rem}
         .cs-comment-footer{margin-top:.5rem}
         .cs-reply-btn{background:none;border:none;font-size:.65rem;color:rgba(155,109,255,.5);cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:.08em;padding:0;transition:color .2s}
