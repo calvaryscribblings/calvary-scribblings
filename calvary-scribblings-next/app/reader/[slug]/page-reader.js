@@ -636,7 +636,7 @@ export default function StoryReaderClient({ params }) {
         )}
         {showBookmarkToast && (
           <div className={'bookmark-toast ' + (toastFading ? 'out' : 'in')}>
-            Continue where you left off on the Island
+            Continue where you left off on the Island 🏝️
           </div>
         )}
       </div>
