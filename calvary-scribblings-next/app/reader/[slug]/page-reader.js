@@ -354,6 +354,8 @@ export default function StoryReaderClient({ params }) {
   const [pageInfo, setPageInfo] = useState('');
   const [bookmark, setBookmark] = useState(null);
   const [bookmarkLoaded, setBookmarkLoaded] = useState(false);
+  const [showBookmarkToast, setShowBookmarkToast] = useState(false);
+  const [toastFading, setToastFading] = useState(false);
   const [bookmarkSaveTimer, setBookmarkSaveTimer] = useState(null);
   const [progress, setProgress] = useState(0);
   const iframeRef = useRef(null);
@@ -382,7 +384,7 @@ export default function StoryReaderClient({ params }) {
           const db = await getDB();
           const { ref, get } = await import('firebase/database');
           const snap = await get(ref(db, 'bookmarks/' + user.uid + '/' + slug));
-          if (snap.exists()) setBookmark(snap.val());
+          if (snap.exists()) { setBookmark(snap.val()); setShowBookmarkToast(true); setTimeout(() => setToastFading(true), 3500); setTimeout(() => setShowBookmarkToast(false), 4000); }
           setBookmarkLoaded(true);
         });
       } catch (e) {}
@@ -546,6 +548,11 @@ export default function StoryReaderClient({ params }) {
         .cs-replies{margin-top:1rem;padding-left:1rem;border-left:1px solid rgba(107,47,173,.2);display:flex;flex-direction:column;gap:.75rem}
         .cs-reply{display:flex;gap:10px}
         @media(max-width:600px){.rtitle{display:none}.rbtn{font-size:.44rem;padding:3px 7px}.cs-section{padding:2rem 1rem 5rem}}
+        @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+        @keyframes toastOut{from{opacity:1;transform:translateX(-50%) translateY(0)}to{opacity:0;transform:translateX(-50%) translateY(-8px)}}
+        .bookmark-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:'Cormorant Garamond',serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:300;pointer-events:none;}
+        .bookmark-toast.in{animation:toastIn .4s ease forwards}
+        .bookmark-toast.out{animation:toastOut .4s ease forwards}
       `}</style>
 
       <div style={{ width: '100vw', height: '100vh', background: '#1a0f0a', overflow: 'hidden' }}>
@@ -625,6 +632,11 @@ export default function StoryReaderClient({ params }) {
               <a href="/auth" style={{ display: 'block', padding: '.75rem', background: '#6b2fad', color: '#fff', fontFamily: 'Cinzel,serif', fontSize: '.6rem', letterSpacing: '.18em', textTransform: 'uppercase', textDecoration: 'none', borderRadius: 8, marginBottom: '.75rem' }}>Sign In</a>
               <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.3)', fontFamily: 'Cinzel,serif', fontSize: '.55rem', letterSpacing: '.15em', cursor: 'pointer' }}>Cancel</button>
             </div>
+          </div>
+        )}
+        {showBookmarkToast && (
+          <div className={'bookmark-toast ' + (toastFading ? 'out' : 'in')}>
+            Continue where you left off on the Island
           </div>
         )}
       </div>
