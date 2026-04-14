@@ -460,8 +460,10 @@ export default function StoryReaderClient({ params }) {
         if (bookmark) {
           setTimeout(() => {
             setDebugMsg('Restoring to: ' + bookmark);
-            setDebugMsg('Restoring CFI: ' + (bookmarkCFI.current ? bookmarkCFI.current.slice(0,30) : 'NONE'));
-            iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: bookmark, cfi: bookmarkCFI.current || '' }, '*');
+            const restoreCFI = bookmarkCFI.current || '';
+            const restoreFraction = bookmark;
+            setDebugMsg('Sending restore CFI:' + (restoreCFI ? restoreCFI.slice(0,25) : 'NONE') + ' fr:' + (restoreFraction||0).toFixed(3));
+            iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: restoreFraction, cfi: restoreCFI }, '*');
           }, 1500);
         }
       }
