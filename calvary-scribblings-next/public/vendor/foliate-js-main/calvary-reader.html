@@ -121,25 +121,10 @@ if (!url) {
     if (e.data.type === 'restoreBookmark') {
       const cfi = e.data.cfi
       const fraction = e.data.fraction
-      if (cfi) {
-        let attempts = 0
-        const tryRestore = () => {
-          attempts++
-          try { view.goTo(cfi) } catch(err) {
-            if (attempts < 5) setTimeout(tryRestore, 600)
-          }
-        }
-        setTimeout(tryRestore, 400)
-      } else if (fraction > 0.01) {
-        let attempts = 0
-        const tryRestore = () => {
-          attempts++
-          try { view.goToFraction(fraction) } catch(err) {
-            if (attempts < 5) setTimeout(tryRestore, 600)
-          }
-        }
-        setTimeout(tryRestore, 400)
-      }
+      try {
+        if (cfi) view.goTo(cfi)
+        else if (fraction > 0.01) view.goToFraction(fraction)
+      } catch(err) {}
     }
     if (e.data.type === 'setFontSize') {
       const sizes = [14,16,18,20,22]

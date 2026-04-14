@@ -359,7 +359,6 @@ export default function StoryReaderClient({ params }) {
   const [showBookmarkToast, setShowBookmarkToast] = useState(false);
   const [toastFading, setToastFading] = useState(false);
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
-  const [debugMsg, setDebugMsg] = useState('');
   const [progress, setProgress] = useState(0);
   const iframeRef = useRef(null);
   const pendingFont = useRef(1);
@@ -390,7 +389,7 @@ export default function StoryReaderClient({ params }) {
             const db = await getDB();
             const { ref, get } = await import('firebase/database');
             const snap = await get(ref(db, 'bookmarks/' + user.uid + '/' + slug));
-            if (snap.exists()) { const bm = snap.val(); const fraction = typeof bm === 'object' ? bm.fraction : bm; const cfi = typeof bm === 'object' ? bm.cfi : ''; bookmarkCFI.current = cfi; setBookmark(fraction); setDebugMsg('Loaded bm type:' + typeof bm + ' fraction:' + fraction + ' cfi:' + (cfi ? cfi.slice(0,20) : 'NONE')); setShowBookmarkToast(true); setTimeout(() => setToastFading(true), 3500); setTimeout(() => setShowBookmarkToast(false), 4000); }
+            if (snap.exists()) { const bm = snap.val(); const fraction = typeof bm === 'object' ? bm.fraction : bm; const cfi = typeof bm === 'object' ? bm.cfi : ''; bookmarkCFI.current = cfi; setBookmark(fraction); setShowBookmarkToast(true); setTimeout(() => setToastFading(true), 3500); setTimeout(() => setShowBookmarkToast(false), 4000); }
           } catch (e) {}
           setBookmarkLoaded(true);
         });
@@ -441,7 +440,6 @@ export default function StoryReaderClient({ params }) {
       }
       if (e.data.type === 'bookmarkSaved') {
         const fr = currentFraction.current || e.data.fraction;
-        setDebugMsg('Saved CFI: ' + (bookmarkCFI.current ? bookmarkCFI.current.slice(0,30) : 'NONE') + ' fr:' + (currentFraction.current||0).toFixed(3));
         setBookmarkSaved(true);
         setTimeout(() => setBookmarkSaved(false), 2000);
         try {
@@ -596,9 +594,8 @@ export default function StoryReaderClient({ params }) {
             setShowCover(false);
             if (snapFraction) {
               setTimeout(() => {
-                setDebugMsg('Sending restore fr:' + (snapFraction||0).toFixed(3) + ' cfi:' + (snapCFI ? snapCFI.slice(0,20) : 'NONE'));
                 iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: snapFraction, cfi: snapCFI }, '*');
-              }, 2000);
+              }, 800);
             }
           }}>
             <div className="bcorn">✦ ✦ ✦</div>
@@ -668,7 +665,6 @@ export default function StoryReaderClient({ params }) {
             </div>
           </div>
         )}
-        {debugMsg ? <div style={{ position: 'fixed', top: '52px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.85)', color: '#c9a44c', fontFamily: 'monospace', fontSize: '10px', padding: '4px 10px', borderRadius: '4px', zIndex: 400, whiteSpace: 'nowrap', maxWidth: '90vw', overflow: 'hidden' }}>{debugMsg}</div> : null}
         {showBookmarkToast && (
           <div className={'bookmark-toast ' + (toastFading ? 'out' : 'in')}>
             Continue where you left off on the Island 🏝️
