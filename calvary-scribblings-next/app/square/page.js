@@ -1262,9 +1262,12 @@ export default function SquarePage() {
                       <Avatar uid={p.authorUid} initials={p.authorInitials} size={34} isAuthor={p.isAuthor} avatarUrl={p.authorAvatarUrl} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
-                          <a href={isOwn ? '/profile' : `/user?id=${p.authorUid}`} style={{ fontSize: '0.82rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Inter, sans-serif', textDecoration: 'none' }}
-                            onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
-                            onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{p.authorName}</a>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <a href={isOwn ? '/profile' : `/user?id=${p.authorUid}`} style={{ fontSize: '0.82rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif', textDecoration: 'none' }}
+                              onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
+                              onMouseLeave={e => e.currentTarget.style.color = '#ffffff'}>{p.authorName}</a>
+                            {p.authorHandle && <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif' }}>@{p.authorHandle}</span>}
+                          </div>
                           <UserBadge uid={p.authorUid} readCount={p.authorReadCount} isAuthor={p.isAuthor} />
                           <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}{p.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
                           {user && <PostMenu post={p} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} isMod={isMod} />}
@@ -1308,7 +1311,7 @@ export default function SquarePage() {
                                   <Avatar uid={r.authorUid} initials={r.authorInitials} size={26} isAuthor={r.isAuthor} avatarUrl={r.authorAvatarUrl} />
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3, flexWrap: 'wrap' }}>
-                                      <a href={rIsOwn ? '/profile' : `/user?id=${r.authorUid}`} style={{ fontSize: '0.75rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Inter, sans-serif', textDecoration: 'none' }}
+                                      <a href={rIsOwn ? '/profile' : `/user?id=${r.authorUid}`} style={{ fontSize: '0.75rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif', textDecoration: 'none' }}
                                         onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
                                         onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{r.authorName}</a>
                                       <UserBadge uid={r.authorUid} readCount={r.authorReadCount} isAuthor={r.isAuthor} />
