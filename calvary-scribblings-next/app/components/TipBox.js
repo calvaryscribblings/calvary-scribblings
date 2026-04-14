@@ -2,12 +2,12 @@
 import { useState } from 'react';
 
 const TIPS = [
-  { label: '£1', url: 'https://buy.stripe.com/test_28E00beF78gV7As3Up4Rq01' },
-  { label: '£2', url: 'https://buy.stripe.com/test_aFa4gr40t54J6wo9eJ4Rq02' },
-  { label: '£5', url: 'https://buy.stripe.com/test_5kQ7sDaoR40F9IAgHb4Rq03' },
-  { label: '£10', url: 'https://buy.stripe.com/test_fZudR17cF40Fg6Y3Up4Rq04' },
-  { label: '£20', url: 'https://buy.stripe.com/test_8x26oz0Oh2WBdYQ76B4Rq06' },
-  { label: '£50', url: 'https://buy.stripe.com/test_8x26oz0Oh2WBdYQ76B4Rq06' },
+  { label: '£1', url: 'https://buy.stripe.com/fZu4gr1P8gBIdsS4RfenS00' },
+  { label: '£2', url: 'https://buy.stripe.com/3cI28j3Xg85c60qfvTenS01' },
+  { label: '£5', url: 'https://buy.stripe.com/fZu6oz8dwbhogF4erPenS02' },
+  { label: '£10', url: 'https://buy.stripe.com/bJe3cn79s3OW74u4RfenS05' },
+  { label: '£20', url: 'https://buy.stripe.com/fZu28j1P81GO2OednLenS04' },
+  { label: '£50', url: 'https://buy.stripe.com/5kQ7sD65o3OW60qdnLenS06' },
 ];
 
 export default function TipBox({ variant = 'story' }) {
