@@ -157,6 +157,7 @@ function CommentsSection({ slug, onSignIn }) {
   const [replyText, setReplyText] = useState('');
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [commentReactions, setCommentReactions] = useState({});
 
   useEffect(() => {
     let unsubAuth;
@@ -180,12 +181,18 @@ function CommentsSection({ slug, onSignIn }) {
 
   useEffect(() => {
     if (!slug) return;
-    let unsubDB;
+    let unsubDB, unsubReactions;
     (async () => {
       setLoading(true);
       try {
         const db = await getDB();
         const { ref, onValue } = await import('firebase/database');
+        if (user) {
+          unsubReactions = onValue(ref(db, `comment_reactions/${slug}/${user.uid}`), (snap) => {
+            if (snap.exists()) setCommentReactions(snap.val());
+            else setCommentReactions({});
+          });
+        }
         unsubDB = onValue(ref(db, `comments/${slug}`), (snap) => {
           if (snap.exists()) {
             const list = Object.entries(snap.val()).map(([id, c]) => ({ id, ...c })).sort((a, b) => b.createdAt - a.createdAt);
@@ -195,8 +202,38 @@ function CommentsSection({ slug, onSignIn }) {
         });
       } catch (e) { setLoading(false); }
     })();
-    return () => { if (unsubDB) unsubDB(); };
+    return () => { if (unsubDB) unsubDB(); if (unsubReactions) unsubReactions(); };
   }, [slug]);
+
+  const toggleCommentReaction = async (commentId, type, commentAuthorUid) => {
+    if (!user) return;
+    try {
+      const db = await getDB();
+      const { ref, set, remove, runTransaction, push } = await import('firebase/database');
+      const reactionRef = ref(db, `comment_reactions/${slug}/${user.uid}/${commentId}/${type}`);
+      const countRef = ref(db, `comments/${slug}/${commentId}/${type}Count`);
+      const hasReacted = commentReactions[commentId]?.[type];
+      if (hasReacted) {
+        await remove(reactionRef);
+        await runTransaction(countRef, c => Math.max(0, (c || 0) - 1));
+      } else {
+        await set(reactionRef, true);
+        await runTransaction(countRef, c => (c || 0) + 1);
+        if (commentAuthorUid && commentAuthorUid !== user.uid) {
+          await push(ref(db, `notifications/${commentAuthorUid}`), {
+            type, fromUid: user.uid, fromName: user.displayName || 'Reader',
+            slug, read: false, createdAt: Date.now(),
+          });
+        }
+      }
+      setCommentReactions(prev => {
+        const updated = { ...prev };
+        if (!updated[commentId]) updated[commentId] = {};
+        updated[commentId] = { ...updated[commentId], [type]: !hasReacted };
+        return updated;
+      });
+    } catch (e) {}
+  };
 
   const postComment = async (commentText, parentId = null) => {
     if (!commentText.trim() || !user) return;
@@ -299,7 +336,24 @@ function CommentsSection({ slug, onSignIn }) {
                     </div>
                     <div className="cs-comment-text">{comment.text}</div>
                     <div className="cs-comment-footer">
-                      {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {[
+                          { type: 'heart', emoji: '♥', activeColor: '#d4537e' },
+                          { type: 'clap', emoji: '👍', activeColor: '#d4941a' },
+                          { type: 'fire', emoji: '🔥', activeColor: '#ef4444' },
+                        ].map(({ type, emoji, activeColor }) => {
+                          const active = commentReactions[comment.id]?.[type];
+                          const count = comment[type + 'Count'] || 0;
+                          return (
+                            <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
+                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: active ? activeColor : 'rgba(255,255,255,0.52)', transition: 'color 0.2s', fontFamily: 'Inter, sans-serif' }}>
+                              <span style={{ fontSize: '11px', filter: active ? 'none' : 'grayscale(1)', opacity: active ? 1 : 0.5 }}>{emoji}</span>
+                              {count > 0 && <span style={{ fontSize: '0.6rem' }}>{count}</span>}
+                            </button>
+                          );
+                        })}
+                        {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
+                      </div>
                     </div>
                     {replyTo === comment.id && (
                       <div className="cs-reply-compose">
