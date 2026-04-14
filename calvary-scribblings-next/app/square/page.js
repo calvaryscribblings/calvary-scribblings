@@ -255,7 +255,7 @@ function PollDisplay({ poll, postId, user }) {
   return (
     <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
       {poll.question && (
-        <div style={{ fontSize: '0.85rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600, marginBottom: 4 }}>{poll.question}</div>
+        <div style={{ fontSize: '0.85rem', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600, marginBottom: 4 }}>{poll.question}</div>
       )}
       {poll.options.map((opt, i) => {
         const optVotes = Object.values(votes).filter(v => v === String(i)).length;
@@ -439,7 +439,7 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '0.78rem', color: 'rgba(155,109,255,0.6)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>{s.categoryName}</div>
-                <div style={{ fontSize: '0.88rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{s.title}</div>
+                <div style={{ fontSize: '0.88rem', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{s.title}</div>
                 <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.95)', marginTop: 2 }}>by {s.author}</div>
               </div>
             </div>
@@ -461,7 +461,7 @@ function StoryEmbed({ story }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: '0.62rem', color: 'rgba(155,109,255,0.6)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{story.categoryName}</div>
-        <div style={{ fontSize: '0.82rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{story.title}</div>
+        <div style={{ fontSize: '0.82rem', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{story.title}</div>
         <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.95)', marginTop: 1 }}>by {story.author}</div>
       </div>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -590,7 +590,7 @@ function DMPanel({ user, onClose }) {
                 {activeConv.otherUser.avatarUrl ? <img src={activeConv.otherUser.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (activeConv.otherUser.displayName || 'R')[0]}
               </div>
               <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Inter, sans-serif' }}>{activeConv.otherUser.displayName || 'Reader'}</div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{activeConv.otherUser.displayName || 'Reader'}</div>
                 {activeConv.otherUser.username && <div style={{ fontSize: '0.68rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{activeConv.otherUser.username}</div>}
               </div>
             </div>
@@ -618,7 +618,7 @@ function DMPanel({ user, onClose }) {
                       {u.avatarUrl ? <img src={u.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (u.displayName || 'R')[0]}
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Inter, sans-serif' }}>{u.displayName || 'Reader'}</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{u.displayName || 'Reader'}</div>
                       {u.username && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{u.username}</div>}
                     </div>
                   </div>
@@ -642,7 +642,7 @@ function DMPanel({ user, onClose }) {
                   {conv.otherUser.avatarUrl ? <img src={conv.otherUser.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (conv.otherUser.displayName || 'R')[0]}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Inter, sans-serif', marginBottom: 2 }}>{conv.otherUser.displayName || 'Reader'}</div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif', marginBottom: 2 }}>{conv.otherUser.displayName || 'Reader'}</div>
                   <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.92)', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMsg?.text || 'Image'}</div>
                 </div>
                 {conv.unread > 0 && (

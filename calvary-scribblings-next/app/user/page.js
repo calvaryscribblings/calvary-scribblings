@@ -101,7 +101,7 @@ function UserListModal({ title, uids, onClose }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#141414', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '2rem 1.5rem 2.5rem', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.75rem' }}>
-          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.4rem', fontWeight: 300, color: '#f5f0e8' }}>{title}</div>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.4rem', fontWeight: 300, color: '#ffffff' }}>{title}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.4rem', cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
         </div>
         {loadingUsers ? (
@@ -121,7 +121,7 @@ function UserListModal({ title, uids, onClose }) {
                     {data.avatarUrl ? <img src={data.avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '0.88rem', color: '#f5f0e8', fontFamily: 'Inter, sans-serif', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.displayName || 'Reader'}</div>
+                    <div style={{ fontSize: '0.88rem', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.displayName || 'Reader'}</div>
                     {data.username && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.55)', fontFamily: 'Inter, sans-serif' }}>@{data.username}</div>}
                   </div>
                   {data.isAuthor ? <WriterBadge size={12} /> : badge && <BadgeIcon color={badge.color} size={13} isFounder={badge.isFounder} />}
@@ -163,7 +163,7 @@ function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#141414', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '2rem 1.5rem 2.5rem', maxHeight: '85vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.3rem', fontWeight: 300, color: '#f5f0e8' }}>Comments by {displayName}</div>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.3rem', fontWeight: 300, color: '#ffffff' }}>Comments by {displayName}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.4rem', cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
         </div>
         {loading ? (
@@ -181,7 +181,7 @@ function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
                   {story.title}
                 </div>
               )}
-              <div style={{ fontSize: '0.9rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.65, marginBottom: 4 }}>{c.text}</div>
+              <div style={{ fontSize: '0.9rem', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.65, marginBottom: 4 }}>{c.text}</div>
               <div style={{ fontSize: '0.65rem', color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{timeAgo(c.createdAt)}</div>
             </a>
           );
@@ -213,7 +213,7 @@ function SquarePostsModal({ uid, displayName, onClose }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#141414', border: '1px solid rgba(255,255,255,0.09)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '2rem 1.5rem 2.5rem', maxHeight: '85vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.3rem', fontWeight: 300, color: '#f5f0e8' }}>Posts by {displayName}</div>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.3rem', fontWeight: 300, color: '#ffffff' }}>Posts by {displayName}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.4rem', cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
         </div>
         {loading ? (
@@ -222,7 +222,7 @@ function SquarePostsModal({ uid, displayName, onClose }) {
           <div style={{ color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No Square posts yet.</div>
         ) : squarePosts.map(p => (
           <div key={p.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <div style={{ fontSize: '0.92rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, marginBottom: 4 }}>{p.text}</div>
+            <div style={{ fontSize: '0.92rem', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, marginBottom: 4 }}>{p.text}</div>
             <div style={{ fontSize: '0.65rem', color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}</div>
           </div>
         ))}

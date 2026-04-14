@@ -140,7 +140,7 @@ function UserListModal({ title, uids, onClose }) {
                     {data.avatarUrl ? <img src={data.avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '0.88rem', color: '#f5f0e8', fontFamily: 'Inter, sans-serif', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.displayName || 'Reader'}</div>
+                    <div style={{ fontSize: '0.88rem', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.displayName || 'Reader'}</div>
                     {data.username && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.55)', fontFamily: 'Inter, sans-serif' }}>@{data.username}</div>}
                   </div>
                   {data.isAuthor ? <WriterBadge size={13} /> : badge && <BadgeIcon color={badge.color} size={14} isFounder={badge.isFounder} />}
@@ -198,7 +198,7 @@ function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
                   {story.title}
                 </div>
               )}
-              <div style={{ fontSize: '0.9rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.65, marginBottom: 4 }}>{c.text}</div>
+              <div style={{ fontSize: '0.9rem', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.65, marginBottom: 4 }}>{c.text}</div>
               <div style={{ fontSize: '0.65rem', color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{timeAgo(c.createdAt)}</div>
             </a>
           );
@@ -237,7 +237,7 @@ function SquarePostsModal({ uid, onClose }) {
           <div style={{ color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No Square posts yet.</div>
         ) : squarePosts.map(p => (
           <div key={p.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <div style={{ fontSize: '0.92rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, marginBottom: 4 }}>{p.text}</div>
+            <div style={{ fontSize: '0.92rem', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, marginBottom: 4 }}>{p.text}</div>
             <div style={{ fontSize: '0.65rem', color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}</div>
           </div>
         ))}
@@ -723,7 +723,7 @@ export default function ProfilePage() {
           </div>
           <button className="pf-square-btn" onClick={() => setShowSquarePosts(true)}>
             <div>
-              <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#f5f0e8' }}>Posts on The Square</div>
+              <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff' }}>Posts on The Square</div>
               <div style={{ fontSize: '0.68rem', color: 'rgba(155,109,255,0.5)', fontFamily: 'Inter, sans-serif', marginTop: 2 }}>View your contributions to the Square</div>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
