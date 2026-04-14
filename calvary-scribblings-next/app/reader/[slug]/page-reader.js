@@ -212,7 +212,17 @@ function CommentsSection({ slug, onSignIn }) {
         parentId: parentId || null,
         createdAt: Date.now(),
       });
-      if (parentId) { setReplyText(''); setReplyTo(null); } else setText('');
+      if (parentId) {
+        const parentComment = comments.find(c => c.id === parentId);
+        if (parentComment && parentComment.authorUid !== user.uid) {
+          await push(ref(db, `notifications/${parentComment.authorUid}`), {
+            type: 'reply', fromUid: user.uid,
+            fromName: user.displayName || 'Reader',
+            slug, read: false, createdAt: Date.now(),
+          });
+        }
+        setReplyText(''); setReplyTo(null);
+      } else setText('');
       try {
         const commentsSnap = await get(ref(db, 'comments'));
         let userCommentCount = 0;

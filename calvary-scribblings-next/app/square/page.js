@@ -724,7 +724,11 @@ function NotificationsPanel({ user, onClose }) {
 
   const notifLabel = (n) => {
     if (n.type === 'mention') return ' mentioned you in the Square';
-    if (n.type === 'reply') return ' replied to your post';
+    if (n.type === 'reply') return ' replied to your comment';
+    if (n.type === 'follow') return ' started following you';
+    if (n.type === 'heart') return ' loved your post';
+    if (n.type === 'clap') return ' applauded your post';
+    if (n.type === 'fire') return ' fired up your post';
     if (n.type === 'follow') return ' started following you';
     if (n.type === 'square_post') return ' posted in the Square';
     if (n.type === 'like') return ' liked your post';
