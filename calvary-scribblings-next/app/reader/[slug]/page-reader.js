@@ -560,7 +560,7 @@ export default function StoryReaderClient({ params }) {
         .cs-name-link{text-decoration:none;transition:color .2s}
         .cs-name-link:hover{color:#a78bfa}
         .cs-time{font-size:.65rem;color:rgba(255,255,255,.22);font-family:'Inter',sans-serif}
-        .cs-comment-text{font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;color:rgba(232,224,212,.75);line-height:1.75}
+        .cs-comment-text{font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;color:rgba(232,224,212,0.9);line-height:1.75}
         .cs-comment-text-sm{font-size:.92rem}
         .cs-comment-footer{margin-top:.5rem}
         .cs-reply-btn{background:none;border:none;font-size:.65rem;color:rgba(155,109,255,.5);cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:.08em;padding:0;transition:color .2s}
