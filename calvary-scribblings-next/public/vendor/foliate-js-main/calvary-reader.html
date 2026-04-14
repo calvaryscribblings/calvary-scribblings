@@ -86,7 +86,6 @@ if (!url) {
     const cfi = detail.cfi || (view.lastLocation && view.lastLocation.cfi) || ''
     window._lastCFI = cfi
     window._lastFraction = fraction
-    window.parent.postMessage({ type: 'debugDetail', keys: Object.keys(detail).join(','), cfi: cfi ? cfi.slice(0,40) : 'NONE', fraction }, '*')
     if (lastFraction > 0 && fraction > lastFraction) {
       const diff = fraction - lastFraction
       if (diff < 0.5) stepSize = diff
@@ -100,7 +99,7 @@ if (!url) {
       }
     }
     lastFraction = fraction
-    window.parent.postMessage({ type: 'relocate', fraction, step: stepSize }, '*')
+    window.parent.postMessage({ type: 'relocate', fraction, step: stepSize, cfi: cfi }, '*')
   })
 
   const params = new URLSearchParams(location.search)
