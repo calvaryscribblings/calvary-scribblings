@@ -359,6 +359,7 @@ export default function StoryReaderClient({ params }) {
   const [showBookmarkToast, setShowBookmarkToast] = useState(false);
   const [toastFading, setToastFading] = useState(false);
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
+  const [bookmarkConfirm, setBookmarkConfirm] = useState(false);
   const [progress, setProgress] = useState(0);
   const iframeRef = useRef(null);
   const pendingFont = useRef(1);
@@ -441,7 +442,9 @@ export default function StoryReaderClient({ params }) {
       if (e.data.type === 'bookmarkSaved') {
         const fr = currentFraction.current || e.data.fraction;
         setBookmarkSaved(true);
+        setBookmarkConfirm(true);
         setTimeout(() => setBookmarkSaved(false), 2000);
+        setTimeout(() => setBookmarkConfirm(false), 4000);
         try {
           const auth = await getFirebaseAuth();
           const { onAuthStateChanged } = await import('firebase/auth');
@@ -566,6 +569,8 @@ export default function StoryReaderClient({ params }) {
         .cs-replies{margin-top:1rem;padding-left:1rem;border-left:1px solid rgba(107,47,173,.2);display:flex;flex-direction:column;gap:.75rem}
         .cs-reply{display:flex;gap:10px}
         @media(max-width:600px){.rtitle{display:none}.rbtn{font-size:.44rem;padding:3px 7px}.cs-section{padding:2rem 1rem 5rem}}
+        @keyframes confirmDrop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        .bookmark-confirm{position:absolute;top:44px;right:0;background:#1a0f0a;border:1px solid rgba(201,164,76,0.3);border-radius:8px;padding:8px 14px;font-family:'Cormorant Garamond',serif;font-size:.78rem;font-style:italic;color:rgba(240,234,216,0.7);white-space:nowrap;z-index:300;animation:confirmDrop .3s ease forwards;pointer-events:none;}
         @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
         @keyframes toastOut{from{opacity:1;transform:translateX(-50%) translateY(0)}to{opacity:0;transform:translateX(-50%) translateY(-8px)}}
         .bookmark-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:'Cormorant Garamond',serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:300;pointer-events:none;}
@@ -578,10 +583,13 @@ export default function StoryReaderClient({ params }) {
           <a href="/" className="rlogo">Calvary Scribblings</a>
           <span className="rtitle">{story.title}</span>
           <div className="rtop-right">
-            <button className="rbtn" onClick={() => iframeRef.current?.contentWindow?.postMessage({ type: 'saveBookmark' }, '*')} title="Bookmark" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill={bookmarkSaved ? '#c9a44c' : 'none'} stroke="rgba(201,164,76,0.7)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-              {bookmarkSaved ? 'Saved' : 'Mark'}
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button className="rbtn" onClick={() => iframeRef.current?.contentWindow?.postMessage({ type: 'saveBookmark' }, '*')} title="Bookmark" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill={bookmarkSaved ? '#c9a44c' : 'none'} stroke="rgba(201,164,76,0.7)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                {bookmarkSaved ? 'Saved' : 'Mark'}
+              </button>
+              {bookmarkConfirm && <div className="bookmark-confirm">Page marked. Jump back in when you return!</div>}
+            </div>
 <button className="rbtn" onClick={cycleFont}>Aa {FONT_SIZES[fontIndex]}px</button>
             <a href={'/stories/' + slug} className="rclose">← View</a>
           </div>
@@ -595,7 +603,7 @@ export default function StoryReaderClient({ params }) {
             if (snapFraction) {
               setTimeout(() => {
                 iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: snapFraction, cfi: snapCFI }, '*');
-              }, 800);
+              }, 1500);
             }
           }}>
             <div className="bcorn">✦ ✦ ✦</div>
