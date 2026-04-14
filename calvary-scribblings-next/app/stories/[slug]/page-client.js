@@ -868,7 +868,7 @@ useEffect(() => {
           </main>
         </div>
         <ExerciseSection slug={slug} />
-        <div style={{ background: '#f0ead8', padding: '2rem 2rem 3rem', maxWidth: '680px', margin: '0 auto' }}><TipBox variant="story" /></div>
+        <div style={{ background: '#f0ead8', padding: '2rem 0 3rem' }}><div style={{ maxWidth: '680px', margin: '0 auto', padding: '0 2rem' }}><TipBox variant="story" /></div></div>
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
         {showAuthModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>
