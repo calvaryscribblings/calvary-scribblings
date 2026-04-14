@@ -270,13 +270,13 @@ function PollDisplay({ poll, postId, user }) {
               <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: isVoted ? 'rgba(107,47,173,0.2)' : 'rgba(255,255,255,0.04)', transition: 'width 0.5s ease', borderRadius: 8 }} />
             )}
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.82rem', color: isVoted ? '#c4b5fd' : 'rgba(245,240,232,0.92)', fontFamily: 'Inter, sans-serif' }}>{opt}</span>
+              <span style={{ fontSize: '0.82rem', color: isVoted ? '#c4b5fd' : '#f5f0e8', fontFamily: 'Inter, sans-serif' }}>{opt}</span>
               {showResults && <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>{pct}%</span>}
             </div>
           </div>
         );
       })}
-      <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ fontSize: '0.65rem', color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>
         {totalVotes} vote{totalVotes !== 1 ? 's' : ''}{closed ? ' · Closed' : poll.closesAt ? ` · Closes ${timeAgo(poll.closesAt)}` : ''}
       </div>
     </div>
@@ -304,13 +304,13 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, isMod }) {
 
   return (
     <div ref={menuRef} style={{ position: 'relative', marginLeft: 'auto' }}>
-      <button onClick={() => setOpen(!open)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', cursor: 'pointer', padding: '2px 4px', fontSize: 14, lineHeight: 1, transition: 'color 0.2s' }}
-        onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.75)'}
-        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.75)'}>···</button>
+      <button onClick={() => setOpen(!open)} style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', padding: '2px 4px', fontSize: 14, lineHeight: 1, transition: 'color 0.2s' }}
+        onMouseEnter={e => e.currentTarget.style.color = '#ffffff'}
+        onMouseLeave={e => e.currentTarget.style.color = '#ffffff'}>···</button>
       {open && (
         <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 10, minWidth: 160, zIndex: 200, overflow: 'hidden' }}>
           {isOwn && canEdit && (
-            <button onClick={() => { onEdit(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(245,240,232,0.92)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+            <button onClick={() => { onEdit(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -318,7 +318,7 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, isMod }) {
             </button>
           )}
           {isMod && (
-            <button onClick={() => { onPin(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: isPinned ? '#fcd34d' : 'rgba(245,240,232,0.92)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+            <button onClick={() => { onPin(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: isPinned ? '#fcd34d' : '#f5f0e8', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <PinIcon size={12} />
@@ -333,7 +333,7 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, isMod }) {
               Delete post
             </button>
           )}
-          <button onClick={copyLink} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(245,240,232,0.92)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+          <button onClick={copyLink} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -376,7 +376,7 @@ function PollCreatorModal({ onCreate, onClose }) {
       <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '1.5rem', maxHeight: '80vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
           <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Create Poll</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.82)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
         <input placeholder="Question (optional)…" value={question} onChange={e => setQuestion(e.target.value)}
           style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.7rem 1rem', color: '#f5f0e8', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' }} />
@@ -386,16 +386,16 @@ function PollCreatorModal({ onCreate, onClose }) {
               <input value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`Option ${i + 1}`}
                 style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0.6rem 0.9rem', color: '#f5f0e8', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
               {options.length > 2 && (
-                <button onClick={() => removeOption(i)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px' }}>×</button>
+                <button onClick={() => removeOption(i)} style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px' }}>×</button>
               )}
             </div>
           ))}
           {options.length < 6 && (
-            <button onClick={addOption} style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.5rem', color: 'rgba(255,255,255,0.82)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>+ Add option</button>
+            <button onClick={addOption} style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.5rem', color: 'rgba(255,255,255,0.95)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>+ Add option</button>
           )}
         </div>
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.82)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', display: 'block', marginBottom: 6 }}>Poll duration</label>
+          <label style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', display: 'block', marginBottom: 6 }}>Poll duration</label>
           <select value={duration} onChange={e => setDuration(Number(e.target.value))}
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0.6rem 0.9rem', color: '#f5f0e8', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif', outline: 'none', width: '100%' }}>
             <option value={30}>30 minutes</option>
@@ -405,7 +405,7 @@ function PollCreatorModal({ onCreate, onClose }) {
           </select>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.6rem 1.2rem', color: 'rgba(255,255,255,0.82)', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+          <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.6rem 1.2rem', color: 'rgba(255,255,255,0.95)', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
           <button onClick={create} style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.6rem 1.5rem', color: '#fff', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Create Poll</button>
         </div>
       </div>
@@ -425,7 +425,7 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
       <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '1.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
           <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Attach a story</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.82)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
         <input placeholder="Search stories…" value={query} onChange={e => setQuery(e.target.value)}
           style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.7rem 1rem', color: '#f5f0e8', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' }} />
@@ -440,7 +440,7 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '0.78rem', color: 'rgba(155,109,255,0.6)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>{s.categoryName}</div>
                 <div style={{ fontSize: '0.88rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{s.title}</div>
-                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.82)', marginTop: 2 }}>by {s.author}</div>
+                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.95)', marginTop: 2 }}>by {s.author}</div>
               </div>
             </div>
           ))}
@@ -462,9 +462,9 @@ function StoryEmbed({ story }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: '0.62rem', color: 'rgba(155,109,255,0.6)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{story.categoryName}</div>
         <div style={{ fontSize: '0.82rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{story.title}</div>
-        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.82)', marginTop: 1 }}>by {story.author}</div>
+        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.95)', marginTop: 1 }}>by {story.author}</div>
       </div>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
     </a>
   );
 }
@@ -585,7 +585,7 @@ function DMPanel({ user, onClose }) {
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           {activeConv ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={() => setActiveConv(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.82)', fontSize: '0.7rem', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', padding: 0 }}>←</button>
+              <button onClick={() => setActiveConv(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '0.7rem', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', padding: 0 }}>←</button>
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#9b6dff', overflow: 'hidden' }}>
                 {activeConv.otherUser.avatarUrl ? <img src={activeConv.otherUser.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (activeConv.otherUser.displayName || 'R')[0]}
               </div>
@@ -601,7 +601,7 @@ function DMPanel({ user, onClose }) {
             {!activeConv && (
               <button onClick={() => setShowNewMsg(!showNewMsg)} style={{ background: 'rgba(107,47,173,0.12)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 7, padding: '5px 10px', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(155,109,255,0.8)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>+ New</button>
             )}
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.82)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
           </div>
         </div>
         {showNewMsg && !activeConv && (
@@ -630,9 +630,9 @@ function DMPanel({ user, onClose }) {
         {!activeConv ? (
           <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
             {loadingConvs ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
             ) : conversations.length === 0 ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.75)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No messages yet. Tap + New to start a conversation.</div>
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No messages yet. Tap + New to start a conversation.</div>
             ) : conversations.map(conv => (
               <div key={conv.convId} onClick={() => setActiveConv(conv)}
                 style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
@@ -643,7 +643,7 @@ function DMPanel({ user, onClose }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Inter, sans-serif', marginBottom: 2 }}>{conv.otherUser.displayName || 'Reader'}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMsg?.text || 'Image'}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.92)', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMsg?.text || 'Image'}</div>
                 </div>
                 {conv.unread > 0 && (
                   <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#6b2fad', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 500, flexShrink: 0 }}>{conv.unread}</div>
@@ -689,7 +689,7 @@ function DMPanel({ user, onClose }) {
             {dmImageFile && (
               <div style={{ padding: '0 20px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <img src={URL.createObjectURL(dmImageFile)} alt="preview" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />
-                <button onClick={() => setDmImageFile(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.82)', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Inter, sans-serif' }}>Remove</button>
+                <button onClick={() => setDmImageFile(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Inter, sans-serif' }}>Remove</button>
               </div>
             )}
           </>
@@ -744,13 +744,13 @@ function NotificationsPanel({ user, onClose }) {
       <div style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: '75vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Notifications</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.82)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {loading ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
           ) : notifs.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.75)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet.</div>
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet.</div>
           ) : notifs.map(n => (
             <div key={n.id} style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start', background: n.read ? 'transparent' : 'rgba(107,47,173,0.05)' }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: n.read ? 'transparent' : '#9b6dff', marginTop: 5, flexShrink: 0 }} />
@@ -758,7 +758,7 @@ function NotificationsPanel({ user, onClose }) {
                 <div style={{ fontSize: '0.82rem', color: '#f5f0e8', fontFamily: 'Inter, sans-serif', lineHeight: 1.5 }}>
                   <span style={{ color: '#a78bfa', fontWeight: 500 }}>{n.fromName}</span>{notifLabel(n)}
                 </div>
-                <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.75)', marginTop: 3, fontFamily: 'Inter, sans-serif' }}>{timeAgo(n.createdAt)}</div>
+                <div style={{ fontSize: '0.68rem', color: '#ffffff', marginTop: 3, fontFamily: 'Inter, sans-serif' }}>{timeAgo(n.createdAt)}</div>
               </div>
             </div>
           ))}
@@ -1065,7 +1065,7 @@ export default function SquarePage() {
           const active = postReactions[type] || false;
           return (
             <button key={type} onClick={() => toggleReaction(p.id, type)}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, color: active ? activeColor : 'rgba(255,255,255,0.75)', fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', transition: 'color 0.2s', letterSpacing: '0.08em' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, color: active ? activeColor : '#ffffff', fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', transition: 'color 0.2s', letterSpacing: '0.08em' }}>
               <Icon filled={active} size={size} />
               {count > 0 && count}
             </button>
@@ -1096,7 +1096,7 @@ export default function SquarePage() {
         .sq-post-btn { background: #6b2fad; border: none; border-radius: 8px; padding: 7px 18px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
         .sq-post-btn:hover { background: #7c3aed; }
         .sq-post-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .sq-action-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.75); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; display: flex; align-items: center; gap: 4px; }
+        .sq-action-btn { background: none; border: none; font-size: 0.62rem; color: #ffffff; cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; display: flex; align-items: center; gap: 4px; }
         .sq-action-btn:hover { color: #9b6dff; }
         .sq-pinned-bar { background: rgba(252,211,77,0.06); border-left: 2px solid rgba(252,211,77,0.4); padding: 3px 8px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; border-radius: 0 4px 4px 0; }
         .sq-pinned-label { font-size: 0.58rem; color: rgba(252,211,77,0.6); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
@@ -1115,11 +1115,11 @@ export default function SquarePage() {
                 <>
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#1d9e75', display: 'inline-block', animation: 'sq-pulse 2s infinite' }} />
                   <span style={{ fontSize: 10, color: '#1d9e75', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Open</span>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.75)' }}>·</span>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.82)' }}>{presenceCount} in the room</span>
+                  <span style={{ fontSize: 10, color: '#ffffff' }}>·</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.95)' }}>{presenceCount} in the room</span>
                 </>
               ) : (
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Closed · Opens at 8pm London time</span>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.92)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Closed · Opens at 8pm London time</span>
               )}
             </div>
           </div>
@@ -1142,7 +1142,7 @@ export default function SquarePage() {
           {!user && (
             <button onClick={() => setShowAuth(true)} style={{ background: '#6b2fad', border: 'none', borderRadius: 7, padding: '6px 14px', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Sign in</button>
           )}
-          <a href="/" style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.75)', letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none', fontFamily: 'Inter, sans-serif' }}>← Home</a>
+          <a href="/" style={{ fontSize: '0.62rem', color: '#ffffff', letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none', fontFamily: 'Inter, sans-serif' }}>← Home</a>
         </div>
       </div>
 
@@ -1158,25 +1158,25 @@ export default function SquarePage() {
               </div>
             </div>
             <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '2rem', fontWeight: 300, color: '#f5f0e8', marginBottom: 10 }}>The Square is closed.</div>
-            <div style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.82)', lineHeight: 1.7, maxWidth: 300, fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', marginBottom: 28 }}>
+            <div style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.95)', lineHeight: 1.7, maxWidth: 300, fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', marginBottom: 28 }}>
               The Scribblings Square opens every evening at 8pm London time. Come back then — the conversation continues.
             </div>
             <div style={{ display: 'flex', gap: 16, marginBottom: 28 }}>
               {['Hours', 'Minutes', 'Seconds'].map((label, i) => (
                 <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                   <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '2.5rem', fontWeight: 300, color: '#9b6dff', lineHeight: 1 }}>{countdown.split(':')[i] || '00'}</div>
-                  <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.75)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>{label}</div>
+                  <div style={{ fontSize: '0.6rem', color: '#ffffff', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>{label}</div>
                 </div>
               ))}
             </div>
-            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.75)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
+            <div style={{ fontSize: '0.72rem', color: '#ffffff', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
               Opens at <span style={{ color: 'rgba(155,109,255,0.6)' }}>8:00pm London time</span> tonight
             </div>
           </div>
           <div style={{ margin: '1.5rem 0' }}><TipBox variant="square" /></div>
           {posts.length > 0 && (
             <div style={{ opacity: 0.35 }}>
-              <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.75)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginBottom: 12 }}>Last night in the Square</div>
+              <div style={{ fontSize: '0.62rem', color: '#ffffff', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginBottom: 12 }}>Last night in the Square</div>
               {topLevel.slice(0, 5).map(p => (
                 <div key={p.id} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#9b6dff', flexShrink: 0, overflow: 'hidden' }}>
@@ -1209,7 +1209,7 @@ export default function SquarePage() {
                   {attachedStory && (
                     <div style={{ marginTop: 8 }}>
                       <StoryEmbed story={attachedStory} />
-                      <button onClick={() => setAttachedStory(null)} style={{ marginTop: 4, background: 'none', border: 'none', color: 'rgba(255,255,255,0.78)', fontSize: '0.68rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Remove story</button>
+                      <button onClick={() => setAttachedStory(null)} style={{ marginTop: 4, background: 'none', border: 'none', color: 'rgba(255,255,255,0.92)', fontSize: '0.68rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Remove story</button>
                     </div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
@@ -1240,7 +1240,7 @@ export default function SquarePage() {
 
           {/* Feed */}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
+            <div style={{ textAlign: 'center', padding: '2rem', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
           ) : topLevel.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', fontStyle: 'italic' }}>No posts yet. Be the first to say something.</div>
           ) : (
@@ -1275,7 +1275,7 @@ export default function SquarePage() {
                             <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={3} autoFocus style={{ marginBottom: 6 }} />
                             {mentionQueryEdit !== '' && <MentionDropdown query={mentionQueryEdit} onSelect={insertMentionEdit} />}
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                              <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 12px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.82)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                              <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 12px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
                               <button className="sq-post-btn" onClick={() => saveEdit(p.id)} disabled={!editText.trim()}>Save</button>
                             </div>
                           </div>
@@ -1320,12 +1320,12 @@ export default function SquarePage() {
                                         <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem', marginBottom: 6 }} />
                                         {mentionQueryEdit !== '' && <MentionDropdown query={mentionQueryEdit} onSelect={insertMentionEdit} />}
                                         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                          <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.82)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                                          <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
                                           <button className="sq-post-btn" onClick={() => saveEdit(r.id)} disabled={!editText.trim()}>Save</button>
                                         </div>
                                       </div>
                                     ) : (
-                                      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: 'rgba(245,240,232,0.95)', lineHeight: 1.65 }}>{renderText(r.text)}</div>
+                                      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.65 }}>{renderText(r.text)}</div>
                                     )}
                                     <ReactionBar p={r} size={11} />
                                   </div>

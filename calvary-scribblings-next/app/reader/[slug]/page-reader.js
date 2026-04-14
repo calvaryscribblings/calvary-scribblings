@@ -346,7 +346,7 @@ function CommentsSection({ slug, onSignIn }) {
                           const count = comment[type + 'Count'] || 0;
                           return (
                             <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
-                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: active ? activeColor : 'rgba(255,255,255,0.75)', transition: 'color 0.2s', fontFamily: 'Inter, sans-serif' }}>
+                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: active ? activeColor : '#ffffff', transition: 'color 0.2s', fontFamily: 'Inter, sans-serif' }}>
                               <span style={{ fontSize: '11px', filter: active ? 'none' : 'grayscale(1)', opacity: active ? 1 : 0.5 }}>{emoji}</span>
                               {count > 0 && <span style={{ fontSize: '0.6rem' }}>{count}</span>}
                             </button>
