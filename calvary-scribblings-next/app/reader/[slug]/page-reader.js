@@ -375,19 +375,23 @@ export default function StoryReaderClient({ params }) {
 
   useEffect(() => {
     if (!slug) return;
+    const bookmarkTimeout = setTimeout(() => setBookmarkLoaded(true), 3000);
     (async () => {
       try {
         const auth = await getFirebaseAuth();
         const { onAuthStateChanged } = await import('firebase/auth');
         const unsub = onAuthStateChanged(auth, async (user) => {
+          clearTimeout(bookmarkTimeout);
           if (!user) { setBookmarkLoaded(true); return; } unsub();
-          const db = await getDB();
-          const { ref, get } = await import('firebase/database');
-          const snap = await get(ref(db, 'bookmarks/' + user.uid + '/' + slug));
-          if (snap.exists()) { setBookmark(snap.val()); setShowBookmarkToast(true); setTimeout(() => setToastFading(true), 3500); setTimeout(() => setShowBookmarkToast(false), 4000); }
+          try {
+            const db = await getDB();
+            const { ref, get } = await import('firebase/database');
+            const snap = await get(ref(db, 'bookmarks/' + user.uid + '/' + slug));
+            if (snap.exists()) { setBookmark(snap.val()); setShowBookmarkToast(true); setTimeout(() => setToastFading(true), 3500); setTimeout(() => setShowBookmarkToast(false), 4000); }
+          } catch (e) {}
           setBookmarkLoaded(true);
         });
-      } catch (e) {}
+      } catch (e) { setBookmarkLoaded(true); }
     })();
   }, [slug]);
 
