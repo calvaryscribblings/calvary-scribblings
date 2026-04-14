@@ -353,6 +353,7 @@ export default function StoryReaderClient({ params }) {
   const [fontIndex, setFontIndex] = useState(1);
   const [pageInfo, setPageInfo] = useState('');
   const [bookmark, setBookmark] = useState(null);
+  const [bookmarkLoaded, setBookmarkLoaded] = useState(false);
   const [bookmarkSaveTimer, setBookmarkSaveTimer] = useState(null);
   const [progress, setProgress] = useState(0);
   const iframeRef = useRef(null);
@@ -377,11 +378,12 @@ export default function StoryReaderClient({ params }) {
         const auth = await getFirebaseAuth();
         const { onAuthStateChanged } = await import('firebase/auth');
         const unsub = onAuthStateChanged(auth, async (user) => {
-          if (!user) return; unsub();
+          if (!user) { setBookmarkLoaded(true); return; } unsub();
           const db = await getDB();
           const { ref, get } = await import('firebase/database');
           const snap = await get(ref(db, 'bookmarks/' + user.uid + '/' + slug));
           if (snap.exists()) setBookmark(snap.val());
+          setBookmarkLoaded(true);
         });
       } catch (e) {}
     })();
@@ -602,7 +604,7 @@ export default function StoryReaderClient({ params }) {
             Discuss
           </button>
         )}
-        {!showCover && !showEnd && (iframeSrc
+        {!showCover && !showEnd && bookmarkLoaded && (iframeSrc
           ? <iframe ref={iframeRef} className="reader-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" />
           : <div className="no-epub">No EPUB file available for this book.</div>
         )}
