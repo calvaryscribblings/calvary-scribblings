@@ -157,11 +157,6 @@ function UserListModal({ title, uids, onClose }) {
 function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [headerImg, setHeaderImg] = useState(null);
-  const [libNotifs, setLibNotifs] = useState([]);
-  const [showLibNotifs, setShowLibNotifs] = useState(false);
-  const [unreadLibCount, setUnreadLibCount] = useState(0);
-  const [libNotifsRead, setLibNotifsRead] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -562,12 +557,8 @@ export default function ProfilePage() {
         .pf-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.4); }
 
         .pf-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
-        .lib-notif-panel { position: fixed; top: 0; right: 0; width: min(360px,100vw); height: 100vh; background: #0d0d0d; border-left: 1px solid rgba(255,255,255,0.08); z-index: 2000; display: flex; flex-direction: column; }
-        .lib-notif-item { padding: 0.9rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px; }
-        .lib-notif-item.unread { background: rgba(107,47,173,0.06); }
-        .lib-notif-panel { position: fixed; top: 0; right: 0; width: min(380px, 100vw); height: 100vh; background: #0d0d0d; border-left: 1px solid rgba(255,255,255,0.08); z-index: 2000; display: flex; flex-direction: column; animation: slideInRight 0.3s ease; }
-        @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
-        .lib-notif-item { padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px; align-items: flex-start; }
+        .lib-notif-panel { position: fixed; top: 0; right: 0; width: min(380px,100vw); height: 100vh; background: #0d0d0d; border-left: 1px solid rgba(255,255,255,0.08); z-index: 2000; display: flex; flex-direction: column; }
+        .lib-notif-item { padding: 0.9rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px; align-items: flex-start; }
         .lib-notif-item.unread { background: rgba(107,47,173,0.06); }
         @media (min-width: 600px) { .pf-modal-backdrop { align-items: center; } }
         .pf-modal { background: #141414; border: 1px solid rgba(255,255,255,0.09); border-radius: 20px 20px 0 0; width: 100%; max-width: 520px; padding: 2rem 1.5rem 2.5rem; max-height: 90vh; overflow-y: auto; }
@@ -610,8 +601,6 @@ export default function ProfilePage() {
       <div className="pf-nav">
         <div className="pf-nav-logo">Calvary <span>Scribblings</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <button onClick={() => { setShowLibNotifs(true); markLibNotifsRead(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -620,7 +609,6 @@ export default function ProfilePage() {
             {unreadLibCount > 0 && <span style={{ position: 'absolute', top: -4, right: -4, background: '#6b2fad', color: '#fff', fontSize: '0.5rem', fontWeight: 700, borderRadius: '999px', minWidth: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', fontFamily: 'Inter,sans-serif' }}>{unreadLibCount}</span>}
           </button>
           <a href="/" className="pf-nav-back">← Back to stories</a>
-        </div>
         </div>
       </div>
 
@@ -883,40 +871,6 @@ export default function ProfilePage() {
           </div>
         </>
       )}
-      {showLibNotifs && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setShowLibNotifs(false)} />
-          <div className="lib-notif-panel">
-            <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff' }}>Notifications</span>
-              <button onClick={() => setShowLibNotifs(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {libNotifs.length === 0
-                ? <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No notifications yet.</div>
-                : libNotifs.map(n => (
-                  <div key={n.id} className={`lib-notif-item${n.read ? '' : ' unread'}`}>
-                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(107,47,173,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#a78bfa', flexShrink: 0 }}>{(n.fromName||'R')[0].toUpperCase()}</div>
-                    <div>
-                      <div style={{ fontSize: '0.82rem', color: '#ffffff', fontFamily: 'Inter, sans-serif', lineHeight: 1.5 }}>
-                        <span style={{ fontWeight: 600 }}>{n.fromName}</span>
-                        {n.type === 'reply' && ' replied to your comment'}
-                        {n.type === 'heart' && ' loved your comment'}
-                        {n.type === 'clap' && ' liked your comment'}
-                        {n.type === 'fire' && ' reacted 🔥 to your comment'}
-                        {n.type === 'follow' && ' started following you'}
-                        {n.type === 'new_story' && ` published: ${n.storyTitle||'a new story'}`}
-                        {n.type === 'reward' && (n.message||' — you earned points!')}
-                      </div>
-                      <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.35)', marginTop: 2, fontFamily: 'Inter, sans-serif' }}>{n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}</div>
-                    </div>
-                  </div>
-                ))
-              }
-            </div>
-          </div>
-        </>
-      )}
-    </>
+          </>
   );
 }
