@@ -425,9 +425,11 @@ function CommentsSection({ slug, onSignIn }) {
         await set(reactionRef, true);
         await runTransaction(countRef, c => (c || 0) + 1);
         if (commentAuthorUid && commentAuthorUid !== user.uid) {
+          const commentSnap = await (await import('firebase/database')).get(ref(db, `comments/${slug}/${commentId}`));
+          const commentText = commentSnap.exists() ? (commentSnap.val().text || '').slice(0, 120) : '';
           await push(ref(db, `library_notifications/${commentAuthorUid}`), {
             type, fromUid: user.uid, fromName: user.displayName || 'Reader',
-            slug, read: false, createdAt: Date.now(),
+            slug, commentId, commentText, read: false, createdAt: Date.now(),
           });
         }
       }
@@ -460,7 +462,9 @@ function CommentsSection({ slug, onSignIn }) {
           await push(ref(db, `library_notifications/${parentComment.authorUid}`), {
             type: 'reply', fromUid: user.uid,
             fromName: user.displayName || 'Reader',
-            slug, read: false, createdAt: Date.now(),
+            slug, commentId: parentId,
+            commentText: (parentComment.text || '').slice(0, 120),
+            read: false, createdAt: Date.now(),
           });
         }
         setReplyText(''); setReplyTo(null);
