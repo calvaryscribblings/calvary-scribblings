@@ -217,7 +217,6 @@ function SquarePostsModal({ uid, onClose }) {
   const [loading, setLoading] = useState(true);
   const [libNotifs, setLibNotifs] = useState([]);
   const [showLibNotifs, setShowLibNotifs] = useState(false);
-  const [headerImg, setHeaderImg] = useState(null);
   const [libNotifsRead, setLibNotifsRead] = useState(false);
 
   useEffect(() => {
@@ -271,7 +270,6 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [libNotifs, setLibNotifs] = useState([]);
   const [showLibNotifs, setShowLibNotifs] = useState(false);
-  const [headerImg, setHeaderImg] = useState(null);
   const [libNotifsRead, setLibNotifsRead] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showFollowers, setShowFollowers] = useState(false);
