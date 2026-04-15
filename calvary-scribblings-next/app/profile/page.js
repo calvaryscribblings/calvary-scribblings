@@ -150,6 +150,7 @@ function SquarePostCard({ post, profileData, isAuthor, badge }) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', paddingLeft: '2.75rem' }}>
         <ReactionPill path={HEART_PATH} fill="rgba(212,83,126,0.72)" count={post.likeCount || 0} />
+        <ReactionPill path={LIKE_PATH} fill="rgba(217,148,26,0.72)" count={post.clapCount || 0} />
         <ReactionPill path={FLAME_PATH} fill="rgba(251,146,60,0.72)" count={post.fireCount || 0} />
         {post.parentId && <span style={{ fontSize: '0.56rem', color: 'rgba(167,139,250,0.28)', fontFamily: 'Inter, sans-serif', marginLeft: 2 }}>reply</span>}
       </div>
@@ -355,6 +356,7 @@ export default function ProfilePage() {
   const avatarInputRef = useRef(null);
   const headerInputRef = useRef(null);
   const modalAvatarInputRef = useRef(null);
+  const [notifUsers, setNotifUsers] = useState({});
 
   useEffect(() => {
     (async () => {
@@ -388,6 +390,20 @@ export default function ProfilePage() {
     })();
     return () => { if (unsubNotifs) unsubNotifs(); };
   }, []);
+
+  useEffect(() => {
+    if (!showLibNotifs || !libNotifs.length) return;
+    const uids = [...new Set(libNotifs.filter(n => n.fromUid && !notifUsers[n.fromUid]).map(n => n.fromUid))];
+    if (!uids.length) return;
+    (async () => {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const results = await Promise.all(uids.map(uid => get(ref(db, `users/${uid}`)).then(s => ({ uid, data: s.exists() ? s.val() : null }))));
+      const map = { ...notifUsers };
+      results.forEach(({ uid, data }) => { if (data) map[uid] = data; });
+      setNotifUsers(map);
+    })();
+  }, [showLibNotifs, libNotifs]);
 
   const markLibNotifsRead = async () => {
     setUnreadLibCount(0);
@@ -889,14 +905,35 @@ export default function ProfilePage() {
                       className={`lib-notif-item${n.read ? '' : ' unread'}`}
                       onClick={!href ? e => e.preventDefault() : undefined}
                     >
-                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(107,47,173,0.17)', border: '1px solid rgba(107,47,173,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#a78bfa', flexShrink: 0, fontFamily: 'Cochin, Georgia, serif' }}>
-                        {(n.fromName || 'C')[0].toUpperCase()}
-                      </div>
+                      {(() => {
+                        const actor = n.fromUid ? notifUsers[n.fromUid] : null;
+                        const ini = (n.fromName || 'C').split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
+                        return (
+                          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(107,47,173,0.17)', border: '1px solid rgba(107,47,173,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#a78bfa', flexShrink: 0, fontFamily: 'Cochin, Georgia, serif', overflow: 'hidden' }}>
+                            {(actor?.avatarUrl || n.fromAvatarUrl) ? <img src={actor?.avatarUrl || n.fromAvatarUrl} alt={ini} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : ini}
+                          </div>
+                        );
+                      })()}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.77rem', color: '#f0ece6', fontFamily: 'Inter, sans-serif', lineHeight: 1.44, marginBottom: '0.18rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 2 }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{n.fromName}</span>
+                          {(() => {
+                            const actor = n.fromUid ? notifUsers[n.fromUid] : null;
+                            if (!actor) return null;
+                            if (actor.isAuthor) return <WriterBadge size={11} />;
+                            const b = getBadge(actor.readCount || 0, n.fromUid);
+                            return b ? <BadgeIcon color={b.color} size={12} isFounder={b.isFounder} /> : null;
+                          })()}
+                        </div>
+                        {(notifUsers[n.fromUid]?.username || n.fromUsername) && (
+                          <div style={{ fontSize: '0.6rem', color: 'rgba(167,139,250,0.42)', fontFamily: 'Inter, sans-serif', marginBottom: 3 }}>
+                            @{notifUsers[n.fromUid]?.username || n.fromUsername}
+                          </div>
+                        )}
+                        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.48)', fontFamily: 'Inter, sans-serif', lineHeight: 1.4, marginBottom: '0.18rem' }}>
                           {isReward
-                            ? <span style={{ color: 'rgba(255,255,255,0.52)' }}>{n.message || 'You earned points!'}</span>
-                            : <><span style={{ fontWeight: 600, color: '#ffffff' }}>{n.fromName}</span><span style={{ color: 'rgba(255,255,255,0.45)' }}>{notifLabel(n.type)}</span></>}
+                            ? <span>{n.message || 'You earned points!'}</span>
+                            : <span>{notifLabel(n.type)}</span>}
                         </div>
                         {n.commentText && (
                           <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.28)', fontFamily: 'Cochin, Georgia, serif', fontStyle: 'italic', lineHeight: 1.48, marginBottom: '0.2rem', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>

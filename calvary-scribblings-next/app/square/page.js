@@ -751,17 +751,29 @@ function NotificationsPanel({ user, onClose }) {
             <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
           ) : notifs.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet.</div>
-          ) : notifs.map(n => (
-            <div key={n.id} style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start', background: n.read ? 'transparent' : 'rgba(107,47,173,0.05)' }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: n.read ? 'transparent' : '#9b6dff', marginTop: 5, flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.82rem', color: '#f5f0e8', fontFamily: 'Inter, sans-serif', lineHeight: 1.5 }}>
-                  <span style={{ color: '#a78bfa', fontWeight: 500 }}>{n.fromName}</span>{notifLabel(n)}
+          ) : notifs.map(n => {
+            const href = n.type === 'follow' ? `/user?id=${n.fromUid}` : n.postId ? `/square#${n.postId}` : null;
+            const ini = (n.fromName || 'R').split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
+            return (
+              <a key={n.id} href={href || '#'} onClick={!href ? e => e.preventDefault() : undefined}
+                style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start', background: n.read ? 'transparent' : 'rgba(107,47,173,0.05)', textDecoration: 'none', cursor: href ? 'pointer' : 'default', transition: 'background 0.15s' }}
+                onMouseEnter={e => { if (href) e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(107,47,173,0.05)'; }}>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#a78bfa', overflow: 'hidden', flexShrink: 0, fontFamily: 'Cochin, Georgia, serif' }}>
+                  {n.fromAvatarUrl ? <img src={n.fromAvatarUrl} alt={ini} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : ini}
                 </div>
-                <div style={{ fontSize: '0.68rem', color: '#ffffff', marginTop: 3, fontFamily: 'Inter, sans-serif' }}>{timeAgo(n.createdAt)}</div>
-              </div>
-            </div>
-          ))}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.8rem', color: '#f0ece6', fontFamily: 'Inter, sans-serif', lineHeight: 1.45, marginBottom: 2 }}>
+                    <span style={{ fontWeight: 600, color: '#ffffff' }}>{n.fromName}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.48)' }}>{notifLabel(n)}</span>
+                  </div>
+                  {n.fromUsername && <div style={{ fontSize: '0.62rem', color: 'rgba(167,139,250,0.45)', fontFamily: 'Inter, sans-serif', marginBottom: 2 }}>@{n.fromUsername}</div>}
+                  <div style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.22)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(n.createdAt)}</div>
+                </div>
+                {!n.read && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b2fad', flexShrink: 0, marginTop: 5 }} />}
+              </a>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -908,12 +920,14 @@ export default function SquarePage() {
       if (!targetUid || targetUid === user.uid) continue;
       await push(ref(db, `notifications/${targetUid}`), {
         type: 'mention', fromUid: user.uid, fromName: user.displayName || 'Reader',
+        fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
         postId, read: false, createdAt: Date.now(),
       });
     }
     if (type === 'reply' && replyAuthorUid && replyAuthorUid !== user.uid) {
       await push(ref(db, `notifications/${replyAuthorUid}`), {
         type: 'reply', fromUid: user.uid, fromName: user.displayName || 'Reader',
+        fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
         postId, read: false, createdAt: Date.now(),
       });
     }
@@ -923,6 +937,7 @@ export default function SquarePage() {
         for (const followerUid of Object.keys(followersSnap.val())) {
           await push(ref(db, `notifications/${followerUid}`), {
             type: 'square_post', fromUid: user.uid, fromName: user.displayName || 'Reader',
+            fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
             postId, read: false, createdAt: Date.now(),
           });
         }
@@ -1003,6 +1018,7 @@ export default function SquarePage() {
       if (post && post.authorUid !== user.uid) {
         await push(ref(db, `notifications/${post.authorUid}`), {
           type, fromUid: user.uid, fromName: user.displayName || 'Reader',
+          fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
           postId, read: false, createdAt: Date.now(),
         });
       }
