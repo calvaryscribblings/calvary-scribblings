@@ -159,6 +159,7 @@ function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
   const [loading, setLoading] = useState(true);
   const [libNotifs, setLibNotifs] = useState([]);
   const [showLibNotifs, setShowLibNotifs] = useState(false);
+  const [headerImg, setHeaderImg] = useState(null);
   const [libNotifsRead, setLibNotifsRead] = useState(false);
 
   useEffect(() => {
@@ -216,6 +217,7 @@ function SquarePostsModal({ uid, onClose }) {
   const [loading, setLoading] = useState(true);
   const [libNotifs, setLibNotifs] = useState([]);
   const [showLibNotifs, setShowLibNotifs] = useState(false);
+  const [headerImg, setHeaderImg] = useState(null);
   const [libNotifsRead, setLibNotifsRead] = useState(false);
 
   useEffect(() => {
@@ -269,6 +271,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [libNotifs, setLibNotifs] = useState([]);
   const [showLibNotifs, setShowLibNotifs] = useState(false);
+  const [headerImg, setHeaderImg] = useState(null);
   const [libNotifsRead, setLibNotifsRead] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showFollowers, setShowFollowers] = useState(false);
@@ -454,30 +457,32 @@ export default function ProfilePage() {
         .pf-nav-back { font-size: 0.65rem; color: rgba(255,255,255,0.95); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; font-family: 'Inter', sans-serif; }
         .pf-nav-back:hover { color: rgba(255,255,255,0.95); }
 
-        .pf-header-banner { position: relative; width: 100%; height: 180px; overflow: hidden; background: linear-gradient(135deg, #1a0533 0%, #2d1054 35%, #1e0a3c 60%, #0d0d1a 100%); }
-        .pf-header-banner::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 80% at 30% 50%, rgba(107,47,173,0.45) 0%, transparent 70%); }
-        .pf-header-banner::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 40% 60% at 75% 30%, rgba(167,139,250,0.15) 0%, transparent 60%); }
+        .pf-header-banner { position: relative; width: 100%; height: 160px; overflow: hidden; background: linear-gradient(120deg, #1a0a2e 0%, #2d1b4e 40%, #1a1200 70%, #2a1a00 100%); cursor: pointer; }
+        .pf-header-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, rgba(107,47,173,0.35) 0%, transparent 50%, rgba(201,164,76,0.12) 100%); pointer-events: none; }
+        .pf-banner-upload { position: absolute; bottom: 8px; right: 10px; z-index: 2; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 4px 10px; font-size: 0.58rem; color: rgba(255,255,255,0.6); font-family: Inter, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
         .pf-hero { position: relative; background: #0d0d0d; }
-        .pf-hero-content { position: relative; width: 100%; max-width: 740px; margin: 0 auto; padding: 0 1.5rem 1.5rem; display: flex; align-items: flex-end; gap: 1.25rem; margin-top: -48px; }
+        .pf-hero-content { position: relative; width: 100%; max-width: 740px; margin: -52px auto 0; padding: 0 1.5rem 1rem; display: flex; align-items: flex-end; gap: 1rem; }
+        .pf-hero-right { position: absolute; top: 8px; right: 1.5rem; }
 
-        .pf-avatar { width: 96px; height: 96px; border-radius: 50%; background: rgba(107,47,173,0.3); border: 3px solid #0d0d0d; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: Cochin, Cormorant Garamond, Georgia, serif; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(167,139,250,0.3); }
+        .pf-avatar { width: 88px; height: 88px; border-radius: 50%; background: rgba(107,47,173,0.3); border: 3px solid #0d0d0d; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: Cochin, Cormorant Garamond, Georgia, serif; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(201,164,76,0.2); }
         .pf-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-        .pf-hero-info { flex: 1; padding-bottom: 4px; }
-        .pf-name { font-family: Cochin, Cormorant Garamond, Georgia, serif; font-size: clamp(1.4rem, 4vw, 1.9rem); font-weight: 400; color: #ffffff; line-height: 1; margin-bottom: 0.2rem; letter-spacing: -0.01em; }
-        .pf-username { font-size: 0.8rem; color: rgba(167,139,250,0.6); font-family: 'Inter', sans-serif; margin-bottom: 0.6rem; }
+        .pf-hero-info { flex: 1; padding-bottom: 4px; min-width: 0; }
+        .pf-name-row { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.25rem; }
+        .pf-name { font-family: Cochin, Cormorant Garamond, Georgia, serif; font-size: clamp(1.3rem, 3.5vw, 1.7rem); font-weight: 400; color: #ffffff; line-height: 1; letter-spacing: -0.01em; }
+        .pf-username { font-size: 0.75rem; color: rgba(167,139,250,0.55); font-family: 'Inter', sans-serif; margin-bottom: 0.4rem; }
         .pf-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem; flex-wrap: wrap; }
         .pf-badge-pill { display: inline-flex; align-items: center; gap: 5px; }
         .pf-badge-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .pf-sep { color: rgba(255,255,255,0.15); font-size: 0.7rem; }
         .pf-verified { display: inline-flex; align-items: center; gap: 3px; font-size: 0.62rem; color: #1d9e75; font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
         .pf-unverified { font-size: 0.62rem; color: #ffffff; font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
-        .pf-joined { font-size: 0.7rem; color: rgba(255,255,255,0.92); font-family: 'Inter', sans-serif; margin-bottom: 0.85rem; }
-        .pf-follow-row { display: flex; gap: 1.25rem; margin-bottom: 0; }
+        .pf-joined { font-size: 0.65rem; color: rgba(255,255,255,0.45); font-family: 'Inter', sans-serif; margin-bottom: 0.5rem; }
+        .pf-follow-row { display: flex; gap: 1.25rem; margin-bottom: 0.25rem; }
         .pf-follow-stat { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
         .pf-follow-stat:hover .pf-follow-num { color: #a78bfa; }
-        .pf-follow-num { font-family: Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.1rem; font-weight: 400; color: #ffffff; line-height: 1; transition: color 0.2s; }
-        .pf-follow-label { font-size: 0.56rem; color: rgba(255,255,255,0.95); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .pf-follow-num { font-family: Inter, sans-serif; font-size: 0.95rem; font-weight: 600; color: #ffffff; line-height: 1; transition: color 0.2s; }
+        .pf-follow-label { font-size: 0.56rem; color: rgba(255,255,255,0.4); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-body { max-width: 740px; margin: 0 auto; padding: 0 1.5rem 6rem; }
 
@@ -612,14 +617,19 @@ export default function ProfilePage() {
       </div>
 
       <div className="pf-hero">
-        <div className="pf-header-banner" />
+        <div className="pf-header-banner" style={headerImg ? { backgroundImage: `url(${headerImg})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>
+          <label className="pf-banner-upload" htmlFor="pf-banner-input">Change cover</label>
+          <input id="pf-banner-input" type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = ev => setHeaderImg(ev.target.result); reader.readAsDataURL(file); } }} />
+        </div>
         <div className="pf-hero-content">
           <div className="pf-avatar">
             {avatarUrl ? <img src={avatarUrl} alt={initials} /> : initials}
           </div>
           <div className="pf-hero-info">
-            <div className="pf-name">{displayName}</div>
-            {username && <div className="pf-username">@{username}</div>}
+            <div className="pf-name-row">
+              <span className="pf-name">{displayName}</span>
+              {username && <span className="pf-username">@{username}</span>}
+            </div>
             <div className="pf-meta-row">
               {isAuthor ? <WriterBadge size={13} /> : badge ? (
                 <span className="pf-badge-pill">
