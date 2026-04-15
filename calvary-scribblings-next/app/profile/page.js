@@ -481,8 +481,8 @@ export default function ProfilePage() {
         .pf-body { max-width: 740px; margin: 0 auto; padding: 0 1.5rem 6rem; }
 
         .pf-bio-wrap { padding: 1.5rem 0 2rem; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 2.5rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-        .pf-bio-text { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.15rem; color: #f5f0e8; line-height: 1.8; font-style: italic; flex: 1; }
-        .pf-bio-empty { font-size: 0.82rem; color: #ffffff; font-family: 'Inter', sans-serif; cursor: pointer; font-style: italic; flex: 1; transition: color 0.2s; }
+        .pf-bio-text { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.15rem; color: #f5f0e8; line-height: 1.8; flex: 1; }
+        .pf-bio-empty { font-size: 0.82rem; color: #ffffff; font-family: 'Inter', sans-serif; cursor: pointer; flex: 1; transition: color 0.2s; }
         .pf-bio-empty:hover { color: rgba(255,255,255,0.4); }
         .pf-edit-btn { background: none; border: 1px solid rgba(167,139,250,0.25); border-radius: 8px; padding: 0.4rem 1rem; font-size: 0.62rem; color: rgba(167,139,250,0.65); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
         .pf-edit-btn:hover { border-color: rgba(167,139,250,0.55); color: #a78bfa; }
