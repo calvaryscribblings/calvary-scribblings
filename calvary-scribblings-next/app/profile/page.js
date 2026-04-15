@@ -215,9 +215,6 @@ function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
 function SquarePostsModal({ uid, onClose }) {
   const [squarePosts, setSquarePosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [libNotifs, setLibNotifs] = useState([]);
-  const [showLibNotifs, setShowLibNotifs] = useState(false);
-  const [libNotifsRead, setLibNotifsRead] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -268,9 +265,6 @@ export default function ProfilePage() {
   const [points, setPoints] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [libNotifs, setLibNotifs] = useState([]);
-  const [showLibNotifs, setShowLibNotifs] = useState(false);
-  const [libNotifsRead, setLibNotifsRead] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
