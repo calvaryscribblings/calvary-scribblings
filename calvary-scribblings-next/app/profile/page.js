@@ -454,16 +454,17 @@ export default function ProfilePage() {
         .pf-nav-back { font-size: 0.65rem; color: rgba(255,255,255,0.95); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; font-family: 'Inter', sans-serif; }
         .pf-nav-back:hover { color: rgba(255,255,255,0.95); }
 
-        .pf-hero { position: relative; min-height: 340px; display: flex; align-items: flex-end; overflow: hidden; background: #0d0d0d; }
-        .pf-hero-gradient { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(107,47,173,0.18) 0%, transparent 60%), linear-gradient(to top, #0d0d0d 0%, rgba(13,13,13,0.3) 60%, transparent 100%); z-index: 1; }
-        .pf-hero-pattern { position: absolute; inset: 0; opacity: 0.035; background-image: radial-gradient(circle, #a78bfa 1px, transparent 1px); background-size: 30px 30px; z-index: 0; }
-        .pf-hero-content { position: relative; z-index: 2; width: 100%; max-width: 740px; margin: 0 auto; padding: 2.5rem 1.5rem 3rem; display: flex; align-items: flex-end; gap: 1.75rem; }
+        .pf-header-banner { position: relative; width: 100%; height: 180px; overflow: hidden; background: linear-gradient(135deg, #1a0533 0%, #2d1054 35%, #1e0a3c 60%, #0d0d1a 100%); }
+        .pf-header-banner::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 80% at 30% 50%, rgba(107,47,173,0.45) 0%, transparent 70%); }
+        .pf-header-banner::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 40% 60% at 75% 30%, rgba(167,139,250,0.15) 0%, transparent 60%); }
+        .pf-hero { position: relative; background: #0d0d0d; }
+        .pf-hero-content { position: relative; width: 100%; max-width: 740px; margin: 0 auto; padding: 0 1.5rem 1.5rem; display: flex; align-items: flex-end; gap: 1.25rem; margin-top: -48px; }
 
-        .pf-avatar { width: 96px; height: 96px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.35); display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; flex-shrink: 0; box-shadow: 0 0 40px rgba(107,47,173,0.2); }
+        .pf-avatar { width: 96px; height: 96px; border-radius: 50%; background: rgba(107,47,173,0.3); border: 3px solid #0d0d0d; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: Cochin, Cormorant Garamond, Georgia, serif; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(167,139,250,0.3); }
         .pf-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
         .pf-hero-info { flex: 1; padding-bottom: 4px; }
-        .pf-name { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 400; color: #f5f0e8; line-height: 1; margin-bottom: 0.3rem; letter-spacing: -0.01em; }
+        .pf-name { font-family: Cochin, Cormorant Garamond, Georgia, serif; font-size: clamp(1.4rem, 4vw, 1.9rem); font-weight: 400; color: #ffffff; line-height: 1; margin-bottom: 0.2rem; letter-spacing: -0.01em; }
         .pf-username { font-size: 0.8rem; color: rgba(167,139,250,0.6); font-family: 'Inter', sans-serif; margin-bottom: 0.6rem; }
         .pf-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem; flex-wrap: wrap; }
         .pf-badge-pill { display: inline-flex; align-items: center; gap: 5px; }
@@ -472,16 +473,16 @@ export default function ProfilePage() {
         .pf-verified { display: inline-flex; align-items: center; gap: 3px; font-size: 0.62rem; color: #1d9e75; font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
         .pf-unverified { font-size: 0.62rem; color: #ffffff; font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
         .pf-joined { font-size: 0.7rem; color: rgba(255,255,255,0.92); font-family: 'Inter', sans-serif; margin-bottom: 0.85rem; }
-        .pf-follow-row { display: flex; gap: 1.5rem; }
+        .pf-follow-row { display: flex; gap: 1.25rem; margin-bottom: 0; }
         .pf-follow-stat { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
         .pf-follow-stat:hover .pf-follow-num { color: #a78bfa; }
-        .pf-follow-num { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; line-height: 1; transition: color 0.2s; }
+        .pf-follow-num { font-family: Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.1rem; font-weight: 400; color: #ffffff; line-height: 1; transition: color 0.2s; }
         .pf-follow-label { font-size: 0.56rem; color: rgba(255,255,255,0.95); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-body { max-width: 740px; margin: 0 auto; padding: 0 1.5rem 6rem; }
 
         .pf-bio-wrap { padding: 1.5rem 0 2rem; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 2.5rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-        .pf-bio-text { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.15rem; color: #f5f0e8; line-height: 1.8; flex: 1; }
+        .pf-bio-text { font-family: Cochin, Cormorant Garamond, Georgia, serif; font-size: 0.95rem; color: #f5f0e8; line-height: 1.75; flex: 1; }
         .pf-bio-empty { font-size: 0.82rem; color: #ffffff; font-family: 'Inter', sans-serif; cursor: pointer; flex: 1; transition: color 0.2s; }
         .pf-bio-empty:hover { color: rgba(255,255,255,0.4); }
         .pf-edit-btn { background: none; border: 1px solid rgba(167,139,250,0.25); border-radius: 8px; padding: 0.4rem 1rem; font-size: 0.62rem; color: rgba(167,139,250,0.65); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
@@ -611,8 +612,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="pf-hero">
-        <div className="pf-hero-pattern" />
-        <div className="pf-hero-gradient" />
+        <div className="pf-header-banner" />
         <div className="pf-hero-content">
           <div className="pf-avatar">
             {avatarUrl ? <img src={avatarUrl} alt={initials} /> : initials}
@@ -756,14 +756,14 @@ export default function ProfilePage() {
           </button>
         </div>
 
-        {/* Bookmarks */}
+        {/* Reading Progress */}
         <div className="pf-section">
           <div className="pf-section-header">
-            <div className="pf-section-title">Bookmarks</div>
-            <div className="pf-section-meta">Coming soon</div>
+            <div className="pf-section-title">Reading Progress</div>
+            <div className="pf-section-meta">Book reader</div>
           </div>
-          <div className="pf-placeholder">
-            <p>Bookmarking is coming soon. Save stories to read later.</p>
+          <div className="pf-placeholder" style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontStyle: 'normal', color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem' }}>
+            <p>Stories you've bookmarked in the book reader will appear here.</p>
           </div>
         </div>
 
