@@ -425,7 +425,7 @@ function CommentsSection({ slug, onSignIn }) {
         await set(reactionRef, true);
         await runTransaction(countRef, c => (c || 0) + 1);
         if (commentAuthorUid && commentAuthorUid !== user.uid) {
-          await push(ref(db, `notifications/${commentAuthorUid}`), {
+          await push(ref(db, `library_notifications/${commentAuthorUid}`), {
             type, fromUid: user.uid, fromName: user.displayName || 'Reader',
             slug, read: false, createdAt: Date.now(),
           });
@@ -457,7 +457,7 @@ function CommentsSection({ slug, onSignIn }) {
       if (parentId) {
         const parentComment = comments.find(c => c.id === parentId);
         if (parentComment && parentComment.authorUid !== user.uid) {
-          await push(ref(db, `notifications/${parentComment.authorUid}`), {
+          await push(ref(db, `library_notifications/${parentComment.authorUid}`), {
             type: 'reply', fromUid: user.uid,
             fromName: user.displayName || 'Reader',
             slug, read: false, createdAt: Date.now(),
@@ -483,7 +483,7 @@ function CommentsSection({ slug, onSignIn }) {
             description: `${userCommentCount} comments milestone`,
             createdAt: Date.now(),
           });
-          await push(ref(db, `notifications/${user.uid}`), {
+          await push(ref(db, `library_notifications/${user.uid}`), {
             type: 'reward', fromName: 'Calvary Scribblings',
             message: `You earned 10 points — ${userCommentCount} comments milestone!`,
             read: false, createdAt: Date.now(),
@@ -726,7 +726,7 @@ export default function StoryPageClient({ params }) {
                     description: `${newCount} stories read milestone`,
                     createdAt: Date.now(),
                   });
-                  await push(ref(db, `notifications/${user.uid}`), {
+                  await push(ref(db, `library_notifications/${user.uid}`), {
                     type: 'reward', fromName: 'Calvary Scribblings',
                     message: `You earned 5 points — ${newCount} stories read milestone!`,
                     read: false, createdAt: Date.now(),

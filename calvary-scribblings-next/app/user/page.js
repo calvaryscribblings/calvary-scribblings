@@ -331,7 +331,7 @@ export default function UserPage() {
       } else {
         await Promise.all([set(ref(db, `followers/${uid}/${currentUser.uid}`), true), set(ref(db, `following/${currentUser.uid}/${uid}`), true)]);
         setIsFollowing(true); setFollowerCount(c => c + 1);
-        await push(ref(db, `notifications/${uid}`), {
+        await push(ref(db, `library_notifications/${uid}`), {
           type: 'follow', fromUid: currentUser.uid,
           fromName: currentUser.displayName || 'Reader',
           read: false, createdAt: Date.now(),

@@ -520,7 +520,7 @@ export default function AdminPage() {
             const followersSnap = await getSnap(ref(db, `followers/${authorUid}`));
             if (followersSnap.exists()) {
               const followerIds = Object.keys(followersSnap.val());
-              await Promise.all(followerIds.map(fid => pushNotif(ref(db, `notifications/${fid}`), {
+              await Promise.all(followerIds.map(fid => pushNotif(ref(db, `library_notifications/${fid}`), {
                 type: 'new_story', fromUid: authorUid,
                 fromName: storyData.author,
                 storySlug: slug, storyTitle: storyData.title,
