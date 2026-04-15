@@ -459,7 +459,8 @@ export default function ProfilePage() {
 
         .pf-header-banner { position: relative; width: 100%; height: 160px; overflow: hidden; background: linear-gradient(120deg, #1a0a2e 0%, #2d1b4e 40%, #1a1200 70%, #2a1a00 100%); cursor: pointer; }
         .pf-header-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, rgba(107,47,173,0.35) 0%, transparent 50%, rgba(201,164,76,0.12) 100%); pointer-events: none; }
-        .pf-banner-upload { position: absolute; bottom: 8px; right: 10px; z-index: 2; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 4px 10px; font-size: 0.58rem; color: rgba(255,255,255,0.6); font-family: Inter, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
+        .pf-edit-btn-header { position: absolute; bottom: 12px; right: 14px; z-index: 2; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 6px 14px; font-size: 0.6rem; color: rgba(255,255,255,0.85); font-family: Inter, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+        .pf-edit-btn-header:hover { background: rgba(107,47,173,0.4); border-color: rgba(167,139,250,0.4); color: #fff; }
         .pf-hero { position: relative; background: #0d0d0d; }
         .pf-hero-content { position: relative; width: 100%; max-width: 740px; margin: -52px auto 0; padding: 0 1.5rem 1rem; display: flex; align-items: flex-end; gap: 1rem; }
         .pf-hero-right { position: absolute; top: 8px; right: 1.5rem; }
@@ -486,7 +487,7 @@ export default function ProfilePage() {
 
         .pf-body { max-width: 740px; margin: 0 auto; padding: 0 1.5rem 6rem; }
 
-        .pf-bio-wrap { padding: 1.5rem 0 2rem; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 2.5rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+        .pf-bio-wrap { padding: 1.25rem 0 2rem; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 2.5rem; }
         .pf-bio-text { font-family: Cochin, Cormorant Garamond, Georgia, serif; font-size: 0.95rem; color: #f5f0e8; line-height: 1.75; flex: 1; }
         .pf-bio-empty { font-size: 0.82rem; color: #ffffff; font-family: 'Inter', sans-serif; cursor: pointer; flex: 1; transition: color 0.2s; }
         .pf-bio-empty:hover { color: rgba(255,255,255,0.4); }
@@ -618,8 +619,7 @@ export default function ProfilePage() {
 
       <div className="pf-hero">
         <div className="pf-header-banner" style={headerImg ? { backgroundImage: `url(${headerImg})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>
-          <label className="pf-banner-upload" htmlFor="pf-banner-input">Change cover</label>
-          <input id="pf-banner-input" type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = ev => setHeaderImg(ev.target.result); reader.readAsDataURL(file); } }} />
+          <button className="pf-edit-btn-header" onClick={openEdit}>Edit profile</button>
         </div>
         <div className="pf-hero-content">
           <div className="pf-avatar">
@@ -663,7 +663,6 @@ export default function ProfilePage() {
       <div className="pf-body">
         <div className="pf-bio-wrap">
           {bio ? <span className="pf-bio-text">{bio}</span> : <span className="pf-bio-empty" onClick={openEdit}>+ Add a bio</span>}
-          <button className="pf-edit-btn" onClick={openEdit}>Edit profile</button>
         </div>
 
         {/* Stats */}
