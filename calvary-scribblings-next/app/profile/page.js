@@ -168,7 +168,13 @@ function SquarePostsModal({ uid, profileData, isAuthor, badge, onClose }) {
       const { ref, get } = await import('firebase/database');
       const snap = await get(ref(db, `user_square_posts/${uid}`));
       if (snap.exists()) {
-        setPosts(Object.entries(snap.val()).map(([id, p]) => ({ id, ...p })).sort((a, b) => b.createdAt - a.createdAt));
+        const basePosts = Object.entries(snap.val()).map(([id, p]) => ({ id, ...p })).sort((a, b) => b.createdAt - a.createdAt);
+        const liveCounts = await Promise.all(basePosts.map(p => get(ref(db, `square_posts/${p.id}`)).then(s => ({ id: p.id, data: s.exists() ? s.val() : null }))));
+        const merged = basePosts.map(p => {
+          const live = liveCounts.find(l => l.id === p.id)?.data;
+          return { ...p, likeCount: live?.likeCount || 0, clapCount: live?.clapCount || 0, fireCount: live?.fireCount || 0 };
+        });
+        setPosts(merged);
       }
       setLoading(false);
     })();
