@@ -294,6 +294,20 @@ export default function ProfilePage() {
     })();
   }, []);
 
+  const markLibNotifsRead = async () => {
+    setUnreadLibCount(0);
+    try {
+      const auth = await getFirebaseAuth();
+      const u = auth.currentUser;
+      if (!u) return;
+      const db = await getDB();
+      const { ref, update } = await import('firebase/database');
+      const updates = {};
+      libNotifs.filter(n => !n.read).forEach(n => { updates[`${n.id}/read`] = true; });
+      if (Object.keys(updates).length) await update(ref(db, `library_notifications/${u.uid}`), updates);
+    } catch(e) {}
+  };
+
   useEffect(() => {
     let unsubAuth = null;
     const unsubDB = [];
@@ -596,17 +610,7 @@ export default function ProfilePage() {
       <div className="pf-nav">
         <div className="pf-nav-logo">Calvary <span>Scribblings</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-          <button onClick={() => { setShowLibNotifs(true); markLibNotifsRead(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-            {libNotifs.filter(n => !n.read).length > 0 && !libNotifsRead && (
-              <span style={{ position: 'absolute', top: -4, right: -4, background: '#6b2fad', color: '#fff', fontSize: '0.5rem', fontFamily: 'Inter, sans-serif', fontWeight: 700, borderRadius: '999px', minWidth: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>
-                {libNotifs.filter(n => !n.read).length}
-              </span>
-            )}
-          </button>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <button onClick={() => { setShowLibNotifs(true); markLibNotifsRead(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
