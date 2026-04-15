@@ -157,9 +157,10 @@ function UserListModal({ title, uids, onClose }) {
 function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [headerImg, setHeaderImg] = useState(null);
   const [libNotifs, setLibNotifs] = useState([]);
   const [showLibNotifs, setShowLibNotifs] = useState(false);
-  const [headerImg, setHeaderImg] = useState(null);
+  const [unreadLibCount, setUnreadLibCount] = useState(0);
   const [libNotifsRead, setLibNotifsRead] = useState(false);
 
   useEffect(() => {
@@ -449,39 +450,37 @@ export default function ProfilePage() {
         .pf-nav-back { font-size: 0.65rem; color: rgba(255,255,255,0.95); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; transition: color 0.2s; font-family: 'Inter', sans-serif; }
         .pf-nav-back:hover { color: rgba(255,255,255,0.95); }
 
-        .pf-header-banner { position: relative; width: 100%; height: 160px; overflow: hidden; background: linear-gradient(120deg, #1a0a2e 0%, #2d1b4e 40%, #1a1200 70%, #2a1a00 100%); cursor: pointer; }
-        .pf-header-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, rgba(107,47,173,0.35) 0%, transparent 50%, rgba(201,164,76,0.12) 100%); pointer-events: none; }
-        .pf-edit-btn-header { position: absolute; bottom: 12px; right: 14px; z-index: 2; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 6px 14px; font-size: 0.6rem; color: rgba(255,255,255,0.85); font-family: Inter, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
-        .pf-edit-btn-header:hover { background: rgba(107,47,173,0.4); border-color: rgba(167,139,250,0.4); color: #fff; }
+        .pf-header-banner { position: relative; width: 100%; height: 160px; background: linear-gradient(120deg, #1a0a2e 0%, #2d1b4e 50%, #1a1200 75%, #2a1a00 100%); cursor: pointer; overflow: hidden; }
+        .pf-header-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, rgba(107,47,173,0.3) 0%, transparent 50%, rgba(201,164,76,0.1) 100%); pointer-events: none; }
+        .pf-edit-btn-header { position: absolute; bottom: 10px; right: 12px; z-index: 2; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 5px 12px; font-size: 0.58rem; color: rgba(255,255,255,0.8); font-family: Inter, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
         .pf-hero { position: relative; background: #0d0d0d; }
-        .pf-hero-content { position: relative; width: 100%; max-width: 740px; margin: -52px auto 0; padding: 0 1.5rem 1rem; display: flex; align-items: flex-end; gap: 1rem; }
-        .pf-hero-right { position: absolute; top: 8px; right: 1.5rem; }
+        .pf-hero-content { position: relative; width: 100%; max-width: 740px; margin: -44px auto 0; padding: 0 1.5rem 1rem; display: flex; align-items: flex-end; gap: 1rem; }
 
-        .pf-avatar { width: 88px; height: 88px; border-radius: 50%; background: rgba(107,47,173,0.3); border: 3px solid #0d0d0d; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: Cochin, Cormorant Garamond, Georgia, serif; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(201,164,76,0.2); }
+
+        .pf-avatar { width: 96px; height: 96px; border-radius: 50%; background: rgba(107,47,173,0.2); border: 2px solid rgba(167,139,250,0.35); display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 400; color: #c4b5fd; overflow: hidden; font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; flex-shrink: 0; box-shadow: 0 0 40px rgba(107,47,173,0.2); }
         .pf-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-        .pf-hero-info { flex: 1; padding-bottom: 4px; min-width: 0; }
-        .pf-name-row { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.25rem; }
-        .pf-name { font-family: Cochin, Cormorant Garamond, Georgia, serif; font-size: clamp(1.3rem, 3.5vw, 1.7rem); font-weight: 400; color: #ffffff; line-height: 1; letter-spacing: -0.01em; }
-        .pf-username { font-size: 0.75rem; color: rgba(167,139,250,0.55); font-family: 'Inter', sans-serif; margin-bottom: 0.4rem; }
+        .pf-hero-info { flex: 1; padding-bottom: 4px; }
+        .pf-name { font-family: Cochin, Cormorant Garamond, Georgia, serif; font-size: clamp(1.3rem, 3.5vw, 1.7rem); font-weight: 400; color: #ffffff; line-height: 1; margin-bottom: 0.2rem; letter-spacing: -0.01em; }
+        .pf-username { font-size: 0.72rem; color: rgba(167,139,250,0.5); font-family: 'Inter', sans-serif; margin-bottom: 0.35rem; }
         .pf-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem; flex-wrap: wrap; }
         .pf-badge-pill { display: inline-flex; align-items: center; gap: 5px; }
         .pf-badge-label { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .pf-sep { color: rgba(255,255,255,0.15); font-size: 0.7rem; }
         .pf-verified { display: inline-flex; align-items: center; gap: 3px; font-size: 0.62rem; color: #1d9e75; font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
         .pf-unverified { font-size: 0.62rem; color: #ffffff; font-family: 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
-        .pf-joined { font-size: 0.65rem; color: rgba(255,255,255,0.45); font-family: 'Inter', sans-serif; margin-bottom: 0.5rem; }
-        .pf-follow-row { display: flex; gap: 1.25rem; margin-bottom: 0.25rem; }
+        .pf-joined { font-size: 0.62rem; color: rgba(255,255,255,0.4); font-family: 'Inter', sans-serif; margin-bottom: 0.4rem; }
+        .pf-follow-row { display: flex; gap: 1.5rem; }
         .pf-follow-stat { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
         .pf-follow-stat:hover .pf-follow-num { color: #a78bfa; }
-        .pf-follow-num { font-family: Inter, sans-serif; font-size: 0.95rem; font-weight: 600; color: #ffffff; line-height: 1; transition: color 0.2s; }
-        .pf-follow-label { font-size: 0.56rem; color: rgba(255,255,255,0.4); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .pf-follow-num { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; line-height: 1; transition: color 0.2s; }
+        .pf-follow-label { font-size: 0.56rem; color: rgba(255,255,255,0.95); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
 
         .pf-body { max-width: 740px; margin: 0 auto; padding: 0 1.5rem 6rem; }
 
-        .pf-bio-wrap { padding: 1.25rem 0 2rem; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 2.5rem; }
-        .pf-bio-text { font-family: Cochin, Cormorant Garamond, Georgia, serif; font-size: 0.95rem; color: #f5f0e8; line-height: 1.75; flex: 1; }
-        .pf-bio-empty { font-size: 0.82rem; color: #ffffff; font-family: 'Inter', sans-serif; cursor: pointer; flex: 1; transition: color 0.2s; }
+        .pf-bio-wrap { padding: 1rem 0 1.75rem; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 2rem; }
+        .pf-bio-text { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.15rem; color: #f5f0e8; line-height: 1.8; flex: 1; }
+        .pf-bio-empty { font-size: 0.82rem; color: rgba(255,255,255,0.35); font-family: 'Inter', sans-serif; cursor: pointer; transition: color 0.2s; }
         .pf-bio-empty:hover { color: rgba(255,255,255,0.4); }
         .pf-edit-btn { background: none; border: 1px solid rgba(167,139,250,0.25); border-radius: 8px; padding: 0.4rem 1rem; font-size: 0.62rem; color: rgba(167,139,250,0.65); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
         .pf-edit-btn:hover { border-color: rgba(167,139,250,0.55); color: #a78bfa; }
@@ -549,6 +548,9 @@ export default function ProfilePage() {
         .pf-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.4); }
 
         .pf-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
+        .lib-notif-panel { position: fixed; top: 0; right: 0; width: min(360px,100vw); height: 100vh; background: #0d0d0d; border-left: 1px solid rgba(255,255,255,0.08); z-index: 2000; display: flex; flex-direction: column; }
+        .lib-notif-item { padding: 0.9rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px; }
+        .lib-notif-item.unread { background: rgba(107,47,173,0.06); }
         .lib-notif-panel { position: fixed; top: 0; right: 0; width: min(380px, 100vw); height: 100vh; background: #0d0d0d; border-left: 1px solid rgba(255,255,255,0.08); z-index: 2000; display: flex; flex-direction: column; animation: slideInRight 0.3s ease; }
         @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
         .lib-notif-item { padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px; align-items: flex-start; }
@@ -605,7 +607,16 @@ export default function ProfilePage() {
               </span>
             )}
           </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <button onClick={() => { setShowLibNotifs(true); markLibNotifsRead(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            {unreadLibCount > 0 && <span style={{ position: 'absolute', top: -4, right: -4, background: '#6b2fad', color: '#fff', fontSize: '0.5rem', fontWeight: 700, borderRadius: '999px', minWidth: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', fontFamily: 'Inter,sans-serif' }}>{unreadLibCount}</span>}
+          </button>
           <a href="/" className="pf-nav-back">← Back to stories</a>
+        </div>
         </div>
       </div>
 
@@ -618,10 +629,8 @@ export default function ProfilePage() {
             {avatarUrl ? <img src={avatarUrl} alt={initials} /> : initials}
           </div>
           <div className="pf-hero-info">
-            <div className="pf-name-row">
-              <span className="pf-name">{displayName}</span>
-              {username && <span className="pf-username">@{username}</span>}
-            </div>
+            <div className="pf-name">{displayName}</div>
+            {username && <div className="pf-username">@{username}</div>}
             <div className="pf-meta-row">
               {isAuthor ? <WriterBadge size={13} /> : badge ? (
                 <span className="pf-badge-pill">
@@ -747,58 +756,24 @@ export default function ProfilePage() {
         <div className="pf-section">
           <div className="pf-section-header">
             <div className="pf-section-title">The Scribblings Square</div>
-            {squarePosts.length > 0 && <div className="pf-section-meta">{squarePosts.length} posts</div>}
           </div>
-          {squarePosts.length === 0 ? (
-            <div style={{ color: 'rgba(255,255,255,0.35)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.9rem', padding: '0.5rem 0' }}>No Square posts yet.</div>
-          ) : squarePosts.slice(0, 5).map(p => (
-            <div key={p.id} style={{ padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(107,47,173,0.25)', border: '1.5px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0 }}>
-                  {avatarUrl ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap', marginBottom: 2 }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{displayName}</span>
-                    {username && <span style={{ fontSize: '0.68rem', color: 'rgba(167,139,250,0.55)', fontFamily: 'Inter, sans-serif' }}>@{username}</span>}
-                    {isAuthor && <WriterBadge size={11} />}
-                    <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}</span>
-                  </div>
-                  <div style={{ fontSize: '0.95rem', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', lineHeight: 1.7 }}>{p.text}</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '16px', paddingLeft: '46px' }}>
-                {[
-                  { type: 'like', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
-                  { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
-                  { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
-                ].map(({ type, activeColor, d }) => {
-                  const count = p[type + 'Count'] || p.likeCount && type === 'like' ? (p.likeCount || 0) : 0;
-                  return (
-                    <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '3px', color: 'rgba(255,255,255,0.4)' }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-                      {count > 0 && <span style={{ fontSize: '0.6rem', fontFamily: 'Inter, sans-serif' }}>{count}</span>}
-                    </div>
-                  );
-                })}
-              </div>
+          <button className="pf-square-btn" onClick={() => setShowSquarePosts(true)}>
+            <div>
+              <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff' }}>Posts on The Square</div>
+              <div style={{ fontSize: '0.68rem', color: 'rgba(155,109,255,0.5)', fontFamily: 'Inter, sans-serif', marginTop: 2 }}>View your contributions to the Square</div>
             </div>
-          ))}
-          {squarePosts.length > 5 && (
-            <button className="pf-more-btn" onClick={() => setShowSquarePosts(true)}>
-              more… ({squarePosts.length - 5} more posts)
-            </button>
-          )}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
         </div>
 
-        {/* Reading Progress */}
+        {/* Bookmarks */}
         <div className="pf-section">
           <div className="pf-section-header">
-            <div className="pf-section-title">Reading Progress</div>
-            <div className="pf-section-meta">Book reader</div>
+            <div className="pf-section-title">Bookmarks</div>
+            <div className="pf-section-meta">Coming soon</div>
           </div>
-          <div className="pf-placeholder" style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontStyle: 'normal', color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem' }}>
-            <p>Stories you've bookmarked in the book reader will appear here.</p>
+          <div className="pf-placeholder">
+            <p>Bookmarking is coming soon. Save stories to read later.</p>
           </div>
         </div>
 
@@ -896,6 +871,40 @@ export default function ProfilePage() {
                       <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', marginTop: 3, fontFamily: 'Inter, sans-serif' }}>
                         {n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
                       </div>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </>
+      )}
+      {showLibNotifs && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setShowLibNotifs(false)} />
+          <div className="lib-notif-panel">
+            <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff' }}>Notifications</span>
+              <button onClick={() => setShowLibNotifs(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {libNotifs.length === 0
+                ? <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.9rem' }}>No notifications yet.</div>
+                : libNotifs.map(n => (
+                  <div key={n.id} className={`lib-notif-item${n.read ? '' : ' unread'}`}>
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(107,47,173,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#a78bfa', flexShrink: 0 }}>{(n.fromName||'R')[0].toUpperCase()}</div>
+                    <div>
+                      <div style={{ fontSize: '0.82rem', color: '#ffffff', fontFamily: 'Inter, sans-serif', lineHeight: 1.5 }}>
+                        <span style={{ fontWeight: 600 }}>{n.fromName}</span>
+                        {n.type === 'reply' && ' replied to your comment'}
+                        {n.type === 'heart' && ' loved your comment'}
+                        {n.type === 'clap' && ' liked your comment'}
+                        {n.type === 'fire' && ' reacted 🔥 to your comment'}
+                        {n.type === 'follow' && ' started following you'}
+                        {n.type === 'new_story' && ` published: ${n.storyTitle||'a new story'}`}
+                        {n.type === 'reward' && (n.message||' — you earned points!')}
+                      </div>
+                      <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.35)', marginTop: 2, fontFamily: 'Inter, sans-serif' }}>{n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : ''}</div>
                     </div>
                   </div>
                 ))
