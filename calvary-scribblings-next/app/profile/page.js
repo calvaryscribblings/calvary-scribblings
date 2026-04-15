@@ -276,6 +276,10 @@ export default function ProfilePage() {
   const [saveError, setSaveError] = useState('');
   const [pwMsg, setPwMsg] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  const [headerImg, setHeaderImg] = useState(null);
+  const [libNotifs, setLibNotifs] = useState([]);
+  const [showLibNotifs, setShowLibNotifs] = useState(false);
+  const [unreadLibCount, setUnreadLibCount] = useState(0);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -287,6 +291,33 @@ export default function ProfilePage() {
         setCmsStories(Object.entries(snap.val()).map(([id, s]) => ({ id, title: s.title || '', cover: s.cover || '', category: s.category || '' })));
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    let unsubNotifs;
+    (async () => {
+      try {
+        const auth = await getFirebaseAuth();
+        const { onAuthStateChanged } = await import('firebase/auth');
+        onAuthStateChanged(auth, (u) => {
+          if (!u) return;
+          (async () => {
+            const db = await getDB();
+            const { ref, onValue } = await import('firebase/database');
+            unsubNotifs = onValue(ref(db, `library_notifications/${u.uid}`), (snap) => {
+              if (!snap.exists()) { setLibNotifs([]); setUnreadLibCount(0); return; }
+              const items = Object.entries(snap.val())
+                .map(([id, n]) => ({ id, ...n }))
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .slice(0, 30);
+              setLibNotifs(items);
+              setUnreadLibCount(items.filter(n => !n.read).length);
+            });
+          })();
+        });
+      } catch(e) {}
+    })();
+    return () => { if (unsubNotifs) unsubNotifs(); };
   }, []);
 
   const markLibNotifsRead = async () => {
