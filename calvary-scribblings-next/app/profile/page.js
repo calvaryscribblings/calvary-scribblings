@@ -756,14 +756,48 @@ export default function ProfilePage() {
         <div className="pf-section">
           <div className="pf-section-header">
             <div className="pf-section-title">The Scribblings Square</div>
+            {squarePosts.length > 0 && <div className="pf-section-meta">{squarePosts.length} posts</div>}
           </div>
-          <button className="pf-square-btn" onClick={() => setShowSquarePosts(true)}>
-            <div>
-              <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff' }}>Posts on The Square</div>
-              <div style={{ fontSize: '0.68rem', color: 'rgba(155,109,255,0.5)', fontFamily: 'Inter, sans-serif', marginTop: 2 }}>View your contributions to the Square</div>
+          {squarePosts.length === 0 ? (
+            <div style={{ color: 'rgba(255,255,255,0.35)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.9rem', padding: '0.5rem 0' }}>No Square posts yet.</div>
+          ) : squarePosts.slice(0, 5).map(p => (
+            <div key={p.id} style={{ padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '0.6rem' }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(107,47,173,0.25)', border: '1.5px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0 }}>
+                  {avatarUrl ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap', marginBottom: 2 }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{displayName}</span>
+                    {username && <span style={{ fontSize: '0.68rem', color: 'rgba(167,139,250,0.55)', fontFamily: 'Inter, sans-serif' }}>@{username}</span>}
+                    {isAuthor && <WriterBadge size={11} />}
+                    <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}</span>
+                  </div>
+                  <div style={{ fontSize: '0.95rem', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', lineHeight: 1.7 }}>{p.text}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '16px', paddingLeft: '46px' }}>
+                {[
+                  { type: 'like', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
+                  { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
+                  { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
+                ].map(({ type, activeColor, d }) => {
+                  const count = p[type + 'Count'] || p.likeCount && type === 'like' ? (p.likeCount || 0) : 0;
+                  return (
+                    <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '3px', color: 'rgba(255,255,255,0.4)' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
+                      {count > 0 && <span style={{ fontSize: '0.6rem', fontFamily: 'Inter, sans-serif' }}>{count}</span>}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.4)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-          </button>
+          ))}
+          {squarePosts.length > 5 && (
+            <button className="pf-more-btn" onClick={() => setShowSquarePosts(true)}>
+              more… ({squarePosts.length - 5} more posts)
+            </button>
+          )}
         </div>
 
         {/* Reading Progress */}
