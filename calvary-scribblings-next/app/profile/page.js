@@ -117,7 +117,7 @@ function SquarePostCard({ post, profileData, isAuthor, badge }) {
   const initials = (post.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   return (
     <div
-      onClick={() => window.location.href = '/square'}
+      onClick={() => window.location.href = `/square#${post.id}`}
       style={{ padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}
       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.015)'}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -149,8 +149,7 @@ function SquarePostCard({ post, profileData, isAuthor, badge }) {
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', paddingLeft: '2.75rem' }}>
-        <ReactionPill path={HEART_PATH} fill="rgba(212,83,126,0.72)" count={post.heartCount || 0} />
-        <ReactionPill path={LIKE_PATH} fill="rgba(96,165,250,0.72)" count={post.likeCount || 0} />
+        <ReactionPill path={HEART_PATH} fill="rgba(212,83,126,0.72)" count={post.likeCount || 0} />
         <ReactionPill path={FLAME_PATH} fill="rgba(251,146,60,0.72)" count={post.fireCount || 0} />
         {post.parentId && <span style={{ fontSize: '0.56rem', color: 'rgba(167,139,250,0.28)', fontFamily: 'Inter, sans-serif', marginLeft: 2 }}>reply</span>}
       </div>
@@ -678,17 +677,15 @@ export default function ProfilePage() {
         </div>
 
         <div className="pf-name">{displayName}</div>
-        {username && <div className="pf-username">@{username}</div>}
-        {(isAuthor || badge) && (
-          <div className="pf-badge-row">
-            {isAuthor ? <WriterBadge size={13} /> : badge ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <BadgeIcon color={badge.color} size={13} isFounder={badge.isFounder} />
-                <span className="pf-badge-label" style={{ color: badge.color }}>{badge.label}</span>
-              </span>
-            ) : null}
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.42rem' }}>
+          {username && <span className="pf-username" style={{ marginBottom: 0 }}>@{username}</span>}
+          {isAuthor ? <WriterBadge size={13} /> : badge ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <BadgeIcon color={badge.color} size={13} isFounder={badge.isFounder} />
+              <span className="pf-badge-label" style={{ color: badge.color }}>{badge.label}</span>
+            </span>
+          ) : null}
+        </div>
         <div className="pf-verified-row">
           {authUser.emailVerified
             ? <span className="pf-verified"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1d9e75" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Verified</span>
@@ -713,7 +710,7 @@ export default function ProfilePage() {
           {bio ? <span className="pf-bio-text">{bio}</span> : <span className="pf-bio-empty" onClick={openEdit}>+ Add a bio</span>}
         </div>
 
-        <div className="pf-stats">
+        <div className="pf-stats" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
           <div className="pf-stat">
             <div className="pf-stat-num">{readCount.toLocaleString()}</div>
             <div className="pf-stat-label">Stories read</div>
@@ -722,10 +719,17 @@ export default function ProfilePage() {
             <div className="pf-stat-num">{commentCount}</div>
             <div className="pf-stat-label">Comments ↗</div>
           </div>
-          <div className="pf-stat">
-            <div className="pf-stat-num">—</div>
-            <div className="pf-stat-label">Bookmarks</div>
-          </div>
+        </div>
+
+        <div className="pf-section">
+          <div className="pf-section-header"><div className="pf-section-title">The Scribblings Square</div></div>
+          <button className="pf-square-trigger" onClick={() => setShowSquarePosts(true)}>
+            <div>
+              <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '0.98rem', color: '#f5f0e8', marginBottom: 2 }}>My posts on The Square</div>
+              <div style={{ fontSize: '0.63rem', color: 'rgba(155,109,255,0.42)', fontFamily: 'Inter, sans-serif' }}>View your contributions</div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.32)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
         </div>
 
         {readStories.length > 0 && (
@@ -786,18 +790,6 @@ export default function ProfilePage() {
             </div>
           </a>
         </div>
-
-        <div className="pf-section">
-          <div className="pf-section-header"><div className="pf-section-title">The Scribblings Square</div></div>
-          <button className="pf-square-trigger" onClick={() => setShowSquarePosts(true)}>
-            <div>
-              <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '0.98rem', color: '#f5f0e8', marginBottom: 2 }}>My posts on The Square</div>
-              <div style={{ fontSize: '0.63rem', color: 'rgba(155,109,255,0.42)', fontFamily: 'Inter, sans-serif' }}>View your contributions</div>
-            </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.32)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-          </button>
-        </div>
-
         <div className="pf-section">
           <div className="pf-section-header"><div className="pf-section-title">Account</div></div>
           <div className="pf-account-row"><span className="pf-account-label">{authUser.email}</span></div>
