@@ -798,10 +798,11 @@ useEffect(() => {
         .back-link { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: ${accentColor}; text-decoration: none; font-family: Cochin, Georgia, serif; }
         .back-link:hover { text-decoration: underline; }
         .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cochin, Georgia, serif; font-weight: 400; }
+        .prose em, .prose i { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; }
         .prose p { margin-bottom: 0; } .prose p + p { text-indent: 1.5em; }
         .prose.has-dropcap > p:first-of-type::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: Cochin, 'Cormorant Garamond', Cochin, Georgia, serif; }
         .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cochin, Georgia, serif; line-height: 1.3; }
-        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: 'Cormorant Garamond', Georgia, serif; }
         .prose h4 { font-size: 1rem; font-weight: 700; color: #1a1a1a; margin: 1.5em 0 0.4em; font-family: Cochin, Georgia, serif; }
         .prose img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; margin: 2em 0 0.5em; min-height: 200px; background: #e8e0d4; }
 .prose img.loaded { min-height: unset; background: none; }
