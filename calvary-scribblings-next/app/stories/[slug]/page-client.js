@@ -360,6 +360,9 @@ function CommentsSection({ slug, onSignIn }) {
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState('');
+  const [menuId, setMenuId] = useState(null);
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [commentReactions, setCommentReactions] = useState({});
@@ -498,12 +501,13 @@ function CommentsSection({ slug, onSignIn }) {
     setPosting(false);
   };
 
-  const editComment = async (commentId, newText) => {
-    if (!user || !newText.trim()) return;
+  const editComment = async (commentId) => {
+    if (!user || !editText.trim()) return;
     try {
       const db = await getDB();
       const { ref, update } = await import('firebase/database');
-      await update(ref(db, `comments/${slug}/${commentId}`), { text: newText.trim(), editedAt: Date.now() });
+      await update(ref(db, `comments/${slug}/${commentId}`), { text: editText.trim(), editedAt: Date.now() });
+      setEditingId(null); setEditText('');
     } catch (e) {}
   };
 
@@ -561,19 +565,33 @@ function CommentsSection({ slug, onSignIn }) {
                 <div className="cs-comment">
                   <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size="sm" isOwnComment={isOwn} />
                   <div className="cs-comment-body">
-                    <div className="cs-comment-header">
+                    <div className="cs-comment-header" style={{ position: 'relative' }}>
                       <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
                       <CommentUsername uid={comment.authorUid} />
                       <CommentBadge uid={comment.authorUid} size={13} />
                       <span className="cs-time">{timeAgo(comment.createdAt)}</span>
-                      {comment.editedAt && <span className="cs-time"> (edited)</span>}
+                      {comment.editedAt && <span className="cs-time"> · edited</span>}
+                      {isOwn && (
+                        <div style={{ marginLeft: 'auto', position: 'relative' }}>
+                          <button onClick={() => setMenuId(menuId === comment.id ? null : comment.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '0 4px', fontSize: '1rem', lineHeight: 1 }}>···</button>
+                          {menuId === comment.id && (
+                            <>
+                              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuId(null)} />
+                              <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, zIndex: 100, minWidth: 110, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+                                <button onClick={() => { setEditingId(comment.id); setEditText(comment.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Edit</button>
+                                <button onClick={() => { setMenuId(null); if (window.confirm('Delete this comment?')) deleteComment(comment.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Delete</button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="cs-comment-text">{comment.editing ? (
+                    <div className="cs-comment-text">{editingId === comment.id ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <textarea className="cs-textarea cs-textarea-sm" defaultValue={comment.text} rows={2} id={`edit-${comment.id}`} autoFocus />
+                        <textarea className="cs-textarea cs-textarea-sm" value={editText} onChange={e => setEditText(e.target.value)} rows={2} autoFocus />
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button className="cs-reply-btn" onClick={async () => { const el = document.getElementById(`edit-${comment.id}`); if (el) { await editComment(comment.id, el.value); comment.editing = false; } }}>Save</button>
-                          <button className="cs-reply-btn" onClick={() => { comment.editing = false; }}>Cancel</button>
+                          <button className="cs-reply-btn" onClick={() => editComment(comment.id)}>Save</button>
+                          <button className="cs-reply-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
                         </div>
                       </div>
                     ) : comment.text}</div>
@@ -595,8 +613,6 @@ function CommentsSection({ slug, onSignIn }) {
                           );
                         })}
                         {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
-                        {isOwn && <button className="cs-reply-btn" onClick={() => { comment.editing = true; }}>Edit</button>}
-                        {isOwn && <button className="cs-reply-btn" style={{ color: 'rgba(248,113,113,0.5)' }} onClick={() => { if (confirm('Delete this comment?')) deleteComment(comment.id); }}>Delete</button>}
                       </div>
                     </div>
                     {replyTo === comment.id && (
@@ -617,19 +633,33 @@ function CommentsSection({ slug, onSignIn }) {
                             <div key={reply.id} className="cs-reply">
                               <CommentAvatar uid={reply.authorUid} initials={reply.authorInitials} size="xs" isOwnComment={replyIsOwn} />
                               <div className="cs-comment-body">
-                                <div className="cs-comment-header">
+                                <div className="cs-comment-header" style={{ position: 'relative' }}>
                                   <a href={replyIsOwn ? '/profile' : `/user?id=${reply.authorUid}`} className="cs-name cs-name-link">{reply.authorName}</a>
                                   <CommentUsername uid={reply.authorUid} />
                                   <CommentBadge uid={reply.authorUid} size={12} />
                                   <span className="cs-time">{timeAgo(reply.createdAt)}</span>
-                                  {reply.editedAt && <span className="cs-time"> (edited)</span>}
+                                  {reply.editedAt && <span className="cs-time"> · edited</span>}
+                                  {replyIsOwn && (
+                                    <div style={{ marginLeft: 'auto', position: 'relative' }}>
+                                      <button onClick={() => setMenuId(menuId === reply.id ? null : reply.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '0 4px', fontSize: '1rem', lineHeight: 1 }}>···</button>
+                                      {menuId === reply.id && (
+                                        <>
+                                          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuId(null)} />
+                                          <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, zIndex: 100, minWidth: 110, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+                                            <button onClick={() => { setEditingId(reply.id); setEditText(reply.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Edit</button>
+                                            <button onClick={() => { setMenuId(null); if (window.confirm('Delete this reply?')) deleteComment(reply.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Delete</button>
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="cs-comment-text cs-comment-text-sm">{reply.editing ? (
+                                <div className="cs-comment-text cs-comment-text-sm">{editingId === reply.id ? (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                    <textarea className="cs-textarea cs-textarea-sm" defaultValue={reply.text} rows={2} id={`edit-${reply.id}`} autoFocus />
+                                    <textarea className="cs-textarea cs-textarea-sm" value={editText} onChange={e => setEditText(e.target.value)} rows={2} autoFocus />
                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                      <button className="cs-reply-btn" onClick={async () => { const el = document.getElementById(`edit-${reply.id}`); if (el) { await editComment(reply.id, el.value); reply.editing = false; } }}>Save</button>
-                                      <button className="cs-reply-btn" onClick={() => { reply.editing = false; }}>Cancel</button>
+                                      <button className="cs-reply-btn" onClick={() => editComment(reply.id)}>Save</button>
+                                      <button className="cs-reply-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
                                     </div>
                                   </div>
                                 ) : reply.text}</div>
@@ -649,8 +679,7 @@ function CommentsSection({ slug, onSignIn }) {
                                       </button>
                                     );
                                   })}
-                                  {replyIsOwn && <button className="cs-reply-btn" onClick={() => { reply.editing = true; }}>Edit</button>}
-                                  {replyIsOwn && <button className="cs-reply-btn" style={{ color: 'rgba(248,113,113,0.5)' }} onClick={() => { if (confirm('Delete this comment?')) deleteComment(reply.id); }}>Delete</button>}
+
                                 </div>
                               </div>
                             </div>
