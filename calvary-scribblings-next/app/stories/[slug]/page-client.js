@@ -872,6 +872,7 @@ useEffect(() => {
         .prose.has-dropcap > p:first-of-type::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: Cochin, 'Cormorant Garamond', Cochin, Georgia, serif; }
         .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cochin, Georgia, serif; line-height: 1.3; }
         .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: 'Cormorant Garamond', Georgia, serif; }
+        .prose p[style*='text-align:center'], .prose p[style*='text-align: center'] { text-align: center; font-family: Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
         .prose h4 { font-size: 1rem; font-weight: 700; color: #1a1a1a; margin: 1.5em 0 0.4em; font-family: Cochin, Georgia, serif; }
         .prose img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; margin: 2em 0 0.5em; min-height: 200px; background: #e8e0d4; }
 .prose img.loaded { min-height: unset; background: none; }
