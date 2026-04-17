@@ -65,8 +65,7 @@ function getScheduleStatus(publishAt) {
 }
 
 function convertToHTML(text) {
-  if (/<p[\s>]/i.test(text)) return text;
-  const blockTags = /^<(figure|img|h[1-6]|ul|ol|li|blockquote|div|table|hr)/i;
+  const blockTags = /^<(figure|img|h[1-6]|ul|ol|li|blockquote|div|table|hr|p[\s>])/i;
   const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
   return paragraphs.map((p, i) => {
     if (blockTags.test(p)) return p;
