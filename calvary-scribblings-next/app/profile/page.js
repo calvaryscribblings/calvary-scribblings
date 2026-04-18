@@ -354,8 +354,6 @@ export default function ProfilePage() {
   const [editHeaderPreview, setEditHeaderPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [pwMsg, setPwMsg] = useState('');
-  const [changingPassword, setChangingPassword] = useState(false);
   const [libNotifs, setLibNotifs] = useState([]);
   const [showLibNotifs, setShowLibNotifs] = useState(false);
   const [unreadLibCount, setUnreadLibCount] = useState(0);
@@ -492,17 +490,6 @@ export default function ProfilePage() {
     } catch (e) { setSaveError('Something went wrong. Please try again.'); }
     setSaving(false);
   };
-
-  const handleSignOut = async () => { const auth = await getFirebaseAuth(); const { signOut } = await import('firebase/auth'); await signOut(auth); router.push('/'); };
-
-  const handleResetPassword = async () => {
-    if (!authUser?.email) return;
-    setChangingPassword(true);
-    try { const auth = await getFirebaseAuth(); const { sendPasswordResetEmail } = await import('firebase/auth'); await sendPasswordResetEmail(auth, authUser.email); setPwMsg('Password reset email sent. Check your inbox.'); }
-    catch (e) { setPwMsg('Something went wrong. Please try again.'); }
-    setChangingPassword(false);
-  };
-
   if (loading) return <div style={{ minHeight: '100vh', background: '#0d0d0d' }} />;
   if (!authUser) return null;
 
@@ -814,15 +801,17 @@ export default function ProfilePage() {
         </div>
         <div className="pf-section">
           <div className="pf-section-header"><div className="pf-section-title">Account</div></div>
-          <div className="pf-account-row"><span className="pf-account-label">{authUser.email}</span></div>
-          <div className="pf-account-row">
-            <span className="pf-account-label">Password</span>
-            <button className="pf-account-action" onClick={handleResetPassword} disabled={changingPassword}>{changingPassword ? 'Sending…' : 'Reset password'}</button>
-          </div>
-          {pwMsg && <div className="pf-pw-msg">{pwMsg}</div>}
-          <button className="pf-signout" onClick={handleSignOut}>Sign out</button>
+          <a href="/settings" className="pf-account-row" style={{ textDecoration: 'none', cursor: 'pointer', transition: 'background 0.2s, border-color 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(107,47,173,0.06)'; e.currentTarget.style.borderColor = 'rgba(107,47,173,0.2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; }}
+          >
+            <span className="pf-account-label">Account settings</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.57rem', color: '#9b6dff', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
+              Manage
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9b6dff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </span>
+          </a>
         </div>
-      </div>
 
       {/* Modals */}
       {showFollowers && <UserListModal title={`Followers · ${followerCount}`} uids={followerUids} onClose={() => setShowFollowers(false)} />}
