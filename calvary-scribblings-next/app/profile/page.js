@@ -490,6 +490,7 @@ export default function ProfilePage() {
     } catch (e) { setSaveError('Something went wrong. Please try again.'); }
     setSaving(false);
   };
+
   if (loading) return <div style={{ minHeight: '100vh', background: '#0d0d0d' }} />;
   if (!authUser) return null;
 
@@ -594,11 +595,6 @@ export default function ProfilePage() {
 
         .pf-account-row { display: flex; align-items: center; justify-content: space-between; padding: 0.88rem 1.1rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 0.38rem; }
         .pf-account-label { font-size: 0.78rem; color: rgba(255,255,255,0.3); font-family: Inter, sans-serif; }
-        .pf-account-action { font-size: 0.57rem; color: #9b6dff; letter-spacing: 0.1em; text-transform: uppercase; font-family: Inter, sans-serif; cursor: pointer; background: none; border: none; transition: color 0.2s; }
-        .pf-account-action:hover { color: #c4b5fd; }
-        .pf-pw-msg { font-size: 0.66rem; color: #86efac; font-family: Inter, sans-serif; margin-top: 0.38rem; }
-        .pf-signout { width: 100%; margin-top: 0.82rem; background: none; border: 1px solid rgba(220,38,38,0.1); border-radius: 10px; padding: 0.82rem; font-size: 0.57rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(248,113,113,0.26); cursor: pointer; font-family: Inter, sans-serif; transition: color 0.2s, border-color 0.2s; }
-        .pf-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.3); }
 
         .lib-notif-panel { position: fixed; top: 0; right: 0; width: min(400px,100vw); height: 100vh; background: #0c0c0c; border-left: 1px solid rgba(255,255,255,0.07); z-index: 2000; display: flex; flex-direction: column; }
         .lib-notif-item { padding: 0.95rem 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; gap: 10px; align-items: flex-start; text-decoration: none; transition: background 0.15s; }
@@ -799,12 +795,10 @@ export default function ProfilePage() {
             </div>
           </a>
         </div>
+
         <div className="pf-section">
           <div className="pf-section-header"><div className="pf-section-title">Account</div></div>
-          <a href="/settings" className="pf-account-row" style={{ textDecoration: 'none', cursor: 'pointer', transition: 'background 0.2s, border-color 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(107,47,173,0.06)'; e.currentTarget.style.borderColor = 'rgba(107,47,173,0.2)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; }}
-          >
+          <a href="/settings" className="pf-account-row" style={{ textDecoration: 'none', cursor: 'pointer', transition: 'background 0.2s, border-color 0.2s' }}>
             <span className="pf-account-label">Account settings</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.57rem', color: '#9b6dff', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
               Manage
@@ -812,6 +806,7 @@ export default function ProfilePage() {
             </span>
           </a>
         </div>
+      </div>
 
       {/* Modals */}
       {showFollowers && <UserListModal title={`Followers · ${followerCount}`} uids={followerUids} onClose={() => setShowFollowers(false)} />}
@@ -834,8 +829,6 @@ export default function ProfilePage() {
               <div
                 onClick={() => headerInputRef.current?.click()}
                 style={{ position: 'relative', width: '100%', height: 88, borderRadius: 10, overflow: 'hidden', cursor: 'pointer', background: editHeaderPreview ? 'transparent' : 'rgba(255,255,255,0.025)', border: '1px dashed rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(167,139,250,0.28)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
               >
                 {editHeaderPreview
                   ? <img src={editHeaderPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
