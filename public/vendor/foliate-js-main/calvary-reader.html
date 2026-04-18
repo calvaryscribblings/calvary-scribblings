@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calvary Reader</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Cinzel:wght@400;600&display=swap" rel="stylesheet">
+<style>
+html,body{height:100%;margin:0;background:#f6f0e2;overflow:hidden}
+#loading{position:fixed;inset:0;background:#f6f0e2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:100;transition:opacity 0.4s ease}
+#loading.hidden{opacity:0;pointer-events:none}
+#loading-spinner{width:32px;height:32px;border:2px solid rgba(201,164,76,0.2);border-top-color:#c9a44c;border-radius:50%;animation:spin 0.9s linear infinite}
+#loading-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1rem;color:#888}
+@keyframes spin{to{transform:rotate(360deg)}}
+#error{display:none;position:fixed;inset:0;background:#f6f0e2;align-items:center;justify-content:center;padding:32px;text-align:center}
+#error.show{display:flex}
+#error-text{font-family:'Cormorant Garamond',serif;font-style:italic;color:#c0392b;font-size:1rem}
+foliate-view{display:block;width:100%;height:100%;background:#f6f0e2}
+.nav-btn{position:fixed;top:50%;transform:translateY(-50%);z-index:50;background:none;border:none;cursor:pointer;padding:18px 12px;opacity:0.28;transition:opacity 0.2s;color:#c9a44c}
+.nav-btn:hover{opacity:0.85}
+#btn-prev{left:max(4px,1vw)}
+#btn-next{right:max(4px,1vw)}
+</style>
+<div id="loading"><div id="loading-spinner"></div><div id="loading-text">Opening book…</div></div>
+<div id="error"><div id="error-text">Could not open this book. Please try again.</div></div>
+<button id="btn-prev" class="nav-btn"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+<button id="btn-next" class="nav-btn"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+
+<script type="module">
+import './view.js'
+const params = new URLSearchParams(location.search)
+const url = params.get('url')
+const fontSizes = [14, 16, 18, 20, 22]
+const fsParam = parseInt(params.get('fs') || '16')
+let currentFontSize = fontSizes.indexOf(fsParam)
+if (currentFontSize < 0) currentFontSize = 1
+let atEnd = false
+
+window.addEventListener('message', e => {
+  if (e.data.type === 'setFontSize') {
+    currentFontSize = e.data.index
+    if (window._view) window._view.renderer?.setStyles?.(getCSS())
+  }
+})
+
+function getCSS() {
+  const sz = fontSizes[currentFontSize]
+  return `
+    body {
+      font-family: 'Cormorant Garamond', Cochin, Georgia, serif !important;
+      color: #2a1a0e !important;
+      background: #f6f0e2 !important;
+      font-size: ${sz}px !important;
+    }
+    p, li, blockquote, dd {
+      font-family: 'Cormorant Garamond', Cochin, Georgia, serif !important;
+      font-size: ${sz}px !important;
+      line-height: 1.9 !important;
+      text-align: justify;
+      hyphens: auto !important;
+      -webkit-hyphens: auto !important;
+    }
+    p + p { text-indent: 1.5em !important; }
+    h1, h2 { font-weight: 300 !important; color: #1a0a00 !important; }
+    h3 { font-style: italic !important; color: #6b2fad !important; font-weight: 400 !important; }
+    blockquote { border-left: 2px solid #c9a44c !important; padding: 0.4em 1em !important; font-style: italic !important; color: #5a3820 !important; }
+    a { color: #6b2fad !important; }
+    pre { white-space: pre-wrap !important; }
+    span[style*="background-image"] { display: none !important; float: none !important; width: 0 !important; height: 0 !important; margin: 0 !important; padding: 0 !important; }
+  `
+}
+
+if (!url) {
+  document.getElementById('loading').classList.add('hidden')
+  document.getElementById('error').classList.add('show')
+  document.getElementById('error-text').textContent = 'No book URL provided.'
+} else {
+  const view = document.createElement('foliate-view')
+  window._view = view
+  document.body.append(view)
+
+  let lastFraction = 0
+  let stepSize = 0
+  let stuckCount = 0
+  let hasNavigated = false
+  view.addEventListener('relocate', ({ detail }) => {
+    const { fraction } = detail
+    const cfi = detail.cfi || (view.lastLocation && view.lastLocation.cfi) || ''
+    window._lastCFI = cfi
+    window._lastFraction = fraction
+    if (lastFraction > 0 && fraction > lastFraction) {
+      const diff = fraction - lastFraction
+      if (diff < 0.5) stepSize = diff
+      stuckCount = 0
+      hasNavigated = true
+    } else if (hasNavigated && fraction > 0.1 && lastFraction > 0 && fraction === lastFraction) {
+      stuckCount++
+      if (stuckCount >= 2 && !atEnd) {
+        atEnd = true
+        window.parent.postMessage({ type: 'ended' }, '*')
+      }
+    }
+    lastFraction = fraction
+    window.parent.postMessage({ type: 'relocate', fraction, step: stepSize, cfi: cfi }, '*')
+  })
+
+  const params = new URLSearchParams(location.search)
+  const bookmarkFraction = parseFloat(params.get('bookmark') || '0')
+
+  view.addEventListener('load', ({ detail: { doc } }) => {
+    document.getElementById('loading').classList.add('hidden')
+    window._foliateReady = true
+    window.parent.postMessage({ type: 'ready' }, '*')
+    doc.addEventListener('keydown', handleKey)
+  
+  })
+
+  window.addEventListener('message', e => {
+    if (e.data.type === 'saveBookmark') {
+      console.log('saveBookmark received, lastFraction:', lastFraction)
+      window.parent.postMessage({ type: 'bookmarkSaved', fraction: lastFraction }, '*')
+    }
+    if (e.data.type === 'restoreBookmark') {
+      const cfi = e.data.cfi
+      const fraction = e.data.fraction
+      try {
+        if (cfi) view.goTo(cfi)
+        else if (fraction > 0.01) view.goToFraction(fraction)
+      } catch(err) {}
+    }
+    if (e.data.type === 'setFontSize') {
+      const sizes = [14,16,18,20,22]
+      const size = sizes[e.data.index] || 16
+      document.documentElement.style.setProperty('--fs', size + 'px')
+    }
+  })
+  document.getElementById('btn-prev').addEventListener('click', () => view.goLeft())
+  document.getElementById('btn-next').addEventListener('click', () => view.goRight())
+  document.addEventListener('keydown', handleKey)
+
+  let touchX = null
+  document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX }, { passive: true })
+  document.addEventListener('touchend', e => {
+    if (touchX === null) return
+    const diff = touchX - e.changedTouches[0].clientX
+    touchX = null
+    if (Math.abs(diff) > 50) diff > 0 ? view.goRight() : view.goLeft()
+  })
+
+  function handleKey(e) {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') view.goLeft()
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') view.goRight()
+  }
+
+  view.open(url)
+    .then(() => {
+      view.renderer?.setStyles?.(getCSS())
+      view.renderer?.next()
+    })
+    .catch(err => {
+      console.error(err)
+      document.getElementById('loading').classList.add('hidden')
+      document.getElementById('error').classList.add('show')
+    })
+}
+</script>

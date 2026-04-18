@@ -4,7 +4,6 @@ import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 
 const ADMIN_EMAIL = 'Ikennaworksfromhome@gmail.com';
-const IMGBB_KEY = '7370a63104ddbe33b9693fa1057979d2';
 
 const CATEGORIES = [
   { value: 'flash', label: 'Flash Fiction' },
@@ -12,9 +11,32 @@ const CATEGORIES = [
   { value: 'poetry', label: 'Poetry' },
   { value: 'news', label: 'News & Updates' },
   { value: 'inspiring', label: 'Inspiring' },
+  { value: 'novel', label: 'Novel' },
 ];
 
-const AUTHORS = ['Calvary', 'Tricia Ajax', 'Ufedo Adaji', 'Chioma Okonkwo', 'Ikenna Okpara'];
+const NEWS_SUBCATEGORIES = [
+  { value: '', label: 'General' },
+  { value: 'Op-Ed', label: 'Op-Ed' },
+  { value: 'Music', label: 'Music' },
+  { value: 'Culture', label: 'Culture' },
+  { value: 'Tech', label: 'Tech' },
+  { value: 'Film', label: 'Film' },
+  { value: 'Fitness', label: 'Fitness' },
+  { value: 'Agriculture', label: 'Agriculture' },
+  { value: 'Politics', label: 'Politics' },
+  { value: 'Food', label: 'Food' },
+];
+
+const AUTHORS = [
+  'Calvary',
+  'Tricia Ajax',
+  'Ufedo Adaji',
+  'Chioma Okonkwo',
+  'Ikenna Okpara',
+  'Kalu Rebecca',
+  'Okere Josiah',
+  'Arthur Eze',
+];
 
 function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -42,11 +64,11 @@ function getScheduleStatus(publishAt) {
   return `Scheduled · publishes in ${mins}m`;
 }
 
-
 function convertToHTML(text) {
-  if (/<p[\s>]/i.test(text)) return text;
+  const blockTags = /^<(figure|img|h[1-6]|ul|ol|li|blockquote|div|table|hr|p[\s>])/i;
   const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
   return paragraphs.map((p, i) => {
+    if (blockTags.test(p)) return p;
     if (i === 0) return `<p>${p}</p>`;
     return `<p style="text-indent:1.5em; margin-bottom:0">${p}</p>`;
   }).join(' ');
@@ -57,9 +79,17 @@ async function uploadToStorage(file) {
   const filename = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
   const storageRef = ref(storage, 'covers/' + filename);
   await uploadBytes(storageRef, file);
-  const url = await getDownloadURL(storageRef);
-  return url;
+  return await getDownloadURL(storageRef);
 }
+
+async function uploadEPUBToStorage(file) {
+  const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+  const filename = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+  const storageRef = ref(storage, 'epubs/' + filename);
+  await uploadBytes(storageRef, file);
+  return await getDownloadURL(storageRef);
+}
+
 const s = {
   page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
   header: { background: '#171717', borderBottom: '1px solid #2a2a2a', padding: '1.25rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
@@ -80,6 +110,8 @@ const s = {
   cardMeta: { fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)' },
   badge: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(124,58,237,0.2)', color: '#c4b5fd', border: '1px solid rgba(124,58,237,0.35)', marginLeft: '0.5rem', verticalAlign: 'middle' },
   badgeScheduled: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.35)', marginLeft: '0.5rem', verticalAlign: 'middle' },
+  badgeSub: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(220,38,38,0.15)', color: '#f87171', border: '1px solid rgba(220,38,38,0.3)', marginLeft: '0.5rem', verticalAlign: 'middle' },
+  badgeReader: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(201,164,76,0.15)', color: '#fcd34d', border: '1px solid rgba(201,164,76,0.3)', marginLeft: '0.5rem', verticalAlign: 'middle' },
   cardActions: { display: 'flex', gap: '0.5rem', flexShrink: 0 },
   form: { display: 'flex', flexDirection: 'column', gap: '1.4rem' },
   fg: { display: 'flex', flexDirection: 'column', gap: '0.45rem' },
@@ -93,6 +125,7 @@ const s = {
   msg: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1.5rem' },
   scheduleBox: { background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.2)', borderRadius: 8, padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' },
   scheduleToggle: { display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', userSelect: 'none' },
+  readerBox: { background: 'rgba(107,47,173,0.08)', border: '1px solid rgba(107,47,173,0.2)', borderRadius: 8, padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' },
   formActions: { display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.5rem' },
   empty: { textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '4rem 0', fontSize: '0.88rem' },
   gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cochin', Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
@@ -101,7 +134,6 @@ const s = {
   modalTitle: { fontSize: '1rem', fontWeight: 700, color: '#fff', margin: 0 },
 };
 
-// ── Image Upload Modal (for inline story images) ───────────────────────────────
 function ImageModal({ onInsert, onClose }) {
   const [file, setFile] = useState(null);
   const [caption, setCaption] = useState('');
@@ -157,14 +189,18 @@ function ImageModal({ onInsert, onClose }) {
   );
 }
 
-// ── StoryForm ─────────────────────────────────────────────────────────────────
-function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) {
+function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, authorHandles, authorUids }) {
   const [showImageModal, setShowImageModal] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [epubUploading, setEpubUploading] = useState(false);
   const textareaRef = useRef(null);
   const coverInputRef = useRef(null);
+  const epubInputRef = useRef(null);
   const isScheduled = !!form.publishAt;
   const scheduleStatus = form.publishAt ? getScheduleStatus(form.publishAt) : null;
+  const isNews = form.category === 'news';
+  const currentHandle = authorHandles[form.author] || '';
+  const currentUid = authorUids[form.author] || '';
 
   async function handleCoverUpload(e) {
     const file = e.target.files[0];
@@ -173,39 +209,44 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
     try {
       const url = await uploadToStorage(file);
       setForm(f => ({ ...f, coverFilename: url, coverPreview: url }));
-    } catch (err) {
-      alert('Cover upload failed: ' + err.message);
-    }
+    } catch (err) { alert('Cover upload failed: ' + err.message); }
     setCoverUploading(false);
+  }
+
+  async function handleEPUBUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setEpubUploading(true);
+    try {
+      const url = await uploadEPUBToStorage(file);
+      setForm(f => ({ ...f, epubUrl: url }));
+    } catch (err) { alert('EPUB upload failed: ' + err.message); }
+    setEpubUploading(false);
   }
 
   function insertAtCursor(html) {
     const ta = textareaRef.current;
     if (!ta) { setForm(f => ({ ...f, content: f.content + html })); return; }
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
+    const start = ta.selectionStart, end = ta.selectionEnd;
     const newContent = form.content.slice(0, start) + html + form.content.slice(end);
     setForm(f => ({ ...f, content: newContent }));
     setTimeout(() => { ta.focus(); ta.setSelectionRange(start + html.length, start + html.length); }, 0);
   }
 
-  function insertImageAtCursor(html) { insertAtCursor(html); }
-
   function insertSubheading() {
     const ta = textareaRef.current;
     if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
+    const start = ta.selectionStart, end = ta.selectionEnd;
     const selected = form.content.slice(start, end);
-    const html = selected ? '<h3>' + selected + '</h3>' : '<h3>Subheading</h3>';
-    insertAtCursor(html);
+    insertAtCursor(selected ? '<h3>' + selected + '</h3>' : '<h3>Subheading</h3>');
   }
 
   const coverIsUrl = form.coverFilename && form.coverFilename.startsWith('http');
+  const epubIsUrl = form.epubUrl && form.epubUrl.startsWith('http');
 
   return (
     <div>
-      {showImageModal && <ImageModal onInsert={insertImageAtCursor} onClose={() => setShowImageModal(false)} />}
+      {showImageModal && <ImageModal onInsert={insertAtCursor} onClose={() => setShowImageModal(false)} />}
       <div style={s.topBar}>
         <div>
           <h2 style={s.h2}>{editingId ? 'Edit Story' : 'New Story'}</h2>
@@ -225,17 +266,43 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
         <div style={s.row2}>
           <div style={s.fg}>
             <label style={s.label}>Author</label>
-            <select style={s.select} value={form.author} onChange={e => setForm(f => ({ ...f, author: e.target.value }))}>
+            <select style={s.select} value={form.author}
+              onChange={e => setForm(f => ({ ...f, author: e.target.value }))}>
               {AUTHORS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
+            <input style={{ ...s.input, marginTop: '0.35rem' }} value={form.authorHandle || ''}
+              placeholder={currentHandle ? `@${currentHandle} (auto)` : 'Enter @handle manually…'}
+              onChange={e => setForm(f => ({ ...f, authorHandle: e.target.value.replace(/^@/, '') }))} />
+            {currentHandle
+              ? <div style={s.hintGreen}>Auto-lookup found @{currentHandle} — override above if different.</div>
+              : <div style={s.hint}>No auto-match — enter the writer's @handle manually.</div>
+            }
+            <div style={s.fg}>
+              <label style={s.label}>Author Override <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for guest authors)</span></label>
+              <input style={s.input} value={form.authorOverride || ''} placeholder="e.g. Ikenna Okpara & Jane Smith"
+                onChange={e => setForm(f => ({ ...f, authorOverride: e.target.value }))} />
+              <div style={s.hint}>If filled, this replaces the dropdown selection on the story page.</div>
+            </div>
           </div>
           <div style={s.fg}>
             <label style={s.label}>Category</label>
-            <select style={s.select} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+            <select style={s.select} value={form.category}
+              onChange={e => setForm(f => ({ ...f, category: e.target.value, subcategory: '' }))}>
               {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </div>
         </div>
+
+        {isNews && (
+          <div style={s.fg}>
+            <label style={s.label}>News Subcategory</label>
+            <select style={s.select} value={form.subcategory || ''}
+              onChange={e => setForm(f => ({ ...f, subcategory: e.target.value }))}>
+              {NEWS_SUBCATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+            <div style={s.hint}>Subcategory appears alongside the News badge on the story card and page.</div>
+          </div>
+        )}
 
         <div style={s.row2}>
           <div style={s.fg}>
@@ -252,18 +319,13 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
                   onChange={e => setForm(f => ({ ...f, coverFilename: e.target.value, coverPreview: null }))} />
               </div>
               <button style={{ ...s.btnImg, flexShrink: 0 }}
-                onClick={() => coverInputRef.current.click()}
-                disabled={coverUploading}>
+                onClick={() => coverInputRef.current.click()} disabled={coverUploading}>
                 {coverUploading ? '…' : '⬆ Upload'}
               </button>
               <input ref={coverInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCoverUpload} />
             </div>
-            {coverIsUrl && (
-              <div style={s.hintGreen}>✓ Uploaded to Firebase</div>
-            )}
-            {!coverIsUrl && (
-              <div style={s.hint}>Upload image, or enter a /public/ filename manually.</div>
-            )}
+            {coverIsUrl && <div style={s.hintGreen}>✓ Uploaded to Firebase</div>}
+            {!coverIsUrl && <div style={s.hint}>Upload image, or enter a /public/ filename manually.</div>}
             {(form.coverPreview || coverIsUrl) && (
               <img src={form.coverPreview || form.coverFilename} alt="Cover preview"
                 style={{ width: 80, height: 106, objectFit: 'cover', borderRadius: 4, marginTop: '0.5rem' }} />
@@ -271,7 +333,40 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
           </div>
         </div>
 
-        {/* Scheduling */}
+        {/* EPUB Upload */}
+        <div style={s.fg}>
+          <label style={s.label}>
+            EPUB File <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for book reader)</span>
+          </label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
+              <input style={s.input} value={form.epubUrl || ''} placeholder="Upload an EPUB file"
+                onChange={e => setForm(f => ({ ...f, epubUrl: e.target.value }))} />
+            </div>
+            <button style={{ ...s.btnImg, flexShrink: 0 }}
+              onClick={() => epubInputRef.current.click()} disabled={epubUploading}>
+              {epubUploading ? '…' : '⬆ Upload EPUB'}
+            </button>
+            <input ref={epubInputRef} type="file" accept=".epub,application/epub+zip" style={{ display: 'none' }} onChange={handleEPUBUpload} />
+          </div>
+          {epubIsUrl && <div style={s.hintGreen}>✓ EPUB uploaded to Firebase</div>}
+          <div style={s.hint}>Upload an EPUB file for the cinematic book reader. Convert from Word/Google Docs using Calibre (free).</div>
+        </div>
+
+        {/* Book Reader Mode toggle */}
+        <div style={s.readerBox}>
+          <label style={s.scheduleToggle}>
+            <input type="checkbox" checked={form.readerMode || false}
+              onChange={e => setForm(f => ({ ...f, readerMode: e.target.checked }))} />
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c4b5fd', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Book Reader Mode
+            </span>
+          </label>
+          <div style={s.hint}>
+            When enabled, the story opens in the cinematic EPUB reader at /reader/[slug].
+          </div>
+        </div>
+
         <div style={s.scheduleBox}>
           <label style={s.scheduleToggle}>
             <input type="checkbox" checked={isScheduled}
@@ -296,17 +391,12 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
           {!isScheduled && <div style={s.hint}>Untick to publish immediately. Tick to choose a future date and time.</div>}
         </div>
 
-        {/* Content */}
         <div style={s.fg}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <label style={s.label}>Story Content (HTML)</label>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button style={s.btnImg} onClick={insertSubheading}>
-                H3 Subheading
-              </button>
-              <button style={s.btnImg} onClick={() => setShowImageModal(true)}>
-                🖼 Insert Image
-              </button>
+              <button style={s.btnImg} onClick={insertSubheading}>H3 Subheading</button>
+              <button style={s.btnImg} onClick={() => setShowImageModal(true)}>🖼 Insert Image</button>
             </div>
           </div>
           <textarea ref={textareaRef} style={s.textarea} value={form.content}
@@ -330,7 +420,6 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel }) 
   );
 }
 
-// ── AdminPage ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { user } = useAuth();
   const [view, setView] = useState('list');
@@ -339,13 +428,38 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [editingId, setEditingId] = useState(null);
+  const [authorHandles, setAuthorHandles] = useState({});
+  const [authorUids, setAuthorUids] = useState({});
 
-  const emptyForm = { title: '', author: AUTHORS[0], category: 'flash', date: formatDate(new Date()), coverFilename: '', coverPreview: null, content: '', publishAt: '' };
+  const emptyForm = {
+    title: '', author: AUTHORS[0], category: 'flash', subcategory: '',
+    date: formatDate(new Date()), coverFilename: '', coverPreview: null,
+    content: '', publishAt: '', epubUrl: '', readerMode: false,
+    authorHandle: '', authorOverride: '',
+  };
   const [form, setForm] = useState(emptyForm);
 
   const isAdmin = user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-  useEffect(() => { if (isAdmin) loadStories(); }, [isAdmin]);
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      try {
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, 'users'));
+        if (!snap.exists()) return;
+        const handles = {};
+        const uids = {};
+        Object.entries(snap.val()).forEach(([uid, u]) => {
+          if (u.displayName && u.username) handles[u.displayName] = u.username;
+          if (u.displayName) uids[u.displayName] = uid;
+        });
+        setAuthorHandles(handles);
+        setAuthorUids(uids);
+      } catch (e) {}
+    })();
+    loadStories();
+  }, [isAdmin]);
 
   async function loadStories() {
     setLoading(true);
@@ -368,7 +482,8 @@ export default function AdminPage() {
 
   const saveStory = async () => {
     if (!form.title.trim()) { setMsg('Title is required.'); return; }
-    if (!form.content.trim()) { setMsg('Content is required.'); return; }
+    const isEpubCategory = form.category === 'poetry' || form.category === 'novel' || form.category === 'short';
+    if (!form.content.trim() && !(isEpubCategory && form.epubUrl)) { setMsg('Content is required (or upload an EPUB for Poetry/Novel/Short Story).'); return; }
     if (!form.coverFilename.trim()) { setMsg('Cover image is required.'); return; }
     setSaving(true); setMsg('');
     try {
@@ -376,25 +491,44 @@ export default function AdminPage() {
       const slug = editingId || slugify(form.title);
       const categoryObj = CATEGORIES.find(c => c.value === form.category);
       const coverFilename = form.coverFilename.trim();
-      // If it's a full URL (ImgBB), use as-is. Otherwise treat as /public/ filename.
       const coverPath = coverFilename.startsWith('http') ? coverFilename : (coverFilename.startsWith('/') ? coverFilename : `/${coverFilename}`);
       const storyData = {
-        title: form.title.trim(), author: form.author,
-        category: form.category, categoryName: categoryObj.label,
-        date: form.date, content: convertToHTML(form.content.trim()),
-        cover: coverPath, url: `/stories/${slug}`, published: !(form.publishAt && new Date(form.publishAt) > new Date()),
+        title: form.title.trim(),
+        author: form.authorOverride?.trim() || form.author,
+        authorHandle: form.authorHandle || authorHandles[form.author] || '',
+        authorUid: authorUids[form.author] || '',
+        category: form.category,
+        categoryName: categoryObj.label,
+        subcategory: form.category === 'news' ? (form.subcategory || '') : '',
+        date: form.date,
+        content: convertToHTML(form.content.trim()),
+        cover: coverPath,
+        url: `/stories/${slug}`,
+        published: !(form.publishAt && new Date(form.publishAt) > new Date()),
+        epubUrl: form.epubUrl || '',
+        readerMode: form.readerMode || false,
       };
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       await set(ref(db, `cms_stories/${slug}`), storyData);
-      // Add slug to generateStaticParams via GitHub API
-      try {
-        await fetch('https://calvary-newsletter.calvarymediauk.workers.dev/add-slug', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca' },
-          body: JSON.stringify({ slug }),
-        });
-      } catch(e) { console.warn('add-slug failed:', e); }
-      // Trigger Cloudflare rebuild after short delay so Firebase write completes first
+      // Notify followers of this author if publishing now (not scheduled)
+      if (!form.publishAt || new Date(form.publishAt) <= new Date()) {
+        const authorUid = authorUids[form.author] || storyData.authorUid;
+        if (authorUid) {
+          try {
+            const { get: getSnap, push: pushNotif } = await import('firebase/database');
+            const followersSnap = await getSnap(ref(db, `followers/${authorUid}`));
+            if (followersSnap.exists()) {
+              const followerIds = Object.keys(followersSnap.val());
+              await Promise.all(followerIds.map(fid => pushNotif(ref(db, `library_notifications/${fid}`), {
+                type: 'new_story', fromUid: authorUid,
+                fromName: storyData.author,
+                storySlug: slug, storyTitle: storyData.title,
+                read: false, createdAt: Date.now(),
+              })));
+            }
+          } catch(e) { console.warn('Follower notifications failed:', e); }
+        }
+      }
       try {
         await new Promise(r => setTimeout(r, 10000));
         await fetch('https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/df2479ae-06a5-4ff3-a319-29b7b94dd106', { method: 'POST' });
@@ -419,7 +553,16 @@ export default function AdminPage() {
   }
 
   function openEdit(story) {
-    setForm({ title: story.title, author: story.author, category: story.category, date: story.date, coverFilename: story.cover, coverPreview: story.cover, content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '' });
+    setForm({
+      title: story.title, author: story.author, category: story.category,
+      subcategory: story.subcategory || '', date: story.date,
+      coverFilename: story.cover, coverPreview: story.cover,
+      content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
+      epubUrl: story.epubUrl || '',
+      readerMode: story.readerMode || false,
+      authorHandle: story.authorHandle || '',
+      authorOverride: story.authorOverride || '',
+    });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
 
@@ -460,7 +603,8 @@ export default function AdminPage() {
       <div style={s.body}>
         {(view === 'new' || view === 'edit') && (
           <StoryForm form={form} setForm={setForm} editingId={editingId}
-            saving={saving} msg={msg} onSave={saveStory} onCancel={handleCancel} />
+            saving={saving} msg={msg} onSave={saveStory} onCancel={handleCancel}
+            authorHandles={authorHandles} authorUids={authorUids} />
         )}
         {view === 'list' && (
           <div>
@@ -486,12 +630,15 @@ export default function AdminPage() {
                           <div style={s.cardTitle}>
                             {story.title}
                             <span style={s.badge}>{story.categoryName}</span>
+                            {story.subcategory && <span style={s.badgeSub}>{story.subcategory}</span>}
+                            {story.readerMode && <span style={s.badgeReader}>Book Reader</span>}
                             {scheduled && <span style={s.badgeScheduled}>Scheduled</span>}
                           </div>
                           <div style={s.cardMeta}>
-                            By {story.author} · {story.date}
+                            By {story.author}{story.authorHandle ? ` (@${story.authorHandle})` : ''} · {story.date}
                             {status && status !== 'Live' && ` · ${status}`}
                             {!scheduled && <> · <a href={story.url} target="_blank" rel="noreferrer" style={{ color: '#a78bfa', textDecoration: 'none' }}>View →</a></>}
+                            {story.readerMode && <> · <a href={`/reader/${story.id}`} target="_blank" rel="noreferrer" style={{ color: '#fcd34d', textDecoration: 'none' }}>Book Reader →</a></>}
                           </div>
                         </div>
                         <div style={s.cardActions}>
