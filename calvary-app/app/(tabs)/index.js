@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { ref, get } from 'firebase/database';
-import { db } from '../lib/firebase';
-import StoryCard from '../components/StoryCard';
+import { db } from '../../lib/firebase';
+import StoryCard from '../../components/StoryCard';
 import { router } from 'expo-router';
 
 export default function HomeScreen() {
