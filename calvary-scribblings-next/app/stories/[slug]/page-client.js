@@ -6,6 +6,7 @@ import { use } from 'react';
 import { storyContent } from '../../lib/storyContent';
 import AuthModal from '../../components/AuthModal';
 import TipBox from '../../components/TipBox';
+import StoryAuthorBio from '../../components/StoryAuthorBio';
 
 
 const FB = {
@@ -1035,6 +1036,7 @@ useEffect(() => {
         </div>
         <ExerciseSection slug={slug} />
         <div style={{ background: '#f0ead8', padding: '2rem 0 3rem' }}><div style={{ maxWidth: '680px', margin: '0 auto', padding: '0 2rem' }}><TipBox variant="story" /></div></div>
+        <StoryAuthorBio authorUid={story.authorUid} fallbackName={story.author} />
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
         {showAuthModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>
