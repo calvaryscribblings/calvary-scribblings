@@ -94,7 +94,7 @@ export default function StoryAuthorBio({ authorUid, fallbackName }) {
           )}
           <div style={{ flex: 1, minWidth: 0, paddingTop: 6 }}>
             {handle ? (
-              <a href={`/user/${handle}`} style={{
+              <a href={`/user?id=${authorUid}`} style={{
                 textDecoration: 'none',
                 color: '#f0ead8',
                 display: 'block',
@@ -116,7 +116,7 @@ export default function StoryAuthorBio({ authorUid, fallbackName }) {
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: PURPLE, fontSize: '0.82rem', fontFamily: 'Inter, sans-serif' }}>
               {handle && (
-                <a href={`/user/${handle}`} style={{ color: 'rgba(240,234,216,0.55)', textDecoration: 'none' }}>@{handle}</a>
+                <a href={`/user?id=${authorUid}`} style={{ color: 'rgba(240,234,216,0.55)', textDecoration: 'none' }}>@{handle}</a>
               )}
               {ig && (
                 <a href={`https://instagram.com/${ig}`} target="_blank" rel="noopener noreferrer" style={{ color: PURPLE, display: 'flex', alignItems: 'center' }} aria-label="Instagram">
