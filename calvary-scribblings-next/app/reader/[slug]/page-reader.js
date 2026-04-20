@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { stories } from '../../lib/stories';
 import TipBox from '../../components/TipBox';
+import StoryAuthorBio from '../../components/StoryAuthorBio';
 import { use } from 'react';
 
 const FB = {
@@ -683,6 +684,7 @@ export default function StoryReaderClient({ params }) {
 
             </div>
             <div style={{ padding: '0 1.5rem 1.5rem', background: '#0a0a0a' }}><TipBox variant="reader" /></div>
+            <StoryAuthorBio authorUid={story.authorUid} fallbackName={story.author} />
             <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
           </div>
         )}
