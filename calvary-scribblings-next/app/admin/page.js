@@ -552,41 +552,6 @@ export default function AdminPage() {
     } catch (e) { setMsg('Error: ' + e.message); }
   }
 
-  async function backfillAuthorUids() {
-    if (!confirm('This will scan all stories and fill in missing authorUid fields. Continue?')) return;
-    setMsg('Backfilling author UIDs…');
-    try {
-      const { ref, get, update } = await import('firebase/database');
-      const usersSnap = await get(ref(db, 'users'));
-      if (!usersSnap.exists()) { setMsg('No users found.'); return; }
-      const nameToUid = {};
-      Object.entries(usersSnap.val()).forEach(([uid, u]) => {
-        if (u.displayName) nameToUid[u.displayName] = uid;
-      });
-      const storiesSnap = await get(ref(db, 'cms_stories'));
-      if (!storiesSnap.exists()) { setMsg('No stories found.'); return; }
-      const stories = storiesSnap.val();
-      let updated = 0;
-      const skipped = [];
-      for (const [slug, story] of Object.entries(stories)) {
-        if (story.authorUid && story.authorUid.trim()) continue;
-        const uid = nameToUid[story.author];
-        if (uid) {
-          await update(ref(db, `cms_stories/${slug}`), { authorUid: uid });
-          updated += 1;
-        } else {
-          skipped.push(`${slug} (author: "${story.author}")`);
-        }
-      }
-      const skippedMsg = skipped.length
-        ? ` Skipped ${skipped.length}: ${skipped.join(', ')}`
-        : '';
-      setMsg(`Backfill complete. ${updated} updated.${skippedMsg}`);
-      loadStories();
-    } catch (e) {
-      setMsg('Backfill error: ' + e.message);
-    }
-  }
   function openEdit(story) {
     setForm({
       title: story.title, author: story.author, category: story.category,
@@ -648,10 +613,7 @@ export default function AdminPage() {
                 <h2 style={s.h2}>Stories</h2>
                 <div style={s.h2sub}>{liveCount} live · {scheduledCount} scheduled</div>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button style={{ ...s.btn, background: '#6b2fad', opacity: 0.85 }} onClick={backfillAuthorUids}>Backfill UIDs</button>
-                <button style={s.btn} onClick={openNew}>+ New Story</button>
-              </div>
+              <button style={s.btn} onClick={openNew}>+ New Story</button>
             </div>
             {msg && <div style={s.msg}>{msg}</div>}
             {loading
