@@ -558,7 +558,7 @@ export default function StoryReaderClient({ params }) {
         .rtop{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:linear-gradient(to bottom,rgba(26,15,10,.96) 60%,transparent);gap:8px}
         .rlogo{font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.2em;color:rgba(201,164,76,.45);text-decoration:none;text-transform:uppercase;white-space:nowrap}
         .rlogo:hover{color:rgba(201,164,76,.85)}
-        .rtitle{font-family:'Cormorant Garamond',serif;font-size:.72rem;font-style:italic;color:rgba(240,234,216,.28);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center}
+        .rtitle{font-family:Georgia,serif;font-size:.72rem;font-style:italic;color:rgba(240,234,216,.28);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center}
         .rtop-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
         .rbtn{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.5);text-transform:uppercase;background:none;border:1px solid rgba(201,164,76,.25);border-radius:3px;padding:4px 9px;cursor:pointer;transition:all .2s;white-space:nowrap}
         .rbtn:hover{color:rgba(201,164,76,.9);border-color:rgba(201,164,76,.6)}
@@ -568,7 +568,7 @@ export default function StoryReaderClient({ params }) {
         .bcover::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 65% at 50% 38%,rgba(107,47,173,.28) 0%,transparent 68%)}
         .bcimg{width:min(280px,62vw);height:min(460px,55vh);object-fit:cover;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2);margin-bottom:14px}
         .bcorn{font-size:.55rem;letter-spacing:.4em;color:rgba(201,164,76,.3);margin-bottom:10px;position:relative;z-index:1}
-        .bctitle{font-family:'Cormorant Garamond',serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
+        .bctitle{font-family:Georgia,serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
         .bcauthor{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.24em;color:rgba(201,164,76,.65);text-transform:uppercase;position:relative;z-index:1}
         .bccta{position:absolute;bottom:22px;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;color:rgba(201,164,76,.4);text-transform:uppercase;animation:blink 2.2s ease-in-out infinite}
         .reader-frame{position:fixed;top:48px;left:0;right:0;bottom:32px;border:none;width:100%;height:calc(100dvh - 96px)}
@@ -576,14 +576,14 @@ export default function StoryReaderClient({ params }) {
         .rprog{position:absolute;top:0;left:0;right:0;height:2px;background:rgba(201,164,76,0.07)}
         .rprogf{height:100%;background:linear-gradient(90deg,#6b2fad,#c9a44c);transition:width 0.45s ease}
         .rpageinfo{font-family:'Cinzel',serif;font-size:.45rem;letter-spacing:.2em;color:rgba(201,164,76,0.6);text-transform:uppercase;white-space:nowrap;pointer-events:none}
-        .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-style:italic;color:#888;font-size:1rem}
+        .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-style:italic;color:#888;font-size:1rem}
         .bend-wrap{position:fixed;inset:0;top:48px;overflow-y:auto;background:#0a0a0a;animation:fadeUp .5s ease forwards;z-index:10}
         .bend{display:flex;flex-direction:column;align-items:center;padding:48px 24px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.06)}
         .beorn{font-size:.9rem;color:#c9a44c;letter-spacing:.5em;margin-bottom:18px}
         .berule{width:60px;height:1px;background:rgba(201,164,76,.3);margin:0 auto 18px}
-        .betitle{font-family:'Cormorant Garamond',serif;font-size:1.35rem;font-style:italic;color:#f5efe0;margin-bottom:6px}
+        .betitle{font-family:Georgia,serif;font-size:1.35rem;font-style:italic;color:#f5efe0;margin-bottom:6px}
         .beauth{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.2em;color:rgba(201,164,76,.55);text-transform:uppercase;margin-bottom:24px}
-        .bemeta{font-family:'Cormorant Garamond',serif;font-size:.85rem;font-style:italic;color:rgba(255,255,255,.3);margin-bottom:24px}
+        .bemeta{font-family:Georgia,serif;font-size:.85rem;font-style:italic;color:rgba(255,255,255,.3);margin-bottom:24px}
         .bebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#9b6dff;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
         .bebtn:hover{background:rgba(107,47,173,.12);border-color:#9b6dff}
         .cs-section{background:#0a0a0a;max-width:680px;margin:0 auto;padding:2.5rem 1.5rem 6rem}
@@ -605,7 +605,7 @@ export default function StoryReaderClient({ params }) {
         .cs-signin-prompt p{font-size:.82rem;color:rgba(255,255,255,.3);margin-bottom:.75rem;font-family:'Inter',sans-serif}
         .cs-signin-btn{background:none;border:1px solid rgba(107,47,173,.4);border-radius:8px;padding:.55rem 1.4rem;font-size:.68rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9b6dff;cursor:pointer;font-family:'Inter',sans-serif}
         .cs-loading{font-size:.8rem;color:rgba(255,255,255,.2);font-family:'Inter',sans-serif;padding:1rem 0}
-        .cs-empty{font-size:.88rem;color:rgba(255,255,255,.2);font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;padding:1rem 0}
+        .cs-empty{font-size:.88rem;color:rgba(255,255,255,.2);font-family:Georgia,serif;font-style:italic;padding:1rem 0}
         .cs-comments-list{display:flex;flex-direction:column}
         .cs-divider{height:1px;background:rgba(255,255,255,.05);margin:.25rem 0 1.75rem}
         .cs-comment{display:flex;gap:12px;margin-bottom:.25rem}
@@ -625,10 +625,10 @@ export default function StoryReaderClient({ params }) {
         .cs-reply{display:flex;gap:10px}
         @media(max-width:600px){.rtitle{display:none}.rbtn{font-size:.44rem;padding:3px 7px}.cs-section{padding:2rem 1rem 5rem}}
         @keyframes confirmDrop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-        .bookmark-confirm{position:absolute;top:44px;right:0;background:#1a0f0a;border:1px solid rgba(201,164,76,0.3);border-radius:8px;padding:8px 14px;font-family:'Cormorant Garamond',serif;font-size:.78rem;font-style:italic;color:rgba(240,234,216,0.7);white-space:nowrap;z-index:300;animation:confirmDrop .3s ease forwards;pointer-events:none;}
+        .bookmark-confirm{position:absolute;top:44px;right:0;background:#1a0f0a;border:1px solid rgba(201,164,76,0.3);border-radius:8px;padding:8px 14px;font-family:Georgia,serif;font-size:.78rem;font-style:italic;color:rgba(240,234,216,0.7);white-space:nowrap;z-index:300;animation:confirmDrop .3s ease forwards;pointer-events:none;}
         @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
         @keyframes toastOut{from{opacity:1;transform:translateX(-50%) translateY(0)}to{opacity:0;transform:translateX(-50%) translateY(-8px)}}
-        .bookmark-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:'Cormorant Garamond',serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:300;pointer-events:none;}
+        .bookmark-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:Georgia,serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:300;pointer-events:none;}
         .bookmark-toast.in{animation:toastIn .4s ease forwards}
         .bookmark-toast.out{animation:toastOut .4s ease forwards}
       `}</style>
@@ -722,8 +722,8 @@ export default function StoryReaderClient({ params }) {
           <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowAuthModal(false)}>
             <div onClick={e => e.stopPropagation()} style={{ background: '#12091e', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 16, padding: '2rem', maxWidth: 360, width: '90vw', textAlign: 'center' }}>
               <div style={{ fontFamily: 'Cinzel,serif', fontSize: '.6rem', letterSpacing: '.25em', color: 'rgba(201,164,76,.6)', textTransform: 'uppercase', marginBottom: '1rem' }}>Calvary Scribblings</div>
-              <div style={{ fontFamily: 'Cormorant Garamond,serif', fontSize: '1.4rem', fontStyle: 'italic', color: '#f5efe0', marginBottom: '.5rem' }}>Join the Discussion</div>
-              <div style={{ fontFamily: 'Cormorant Garamond,serif', fontSize: '.9rem', fontStyle: 'italic', color: 'rgba(255,255,255,.35)', marginBottom: '1.5rem' }}>Sign in to comment on this story</div>
+              <div style={{ fontFamily: 'Georgia, serif', fontSize: '1.4rem', fontStyle: 'italic', color: '#f5efe0', marginBottom: '.5rem' }}>Join the Discussion</div>
+              <div style={{ fontFamily: 'Georgia, serif', fontSize: '.9rem', fontStyle: 'italic', color: 'rgba(255,255,255,.35)', marginBottom: '1.5rem' }}>Sign in to comment on this story</div>
               <a href="/auth" style={{ display: 'block', padding: '.75rem', background: '#6b2fad', color: '#fff', fontFamily: 'Cinzel,serif', fontSize: '.6rem', letterSpacing: '.18em', textTransform: 'uppercase', textDecoration: 'none', borderRadius: 8, marginBottom: '.75rem' }}>Sign In</a>
               <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.3)', fontFamily: 'Cinzel,serif', fontSize: '.55rem', letterSpacing: '.15em', cursor: 'pointer' }}>Cancel</button>
             </div>
