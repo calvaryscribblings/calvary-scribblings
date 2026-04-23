@@ -925,7 +925,7 @@ useEffect(() => {
         .cs-input-wrap { flex: 1; position: relative; }
         .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
         .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; border-radius: 10px; }
-        .cs-textarea::placeholder { color: #ffffff; font-style: italic; }
+        .cs-textarea::placeholder { color: #ffffff; font-style: italic; font-family: Georgia, serif; }
         .cs-textarea:focus { border-color: rgba(107,47,173,0.4); }
         .cs-kite-btn { position: absolute; bottom: 8px; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; opacity: 0.2; transition: opacity 0.2s; }
         .cs-kite-btn.active { opacity: 1; }
