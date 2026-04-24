@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { stories as allStories } from '../lib/stories';
+import HeaderAdjuster from '../components/HeaderAdjuster';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -354,6 +355,8 @@ export default function ProfilePage() {
   const [editHeaderFile, setEditHeaderFile] = useState(null);
   const [editHeaderPreview, setEditHeaderPreview] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [showAdjuster, setShowAdjuster] = useState(false);
+  const [pendingHeaderFile, setPendingHeaderFile] = useState(null);
   const [saveError, setSaveError] = useState('');
   const [libNotifs, setLibNotifs] = useState([]);
   const [showLibNotifs, setShowLibNotifs] = useState(false);
@@ -638,7 +641,7 @@ export default function ProfilePage() {
 
       {/* Hidden inputs */}
       <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files[0]; if (!f) return; setEditAvatarFile(f); setEditAvatarPreview(URL.createObjectURL(f)); if (!showEdit) openEdit(); }} />
-      <input ref={headerInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files[0]; if (!f) return; setEditHeaderFile(f); setEditHeaderPreview(URL.createObjectURL(f)); if (!showEdit) openEdit(); }} />
+      <input ref={headerInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files[0]; if (!f) return; setPendingHeaderFile(f); setShowAdjuster(true); if (!showEdit) openEdit(); e.target.value = ''; }} />
 
       {/* Nav */}
       <nav className="pf-nav">
@@ -946,6 +949,19 @@ export default function ProfilePage() {
             </div>
           </div>
         </>
+      )}
+    {showAdjuster && pendingHeaderFile && (
+        <HeaderAdjuster
+          file={pendingHeaderFile}
+          onCancel={() => { setShowAdjuster(false); setPendingHeaderFile(null); }}
+          onDone={(blob, dataUrl) => {
+            const croppedFile = new File([blob], 'header.jpg', { type: 'image/jpeg' });
+            setEditHeaderFile(croppedFile);
+            setEditHeaderPreview(dataUrl);
+            setShowAdjuster(false);
+            setPendingHeaderFile(null);
+          }}
+        />
       )}
     </>
   );
