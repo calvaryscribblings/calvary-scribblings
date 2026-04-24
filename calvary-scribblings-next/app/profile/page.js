@@ -314,6 +314,7 @@ function notifLabel(type) {
     case 'reply': return ' replied to your comment';
     case 'follow': return ' started following you';
     case 'new_story': return ' published a new story';
+    case 'mention': return ' mentioned you in a comment';
     default: return ' interacted with you';
   }
 }

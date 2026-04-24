@@ -2,6 +2,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { stories } from '../../lib/stories';
 import TipBox from '../../components/TipBox';
+import MentionTextarea from '../../components/MentionTextarea';
+import { notifyMentions } from '../../lib/mentions';
 import StoryAuthorBio from '../../components/StoryAuthorBio';
 import { use } from 'react';
 
@@ -150,6 +152,24 @@ function timeAgo(ts) {
 }
 
 function CommentsSection({ slug, onSignIn }) {
+function renderCommentText(text) {
+  if (!text) return text;
+  const parts = [];
+  let last = 0;
+  const re = /(^|\s)@([a-z0-9_]{3,20})\b/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const [, pre, handle] = m;
+    const start = m.index + pre.length;
+    const end = start + 1 + handle.length;
+    if (start > last) parts.push(text.slice(last, start));
+    parts.push(<a key={start} href={`/user/${handle}`} style={{ color: '#a78bfa', textDecoration: 'none', fontWeight: 500 }}>@{handle}</a>);
+    last = end;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
   const [user, setUser] = useState(null);
   const [userAvatarUrl, setUserAvatarUrl] = useState(null);
   const [comments, setComments] = useState([]);
@@ -250,6 +270,13 @@ function CommentsSection({ slug, onSignIn }) {
         parentId: parentId || null,
         createdAt: Date.now(),
       });
+      try {
+        await notifyMentions({
+          text: commentText.trim(), slug,
+          fromUid: user.uid, fromName: user.displayName || 'Reader',
+          excludeUid: user.uid,
+        });
+      } catch (e) {}
       if (parentId) {
         const parentComment = comments.find(c => c.id === parentId);
         if (parentComment && parentComment.authorUid !== user.uid) {
@@ -301,7 +328,7 @@ function CommentsSection({ slug, onSignIn }) {
               {userAvatarUrl ? <img src={userAvatarUrl} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : userInitials}
             </a>
             <div className="cs-input-wrap">
-              <textarea className="cs-textarea" placeholder="Share your thoughts on this story..." value={text} onChange={e => setText(e.target.value)} rows={3} />
+              <MentionTextarea value={text} onChange={setText} placeholder="Share your thoughts on this story..." rows={3} />
               <button className={`cs-kite-btn${text.trim() ? ' active' : ''}`} onClick={() => postComment(text)} disabled={posting || !text.trim()} title="Post comment">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
               </button>
@@ -335,7 +362,7 @@ function CommentsSection({ slug, onSignIn }) {
                       <CommentBadge uid={comment.authorUid} size={13} />
                       <span className="cs-time">{timeAgo(comment.createdAt)}</span>
                     </div>
-                    <div className="cs-comment-text">{comment.text}</div>
+                    <div className="cs-comment-text">{renderCommentText(comment.text)}</div>
                     <div className="cs-comment-footer">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         {[
@@ -359,7 +386,7 @@ function CommentsSection({ slug, onSignIn }) {
                     {replyTo === comment.id && (
                       <div className="cs-reply-compose">
                         <div className="cs-input-wrap">
-                          <textarea className="cs-textarea cs-textarea-sm" placeholder={`Reply to ${comment.authorName}...`} value={replyText} onChange={e => setReplyText(e.target.value)} rows={2} autoFocus />
+                          <MentionTextarea value={replyText} onChange={setReplyText} placeholder={`Reply to ${comment.authorName}...`} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
                           <button className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`} onClick={() => postComment(replyText, comment.id)} disabled={posting || !replyText.trim()}>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
                           </button>
