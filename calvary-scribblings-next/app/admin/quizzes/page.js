@@ -29,7 +29,7 @@ const s = {
   hint: { fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.5, fontFamily: 'Inter, sans-serif' },
   msg: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1.25rem', fontFamily: 'Inter, sans-serif' },
   msgGreen: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.25)', color: '#6ee7b7', marginBottom: '1.25rem', fontFamily: 'Inter, sans-serif' },
-  error: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', color: '#f87171', marginBottom: '1.25rem', fontFamily: 'Inter, sans-serif' },
+  error: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.82rem', background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', color: '#f87171', marginBottom: '1.25rem', fontFamily: "'Courier New', monospace", whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowWrap: 'break-word' },
   warn: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)', color: '#fcd34d', marginBottom: '1.25rem', fontFamily: 'Inter, sans-serif' },
   gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cochin', Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
   sectionHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' },
@@ -206,12 +206,22 @@ export default function QuizzesPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ slug: selectedSlug, mode: 'story', uid: user.uid }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Generation failed.');
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        console.error('[generate-quiz] response was not JSON, status:', res.status, parseErr);
+        throw new Error(`Server returned non-JSON response (HTTP ${res.status}). Check server logs.`);
+      }
+      if (!res.ok) {
+        console.error('[generate-quiz] server error response:', data);
+        throw new Error(data.error || JSON.stringify(data) || 'Generation failed.');
+      }
       setQuiz(data.quiz);
       setWarnings(data.warnings || []);
       showMsg('Quiz generated. Review and edit before publishing.', 'info');
     } catch (e) {
+      console.error('[generate-quiz] client error:', e);
       setError(e.message);
     }
     setGenerating(false);

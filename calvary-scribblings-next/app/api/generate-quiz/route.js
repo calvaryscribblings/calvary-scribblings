@@ -101,16 +101,22 @@ function validateQuiz(quiz, mode) {
 }
 
 export async function POST(request) {
+  console.log('[generate-quiz] POST received');
+
   let body;
   try {
     body = await request.json();
-  } catch {
+  } catch (e) {
+    console.error('[generate-quiz] body parse failed:', e);
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
   const { slug, mode, uid } = body;
+  console.log('[generate-quiz] slug:', slug, '| mode:', mode, '| uid:', uid);
+  console.log('[generate-quiz] ANTHROPIC_API_KEY set:', !!process.env.ANTHROPIC_API_KEY);
 
   if (uid !== ADMIN_UID) {
+    console.warn('[generate-quiz] unauthorised uid:', uid);
     return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   }
 
@@ -118,29 +124,40 @@ export async function POST(request) {
     return NextResponse.json({ error: 'slug and mode ("story" or "reader") are required.' }, { status: 400 });
   }
 
+  // --- Firebase REST fetch ---
   let story;
   try {
-    const res = await fetch(`${FB_DB}/cms_stories/${slug}.json`);
-    if (!res.ok) throw new Error(`Firebase responded with ${res.status}.`);
-    story = await res.json();
+    const fbUrl = `${FB_DB}/cms_stories/${encodeURIComponent(slug)}.json`;
+    console.log('[generate-quiz] fetching story:', fbUrl);
+    const fbRes = await fetch(fbUrl);
+    console.log('[generate-quiz] Firebase status:', fbRes.status);
+    const fbText = await fbRes.text();
+    console.log('[generate-quiz] Firebase body (first 300):', fbText.slice(0, 300));
+    if (!fbRes.ok) throw new Error(`Firebase ${fbRes.status}: ${fbText}`);
+    story = JSON.parse(fbText);
   } catch (e) {
+    console.error('[generate-quiz] Firebase fetch error:', e);
     return NextResponse.json({ error: `Failed to fetch story: ${e.message}` }, { status: 500 });
   }
 
   if (!story) {
+    console.warn('[generate-quiz] story is null for slug:', slug);
     return NextResponse.json({ error: 'Story not found in CMS.' }, { status: 404 });
   }
 
   const storyText = stripHtml(story.content || '');
+  console.log('[generate-quiz] storyText length:', storyText.length, '| title:', story.title);
   if (!storyText) {
     return NextResponse.json({ error: 'Story has no content to generate from.' }, { status: 400 });
   }
 
   const prompt = buildPrompt(story.title || slug, story.author || 'Unknown', mode, storyText);
+  console.log('[generate-quiz] prompt length:', prompt.length, '| calling Anthropic...');
 
+  // --- Anthropic API call ---
   let raw;
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.ANTHROPIC_API_KEY,
@@ -154,24 +171,35 @@ export async function POST(request) {
       }),
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Anthropic API error ${res.status}: ${errText}`);
+    console.log('[generate-quiz] Anthropic status:', anthropicRes.status);
+    const anthropicText = await anthropicRes.text();
+
+    if (!anthropicRes.ok) {
+      console.error('[generate-quiz] Anthropic error body:', anthropicText);
+      throw new Error(`Anthropic API error ${anthropicRes.status}: ${anthropicText}`);
     }
 
-    const data = await res.json();
-    raw = data.content?.[0]?.text;
-    if (!raw) throw new Error('Empty response from Claude.');
+    console.log('[generate-quiz] Anthropic response (first 200):', anthropicText.slice(0, 200));
+    const anthropicData = JSON.parse(anthropicText);
+    raw = anthropicData.content?.[0]?.text;
+    if (!raw) {
+      console.error('[generate-quiz] empty content from Anthropic:', JSON.stringify(anthropicData));
+      throw new Error('Empty response from Claude.');
+    }
+    console.log('[generate-quiz] raw quiz length:', raw.length);
   } catch (e) {
+    console.error('[generate-quiz] Anthropic call threw:', e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 
+  // --- JSON parse ---
   let quiz;
   try {
     quiz = JSON.parse(raw);
-  } catch {
+  } catch (e) {
+    console.error('[generate-quiz] JSON parse failed. raw (first 500):', raw.slice(0, 500));
     return NextResponse.json(
-      { error: 'Claude returned invalid JSON. Try regenerating.', raw },
+      { error: `Claude returned invalid JSON: ${e.message}`, raw },
       { status: 500 }
     );
   }
@@ -180,5 +208,6 @@ export async function POST(request) {
   quiz.generatedAt = Date.now();
   quiz.model = 'claude-sonnet-4-5-20250929';
 
+  console.log('[generate-quiz] success, warnings:', warnings.length);
   return NextResponse.json({ quiz, warnings });
 }
