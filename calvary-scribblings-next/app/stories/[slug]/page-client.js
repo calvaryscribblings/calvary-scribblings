@@ -618,8 +618,8 @@ function renderCommentText(text) {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         <MentionTextarea value={editText} onChange={setEditText} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button className="cs-reply-btn" onClick={() => editComment(comment.id)}>Save</button>
-                          <button className="cs-reply-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
+                          <button className="cs-save-btn" onClick={() => editComment(comment.id)}>Save</button>
+                          <button className="cs-cancel-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
                         </div>
                       </div>
                     ) : renderCommentText(comment.text)}</div>
@@ -686,8 +686,8 @@ function renderCommentText(text) {
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                     <textarea className="cs-textarea cs-textarea-sm" value={editText} onChange={e => setEditText(e.target.value)} rows={2} autoFocus />
                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                      <button className="cs-reply-btn" onClick={() => editComment(reply.id)}>Save</button>
-                                      <button className="cs-reply-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
+                                      <button className="cs-save-btn" onClick={() => editComment(reply.id)}>Save</button>
+                                      <button className="cs-cancel-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
                                     </div>
                                   </div>
                                 ) : reply.text}</div>
@@ -974,6 +974,10 @@ useEffect(() => {
         .cs-comment-text { font-family: Georgia, serif; font-size: 1rem; color: #ffffff; line-height: 1.75; }
         .cs-comment-text-sm { font-size: 0.92rem; }
         .cs-comment-footer { margin-top: 0.5rem; }
+        .cs-save-btn { background: #6b2fad; border: none; color: #f0ead8; font-family: Inter, sans-serif; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        .cs-save-btn:hover { background: #7c3aed; }
+        .cs-cancel-btn { background: transparent; border: 1px solid rgba(166,61,76,0.5); color: #a63d4c; font-family: Inter, sans-serif; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .cs-cancel-btn:hover { background: rgba(166,61,76,0.12); border-color: #a63d4c; }
         .cs-reply-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.4); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; }
         .cs-reply-btn:hover { color: #9b6dff; }
         .cs-reply-compose { margin-top: 0.75rem; }
