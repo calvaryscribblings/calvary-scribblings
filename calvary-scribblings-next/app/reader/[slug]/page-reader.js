@@ -311,141 +311,141 @@ function renderCommentText(text) {
     setPosting(false);
   };
 
-  const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
-function CommentNode({ comment, depth, parentAuthorName }) {
-    const isOwn = user?.uid === comment.authorUid;
-    const children = comments.filter(c => c.parentId === comment.id).sort((a, b) => a.createdAt - b.createdAt);
-    const visualDepth = Math.min(depth, 3);
-    const isFlattened = depth > 3;
-    const indentPx = (visualDepth - 1) * 28;
+const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
+  function CommentNode({ comment, depth, parentAuthorName }) {
+      const isOwn = user?.uid === comment.authorUid;
+      const children = comments.filter(c => c.parentId === comment.id).sort((a, b) => a.createdAt - b.createdAt);
+      const visualDepth = Math.min(depth, 3);
+      const isFlattened = depth > 3;
+      const indentPx = (visualDepth - 1) * 28;
 
-    return (
-      <div style={{ marginLeft: indentPx }}>
-        <div className={depth === 1 ? "cs-comment" : "cs-reply"}>
-          <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size={depth === 1 ? "sm" : "xs"} isOwnComment={isOwn} />
-          <div className="cs-comment-body">
-            <div className="cs-comment-header" style={{ position: 'relative' }}>
-              <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
-              <CommentUsername uid={comment.authorUid} />
-              <CommentBadge uid={comment.authorUid} size={depth === 1 ? 13 : 12} />
-              <span className="cs-time">{timeAgo(comment.createdAt)}</span>
-              {comment.editedAt && <span className="cs-time"> · edited</span>}
-              {isOwn && (
-                <div style={{ marginLeft: 'auto', position: 'relative' }}>
-                  <button onClick={() => setMenuId(menuId === comment.id ? null : comment.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '0 4px', fontSize: '1rem', lineHeight: 1 }}>···</button>
-                  {menuId === comment.id && (
-                    <>
-                      <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuId(null)} />
-                      <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, zIndex: 100, minWidth: 110, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
-                        <button onClick={() => { setEditingId(comment.id); setEditText(comment.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Edit</button>
-                        <button onClick={() => { setMenuId(null); if (window.confirm(depth === 1 ? 'Delete this comment?' : 'Delete this reply?')) deleteComment(comment.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Delete</button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className={depth === 1 ? "cs-comment-text" : "cs-comment-text cs-comment-text-sm"}>
-              {editingId === comment.id ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <MentionTextarea value={editText} onChange={setEditText} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button className="cs-save-btn" onClick={() => editComment(comment.id)}>Save</button>
-                    <button className="cs-cancel-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
+      return (
+        <div style={{ marginLeft: indentPx }}>
+          <div className={depth === 1 ? "cs-comment" : "cs-reply"}>
+            <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size={depth === 1 ? "sm" : "xs"} isOwnComment={isOwn} />
+            <div className="cs-comment-body">
+              <div className="cs-comment-header" style={{ position: 'relative' }}>
+                <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
+                <CommentUsername uid={comment.authorUid} />
+                <CommentBadge uid={comment.authorUid} size={depth === 1 ? 13 : 12} />
+                <span className="cs-time">{timeAgo(comment.createdAt)}</span>
+                {comment.editedAt && <span className="cs-time"> · edited</span>}
+                {isOwn && (
+                  <div style={{ marginLeft: 'auto', position: 'relative' }}>
+                    <button onClick={() => setMenuId(menuId === comment.id ? null : comment.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '0 4px', fontSize: '1rem', lineHeight: 1 }}>···</button>
+                    {menuId === comment.id && (
+                      <>
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuId(null)} />
+                        <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, zIndex: 100, minWidth: 110, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+                          <button onClick={() => { setEditingId(comment.id); setEditText(comment.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Edit</button>
+                          <button onClick={() => { setMenuId(null); if (window.confirm(depth === 1 ? 'Delete this comment?' : 'Delete this reply?')) deleteComment(comment.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Delete</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className={depth === 1 ? "cs-comment-text" : "cs-comment-text cs-comment-text-sm"}>
+                {editingId === comment.id ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <MentionTextarea value={editText} onChange={setEditText} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="cs-save-btn" onClick={() => editComment(comment.id)}>Save</button>
+                      <button className="cs-cancel-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {isFlattened && parentAuthorName && (
+                      <span style={{ color: '#a78bfa', fontWeight: 500, marginRight: 4 }}>@{parentAuthorName}</span>
+                    )}
+                    {renderCommentText(comment.text)}
+                  </>
+                )}
+              </div>
+              <div className="cs-comment-footer" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
+                {[
+                  { type: 'heart', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
+                  { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
+                  { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
+                ].map(({ type, activeColor, d }) => {
+                  const active = commentReactions[comment.id]?.[type];
+                  const count = comment[type + 'Count'] || 0;
+                  return (
+                    <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
+                      style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
+                      <svg width={depth === 1 ? "12" : "11"} height={depth === 1 ? "12" : "11"} viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
+                      {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
+                    </button>
+                  );
+                })}
+                {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
+              </div>
+              {replyTo === comment.id && (
+                <div className="cs-reply-compose">
+                  <div className="cs-input-wrap">
+                    <MentionTextarea value={replyText} onChange={setReplyText} placeholder={`Reply to ${comment.authorName}…`} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
+                    <button className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`} onClick={() => postComment(replyText, comment.id)} disabled={posting || !replyText.trim()}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
+                    </button>
                   </div>
                 </div>
-              ) : (
-                <>
-                  {isFlattened && parentAuthorName && (
-                    <span style={{ color: '#a78bfa', fontWeight: 500, marginRight: 4 }}>@{parentAuthorName}</span>
-                  )}
-                  {renderCommentText(comment.text)}
-                </>
               )}
             </div>
-            <div className="cs-comment-footer" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
-              {[
-                { type: 'heart', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
-                { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
-                { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
-              ].map(({ type, activeColor, d }) => {
-                const active = commentReactions[comment.id]?.[type];
-                const count = comment[type + 'Count'] || 0;
-                return (
-                  <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
-                    style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
-                    <svg width={depth === 1 ? "12" : "11"} height={depth === 1 ? "12" : "11"} viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-                    {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
-                  </button>
-                );
-              })}
-              {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
-            </div>
-            {replyTo === comment.id && (
-              <div className="cs-reply-compose">
-                <div className="cs-input-wrap">
-                  <MentionTextarea value={replyText} onChange={setReplyText} placeholder={`Reply to ${comment.authorName}…`} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
-                  <button className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`} onClick={() => postComment(replyText, comment.id)} disabled={posting || !replyText.trim()}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
+          {children.length > 0 && (
+            <div className="cs-replies">
+              {children.map(child => (
+                <CommentNode key={child.id} comment={child} depth={depth + 1} parentAuthorName={comment.authorName} />
+              ))}
+            </div>
+          )}
         </div>
-        {children.length > 0 && (
-          <div className="cs-replies">
-            {children.map(child => (
-              <CommentNode key={child.id} comment={child} depth={depth + 1} parentAuthorName={comment.authorName} />
+      );
+    }
+    const topLevel = comments.filter(c => !c.parentId);
+    const getReplies = (id) => comments.filter(c => c.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
+
+    return (
+      <div className="cs-section">
+        <div className="cs-header">
+          <div className="cs-title">Discussion</div>
+          {comments.length > 0 && <div className="cs-count">{comments.length} {comments.length === 1 ? 'comment' : 'comments'}</div>}
+        </div>
+        {user ? (
+          <div className="cs-compose">
+            <div className="cs-compose-row">
+              <a href="/profile" className="cs-avatar-compose">
+                {userAvatarUrl ? <img src={userAvatarUrl} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : userInitials}
+              </a>
+              <div className="cs-input-wrap">
+                <MentionTextarea value={text} onChange={setText} placeholder="Share your thoughts on this story..." rows={3} />
+                <button className={`cs-kite-btn${text.trim() ? ' active' : ''}`} onClick={() => postComment(text)} disabled={posting || !text.trim()} title="Post comment">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="cs-signin-prompt">
+            <p>Sign in to join the discussion</p>
+            <button className="cs-signin-btn" onClick={onSignIn}>Sign in to comment</button>
+          </div>
+        )}
+        {loading ? (
+          <div className="cs-loading">Loading comments...</div>
+        ) : topLevel.length === 0 ? (
+          <div className="cs-empty">No comments yet. Be the first to share your thoughts.</div>
+        ) : (
+          <div className="cs-comments-list">
+            {topLevel.map(comment => (
+              <CommentNode key={comment.id} comment={comment} depth={1} parentAuthorName={null} />
             ))}
           </div>
         )}
       </div>
     );
   }
-  const topLevel = comments.filter(c => !c.parentId);
-  const getReplies = (id) => comments.filter(c => c.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
-
-  return (
-    <div className="cs-section">
-      <div className="cs-header">
-        <div className="cs-title">Discussion</div>
-        {comments.length > 0 && <div className="cs-count">{comments.length} {comments.length === 1 ? 'comment' : 'comments'}</div>}
-      </div>
-      {user ? (
-        <div className="cs-compose">
-          <div className="cs-compose-row">
-            <a href="/profile" className="cs-avatar-compose">
-              {userAvatarUrl ? <img src={userAvatarUrl} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : userInitials}
-            </a>
-            <div className="cs-input-wrap">
-              <MentionTextarea value={text} onChange={setText} placeholder="Share your thoughts on this story..." rows={3} />
-              <button className={`cs-kite-btn${text.trim() ? ' active' : ''}`} onClick={() => postComment(text)} disabled={posting || !text.trim()} title="Post comment">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="cs-signin-prompt">
-          <p>Sign in to join the discussion</p>
-          <button className="cs-signin-btn" onClick={onSignIn}>Sign in to comment</button>
-        </div>
-      )}
-      {loading ? (
-        <div className="cs-loading">Loading comments...</div>
-      ) : topLevel.length === 0 ? (
-        <div className="cs-empty">No comments yet. Be the first to share your thoughts.</div>
-      ) : (
-        <div className="cs-comments-list">
-          {topLevel.map(comment => (
-            <CommentNode key={comment.id} comment={comment} depth={1} parentAuthorName={null} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function StoryReaderClient({ params }) {
   const { slug } = use(params);
