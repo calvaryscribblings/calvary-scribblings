@@ -369,7 +369,7 @@ function renderCommentText(text) {
     const start = m.index + pre.length;
     const end = start + 1 + handle.length;
     if (start > last) parts.push(text.slice(last, start));
-    parts.push(<a key={start} href={`/user/${handle}`} style={{ color: '#a78bfa', textDecoration: 'none', fontWeight: 500 }}>@{handle}</a>);
+    parts.push(<a key={start} href={`/user?handle=${handle}`} style={{ color: '#a78bfa', textDecoration: 'none', fontWeight: 500 }}>@{handle}</a>);
     last = end;
   }
   if (last < text.length) parts.push(text.slice(last));

@@ -302,10 +302,24 @@ export default function UserPage() {
   const [showAllStories, setShowAllStories] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get('id');
-    if (id) setUid(id);
-    else setLoading(false);
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      const handle = params.get('handle');
+      if (id) {
+        setUid(id);
+      } else if (handle) {
+        try {
+          const db = await getDB();
+          const { ref, get } = await import('firebase/database');
+          const snap = await get(ref(db, `usernames/${handle.toLowerCase()}`));
+          if (snap.exists()) setUid(snap.val());
+          else setLoading(false);
+        } catch (e) { setLoading(false); }
+      } else {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   useEffect(() => {
