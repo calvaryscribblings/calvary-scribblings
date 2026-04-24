@@ -148,7 +148,7 @@ export async function POST(request) {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 8192,
         messages: [{ role: 'user', content: prompt }],
       }),
@@ -178,7 +178,7 @@ export async function POST(request) {
 
   const warnings = validateQuiz(quiz, mode);
   quiz.generatedAt = Date.now();
-  quiz.model = 'claude-sonnet-4-6';
+  quiz.model = 'claude-sonnet-4-5-20250929';
 
   return NextResponse.json({ quiz, warnings });
 }

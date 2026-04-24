@@ -47,7 +47,7 @@ Firebase node: `cms_quizzes/{slug}`
   "generatedAt": 0,
   "approvedAt": 0,
   "approvedBy": "",
-  "model": "claude-sonnet-4-6"
+  "model": "claude-sonnet-4-5-20250929"
 }
 ```
 
@@ -66,7 +66,7 @@ Steps:
 1. Verify caller is admin (check Firebase auth token, match UID `XaG6bTGqdDXh7VkBTw4y1H2d2s82`)
 2. Fetch story content from Firebase: try `cms_stories/{slug}` first, fall back to hardcoded `stories.js` lookup. For book reader mode, fetch the EPUB text.
 3. Build prompt for Claude (see prompt template below)
-4. Call Anthropic API with model `claude-sonnet-4-6`
+4. Call Anthropic API with model `claude-sonnet-4-5-20250929`
 5. Parse response as JSON
 6. Validate structure (correct counts, required fields)
 7. Return JSON to client (do NOT auto-save — admin must approve first)
