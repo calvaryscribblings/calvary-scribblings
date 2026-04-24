@@ -706,6 +706,7 @@ export default function StoryReaderClient({ params }) {
         .bookmark-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:Georgia,serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:300;pointer-events:none;}
         .bookmark-toast.in{animation:toastIn .4s ease forwards}
         .bookmark-toast.out{animation:toastOut .4s ease forwards}
+        @media(max-width:600px){.cs-textarea,.cs-textarea-sm{font-size:16px !important}}
       `}</style>
 
       <div style={{ width: '100vw', height: '100vh', background: '#1a0f0a', overflow: 'hidden' }}>

@@ -951,7 +951,7 @@ useEffect(() => {
           .cs-section { padding: 2rem 1.2rem 5rem; }
         }
       .prose figure { margin: 2em 0; }
-.prose figure img { margin: 0; }`}</style>
+.prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
 
       <div className="reading-progress" style={{ width: `${scrollProgress}%` }} />
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
