@@ -7,6 +7,7 @@ export default function MentionTextarea({ value, onChange, placeholder, rows = 3
   const [showSugg, setShowSugg] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [triggerPos, setTriggerPos] = useState(-1);
+  const [mentionQuery, setMentionQuery] = useState('');
   const taRef = useRef(null);
 
   function getMentionQuery(text, caret) {
@@ -20,22 +21,35 @@ export default function MentionTextarea({ value, onChange, placeholder, rows = 3
     return { atIdx, query };
   }
 
-  async function handleInput(e) {
+  function handleInput(e) {
     const newVal = e.target.value;
-    onChange(newVal);
     const caret = e.target.selectionStart;
+    onChange(newVal);
     const m = getMentionQuery(newVal, caret);
     if (m && m.query.length >= 1) {
       setTriggerPos(m.atIdx);
-      const results = await searchUsernames(m.query);
-      setSuggestions(results);
-      setShowSugg(results.length > 0);
-      setActiveIdx(0);
+      // store the query; the effect below will fetch
+      setMentionQuery(m.query);
     } else {
       setShowSugg(false);
       setTriggerPos(-1);
+      setMentionQuery('');
     }
   }
+
+  // Debounced async search — runs after typing settles
+  useEffect(() => {
+    if (!mentionQuery) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const results = await searchUsernames(mentionQuery);
+      if (cancelled) return;
+      setSuggestions(results);
+      setShowSugg(results.length > 0);
+      setActiveIdx(0);
+    }, 150);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [mentionQuery]);
 
   function selectSuggestion(user) {
     if (triggerPos < 0) return;
