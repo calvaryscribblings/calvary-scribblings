@@ -91,8 +91,8 @@ function TagInput({ tags, onChange, placeholder, disabled }) {
 }
 
 export default function QuizzesPage() {
-  const { user } = useAuth();
-  const isAdmin = user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  const { user, loading: authLoading } = useAuth();
+  const isAdmin = user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
   const [cmsStories, setCmsStories] = useState([]);
   const [quizStatuses, setQuizStatuses] = useState({});
@@ -132,11 +132,7 @@ export default function QuizzesPage() {
     setLoadingData(true);
     try {
       const { ref, get } = await import('firebase/database');
-      const [storiesSnap, quizzesSnap] = await Promise.all([
-        get(ref(db, 'cms_stories')),
-        get(ref(db, 'cms_quizzes')),
-      ]);
-
+      const storiesSnap = await get(ref(db, 'cms_stories'));
       if (storiesSnap.exists()) {
         const data = storiesSnap.val();
         setCmsStories(
@@ -150,7 +146,16 @@ export default function QuizzesPage() {
             .sort((a, b) => a.title.localeCompare(b.title))
         );
       }
+    } catch (e) {
+      setError('Failed to load stories: ' + e.message);
+      setLoadingData(false);
+      return;
+    }
 
+    // Load quiz statuses separately — cms_quizzes may not have rules yet
+    try {
+      const { ref, get } = await import('firebase/database');
+      const quizzesSnap = await get(ref(db, 'cms_quizzes'));
       if (quizzesSnap.exists()) {
         const data = quizzesSnap.val();
         const statuses = {};
@@ -159,9 +164,10 @@ export default function QuizzesPage() {
         }
         setQuizStatuses(statuses);
       }
-    } catch (e) {
-      setError('Failed to load stories: ' + e.message);
+    } catch {
+      // non-fatal: quiz statuses will show as unlabelled until rules allow the read
     }
+
     setLoadingData(false);
   }
 
@@ -286,14 +292,13 @@ export default function QuizzesPage() {
 
   const busy = generating || saving;
 
-  if (!user || !isAdmin) {
-    return (
-      <div style={s.gate}>
-        <div style={{ color: '#f87171', fontWeight: 700, fontSize: '1rem' }}>Access Denied</div>
-        <a href="/" style={{ color: '#a78bfa', fontSize: '0.82rem', textDecoration: 'none' }}>← Back to site</a>
-      </div>
-    );
-  }
+  if (authLoading) return <div style={s.gate}>Loading…</div>;
+  if (!isAdmin) return (
+    <div style={s.gate}>
+      <div style={{ color: '#f87171', fontWeight: 700, fontSize: '1rem' }}>Access Denied</div>
+      <a href="/" style={{ color: '#a78bfa', fontSize: '0.82rem', textDecoration: 'none' }}>← Back to site</a>
+    </div>
+  );
 
   return (
     <div style={s.page}>
