@@ -438,8 +438,23 @@ export default function ProfilePage() {
         setAuthUser(u);
         const db = await getDB();
         const { ref, onValue, get } = await import('firebase/database');
-        unsubDB.push(onValue(ref(db, `users/${u.uid}`), snap => {
-          if (snap.exists()) { const d = snap.val(); setProfileData(d); setReadCount(d.readCount || 0); setReadStorySlugs(d.readStories ? Object.keys(d.readStories) : []); }
+        unsubDB.push(onValue(ref(db, `users/${u.uid}`), async snap => {
+          if (snap.exists()) {
+            const d = snap.val();
+            setProfileData(d);
+            setReadCount(d.readCount || 0);
+            setReadStorySlugs(d.readStories ? Object.keys(d.readStories) : []);
+            // Self-heal: ensure usernames index has an entry for this user
+            if (d.username) {
+              try {
+                const { set } = await import('firebase/database');
+                const idxSnap = await get(ref(db, `usernames/${d.username}`));
+                if (!idxSnap.exists() || idxSnap.val() !== u.uid) {
+                  await set(ref(db, `usernames/${d.username}`), u.uid);
+                }
+              } catch (e) {}
+            }
+          }
           setLoading(false);
         }));
         unsubDB.push(onValue(ref(db, `followers/${u.uid}`), snap => { const uids = snap.exists() ? Object.keys(snap.val()) : []; setFollowerCount(uids.length); setFollowerUids(uids); }));
