@@ -179,6 +179,9 @@ function renderCommentText(text) {
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [commentReactions, setCommentReactions] = useState({});
+  const [menuId, setMenuId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState('');
 
   useEffect(() => {
     let unsubAuth;
@@ -311,7 +314,30 @@ function renderCommentText(text) {
     setPosting(false);
   };
 
-const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
+  const editComment = async (commentId) => {
+    if (!editText.trim() || !user) return;
+    try {
+      const db = await getDB();
+      const { ref, update } = await import('firebase/database');
+      await update(ref(db, `comments/${slug}/${commentId}`), {
+        text: editText.trim(),
+        editedAt: Date.now(),
+      });
+      setEditingId(null);
+      setEditText('');
+    } catch (e) {}
+  };
+
+  const deleteComment = async (commentId) => {
+    if (!user) return;
+    try {
+      const db = await getDB();
+      const { ref, remove } = await import('firebase/database');
+      await remove(ref(db, `comments/${slug}/${commentId}`));
+    } catch (e) {}
+  };
+
+  const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
   function CommentNode({ comment, depth, parentAuthorName }) {
       const isOwn = user?.uid === comment.authorUid;
       const children = comments.filter(c => c.parentId === comment.id).sort((a, b) => a.createdAt - b.createdAt);
