@@ -1,5 +1,3 @@
-// ─── Quiz generation ────────────────────────────────────────────────────────
-
 const QUIZ_ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
@@ -103,10 +101,8 @@ function validateQuiz(quiz, mode) {
   return warnings;
 }
 
-async function handleGenerateQuiz(request, env) {
-  if (request.method !== 'POST') {
-    return quizJson({ error: 'Method not allowed.' }, 405);
-  }
+export async function onRequestPost(context) {
+  const { request, env } = context;
 
   let body;
   try { body = await request.json(); }
@@ -187,31 +183,3 @@ async function handleGenerateQuiz(request, env) {
   console.log('[generate-quiz] success, warnings:', warnings.length);
   return quizJson({ quiz, warnings });
 }
-
-// ─── Main worker ────────────────────────────────────────────────────────────
-
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-
-    // Proxy /og/image to the dedicated Worker
-    if (url.pathname.startsWith('/og/image')) {
-      return fetch(`https://calvary-og-image.calvarymediauk.workers.dev${url.search}`);
-    }
-
-    // Quiz generation API
-    if (url.pathname === '/api/generate-quiz') {
-      return handleGenerateQuiz(request, env);
-    }
-
-    const response = await env.ASSETS.fetch(request);
-    const newResponse = new Response(response.body, response);
-    const ext = url.pathname.split('.').pop().toLowerCase();
-    if (['html', 'js', 'css'].includes(ext) || url.pathname.endsWith('/') || !url.pathname.includes('.')) {
-      newResponse.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-      newResponse.headers.set('Pragma', 'no-cache');
-      newResponse.headers.set('Expires', '0');
-    }
-    return newResponse;
-  }
-};
