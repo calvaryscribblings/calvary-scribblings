@@ -51,8 +51,10 @@ export default function MigratePage() {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
-      setResult({ status: res.status, body: data });
+      const text = await res.text();
+      let body;
+      try { body = JSON.parse(text); } catch { body = text; }
+      setResult({ status: res.status, body });
     } catch (e) {
       setError(e.message);
     }
