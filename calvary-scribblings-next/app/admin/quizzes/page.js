@@ -231,8 +231,10 @@ export default function QuizzesPage() {
     if (!selectedSlug || !quiz || !user) return;
     setSaving(true); setError(''); setMsg('');
     try {
-      const { ref, set } = await import('firebase/database');
+      const { ref, set, update } = await import('firebase/database');
       await set(ref(db, `cms_quizzes/${selectedSlug}`), { ...quiz, approvedAt: null, approvedBy: null });
+      // Mark quiz unavailable on the story card without losing counters or naming state
+      await update(ref(db, `cms_stories/${selectedSlug}/quizMeta`), { hasQuiz: false });
       try { localStorage.removeItem(LS_KEY); } catch {}
       setQuizStatuses(prev => ({ ...prev, [selectedSlug]: 'draft' }));
       showMsg('Draft saved.', 'green');
@@ -244,11 +246,24 @@ export default function QuizzesPage() {
     if (!selectedSlug || !quiz || !user) return;
     setSaving(true); setError(''); setMsg('');
     try {
-      const { ref, set } = await import('firebase/database');
-      await set(ref(db, `cms_quizzes/${selectedSlug}`), {
-        ...quiz,
-        approvedAt: Date.now(),
-        approvedBy: user.uid,
+      const { ref, get, update } = await import('firebase/database');
+      const approvedAt = Date.now();
+
+      // Read existing quizMeta to preserve attempt count and naming state on re-approval
+      const metaSnap = await get(ref(db, `cms_stories/${selectedSlug}/quizMeta`));
+      const existing = metaSnap.exists() ? metaSnap.val() : null;
+
+      // Atomic multi-location write: quiz node + story quizMeta cache
+      await update(ref(db), {
+        [`cms_quizzes/${selectedSlug}`]: { ...quiz, approvedAt, approvedBy: user.uid },
+        [`cms_stories/${selectedSlug}/quizMeta`]: {
+          hasQuiz: true,
+          scribblesReward: quiz.maxPoints ?? 50,
+          publishedAt: approvedAt,
+          attemptCount: existing?.attemptCount ?? 0,
+          namingClaimedBy: existing?.namingClaimedBy ?? null,
+          namingClaimedAt: existing?.namingClaimedAt ?? null,
+        },
       });
       try { localStorage.removeItem(LS_KEY); } catch {}
       setQuizStatuses(prev => ({ ...prev, [selectedSlug]: 'live' }));
