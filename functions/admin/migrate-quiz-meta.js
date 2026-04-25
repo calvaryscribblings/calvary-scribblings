@@ -80,7 +80,7 @@ export async function onRequestPost(context) {
     }
 
     if (!dryRun) {
-      const patchRes = await fetch(`${FB_DB}/.json`, {
+      const patchRes = await fetch(`${FB_DB}/.json?auth=${token}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
