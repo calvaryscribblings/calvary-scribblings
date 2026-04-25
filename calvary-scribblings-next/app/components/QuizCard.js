@@ -322,6 +322,52 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz }) {
   return null;
 }
 
+// ── Admin debug panel ────────────────────────────────────────────────────────
+
+const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
+
+function AdminDebugPanel({ slug, userUid, dbg, quizState, nullReason, hasRead, hasSubmission }) {
+  if (userUid !== ADMIN_UID) return null;
+  const rows = [
+    ['slug', slug],
+    ['uid', userUid ?? 'null'],
+    ['snap.exists', dbg.snapExists === null ? '(pending)' : String(dbg.snapExists)],
+    ['approvedAt', String(dbg.approvedAt)],
+    dbg.dataKeys ? ['keys', dbg.dataKeys] : null,
+    dbg.fetchError ? ['fetchErr', dbg.fetchError] : null,
+    nullReason
+      ? ['→ result', `null: ${nullReason}`]
+      : ['→ state', `${quizState} | hasRead:${hasRead} sub:${hasSubmission}`],
+  ].filter(Boolean);
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 12,
+      right: 12,
+      zIndex: 99999,
+      background: 'rgba(0,0,0,0.88)',
+      color: '#7fff7f',
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      lineHeight: 1.6,
+      padding: '8px 11px',
+      borderRadius: 7,
+      border: '1px solid rgba(127,255,127,0.18)',
+      opacity: 0.82,
+      maxWidth: 300,
+      pointerEvents: 'none',
+    }}>
+      <div style={{ color: 'rgba(127,255,127,0.4)', fontSize: '10px', marginBottom: 3 }}>QuizCard debug</div>
+      {rows.map(([k, v]) => (
+        <div key={k}>
+          <span style={{ color: 'rgba(127,255,127,0.45)' }}>{k}: </span>{v}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Main QuizCard component ───────────────────────────────────────────────────
 
 export default function QuizCard({ slug, user, onSignIn }) {
@@ -331,6 +377,9 @@ export default function QuizCard({ slug, user, onSignIn }) {
   const [hasRead, setHasRead] = useState(false);
   const [view, setView] = useState('card'); // 'card'|'guidelines'|'hardball'|'main'|'animation'
   const [animResult, setAnimResult] = useState(null);
+  const [dbg, setDbg] = useState({ snapExists: null, approvedAt: '(pending)', dataKeys: null, fetchError: null });
+
+  const isAdmin = user?.uid === ADMIN_UID;
 
   console.log('[QuizCard] render — slug:', slug, '| user:', user ? user.uid : 'null');
 
@@ -345,14 +394,18 @@ export default function QuizCard({ slug, user, onSignIn }) {
         console.log('[QuizCard] snap.exists():', snap.exists());
         if (snap.exists()) {
           const data = snap.val();
-          console.log('[QuizCard] data.approvedAt:', data.approvedAt, '| keys:', Object.keys(data));
+          const keys = Object.keys(data).join(', ');
+          console.log('[QuizCard] data.approvedAt:', data.approvedAt, '| keys:', keys);
+          setDbg(d => ({ ...d, snapExists: true, approvedAt: data.approvedAt ?? '(missing)', dataKeys: keys }));
           if (data.approvedAt) setQuizData(data);
           else console.warn('[QuizCard] quiz exists but approvedAt is falsy — not showing card');
         } else {
           console.warn('[QuizCard] no quiz found at cms_quizzes/' + slug);
+          setDbg(d => ({ ...d, snapExists: false, approvedAt: 'N/A' }));
         }
       } catch (e) {
         console.error('[QuizCard] Firebase fetch error:', e);
+        setDbg(d => ({ ...d, fetchError: e.message }));
       }
       setQuizLoaded(true);
     })();
@@ -389,8 +442,14 @@ export default function QuizCard({ slug, user, onSignIn }) {
     };
   }, [user?.uid, slug]);
 
-  if (!quizLoaded) { console.log('[QuizCard] returning null — quizLoaded is false'); return null; }
-  if (!quizData) { console.log('[QuizCard] returning null — quizData is null after load'); return null; }
+  if (!quizLoaded) {
+    console.log('[QuizCard] returning null — quizLoaded is false');
+    return <AdminDebugPanel slug={slug} userUid={user?.uid} dbg={dbg} quizState={null} nullReason="quizLoaded=false" hasRead={hasRead} hasSubmission={!!submission} />;
+  }
+  if (!quizData) {
+    console.log('[QuizCard] returning null — quizData is null after load');
+    return <AdminDebugPanel slug={slug} userUid={user?.uid} dbg={dbg} quizState={null} nullReason="quizData=null after load" hasRead={hasRead} hasSubmission={!!submission} />;
+  }
 
   // Derive quiz state
   let quizState;
@@ -469,6 +528,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
 
   return (
     <>
+      <AdminDebugPanel slug={slug} userUid={user?.uid} dbg={dbg} quizState={quizState} nullReason={null} hasRead={hasRead} hasSubmission={!!submission} />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@400;500;600&display=swap');
         @keyframes qc-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(107,47,173,0)} 50%{box-shadow:0 0 0 8px rgba(107,47,173,0.2)} }
