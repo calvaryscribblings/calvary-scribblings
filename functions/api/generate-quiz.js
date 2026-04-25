@@ -169,12 +169,14 @@ export async function onRequestPost(context) {
     return quizJson({ error: e.message }, 500);
   }
 
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+
   let quiz;
   try {
-    quiz = JSON.parse(raw);
+    quiz = JSON.parse(cleaned);
   } catch (e) {
-    console.error('[generate-quiz] JSON parse failed, raw start:', raw.slice(0, 300));
-    return quizJson({ error: `Claude returned invalid JSON: ${e.message}`, raw }, 500);
+    console.error('[generate-quiz] JSON parse failed, cleaned start:', cleaned.slice(0, 300));
+    return quizJson({ error: `Claude returned invalid JSON: ${e.message}`, raw: cleaned }, 500);
   }
 
   const warnings = validateQuiz(quiz, mode);
