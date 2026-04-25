@@ -1,13 +1,16 @@
-import { NextResponse } from 'next/server';
-
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 
-async function verifyAdminToken(token) {
-  // Verifies a Firebase ID token via the Identity Toolkit REST API (no Admin SDK needed).
-  // Returns the token's uid on success, null on any failure.
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+async function verifyAdminToken(token, apiKey) {
   const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -19,24 +22,21 @@ async function verifyAdminToken(token) {
   return data?.users?.[0]?.localId ?? null;
 }
 
-export async function POST(request) {
+export async function onRequestPost(context) {
+  const { request, env } = context;
+
   const { searchParams } = new URL(request.url);
   const dryRun = searchParams.get('dryRun') === 'true';
 
   const authHeader = request.headers.get('authorization') ?? '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
-  }
+  if (!token) return json({ error: 'Unauthorised.' }, 401);
 
-  const uid = await verifyAdminToken(token);
-  if (uid !== ADMIN_UID) {
-    return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
-  }
+  const uid = await verifyAdminToken(token, env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  if (uid !== ADMIN_UID) return json({ error: 'Unauthorised.' }, 401);
 
   try {
-    // Fetch all quizzes and all stories in parallel
     const [quizzesRes, storiesRes] = await Promise.all([
       fetch(`${FB_DB}/cms_quizzes.json`),
       fetch(`${FB_DB}/cms_stories.json`),
@@ -49,12 +49,7 @@ export async function POST(request) {
     const storiesData = await storiesRes.json();
 
     if (!quizzesData) {
-      return NextResponse.json({
-        message: 'No quizzes found. Nothing to migrate.',
-        migrated: 0,
-        skippedDraft: 0,
-        skippedNoStory: 0,
-      });
+      return json({ message: 'No quizzes found. Nothing to migrate.', migrated: 0, skippedDraft: 0, skippedNoStory: 0 });
     }
 
     const updates = {};
@@ -63,17 +58,8 @@ export async function POST(request) {
     let skippedNoStory = 0;
 
     for (const [slug, quiz] of Object.entries(quizzesData)) {
-      // Only migrate approved (live) quizzes
-      if (!quiz.approvedAt) {
-        skippedDraft++;
-        continue;
-      }
-
-      // Only write if the story node exists — avoids orphaned quizMeta
-      if (!storiesData?.[slug]) {
-        skippedNoStory++;
-        continue;
-      }
+      if (!quiz.approvedAt) { skippedDraft++; continue; }
+      if (!storiesData?.[slug]) { skippedNoStory++; continue; }
 
       const existing = storiesData[slug].quizMeta;
 
@@ -81,7 +67,6 @@ export async function POST(request) {
         hasQuiz: true,
         scribblesReward: quiz.maxPoints ?? 50,
         publishedAt: quiz.approvedAt,
-        // Preserve counters and naming state on re-run
         attemptCount: existing?.attemptCount ?? 0,
         namingClaimedBy: existing?.namingClaimedBy ?? null,
         namingClaimedAt: existing?.namingClaimedAt ?? null,
@@ -91,13 +76,7 @@ export async function POST(request) {
     }
 
     if (migratedSlugs.length === 0) {
-      return NextResponse.json({
-        message: 'No approved quizzes matched a story node. Nothing written.',
-        dryRun,
-        migrated: 0,
-        skippedDraft,
-        skippedNoStory,
-      });
+      return json({ message: 'No approved quizzes matched a story node. Nothing written.', dryRun, migrated: 0, skippedDraft, skippedNoStory });
     }
 
     if (!dryRun) {
@@ -113,7 +92,7 @@ export async function POST(request) {
       }
     }
 
-    return NextResponse.json({
+    return json({
       message: dryRun
         ? `Dry run: ${migratedSlugs.length} quizMeta block(s) would be written. No changes made.`
         : `Migration complete. ${migratedSlugs.length} quizMeta block(s) written.`,
@@ -124,6 +103,6 @@ export async function POST(request) {
       slugs: migratedSlugs,
     });
   } catch (e) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return json({ error: e.message }, 500);
   }
 }
