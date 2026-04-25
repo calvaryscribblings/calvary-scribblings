@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta property="og:title" content="The Oscar Showdowns: Winning Films vs Their Biggest Competitors">
+    <meta property="og:description" content="The 98th Academy Awards took place on the 15th of March 2026 in Hollywood, with One Battle After Another dominating the night with six awards, including Best Picture and Best Director.">
+    <meta property="og:image" content="https://calvaryscribblings.co.uk/oscars-2026-cover.jpeg">
+    <meta property="og:url" content="https://calvaryscribblings.co.uk/stories/oscars-2026.html">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Calvary Scribblings">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="The Oscar Showdowns: Winning Films vs Their Biggest Competitors">
+    <meta name="twitter:description" content="The 98th Academy Awards took place on the 15th of March 2026 in Hollywood, with One Battle After Another dominating the night with six awards, including Best Picture and Best Director.">
+    <meta name="twitter:image" content="https://calvaryscribblings.co.uk/oscars-2026-cover.jpeg">
+    <title>The Oscar Showdowns: Winning Films vs Their Biggest Competitors - Calvary Scribblings</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="icon" type="image/png" href="../favicon.png">
+    <link rel="apple-touch-icon" href="../favicon.png">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        .story-cover-banner {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            min-height: 500px;
+            background-size: cover;
+            background-position: center top;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: flex-end;
+        }
+        .story-cover-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.15) 55%, transparent 100%);
+        }
+        .story-cover-content {
+            position: relative;
+            z-index: 2;
+            padding: 3rem;
+            color: white;
+            width: 100%;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.9);
+        }
+        .story-cover-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.4; }
+        .story-cover-meta { font-size: 1rem; opacity: 0.95; }
+        .back-link {
+            display: inline-block;
+            margin: 2rem 0;
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .back-link:hover { color: #8b5cf6; }
+        .article-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .article-content {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            color: #333;
+        }
+        .article-content p { margin-bottom: 1.5rem; }
+        .article-content h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin: 2.5rem 0 1rem;
+        }
+        .article-content h3 {
+            font-size: 1.5rem;
+            color: #6b46c1;
+            margin: 2rem 0 1rem 0;
+        }
+        .article-content ul { margin: 0.5rem 0 1.5rem 1.5rem; }
+        .article-content ul li { margin-bottom: 0.4rem; }
+        .inline-image-block { margin: 2.5rem 0; }
+        .inline-image-block img { width: 100%; border-radius: 10px; display: block; }
+        .inline-image-caption {
+            font-size: 0.82rem;
+            color: #999;
+            margin-top: 0.5rem;
+            text-align: right;
+            font-style: italic;
+        }
+        .hit-counter {
+            text-align: center;
+            padding: 2rem 0;
+            font-size: 1rem;
+            color: #666;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 3rem;
+        }
+        @media (max-width: 768px) {
+            .story-cover-banner { height: 60vh; min-height: 400px; }
+            .story-cover-title { font-size: 1.1rem; }
+            .story-cover-content { padding: 2rem; }
+            .article-content { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <a class="logo" href="../index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="../logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="../index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown">
+                            <li><a href="../news.html">News &amp; Updates</a></li>
+                            <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="../short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="../serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="../poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="../index.html#about">About</a></li>
+                    <li><a href="../index.html#subscribe">Subscribe</a></li>
+                    <li><a href="../index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <div class="story-cover-banner" style="background-image: url('../oscars-2026-cover.jpeg'); background-position: center 30%;">
+        <div class="story-cover-overlay"></div>
+        <div class="story-cover-content">
+            <span class="division-badge badge-news" style="display:inline-block;margin-bottom:0.75rem;">Film</span>
+            <h1 class="story-cover-title">The Oscar Showdowns: Winning Films vs Their Biggest Competitors</h1>
+            <div class="story-cover-meta">By Chioma Okonkwo &middot; Mar 16, 2026</div>
+        </div>
+    </div>
+
+    <div class="article-container">
+
+        <a href="../news.html" class="back-link">&larr; Back to News &amp; Updates</a>
+
+        <article class="article-content">
+
+            <p>The 98th Academy Awards took place on the 15th of March 2026 in Hollywood, with <em>One Battle After Another</em> dominating the night with six awards, including Best Picture and Best Director. Meanwhile, <em>Sinners</em> had the most nominations for the night — a record 16 nominations.</p>
+
+            <h2>Did the Right Films Win?</h2>
+
+            <p>Every year, debates ensue after the Academy Awards. Why did one film win whilst another, often more popular with audiences, lost? The answer lies in how the Oscars work. The winners of the Academy Awards are not chosen by the public, and voting is not open to the public, but by 10,000+ film professionals who belong to the Academy of Motion Picture Arts and Sciences. This explains why some films win over their rivals: they resonate not just as entertainment but as achievements in filmmaking craft.</p>
+
+            <h2>The Major Film Battles of the 2026 Oscars</h2>
+
+            <h3>Best Actor in a Leading Role</h3>
+
+            <p><strong>Winner: Michael B. Jordan — <em>Sinners</em></strong></p>
+
+            <div class="inline-image-block">
+                <img src="../oscars-2026-mbj.jpeg" alt="Michael B. Jordan wins Best Actor for Sinners at the 98th Academy Awards">
+                <div class="inline-image-caption">Source: theacademy on Instagram</div>
+            </div>
+
+            <p>This was Jordan's first Oscar win and nomination, and he won for playing twin brothers (Smoke and Stack) in the supernatural fictional drama. His performance required him to portray two distinct personalities in the same film, which many critics said was one of the most technically demanding acting roles of the year.</p>
+
+            <p>Other nominees for this role included:</p>
+            <ul>
+                <li>Timothée Chalamet — <em>Marty Supreme</em></li>
+                <li>Leonardo DiCaprio — <em>One Battle After Another</em></li>
+                <li>Ethan Hawke — <em>Blue Moon</em></li>
+                <li>Wagner Moura — <em>The Secret Agent</em></li>
+            </ul>
+
+            <p>This category was widely considered one of the most competitive of the night.</p>
+
+            <h3>Best Actress in a Leading Role</h3>
+
+            <p><strong>Winner: Jessie Buckley — <em>Hamnet</em></strong></p>
+
+            <div class="inline-image-block">
+                <img src="../oscars-2026-buckley.jpeg" alt="Jessie Buckley wins Best Actress for Hamnet at the 98th Academy Awards">
+                <div class="inline-image-caption">Source: theacademy on Instagram</div>
+            </div>
+
+            <p>Jessie Buckley in <em>Hamnet</em> tells an emotional story in a historical drama inspired by Maggie O'Farrell's novel. The role explores grief, motherhood, and the personal tragedy believed to have influenced William Shakespeare's writing. Strong competitors included Renate Reinsve's role in <em>Sentimental Value</em> and Emma Stone's role in <em>Bugonia</em>.</p>
+
+            <p>Other nominees:</p>
+            <ul>
+                <li>Renate Reinsve — <em>Sentimental Value</em></li>
+                <li>Rose Byrne — <em>If I Had Legs I'd Kick You</em></li>
+                <li>Kate Hudson — <em>Song Sung Blue</em></li>
+                <li>Emma Stone — <em>Bugonia</em></li>
+            </ul>
+
+            <h3>Best Picture</h3>
+
+            <p><strong>Winner: <em>One Battle After Another</em></strong></p>
+
+            <div class="inline-image-block">
+                <img src="../oscars-2026-bestpicture.jpeg" alt="One Battle After Another wins Best Picture at the 98th Academy Awards">
+                <div class="inline-image-caption">Source: theacademy on Instagram</div>
+            </div>
+
+            <p><em>One Battle After Another</em> is a political drama inspired by Thomas Pynchon's novel <em>Vineland</em>. The film mixes satire and political commentary whilst following a former revolutionary confronting modern society. It dominated the ceremony with six awards, including Best Picture, Director, Editing, and Adapted Screenplay.</p>
+
+            <p>Other major nominees included <em>Sinners</em>, <em>Hamnet</em>, <em>Frankenstein</em>, <em>Sentimental Value</em>, <em>Train Dreams</em>, and <em>F1</em>.</p>
+
+            <h3>Best Original Screenplay</h3>
+
+            <p><strong>Winner: <em>Sinners</em></strong></p>
+
+            <p>Ryan Coogler's script stood out for blending horror and cultural storytelling. It portrayed vampires, blues music culture, and family drama. Other nominated films included <em>Sentimental Value</em>, <em>Blue Moon</em>, and <em>Marty Supreme</em>.</p>
+
+            <p><em>Marty Supreme</em> lost all nominations on the big night. It is a sports drama with a coming-of-age angle, starring Timothée Chalamet as Marty, a prodigiously talented table tennis player navigating the pressures of fame, competition, and personal identity.</p>
+
+            <h3>Best Actor in a Supporting Role</h3>
+
+            <p><strong>Winner: Sean Penn — <em>One Battle After Another</em></strong></p>
+
+            <p>Penn's performance stood out for its intensity within the political drama. In <em>One Battle After Another</em>, Sean Penn plays Colonel Steven J. Lockjaw, the film's main antagonist. By contrast, Delroy Lindo in <em>Sinners</em> played a figure of quiet influence — a man navigating grief, family, and supernatural events, whose presence shapes the story without dominating it. Meanwhile, Jacob Elordi in <em>Frankenstein</em> delivered a darkly charismatic performance, bringing gothic intensity and emotional depth to a more traditional role.</p>
+
+            <p>Other nominees:</p>
+            <ul>
+                <li>Benicio del Toro — <em>One Battle After Another</em></li>
+                <li>Jacob Elordi — <em>Frankenstein</em></li>
+                <li>Delroy Lindo — <em>Sinners</em></li>
+                <li>Stellan Skarsgård — <em>Sentimental Value</em></li>
+            </ul>
+
+            <h3>Best Actress in a Supporting Role</h3>
+
+            <p><strong>Winner: Amy Madigan — <em>Weapons</em></strong></p>
+
+            <p>This win surprised many because Wunmi Mosaku's performance in <em>Sinners</em> had strong support amongst audiences.</p>
+
+            <p>Other nominees:</p>
+            <ul>
+                <li>Wunmi Mosaku — <em>Sinners</em></li>
+                <li>Elle Fanning — <em>Sentimental Value</em></li>
+                <li>Inga Ibsdotter Lilleaas — <em>Sentimental Value</em></li>
+                <li>Teyana Taylor — <em>One Battle After Another</em></li>
+            </ul>
+
+            <h3>Best Directing</h3>
+
+            <p><strong>Winner: Paul Thomas Anderson — <em>One Battle After Another</em></strong></p>
+
+            <div class="inline-image-block">
+                <img src="../oscars-2026-directing.jpeg" alt="One Battle After Another wins Best Directing at the 98th Academy Awards">
+                <div class="inline-image-caption">Source: theacademy on Instagram</div>
+            </div>
+
+            <p>Other nominees:</p>
+            <ul>
+                <li>Chloé Zhao — <em>Hamnet</em></li>
+                <li>Josh Safdie — <em>Marty Supreme</em></li>
+                <li>Joachim Trier — <em>Sentimental Value</em></li>
+                <li>Ryan Coogler — <em>Sinners</em></li>
+            </ul>
+
+            <h3>Best Cinematography</h3>
+
+            <p><strong>Winner: <em>Sinners</em></strong></p>
+
+            <div class="inline-image-block">
+                <img src="../oscars-2026-cinematography.jpeg" alt="Sinners wins Best Cinematography at the 98th Academy Awards">
+                <div class="inline-image-caption">Source: theacademy on Instagram</div>
+            </div>
+
+            <p>Other nominees: <em>Frankenstein</em>, <em>One Battle After Another</em>, <em>Train Dreams</em>.</p>
+
+            <h3>Best Film Editing</h3>
+
+            <p><strong>Winner: <em>One Battle After Another</em></strong></p>
+
+            <div class="inline-image-block">
+                <img src="../oscars-2026-editing.jpeg" alt="One Battle After Another wins Best Film Editing at the 98th Academy Awards">
+                <div class="inline-image-caption">Source: theacademy on Instagram</div>
+            </div>
+
+            <p>Other nominees: <em>Sinners</em>, <em>Marty Supreme</em>, <em>Hamnet</em>.</p>
+
+            <h3>Best Sound</h3>
+
+            <p><strong>Winner: <em>F1</em></strong></p>
+
+            <div class="inline-image-block">
+                <img src="../oscars-2026-sound.jpeg" alt="F1 wins Best Sound at the 98th Academy Awards">
+                <div class="inline-image-caption">Source: theacademy on Instagram</div>
+            </div>
+
+            <p>Other nominees: <em>Frankenstein</em>, <em>Sinners</em>, <em>One Battle After Another</em>.</p>
+
+            <h3>Best Original Score</h3>
+
+            <p><strong>Winner: <em>Sinners</em></strong></p>
+
+            <div class="inline-image-block">
+                <img src="../oscars-2026-score.jpeg" alt="Sinners wins Best Original Score at the 98th Academy Awards">
+                <div class="inline-image-caption">Source: theacademy on Instagram</div>
+            </div>
+
+            <p>Other nominees: <em>Hamnet</em>, <em>One Battle After Another</em>, <em>Marty Supreme</em>.</p>
+
+            <h3>Make-Up and Hairstyling</h3>
+
+            <p><strong>Winner: <em>Frankenstein</em></strong></p>
+            <p>Other nominees: <em>Kokuho</em>, <em>Sinners</em>, <em>The Smashing Machine</em>, <em>The Ugly Stepsister</em>.</p>
+
+            <h3>Costume Design</h3>
+
+            <p><strong>Winner: <em>Frankenstein</em></strong></p>
+            <p>Other nominees: <em>Avatar: Fire and Ash</em>, <em>Hamnet</em>, <em>Marty Supreme</em>, <em>Sinners</em>.</p>
+
+            <p>A debate was sparked online saying <em>Sinners</em> deserved to win in both the Costume Design and Make-Up and Hairstyling categories because the costumes and styling represented the theme of the film, helping to define each character and their social status. However, <em>Frankenstein</em> must have appealed more to voters because of its extensive prosthetic designs, and the costumes reflected a vintage era and gothic aesthetic.</p>
+
+            <div style="width:100px;height:2px;background:linear-gradient(90deg,transparent,#6b46c1,transparent);margin:3rem auto;"></div>
+
+            <p>Ultimately, the Oscars are a reflection of what creators value in filmmaking rather than just a reflection of popularity. Members of the Academy of Motion Picture Arts and Sciences select the Academy Awards winners, which means that films that push artistic limits, experiment with storytelling, or exhibit excellent craft are frequently voted on. Therefore, comparing the nominees and winners together reveals not only which films won, but also what the cinema industry as a whole currently finds appealing.</p>
+
+        </article>
+
+        <div class="hit-counter">
+            <span>👁️ </span><span id="hit-count">0</span> hits
+        </div>
+
+        <div style="padding:1.5rem 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;border-top:1px solid #e0e0e0;margin-top:1rem;">
+            <span class="division-badge badge-news">Film</span>
+            <div style="font-size:0.95rem;color:#666;">By <strong>Chioma Okonkwo</strong> &middot; Mar 16, 2026</div>
+        </div>
+
+        <div style="margin-top:3rem;padding-top:2rem;border-top:2px solid #e0e0e0;">
+            <h3 style="font-size:2rem;font-weight:700;color:#6b46c1;margin-bottom:2rem;">Comments</h3>
+            <div id="disqus_thread"></div>
+        </div>
+
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="../index.html#stories">Latest Stories</a></li>
+                    <li><a href="../news.html">News &amp; Updates</a></li>
+                    <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="../creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="../flash.html">Flash Fiction</a></li>
+                    <li><a href="../short.html">Short Stories</a></li>
+                    <li><a href="../serial.html">Serial Stories</a></li>
+                    <li><a href="../poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="../index.html#subscribe">Newsletter</a></li>
+                    <li><a href="../index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="../scripts.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const hitCountRef = database.ref('stories/oscars-2026/hits');
+        hitCountRef.transaction((currentHits) => (currentHits || 0) + 1).then(() => {
+            hitCountRef.on('value', (snapshot) => {
+                document.getElementById('hit-count').textContent = snapshot.val() || 0;
+            });
+        });
+    </script>
+
+    <script>
+        var disqus_config = function () {
+            this.page.url = 'https://calvaryscribblings.co.uk/stories/oscars-2026.html';
+            this.page.identifier = 'oscars-2026';
+        };
+        (function() {
+            var d = document, s = d.createElement('script');
+            s.src = 'https://calvaryscribblings.disqus.com/embed.js';
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+        })();
+    </script>
+
+</body>
+</html>

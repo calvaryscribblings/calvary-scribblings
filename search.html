@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search - Calvary Scribblings</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+
+        .search-page {
+            min-height: 100vh;
+            background: #faf9f7;
+        }
+
+        /* ── Hero ── */
+        .search-hero {
+            background: #1a1a2e;
+            padding: 5rem 2rem 4rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .search-hero::before {
+            content: '';
+            position: absolute;
+            top: -60px; left: 50%;
+            transform: translateX(-50%);
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(107,70,193,0.25) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .search-hero-eyebrow {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #8b5cf6;
+            margin-bottom: 1rem;
+        }
+        .search-hero h1 {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.5rem;
+            line-height: 1.1;
+        }
+        .search-hero h1 em {
+            font-style: italic;
+            color: #c4b5fd;
+        }
+        .search-hero p {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 2.5rem;
+        }
+
+        /* ── Search Input ── */
+        .search-input-wrap {
+            position: relative;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+        .search-input {
+            width: 100%;
+            padding: 1.1rem 3.5rem 1.1rem 1.5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1.05rem;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            color: #fff;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+            caret-color: #8b5cf6;
+        }
+        .search-input::placeholder { color: rgba(255,255,255,0.3); }
+        .search-input:focus {
+            border-color: #8b5cf6;
+            background: rgba(255,255,255,0.09);
+            box-shadow: 0 0 0 4px rgba(139,92,246,0.15);
+        }
+        .search-icon {
+            position: absolute;
+            right: 1.1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255,255,255,0.3);
+            pointer-events: none;
+            transition: color 0.2s;
+        }
+        .search-input:focus ~ .search-icon { color: #8b5cf6; }
+
+        /* ── Filters ── */
+        .search-filters {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 1.5rem;
+        }
+        .filter-btn {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 0.45rem 1rem;
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: transparent;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .filter-btn:hover {
+            border-color: rgba(139,92,246,0.5);
+            color: #c4b5fd;
+        }
+        .filter-btn.active {
+            background: #6b46c1;
+            border-color: #6b46c1;
+            color: #fff;
+        }
+
+        /* ── Results Area ── */
+        .search-body {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 3rem 2rem 5rem;
+        }
+
+        .results-meta {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.85rem;
+            color: #999;
+            margin-bottom: 2rem;
+            min-height: 1.2rem;
+        }
+        .results-meta strong { color: #6b46c1; }
+
+        /* ── Result Card ── */
+        .result-card {
+            display: flex;
+            gap: 1.25rem;
+            align-items: center;
+            padding: 1.25rem 0;
+            border-bottom: 1px solid #ede9f7;
+            text-decoration: none;
+            transition: background 0.15s;
+            border-radius: 8px;
+            margin: 0 -1rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        .result-card:hover { background: #f3f0ff; }
+        .result-card:hover .result-title { color: #6b46c1; }
+
+        .result-thumb-wrap {
+            width: 80px;
+            min-width: 80px;
+            height: 60px;
+            border-radius: 6px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .result-thumb {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center top;
+            display: block;
+            transition: transform 0.3s ease;
+        }
+        .result-card:hover .result-thumb { transform: scale(1.05); }
+
+        .result-body { flex: 1; min-width: 0; }
+        .result-title {
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            line-height: 1.35;
+            margin-bottom: 0.3rem;
+            transition: color 0.15s;
+        }
+        .result-title mark {
+            background: #ede9ff;
+            color: #6b46c1;
+            border-radius: 2px;
+            padding: 0 2px;
+        }
+        .result-meta {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.8rem;
+            color: #999;
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .result-badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+        .badge-news { background: #fee2e2; color: #991b1b; }
+        .badge-short { background: #fef3c7; color: #92400e; }
+        .badge-flash { background: #fee2e2; color: #991b1b; }
+        .badge-poetry { background: #ede9fe; color: #5b21b6; }
+        .badge-inspiring { background: #fef3c7; color: #92400e; }
+
+        /* ── Empty / Idle States ── */
+        .state-message {
+            text-align: center;
+            padding: 4rem 1rem;
+        }
+        .state-message .state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+            opacity: 0.4;
+        }
+        .state-message p {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            color: #aaa;
+        }
+        .state-message strong { color: #6b46c1; }
+
+        /* ── Suggestions (idle) ── */
+        .suggestions {
+            margin-top: 2rem;
+        }
+        .suggestions-label {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #bbb;
+            margin-bottom: 0.75rem;
+        }
+        .suggestion-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .suggestion-pill {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.85rem;
+            padding: 0.4rem 0.9rem;
+            background: #f3f0ff;
+            color: #6b46c1;
+            border-radius: 50px;
+            cursor: pointer;
+            border: 1px solid #ddd6fe;
+            transition: all 0.15s;
+        }
+        .suggestion-pill:hover {
+            background: #6b46c1;
+            color: #fff;
+            border-color: #6b46c1;
+        }
+
+        /* ── Animations ── */
+        .result-card {
+            animation: fadeSlideIn 0.2s ease both;
+        }
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .result-card:nth-child(1) { animation-delay: 0.02s; }
+        .result-card:nth-child(2) { animation-delay: 0.04s; }
+        .result-card:nth-child(3) { animation-delay: 0.06s; }
+        .result-card:nth-child(4) { animation-delay: 0.08s; }
+        .result-card:nth-child(5) { animation-delay: 0.10s; }
+
+        @media (max-width: 600px) {
+            .search-hero { padding: 4rem 1.5rem 3rem; }
+            .result-thumb-wrap { width: 60px; min-width: 60px; height: 48px; }
+            .result-title { font-size: 0.95rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <a class="logo" href="index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown" id="storiesDropdown">
+                            <li><a href="news.html">News &amp; Updates</a></li>
+                            <li><a href="inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="index.html#about">About</a></li>
+                    <li><a href="index.html#subscribe">Subscribe</a></li>
+                    <li><a href="index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <div class="search-page">
+        <div class="search-hero">
+            <div class="search-hero-eyebrow">Calvary Scribblings</div>
+            <h1>Find a <em>story</em></h1>
+            <p>Search by title, author, or keyword</p>
+            <div class="search-input-wrap">
+                <input type="text" class="search-input" id="searchInput" placeholder="Try &quot;Nigeria&quot;, &quot;Calvary&quot;, &quot;1967&quot;…" autocomplete="off" spellcheck="false">
+                <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+            </div>
+            <div class="search-filters" id="filterBar">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="news">News</button>
+                <button class="filter-btn" data-filter="short">Short Stories</button>
+                <button class="filter-btn" data-filter="flash">Flash Fiction</button>
+                <button class="filter-btn" data-filter="poetry">Poetry</button>
+                <button class="filter-btn" data-filter="inspiring">Inspiring</button>
+            </div>
+        </div>
+
+        <div class="search-body">
+            <div class="results-meta" id="resultsMeta"></div>
+            <div id="resultsContainer"></div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="index.html#stories">Latest Stories</a></li>
+                    <li><a href="news.html">News &amp; Updates</a></li>
+                    <li><a href="inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="flash.html">Flash Fiction</a></li>
+                    <li><a href="short.html">Short Stories</a></li>
+                    <li><a href="serial.html">Serial Stories</a></li>
+                    <li><a href="poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="index.html#subscribe">Newsletter</a></li>
+                    <li><a href="index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="scripts.js"></script>
+    <script>
+        const stories = [
+            { id: 'an-appetite-for-love', title: 'An Appetite for Love', category: 'poetry', categoryName: 'Poetry', url: 'stories/an-appetite-for-love.html', cover: 'an-appetite-for-love-cover.png', author: 'Ufedo Adaji', date: 'Mar 19, 2026' },
+            { id: 'rise-and-shine', title: 'Rise and Shine', category: 'flash', categoryName: 'Flash Fiction', url: 'stories/rise-and-shine.html', cover: 'rise-and-shine-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 21, 2026' },
+            { id: 'dont-worry', title: "Don't Worry", category: 'flash', categoryName: 'Flash Fiction', url: 'stories/dont-worry.html', cover: 'dont-worry-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 19, 2026' },
+            { id: 'terms-and-conditions', title: 'Terms and Conditions', category: 'short', categoryName: 'Short Story', url: 'stories/terms-and-conditions.html', cover: 'terms-and-conditions-cover.jpeg', author: 'Tricia Ajax', date: 'Mar 18, 2026' },
+            { id: 'oscars-2026', title: 'The Oscar Showdowns: Winning Films vs Their Biggest Competitors', category: 'news', categoryName: 'Film', url: 'stories/oscars-2026.html', cover: 'oscars-2026-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 16, 2026' },
+            { id: 'how-to-make-peppersoup', title: 'How to Make Peppersoup', category: 'inspiring', categoryName: 'Inspiring', url: 'stories/how-to-make-peppersoup.html', cover: 'peppersoup-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 15, 2026' },
+            { id: 'this-is-nigeria', title: 'This is Nigeria', category: 'news', categoryName: 'Op-Ed', url: 'stories/this-is-nigeria.html', cover: 'this-is-nigeria-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 13, 2026' },
+            { id: 'london-tube-strike', title: 'Another London Underground Strike!', category: 'news', categoryName: 'News', url: 'stories/london-tube-strike.html', cover: 'london-tube-strike-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026' },
+            { id: 'the-bride-box-office', title: 'Why The Bride Struggled at the Box Office Despite Its Bold Feminist Vision', category: 'news', categoryName: 'News', url: 'stories/the-bride-box-office.html', cover: 'the-bride-box-office-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026' },
+            { id: '1967', title: '1967', category: 'short', categoryName: 'Short Story', url: 'stories/1967.html', cover: '1967-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 7, 2026' },
+            { id: 'you-didnt-ask', title: "You Didn't Ask", category: 'short', categoryName: 'Short Story', url: 'stories/you-didnt-ask.html', cover: 'you-didnt-ask-cover.jpg', author: 'Tricia Ajax', date: 'Mar 4, 2026' },
+            { id: 'macbook-neo', title: 'The All New MacBook Neo!', category: 'news', categoryName: 'Tech', url: 'stories/macbook-neo.html', cover: 'macbook-neo-cover.PNG', author: 'Chioma Okonkwo', date: 'Mar 5, 2026' },
+            { id: 'netflix-harry-styles', title: "Netflix to Stream Harry Styles' New Album Performance Live: What It Means for the Platform", category: 'news', categoryName: 'News', url: 'stories/netflix-harry-styles.html', cover: 'netflix-harry-styles-cover.jpg', author: 'Chioma Okonkwo', date: 'Mar 4, 2026' },
+            { id: 'paramount-wbd-plans', title: 'Following the Deal Agreements with WBD, Paramount Reveals Plans for the Future', category: 'news', categoryName: 'News', url: 'stories/paramount-wbd-plans.html', cover: 'paramount-wbd-plans-cover.jpg', author: 'Calvary', date: 'Mar 2, 2026' },
+            { id: 'paramount-warner-bros-discovery', title: 'Hollywood Reacts: Paramount Moves to Take Control of Warner Bros. Discovery', category: 'news', categoryName: 'News', url: 'stories/paramount-warner-bros-discovery.html', cover: 'paramount-warner-bros-discovery-cover.jpg', author: 'Chioma Okonkwo', date: 'Feb 28, 2026' },
+            { id: 'the-girl-who-sang-through-the-dark', title: 'The Girl Who Sang Through the Dark', category: 'inspiring', categoryName: 'Inspiring', url: 'stories/the-girl-who-sang-through-the-dark.html', cover: 'the-girl-who-sang-through-the-dark-cover.jpg', author: 'Tricia Ajax', date: 'Feb 26, 2026' },
+            { id: 'john-davidson-bafta-tourettes', title: "The Man in the Middle: John Davidson Addresses BAFTAs Incident and Living with Tourette's Syndrome", category: 'news', categoryName: 'News', url: 'stories/john-davidson-bafta-tourettes.html', cover: 'john-davidson-bafta-cover.jpeg', author: 'Chioma Okonkwo', date: 'Feb 25, 2026' },
+            { id: 'bafta-2026', title: 'BAFTA 2026: Winners, the Controversial Moment Everyone is Talking About', category: 'news', categoryName: 'News', url: 'stories/bafta-2026.html', cover: 'bafta-2026-cover.webp', author: 'Chioma Okonkwo', date: 'Feb 23, 2026' },
+            { id: 'mother-and-other-poems', title: 'Mother and Other Poems', category: 'poetry', categoryName: 'Poetry', url: 'stories/mother-and-other-poems.html', cover: 'mother-poems-cover.PNG', author: 'Calvary', date: 'Feb 22, 2026' },
+            { id: 'early', title: 'Early', category: 'short', categoryName: 'Short Story', url: 'stories/early.html', cover: 'early-cover.png', author: 'Calvary', date: 'Feb 18, 2026' },
+            { id: 'miss-lady', title: 'Miss Lady', category: 'flash', categoryName: 'Flash Fiction', url: 'stories/miss-lady.html', cover: 'B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png', author: 'Calvary', date: 'Feb 17, 2026' },
+        ];
+
+        const suggestions = ['Nigeria', 'London', '1967', 'Calvary', 'Tricia Ajax', 'Ikenna Okpara', 'Poetry', 'Flash Fiction', 'BAFTA', 'Oscars'];
+
+        let activeFilter = 'all';
+        let query = '';
+
+        const input = document.getElementById('searchInput');
+        const container = document.getElementById('resultsContainer');
+        const meta = document.getElementById('resultsMeta');
+
+        function highlight(text, term) {
+            if (!term) return text;
+            const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
+        }
+
+        function getBadgeClass(cat) {
+            const map = { news: 'badge-news', short: 'badge-short', flash: 'badge-flash', poetry: 'badge-poetry', inspiring: 'badge-inspiring' };
+            return map[cat] || 'badge-news';
+        }
+
+        function renderIdle() {
+            meta.innerHTML = '';
+            container.innerHTML = `
+                <div class="state-message">
+                    <span class="state-icon">🔍</span>
+                    <p>Start typing to search across all stories</p>
+                </div>
+                <div class="suggestions">
+                    <div class="suggestions-label">Try searching for</div>
+                    <div class="suggestion-pills">
+                        ${suggestions.map(s => `<span class="suggestion-pill" onclick="useSuggestion('${s}')">${s}</span>`).join('')}
+                    </div>
+                </div>`;
+        }
+
+        function renderResults(results, q) {
+            if (results.length === 0) {
+                meta.innerHTML = '';
+                container.innerHTML = `
+                    <div class="state-message">
+                        <span class="state-icon">📭</span>
+                        <p>No stories found for <strong>"${q}"</strong>.<br>Try a different keyword or clear the filter.</p>
+                    </div>`;
+                return;
+            }
+
+            meta.innerHTML = `Showing <strong>${results.length}</strong> result${results.length !== 1 ? 's' : ''} for "<strong>${q}</strong>"`;
+
+            container.innerHTML = results.map(s => `
+                <a href="${s.url}" class="result-card">
+                    <div class="result-thumb-wrap">
+                        <img src="${s.cover}" alt="${s.title}" class="result-thumb" onerror="this.src='https://via.placeholder.com/80x60?text=CS'">
+                    </div>
+                    <div class="result-body">
+                        <div class="result-title">${highlight(s.title, q)}</div>
+                        <div class="result-meta">
+                            <span class="result-badge ${getBadgeClass(s.category)}">${s.categoryName}</span>
+                            <span>${highlight(s.author, q)}</span>
+                            <span>${s.date}</span>
+                        </div>
+                    </div>
+                </a>
+            `).join('');
+        }
+
+        function doSearch() {
+            query = input.value.trim();
+            if (!query) { renderIdle(); return; }
+
+            const q = query.toLowerCase();
+            let results = stories.filter(s => {
+                const matchesFilter = activeFilter === 'all' || s.category === activeFilter;
+                const matchesQuery = s.title.toLowerCase().includes(q) ||
+                                     s.author.toLowerCase().includes(q) ||
+                                     s.categoryName.toLowerCase().includes(q) ||
+                                     s.date.toLowerCase().includes(q);
+                return matchesFilter && matchesQuery;
+            });
+
+            renderResults(results, query);
+        }
+
+        function useSuggestion(term) {
+            input.value = term;
+            input.focus();
+            doSearch();
+        }
+
+        document.getElementById('filterBar').addEventListener('click', e => {
+            if (!e.target.classList.contains('filter-btn')) return;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            activeFilter = e.target.dataset.filter;
+            doSearch();
+        });
+
+        input.addEventListener('input', doSearch);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const preQuery = urlParams.get('q');
+        if (preQuery) {
+            input.value = preQuery;
+            doSearch();
+        } else {
+            renderIdle();
+        }
+
+        input.focus();
+    </script>
+
+</body>
+</html>

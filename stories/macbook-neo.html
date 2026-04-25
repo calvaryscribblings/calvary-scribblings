@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta property="og:title" content="The All New MacBook Neo!">
+    <meta property="og:description" content="Apple unveils the MacBook Neo — a bold new direction for its iconic laptop line.">
+    <meta property="og:image" content="https://calvaryscribblings.co.uk/macbook-neo-cover.PNG">
+    <meta property="og:url" content="https://calvaryscribblings.co.uk/stories/macbook-neo.html">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Calvary Scribblings">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="The All New MacBook Neo!">
+    <meta name="twitter:description" content="Apple unveils the MacBook Neo — a bold new direction for its iconic laptop line.">
+    <meta name="twitter:image" content="https://calvaryscribblings.co.uk/macbook-neo-cover.PNG">
+    <title>The All New MacBook Neo! - Calvary Scribblings</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="icon" type="image/png" href="../favicon.png">
+    <link rel="apple-touch-icon" href="../favicon.png">
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    
+    <style>
+        .story-cover-banner {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            min-height: 500px;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: flex-end;
+            margin-bottom: 3rem;
+        }
+        .story-cover-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 60%);
+        }
+        .story-cover-content {
+            position: relative;
+            z-index: 2;
+            padding: 3rem;
+            color: white;
+            width: 100%;
+        }
+        .story-cover-title {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            line-height: 1.2;
+        }
+        .story-cover-meta {
+            font-size: 1.1rem;
+            opacity: 0.95;
+            text-shadow: 0 1px 5px rgba(0,0,0,0.5);
+        }
+        .badge-tech {
+            display: inline-block;
+            background: #0ea5e9;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+        .back-link {
+            display: inline-block;
+            margin: 2rem 0 2rem 3rem;
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .back-link:hover { color: #8b5cf6; }
+        .article-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .article-content {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            color: #333;
+        }
+        .article-content p { margin-bottom: 1.5rem; }
+        .article-content h3 {
+            font-size: 1.4rem;
+            color: #6b46c1;
+            margin: 2.5rem 0 1rem;
+        }
+        .article-image {
+            width: 100%;
+            border-radius: 8px;
+            margin: 2rem 0;
+            display: block;
+        }
+        .image-caption {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #888;
+            margin-top: -1.5rem;
+            margin-bottom: 2rem;
+            font-style: italic;
+            font-family: 'Times New Roman', Times, serif;
+        }
+        .features-list {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 1.5rem 2rem;
+            margin: 1.5rem 0 2rem;
+            border-left: 4px solid #6b46c1;
+        }
+        .features-list ul {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .features-list ul li {
+            padding-left: 1.5rem;
+            position: relative;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: #333;
+        }
+        .features-list ul li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: #6b46c1;
+            font-weight: 700;
+        }
+        .hit-counter {
+            text-align: center;
+            padding: 2rem 0;
+            font-size: 1rem;
+            color: #666;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 3rem;
+        }
+        @media (max-width: 768px) {
+            .story-cover-banner { height: 60vh; min-height: 400px; }
+            .story-cover-title { font-size: 1.6rem; line-height: 1.3; }
+            .story-cover-content { padding: 1.5rem; }
+            .story-cover-meta { font-size: 0.95rem; }
+            .back-link { margin-left: 2rem; }
+            .article-content { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <a class="logo" href="../index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="../logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="../index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown">
+                            <li><a href="../news.html">News & Updates</a></li>
+                            <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="../short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="../serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="../poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="../index.html#about">About</a></li>
+                    <li><a href="../index.html#subscribe">Subscribe</a></li>
+                    <li><a href="../index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <a href="../news.html" class="back-link">← Back to News & Updates</a>
+
+    <div class="story-cover-banner" style="background-image: url('../macbook-neo-cover.PNG');">
+        <div class="story-cover-overlay"></div>
+        <div class="story-cover-content">
+            <div class="badge-tech">Tech</div>
+            <h1 class="story-cover-title">The All New MacBook Neo!</h1>
+            <div class="story-cover-meta">By Chioma Okonkwo · Mar 5, 2026</div>
+        </div>
+    </div>
+
+    <div class="article-container">
+        <article class="article-content">
+
+            <p>Apple's new MacBook release for 2026 is here, and it might just be one of the most strategically important launches in years. Apple introduced the iPhone 17e, a refreshed MacBook Air, and the biggest surprise in the March 2026 product launch — the MacBook Neo, which appears to have been designed for entry-level users.</p>
+
+            <p>The launch expands Apple into more affordable segments whilst also pushing performance boundaries. I will be breaking down everything Apple announced, from key features to pricing insights, and what this means for consumers in 2026.</p>
+
+            <!-- Image 1: Four colour MacBook Neo fan -->
+            <img src="../apple-macbook-neo-colours.jpeg.JPG" alt="MacBook Neo in four colours — Silver, Blush, Citrus and Indigo" class="article-image">
+            <p class="image-caption">MacBook Neo available in four colours: Silver, Blush, Citrus, and Indigo.</p>
+
+            <p>The launch of the new MacBook Neo has created a buzz across the internet due to its affordability. Being the biggest surprise of the launch, the MacBook Neo appears to have been designed for students, first-time Mac users, remote workers, casual users, and budget laptop shoppers considering Windows alternatives.</p>
+
+            <h3>MacBook Neo Features</h3>
+
+            <div class="features-list">
+                <ul>
+                    <li>13-inch Liquid Retina display</li>
+                    <li>Powered by an A-series chip optimised for macOS</li>
+                    <li>Up to 16 hours of battery life</li>
+                    <li>1080p FaceTime camera</li>
+                    <li>Dolby Atmos and Spatial Audio support</li>
+                    <li>Lightweight and colourful design options</li>
+                </ul>
+            </div>
+
+            <!-- Image 2: Event hands-on photo -->
+            <img src="../apple-macbook-neo-event.jpeg.JPG" alt="People photographing the MacBook Neo at Apple's launch event" class="article-image">
+            <p class="image-caption">Attendees getting hands-on with the MacBook Neo at Apple's March 2026 launch event.</p>
+
+            <p>The MacBook Neo comes in four different colours: Silver, Indigo, Blush, and Citrus, with colour-coordinated keyboards. It uses Apple Intelligence to clean up images and can run the most popular AI apps. Pricing for the new MacBook Neo starts from $599, with the base model coming without a Touch ID sensor.</p>
+
+            <!-- Image 3: Intuitive by design / macOS UI -->
+            <img src="../apple-macbook-neo-intuitive.jpeg.JPG" alt="MacBook Neo showing macOS interface — intuitive by design" class="article-image">
+            <p class="image-caption">Apple describes the MacBook Neo experience as "intuitive by design" — built to feel familiar from the very first start-up.</p>
+
+            <p>The MacBook Neo also allows users to start a chat on their laptops and continue it on their phones. This Mac-iPhone interaction extends to copy-paste functionality, where users can copy from their phones and paste on their MacBook Neo.</p>
+
+            <!-- Image 4: Mac-iPhone pairing -->
+            <img src="../apple-macbook-neo-iphone-pairing.jpeg.JPG" alt="MacBook Neo magically pairs with iPhone for seamless continuity" class="article-image">
+            <p class="image-caption">The MacBook Neo pairs seamlessly with iPhone, enabling continuity features like cross-device copy-paste and handoff.</p>
+
+            <div style="background: #f5f0ff; border-left: 4px solid #6b46c1; border-radius: 8px; padding: 1.25rem 1.75rem; margin: 2rem 0;">
+                <p style="margin: 0; color: #6b46c1; font-style: italic; font-family: 'Times New Roman', Times, serif; font-size: 1.1rem;">Some are speculating that 'Neo' stands for <strong>N</strong>ew, <strong>E</strong>xciting, <strong>O</strong>riginal — though Apple has not officially confirmed this.</p>
+            </div>
+
+            <h3>iPhone 17e</h3>
+
+            <p>Apple also launched the iPhone 17e, which features a new A-series chip for improved performance and efficiency, upgraded storage compared to older models, enhanced battery life, an advanced camera system, and a modern design aligned with flagship iPhones.</p>
+
+            <h3>MacBook Air M5</h3>
+
+            <p>Apple also introduced the new MacBook Air M5, which comes with a powerful M5 chip, bringing better performance and improved AI capabilities. The new MacBook Air M5 features faster CPU and GPU performance, an enhanced Neural Engine for AI tasks, improved battery efficiency, a fan-less ultra-thin design, and 512GB base storage.</p>
+
+            <h3>MacBook Pro with M5 Pro and M5 Max</h3>
+
+            <p>The MacBook Pro with M5 Pro and M5 Max was built for professionals, creators, and power users. Apple upgraded the MacBook Pro line-up with M5 Pro and M5 Max chips. It features massive multi-core performance boosts, advanced GPU performance for video editing and 3D rendering, improved display technology, extended battery life under heavy workloads, and 1TB base storage.</p>
+
+            <h3>What It All Means</h3>
+
+            <p>Apple's 2026 launch centres around affordability and artificial intelligence. With the MacBook Neo and iPhone 17e, Apple is expanding its reach beyond high-end buyers, and with the M5 chip, improving AI performance across Apple devices.</p>
+
+        </article>
+
+        <div class="hit-counter">
+            <span id="hitCounter">👁️ — hits</span>
+        </div>
+    </div>
+
+    <div style="max-width: 800px; margin: 3rem auto; padding: 0 2rem;">
+        <div id="disqus_thread"></div>
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="../news.html">News & Updates</a></li>
+                    <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="../creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="../flash.html">Flash Fiction</a></li>
+                    <li><a href="../short.html">Short Stories</a></li>
+                    <li><a href="../serial.html">Serial Stories</a></li>
+                    <li><a href="../poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="../index.html#subscribe">Newsletter</a></li>
+                    <li><a href="../index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="../scripts.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const hitCountRef = database.ref('stories/macbook-neo/hits');
+        hitCountRef.transaction((currentHits) => {
+            return (currentHits || 0) + 1;
+        }).then(() => {
+            hitCountRef.on('value', (snapshot) => {
+                const hits = snapshot.val() || 0;
+                document.getElementById('hitCounter').textContent = `👁️ ${hits} hits`;
+            });
+        });
+    </script>
+
+    <script>
+        var disqus_config = function () {
+            this.page.url = 'https://calvaryscribblings.co.uk/stories/macbook-neo.html';
+            this.page.identifier = 'macbook-neo';
+        };
+        (function() {
+            var d = document, s = d.createElement('script');
+            s.src = 'https://calvaryscribblings.disqus.com/embed.js';
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+        })();
+    </script>
+
+</body>
+</html>

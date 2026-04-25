@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Why The Bride Struggled at the Box Office Despite Its Bold Feminist Vision - Calvary Scribblings</title>
+    <link rel="stylesheet" href="../styles.css">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        .story-cover-banner {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            min-height: 500px;
+            background-size: cover;
+            background-position: center top;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: flex-end;
+        }
+        .story-cover-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.15) 50%, transparent 100%);
+        }
+        .story-cover-content {
+            position: relative;
+            z-index: 2;
+            padding: 3rem;
+            color: white;
+            width: 100%;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.9);
+        }
+        .story-cover-title { font-size: 3rem; font-weight: 700; margin-bottom: 1rem; line-height: 1.2; }
+        .story-cover-meta { font-size: 1.1rem; opacity: 0.95; }
+        .back-link {
+            display: inline-block;
+            margin: 2rem 0;
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .back-link:hover { color: #8b5cf6; }
+        .article-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .article-content {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            color: #333;
+        }
+        .article-content p { margin-bottom: 1.5rem; }
+        .article-content ul {
+            margin: 0 0 1.5rem 1.5rem;
+            padding: 0;
+        }
+        .article-content ul li {
+            margin-bottom: 0.5rem;
+        }
+        .hit-counter {
+            text-align: center;
+            padding: 2rem 0;
+            font-size: 1rem;
+            color: #666;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 3rem;
+        }
+        @media (max-width: 768px) {
+            .story-cover-banner { height: 60vh; min-height: 400px; }
+            .story-cover-title { font-size: 2rem; }
+            .story-cover-content { padding: 2rem; }
+            .article-content { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <a class="logo" href="../index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="../logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="../index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown">
+                            <li><a href="../news.html">News &amp; Updates</a></li>
+                            <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="../short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="../serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="../poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="../index.html#about">About</a></li>
+                    <li><a href="../index.html#subscribe">Subscribe</a></li>
+                    <li><a href="../index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <div class="story-cover-banner" style="background-image: url('../the-bride-box-office-cover.jpeg'); background-position: center center;">
+        <div class="story-cover-overlay"></div>
+        <div class="story-cover-content">
+            <h1 class="story-cover-title">The Bride: Box Office Bomb or Bold Vision?</h1>
+            <div class="story-cover-meta">By Chioma Okonkwo &middot; Mar 10, 2026</div>
+        </div>
+    </div>
+
+    <div class="article-container">
+
+        <a href="../news.html" class="back-link">&larr; Back to News &amp; Updates</a>
+
+        <article class="article-content">
+            <p>Expectations were high when Maggie Gyllenhaal declared she would direct <em>The Bride</em>, a contemporary retelling of the famous creature from <em>Bride of Frankenstein</em>. The film stars Jessie Buckley and Christian Bale. The project promised a radical feminist reinvention of one of the most iconic characters in film. However, despite the excitement, the film struggled at the box office.</p>
+
+            <p>The story centres on a monster bride's identity — a reinterpretation of a classic horror icon that attempts to blend horror, romance, and social commentary. In the original story, the Bride exists primarily as a creation meant to satisfy the monster's loneliness. The new film attempts to give her agency, exploring questions of identity, self-determination, and what it means to exist as someone created by others.</p>
+
+            <p>The film was intended to be a contemporary feminist illustration exploring how social norms frequently shape women. By focusing on the Bride's perspective, the film investigates concepts like autonomy, independence, and the rejection of forced roles. Another intention was blurring the lines between monsters and humans. The narrative shows that the real 'monsters' may not be the creatures themselves but the systems and people who create and control them. Instead of using classic horror tropes, the film aimed to present the Frankenstein mythology to a younger audience through a more character-driven and intellectually refined narrative.</p>
+
+            <p>The story follows the creation of a woman assembled from different body parts, like the original Frankenstein story, and brought to life through experimental science. Once awakened, she begins to confront the reality of her existence. Rather than accepting the role designed for her — to be the companion of a lonely creature — the Bride embarks on a journey of self-discovery. As she navigates a world that sees her as unnatural, she begins to question:</p>
+
+            <ul>
+                <li>Who she truly is</li>
+                <li>Whether she must follow the destiny others created for her</li>
+                <li>What it means to have a life of her own choosing</li>
+            </ul>
+
+            <p>The story ultimately transforms the traditional monster tale into one about identity, autonomy, and the need for belonging, exploring the struggle she faces to define herself in a society that fears and misunderstands her.</p>
+
+            <p>Following the film's release, audiences expressed disappointment over the storyline. <em>Variety</em> revealed that the film collapsed in its box office debut with $7.3 million. With a $90 million budget, it was expected to be one of the biggest box office bombs of 2026.</p>
+
+            <p><em>The Bride</em>'s box office struggles do not necessarily indicate that the concept was entirely flawed. Reimagining a classic like <em>Bride of Frankenstein</em> is always a creative risk. Bold imaginative ideas don't necessarily translate into financial success. However, films like <em>The Bride</em> might continue to find their audience long after their theatrical release.</p>
+        </article>
+
+        <div class="hit-counter">
+            <span>👁️ </span><span id="hit-count">0</span> hits
+        </div>
+
+        <div style="padding:1.5rem 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;border-top:1px solid #e0e0e0;margin-top:1rem;">
+            <span class="division-badge badge-news">News</span>
+            <div style="font-size:0.95rem;color:#666;">By <strong>Chioma Okonkwo</strong> &middot; Mar 10, 2026</div>
+        </div>
+
+        <div style="margin-top:3rem;padding-top:2rem;border-top:2px solid #e0e0e0;">
+            <h3 style="font-size:2rem;font-weight:700;color:#6b46c1;margin-bottom:2rem;">Comments</h3>
+            <div id="disqus_thread"></div>
+        </div>
+
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="../index.html#stories">Latest Stories</a></li>
+                    <li><a href="../news.html">News &amp; Updates</a></li>
+                    <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="../creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="../flash.html">Flash Fiction</a></li>
+                    <li><a href="../short.html">Short Stories</a></li>
+                    <li><a href="../serial.html">Serial Stories</a></li>
+                    <li><a href="../poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="../index.html#subscribe">Newsletter</a></li>
+                    <li><a href="../index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="../scripts.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const hitCountRef = database.ref('stories/the-bride-box-office/hits');
+        hitCountRef.transaction((currentHits) => (currentHits || 0) + 1).then(() => {
+            hitCountRef.on('value', (snapshot) => {
+                document.getElementById('hit-count').textContent = snapshot.val() || 0;
+            });
+        });
+    </script>
+
+    <script>
+        var disqus_config = function () {
+            this.page.url = 'https://calvaryscribblings.co.uk/stories/the-bride-box-office.html';
+            this.page.identifier = 'the-bride-box-office';
+        };
+        (function() {
+            var d = document, s = d.createElement('script');
+            s.src = 'https://calvaryscribblings.disqus.com/embed.js';
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+        })();
+    </script>
+
+</body>
+</html>

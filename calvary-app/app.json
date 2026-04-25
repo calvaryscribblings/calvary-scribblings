@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Calvary Scribblings",
+    "slug": "calvary-scribblings",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "uk.co.calvaryscribblings.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0a0a"
+      },
+      "package": "uk.co.calvaryscribblings.app"
+    },
+    "scheme": "calvary-scribblings",
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "16116eda-bd96-4911-bf3f-5b97f20f5b7b"
+      }
+    },
+    "owner": "calvaryscribblings"
+  }
+}

@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calvary Scribblings - Stories That Matter</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="The Story Island - Bringing you compelling news, heartwarming real-life stories, and thought-provoking articles.">
+    <meta name="theme-color" content="#6b46c1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CS">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    
+    <link rel="stylesheet" href="styles.css?v=20260224">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="favicon.png">
+    
+    <!-- OneSignal Push Notifications -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function(OneSignal) {
+            await OneSignal.init({
+                appId: "ad1599c2-80a8-43ac-bbc2-e65301101cd0",
+            });
+        });
+    </script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    
+    <style>
+        /* Section title links */
+        .section-title-link {
+            text-decoration: none;
+            display: block;
+        }
+        .section-title-link:hover .section-title-stories {
+            text-decoration: underline;
+            opacity: 0.85;
+        }
+
+        /* Netflix-Style Story Rows - ADDITIONS ONLY */
+        .story-section {
+            padding: 3rem 0;
+        }
+        
+        .story-section:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        .section-title-stories {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            padding: 0 3rem;
+            color: #6b46c1;
+            font-family: 'Cochin', Georgia, serif;
+        }
+        
+        .section-title-stories.top-ten {
+            font-size: 2.2rem;
+            color: #6b46c1;
+        }
+        
+        /* Just Added Strip */
+        .just-added-section {
+            padding: 2rem 0 1.5rem 0;
+            background: #fff;
+            border-bottom: 1px solid #f0e8ff;
+        }
+
+        .just-added-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0 3rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .just-added-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #444;
+            font-family: 'Cochin', Georgia, serif;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        .just-added-pulse {
+            width: 8px;
+            height: 8px;
+            background: #8b5cf6;
+            border-radius: 50%;
+            flex-shrink: 0;
+            animation: pulse-dot 1.8s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(139,92,246,0.5); }
+            50% { opacity: 0.7; transform: scale(1.15); box-shadow: 0 0 0 5px rgba(139,92,246,0); }
+        }
+
+        .just-added-row {
+            display: flex;
+            gap: 1.25rem;
+            padding: 0 3rem 0.5rem 3rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: none;
+        }
+
+        .just-added-row::-webkit-scrollbar { display: none; }
+
+        /* Just Added Card — landscape, slim */
+        .just-added-card {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            min-width: 280px;
+            max-width: 300px;
+            flex-shrink: 0;
+            background: #fff;
+            border: 1px solid #ede9f7;
+            border-radius: 10px;
+            overflow: hidden;
+            text-decoration: none;
+            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+            box-shadow: 0 2px 8px rgba(107,70,193,0.07);
+            padding: 0;
+        }
+
+        .just-added-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(107,70,193,0.18);
+            border-color: #c4b5fd;
+        }
+
+        .just-added-card-thumb-wrap {
+            width: 60px;
+            min-width: 60px;
+            height: 68px;
+            min-height: 68px;
+            overflow: hidden;
+            flex-shrink: 0;
+            align-self: center;
+            border-radius: 6px;
+            margin-left: 0.6rem;
+        }
+
+        .just-added-card-thumb {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center top;
+            display: block;
+        }
+
+        .just-added-card-body {
+            flex: 1;
+            padding: 0.75rem 0.85rem 0.75rem 0;
+            min-width: 0;
+        }
+
+        .just-added-card-title {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            font-family: 'Cochin', Georgia, serif;
+            line-height: 1.35;
+            margin-bottom: 0.35rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .just-added-card-meta {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .new-ribbon {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: linear-gradient(135deg, #6b46c1, #8b5cf6);
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 0.2rem 0.45rem;
+            border-radius: 3px;
+            line-height: 1;
+        }
+
+        /* NEW badge on regular story cards */
+        .new-badge {
+            position: absolute;
+            top: 0.6rem;
+            right: 0.6rem;
+            background: linear-gradient(135deg, #6b46c1, #8b5cf6);
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            z-index: 6;
+            line-height: 1;
+        }
+
+        @media (max-width: 768px) {
+            .just-added-header { padding: 0 1.5rem; }
+            .just-added-row { padding: 0 1.5rem 0.5rem 1.5rem; }
+            .just-added-card { min-width: 240px; }
+        }
+
+        /* Top 10 - Horizontal Scroll (not grid) */
+        .story-grid-top10 {
+            display: flex;
+            gap: 1.5rem;
+            padding: 0 3rem 1rem 3rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: #6b46c1 #e0e0e0;
+            scroll-behavior: smooth;
+        }
+        
+        /* Horizontal Scroll Rows */
+        .story-row {
+            display: flex;
+            gap: 1.5rem;
+            padding: 0 3rem 1rem 3rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: #6b46c1 #e0e0e0;
+            scroll-behavior: smooth;
+        }
+        
+        .story-row::-webkit-scrollbar { height: 8px; }
+        .story-row::-webkit-scrollbar-track { background: #e0e0e0; border-radius: 10px; }
+        .story-row::-webkit-scrollbar-thumb { background: #6b46c1; border-radius: 10px; }
+        .story-row::-webkit-scrollbar-thumb:hover { background: #8b5cf6; }
+        
+        /* Story Card */
+        .story-card {
+            position: relative;
+            min-width: 220px;
+            width: 220px;
+            aspect-ratio: 2/3;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background: #ffffff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+            text-decoration: none;
+        }
+        
+        .story-card:hover {
+            transform: scale(1.05) translateY(-5px);
+            box-shadow: 0 10px 30px rgba(107, 70, 193, 0.3);
+            z-index: 10;
+        }
+        
+        .story-card-image { width: 100%; height: 100%; object-fit: cover; }
+        
+        .story-card-overlay {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 1.5rem;
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 60%, transparent 100%);
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .story-card:hover .story-card-overlay { transform: translateY(0); }
+        
+        .story-card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: #fff;
+            font-family: 'Cochin', Georgia, serif;
+        }
+        
+        .story-card-meta { font-size: 0.85rem; opacity: 0.9; color: #ccc; }
+        
+        /* Ranking Badge - ONLY for Top 10 */
+        .ranking-badge {
+            position: absolute;
+            top: 0.75rem; left: 0.75rem;
+            width: 42px; height: 42px;
+            background: linear-gradient(135deg, #6b46c1, #8b5cf6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            font-weight: 900;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(107, 70, 193, 0.6);
+            z-index: 5;
+        }
+        
+        /* Category Badge */
+        .category-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .badge-flash { background: #c41e3a; color: #fff; }
+        .badge-short { background: #d97706; color: #fff; }
+        .badge-poetry { background: #6b46c1; color: #fff; }
+        .badge-serial { background: #059669; color: #fff; }
+        .badge-news { background: #dc2626; color: #fff; }
+        .badge-inspiring { background: #f59e0b; color: #fff; }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #999;
+            font-style: italic;
+            font-family: 'Cochin', Georgia, serif;
+        }
+        
+        @media (max-width: 768px) {
+            .story-grid-top10 { padding: 0 1.5rem 1rem 1.5rem; }
+            .story-row { padding: 0 1.5rem 1rem 1.5rem; }
+            .story-card { min-width: 160px; width: 160px; }
+            .section-title-stories { padding: 0 1.5rem; font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <a class="logo" href="index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown" id="storiesDropdown">
+                            <li><a href="news.html">News &amp; Updates</a></li>
+                            <li><a href="inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="index.html#about">About</a></li>
+                    <li><a href="index.html#subscribe">Subscribe</a></li>
+                    <li><a href="index.html#contact">Contact</a></li>
+                    <li><a href="search.html" title="Search" style="display:flex;align-items:center;gap:0.35rem;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        Search</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-content">
+            <h2>The Story Island</h2>
+            <p>Bringing you compelling fiction, breaking news, heartwarming real-life stories, and thought-provoking articles from around the world.</p>
+        </div>
+    </section>
+
+    <!-- JUST ADDED -->
+    <section class="just-added-section" id="just-added">
+        <div class="just-added-header">
+            <div class="just-added-pulse"></div>
+            <span class="just-added-title">Just Added</span>
+        </div>
+        <div class="just-added-row" id="justAddedRow">
+            <div class="loading">Loading latest stories...</div>
+        </div>
+    </section>
+
+    <!-- TOP 10 -->
+    <section class="story-section" id="stories">
+        <h2 class="section-title-stories top-ten">📊 Top 10 Stories</h2>
+        <div class="story-grid-top10" id="top10Grid">
+            <div class="loading">Loading top stories...</div>
+        </div>
+    </section>
+
+    <!-- NEWS & UPDATES -->
+    <section class="story-section">
+        <a href="news.html" class="section-title-link"><h2 class="section-title-stories">📰 News &amp; Updates</h2></a>
+        <div class="story-row" id="newsRow">
+            <div class="loading">Loading news stories...</div>
+        </div>
+    </section>
+
+    <!-- INSPIRING STORIES -->
+    <section class="story-section">
+        <a href="inspiring.html" class="section-title-link"><h2 class="section-title-stories">✨ Inspiring Stories</h2></a>
+        <div class="story-row" id="inspiringRow">
+            <div class="loading">Loading inspiring stories...</div>
+        </div>
+    </section>
+
+    <!-- FLASH FICTION -->
+    <section class="story-section">
+        <a href="flash.html" class="section-title-link"><h2 class="section-title-stories">⚡ Flash Fiction</h2></a>
+        <div class="story-row" id="flashRow">
+            <div class="loading">Loading flash fiction...</div>
+        </div>
+    </section>
+
+    <!-- SHORT STORIES -->
+    <section class="story-section">
+        <a href="short.html" class="section-title-link"><h2 class="section-title-stories">📚 Short Stories</h2></a>
+        <div class="story-row" id="shortRow">
+            <div class="loading">Loading short stories...</div>
+        </div>
+    </section>
+
+    <!-- POETRY -->
+    <section class="story-section">
+        <a href="poetry.html" class="section-title-link"><h2 class="section-title-stories">✍️ Poetry</h2></a>
+        <div class="story-row" id="poetryRow">
+            <div class="loading">Loading poetry...</div>
+        </div>
+    </section>
+
+    <!-- SERIAL STORIES -->
+    <section class="story-section">
+        <a href="serial.html" class="section-title-link"><h2 class="section-title-stories">📖 Serial Stories</h2></a>
+        <div class="story-row" id="serialRow">
+            <div class="loading">Loading serial stories...</div>
+        </div>
+    </section>
+
+    <!-- What We Do -->
+    <section class="section fade-in" id="about" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); position: relative; overflow: hidden;">
+        <div style="position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.95);"></div>
+        <div class="container" style="position: relative; z-index: 1;">
+            <div class="section-header">
+                <h3>What We Do</h3>
+                <p>Calvary Scribblings is dedicated to sharing stories that matter — from breaking news to inspiring personal journeys across London.</p>
+            </div>
+            <div class="features-grid">
+                <a href="news.html" class="feature-card fade-in" style="text-decoration: none;">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, #c41e3a 0%, #e05c72 100%); color: white;">📰</div>
+                    <h4>News &amp; Updates</h4>
+                    <p>Stay informed with our coverage of important events and developments affecting our community.</p>
+                </a>
+                <a href="inspiring.html" class="feature-card fade-in" style="text-decoration: none;">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); color: white;">✨</div>
+                    <h4>Inspiring Stories</h4>
+                    <p>Real people, real experiences. We highlight the extraordinary lives of ordinary Londoners.</p>
+                </a>
+                <a href="creative.html" class="feature-card fade-in" style="text-decoration: none;">
+                    <div class="feature-icon" style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white;">✍️</div>
+                    <h4>Creative Writing</h4>
+                    <p>Flash fiction, short stories, and gripping serials that entertain, challenge, and uplift.</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Newsletter -->
+    <section class="cta-section fade-in" id="subscribe">
+        <div class="cta-content">
+            <h3>Never Miss a Story</h3>
+            <p>Subscribe to our newsletter and get the latest stories delivered to your inbox.</p>
+            <form class="newsletter-form" action="https://formspree.io/f/xdalledg" method="POST" id="newsletterForm">
+                <input type="email" name="email" placeholder="Enter your email address" required>
+                <input type="hidden" name="_subject" value="New Newsletter Subscription - Calvary Scribblings">
+                <button type="submit" class="btn btn-primary">Subscribe</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- Contact -->
+    <section class="section fade-in" id="contact">
+        <div class="container">
+            <div class="section-header">
+                <h3>Get In Touch</h3>
+                <p>Have a story to share? We'd love to hear from you.</p>
+            </div>
+            <div style="max-width: 700px; margin: 0 auto;">
+                <form id="contactForm" action="https://formspree.io/f/mlgwwjlw" method="POST" style="display:flex; flex-direction:column; gap:1.5rem;">
+                    <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                        <input type="text" name="name" placeholder="Your Name" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; transition:border-color 0.3s;">
+                        <input type="email" name="email" placeholder="Your Email" required style="flex:1; min-width:250px; padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; transition:border-color 0.3s;">
+                    </div>
+                    <textarea name="message" placeholder="Your Message" required rows="6" style="padding:1rem 1.25rem; border:2px solid #d0d0d0; border-radius:4px; font-size:1rem; font-family:'Cochin',Georgia,serif; resize:vertical; transition:border-color 0.3s;"></textarea>
+                    <input type="hidden" name="_subject" value="New Contact Form Submission - Calvary Scribblings">
+                    <button type="submit" class="btn btn-primary" style="align-self:flex-start;">Send Message</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="news.html">News &amp; Updates</a></li>
+                    <li><a href="inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="flash.html">Flash Fiction</a></li>
+                    <li><a href="short.html">Short Stories</a></li>
+                    <li><a href="serial.html">Serial Stories</a></li>
+                    <li><a href="poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="#subscribe">Newsletter</a></li>
+                    <li><a href="#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="scripts.js?v=20260224"></script>
+    
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        const stories = [
+            {
+                id: 'rise-and-shine',
+                title: 'Rise and Shine',
+                category: 'flash',
+                categoryName: 'Flash Fiction',
+                url: 'stories/rise-and-shine.html',
+                cover: 'rise-and-shine-cover.jpeg',
+                author: 'Ufedo Adaji',
+                date: 'Mar 21, 2026',
+                firebasePath: 'stories/rise-and-shine/hits'
+            },
+            {
+                id: 'dont-worry',
+                title: "Don't Worry",
+                category: 'flash',
+                categoryName: 'Flash Fiction',
+                url: 'stories/dont-worry.html',
+                cover: 'dont-worry-cover.jpeg',
+                author: 'Ufedo Adaji',
+                date: 'Mar 19, 2026',
+                firebasePath: 'stories/dont-worry/hits'
+            },
+            {
+                id: 'an-appetite-for-love',
+                title: 'An Appetite for Love',
+                category: 'poetry',
+                categoryName: 'Poetry',
+                url: 'stories/an-appetite-for-love.html',
+                cover: 'an-appetite-for-love-cover.png',
+                author: 'Ufedo Adaji',
+                date: 'Mar 19, 2026',
+                firebasePath: 'stories/an-appetite-for-love/hits'
+            },
+            {
+                id: 'terms-and-conditions',
+                title: 'Terms and Conditions',
+                category: 'short',
+                categoryName: 'Short Story',
+                url: 'stories/terms-and-conditions.html',
+                cover: 'terms-and-conditions-cover.jpeg',
+                author: 'Tricia Ajax',
+                date: 'Mar 18, 2026',
+                firebasePath: 'stories/terms-and-conditions/hits'
+            },
+            {
+                id: 'oscars-2026',
+                title: 'The Oscar Showdowns: Winning Films vs Their Biggest Competitors',
+                category: 'news',
+                categoryName: 'Film',
+                url: 'stories/oscars-2026.html',
+                cover: 'oscars-2026-cover.jpeg',
+                author: 'Chioma Okonkwo',
+                date: 'Mar 16, 2026',
+                firebasePath: 'stories/oscars-2026/hits'
+            },
+            {
+                id: 'how-to-make-peppersoup',
+                title: 'How to Make Peppersoup',
+                category: 'inspiring',
+                categoryName: 'Inspiring',
+                url: 'stories/how-to-make-peppersoup.html',
+                cover: 'peppersoup-cover.jpeg',
+                author: 'Ufedo Adaji',
+                date: 'Mar 15, 2026',
+                firebasePath: 'stories/how-to-make-peppersoup/hits'
+            },
+            {
+                id: 'this-is-nigeria',
+                title: 'This is Nigeria',
+                category: 'news',
+                categoryName: 'Op-Ed',
+                url: 'stories/this-is-nigeria.html',
+                cover: 'this-is-nigeria-cover.jpeg',
+                author: 'Ikenna Okpara',
+                date: 'Mar 13, 2026',
+                firebasePath: 'stories/this-is-nigeria/hits'
+            },
+            {
+                id: 'london-tube-strike',
+                title: 'Another London Underground Strike!',
+                category: 'news',
+                categoryName: 'News',
+                url: 'stories/london-tube-strike.html',
+                cover: 'london-tube-strike-cover.jpeg',
+                author: 'Chioma Okonkwo',
+                date: 'Mar 10, 2026',
+                firebasePath: 'stories/london-tube-strike/hits'
+            },
+            {
+                id: 'the-bride-box-office',
+                title: 'Why The Bride Struggled at the Box Office Despite Its Bold Feminist Vision',
+                category: 'news',
+                categoryName: 'News',
+                url: 'stories/the-bride-box-office.html',
+                cover: 'the-bride-box-office-cover.jpeg',
+                author: 'Chioma Okonkwo',
+                date: 'Mar 10, 2026',
+                firebasePath: 'stories/the-bride-box-office/hits'
+            },
+            {
+                id: '1967',
+                title: '1967',
+                category: 'short',
+                categoryName: 'Short Story',
+                url: 'stories/1967.html',
+                cover: '1967-cover.jpeg',
+                author: 'Ikenna Okpara',
+                date: 'Mar 7, 2026',
+                firebasePath: 'stories/1967/hits'
+            },
+            {
+                id: 'you-didnt-ask',
+                title: "You Didn't Ask",
+                category: 'short',
+                categoryName: 'Short Story',
+                url: 'stories/you-didnt-ask.html',
+                cover: 'you-didnt-ask-cover.jpg',
+                author: 'Tricia Ajax',
+                date: 'Mar 4, 2026',
+                firebasePath: 'stories/you-didnt-ask/hits'
+            },
+            {
+                id: 'macbook-neo',
+                title: 'The All New MacBook Neo!',
+                category: 'news',
+                categoryName: 'Tech',
+                url: 'stories/macbook-neo.html',
+                cover: 'macbook-neo-cover.PNG',
+                author: 'Chioma Okonkwo',
+                date: 'Mar 5, 2026',
+                firebasePath: 'stories/macbook-neo/hits'
+            },
+            {
+                id: 'netflix-harry-styles',
+                title: "Netflix to Stream Harry Styles' New Album Performance Live: What It Means for the Platform",
+                category: 'news',
+                categoryName: 'News',
+                url: 'stories/netflix-harry-styles.html',
+                cover: 'netflix-harry-styles-cover.jpg',
+                author: 'Chioma Okonkwo',
+                date: 'Mar 4, 2026',
+                firebasePath: 'stories/netflix-harry-styles/hits'
+            },
+            {
+                id: 'paramount-wbd-plans',
+                title: 'Following the Deal Agreements with WBD, Paramount Reveals Plans for the Future',
+                category: 'news',
+                categoryName: 'News',
+                url: 'stories/paramount-wbd-plans.html',
+                cover: 'paramount-wbd-plans-cover.jpg',
+                author: 'Calvary',
+                date: 'Mar 2, 2026',
+                firebasePath: 'stories/paramount-wbd-plans/hits'
+            },
+            {
+                id: 'paramount-warner-bros-discovery',
+                title: 'Hollywood Reacts: Paramount Moves to Take Control of Warner Bros. Discovery',
+                category: 'news',
+                categoryName: 'News',
+                url: 'stories/paramount-warner-bros-discovery.html',
+                cover: 'paramount-warner-bros-discovery-cover.jpg',
+                author: 'Chioma Okonkwo',
+                date: 'Feb 28, 2026',
+                firebasePath: 'stories/paramount-warner-bros-discovery/hits'
+            },
+            {
+                id: 'the-girl-who-sang-through-the-dark',
+                title: 'The Girl Who Sang Through the Dark',
+                category: 'inspiring',
+                categoryName: 'Inspiring',
+                url: 'stories/the-girl-who-sang-through-the-dark.html',
+                cover: 'the-girl-who-sang-through-the-dark-cover.jpg',
+                author: 'Tricia Ajax',
+                date: 'Feb 26, 2026',
+                firebasePath: 'stories/the-girl-who-sang-through-the-dark/hits'
+            },
+            {
+                id: 'john-davidson-bafta-tourettes',
+                title: 'The Man in the Middle: John Davidson Addresses BAFTAs Incident and Living with Tourette\'s Syndrome',
+                category: 'news',
+                categoryName: 'News',
+                url: 'stories/john-davidson-bafta-tourettes.html',
+                cover: 'john-davidson-bafta-cover.jpeg',
+                author: 'Chioma Okonkwo',
+                date: 'Feb 25, 2026',
+                firebasePath: 'stories/john-davidson-bafta-tourettes/hits'
+            },
+            {
+                id: 'bafta-2026',
+                title: 'BAFTA 2026: Winners, the Controversial Moment Everyone is Talking About',
+                category: 'news',
+                categoryName: 'News',
+                url: 'stories/bafta-2026.html',
+                cover: 'bafta-2026-cover.webp',
+                author: 'Chioma Okonkwo',
+                date: 'Feb 23, 2026',
+                firebasePath: 'stories/bafta-2026/hits'
+            },
+            {
+                id: 'miss-lady',
+                title: 'Miss Lady',
+                category: 'flash',
+                categoryName: 'Flash Fiction',
+                url: 'stories/miss-lady.html',
+                cover: 'B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png',
+                author: 'Calvary',
+                date: 'Feb 17, 2026',
+                firebasePath: 'stories/miss-lady/hits'
+            },
+            {
+                id: 'early',
+                title: 'Early',
+                category: 'short',
+                categoryName: 'Short Story',
+                url: 'stories/early.html',
+                cover: 'early-cover.png',
+                author: 'Calvary',
+                date: 'Feb 18, 2026',
+                firebasePath: 'stories/early/hits'
+            },
+            {
+                id: 'mother-and-other-poems',
+                title: 'Mother and Other Poems',
+                category: 'poetry',
+                categoryName: 'Poetry',
+                url: 'stories/mother-and-other-poems.html',
+                cover: 'mother-poems-cover.PNG',
+                author: 'Calvary',
+                date: 'Feb 22, 2026',
+                firebasePath: 'stories/mother-and-other-poems/hits'
+            }
+        ];
+        
+        async function loadStories() {
+            const storiesWithHits = await Promise.all(
+                stories.map(async (story) => {
+                    const snapshot = await database.ref(story.firebasePath).once('value');
+                    return { ...story, hits: snapshot.val() || 0 };
+                })
+            );
+            
+            const top10 = storiesWithHits.sort((a, b) => b.hits - a.hits).slice(0, 10);
+            
+            renderJustAdded(storiesWithHits);
+            renderTop10(top10);
+            renderCategory('flash', storiesWithHits.filter(s => s.category === 'flash'), 'flashRow');
+            renderCategory('short', storiesWithHits.filter(s => s.category === 'short'), 'shortRow');
+            renderCategory('poetry', storiesWithHits.filter(s => s.category === 'poetry'), 'poetryRow');
+            renderCategory('serial', storiesWithHits.filter(s => s.category === 'serial'), 'serialRow');
+            renderCategory('news', storiesWithHits.filter(s => s.category === 'news'), 'newsRow');
+            renderCategory('inspiring', storiesWithHits.filter(s => s.category === 'inspiring'), 'inspiringRow');
+        }
+        
+        function parseStoryDate(dateStr) { return new Date(dateStr); }
+
+        function isNew(story) {
+            const age = (Date.now() - parseStoryDate(story.date).getTime()) / (1000 * 60 * 60 * 24);
+            return age <= 7;
+        }
+
+        function createStoryCard(story, rank = null) {
+            const badgeClass = `badge-${story.category}`;
+            const newBadge = (!rank && isNew(story)) ? `<div class="new-badge">New</div>` : '';
+            return `
+                <a href="${story.url}" class="story-card">
+                    ${rank ? `<div class="ranking-badge">${rank}</div>` : ''}
+                    ${newBadge}
+                    <img src="${story.cover}" alt="${story.title}" class="story-card-image" onerror="this.src='https://via.placeholder.com/220x330?text=${encodeURIComponent(story.title)}'">
+                    <div class="story-card-overlay">
+                        <span class="category-badge ${badgeClass}">${story.categoryName}</span>
+                        <h3 class="story-card-title">${story.title}</h3>
+                        <div class="story-card-meta">By ${story.author} · ${story.date}</div>
+                    </div>
+                </a>
+            `;
+        }
+
+        function renderJustAdded(allStories) {
+            const container = document.getElementById('justAddedRow');
+            const sorted = [...allStories]
+                .map((s, i) => ({ ...s, _idx: i }))
+                .sort((a, b) => parseStoryDate(b.date) - parseStoryDate(a.date) || a._idx - b._idx)
+                .slice(0, 5);
+            container.innerHTML = sorted.map(story => `
+                <a href="${story.url}" class="just-added-card">
+                    <div class="just-added-card-thumb-wrap">
+                        <img src="${story.cover}" alt="${story.title}" class="just-added-card-thumb" onerror="this.src='https://via.placeholder.com/80x88?text=CS'">
+                    </div>
+                    <div class="just-added-card-body">
+                        <div class="just-added-card-title">${story.title}</div>
+                        <div class="just-added-card-meta">By ${story.author} · ${story.date}</div>
+                    </div>
+                    <div class="new-ribbon">New</div>
+                </a>
+            `).join('');
+        }
+        
+        function renderTop10(stories) {
+            const grid = document.getElementById('top10Grid');
+            if (stories.length === 0) { grid.innerHTML = '<div class="loading">No stories yet. Check back soon!</div>'; return; }
+            grid.innerHTML = stories.map((story, i) => createStoryCard(story, i + 1)).join('');
+        }
+        
+        function renderCategory(category, stories, containerId) {
+            const container = document.getElementById(containerId);
+            if (stories.length === 0) { container.innerHTML = '<div class="loading">No stories in this category yet.</div>'; return; }
+            container.innerHTML = stories.map(story => createStoryCard(story)).join('');
+        }
+        
+        loadStories();
+        setInterval(loadStories, 30000);
+    </script>
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                        setTimeout(() => {
+                            if ('Notification' in window && Notification.permission === 'default') {
+                                Notification.requestPermission().then(permission => {
+                                    console.log('Notification permission:', permission);
+                                });
+                            }
+                        }, 5000);
+                    })
+                    .catch(error => { console.log('Service Worker registration failed:', error); });
+            });
+        }
+        
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
+        
+        if (isIOS && !isInStandaloneMode) {
+            const iosDismissed = localStorage.getItem('iosInstallDismissed');
+            if (!iosDismissed || (Date.now() - parseInt(iosDismissed)) > 7 * 24 * 60 * 60 * 1000) {
+                const iosInstallBanner = document.createElement('div');
+                iosInstallBanner.id = 'iosInstallBanner';
+                iosInstallBanner.innerHTML = `
+                    <div style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999; animation: slideUp 0.3s ease;">
+                        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                            <span style="font-size: 1.5rem;">📱</span>
+                            <div style="flex: 1;">
+                                <strong style="display: block; margin-bottom: 0.25rem;">Install Calvary Scribblings</strong>
+                                <span style="font-size: 0.85rem; opacity: 0.95;">Tap <span style="display: inline-flex; align-items: center; gap: 0.25rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8m-4-4h8"/></svg> Share</span> then "Add to Home Screen"</span>
+                            </div>
+                        </div>
+                        <button id="iosDismissButton" style="background: transparent; color: white; border: 2px solid white; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; white-space: nowrap;">Got it</button>
+                    </div>
+                `;
+                setTimeout(() => { document.body.appendChild(iosInstallBanner); }, 2000);
+                document.addEventListener('click', (e) => {
+                    if (e.target.id === 'iosDismissButton') {
+                        localStorage.setItem('iosInstallDismissed', Date.now().toString());
+                        iosInstallBanner.style.display = 'none';
+                    }
+                });
+            }
+        }
+        
+        let deferredPrompt;
+        const installBanner = document.createElement('div');
+        installBanner.id = 'installBanner';
+        installBanner.innerHTML = `
+            <div style="background: linear-gradient(135deg, #6b46c1 0%, #8b5cf6 100%); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999; animation: slideUp 0.3s ease;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span style="font-size: 1.5rem;">📱</span>
+                    <div>
+                        <strong style="display: block; margin-bottom: 0.25rem;">Install Calvary Scribblings</strong>
+                        <span style="font-size: 0.9rem; opacity: 0.95;">Get our app for a better reading experience</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <button id="installButton" style="background: white; color: #6b46c1; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 1rem;">Install</button>
+                    <button id="dismissButton" style="background: transparent; color: white; border: 2px solid white; padding: 0.75rem 1rem; border-radius: 4px; cursor: pointer; font-size: 1rem;">Maybe Later</button>
+                </div>
+            </div>
+        `;
+        installBanner.style.display = 'none';
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            if (localStorage.getItem('installDismissed')) {
+                const daysSince = (Date.now() - parseInt(localStorage.getItem('installDismissed'))) / (1000 * 60 * 60 * 24);
+                if (daysSince < 7) return;
+            }
+            document.body.appendChild(installBanner);
+            installBanner.style.display = 'block';
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'installButton') {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        deferredPrompt = null;
+                        installBanner.style.display = 'none';
+                    });
+                }
+            }
+            if (e.target.id === 'dismissButton') {
+                localStorage.setItem('installDismissed', Date.now().toString());
+                installBanner.style.display = 'none';
+            }
+        });
+        
+        const style = document.createElement('style');
+        style.textContent = `@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`;
+        document.head.appendChild(style);
+    </script>
+
+</body>
+</html>

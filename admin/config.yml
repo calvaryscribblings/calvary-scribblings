@@ -1,0 +1,58 @@
+backend:
+  name: git-gateway
+  branch: main
+
+media_folder: "uploads"
+public_folder: "/uploads"
+
+collections:
+  - name: "flash-fiction"
+    label: "Flash Fiction"
+    folder: "stories/flash"
+    create: true
+    slug: "{{slug}}"
+    fields:
+      - {label: "Title", name: "title", widget: "string"}
+      - {label: "Author", name: "author", widget: "string", default: "Calvary"}
+      - {label: "Publish Date", name: "date", widget: "datetime"}
+      - {label: "Cover Image", name: "cover", widget: "image", required: false}
+      - {label: "Excerpt", name: "excerpt", widget: "text"}
+      - {label: "Story", name: "body", widget: "markdown"}
+      
+  - name: "short-stories"
+    label: "Short Stories"
+    folder: "stories/short"
+    create: true
+    slug: "{{slug}}"
+    fields:
+      - {label: "Title", name: "title", widget: "string"}
+      - {label: "Author", name: "author", widget: "string", default: "Calvary"}
+      - {label: "Publish Date", name: "date", widget: "datetime"}
+      - {label: "Cover Image", name: "cover", widget: "image", required: false}
+      - {label: "Excerpt", name: "excerpt", widget: "text"}
+      - {label: "Story", name: "body", widget: "markdown"}
+      
+  - name: "poetry"
+    label: "Poetry"
+    folder: "stories/poetry"
+    create: true
+    slug: "{{slug}}"
+    fields:
+      - {label: "Title", name: "title", widget: "string"}
+      - {label: "Author", name: "author", widget: "string", default: "Calvary"}
+      - {label: "Publish Date", name: "date", widget: "datetime"}
+      - {label: "Poem", name: "body", widget: "markdown"}
+      
+  - name: "serial-stories"
+    label: "Serial Stories"
+    folder: "stories/serial"
+    create: true
+    slug: "{{slug}}"
+    fields:
+      - {label: "Title", name: "title", widget: "string"}
+      - {label: "Part Number", name: "part", widget: "number"}
+      - {label: "Author", name: "author", widget: "string", default: "Calvary"}
+      - {label: "Publish Date", name: "date", widget: "datetime"}
+      - {label: "Cover Image", name: "cover", widget: "image", required: false}
+      - {label: "Excerpt", name: "excerpt", widget: "text"}
+      - {label: "Story", name: "body", widget: "markdown"}

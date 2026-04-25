@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){{dataLayer.push(arguments);}}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta property="og:title" content="The Girl Who Sang Through the Dark">
+    <meta property="og:description" content="Orphaned before she could speak, scattered from her siblings, raised in a house that was not hers — and look at her now.">
+    <meta property="og:image" content="https://calvaryscribblings.co.uk/the-girl-who-sang-through-the-dark-cover.jpg">
+    <meta property="og:url" content="https://calvaryscribblings.co.uk/stories/the-girl-who-sang-through-the-dark.html">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Calvary Scribblings">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="The Girl Who Sang Through the Dark">
+    <meta name="twitter:description" content="Orphaned before she could speak, scattered from her siblings, raised in a house that was not hers — and look at her now.">
+    <meta name="twitter:image" content="https://calvaryscribblings.co.uk/the-girl-who-sang-through-the-dark-cover.jpg">
+    <title>The Girl Who Sang Through the Dark - Calvary Scribblings</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="icon" type="image/png" href="../favicon.png">
+    <link rel="apple-touch-icon" href="../favicon.png">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        .story-cover-banner {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            min-height: 500px;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: flex-end;
+        }
+        .story-cover-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
+        }
+        .story-cover-content {
+            position: relative;
+            z-index: 2;
+            padding: 3rem;
+            color: white;
+            width: 100%;
+        }
+        .story-cover-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.4; }
+        .story-cover-meta { font-size: 1.1rem; opacity: 0.95; }
+        .back-link {
+            display: inline-block;
+            margin: 2rem 0;
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .back-link:hover { color: #8b5cf6; }
+        .article-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .article-content {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            color: #333;
+        }
+        .article-content p { margin-bottom: 1.5rem; }
+        .hit-counter {
+            text-align: center;
+            padding: 2rem 0;
+            font-size: 1rem;
+            color: #666;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 3rem;
+        }
+        @media (max-width: 768px) {
+            .story-cover-banner { height: 60vh; min-height: 400px; }
+            .story-cover-title { font-size: 0.95rem; }
+            .story-cover-content { padding: 2rem; }
+            .article-content { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <a class="logo" href="../index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="../logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="../index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown">
+                            <li><a href="../news.html">News &amp; Updates</a></li>
+                            <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="../short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="../serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="../poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="../index.html#about">About</a></li>
+                    <li><a href="../index.html#subscribe">Subscribe</a></li>
+                    <li><a href="../index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <div class="story-cover-banner" style="background-image: url('../the-girl-who-sang-through-the-dark-cover.jpg');">
+        <div class="story-cover-overlay"></div>
+        <div class="story-cover-content">
+            <h1 class="story-cover-title">The Girl Who Sang Through the Dark</h1>
+            <div class="story-cover-meta">By Tricia Ajax &middot; Feb 20, 2026</div>
+        </div>
+    </div>
+
+    <div class="article-container">
+
+        <a href="../inspiring.html" class="back-link">&larr; Back to Inspiring Stories</a>
+
+        <article class="article-content">
+
+            <p>Before Chinny ever opened her eyes to this world, grief had already found her family. Her father died when her mother was seven months pregnant — gone before he could hold his last child, before he could whisper her name. And when Chinny was just two years old, her mother followed him, leaving behind four small children who were too young to understand death, yet old enough to feel the terrible weight of its silence.</p>
+            <p><em style="font-style:italic;font-weight:600;color:#6b46c1;">Chinny. The baby. The last one.</em></p>
+            <p>She had two big brothers and an elder sister, and for a brief, fragile moment, they had each other. But grief, when it is deep enough, has a way of pulling families apart before it pulls them together. Her mother's family stepped in, and what looked like a rescue turned out to be something far more painful: separation. Each child was taken to a different home, scattered like seeds into unfamiliar soil.</p>
+            <p>Chinny went to her aunt.</p>
+            <p>It was not a cruel home, but it was not a warm one either. There was food, and there was shelter, and there were rules — many rules — and somewhere in the space between provision and affection, Chinny learned to shrink. She learned to be quiet. She learned to be useful. She learned that love, in this house, was something you earned through compliance, and even then it was never quite guaranteed.</p>
+            <p>She was seven years old the first time she heard the words clearly, spoken in the kitchen while she stood just outside the doorway, small and still:</p>
+            <p><em style="font-style:italic;font-family:'Times New Roman',Times,serif;">'You're not our child.'</em></p>
+            <p>She did not cry. She had already learned that crying solved nothing. Instead, she filed the words somewhere deep and quiet inside herself, in the same place she kept her brothers' names, her sister's face, the vague warm memory of a mother she could no longer quite picture.</p>
+            <p>School became her escape. Not because she was academic — she was, eventually, but that came later — but because school was the one place where the rules were the same for everyone. Where she could raise her hand and be seen. Where a teacher, noticing the girl who always sat quietly in the front row, might say: <em style="font-style:italic;font-family:'Times New Roman',Times,serif;">you're clever, you know</em> — and mean it.</p>
+            <p>She held onto those small moments the way you hold onto warmth.</p>
+            <p>By the time she was twelve, she had discovered music. Not formally — there were no lessons, no instruments in the house — but in the way that some people discover the thing they were made for: suddenly, completely, as if it had always been waiting. She sang in the church choir. She sang walking to school. She sang in the compound after the aunt had gone to bed, quietly, to herself, her voice finding shapes in the dark that her words never could.</p>
+            <p>Music did not fix anything. But it made the unfixed things bearable.</p>
+            <p>The years passed. She finished secondary school. She got into university — the first in her aunt's household to do so, though the celebration was muted. She studied, worked, borrowed when she had to, and did not ask for more than was given. She built her life the way you build something without a blueprint: slowly, by trial, learning as she went what was load-bearing and what was ornament.</p>
+            <p>She is thirty-four now.</p>
+            <p>She has a small apartment in Lagos that she has filled with plants she talks to and books she has read twice. She has a job she is good at and friends who know her real laugh. She has, against some significant odds, become someone she is not ashamed to be.</p>
+            <p>She still sings. Mostly in the mornings, while she makes her coffee. Small songs, sometimes half-remembered, sometimes invented. Her neighbours have never complained.</p>
+            <p>She has not had an easy life. She will tell you this plainly, without bitterness, the way you state a fact about weather. But she will also tell you — and this is the part that matters — that the difficulty was not the whole of it. That there were teachers and there were songs and there were moments of such ordinary grace that even now, recalling them, she feels something close to gratitude.</p>
+            <p>Not gratitude for the loss. Never that.</p>
+            <p>Gratitude for what grew in the space the loss left behind.</p>
+            <p><em style="font-style:italic;font-weight:600;font-family:'Times New Roman',Times,serif;">She was that girl. And look at her now.</em></p>
+        </article>
+
+        <div class="hit-counter">
+            <span>👁️ </span><span id="hit-count">0</span> hits
+        </div>
+
+        <div style="padding:1.5rem 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;border-top:1px solid #e0e0e0;margin-top:1rem;">
+            <span class="division-badge badge-inspiring">Inspiring</span>
+            <div style="font-size:0.95rem;color:#666;">By <strong>Tricia Ajax</strong> &middot; Feb 20, 2026</div>
+        </div>
+
+        <div style="margin-top:3rem;padding-top:2rem;border-top:2px solid #e0e0e0;">
+            <h3 style="font-size:2rem;font-weight:700;color:#6b46c1;margin-bottom:2rem;">Comments</h3>
+            <div id="disqus_thread"></div>
+        </div>
+
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="../index.html#stories">Latest Stories</a></li>
+                    <li><a href="../news.html">News &amp; Updates</a></li>
+                    <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="../creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="../flash.html">Flash Fiction</a></li>
+                    <li><a href="../short.html">Short Stories</a></li>
+                    <li><a href="../serial.html">Serial Stories</a></li>
+                    <li><a href="../poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="../index.html#subscribe">Newsletter</a></li>
+                    <li><a href="../index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="../scripts.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const hitCountRef = database.ref('stories/the-girl-who-sang-through-the-dark/hits');
+        hitCountRef.transaction((currentHits) => (currentHits || 0) + 1).then(() => {
+            hitCountRef.on('value', (snapshot) => {
+                document.getElementById('hit-count').textContent = snapshot.val() || 0;
+            });
+        });
+    </script>
+
+    <script>
+        var disqus_config = function () {
+            this.page.url = 'https://calvaryscribblings.co.uk/stories/the-girl-who-sang-through-the-dark.html';
+            this.page.identifier = 'the-girl-who-sang-through-the-dark';
+        };
+        (function() {
+            var d = document, s = d.createElement('script');
+            s.src = 'https://calvaryscribblings.disqus.com/embed.js';
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+        })();
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Short Stories - Calvary Scribblings</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="favicon.png">
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        .category-hero {
+            background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+            color: white;
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+        .category-hero h1 { font-size: 3rem; margin-bottom: 1rem; }
+        .category-hero p { font-size: 1.2rem; opacity: 0.95; max-width: 700px; margin: 0 auto; }
+        .stories-grid {
+            max-width: 1200px;
+            margin: 4rem auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 2rem;
+        }
+        .story-card-category {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            text-decoration: none;
+            display: block;
+            background: white;
+        }
+        .story-card-category:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(217, 119, 6, 0.3);
+        }
+        .story-card-category img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+        .story-card-info { padding: 1.5rem; background: white; }
+        .story-card-info h3 { font-size: 1.3rem; color: #1a1a1a; margin-bottom: 0.5rem; line-height: 1.4; }
+        .story-card-info .meta { color: #666; font-size: 0.9rem; }
+        .new-badge-cat {
+            position: absolute;
+            top: 0.6rem; right: 0.6rem;
+            background: linear-gradient(135deg, #6b46c1, #8b5cf6);
+            color: #fff;
+            font-size: 0.6rem; font-weight: 800;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            padding: 0.25rem 0.5rem; border-radius: 3px; z-index: 6;
+        }
+        .loading {
+            text-align: center; padding: 4rem 2rem;
+            color: #999; font-style: italic;
+            font-family: 'Cochin', Georgia, serif; font-size: 1.1rem;
+        }
+        @media (max-width: 768px) {
+            .category-hero h1 { font-size: 2rem; }
+            .stories-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <a class="logo" href="index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown" id="storiesDropdown">
+                            <li><a href="news.html">News &amp; Updates</a></li>
+                            <li><a href="inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="index.html#about">About</a></li>
+                    <li><a href="index.html#subscribe">Subscribe</a></li>
+                    <li><a href="index.html#contact">Contact</a></li>
+                    <li><a href="search.html" title="Search" style="display:flex;align-items:center;gap:0.35rem;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        Search</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <section class="category-hero">
+        <h1>📚 Short Stories</h1>
+        <p>Compelling fiction from our talented writers.</p>
+    </section>
+
+    <div class="stories-grid" id="storiesGrid">
+        <div class="loading">Loading stories...</div>
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8;line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire, inform, and illuminate the heart of London.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="index.html#stories">Latest Stories</a></li>
+                    <li><a href="news.html">News &amp; Updates</a></li>
+                    <li><a href="inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="flash.html">Flash Fiction</a></li>
+                    <li><a href="short.html">Short Stories</a></li>
+                    <li><a href="serial.html">Serial Stories</a></li>
+                    <li><a href="poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="index.html#subscribe">Newsletter</a></li>
+                    <li><a href="index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="scripts.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const stories = [
+            { id: 'terms-and-conditions', title: 'Terms and Conditions', categoryName: 'Short Story', url: 'stories/terms-and-conditions.html', cover: 'terms-and-conditions-cover.jpeg', author: 'Tricia Ajax', date: 'Mar 18, 2026', firebasePath: 'stories/terms-and-conditions/hits' },
+            { id: '1967', title: '1967', categoryName: 'Short Story', url: 'stories/1967.html', cover: '1967-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 7, 2026', firebasePath: 'stories/1967/hits' },
+            { id: 'you-didnt-ask', title: "You Didn't Ask", categoryName: 'Short Story', url: 'stories/you-didnt-ask.html', cover: 'you-didnt-ask-cover.jpg', author: 'Tricia Ajax', date: 'Mar 4, 2026', firebasePath: 'stories/you-didnt-ask/hits' },
+            { id: 'early', title: 'Early', categoryName: 'Short Story', url: 'stories/early.html', cover: 'early-cover.png', author: 'Calvary', date: 'Feb 18, 2026', firebasePath: 'stories/early/hits' }
+        ];
+
+        function parseStoryDate(dateStr) { return new Date(dateStr); }
+        function isNew(story) {
+            const age = (Date.now() - parseStoryDate(story.date).getTime()) / (1000 * 60 * 60 * 24);
+            return age <= 7;
+        }
+
+        async function loadStories() {
+            const grid = document.getElementById('storiesGrid');
+            const storiesWithHits = await Promise.all(
+                stories.map(async (story) => {
+                    const snapshot = await database.ref(story.firebasePath).once('value');
+                    return { ...story, hits: snapshot.val() || 0 };
+                })
+            );
+            storiesWithHits.sort((a, b) => parseStoryDate(b.date) - parseStoryDate(a.date));
+            grid.innerHTML = storiesWithHits.map(story => `
+                <a href="${story.url}" class="story-card-category">
+                    ${isNew(story) ? '<div class="new-badge-cat">New</div>' : ''}
+                    <img src="${story.cover}" alt="${story.title}" onerror="this.src='https://via.placeholder.com/280x157?text=CS'">
+                    <div class="story-card-info">
+                        <h3>${story.title}</h3>
+                        <div class="meta">By ${story.author} &middot; ${story.date} &middot; <em>${story.categoryName}</em></div>
+                    </div>
+                </a>
+            `).join('');
+        }
+
+        loadStories();
+    </script>
+
+</body>
+</html>

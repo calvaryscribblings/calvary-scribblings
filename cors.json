@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://calvaryscribblings.co.uk", "http://localhost:3000"],
+    "method": ["GET"],
+    "responseHeader": ["Content-Type", "Content-Disposition", "Content-Length"],
+    "maxAgeSeconds": 3600
+  }
+]

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-W3B4WHBM8B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-W3B4WHBM8B');
+    </script>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta property="og:title" content="The Man in the Middle: John Davidson Addresses BAFTAs Incident and Living with Tourette's Syndrome">
+    <meta property="og:description" content="John Davidson speaks out about the BAFTA incident and what it means to live publicly with Tourette's Syndrome.">
+    <meta property="og:image" content="https://calvaryscribblings.co.uk/john-davidson-bafta-cover.jpeg">
+    <meta property="og:url" content="https://calvaryscribblings.co.uk/stories/john-davidson-bafta-tourettes.html">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Calvary Scribblings">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="The Man in the Middle: John Davidson Addresses BAFTAs Incident and Living with Tourette's Syndrome">
+    <meta name="twitter:description" content="John Davidson speaks out about the BAFTA incident and what it means to live publicly with Tourette's Syndrome.">
+    <meta name="twitter:image" content="https://calvaryscribblings.co.uk/john-davidson-bafta-cover.jpeg">
+    <title>The Man in the Middle: John Davidson Addresses BAFTAs Incident and Living with Tourette's Syndrome - Calvary Scribblings</title>
+    <link rel="stylesheet" href="../styles.css">
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    
+    <style>
+        /* Cover Banner Style */
+        .story-cover-banner {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            min-height: 500px;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            align-items: flex-end;
+            margin-bottom: 3rem;
+        }
+        
+        .story-cover-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%);
+        }
+        
+        .story-cover-content {
+            position: relative;
+            z-index: 2;
+            padding: 3rem;
+            color: white;
+            width: 100%;
+        }
+        
+        .story-cover-title {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            line-height: 1.2;
+        }
+        
+        .story-cover-meta {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            text-shadow: 0 1px 5px rgba(0,0,0,0.5);
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin: 2rem 0 2rem 3rem;
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        
+        .back-link:hover {
+            color: #8b5cf6;
+        }
+        
+        .article-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .article-content {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            color: #333;
+        }
+        
+        .article-content p {
+            margin-bottom: 1.5rem;
+        }
+        
+        .article-content h3 {
+            font-size: 1.5rem;
+            color: #6b46c1;
+            margin: 2rem 0 1rem 0;
+        }
+        
+        .quote-block {
+            background: #f9f9f9;
+            border-left: 4px solid #6b46c1;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            font-style: italic;
+            color: #555;
+        }
+        
+        .external-link {
+            color: #6b46c1;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .external-link:hover {
+            text-decoration: underline;
+        }
+        
+        .hit-counter {
+            text-align: center;
+            padding: 2rem 0;
+            font-size: 1rem;
+            color: #666;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 3rem;
+        }
+        
+        @media (max-width: 768px) {
+            .story-cover-banner {
+                height: 60vh;
+                min-height: 400px;
+                background-position: top center;
+            }
+            
+            .story-cover-title {
+                font-size: 1.3rem;
+                line-height: 1.3;
+            }
+            
+            .story-cover-content {
+                padding: 1.5rem;
+            }
+
+            .story-cover-meta {
+                font-size: 0.95rem;
+            }
+            
+            .back-link {
+                margin-left: 2rem;
+            }
+            
+            .article-content {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <a class="logo" href="../index.html">
+                <div class="logo-icon" style="background:none;padding:0;"><img src="../logo-header.jpg" alt="Calvary Scribblings" style="width:52px;height:52px;border-radius:10px;display:block;object-fit:cover;"></div>
+                <div class="logo-text">
+                    <h1>Calvary Scribblings</h1>
+                    <div class="logo-subtext">A Calvary Media UK Publication</div>
+                </div>
+            </a>
+            <div class="menu-toggle" onclick="toggleMenu()" id="menuToggle">
+                <span></span><span></span><span></span>
+            </div>
+            <nav id="mainNav">
+                <ul>
+                    <li><a href="../index.html">Home</a></li>
+                    <li class="has-dropdown">
+                        <a href="#">Stories</a>
+                        <ul class="dropdown">
+                            <li><a href="../news.html">News & Updates</a></li>
+                            <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                            <li style="padding:0.5rem 1.25rem 0.25rem;font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#999;pointer-events:none;">Creative Writing</li>
+                            <li><a href="../flash.html" style="padding-left:1.75rem;">— Flash Fiction</a></li>
+                            <li><a href="../short.html" style="padding-left:1.75rem;">— Short Stories</a></li>
+                            <li><a href="../serial.html" style="padding-left:1.75rem;">— Serial Stories</a></li>
+                            <li><a href="../poetry.html" style="padding-left:1.75rem;">— Poetry</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="../index.html#about">About</a></li>
+                    <li><a href="../index.html#subscribe">Subscribe</a></li>
+                    <li><a href="../index.html#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <a href="../news.html" class="back-link">← Back to News & Updates</a>
+
+    <!-- Cover Banner -->
+    <div class="story-cover-banner" style="background-image: url('../john-davidson-bafta-cover.jpeg');">
+        <div class="story-cover-overlay"></div>
+        <div class="story-cover-content">
+            <h1 class="story-cover-title">The Man in the Middle: John Davidson Addresses BAFTAs Incident and Living with Tourette's Syndrome</h1>
+            <div class="story-cover-meta">By Chioma Okonkwo · News · Feb 25, 2026</div>
+        </div>
+    </div>
+
+    <div class="article-container">
+        <article class="article-content">
+            <p>Over the weekend, the BAFTA Film Awards took place at the Royal Festival Hall in London, England, celebrating cinema and its stars. However, the evening was marred by an incident during the Special Visual Effects category presentation. As <em>Sinners</em> actors Michael B. Jordan and Delroy Lindo announced the nominees, John Davidson, a guest in attendance, involuntarily shouted the N-word.</p>
+
+            <p>Davidson, the real-life inspiration for the film <em>I Swear</em> — which won awards that night — has since sat down with <em>Variety</em> to explain what happened and address the controversy.</p>
+
+            <p>His team revealed that he has reached out to the studio handling <em>Sinners</em> to apologise to both Michael B. Jordan and Delroy Lindo.</p>
+
+            <h3>Understanding Tourette's Syndrome</h3>
+
+            <p>In his interview with <em>Variety</em>, when asked how he would explain the stereotype surrounding the syndrome, Davidson said:</p>
+
+            <div class="quote-block">
+                'Very often, the media focuses on my particular type of Tourette's, which is called coprolalia — the involuntary use of obscene or offensive language. This symptom affects 10% to 30% of people with the condition and is not a criterion for diagnosis. However, it is one of the hardest tics to manage and can be very distressing for those living with it. Many individuals report discrimination and isolation as a result.
+            </div>
+
+            <div class="quote-block">
+                'I have been physically beaten to within an inch of my life with an iron bar after ticking a comment to a young woman whose boyfriend and accomplice ambushed me one evening.
+            </div>
+
+            <div class="quote-block">
+                'The real challenge isn't the tics themselves, but the misconceptions surrounding them. Understanding the full range of Tourette's helps reduce stigma and supports everyone living with the condition.
+            </div>
+
+            <div class="quote-block">
+                'When socially unacceptable words come out, the guilt and shame on the part of the person with the condition is often unbearable and causes enormous distress. I can't begin to explain how upset and distraught I have been as the impact from Sunday sinks in.'
+            </div>
+
+            <p>He further explained that he wants people to understand that his tics are not who he is or his beliefs: 'I want people to know and understand that my tics have absolutely nothing to do with what I think, feel or believe. It's an involuntary neurological misfire. My tics are not an intention, not a choice and not a reflection of my values.'</p>
+
+            <p>Davidson revealed that he ticked about 10 different offensive words on the night of the awards, but expressed particular disappointment about the N-word due to the weight and significance it carries, and the fact that most media coverage made it appear as though he had shouted just one single slur.</p>
+
+            <h3>Why He Attended the BAFTAs</h3>
+
+            <p>When asked why he decided to attend the event in person, Davidson explained:</p>
+
+            <div class="quote-block">
+                'This was an awards ceremony that featured six nominations connected to a film that told the story of my life living with Tourette's. This has been a three-year project for me, working with the writer, director, production and cast. I am also an active executive producer on the film. I had as much right to attend as anyone.
+            </div>
+
+            <div class="quote-block">
+                'I also knew that as voting members, most people in the audience would have seen <em>I Swear</em> and would be well prepared, well-educated and well-informed about my condition.
+            </div>
+
+            <div class="quote-block">
+                'After living with Tourette's for almost 40 years, I was aware of how physically and mentally difficult it would be for me to attend. I also had a serious heart operation only five weeks ago. I put every ounce of energy and concentration into being able to attend.'
+            </div>
+
+            <p>Davidson expressed happiness at seeing famous stars that night and feeling seen and accepted. However, he also questioned whether it was wise of the organisers to place a microphone directly in front of him in the auditorium, knowing that he could tic at any moment.</p>
+
+            <h3>Mixed Reactions</h3>
+
+            <p>His apology has since sparked debate online. Some are questioning the sincerity of his apology, whilst others have expressed empathy towards him and his condition.</p>
+
+            <p>Read the rest of Davidson's interview with <em>Variety</em> here: <a href="https://variety.com/2026/film/awards/john-davidson-tourettes-tics-bafta-n-word-interview-1236671850/" class="external-link" target="_blank">variety.com</a></p>
+
+        </article>
+
+        <!-- Hit Counter -->
+        <div class="hit-counter">
+            <span id="hitCounter">👁️ — hits</span>
+        </div>
+    </div>
+
+    <!-- Comments -->
+    <div style="max-width: 800px; margin: 3rem auto; padding: 0 2rem;">
+        <div id="disqus_thread"></div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h5>Calvary Scribblings</h5>
+                <p style="opacity:0.8; line-height:1.6;">A publication of Calvary Media UK, bringing you stories that inspire.</p>
+            </div>
+            <div class="footer-section">
+                <h5>Explore</h5>
+                <ul>
+                    <li><a href="../news.html">News & Updates</a></li>
+                    <li><a href="../inspiring.html">Inspiring Stories</a></li>
+                    <li><a href="../creative.html">Creative Writing</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Creative Writing</h5>
+                <ul>
+                    <li><a href="../flash.html">Flash Fiction</a></li>
+                    <li><a href="../short.html">Short Stories</a></li>
+                    <li><a href="../serial.html">Serial Stories</a></li>
+                    <li><a href="../poetry.html">Poetry</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h5>Connect</h5>
+                <ul>
+                    <li><a href="../index.html#subscribe">Newsletter</a></li>
+                    <li><a href="../index.html#contact">Contact Us</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Calvary Scribblings. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="../scripts.js"></script>
+    
+    <!-- Firebase Hit Counter -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY",
+            authDomain: "calvary-scribblings.firebaseapp.com",
+            databaseURL: "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "calvary-scribblings",
+            storageBucket: "calvary-scribblings.firebasestorage.app",
+            messagingSenderId: "1052137412283",
+            appId: "1:1052137412283:web:509400c5a2bcc1ca63fb9e"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const hitCountRef = database.ref('stories/john-davidson-bafta-tourettes/hits');
+
+        // Increment hit count
+        hitCountRef.transaction((currentHits) => {
+            return (currentHits || 0) + 1;
+        }).then(() => {
+            // Display hit count
+            hitCountRef.on('value', (snapshot) => {
+                const hits = snapshot.val() || 0;
+                document.getElementById('hitCounter').textContent = `👁️ ${hits} hits`;
+            });
+        });
+    </script>
+
+    <!-- Disqus Comments -->
+    <script>
+        var disqus_config = function () {
+            this.page.url = 'https://calvaryscribblings.co.uk/stories/john-davidson-bafta-tourettes.html';
+            this.page.identifier = 'john-davidson-bafta-tourettes';
+        };
+        (function() {
+            var d = document, s = d.createElement('script');
+            s.src = 'https://calvaryscribblings.disqus.com/embed.js';
+            s.setAttribute('data-timestamp', +new Date());
+            (d.head || d.body).appendChild(s);
+        })();
+    </script>
+
+</body>
+</html>
