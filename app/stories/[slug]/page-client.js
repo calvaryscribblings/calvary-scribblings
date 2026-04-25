@@ -1,11 +1,16 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import React from 'react';
 import { stories } from '../../lib/stories';
 import { use } from 'react';
 import { storyContent } from '../../lib/storyContent';
 import AuthModal from '../../components/AuthModal';
 import TipBox from '../../components/TipBox';
+import MentionTextarea from '../../components/MentionTextarea';
+import { notifyMentions } from '../../lib/mentions';
+import StoryAuthorBio from '../../components/StoryAuthorBio';
+import QuizCard from '../../components/QuizCard';
 
 
 const FB = {
@@ -283,11 +288,11 @@ function ExerciseSection({ slug }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <div>
             <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>Story Exercise</div>
-            <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif' }}>{exercise.length} question{exercise.length !== 1 ? 's' : ''} · Up to {exercise.reduce((s, q) => s + q.points, 0)} pts</div>
+            <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif' }}>{exercise.length} question{exercise.length !== 1 ? 's' : ''} · Up to {exercise.reduce((s, q) => s + q.points, 0)} Scribbles</div>
           </div>
           {submitted && (
             <div style={{ background: 'rgba(107,47,173,0.1)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 8, padding: '0.4rem 0.9rem', fontSize: '0.72rem', color: '#6b2fad', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-              {submission.status === 'pending_review' ? '⏳ Essay pending review' : `✓ ${submission.totalScore} pts earned`}
+              {submission.status === 'pending_review' ? '⏳ Essay pending review' : `✓ ${submission.totalScore} Scribbles earned`}
             </div>
           )}
         </div>
@@ -300,11 +305,11 @@ function ExerciseSection({ slug }) {
                 <div style={{ fontSize: '0.92rem', color: '#1a1a1a', fontFamily: 'Cochin, Georgia, serif', marginBottom: '0.5rem' }}>{a.question}</div>
                 {a.type === 'mcq' ? (
                   <div style={{ fontSize: '0.82rem', fontFamily: 'Inter, sans-serif', color: a.correct ? '#1d9e75' : '#dc2626', fontWeight: 600 }}>
-                    {a.correct ? `✓ Correct — +${a.awardedPoints} pts` : '✗ Incorrect — 0 pts'}
+                    {a.correct ? `✓ Correct — +${a.awardedPoints} Scribbles` : '✗ Incorrect — 0 Scribbles'}
                   </div>
                 ) : (
                   <div style={{ fontSize: '0.82rem', fontFamily: 'Inter, sans-serif', color: a.marked ? '#1d9e75' : '#d97706' }}>
-                    {a.marked ? `✓ Marked — ${a.awardedPoints} pts` : '⏳ Awaiting review'}
+                    {a.marked ? `✓ Marked — ${a.awardedPoints} Scribbles` : '⏳ Awaiting review'}
                   </div>
                 )}
               </div>
@@ -314,7 +319,7 @@ function ExerciseSection({ slug }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {exercise.map((q, i) => (
               <div key={i} style={{ background: '#fff', border: '1px solid #e0dbd2', borderRadius: 10, padding: '1.25rem' }}>
-                <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif', marginBottom: '0.4rem' }}>Q{i + 1} · {q.type === 'mcq' ? 'Multiple Choice' : 'Essay'} · {q.points} pts</div>
+                <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif', marginBottom: '0.4rem' }}>Q{i + 1} · {q.type === 'mcq' ? 'Multiple Choice' : 'Essay'} · {q.points} Scribbles</div>
                 <div style={{ fontSize: '1rem', color: '#1a1a1a', fontFamily: 'Cochin, Georgia, serif', marginBottom: '1rem', lineHeight: 1.6 }}>{q.question}</div>
                 {q.type === 'mcq' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -344,7 +349,7 @@ function ExerciseSection({ slug }) {
           </div>
         ) : (
           <div style={{ background: 'rgba(107,47,173,0.06)', border: '1px solid rgba(107,47,173,0.15)', borderRadius: 10, padding: '1.5rem', textAlign: 'center' }}>
-            <div style={{ fontFamily: 'Cochin, Georgia, serif', color: '#555', marginBottom: '0.5rem' }}>Sign in to attempt this exercise and earn points.</div>
+            <div style={{ fontFamily: 'Cochin, Georgia, serif', color: '#555', marginBottom: '0.5rem' }}>Sign in to attempt this exercise and earn Scribbles.</div>
           </div>
         )}
       </div>
@@ -353,6 +358,129 @@ function ExerciseSection({ slug }) {
 }
 
 // ── Comments Section ──────────────────────────────────────────────────────────
+
+function renderCommentText(text) {
+  if (!text) return text;
+  const parts = [];
+  let last = 0;
+  const re = /(^|\s)@([a-z0-9_]{3,20})\b/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const [, pre, handle] = m;
+    const start = m.index + pre.length;
+    const end = start + 1 + handle.length;
+    if (start > last) parts.push(text.slice(last, start));
+    parts.push(<a key={start} href={`/user?handle=${handle}`} style={{ color: '#a78bfa', textDecoration: 'none', fontWeight: 500 }}>@{handle}</a>);
+    last = end;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+const CommentNode = React.memo(function CommentNode({
+  comment, depth, parentAuthorName,
+  user, comments, commentReactions,
+  replyTo, replyText, editingId, editText, menuId, posting,
+  setReplyTo, setReplyText, setEditingId, setEditText, setMenuId,
+  toggleCommentReaction, postComment, editComment, deleteComment,
+}) {
+  const isOwn = user?.uid === comment.authorUid;
+  const children = comments.filter(c => c.parentId === comment.id).sort((a, b) => a.createdAt - b.createdAt);
+  const visualDepth = Math.min(depth, 3);
+  const isFlattened = depth > 3;
+  const indentPx = (visualDepth - 1) * 28;
+
+  return (
+    <div style={{ marginLeft: indentPx }}>
+      <div className={depth === 1 ? "cs-comment" : "cs-reply"}>
+        <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size={depth === 1 ? "sm" : "xs"} isOwnComment={isOwn} />
+        <div className="cs-comment-body">
+          <div className="cs-comment-header" style={{ position: 'relative' }}>
+            <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
+            <CommentUsername uid={comment.authorUid} />
+            <CommentBadge uid={comment.authorUid} size={depth === 1 ? 13 : 12} />
+            <span className="cs-time">{timeAgo(comment.createdAt)}</span>
+            {comment.editedAt && <span className="cs-time"> · edited</span>}
+            {isOwn && (
+              <div style={{ marginLeft: 'auto', position: 'relative' }}>
+                <button onClick={() => setMenuId(menuId === comment.id ? null : comment.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '0 4px', fontSize: '1rem', lineHeight: 1 }}>···</button>
+                {menuId === comment.id && (
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuId(null)} />
+                    <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, zIndex: 100, minWidth: 110, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+                      <button onClick={() => { setEditingId(comment.id); setEditText(comment.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Edit</button>
+                      <button onClick={() => { setMenuId(null); if (window.confirm(depth === 1 ? 'Delete this comment?' : 'Delete this reply?')) deleteComment(comment.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Delete</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <div className={depth === 1 ? "cs-comment-text" : "cs-comment-text cs-comment-text-sm"}>
+            {editingId === comment.id ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <MentionTextarea value={editText} onChange={setEditText} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className="cs-save-btn" onClick={() => editComment(comment.id)}>Save</button>
+                  <button className="cs-cancel-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {isFlattened && parentAuthorName && (
+                  <span style={{ color: '#a78bfa', fontWeight: 500, marginRight: 4 }}>@{parentAuthorName}</span>
+                )}
+                {renderCommentText(comment.text)}
+              </>
+            )}
+          </div>
+          <div className="cs-comment-footer" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
+            {[
+              { type: 'heart', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
+              { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
+              { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
+            ].map(({ type, activeColor, d }) => {
+              const active = commentReactions[comment.id]?.[type];
+              const count = comment[type + 'Count'] || 0;
+              return (
+                <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
+                  style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
+                  <svg width={depth === 1 ? "12" : "11"} height={depth === 1 ? "12" : "11"} viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
+                  {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
+                </button>
+              );
+            })}
+            {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
+          </div>
+          {replyTo === comment.id && (
+            <div className="cs-reply-compose">
+              <div className="cs-input-wrap">
+                <MentionTextarea value={replyText} onChange={setReplyText} placeholder={`Reply to ${comment.authorName}…`} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
+                <button className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`} onClick={() => postComment(replyText, comment.id)} disabled={posting || !replyText.trim()}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {children.length > 0 && (
+        <div className="cs-replies">
+          {children.map(child => (
+            <CommentNode
+              key={child.id} comment={child} depth={depth + 1} parentAuthorName={comment.authorName}
+              user={user} comments={comments} commentReactions={commentReactions}
+              replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
+              setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
+              toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
 function CommentsSection({ slug, onSignIn }) {
   const [user, setUser] = useState(null);
   const [userAvatarUrl, setUserAvatarUrl] = useState(null);
@@ -411,13 +539,13 @@ function CommentsSection({ slug, onSignIn }) {
       } catch (e) { setLoading(false); }
     })();
     return () => { if (unsubDB) unsubDB(); if (unsubReactions) unsubReactions(); };
-  }, [slug]);
+  }, [slug, user]);
 
-  const toggleCommentReaction = async (commentId, type, commentAuthorUid) => {
+  const toggleCommentReaction = useCallback(async (commentId, type, commentAuthorUid) => {
     if (!user) return;
     try {
       const db = await getDB();
-      const { ref, set, remove, runTransaction, push } = await import('firebase/database');
+      const { ref, set, remove, runTransaction, push, get } = await import('firebase/database');
       const reactionRef = ref(db, `comment_reactions/${slug}/${user.uid}/${commentId}/${type}`);
       const countRef = ref(db, `comments/${slug}/${commentId}/${type}Count`);
       const hasReacted = commentReactions[commentId]?.[type];
@@ -428,7 +556,7 @@ function CommentsSection({ slug, onSignIn }) {
         await set(reactionRef, true);
         await runTransaction(countRef, c => (c || 0) + 1);
         if (commentAuthorUid && commentAuthorUid !== user.uid) {
-          const commentSnap = await (await import('firebase/database')).get(ref(db, `comments/${slug}/${commentId}`));
+          const commentSnap = await get(ref(db, `comments/${slug}/${commentId}`));
           const commentText = commentSnap.exists() ? (commentSnap.val().text || '').slice(0, 120) : '';
           await push(ref(db, `library_notifications/${commentAuthorUid}`), {
             type, fromUid: user.uid, fromName: user.displayName || 'Reader',
@@ -443,9 +571,9 @@ function CommentsSection({ slug, onSignIn }) {
         return updated;
       });
     } catch (e) {}
-  };
+  }, [user, slug, commentReactions]);
 
-  const postComment = async (commentText, parentId = null) => {
+  const postComment = useCallback(async (commentText, parentId = null) => {
     if (!commentText.trim() || !user) return;
     setPosting(true);
     try {
@@ -459,6 +587,13 @@ function CommentsSection({ slug, onSignIn }) {
         parentId: parentId || null,
         createdAt: Date.now(),
       });
+      try {
+        await notifyMentions({
+          text: commentText.trim(), slug,
+          fromUid: user.uid, fromName: user.displayName || 'Reader',
+          excludeUid: user.uid,
+        });
+      } catch (e) {}
       if (parentId) {
         const parentComment = comments.find(c => c.id === parentId);
         if (parentComment && parentComment.authorUid !== user.uid) {
@@ -472,7 +607,6 @@ function CommentsSection({ slug, onSignIn }) {
         }
         setReplyText(''); setReplyTo(null);
       } else setText('');
-
       try {
         const commentsSnap = await get(ref(db, 'comments'));
         let userCommentCount = 0;
@@ -492,16 +626,16 @@ function CommentsSection({ slug, onSignIn }) {
           });
           await push(ref(db, `library_notifications/${user.uid}`), {
             type: 'reward', fromName: 'Calvary Scribblings',
-            message: `You earned 10 points — ${userCommentCount} comments milestone!`,
+            message: `You earned 10 Scribbles — ${userCommentCount} comments milestone!`,
             read: false, createdAt: Date.now(),
           });
         }
       } catch (e) {}
     } catch (e) {}
     setPosting(false);
-  };
+  }, [user, slug, comments]);
 
-  const editComment = async (commentId) => {
+  const editComment = useCallback(async (commentId) => {
     if (!user || !editText.trim()) return;
     try {
       const db = await getDB();
@@ -509,20 +643,19 @@ function CommentsSection({ slug, onSignIn }) {
       await update(ref(db, `comments/${slug}/${commentId}`), { text: editText.trim(), editedAt: Date.now() });
       setEditingId(null); setEditText('');
     } catch (e) {}
-  };
+  }, [user, slug, editText]);
 
-  const deleteComment = async (commentId) => {
+  const deleteComment = useCallback(async (commentId) => {
     if (!user) return;
     try {
       const db = await getDB();
       const { ref, remove } = await import('firebase/database');
       await remove(ref(db, `comments/${slug}/${commentId}`));
     } catch (e) {}
-  };
+  }, [user, slug]);
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
   const topLevel = comments.filter(c => !c.parentId);
-  const getReplies = (id) => comments.filter(c => c.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
 
   return (
     <div className="cs-section">
@@ -537,7 +670,7 @@ function CommentsSection({ slug, onSignIn }) {
               {userAvatarUrl ? <img src={userAvatarUrl} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : userInitials}
             </a>
             <div className="cs-input-wrap">
-              <textarea className="cs-textarea" placeholder="Share your thoughts on this story…" value={text} onChange={e => setText(e.target.value)} rows={3} />
+              <MentionTextarea value={text} onChange={setText} placeholder="Share your thoughts on this story…" rows={3} />
               <button className={`cs-kite-btn${text.trim() ? ' active' : ''}`} onClick={() => postComment(text)} disabled={posting || !text.trim()} title="Post comment">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
               </button>
@@ -556,142 +689,15 @@ function CommentsSection({ slug, onSignIn }) {
         <div className="cs-empty">No comments yet. Be the first to share your thoughts.</div>
       ) : (
         <div className="cs-comments-list">
-          {topLevel.map((comment, i) => {
-            const replies = getReplies(comment.id);
-            const isOwn = user?.uid === comment.authorUid;
-            return (
-              <div key={comment.id}>
-                {i > 0 && <div className="cs-divider" />}
-                <div className="cs-comment">
-                  <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size="sm" isOwnComment={isOwn} />
-                  <div className="cs-comment-body">
-                    <div className="cs-comment-header" style={{ position: 'relative' }}>
-                      <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
-                      <CommentUsername uid={comment.authorUid} />
-                      <CommentBadge uid={comment.authorUid} size={13} />
-                      <span className="cs-time">{timeAgo(comment.createdAt)}</span>
-                      {comment.editedAt && <span className="cs-time"> · edited</span>}
-                      {isOwn && (
-                        <div style={{ marginLeft: 'auto', position: 'relative' }}>
-                          <button onClick={() => setMenuId(menuId === comment.id ? null : comment.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '0 4px', fontSize: '1rem', lineHeight: 1 }}>···</button>
-                          {menuId === comment.id && (
-                            <>
-                              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuId(null)} />
-                              <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, zIndex: 100, minWidth: 110, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
-                                <button onClick={() => { setEditingId(comment.id); setEditText(comment.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Edit</button>
-                                <button onClick={() => { setMenuId(null); if (window.confirm('Delete this comment?')) deleteComment(comment.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Delete</button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="cs-comment-text">{editingId === comment.id ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <textarea className="cs-textarea cs-textarea-sm" value={editText} onChange={e => setEditText(e.target.value)} rows={2} autoFocus />
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button className="cs-reply-btn" onClick={() => editComment(comment.id)}>Save</button>
-                          <button className="cs-reply-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
-                        </div>
-                      </div>
-                    ) : comment.text}</div>
-                    <div className="cs-comment-footer">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {[
-                          { type: 'heart', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
-                          { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
-                          { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
-                        ].map(({ type, activeColor, d }) => {
-                          const active = commentReactions[comment.id]?.[type];
-                          const count = comment[type + 'Count'] || 0;
-                          return (
-                            <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
-                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-                              {count > 0 && <span style={{ fontSize: '0.6rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
-                            </button>
-                          );
-                        })}
-                        {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
-                      </div>
-                    </div>
-                    {replyTo === comment.id && (
-                      <div className="cs-reply-compose">
-                        <div className="cs-input-wrap">
-                          <textarea className="cs-textarea cs-textarea-sm" placeholder={`Reply to ${comment.authorName}…`} value={replyText} onChange={e => setReplyText(e.target.value)} rows={2} autoFocus />
-                          <button className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`} onClick={() => postComment(replyText, comment.id)} disabled={posting || !replyText.trim()}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {replies.length > 0 && (
-                      <div className="cs-replies">
-                        {replies.map(reply => {
-                          const replyIsOwn = user?.uid === reply.authorUid;
-                          return (
-                            <div key={reply.id} className="cs-reply">
-                              <CommentAvatar uid={reply.authorUid} initials={reply.authorInitials} size="xs" isOwnComment={replyIsOwn} />
-                              <div className="cs-comment-body">
-                                <div className="cs-comment-header" style={{ position: 'relative' }}>
-                                  <a href={replyIsOwn ? '/profile' : `/user?id=${reply.authorUid}`} className="cs-name cs-name-link">{reply.authorName}</a>
-                                  <CommentUsername uid={reply.authorUid} />
-                                  <CommentBadge uid={reply.authorUid} size={12} />
-                                  <span className="cs-time">{timeAgo(reply.createdAt)}</span>
-                                  {reply.editedAt && <span className="cs-time"> · edited</span>}
-                                  {replyIsOwn && (
-                                    <div style={{ marginLeft: 'auto', position: 'relative' }}>
-                                      <button onClick={() => setMenuId(menuId === reply.id ? null : reply.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '0 4px', fontSize: '1rem', lineHeight: 1 }}>···</button>
-                                      {menuId === reply.id && (
-                                        <>
-                                          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuId(null)} />
-                                          <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, zIndex: 100, minWidth: 110, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
-                                            <button onClick={() => { setEditingId(reply.id); setEditText(reply.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Edit</button>
-                                            <button onClick={() => { setMenuId(null); if (window.confirm('Delete this reply?')) deleteComment(reply.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Delete</button>
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="cs-comment-text cs-comment-text-sm">{editingId === reply.id ? (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                    <textarea className="cs-textarea cs-textarea-sm" value={editText} onChange={e => setEditText(e.target.value)} rows={2} autoFocus />
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                      <button className="cs-reply-btn" onClick={() => editComment(reply.id)}>Save</button>
-                                      <button className="cs-reply-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
-                                    </div>
-                                  </div>
-                                ) : reply.text}</div>
-                                <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
-                                  {[
-                                    { type: 'heart', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
-                                    { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
-                                    { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
-                                  ].map(({ type, activeColor, d }) => {
-                                    const active = commentReactions[reply.id]?.[type];
-                                    const count = reply[type + 'Count'] || 0;
-                                    return (
-                                      <button key={type} onClick={() => toggleCommentReaction(reply.id, type, reply.authorUid)}
-                                        style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
-                                        <svg width="11" height="11" viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-                                        {count > 0 && <span style={{ fontSize: '0.58rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
-                                      </button>
-                                    );
-                                  })}
-
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {topLevel.map(comment => (
+            <CommentNode
+              key={comment.id} comment={comment} depth={1} parentAuthorName={null}
+              user={user} comments={comments} commentReactions={commentReactions}
+              replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
+              setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
+              toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -739,7 +745,18 @@ export default function StoryPageClient({ params }) {
   const [hitCount, setHitCount] = useState(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [storyUser, setStoryUser] = useState(null);
   const articleRef = useRef(null);
+
+  useEffect(() => {
+    let unsub;
+    (async () => {
+      const auth = await getFirebaseAuth();
+      const { onAuthStateChanged } = await import('firebase/auth');
+      unsub = onAuthStateChanged(auth, u => setStoryUser(u));
+    })();
+    return () => { if (unsub) unsub(); };
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -801,7 +818,7 @@ export default function StoryPageClient({ params }) {
                   });
                   await push(ref(db, `library_notifications/${user.uid}`), {
                     type: 'reward', fromName: 'Calvary Scribblings',
-                    message: `You earned 5 points — ${newCount} stories read milestone!`,
+                    message: `You earned 5 Scribbles — ${newCount} stories read milestone!`,
                     read: false, createdAt: Date.now(),
                   });
                 }
@@ -860,48 +877,48 @@ useEffect(() => {
         .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 400; line-height: 1.1; color: #f0ead8; margin-bottom: 1.1rem; font-family: Cochin, 'Cormorant Garamond', Cochin, Georgia, serif; }
         .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: #f5f0e8; flex-wrap: wrap; }
         .byline-dot { width: 3px; height: 3px; border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
-        .byline-by { font-style: italic; font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; margin-right: -0.8rem; }
+        .byline-by { font-style: italic; font-family: Georgia, serif; margin-right: -0.8rem; }
         .story-body-wrap { background: #f0ead8; }
         .story-body { max-width: 680px; margin: 0 auto; padding: 3rem 2rem 5rem; }
         .back-link-row { margin-bottom: 2.2rem; padding-bottom: 1.2rem; border-bottom: 1px solid #e0dbd2; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
         .back-link { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: ${accentColor}; text-decoration: none; font-family: Cochin, Georgia, serif; }
         .back-link:hover { text-decoration: underline; }
         .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cochin, Georgia, serif; font-weight: 400; }
-        .prose em, .prose i { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; }
+        .prose em, .prose i { font-family: Georgia, serif; font-style: italic; }
         .prose p { margin-bottom: 0; } .prose p + p { text-indent: 1.5em; }
         .prose.has-dropcap > p:first-of-type::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: Cochin, 'Cormorant Garamond', Cochin, Georgia, serif; }
         .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cochin, Georgia, serif; line-height: 1.3; }
-        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: 'Cormorant Garamond', Georgia, serif; }
+        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: Georgia, serif; }
         .prose p[style*='text-align:center'], .prose p[style*='text-align: center'] { text-align: center; font-family: Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
         .prose h4 { font-size: 1rem; font-weight: 700; color: #1a1a1a; margin: 1.5em 0 0.4em; font-family: Cochin, Georgia, serif; }
         .prose img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; margin: 2em 0 0.5em; min-height: 200px; background: #e8e0d4; }
 .prose img.loaded { min-height: unset; background: none; }
         .prose .article-image { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 8px; margin: 2em 0 0.5em; }
         .prose figure { margin: 2em 0; }
-        .prose figcaption { font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose img + em { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: -1em; margin-bottom: 2em; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose .image-caption { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; margin-bottom: 2em; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose .inline-image-caption { display: block; font-size: 0.82rem; color: #888; font-style: italic; text-align: right; margin-top: 0.4em; margin-bottom: 2em; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose figcaption { font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; font-family: Georgia, serif; }
+        .prose img + em { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: -1em; margin-bottom: 2em; font-family: Georgia, serif; }
+        .prose .image-caption { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; margin-bottom: 2em; font-family: Georgia, serif; }
+        .prose .inline-image-caption { display: block; font-size: 0.82rem; color: #888; font-style: italic; text-align: right; margin-top: 0.4em; margin-bottom: 2em; font-family: Georgia, serif; }
         .prose .features-list { background: #e8e0f5; border-left: 4px solid ${accentColor}; border-radius: 0 8px 8px 0; padding: 1.25rem 1.5rem; margin: 1.5em 0 2em; }
         .prose .features-list ul { background: transparent; border: none; padding: 0; margin: 0; list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
         .prose .features-list ul li { padding-left: 1.2rem; position: relative; font-size: 1.05rem; line-height: 1.6; color: #1a1a1a; }
         .prose .features-list ul li::before { content: '•'; position: absolute; left: 0; color: ${accentColor}; font-weight: 700; }
-        .prose blockquote { margin: 2.2em 0; padding: 1.2em 1.6em; border-left: 4px solid ${accentColor}; background: rgba(107,70,193,0.07); font-size: 1.1rem; font-style: italic; color: ${accentColor}; line-height: 1.7; border-radius: 0 4px 4px 0; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose blockquote p { margin-bottom: 0; color: ${accentColor}; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose blockquote { margin: 2.2em 0; padding: 1.2em 1.6em; border-left: 4px solid ${accentColor}; background: rgba(107,70,193,0.07); font-size: 1.1rem; font-style: italic; color: ${accentColor}; line-height: 1.7; border-radius: 0 4px 4px 0; font-family: Georgia, serif; }
+        .prose blockquote p { margin-bottom: 0; color: ${accentColor}; font-family: Georgia, serif; }
         .prose ul { margin: 1.8em 0; padding: 1.2em 1.5em 1.2em 2em; background: #ede6f5; border-left: 4px solid ${accentColor}; border-radius: 0 4px 4px 0; list-style: disc; }
         .prose ul li { margin-bottom: 0.55em; color: #1a1a1a; font-size: 1.05rem; line-height: 1.75; }
         .prose ul li::marker { color: ${accentColor}; }
         .prose ol { margin: 1.5em 0; padding-left: 1.8em; }
         .prose ol li { margin-bottom: 0.5em; color: #1a1a1a; }
         .prose hr { border: none; height: 2px; background: linear-gradient(90deg, transparent, ${accentColor}, transparent); width: 100px; margin: 3em auto; display: block; }
-        .prose em { font-style: italic; color: inherit; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
-        .prose i { font-style: italic; color: inherit; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; }
+        .prose em { font-style: italic; color: inherit; font-family: Georgia, serif; }
+        .prose i { font-style: italic; color: inherit; font-family: Georgia, serif; }
         .prose strong { font-weight: 700; color: #1a1a1a; }
-        .prose .poem-collection-intro { font-style: italic; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; color: #555; margin-bottom: 1.5em; display: block; font-size: 1.1rem; }
+        .prose .poem-collection-intro { font-style: italic; font-family: Georgia, serif; color: #555; margin-bottom: 1.5em; display: block; font-size: 1.1rem; }
         .prose .poem-contents { border-left: 4px solid ${accentColor}; padding: 0.8em 1.2em; margin: 1.5em 0; background: #ede6f5; border-radius: 0 4px 4px 0; }
         .prose .poem-contents p { margin-bottom: 0.5em; font-weight: 600; color: #1a1a1a; }
         .prose .poem-contents ol, .prose .poem-contents ul { background: transparent; border: none; padding: 0 0 0 1.2em; margin: 0; }
-        .prose .poem-contents li { font-style: italic; color: #444; font-family: Cochin, 'Cormorant Garamond', 'Times New Roman', Georgia, serif; font-size: 1.1rem; }
+        .prose .poem-contents li { font-style: italic; color: #444; font-family: Georgia, serif; font-size: 1.1rem; }
         .prose .poem-block { margin-bottom: 3.5em; display: block; }
         .prose .poem-title { font-size: 1.5rem; font-style: normal; color: ${accentColor}; margin-bottom: 1.2em; display: block; font-family: Cochin, Georgia, serif; font-weight: 700; }
         .prose .poem-stanza { font-family: Cochin, Georgia, serif; margin-bottom: 1.8em; display: block; white-space: pre-line; line-height: 1.75; color: #1a1a1a; font-size: 1.15rem; }
@@ -916,15 +933,15 @@ useEffect(() => {
         .back-to-top.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
         .cs-section { background: #0a0a0a; max-width: 680px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
         .cs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
-        .cs-title { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; letter-spacing: 0.02em; }
+        .cs-title { font-family: Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; letter-spacing: 0.02em; }
         .cs-count { font-size: 0.68rem; color: rgba(255,255,255,0.92); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
         .cs-compose { margin-bottom: 2rem; }
         .cs-compose-row { display: flex; gap: 12px; align-items: flex-start; }
         .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; overflow: hidden; text-decoration: none; }
         .cs-input-wrap { flex: 1; position: relative; }
-        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
+        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
         .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; border-radius: 10px; }
-        .cs-textarea::placeholder { color: #ffffff; font-style: italic; }
+        .cs-textarea::placeholder { color: #ffffff; font-style: italic; font-family: Georgia, serif; }
         .cs-textarea:focus { border-color: rgba(107,47,173,0.4); }
         .cs-kite-btn { position: absolute; bottom: 8px; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; opacity: 0.2; transition: opacity 0.2s; }
         .cs-kite-btn.active { opacity: 1; }
@@ -933,7 +950,7 @@ useEffect(() => {
         .cs-signin-prompt p { font-size: 0.82rem; color: rgba(255,255,255,0.95); margin-bottom: 0.75rem; font-family: 'Inter', sans-serif; }
         .cs-signin-btn { background: none; border: 1px solid rgba(107,47,173,0.4); border-radius: 8px; padding: 0.55rem 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9b6dff; cursor: pointer; font-family: 'Inter', sans-serif; }
         .cs-loading { font-size: 0.8rem; color: #ffffff; font-family: 'Inter', sans-serif; padding: 1rem 0; }
-        .cs-empty { font-size: 0.88rem; color: #ffffff; font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-style: italic; padding: 1rem 0; }
+        .cs-empty { font-size: 0.88rem; color: #ffffff; font-family: Georgia, serif; font-style: italic; padding: 1rem 0; }
         .cs-comments-list { display: flex; flex-direction: column; }
         .cs-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 0.25rem 0 1.75rem; }
         .cs-comment { display: flex; gap: 12px; margin-bottom: 0.25rem; }
@@ -943,9 +960,13 @@ useEffect(() => {
         .cs-name-link { text-decoration: none; transition: color 0.2s; }
         .cs-name-link:hover { color: #a78bfa; }
         .cs-time { font-size: 0.65rem; color: rgba(255,255,255,0.4); font-family: 'Inter', sans-serif; }
-        .cs-comment-text { font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; font-size: 1rem; color: #ffffff; line-height: 1.75; }
+        .cs-comment-text { font-family: Georgia, serif; font-size: 1rem; color: #ffffff; line-height: 1.75; }
         .cs-comment-text-sm { font-size: 0.92rem; }
         .cs-comment-footer { margin-top: 0.5rem; }
+        .cs-save-btn { background: #6b2fad; border: none; color: #f0ead8; font-family: Inter, sans-serif; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        .cs-save-btn:hover { background: #7c3aed; }
+        .cs-cancel-btn { background: transparent; border: 1px solid rgba(166,61,76,0.5); color: #a63d4c; font-family: Inter, sans-serif; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .cs-cancel-btn:hover { background: rgba(166,61,76,0.12); border-color: #a63d4c; }
         .cs-reply-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.4); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; }
         .cs-reply-btn:hover { color: #9b6dff; }
         .cs-reply-compose { margin-top: 0.75rem; }
@@ -961,7 +982,7 @@ useEffect(() => {
           .cs-section { padding: 2rem 1.2rem 5rem; }
         }
       .prose figure { margin: 2em 0; }
-.prose figure img { margin: 0; }`}</style>
+.prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
 
       <div className="reading-progress" style={{ width: `${scrollProgress}%` }} />
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
@@ -1034,7 +1055,9 @@ useEffect(() => {
           </main>
         </div>
         <ExerciseSection slug={slug} />
+        <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
         <div style={{ background: '#f0ead8', padding: '2rem 0 3rem' }}><div style={{ maxWidth: '680px', margin: '0 auto', padding: '0 2rem' }}><TipBox variant="story" /></div></div>
+        <StoryAuthorBio authorUid={story.authorUid} fallbackName={story.author} />
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
         {showAuthModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { stories as allStories } from '../lib/stories';
+import HeaderAdjuster from '../components/HeaderAdjuster';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -314,6 +315,7 @@ function notifLabel(type) {
     case 'reply': return ' replied to your comment';
     case 'follow': return ' started following you';
     case 'new_story': return ' published a new story';
+    case 'mention': return ' mentioned you in a comment';
     default: return ' interacted with you';
   }
 }
@@ -353,6 +355,8 @@ export default function ProfilePage() {
   const [editHeaderFile, setEditHeaderFile] = useState(null);
   const [editHeaderPreview, setEditHeaderPreview] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [showAdjuster, setShowAdjuster] = useState(false);
+  const [pendingHeaderFile, setPendingHeaderFile] = useState(null);
   const [saveError, setSaveError] = useState('');
   const [libNotifs, setLibNotifs] = useState([]);
   const [showLibNotifs, setShowLibNotifs] = useState(false);
@@ -434,8 +438,23 @@ export default function ProfilePage() {
         setAuthUser(u);
         const db = await getDB();
         const { ref, onValue, get } = await import('firebase/database');
-        unsubDB.push(onValue(ref(db, `users/${u.uid}`), snap => {
-          if (snap.exists()) { const d = snap.val(); setProfileData(d); setReadCount(d.readCount || 0); setReadStorySlugs(d.readStories ? Object.keys(d.readStories) : []); }
+        unsubDB.push(onValue(ref(db, `users/${u.uid}`), async snap => {
+          if (snap.exists()) {
+            const d = snap.val();
+            setProfileData(d);
+            setReadCount(d.readCount || 0);
+            setReadStorySlugs(d.readStories ? Object.keys(d.readStories) : []);
+            // Self-heal: ensure usernames index has an entry for this user
+            if (d.username) {
+              try {
+                const { set } = await import('firebase/database');
+                const idxSnap = await get(ref(db, `usernames/${d.username}`));
+                if (!idxSnap.exists() || idxSnap.val() !== u.uid) {
+                  await set(ref(db, `usernames/${d.username}`), u.uid);
+                }
+              } catch (e) {}
+            }
+          }
           setLoading(false);
         }));
         unsubDB.push(onValue(ref(db, `followers/${u.uid}`), snap => { const uids = snap.exists() ? Object.keys(snap.val()) : []; setFollowerCount(uids.length); setFollowerUids(uids); }));
@@ -595,11 +614,6 @@ export default function ProfilePage() {
 
         .pf-account-row { display: flex; align-items: center; justify-content: space-between; padding: 0.88rem 1.1rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 0.38rem; }
         .pf-account-label { font-size: 0.78rem; color: rgba(255,255,255,0.3); font-family: Inter, sans-serif; }
-        .pf-account-action { font-size: 0.57rem; color: #9b6dff; letter-spacing: 0.1em; text-transform: uppercase; font-family: Inter, sans-serif; cursor: pointer; background: none; border: none; transition: color 0.2s; }
-        .pf-account-action:hover { color: #c4b5fd; }
-        .pf-pw-msg { font-size: 0.66rem; color: #86efac; font-family: Inter, sans-serif; margin-top: 0.38rem; }
-        .pf-signout { width: 100%; margin-top: 0.82rem; background: none; border: 1px solid rgba(220,38,38,0.1); border-radius: 10px; padding: 0.82rem; font-size: 0.57rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(248,113,113,0.26); cursor: pointer; font-family: Inter, sans-serif; transition: color 0.2s, border-color 0.2s; }
-        .pf-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.3); }
 
         .lib-notif-panel { position: fixed; top: 0; right: 0; width: min(400px,100vw); height: 100vh; background: #0c0c0c; border-left: 1px solid rgba(255,255,255,0.07); z-index: 2000; display: flex; flex-direction: column; }
         .lib-notif-item { padding: 0.95rem 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; gap: 10px; align-items: flex-start; text-decoration: none; transition: background 0.15s; }
@@ -642,7 +656,7 @@ export default function ProfilePage() {
 
       {/* Hidden inputs */}
       <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files[0]; if (!f) return; setEditAvatarFile(f); setEditAvatarPreview(URL.createObjectURL(f)); if (!showEdit) openEdit(); }} />
-      <input ref={headerInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files[0]; if (!f) return; setEditHeaderFile(f); setEditHeaderPreview(URL.createObjectURL(f)); if (!showEdit) openEdit(); }} />
+      <input ref={headerInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files[0]; if (!f) return; setPendingHeaderFile(f); setShowAdjuster(true); if (!showEdit) openEdit(); e.target.value = ''; }} />
 
       {/* Nav */}
       <nav className="pf-nav">
@@ -789,23 +803,20 @@ export default function ProfilePage() {
               <div>
                 <div style={{ fontSize: '0.51rem', color: 'rgba(155,109,255,0.48)', letterSpacing: '0.2em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginBottom: '0.28rem' }}>The Story Island</div>
                 <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '1.48rem', color: '#f5f0e8', lineHeight: 1.1 }}>Your Rewards</div>
-                <div style={{ fontSize: '0.63rem', color: 'rgba(232,224,212,0.26)', fontFamily: 'Inter, sans-serif', marginTop: '0.16rem' }}>Read · Comment · Earn · Cash out</div>
+                <div style={{ fontSize: '0.63rem', color: 'rgba(232,224,212,0.26)', fontFamily: 'Inter, sans-serif', marginTop: '0.16rem' }}>Read · Comment · Quiz · Earn</div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                 <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '2.5rem', color: '#9b6dff', lineHeight: 1 }}>{points}</div>
-                <div style={{ fontSize: '0.49rem', color: 'rgba(155,109,255,0.36)', letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginTop: 2 }}>Points</div>
-                {walletBalance > 0 && <div style={{ fontSize: '0.63rem', color: 'rgba(29,158,117,0.6)', fontFamily: 'Inter, sans-serif', marginTop: '0.16rem' }}>{formatPence(walletBalance)} in wallet</div>}
+                <div style={{ fontSize: '0.49rem', color: 'rgba(155,109,255,0.36)', letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginTop: 2 }}>Scribbles</div>
                 <div style={{ fontSize: '0.92rem', color: 'rgba(167,139,250,0.26)', marginTop: '0.42rem' }}>→</div>
               </div>
             </div>
           </a>
         </div>
+
         <div className="pf-section">
           <div className="pf-section-header"><div className="pf-section-title">Account</div></div>
-          <a href="/settings" className="pf-account-row" style={{ textDecoration: 'none', cursor: 'pointer', transition: 'background 0.2s, border-color 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(107,47,173,0.06)'; e.currentTarget.style.borderColor = 'rgba(107,47,173,0.2)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; }}
-          >
+          <a href="/settings" className="pf-account-row" style={{ textDecoration: 'none', cursor: 'pointer', transition: 'background 0.2s, border-color 0.2s' }}>
             <span className="pf-account-label">Account settings</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.57rem', color: '#9b6dff', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
               Manage
@@ -836,8 +847,6 @@ export default function ProfilePage() {
               <div
                 onClick={() => headerInputRef.current?.click()}
                 style={{ position: 'relative', width: '100%', height: 88, borderRadius: 10, overflow: 'hidden', cursor: 'pointer', background: editHeaderPreview ? 'transparent' : 'rgba(255,255,255,0.025)', border: '1px dashed rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(167,139,250,0.28)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
               >
                 {editHeaderPreview
                   ? <img src={editHeaderPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -929,7 +938,7 @@ export default function ProfilePage() {
                         )}
                         <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.48)', fontFamily: 'Inter, sans-serif', lineHeight: 1.4, marginBottom: '0.18rem' }}>
                           {isReward
-                            ? <span>{n.message || 'You earned points!'}</span>
+                            ? <span>{n.message || 'You earned Scribbles!'}</span>
                             : <span>{notifLabel(n.type)}</span>}
                         </div>
                         {n.commentText && (
@@ -954,6 +963,19 @@ export default function ProfilePage() {
             </div>
           </div>
         </>
+      )}
+    {showAdjuster && pendingHeaderFile && (
+        <HeaderAdjuster
+          file={pendingHeaderFile}
+          onCancel={() => { setShowAdjuster(false); setPendingHeaderFile(null); }}
+          onDone={(blob, dataUrl) => {
+            const croppedFile = new File([blob], 'header.jpg', { type: 'image/jpeg' });
+            setEditHeaderFile(croppedFile);
+            setEditHeaderPreview(dataUrl);
+            setShowAdjuster(false);
+            setPendingHeaderFile(null);
+          }}
+        />
       )}
     </>
   );
