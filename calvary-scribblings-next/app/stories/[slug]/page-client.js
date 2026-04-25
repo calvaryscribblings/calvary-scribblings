@@ -10,6 +10,7 @@ import TipBox from '../../components/TipBox';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
 import StoryAuthorBio from '../../components/StoryAuthorBio';
+import QuizCard from '../../components/QuizCard';
 
 
 const FB = {
@@ -287,11 +288,11 @@ function ExerciseSection({ slug }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <div>
             <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>Story Exercise</div>
-            <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif' }}>{exercise.length} question{exercise.length !== 1 ? 's' : ''} · Up to {exercise.reduce((s, q) => s + q.points, 0)} pts</div>
+            <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif' }}>{exercise.length} question{exercise.length !== 1 ? 's' : ''} · Up to {exercise.reduce((s, q) => s + q.points, 0)} Scribbles</div>
           </div>
           {submitted && (
             <div style={{ background: 'rgba(107,47,173,0.1)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 8, padding: '0.4rem 0.9rem', fontSize: '0.72rem', color: '#6b2fad', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-              {submission.status === 'pending_review' ? '⏳ Essay pending review' : `✓ ${submission.totalScore} pts earned`}
+              {submission.status === 'pending_review' ? '⏳ Essay pending review' : `✓ ${submission.totalScore} Scribbles earned`}
             </div>
           )}
         </div>
@@ -304,11 +305,11 @@ function ExerciseSection({ slug }) {
                 <div style={{ fontSize: '0.92rem', color: '#1a1a1a', fontFamily: 'Cochin, Georgia, serif', marginBottom: '0.5rem' }}>{a.question}</div>
                 {a.type === 'mcq' ? (
                   <div style={{ fontSize: '0.82rem', fontFamily: 'Inter, sans-serif', color: a.correct ? '#1d9e75' : '#dc2626', fontWeight: 600 }}>
-                    {a.correct ? `✓ Correct — +${a.awardedPoints} pts` : '✗ Incorrect — 0 pts'}
+                    {a.correct ? `✓ Correct — +${a.awardedPoints} Scribbles` : '✗ Incorrect — 0 Scribbles'}
                   </div>
                 ) : (
                   <div style={{ fontSize: '0.82rem', fontFamily: 'Inter, sans-serif', color: a.marked ? '#1d9e75' : '#d97706' }}>
-                    {a.marked ? `✓ Marked — ${a.awardedPoints} pts` : '⏳ Awaiting review'}
+                    {a.marked ? `✓ Marked — ${a.awardedPoints} Scribbles` : '⏳ Awaiting review'}
                   </div>
                 )}
               </div>
@@ -318,7 +319,7 @@ function ExerciseSection({ slug }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {exercise.map((q, i) => (
               <div key={i} style={{ background: '#fff', border: '1px solid #e0dbd2', borderRadius: 10, padding: '1.25rem' }}>
-                <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif', marginBottom: '0.4rem' }}>Q{i + 1} · {q.type === 'mcq' ? 'Multiple Choice' : 'Essay'} · {q.points} pts</div>
+                <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif', marginBottom: '0.4rem' }}>Q{i + 1} · {q.type === 'mcq' ? 'Multiple Choice' : 'Essay'} · {q.points} Scribbles</div>
                 <div style={{ fontSize: '1rem', color: '#1a1a1a', fontFamily: 'Cochin, Georgia, serif', marginBottom: '1rem', lineHeight: 1.6 }}>{q.question}</div>
                 {q.type === 'mcq' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -348,7 +349,7 @@ function ExerciseSection({ slug }) {
           </div>
         ) : (
           <div style={{ background: 'rgba(107,47,173,0.06)', border: '1px solid rgba(107,47,173,0.15)', borderRadius: 10, padding: '1.5rem', textAlign: 'center' }}>
-            <div style={{ fontFamily: 'Cochin, Georgia, serif', color: '#555', marginBottom: '0.5rem' }}>Sign in to attempt this exercise and earn points.</div>
+            <div style={{ fontFamily: 'Cochin, Georgia, serif', color: '#555', marginBottom: '0.5rem' }}>Sign in to attempt this exercise and earn Scribbles.</div>
           </div>
         )}
       </div>
@@ -625,7 +626,7 @@ function CommentsSection({ slug, onSignIn }) {
           });
           await push(ref(db, `library_notifications/${user.uid}`), {
             type: 'reward', fromName: 'Calvary Scribblings',
-            message: `You earned 10 points — ${userCommentCount} comments milestone!`,
+            message: `You earned 10 Scribbles — ${userCommentCount} comments milestone!`,
             read: false, createdAt: Date.now(),
           });
         }
@@ -744,7 +745,18 @@ export default function StoryPageClient({ params }) {
   const [hitCount, setHitCount] = useState(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [storyUser, setStoryUser] = useState(null);
   const articleRef = useRef(null);
+
+  useEffect(() => {
+    let unsub;
+    (async () => {
+      const auth = await getFirebaseAuth();
+      const { onAuthStateChanged } = await import('firebase/auth');
+      unsub = onAuthStateChanged(auth, u => setStoryUser(u));
+    })();
+    return () => { if (unsub) unsub(); };
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -806,7 +818,7 @@ export default function StoryPageClient({ params }) {
                   });
                   await push(ref(db, `library_notifications/${user.uid}`), {
                     type: 'reward', fromName: 'Calvary Scribblings',
-                    message: `You earned 5 points — ${newCount} stories read milestone!`,
+                    message: `You earned 5 Scribbles — ${newCount} stories read milestone!`,
                     read: false, createdAt: Date.now(),
                   });
                 }
@@ -1043,6 +1055,7 @@ useEffect(() => {
           </main>
         </div>
         <ExerciseSection slug={slug} />
+        <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
         <div style={{ background: '#f0ead8', padding: '2rem 0 3rem' }}><div style={{ maxWidth: '680px', margin: '0 auto', padding: '0 2rem' }}><TipBox variant="story" /></div></div>
         <StoryAuthorBio authorUid={story.authorUid} fallbackName={story.author} />
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />

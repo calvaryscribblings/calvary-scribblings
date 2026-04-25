@@ -803,12 +803,11 @@ export default function ProfilePage() {
               <div>
                 <div style={{ fontSize: '0.51rem', color: 'rgba(155,109,255,0.48)', letterSpacing: '0.2em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginBottom: '0.28rem' }}>The Story Island</div>
                 <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '1.48rem', color: '#f5f0e8', lineHeight: 1.1 }}>Your Rewards</div>
-                <div style={{ fontSize: '0.63rem', color: 'rgba(232,224,212,0.26)', fontFamily: 'Inter, sans-serif', marginTop: '0.16rem' }}>Read · Comment · Earn · Cash out</div>
+                <div style={{ fontSize: '0.63rem', color: 'rgba(232,224,212,0.26)', fontFamily: 'Inter, sans-serif', marginTop: '0.16rem' }}>Read · Comment · Quiz · Earn</div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                 <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '2.5rem', color: '#9b6dff', lineHeight: 1 }}>{points}</div>
-                <div style={{ fontSize: '0.49rem', color: 'rgba(155,109,255,0.36)', letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginTop: 2 }}>Points</div>
-                {walletBalance > 0 && <div style={{ fontSize: '0.63rem', color: 'rgba(29,158,117,0.6)', fontFamily: 'Inter, sans-serif', marginTop: '0.16rem' }}>{formatPence(walletBalance)} in wallet</div>}
+                <div style={{ fontSize: '0.49rem', color: 'rgba(155,109,255,0.36)', letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginTop: 2 }}>Scribbles</div>
                 <div style={{ fontSize: '0.92rem', color: 'rgba(167,139,250,0.26)', marginTop: '0.42rem' }}>→</div>
               </div>
             </div>
@@ -939,7 +938,7 @@ export default function ProfilePage() {
                         )}
                         <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.48)', fontFamily: 'Inter, sans-serif', lineHeight: 1.4, marginBottom: '0.18rem' }}>
                           {isReward
-                            ? <span>{n.message || 'You earned points!'}</span>
+                            ? <span>{n.message || 'You earned Scribbles!'}</span>
                             : <span>{notifLabel(n.type)}</span>}
                         </div>
                         {n.commentText && (

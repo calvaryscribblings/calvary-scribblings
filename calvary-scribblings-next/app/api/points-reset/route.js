@@ -26,8 +26,8 @@ export async function POST(request) {
         type: 'reset',
         amount: newTotal - total,
         description: total >= CARRYOVER_THRESHOLD
-          ? `Monthly reset — ${total} pts carried over (above 800 threshold)`
-          : `Monthly reset — ${total} pts expired (below 800 threshold)`,
+          ? `Monthly reset — ${total} Scribbles carried over`
+          : `Monthly reset — ${total} Scribbles expired`,
         createdAt: now,
       };
       updates[`/points/${uid}/total`] = newTotal;
