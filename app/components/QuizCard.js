@@ -386,42 +386,72 @@ export default function QuizCard({ slug, user, onSignIn }) {
   // Firebase writes
   async function writeHardballFail() {
     const db = await getDB();
-    const { ref, set } = await import('firebase/database');
-    await set(ref(db, `quiz_submissions/${user.uid}/${slug}`), {
-      hardballPassed: false,
-      tier: null,
-      pointsAwarded: 0,
-      submittedAt: Date.now(),
-    });
+    const { ref, get, update, increment } = await import('firebase/database');
+    const now = Date.now();
+
+    const subSnap = await get(ref(db, `quiz_submissions/${user.uid}/${slug}`));
+    const isFirstAttempt = !subSnap.exists();
+
+    const updates = {
+      [`quiz_submissions/${user.uid}/${slug}`]: {
+        hardballPassed: false,
+        tier: null,
+        pointsAwarded: 0,
+        submittedAt: now,
+      },
+    };
+
+    if (isFirstAttempt) {
+      updates[`cms_stories/${slug}/quizMeta/attemptCount`] = increment(1);
+    }
+
+    await update(ref(db, '/'), updates);
   }
 
   async function writeQuizResult(result) {
     const db = await getDB();
-    const { ref, set, push, runTransaction } = await import('firebase/database');
+    const { ref, get, update, push, increment } = await import('firebase/database');
     const now = Date.now();
 
-    await set(ref(db, `quiz_submissions/${user.uid}/${slug}`), {
-      hardballPassed: true,
-      mcqAnswers: result.mcqAnswers,
-      essayAnswers: result.essayAnswers,
-      mcqScore: result.mcqScore,
-      essayScore: result.essayScore,
-      totalPercent: result.totalPercent,
-      tier: result.tier,
-      pointsAwarded: result.pointsAwarded,
-      submittedAt: now,
-    });
+    const subSnap = await get(ref(db, `quiz_submissions/${user.uid}/${slug}`));
+    const isFirstAttempt = !subSnap.exists();
+
+    const updates = {
+      [`quiz_submissions/${user.uid}/${slug}`]: {
+        hardballPassed: true,
+        mcqAnswers: result.mcqAnswers,
+        essayAnswers: result.essayAnswers,
+        mcqScore: result.mcqScore,
+        essayScore: result.essayScore,
+        totalPercent: result.totalPercent,
+        tier: result.tier,
+        pointsAwarded: result.pointsAwarded,
+        submittedAt: now,
+      },
+      [`userStoryTiers/${user.uid}/${slug}`]: {
+        tier: result.tier,
+        scorePct: result.totalPercent,
+        completedAt: now,
+      },
+    };
 
     if (result.pointsAwarded > 0) {
-      await runTransaction(ref(db, `points/${user.uid}/total`), c => (c || 0) + result.pointsAwarded);
-      await push(ref(db, `points/${user.uid}/history`), {
+      updates[`points/${user.uid}/total`] = increment(result.pointsAwarded);
+      const historyKey = push(ref(db, `points/${user.uid}/history`)).key;
+      updates[`points/${user.uid}/history/${historyKey}`] = {
         type: 'quiz',
         amount: result.pointsAwarded,
         description: `${slugToTitle(slug)} — ${result.label}`,
         slug,
         createdAt: now,
-      });
+      };
     }
+
+    if (isFirstAttempt) {
+      updates[`cms_stories/${slug}/quizMeta/attemptCount`] = increment(1);
+    }
+
+    await update(ref(db, '/'), updates);
   }
 
   // Flow handlers
