@@ -44,7 +44,7 @@ export default function QuizGuidelinesModal({ onBegin, onCancel }) {
           flexDirection: 'column',
           gap: '1.25rem',
         }}>
-          <p style={{ margin: 0 }}>One attempt. There are no retries.</p>
+          <p style={{ margin: 0 }}>One attempt. The comprehension check alone allows two.</p>
 
           <p style={{ margin: 0 }}>
             Your answers are scored:<br />
@@ -63,8 +63,11 @@ export default function QuizGuidelinesModal({ onBegin, onCancel }) {
           <p style={{ margin: 0 }}>The Scribbles catalogue — what you can spend them on — opens September 2026.</p>
 
           <p style={{ margin: 0 }}>
-            The first question is a comprehension check. If your answer doesn't show close
-            reading, the quiz locks. You can still join the Discussion.
+            The first question is a close-reading comprehension check — and it is strict.
+            Your answer must use specific words from the story. Don't paraphrase: name the
+            thing the way the writer named it. One small word out of place can mark you wrong.
+            You have two attempts. Fail both and the quiz locks — though the Discussion
+            remains open.
           </p>
 
           <p style={{ margin: 0, fontStyle: 'italic', color: 'rgba(240,234,216,0.6)' }}>

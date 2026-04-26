@@ -50,6 +50,145 @@ const TIER_CONFIG = {
   bronze:   { label: 'Bronze',   color: '#c97c2f', bg: 'rgba(201,124,47,0.1)',  border: 'rgba(201,124,47,0.3)' },
 };
 
+// ── Post-submission review ────────────────────────────────────────────────────
+
+function QuizReview({ submission, quizData }) {
+  if (!submission || !quizData) return null;
+
+  if (submission.hardballPassed === false) {
+    const { hardball } = quizData;
+    if (!hardball) return null;
+    return (
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 2rem 3rem' }}>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '2rem' }}>
+          <div style={{
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: '1.05rem',
+            color: 'rgba(240,234,216,0.35)',
+            marginBottom: '1.25rem',
+            letterSpacing: '0.01em',
+          }}>
+            What the story was looking for
+          </div>
+          <p style={{
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: '0.95rem',
+            fontStyle: 'italic',
+            color: 'rgba(240,234,216,0.5)',
+            lineHeight: 1.7,
+            margin: '0 0 1rem',
+          }}>
+            {hardball.question}
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+            {(hardball.keywords || []).map((kw, i) => (
+              <span key={i} style={{
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '0.7rem',
+                color: '#9b6dff',
+                border: '1px solid rgba(107,47,173,0.3)',
+                borderRadius: 20,
+                padding: '0.2em 0.75em',
+              }}>
+                {kw}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (submission.hardballPassed !== true || !submission.mcqAnswers) return null;
+
+  const { mcqs = [], essays = [] } = quizData;
+  const rawAnswers = submission.mcqAnswers;
+  const wrongMCQs = mcqs.reduce((acc, q, i) => {
+    const chosen = Array.isArray(rawAnswers) ? rawAnswers[i] : rawAnswers[String(i)];
+    if (chosen !== q.correctAnswer) {
+      acc.push({
+        question: q.question,
+        userAnswer: (q.options || [])[chosen] ?? '—',
+        correctAnswer: (q.options || [])[q.correctAnswer] ?? '—',
+      });
+    }
+    return acc;
+  }, []);
+
+  if (wrongMCQs.length === 0 && essays.length === 0) return null;
+
+  return (
+    <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 2rem 3rem' }}>
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '2rem' }}>
+        {wrongMCQs.length > 0 && (
+          <>
+            <div style={{
+              fontFamily: 'Cormorant Garamond, Georgia, serif',
+              fontSize: '1.05rem',
+              color: 'rgba(240,234,216,0.35)',
+              marginBottom: '1.5rem',
+              letterSpacing: '0.01em',
+            }}>
+              Where you slipped
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: essays.length > 0 ? '1.75rem' : 0 }}>
+              {wrongMCQs.map((item, i) => (
+                <div key={i}>
+                  <p style={{
+                    fontFamily: 'Cormorant Garamond, Georgia, serif',
+                    fontSize: '0.95rem',
+                    fontStyle: 'italic',
+                    color: 'rgba(240,234,216,0.55)',
+                    lineHeight: 1.65,
+                    margin: '0 0 0.5rem',
+                  }}>
+                    {item.question}
+                  </p>
+                  <div style={{
+                    fontFamily: 'Inter, sans-serif',
+                    fontSize: '0.68rem',
+                    color: 'rgba(240,234,216,0.28)',
+                    lineHeight: 1.6,
+                  }}>
+                    You answered:{' '}
+                    <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem' }}>
+                      {item.userAnswer}
+                    </span>
+                  </div>
+                  <div style={{
+                    fontFamily: 'Inter, sans-serif',
+                    fontSize: '0.68rem',
+                    color: 'rgba(155,109,255,0.65)',
+                    lineHeight: 1.6,
+                    marginTop: '0.2rem',
+                  }}>
+                    The story said:{' '}
+                    <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem', color: '#9b6dff' }}>
+                      {item.correctAnswer}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        {essays.length > 0 && (
+          <p style={{
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: '0.88rem',
+            fontStyle: 'italic',
+            color: 'rgba(240,234,216,0.28)',
+            margin: 0,
+            lineHeight: 1.6,
+          }}>
+            Your essays will be reviewed by the editors.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Card surface for each quiz state ─────────────────────────────────────────
 
 function CardSurface({ quizState, submission, onSignIn, onBeginQuiz }) {
@@ -498,6 +637,11 @@ export default function QuizCard({ slug, user, onSignIn }) {
             />
           )}
         </div>
+
+        {/* Failed-question review (state D only) */}
+        {quizState === 'D' && !inProgress && (
+          <QuizReview submission={submission} quizData={quizData} />
+        )}
 
         {/* Guidelines modal (fixed overlay) */}
         {view === 'guidelines' && (

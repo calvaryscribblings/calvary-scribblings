@@ -6,6 +6,7 @@ import { scoreHardball } from '../lib/quizScoring';
 export default function QuizHardball({ hardball, onPass, onFail, passed }) {
   const [answer, setAnswer] = useState('');
   const [status, setStatus] = useState('idle'); // 'idle' | 'checking' | 'failed'
+  const [attempts, setAttempts] = useState(0);
 
   if (passed) {
     return (
@@ -47,8 +48,14 @@ export default function QuizHardball({ hardball, onPass, onFail, passed }) {
     if (passed) {
       onPass();
     } else {
-      setStatus('failed');
-      setTimeout(() => onFail(), 3000);
+      const next = attempts + 1;
+      setAttempts(next);
+      if (next >= 2) {
+        setStatus('failed');
+        setTimeout(() => onFail(), 3000);
+      } else {
+        setStatus('idle');
+      }
     }
   }
 
@@ -155,6 +162,23 @@ export default function QuizHardball({ hardball, onPass, onFail, passed }) {
           onFocus={e => e.currentTarget.style.borderColor = 'rgba(107,47,173,0.5)'}
           onBlur={e => e.currentTarget.style.borderColor = 'rgba(107,47,173,0.25)'}
         />
+
+        {attempts === 1 && (
+          <div style={{
+            marginTop: '0.75rem',
+            padding: '0.7rem 1rem',
+            background: 'rgba(201,164,76,0.05)',
+            border: '1px solid rgba(201,164,76,0.2)',
+            borderRadius: 8,
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: '0.98rem',
+            fontStyle: 'italic',
+            color: 'rgba(201,164,76,0.8)',
+            lineHeight: 1.6,
+          }}>
+            That's not quite the word the story uses. One more try.
+          </div>
+        )}
 
         <button
           onClick={handleSubmit}
