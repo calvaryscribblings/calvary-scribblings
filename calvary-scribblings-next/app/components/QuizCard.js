@@ -422,24 +422,41 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
           <>
             <div style={{ marginBottom: '0.6rem' }}>
               <span style={{
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '0.68rem',
-                fontWeight: 600,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.3)',
+                fontFamily: 'Cinzel, Georgia, serif',
+                fontSize: '1rem',
+                fontWeight: 400,
+                letterSpacing: '0.06em',
+                color: 'rgba(240,234,216,0.55)',
               }}>
-                Quiz locked
+                Quiz Closed
               </span>
             </div>
             <p style={{
               fontFamily: 'Cormorant Garamond, Georgia, serif',
               fontSize: '1rem',
               color: 'rgba(240,234,216,0.55)',
-              margin: '0 0 0.4rem',
+              margin: '0 0 0.85rem',
               lineHeight: 1.65,
             }}>
-              Quizzes have a single attempt. Your reading still earns you the comments below.
+              The close-reading gate at the start of this quiz wasn't quite right — twice. The quiz closes after that, by design.
+            </p>
+            <p style={{
+              fontFamily: 'Cormorant Garamond, Georgia, serif',
+              fontSize: '1rem',
+              color: 'rgba(240,234,216,0.55)',
+              margin: '0 0 0.85rem',
+              lineHeight: 1.65,
+            }}>
+              No Scribbles awarded this round, but your read still counts. The Discussion below is open.
+            </p>
+            <p style={{
+              fontFamily: 'Cormorant Garamond, Georgia, serif',
+              fontSize: '1rem',
+              color: 'rgba(240,234,216,0.4)',
+              margin: 0,
+              lineHeight: 1.65,
+            }}>
+              Want another shot? Re-read carefully. If you spot something that should have been accepted, message the editors and they can reset it.
             </p>
           </>
         ) : (
