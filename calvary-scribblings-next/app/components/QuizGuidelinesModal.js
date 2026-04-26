@@ -1,6 +1,13 @@
 'use client';
 
+import { useEffect } from 'react';
+
 export default function QuizGuidelinesModal({ onBegin, onCancel }) {
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9000,
@@ -20,22 +27,29 @@ export default function QuizGuidelinesModal({ onBegin, onCancel }) {
         borderRadius: 16,
         maxWidth: 540,
         width: '100%',
-        padding: 'clamp(2rem, 5vw, 3rem)',
+        maxHeight: 'min(90vh, 720px)',
+        display: 'flex',
+        flexDirection: 'column',
         animation: 'qg-rise 0.35s ease-out',
         boxShadow: '0 24px 80px rgba(107,47,173,0.3)',
       }}>
         <div style={{
+          flexShrink: 0,
+          padding: 'clamp(1.5rem, 4vw, 2.5rem) clamp(1.5rem, 5vw, 3rem) 0',
           fontFamily: 'Cinzel, Georgia, serif',
           fontSize: 'clamp(1.1rem, 3vw, 1.4rem)',
           color: '#f5f0e8',
           textAlign: 'center',
           letterSpacing: '0.06em',
-          marginBottom: '2rem',
+          marginBottom: '1.5rem',
         }}>
           ✦ Before you begin ✦
         </div>
 
         <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '0 clamp(1.5rem, 5vw, 3rem) 1.5rem',
           fontFamily: 'Cormorant Garamond, Georgia, serif',
           fontSize: 'clamp(1rem, 2.5vw, 1.15rem)',
           color: 'rgba(240,234,216,0.9)',
@@ -76,9 +90,11 @@ export default function QuizGuidelinesModal({ onBegin, onCancel }) {
         </div>
 
         <div style={{
+          flexShrink: 0,
           display: 'flex',
           gap: '0.75rem',
-          marginTop: '2.5rem',
+          padding: 'clamp(1rem, 3vw, 1.5rem) clamp(1.5rem, 5vw, 3rem)',
+          borderTop: '1px solid rgba(107,47,173,0.2)',
           flexWrap: 'wrap',
         }}>
           <button
