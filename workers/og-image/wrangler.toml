@@ -1,0 +1,10 @@
+name = "calvary-og-image"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+FIREBASE_DB = "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app"
+
+[[routes]]
+pattern = "calvaryscribblings.co.uk/api/og-image"
+zone_name = "calvaryscribblings.co.uk"
