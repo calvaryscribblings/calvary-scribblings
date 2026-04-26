@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './lib/AuthContext';
 import AuthModal from './components/AuthModal';
 import Navbar from './components/Navbar';
+import QuizPill from './components/QuizPill';
+import { useUserStoryTiers } from './lib/useUserStoryTiers';
 
 const stories = [
   { id: 'my-dream-man', title: 'My Dream Man', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/my-dream-man', cover: '/my-dream-man-cover.jpeg', author: 'Tricia Ajax', date: 'Mar 27, 2026' },
@@ -76,7 +78,7 @@ function getHourlyCarousel() {
   return [..._sorted].sort((a, b) => ((a.id.charCodeAt(0) * h) % 13) - ((b.id.charCodeAt(0) * h) % 13)).slice(0, 5);
 }
 
-function StoryCard({ story, width = 160, height = 240 }) {
+function StoryCard({ story, width = 160, height = 240, userTier = null, scorePct }) {
   const [hovered, setHovered] = useState(false);
   const badge = badgeStyle[story.category] || badgeStyle.news;
   return (
@@ -105,6 +107,7 @@ function StoryCard({ story, width = 160, height = 240 }) {
           boxShadow: '0 2px 8px rgba(124,58,237,0.6)',
         }}>New</span>
       )}
+      <QuizPill hasQuiz={story.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={story.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
         background: 'linear-gradient(to top, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.6) 55%, transparent 100%)',
@@ -120,7 +123,7 @@ function StoryCard({ story, width = 160, height = 240 }) {
   );
 }
 
-function JustAddedCard({ story }) {
+function JustAddedCard({ story, userTier = null, scorePct }) {
   const [hovered, setHovered] = useState(false);
   return (
     <a href={story.url}
@@ -133,8 +136,11 @@ function JustAddedCard({ story }) {
         border: hovered ? '1px solid rgba(139,92,246,0.25)' : '1px solid rgba(255,255,255,0.06)',
         transition: 'all 0.25s ease', width: 260, minWidth: 260,
       }}>
-      <img src={story.cover} alt={story.title}
-        style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <img src={story.cover} alt={story.title}
+          style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 4, display: 'block' }} />
+        <QuizPill hasQuiz={story.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={story.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff',
@@ -157,7 +163,7 @@ function JustAddedCard({ story }) {
   );
 }
 
-function Row({ title, stories, seeAll }) {
+function Row({ title, stories, seeAll, userTiersMap = {} }) {
   return (
     <section style={{ padding: '2rem 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 4%' }}>
@@ -170,13 +176,13 @@ function Row({ title, stories, seeAll }) {
         </a>
       </div>
       <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
-        {stories.map(s => <StoryCard key={s.id} story={s} />)}
+        {stories.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
       </div>
     </section>
   );
 }
 
-function Top10Card({ s, i }) {
+function Top10Card({ s, i, userTier = null, scorePct }) {
   const [active, setActive] = useState(false);
   const CARD_WIDTH = 120;
   const CARD_HEIGHT = 180;
@@ -217,6 +223,7 @@ function Top10Card({ s, i }) {
           transition: 'filter 0.3s',
         }} />
       </div>
+      <QuizPill hasQuiz={s.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={s.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
     </a>
   );
 }
@@ -339,6 +346,7 @@ function SquareFAB({ squareOpen, countdown }) {
 
 export default function Home() {
   const { user, logout } = useAuth();
+  const userTiersMap = useUserStoryTiers();
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroTransition, setHeroTransition] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
@@ -609,7 +617,7 @@ export default function Home() {
           Just Added
         </h3>
         <div className="just-added-scroll" style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
-          {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map(s => <JustAddedCard key={s.id} story={s} />)}
+          {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map(s => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
 
@@ -620,15 +628,15 @@ export default function Home() {
           <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.3rem', letterSpacing: '0.05em' }}>Ranked by reads</p>
         </div>
         <div className="top10-scroll" style={{ display: 'flex', gap: '0', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem' }}>
-          {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} />)}
+          {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
 
-      <Row title="⚡ Flash Fiction" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" />
-      <Row title="📖 Short Stories" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" />
-      <Row title="🖊️ Poetry" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
-      <Row title="🗞️ News & Updates" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" />
-      <Row title="✨ Inspiring Stories" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
+      <Row title="⚡ Flash Fiction" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" userTiersMap={userTiersMap} />
+      <Row title="📖 Short Stories" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" userTiersMap={userTiersMap} />
+      <Row title="🖊️ Poetry" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" userTiersMap={userTiersMap} />
+      <Row title="🗞️ News & Updates" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" userTiersMap={userTiersMap} />
+      <Row title="✨ Inspiring Stories" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" userTiersMap={userTiersMap} />
 
       {/* Subscribe */}
       <section id="subscribe" style={{

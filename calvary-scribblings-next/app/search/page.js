@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { stories } from '../lib/stories';
 import Navbar from '../components/Navbar';
+import QuizPill from '../components/QuizPill';
+import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -18,6 +20,7 @@ async function getApp() {
   const { initializeApp, getApps } = await import('firebase/app');
   return getApps().length ? getApps()[0] : initializeApp(FB);
 }
+// TODO: migrate to imported db
 async function getDB() { const { getDatabase } = await import('firebase/database'); return getDatabase(await getApp()); }
 
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
@@ -62,6 +65,7 @@ function getBadgeClass(cat) {
 }
 
 export default function SearchPage() {
+  const userTiersMap = useUserStoryTiers();
   const [query, setQuery] = useState('');
   const [storyResults, setStoryResults] = useState([]);
   const [userResults, setUserResults] = useState([]);
@@ -156,7 +160,7 @@ export default function SearchPage() {
         .result-card { display: flex; gap: 1.25rem; align-items: center; padding: 1.25rem 1rem; border-bottom: 1px solid #ede9f7; text-decoration: none; transition: background 0.15s; border-radius: 8px; margin: 0 -1rem; animation: fadeSlideIn 0.2s ease both; }
         .result-card:hover { background: #f3f0ff; }
         .result-card:hover .result-title { color: #6b46c1; }
-        .result-thumb-wrap { width: 80px; min-width: 80px; height: 60px; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+        .result-thumb-wrap { width: 80px; min-width: 80px; height: 60px; border-radius: 6px; overflow: hidden; flex-shrink: 0; position: relative; }
         .result-thumb { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; transition: transform 0.3s ease; }
         .result-card:hover .result-thumb { transform: scale(1.05); }
         .result-body { flex: 1; min-width: 0; }
@@ -278,6 +282,7 @@ export default function SearchPage() {
                     <a key={s.id} href={'/stories/' + s.id} className="result-card" style={{ animationDelay: (i * 0.02) + 's' }}>
                       <div className="result-thumb-wrap">
                         <img src={s.cover} alt={s.title} className="result-thumb" />
+                        <QuizPill hasQuiz={s.quizMeta?.hasQuiz || false} userTier={userTiersMap[s.id]?.tier ?? null} scribblesReward={s.quizMeta?.scribblesReward || 50} scorePct={userTiersMap[s.id]?.scorePct} />
                       </div>
                       <div className="result-body">
                         <div className="result-title" dangerouslySetInnerHTML={{ __html: highlight(s.title, query) }} />

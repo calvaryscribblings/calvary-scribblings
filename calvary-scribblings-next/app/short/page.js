@@ -2,12 +2,14 @@
 import { useState, useEffect } from 'react';
 import { stories, categoryMeta } from '../lib/stories';
 import StoryCard from '../components/StoryCard';
+import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 
 const cat = 'short';
 const meta = categoryMeta[cat];
 const _filtered = stories.filter(s => s.category === cat).sort((a,b) => new Date(b.date) - new Date(a.date));
 
 export default function ShortPage() {
+  const userTiersMap = useUserStoryTiers();
   const [allStories, setAllStories] = useState(_filtered);
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export default function ShortPage() {
       </section>
       <section style={{ padding: '3rem 4%' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem', maxWidth: 1400, margin: '0 auto' }}>
-          {allStories.map(s => <StoryCard key={s.id} story={s} />)}
+          {allStories.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
     </div>
