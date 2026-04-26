@@ -43,6 +43,10 @@ function slugToTitle(slug) {
   return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
+function formatCount(n) {
+  return n.toLocaleString('en-GB');
+}
+
 const TIER_CONFIG = {
   platinum: { label: 'Platinum', color: '#c8daea', bg: 'rgba(200,218,234,0.1)', border: 'rgba(200,218,234,0.3)' },
   gold:     { label: 'Gold',     color: '#c9a44c', bg: 'rgba(201,164,76,0.1)',  border: 'rgba(201,164,76,0.3)' },
@@ -52,7 +56,22 @@ const TIER_CONFIG = {
 
 // ── Card surface for each quiz state ─────────────────────────────────────────
 
-function CardSurface({ quizState, submission, onSignIn, onBeginQuiz }) {
+function SocialProofLine({ text }) {
+  if (!text) return null;
+  return (
+    <p style={{
+      fontFamily: 'Inter, sans-serif',
+      fontSize: '0.72rem',
+      color: 'rgba(255,255,255,0.3)',
+      margin: '0 0 1.25rem',
+      lineHeight: 1.5,
+    }}>
+      {text}
+    </p>
+  );
+}
+
+function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof }) {
   const headerLine = (
     <div style={{
       display: 'flex',
@@ -112,6 +131,7 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz }) {
         }}>
           Sign in to take the quiz and start earning Scribbles.
         </p>
+        <SocialProofLine text={socialProof} />
         <button
           onClick={onSignIn}
           style={{
@@ -160,6 +180,7 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz }) {
             Read the story first to unlock the quiz.
           </p>
         </div>
+        <SocialProofLine text={socialProof} />
       </div>
     );
   }
@@ -183,6 +204,7 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz }) {
         }}>
           15 questions. One attempt. Test your close reading.
         </p>
+        <SocialProofLine text={socialProof} />
         <button
           onClick={onBeginQuiz}
           style={{
@@ -331,6 +353,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
   const [hasRead, setHasRead] = useState(false);
   const [view, setView] = useState('card'); // 'card'|'guidelines'|'hardball'|'main'|'animation'
   const [animResult, setAnimResult] = useState(null);
+  const [attemptCount, setAttemptCount] = useState(null);
 
   // Load quiz data once
   useEffect(() => {
@@ -345,6 +368,20 @@ export default function QuizCard({ slug, user, onSignIn }) {
         }
       } catch (e) {}
       setQuizLoaded(true);
+    })();
+  }, [slug]);
+
+  // Read attempt count once on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const db = await getDB();
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, `cms_stories/${slug}/quizMeta/attemptCount`));
+        if (snap.exists()) setAttemptCount(snap.val());
+      } catch (e) {
+        console.warn('QuizCard: failed to load attempt count', e);
+      }
     })();
   }, [slug]);
 
@@ -478,6 +515,10 @@ export default function QuizCard({ slug, user, onSignIn }) {
     setView('card');
   }
 
+  const socialProof = typeof attemptCount === 'number' && attemptCount >= 5
+    ? `${formatCount(attemptCount)} readers have taken this quiz.`
+    : null;
+
   const inProgress = view !== 'card' && view !== 'animation';
 
   return (
@@ -525,6 +566,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
               submission={submission}
               onSignIn={onSignIn}
               onBeginQuiz={handleBeginQuiz}
+              socialProof={socialProof}
             />
           )}
         </div>
