@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { scoreHardball } from '../lib/quizScoring';
-
-export default function QuizHardball({ hardball, onPass, onFail, passed }) {
+export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed }) {
   const [answer, setAnswer] = useState('');
   const [status, setStatus] = useState('idle'); // 'idle' | 'checking' | 'failed'
   const [attempts, setAttempts] = useState(0);
@@ -43,7 +41,7 @@ export default function QuizHardball({ hardball, onPass, onFail, passed }) {
     if (!answer.trim()) return;
     setStatus('checking');
 
-    const passed = scoreHardball(answer, hardball);
+    const passed = await onCheck(answer);
 
     if (passed) {
       onPass();

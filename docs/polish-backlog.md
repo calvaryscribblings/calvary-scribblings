@@ -34,3 +34,12 @@ Two compounding issues surfaced from test users:
 - Decide whether to retroactively bump tiers for users whose old submissions undercounted them (probably yes — goodwill move)
 
 **Architectural note:** the keyword arrays in each quiz's HARDBALL stay in place as fallback and as a hint to the evaluator (the prompt can include them as 'examples of acceptable phrasing'). Don't delete them.
+
+---
+
+## Semantic evaluator — HARDBALL retry cost
+
+**Deferred from:** Phase 3.1 (semantic evaluator build)
+**Trigger:** If evaluator call volume becomes meaningful (>500 quiz attempts/month).
+
+Each HARDBALL attempt fires a separate evaluator call. A reader who fails attempt 1 then passes attempt 2 incurs two HARDBALL calls plus one essays call — ~3p total vs ~2p for a clean pass. At current scale this is negligible, but the optimisation is straightforward: cache the first HARDBALL evaluation result in a React ref or session state and skip the second evaluator call if the answer is identical (or always, since the second attempt is a resubmit on the same question). The keyword fallback already operates this way implicitly.

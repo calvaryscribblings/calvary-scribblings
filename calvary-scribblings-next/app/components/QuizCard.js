@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { scoreQuiz } from '../lib/quizScoring';
+import { useState, useEffect, useRef } from 'react';
+import { scoreHardball, scoreEssay, determineTier } from '../lib/quizScoring';
 import QuizGuidelinesModal from './QuizGuidelinesModal';
 import QuizHardball from './QuizHardball';
 import QuizMain from './QuizMain';
@@ -510,6 +510,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
   const [view, setView] = useState('card'); // 'card'|'guidelines'|'hardball'|'main'|'animation'
   const [animResult, setAnimResult] = useState(null);
   const [attemptCount, setAttemptCount] = useState(null);
+  const hardballEvalRef = useRef(null);
 
   // Load quiz data once
   useEffect(() => {
@@ -576,6 +577,59 @@ export default function QuizCard({ slug, user, onSignIn }) {
   else if (!submission) quizState = 'C';
   else quizState = 'D';
 
+  // Evaluator calls
+  async function checkHardball(answer) {
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/evaluate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          slug, type: 'hardball',
+          hardball: { question: quizData.hardball.question, keywords: quizData.hardball.keywords },
+          answer,
+        }),
+      });
+      if (!res.ok) throw new Error(`Evaluator ${res.status}`);
+      const data = await res.json();
+      if (typeof data.hardball?.passed !== 'boolean') throw new Error('Malformed response.');
+      hardballEvalRef.current = {
+        evaluator: 'claude-sonnet-4-6', fallback: false, fallbackReason: null,
+        hardballReasoning: data.hardball.reasoning, hardballConfidence: data.hardball.confidence,
+      };
+      return data.hardball.passed;
+    } catch (e) {
+      console.warn('[QuizCard] Hardball evaluator failed, using keyword fallback:', e.message);
+      hardballEvalRef.current = {
+        evaluator: 'keyword-fallback', fallback: true, fallbackReason: 'api-error',
+        hardballReasoning: null, hardballConfidence: null,
+      };
+      return scoreHardball(answer, quizData.hardball);
+    }
+  }
+
+  async function evaluateEssays(essayAnswers) {
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/evaluate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ slug, type: 'essays', essays: quizData.essays, answers: essayAnswers }),
+      });
+      if (!res.ok) throw new Error(`Evaluator ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data.essays)) throw new Error('Malformed response.');
+      return { essays: data.essays, evaluator: 'claude-sonnet-4-6', fallback: false, fallbackReason: null };
+    } catch (e) {
+      console.warn('[QuizCard] Essay evaluator failed, using keyword fallback:', e.message);
+      const essays = (quizData.essays || []).map((essay, i) => ({
+        score: scoreEssay(essayAnswers[i] || '', essay) ? 1 : 0,
+        reasoning: null, strengths: null, gaps: null,
+      }));
+      return { essays, evaluator: 'keyword-fallback', fallback: true, fallbackReason: 'api-error' };
+    }
+  }
+
   // Firebase writes
   async function writeHardballFail() {
     const db = await getDB();
@@ -585,11 +639,21 @@ export default function QuizCard({ slug, user, onSignIn }) {
     const subSnap = await get(ref(db, `quiz_submissions/${user.uid}/${slug}`));
     const isFirstAttempt = !subSnap.exists();
 
+    const evalMeta = hardballEvalRef.current ?? {
+      evaluator: 'keyword-fallback', fallback: true, fallbackReason: 'no-eval',
+      hardballReasoning: null, hardballConfidence: null,
+    };
+
     const updates = {
       [`quiz_submissions/${user.uid}/${slug}`]: {
         hardballPassed: false,
         tier: null,
         pointsAwarded: 0,
+        evaluator: evalMeta.evaluator,
+        fallback: evalMeta.fallback,
+        fallbackReason: evalMeta.fallbackReason,
+        hardballReasoning: evalMeta.hardballReasoning,
+        hardballConfidence: evalMeta.hardballConfidence,
         submittedAt: now,
       },
     };
@@ -619,6 +683,10 @@ export default function QuizCard({ slug, user, onSignIn }) {
         totalPercent: result.totalPercent,
         tier: result.tier,
         pointsAwarded: result.pointsAwarded,
+        evaluator: result.evaluator,
+        fallback: result.fallback,
+        fallbackReason: result.fallbackReason ?? null,
+        essayEvals: result.essayEvals ?? null,
         submittedAt: now,
       },
       [`userStoryTiers/${user.uid}/${slug}`]: {
@@ -658,9 +726,29 @@ export default function QuizCard({ slug, user, onSignIn }) {
     setView('card');
   }
 
-  function handleMainSubmit(mcqAnswers, essayAnswers) {
-    const scoring = scoreQuiz(quizData, mcqAnswers, essayAnswers);
-    const result = { ...scoring, mcqAnswers, essayAnswers };
+  async function handleMainSubmit(mcqAnswers, essayAnswers) {
+    setView('scoring');
+    const evalResult = await evaluateEssays(essayAnswers);
+
+    const mcqScore = mcqAnswers.filter((a, i) => a === quizData.mcqs[i].correctAnswer).length;
+    const essayScore = evalResult.essays.reduce((s, e) => s + e.score, 0);
+    const total = quizData.mcqs.length + quizData.essays.length;
+    const totalPercent = total > 0 ? (mcqScore + essayScore) / total * 100 : 0;
+    const tierResult = determineTier(totalPercent);
+
+    const result = {
+      ...tierResult,
+      mcqScore,
+      essayScore,
+      totalPercent,
+      mcqAnswers,
+      essayAnswers,
+      evaluator: evalResult.evaluator,
+      fallback: evalResult.fallback,
+      fallbackReason: evalResult.fallbackReason ?? null,
+      essayEvals: evalResult.essays,
+    };
+
     setAnimResult(result);
     setView('animation');
     setTimeout(() => writeQuizResult(result), 150);
@@ -713,7 +801,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
                 color: 'rgba(240,234,216,0.3)',
                 marginLeft: 'auto',
               }}>
-                {view === 'hardball' ? 'Comprehension check' : '10 questions + 2 essays'}
+                {view === 'hardball' ? 'Comprehension check' : view === 'scoring' ? 'Scoring…' : '10 questions + 2 essays'}
               </span>
             </div>
           ) : (
@@ -740,12 +828,27 @@ export default function QuizCard({ slug, user, onSignIn }) {
           />
         )}
 
+        {/* Scoring in progress (evaluator running) */}
+        {view === 'scoring' && (
+          <div style={{ maxWidth: 680, margin: '0 auto', padding: '2rem 2rem 3rem', textAlign: 'center' }}>
+            <div style={{
+              fontFamily: 'Cormorant Garamond, Georgia, serif',
+              fontSize: '1.1rem',
+              color: 'rgba(240,234,216,0.5)',
+              fontStyle: 'italic',
+            }}>
+              Scoring your answers…
+            </div>
+          </div>
+        )}
+
         {/* Hardball section (inline) */}
         {(view === 'hardball' || view === 'main') && (
           <QuizHardball
             hardball={quizData.hardball}
             onPass={handleHardballPass}
             onFail={handleHardballFail}
+            onCheck={checkHardball}
             passed={view === 'main'}
           />
         )}
