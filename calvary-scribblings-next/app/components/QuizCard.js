@@ -511,6 +511,8 @@ export default function QuizCard({ slug, user, onSignIn }) {
   const [animResult, setAnimResult] = useState(null);
   const [attemptCount, setAttemptCount] = useState(null);
   const hardballEvalRef = useRef(null);
+  const [pendingResult, setPendingResult] = useState(null);
+  const [saveError, setSaveError] = useState(null);
 
   // Load quiz data once
   useEffect(() => {
@@ -722,36 +724,86 @@ export default function QuizCard({ slug, user, onSignIn }) {
   function handleHardballPass() { setView('main'); }
 
   async function handleHardballFail() {
-    await writeHardballFail();
-    setView('card');
+    try {
+      await writeHardballFail();
+      setPendingResult(null);
+      setView('card');
+    } catch (e) {
+      console.error('[QuizCard] writeHardballFail failed:', e);
+      setSaveError('Saving your result failed. Tap retry to save it before leaving this page — your score isn\'t stored yet.');
+      setPendingResult({ type: 'hardball' });
+      setView('error');
+    }
   }
 
   async function handleMainSubmit(mcqAnswers, essayAnswers) {
+    try {
+      setView('scoring');
+      const evalResult = await evaluateEssays(essayAnswers);
+
+      const mcqScore = mcqAnswers.filter((a, i) => a === quizData.mcqs[i].correctAnswer).length;
+      const safeEssays = Array.isArray(evalResult.essays) ? evalResult.essays : [];
+      const essayScore = safeEssays.reduce((s, e) => s + (e.score || 0), 0);
+      const total = quizData.mcqs.length + quizData.essays.length;
+      const totalPercent = total > 0 ? (mcqScore + essayScore) / total * 100 : 0;
+      const tierResult = determineTier(totalPercent);
+
+      const result = {
+        ...tierResult,
+        mcqScore,
+        essayScore,
+        totalPercent,
+        mcqAnswers,
+        essayAnswers,
+        evaluator: evalResult.evaluator,
+        fallback: evalResult.fallback,
+        fallbackReason: evalResult.fallbackReason ?? null,
+        essayEvals: evalResult.essays,
+      };
+
+      setPendingResult({ type: 'main', result });
+
+      try {
+        await writeQuizResult(result);
+      } catch (writeErr) {
+        console.error('[QuizCard] writeQuizResult failed:', writeErr);
+        setSaveError('Saving your result failed. Tap retry to save it before leaving this page — your score isn\'t stored yet.');
+        setView('error');
+        return;
+      }
+
+      setPendingResult(null);
+      setSaveError(null);
+      setAnimResult(result);
+      setView('animation');
+    } catch (e) {
+      console.error('[QuizCard] handleMainSubmit failed:', e);
+      setSaveError('Something went wrong scoring your quiz. Please try again.');
+      setView('error');
+    }
+  }
+
+  async function handleRetryWrite() {
+    if (!pendingResult) return;
+    setSaveError(null);
     setView('scoring');
-    const evalResult = await evaluateEssays(essayAnswers);
-
-    const mcqScore = mcqAnswers.filter((a, i) => a === quizData.mcqs[i].correctAnswer).length;
-    const essayScore = evalResult.essays.reduce((s, e) => s + e.score, 0);
-    const total = quizData.mcqs.length + quizData.essays.length;
-    const totalPercent = total > 0 ? (mcqScore + essayScore) / total * 100 : 0;
-    const tierResult = determineTier(totalPercent);
-
-    const result = {
-      ...tierResult,
-      mcqScore,
-      essayScore,
-      totalPercent,
-      mcqAnswers,
-      essayAnswers,
-      evaluator: evalResult.evaluator,
-      fallback: evalResult.fallback,
-      fallbackReason: evalResult.fallbackReason ?? null,
-      essayEvals: evalResult.essays,
-    };
-
-    setAnimResult(result);
-    setView('animation');
-    setTimeout(() => writeQuizResult(result), 150);
+    try {
+      if (pendingResult.type === 'main') {
+        await writeQuizResult(pendingResult.result);
+        const result = pendingResult.result;
+        setPendingResult(null);
+        setAnimResult(result);
+        setView('animation');
+      } else if (pendingResult.type === 'hardball') {
+        await writeHardballFail();
+        setPendingResult(null);
+        setView('card');
+      }
+    } catch (e) {
+      console.error('[QuizCard] Retry write failed:', e);
+      setSaveError('Saving your result failed. Tap retry to save it before leaving this page — your score isn\'t stored yet.');
+      setView('error');
+    }
   }
 
   function handleAnimationDone() {
@@ -839,6 +891,43 @@ export default function QuizCard({ slug, user, onSignIn }) {
             }}>
               Scoring your answers…
             </div>
+          </div>
+        )}
+
+        {/* Write failure — keep user on page so pendingResult survives */}
+        {view === 'error' && (
+          <div style={{ maxWidth: 680, margin: '0 auto', padding: '2rem 2rem 3rem', textAlign: 'center' }}>
+            <div style={{
+              fontFamily: 'Cormorant Garamond, Georgia, serif',
+              fontSize: '1.1rem',
+              color: 'rgba(240,234,216,0.65)',
+              fontStyle: 'italic',
+              marginBottom: '1.5rem',
+              lineHeight: 1.65,
+            }}>
+              {saveError || 'Saving your result failed. Tap retry to save it before leaving this page — your score isn\'t stored yet.'}
+            </div>
+            <button
+              onClick={handleRetryWrite}
+              style={{
+                background: '#6b2fad',
+                border: 'none',
+                borderRadius: 8,
+                padding: '0.65rem 1.5rem',
+                color: '#fff',
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#7c3aed'}
+              onMouseLeave={e => e.currentTarget.style.background = '#6b2fad'}
+            >
+              Retry
+            </button>
           </div>
         )}
 

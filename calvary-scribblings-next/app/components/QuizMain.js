@@ -156,7 +156,7 @@ export default function QuizMain({ quizData, onSubmit }) {
           fontFamily: 'Inter, sans-serif',
           marginBottom: '1.75rem',
         }}>
-          3 Essays
+          {essays.length} {essays.length === 1 ? 'Essay' : 'Essays'}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
