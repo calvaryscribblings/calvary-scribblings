@@ -67,11 +67,23 @@ const EVAL_TOOL = {
   },
 };
 
-const SYSTEM_PROMPT = `You are a close-reading evaluator for a literary platform.
+const SYSTEM_PROMPT_STRICT = `You are a close-reading evaluator for a literary platform.
 You assess whether a reader's answer demonstrates genuine engagement with a specific story.
 Be strict about evidence of close reading — a correct general answer about themes is not enough without grounding in the text.
 Be forgiving of synonyms, paraphrases, and imperfect phrasing — reward understanding over word-for-word recall.
 A genuine reader who close-read the story should pass. Someone who skimmed or used a summary should not.`;
+
+const SYSTEM_PROMPT_SOFT = `You are a close-reading evaluator for a literary platform. The reader has already failed one attempt at this question and is now on their second and final try.
+
+Lower the bar slightly. Accept answers that demonstrate engagement with the specific story even when phrased thematically — as long as the reader anchors their answer to the text.
+
+An anchored answer references a specific moment, scene, character action, object, image, line of dialogue, or detail from the story. The reader doesn't need to quote the exact words. They can paraphrase or interpret, as long as you can tell they're pointing at something in the text rather than speaking abstractly.
+
+Pass: anchored thematic readings, paraphrases of specific moments, accurate interpretations grounded in the story.
+
+Fail: answers that stay purely abstract or generic — readings that could apply to any story with similar themes, with no anchor in this specific text. Also fail answers that contradict the story's content.
+
+Be more generous than you would be on a first attempt, but don't pass empty close reading.`;
 
 function buildHardballPrompt(title, author, storyText, hardball, answer) {
   return `Story: "${title}" by ${author}
@@ -125,7 +137,7 @@ export async function onRequestPost(context) {
   try { body = await request.json(); }
   catch { return evalJson({ error: 'Invalid request body.' }, 400); }
 
-  const { slug, type } = body;
+  const { slug, type, attemptIndex } = body;
   console.log('[evaluate-quiz] uid:', uid, '| slug:', slug, '| type:', type);
 
   if (!slug || !['hardball', 'essays'].includes(type))
@@ -175,7 +187,7 @@ export async function onRequestPost(context) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: (typeof attemptIndex === 'number' && attemptIndex >= 1) ? SYSTEM_PROMPT_SOFT : SYSTEM_PROMPT_STRICT,
         tools: [EVAL_TOOL],
         tool_choice: { type: 'tool', name: 'evaluate_answers' },
         messages: [{ role: 'user', content: prompt }],

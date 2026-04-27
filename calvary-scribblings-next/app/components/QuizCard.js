@@ -580,7 +580,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
   else quizState = 'D';
 
   // Evaluator calls
-  async function checkHardball(answer) {
+  async function checkHardball(answer, attemptIndex = 0) {
     try {
       const idToken = await user.getIdToken();
       const res = await fetch('/api/evaluate-quiz', {
@@ -590,6 +590,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
           slug, type: 'hardball',
           hardball: { question: quizData.hardball.question, keywords: quizData.hardball.keywords },
           answer,
+          attemptIndex,
         }),
       });
       if (!res.ok) throw new Error(`Evaluator ${res.status}`);

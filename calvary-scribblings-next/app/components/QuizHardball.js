@@ -41,7 +41,7 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
     if (!answer.trim()) return;
     setStatus('checking');
 
-    const passed = await onCheck(answer);
+    const passed = await onCheck(answer, attempts);
 
     if (passed) {
       onPass();
