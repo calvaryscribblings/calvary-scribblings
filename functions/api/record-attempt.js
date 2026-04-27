@@ -122,12 +122,19 @@ export async function onRequestPost(context) {
     `${fbDb}/quizAttemptCounted/${uid}/${slug}.json`,
     { headers: bearer }
   );
-  if (countedRes.ok) {
-    const counted = await countedRes.json();
-    if (counted === true) {
-      console.log('[record-attempt] already counted — no-op | uid:', uid, '| slug:', slug);
-      return json({ ok: true, counted: false });
-    }
+  if (!countedRes.ok) {
+    const text = await countedRes.text();
+    console.error('[record-attempt] Firebase idempotency read failed:', countedRes.status, text.slice(0, 500));
+    return json({
+      error: 'Failed to check idempotency.',
+      firebaseStatus: countedRes.status,
+      firebaseBody: text.slice(0, 500),
+    }, 500);
+  }
+  const counted = await countedRes.json();
+  if (counted === true) {
+    console.log('[record-attempt] already counted — no-op | uid:', uid, '| slug:', slug);
+    return json({ ok: true, counted: false });
   }
 
   // Mark counted + server-side increment in one atomic PATCH
@@ -144,8 +151,12 @@ export async function onRequestPost(context) {
 
   if (!patchRes.ok) {
     const text = await patchRes.text();
-    console.error('[record-attempt] Firebase PATCH failed:', patchRes.status, text.slice(0, 200));
-    return json({ error: 'Failed to record attempt.' }, 500);
+    console.error('[record-attempt] Firebase PATCH failed:', patchRes.status, text.slice(0, 500));
+    return json({
+      error: 'Failed to record attempt.',
+      firebaseStatus: patchRes.status,
+      firebaseBody: text.slice(0, 500),
+    }, 500);
   }
 
   console.log('[record-attempt] success | uid:', uid, '| slug:', slug);
