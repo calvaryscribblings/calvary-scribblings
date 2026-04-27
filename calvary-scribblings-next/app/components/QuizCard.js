@@ -513,6 +513,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
   const hardballEvalRef = useRef(null);
   const [pendingResult, setPendingResult] = useState(null);
   const [saveError, setSaveError] = useState(null);
+  const [debugError, setDebugError] = useState(null);
 
   // Load quiz data once
   useEffect(() => {
@@ -660,11 +661,21 @@ export default function QuizCard({ slug, user, onSignIn }) {
     await update(ref(db, '/'), updates);
 
     const idToken = await user.getIdToken();
-    fetch('/api/record-attempt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-      body: JSON.stringify({ slug }),
-    }).catch(e => console.warn('[QuizCard] record-attempt failed:', e.message));
+    try {
+      const res = await fetch('/api/record-attempt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ slug }),
+      });
+      if (!res.ok) {
+        const bodyText = await res.text();
+        console.warn('[QuizCard] record-attempt failed:', res.status, bodyText);
+        setDebugError(`record-attempt ${res.status}: ${bodyText.slice(0, 500)}`);
+      }
+    } catch (e) {
+      console.warn('[QuizCard] record-attempt threw:', e);
+      setDebugError(`record-attempt threw: ${e.message}`);
+    }
   }
 
   async function writeQuizResult(result) {
@@ -710,11 +721,21 @@ export default function QuizCard({ slug, user, onSignIn }) {
     await update(ref(db, '/'), updates);
 
     const idToken = await user.getIdToken();
-    fetch('/api/record-attempt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-      body: JSON.stringify({ slug }),
-    }).catch(e => console.warn('[QuizCard] record-attempt failed:', e.message));
+    try {
+      const res = await fetch('/api/record-attempt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ slug }),
+      });
+      if (!res.ok) {
+        const bodyText = await res.text();
+        console.warn('[QuizCard] record-attempt failed:', res.status, bodyText);
+        setDebugError(`record-attempt ${res.status}: ${bodyText.slice(0, 500)}`);
+      }
+    } catch (e) {
+      console.warn('[QuizCard] record-attempt threw:', e);
+      setDebugError(`record-attempt threw: ${e.message}`);
+    }
   }
 
   // Flow handlers
@@ -786,6 +807,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
   async function handleRetryWrite() {
     if (!pendingResult) return;
     setSaveError(null);
+    setDebugError(null);
     setView('scoring');
     try {
       if (pendingResult.type === 'main') {
@@ -957,6 +979,47 @@ export default function QuizCard({ slug, user, onSignIn }) {
           result={animResult}
           onDone={handleAnimationDone}
         />
+      )}
+
+      {/* Debug banner — temporary, remove when record-attempt issue is resolved */}
+      {debugError && (
+        <div style={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          zIndex: 9999,
+          maxWidth: 420,
+          background: 'rgba(20,10,30,0.95)',
+          border: '1px solid rgba(255,80,80,0.4)',
+          borderRadius: 8,
+          padding: '0.6rem 0.85rem',
+          display: 'flex',
+          gap: '0.6rem',
+          alignItems: 'flex-start',
+        }}>
+          <pre style={{
+            margin: 0,
+            fontFamily: 'monospace',
+            fontSize: '0.65rem',
+            color: 'rgba(255,180,180,0.85)',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all',
+            flex: 1,
+          }}>{debugError}</pre>
+          <button
+            onClick={() => setDebugError(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255,255,255,0.35)',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              lineHeight: 1,
+              padding: 0,
+              flexShrink: 0,
+            }}
+          >✕</button>
+        </div>
       )}
     </>
   );
