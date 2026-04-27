@@ -513,6 +513,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
   const hardballEvalRef = useRef(null);
   const [pendingResult, setPendingResult] = useState(null);
   const [saveError, setSaveError] = useState(null);
+  const [debugError, setDebugError] = useState(null);
 
   // Load quiz data once
   useEffect(() => {
@@ -731,6 +732,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
     } catch (e) {
       console.error('[QuizCard] writeHardballFail failed:', e);
       setSaveError('Saving your result failed. Tap retry to save it before leaving this page — your score isn\'t stored yet.');
+      setDebugError(e.message || String(e));
       setPendingResult({ type: 'hardball' });
       setView('error');
     }
@@ -768,6 +770,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
       } catch (writeErr) {
         console.error('[QuizCard] writeQuizResult failed:', writeErr);
         setSaveError('Saving your result failed. Tap retry to save it before leaving this page — your score isn\'t stored yet.');
+        setDebugError(writeErr.message || String(writeErr));
         setView('error');
         return;
       }
@@ -779,6 +782,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
     } catch (e) {
       console.error('[QuizCard] handleMainSubmit failed:', e);
       setSaveError('Something went wrong scoring your quiz. Please try again.');
+      setDebugError(e.message || String(e));
       setView('error');
     }
   }
@@ -786,6 +790,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
   async function handleRetryWrite() {
     if (!pendingResult) return;
     setSaveError(null);
+    setDebugError(null);
     setView('scoring');
     try {
       if (pendingResult.type === 'main') {
@@ -907,6 +912,22 @@ export default function QuizCard({ slug, user, onSignIn }) {
             }}>
               {saveError || 'Saving your result failed. Tap retry to save it before leaving this page — your score isn\'t stored yet.'}
             </div>
+            {debugError && (
+              <pre style={{
+                fontFamily: 'monospace',
+                fontSize: '0.7rem',
+                color: 'rgba(255,255,255,0.35)',
+                background: 'rgba(255,255,255,0.04)',
+                borderRadius: 6,
+                padding: '0.5rem 0.75rem',
+                marginBottom: '1.25rem',
+                textAlign: 'left',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+              }}>
+                {debugError}
+              </pre>
+            )}
             <button
               onClick={handleRetryWrite}
               style={{
