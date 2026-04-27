@@ -43,3 +43,12 @@ Two compounding issues surfaced from test users:
 **Trigger:** If evaluator call volume becomes meaningful (>500 quiz attempts/month).
 
 Each HARDBALL attempt fires a separate evaluator call. A reader who fails attempt 1 then passes attempt 2 incurs two HARDBALL calls plus one essays call — ~3p total vs ~2p for a clean pass. At current scale this is negligible, but the optimisation is straightforward: cache the first HARDBALL evaluation result in a React ref or session state and skip the second evaluator call if the answer is identical (or always, since the second attempt is a resubmit on the same question). The keyword fallback already operates this way implicitly.
+
+---
+
+## attemptCount fire-and-forget pattern
+
+**Deferred from:** Phase 3.1 record-attempt build
+**Trigger:** If `[QuizCard] record-attempt failed` warnings become non-trivial in production logs.
+
+The `/api/record-attempt` call is fire-and-forget after the user-data Firebase write succeeds. If the function fails (rate limit, 500, etc.), the user submission still persists but the public `attemptCount` doesn't increment. Acceptable trade-off currently — counter accuracy is approximate, user experience is preserved. If failures become noticeable, add a client-side retry queue or move the increment into the same atomic write path via the service-account-authed Firebase REST call.

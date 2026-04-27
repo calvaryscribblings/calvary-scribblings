@@ -635,11 +635,8 @@ export default function QuizCard({ slug, user, onSignIn }) {
   // Firebase writes
   async function writeHardballFail() {
     const db = await getDB();
-    const { ref, get, update, increment } = await import('firebase/database');
+    const { ref, update } = await import('firebase/database');
     const now = Date.now();
-
-    const subSnap = await get(ref(db, `quiz_submissions/${user.uid}/${slug}`));
-    const isFirstAttempt = !subSnap.exists();
 
     const evalMeta = hardballEvalRef.current ?? {
       evaluator: 'keyword-fallback', fallback: true, fallbackReason: 'no-eval',
@@ -660,20 +657,20 @@ export default function QuizCard({ slug, user, onSignIn }) {
       },
     };
 
-    if (isFirstAttempt) {
-      updates[`cms_stories/${slug}/quizMeta/attemptCount`] = increment(1);
-    }
-
     await update(ref(db, '/'), updates);
+
+    const idToken = await user.getIdToken();
+    fetch('/api/record-attempt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      body: JSON.stringify({ slug }),
+    }).catch(e => console.warn('[QuizCard] record-attempt failed:', e.message));
   }
 
   async function writeQuizResult(result) {
     const db = await getDB();
-    const { ref, get, update, push, increment } = await import('firebase/database');
+    const { ref, update, push, increment } = await import('firebase/database');
     const now = Date.now();
-
-    const subSnap = await get(ref(db, `quiz_submissions/${user.uid}/${slug}`));
-    const isFirstAttempt = !subSnap.exists();
 
     const updates = {
       [`quiz_submissions/${user.uid}/${slug}`]: {
@@ -710,11 +707,14 @@ export default function QuizCard({ slug, user, onSignIn }) {
       };
     }
 
-    if (isFirstAttempt) {
-      updates[`cms_stories/${slug}/quizMeta/attemptCount`] = increment(1);
-    }
-
     await update(ref(db, '/'), updates);
+
+    const idToken = await user.getIdToken();
+    fetch('/api/record-attempt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      body: JSON.stringify({ slug }),
+    }).catch(e => console.warn('[QuizCard] record-attempt failed:', e.message));
   }
 
   // Flow handlers
