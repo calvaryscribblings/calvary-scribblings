@@ -341,7 +341,7 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
           margin: '0 0 1.25rem',
           lineHeight: 1.65,
         }}>
-          15 questions. One attempt. Test your close reading.
+          10 questions. One attempt. Test your close reading.
         </p>
         <SocialProofLine text={socialProof} />
         <button
@@ -713,7 +713,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
                 color: 'rgba(240,234,216,0.3)',
                 marginLeft: 'auto',
               }}>
-                {view === 'hardball' ? 'Comprehension check' : '15 questions + 3 essays'}
+                {view === 'hardball' ? 'Comprehension check' : '10 questions + 2 essays'}
               </span>
             </div>
           ) : (

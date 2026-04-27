@@ -94,7 +94,7 @@ ${storyText}
 """
 
 Counts:
-- Story mode: EXACTLY 15 MCQs and 3 essays.
+- Story mode: EXACTLY 10 MCQs and 2 essays.
 - Reader mode: EXACTLY 25 MCQs and 5 essays.
 
 Rules:
@@ -123,8 +123,8 @@ function repairJson(text) {
 
 function validateQuiz(quiz, mode) {
   const warnings = [];
-  const mcqCount = mode === 'story' ? 15 : 25;
-  const essayCount = mode === 'story' ? 3 : 5;
+  const mcqCount = mode === 'story' ? 10 : 25;
+  const essayCount = mode === 'story' ? 2 : 5;
   if (!quiz.hardball?.question) warnings.push('Missing hardball question.');
   if (!Array.isArray(quiz.hardball?.keywords) || quiz.hardball.keywords.length < 3)
     warnings.push('Hardball should have at least 3 keywords.');
