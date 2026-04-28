@@ -169,6 +169,7 @@ export default function Navbar() {
             <div className={`cs-square-btn-dot ${squareOpen ? 'open' : 'closed'}`} />
             <span className={`cs-square-btn-label ${squareOpen ? 'open' : 'closed'}`}>The Square</span>
           </a>
+          <a href="/quizzes">Quizzes</a>
           {user ? (
             <a href="/profile" className="cs-nav-avatar" title={user.displayName || 'Profile'}>
               {avatarUrl ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} /> : initials}
@@ -207,6 +208,7 @@ export default function Navbar() {
               {squareOpen ? 'Open now' : 'Closed'}
             </span>
           </a>
+          <a href="/quizzes" onClick={() => setMenuOpen(false)}>Quizzes</a>
           <button className={'cs-drawer-stories-btn' + (storiesOpen ? ' open' : '')} onClick={() => setStoriesOpen(!storiesOpen)}>
             Stories <span className="cs-arrow">▾</span>
           </button>

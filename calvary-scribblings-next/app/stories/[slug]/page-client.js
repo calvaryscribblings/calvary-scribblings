@@ -1014,6 +1014,18 @@ useEffect(() => {
               <span>{story.date}</span>
               {readingTime > 0 && (<><div className="byline-dot" /><span>⏱ {readingTime} MIN. READ</span></>)}
             </div>
+            {story.quizMeta?.hasQuiz && (
+              <a
+                onClick={() => document.getElementById('quiz-card')?.scrollIntoView({ behavior: 'smooth' })}
+                style={{
+                  cursor: 'pointer', fontFamily: '"Cormorant Garamond", serif',
+                  fontStyle: 'italic', fontSize: '0.85rem', color: '#a78bfa',
+                  textDecoration: 'none', marginTop: '0.6rem', display: 'block',
+                }}
+              >
+                ✦ This story has a quiz
+              </a>
+            )}
           </div>
         </header>
         <div className="story-body-wrap">
@@ -1055,7 +1067,9 @@ useEffect(() => {
           </main>
         </div>
         <ExerciseSection slug={slug} />
-        <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
+        <div id="quiz-card">
+          <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
+        </div>
         <div style={{ background: '#f0ead8', padding: '2rem 0 3rem' }}><div style={{ maxWidth: '680px', margin: '0 auto', padding: '0 2rem' }}><TipBox variant="story" /></div></div>
         <StoryAuthorBio authorUid={story.authorUid} fallbackName={story.author} />
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />

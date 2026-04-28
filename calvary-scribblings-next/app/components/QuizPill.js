@@ -11,8 +11,27 @@ const TIER_LABELS = {
   bronze: 'Bronze', silver: 'Silver', gold: 'Gold', platinum: 'Platinum',
 };
 
-export default function QuizPill({ hasQuiz, userTier, scribblesReward, scorePct }) {
+export default function QuizPill({ hasQuiz, userTier, scribblesReward, scorePct, locked }) {
   if (!hasQuiz) return null;
+
+  if (locked) {
+    return (
+      <span
+        title="Hardball not passed"
+        style={{
+          position: 'absolute', top: '0.5rem', right: '0.5rem',
+          fontSize: '0.6875rem', fontFamily: 'Inter, sans-serif',
+          fontWeight: 600, letterSpacing: '0.04em',
+          padding: '0.25rem 0.5rem', borderRadius: 999, lineHeight: 1,
+          whiteSpace: 'nowrap', pointerEvents: 'none',
+          background: 'rgba(239,68,68,0.12)', color: '#f87171',
+          border: '1px solid rgba(239,68,68,0.3)',
+        }}
+      >
+        Locked
+      </span>
+    );
+  }
 
   const label     = userTier ? TIER_LABELS[userTier] : '✦ Quiz';
   const tooltip   = userTier
