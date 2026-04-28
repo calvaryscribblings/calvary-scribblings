@@ -5,6 +5,7 @@ import AuthModal from './components/AuthModal';
 import Navbar from './components/Navbar';
 import QuizPill from './components/QuizPill';
 import { useUserStoryTiers } from './lib/useUserStoryTiers';
+import { db } from './lib/firebase';
 
 const stories = [
   { id: 'my-dream-man', title: 'My Dream Man', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/my-dream-man', cover: '/my-dream-man-cover.jpeg', author: 'Tricia Ajax', date: 'Mar 27, 2026' },
@@ -344,6 +345,98 @@ function SquareFAB({ squareOpen, countdown }) {
   );
 }
 
+function TopReadersStrip() {
+  const [rows, setRows] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, 'users'));
+        if (!snap.exists()) { setRows([]); return; }
+        const top = Object.entries(snap.val())
+          .filter(([, u]) => u.leaderboardVisible !== false && (u.readerScore ?? 0) > 0)
+          .map(([uid, u]) => ({
+            uid,
+            displayName: u.displayName || 'Reader',
+            username:    u.username || null,
+            avatarUrl:   u.avatarUrl || null,
+            readerScore: u.readerScore ?? 0,
+            joinDate:    u.joinDate ?? Infinity,
+          }))
+          .sort((a, b) => (b.readerScore - a.readerScore) || (a.joinDate - b.joinDate))
+          .slice(0, 5);
+        setRows(top);
+      } catch {
+        setRows([]);
+      }
+    })();
+  }, []);
+
+  if (!rows || rows.length < 3) return null;
+
+  const rankColor = r =>
+    r === 1 ? '#d4a437' : r === 2 ? '#c0c0c8' : r === 3 ? '#a97142' : 'rgba(255,255,255,0.35)';
+
+  return (
+    <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <a href="/leaderboard" style={{ display: 'block', textDecoration: 'none' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', padding: '0 4%' }}>
+          <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ width: 6, height: 6, background: '#7c3aed', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px rgba(124,58,237,0.8)' }} />
+            Top Readers
+          </h3>
+          <span style={{ fontSize: '0.78rem', color: '#a78bfa', fontWeight: 600 }}>View all →</span>
+        </div>
+        <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
+          {rows.map((row, i) => {
+            const rank = i + 1;
+            const initials = row.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+            return (
+              <div key={row.uid} style={{
+                display: 'flex', alignItems: 'center', gap: '0.55rem',
+                padding: '0.55rem 0.75rem', borderRadius: 8,
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                width: 220, minWidth: 220, flexShrink: 0,
+              }}>
+                <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '1.1rem', color: rankColor(rank), fontWeight: 700, width: 18, textAlign: 'center', flexShrink: 0 }}>
+                  {rank}
+                </div>
+                <div style={{
+                  width: 30, height: 30, borderRadius: '50%',
+                  background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(167,139,250,0.22)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0,
+                  fontFamily: 'Cochin, Georgia, serif',
+                }}>
+                  {row.avatarUrl
+                    ? <img src={row.avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : initials}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.76rem', fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {row.displayName}
+                  </div>
+                  {row.username && (
+                    <div style={{ fontSize: '0.6rem', color: 'rgba(167,139,250,0.4)' }}>@{row.username}</div>
+                  )}
+                </div>
+                <div style={{
+                  fontFamily: 'Cochin, Georgia, serif', fontSize: '0.95rem',
+                  color: '#a78bfa', flexShrink: 0,
+                }}>
+                  {row.readerScore.toLocaleString()}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </a>
+    </section>
+  );
+}
+
 export default function Home() {
   const { user, logout } = useAuth();
   const userTiersMap = useUserStoryTiers();
@@ -620,6 +713,9 @@ export default function Home() {
           {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map(s => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
+
+      {/* Top Readers */}
+      <TopReadersStrip />
 
       {/* Top 10 */}
       <section style={{ padding: '2.5rem 0' }}>

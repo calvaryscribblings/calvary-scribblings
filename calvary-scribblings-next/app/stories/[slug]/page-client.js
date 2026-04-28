@@ -8,6 +8,7 @@ import { storyContent } from '../../lib/storyContent';
 import AuthModal from '../../components/AuthModal';
 import TipBox from '../../components/TipBox';
 import { updateStreak } from '../../lib/streakEngine';
+import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
 import StoryAuthorBio from '../../components/StoryAuthorBio';
@@ -798,7 +799,9 @@ export default function StoryPageClient({ params }) {
           unsubRead();
           try {
             const db = await getDB();
-            updateStreak(user.uid, db).catch(() => {});
+            updateStreak(user.uid, db)
+              .then(changed => { if (changed) checkAndAwardBadges(user.uid, db).catch(() => {}); })
+              .catch(() => {});
             const { ref, get, set, runTransaction, push, update } = await import('firebase/database');
             const readRef = ref(db, `users/${user.uid}/readStories/${slug}`);
             const snap = await get(readRef);

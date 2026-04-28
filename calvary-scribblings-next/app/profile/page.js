@@ -871,6 +871,34 @@ export default function ProfilePage() {
 
         <div className="pf-section">
           <div className="pf-section-header"><div className="pf-section-title">Account</div></div>
+          {(() => {
+            const visible = profileData?.leaderboardVisible !== false;
+            const toggle = async () => {
+              try {
+                const db = await getDB();
+                const { ref, set, remove } = await import('firebase/database');
+                if (visible) await set(ref(db, `users/${authUser.uid}/leaderboardVisible`), false);
+                else         await remove(ref(db, `users/${authUser.uid}/leaderboardVisible`));
+              } catch (e) {}
+            };
+            return (
+              <div className="pf-account-row" onClick={toggle} style={{ cursor: 'pointer' }}>
+                <span className="pf-account-label">Show me on the leaderboard</span>
+                <span style={{
+                  position: 'relative', display: 'inline-block',
+                  width: 36, height: 20, borderRadius: 999,
+                  background: visible ? '#7c3aed' : 'rgba(255,255,255,0.12)',
+                  transition: 'background 0.2s', flexShrink: 0,
+                }}>
+                  <span style={{
+                    position: 'absolute', top: 2, left: visible ? 18 : 2,
+                    width: 16, height: 16, borderRadius: '50%',
+                    background: '#fff', transition: 'left 0.2s',
+                  }} />
+                </span>
+              </div>
+            );
+          })()}
           <a href="/settings" className="pf-account-row" style={{ textDecoration: 'none', cursor: 'pointer', transition: 'background 0.2s, border-color 0.2s' }}>
             <span className="pf-account-label">Account settings</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.57rem', color: '#9b6dff', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>

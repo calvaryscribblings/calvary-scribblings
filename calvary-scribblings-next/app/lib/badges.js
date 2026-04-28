@@ -126,6 +126,35 @@ export function computeStats(submissions, streakData) {
   };
 }
 
+const RARITY_RANK = { legendary: 3, rare: 2, uncommon: 1, common: 0 };
+
+export function computeReaderScore(submissions, streakData, storiesReadCount, totalScribbles) {
+  const stats = computeStats(submissions, streakData);
+  return Math.round(
+    (stats.platinumCount * 50) +
+    (stats.goldCount * 30) +
+    (stats.silverCount * 15) +
+    (stats.bronzeCount * 5) +
+    (storiesReadCount * 1) +
+    (stats.longestStreak * 5) +
+    (totalScribbles / 10)
+  );
+}
+
+export function pickHighestBadge(userBadges) {
+  if (!userBadges) return null;
+  const entries = Object.entries(userBadges)
+    .map(([id, meta]) => {
+      const def = BADGES.find(b => b.id === id);
+      if (!def) return null;
+      return { ...def, earnedAt: meta?.earnedAt ?? 0 };
+    })
+    .filter(Boolean);
+  if (!entries.length) return null;
+  entries.sort((a, b) => (RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity]) || (b.earnedAt - a.earnedAt));
+  return entries[0];
+}
+
 export function getStreakDisplay(streakData) {
   if (!streakData?.lastReadAt) return null;
   const msAgo = Date.now() - streakData.lastReadAt;

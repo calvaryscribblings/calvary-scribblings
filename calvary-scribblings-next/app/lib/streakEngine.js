@@ -8,9 +8,10 @@ export async function updateStreak(uid, db) {
   const lastDay  = data.lastReadAt ? utcDay(data.lastReadAt) : null;
   let { current = 0, longest = 0 } = data;
   if (lastDay === null) { current = 1; }
-  else if (todayDay === lastDay) { return; }
+  else if (todayDay === lastDay) { return false; }
   else if (todayDay === lastDay + 1) { current += 1; }
   else { current = 1; }
   if (current > longest) longest = current;
   await update(ref(db, `userStreaks/${uid}`), { current, longest, lastReadAt: now });
+  return true;
 }

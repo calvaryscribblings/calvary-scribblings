@@ -1,15 +1,20 @@
-import { BADGES, computeStats } from './badges';
+import { BADGES, computeStats, computeReaderScore } from './badges';
 
 export async function checkAndAwardBadges(uid, db) {
   const { ref, get, update } = await import('firebase/database');
-  const [subsSnap, streakSnap, badgesSnap] = await Promise.all([
+  const [subsSnap, streakSnap, badgesSnap, readStoriesSnap, pointsSnap] = await Promise.all([
     get(ref(db, `quiz_submissions/${uid}`)),
     get(ref(db, `userStreaks/${uid}`)),
     get(ref(db, `userBadges/${uid}`)),
+    get(ref(db, `users/${uid}/readStories`)),
+    get(ref(db, `points/${uid}/total`)),
   ]);
   const submissions = subsSnap.exists() ? subsSnap.val() : null;
   const streakData  = streakSnap.exists() ? streakSnap.val() : null;
   const earned      = badgesSnap.exists() ? badgesSnap.val() : {};
+  const storiesReadCount = readStoriesSnap.exists() ? Object.keys(readStoriesSnap.val()).length : 0;
+  const totalScribbles   = pointsSnap.exists() ? pointsSnap.val() : 0;
+
   const stats = computeStats(submissions, streakData);
   const newBadges = [];
   const updates   = {};
@@ -20,7 +25,12 @@ export async function checkAndAwardBadges(uid, db) {
       newBadges.push(badge);
     }
   }
-  if (newBadges.length > 0) await update(ref(db, '/'), updates);
+
+  const readerScore = computeReaderScore(submissions, streakData, storiesReadCount, totalScribbles);
+  updates[`users/${uid}/readerScore`] = readerScore;
+  updates[`users/${uid}/scoreUpdatedAt`] = now;
+
+  await update(ref(db, '/'), updates);
   return newBadges;
 }
 

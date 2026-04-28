@@ -6,6 +6,7 @@ import TipBox from '../../components/TipBox';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
 import { updateStreak } from '../../lib/streakEngine';
+import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import StoryAuthorBio from '../../components/StoryAuthorBio';
 import { use } from 'react';
 
@@ -559,7 +560,9 @@ export default function StoryReaderClient({ params }) {
         const u = onAuthStateChanged(auth, async (user) => {
           if (!user) return; u();
           const db = await getDB();
-          updateStreak(user.uid, db).catch(() => {});
+          updateStreak(user.uid, db)
+            .then(changed => { if (changed) checkAndAwardBadges(user.uid, db).catch(() => {}); })
+            .catch(() => {});
           const { ref, get, set, runTransaction } = await import('firebase/database');
           const rr = ref(db, 'users/' + user.uid + '/readStories/' + slug);
           const s = await get(rr);
