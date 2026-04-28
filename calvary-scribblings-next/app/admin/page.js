@@ -599,6 +599,7 @@ export default function AdminPage() {
           <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)' }}>{user.email}</span>
           <a href="/admin/authors" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Authors →</a>
           <a href="/admin/quizzes" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Quizzes →</a>
+          <a href="/admin/analytics" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Analytics →</a>
           <a href="/" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>← Site</a>
         </div>
       </header>
