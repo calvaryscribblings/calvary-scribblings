@@ -128,7 +128,7 @@ export function computeStats(submissions, streakData) {
 
 const RARITY_RANK = { legendary: 3, rare: 2, uncommon: 1, common: 0 };
 
-export function computeReaderScore(submissions, streakData, storiesReadCount, totalScribbles) {
+export function computeReaderScore(submissions, streakData, storiesReadCount) {
   const stats = computeStats(submissions, streakData);
   return Math.round(
     (stats.platinumCount * 50) +
@@ -136,8 +136,7 @@ export function computeReaderScore(submissions, streakData, storiesReadCount, to
     (stats.silverCount * 15) +
     (stats.bronzeCount * 5) +
     (storiesReadCount * 1) +
-    (stats.longestStreak * 5) +
-    (totalScribbles / 10)
+    (stats.longestStreak * 5)
   );
 }
 

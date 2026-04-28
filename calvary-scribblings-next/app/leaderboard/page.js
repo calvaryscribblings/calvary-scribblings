@@ -63,7 +63,7 @@ export default function LeaderboardPage() {
           <div style={{ marginBottom: '0.5rem' }}>
             <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: '0 0 0.4rem' }}>Leaderboard</h1>
             <p style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.45)', margin: 0 }}>
-              Top 50 readers, ranked by Reader Score.
+              Top 50 readers, ranked by Reader Score — earned through quiz tiers, stories read, and reading streak.
             </p>
           </div>
 
