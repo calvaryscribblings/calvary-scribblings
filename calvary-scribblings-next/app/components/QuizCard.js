@@ -780,6 +780,33 @@ export default function QuizCard({ slug, user, onSignIn }) {
   }
 
   async function handleMainSubmit(mcqAnswers, essayAnswers) {
+    // Prime audio elements while we still have the user-gesture context from
+    // the submit click. Mobile browsers (Safari especially) block audio.play()
+    // calls that aren't traceable to a gesture; once an element has played
+    // once under a gesture, subsequent programmatic plays from setTimeout in
+    // QuizResultAnimation are permitted.
+    try {
+      const muted = typeof window !== 'undefined' &&
+        localStorage.getItem('calvary_quiz_sound_muted') === 'true';
+      if (!muted) {
+        const primeAudio = (src) => {
+          try {
+            const audio = new Audio(src);
+            audio.volume = 0;
+            audio.play().then(() => {
+              audio.pause();
+              audio.currentTime = 0;
+            }).catch(() => {});
+          } catch (e) {}
+        };
+        primeAudio('/sounds/dial-tick.mp3');
+        primeAudio('/sounds/tier-bronze.mp3');
+        primeAudio('/sounds/tier-silver.mp3');
+        primeAudio('/sounds/tier-gold.mp3');
+        primeAudio('/sounds/tier-platinum.mp3');
+      }
+    } catch (e) {}
+
     try {
       setView('scoring');
       const evalResult = await evaluateEssays(essayAnswers);
