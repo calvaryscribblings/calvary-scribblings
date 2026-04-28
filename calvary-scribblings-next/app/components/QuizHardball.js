@@ -1,10 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed }) {
   const [answer, setAnswer] = useState('');
   const [status, setStatus] = useState('idle'); // 'idle' | 'checking' | 'failed'
   const [attempts, setAttempts] = useState(0);
+  const failTimerRef = useRef(null);
+
+  function continueAfterFail() {
+    if (failTimerRef.current) {
+      clearTimeout(failTimerRef.current);
+      failTimerRef.current = null;
+    }
+    onFail();
+  }
 
   if (passed) {
     return (
@@ -50,7 +59,10 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
       setAttempts(next);
       if (next >= 2) {
         setStatus('failed');
-        setTimeout(() => onFail(), 3000);
+        failTimerRef.current = setTimeout(() => {
+          failTimerRef.current = null;
+          onFail();
+        }, 6000);
       } else {
         setStatus('idle');
       }
@@ -86,6 +98,32 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
           }}>
             Your answer didn't show enough close reading — the quiz is locked, but you can still join the discussion in the comments below.
           </p>
+          <button
+            onClick={continueAfterFail}
+            style={{
+              marginTop: '1.25rem',
+              background: 'transparent',
+              border: '1px solid rgba(248,113,113,0.3)',
+              borderRadius: 6,
+              padding: '0.55rem 1.1rem',
+              color: '#fca5a5',
+              fontFamily: 'Inter, sans-serif',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background 0.2s, border-color 0.2s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = 'rgba(248,113,113,0.5)';
+              e.currentTarget.style.background = 'rgba(248,113,113,0.05)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'rgba(248,113,113,0.3)';
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            Continue →
+          </button>
         </div>
       </div>
     );
