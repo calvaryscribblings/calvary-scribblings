@@ -538,6 +538,8 @@ export default function QuizCard({ slug, user, onSignIn }) {
   const [quizLoaded, setQuizLoaded] = useState(false);
   const [submission, setSubmission] = useState(null);
   const [hasRead, setHasRead] = useState(false);
+  const [hasReadLoaded, setHasReadLoaded] = useState(false);
+  const [submissionLoaded, setSubmissionLoaded] = useState(false);
   const [view, setView] = useState('card'); // 'card'|'guidelines'|'hardball'|'main'|'animation'
   const [animResult, setAnimResult] = useState(null);
   const [attemptCount, setAttemptCount] = useState(null);
@@ -582,8 +584,12 @@ export default function QuizCard({ slug, user, onSignIn }) {
     if (!user) {
       setHasRead(false);
       setSubmission(null);
+      setHasReadLoaded(true);
+      setSubmissionLoaded(true);
       return;
     }
+    setHasReadLoaded(false);
+    setSubmissionLoaded(false);
     let unsubRead, unsubSub;
     (async () => {
       try {
@@ -591,9 +597,11 @@ export default function QuizCard({ slug, user, onSignIn }) {
         const { ref, onValue } = await import('firebase/database');
         unsubRead = onValue(ref(db, `users/${user.uid}/readStories/${slug}`), snap => {
           setHasRead(snap.exists());
+          setHasReadLoaded(true);
         });
         unsubSub = onValue(ref(db, `quiz_submissions/${user.uid}/${slug}`), snap => {
           setSubmission(snap.exists() ? snap.val() : null);
+          setSubmissionLoaded(true);
         });
       } catch (e) {}
     })();
@@ -604,6 +612,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
   }, [user?.uid, slug]);
 
   if (!quizLoaded || !quizData) return null;
+  if (user && (!hasReadLoaded || !submissionLoaded)) return null;
 
   // Derive quiz state
   let quizState;
