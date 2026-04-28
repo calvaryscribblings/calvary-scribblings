@@ -851,7 +851,7 @@ export default function ProfilePage() {
         </div>
 
         <div className="pf-section">
-          <div className="pf-section-header"><div className="pf-section-title">Reader's Reward</div></div>
+          <div className="pf-section-header"><div className="pf-section-title">Standing</div></div>
           <a href="/rewards" className="pf-rewards-btn">
             <div className="pf-rewards-shimmer" />
             <div className="pf-rewards-inner">
@@ -867,6 +867,18 @@ export default function ProfilePage() {
               </div>
             </div>
           </a>
+          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '1.5rem', marginTop: '0.85rem' }}>
+            <div style={{ fontSize: '0.65rem', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>Reader Score</div>
+            <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '2.5rem', color: '#a78bfa', lineHeight: 1, marginTop: '0.45rem' }}>
+              {profileData?.readerScore ?? '—'}
+            </div>
+            <div style={{ fontSize: '0.78rem', fontFamily: 'Inter, sans-serif', color: 'rgba(255,255,255,0.5)', marginTop: '0.5rem', lineHeight: 1.5 }}>
+              Your ranking on the leaderboard. Earned through quiz tiers, stories read, and reading streak.
+            </div>
+            <a href="/leaderboard" style={{ display: 'inline-block', marginTop: '0.85rem', fontSize: '0.78rem', fontFamily: 'Inter, sans-serif', color: '#a78bfa', fontWeight: 600, textDecoration: 'none' }}>
+              View leaderboard →
+            </a>
+          </div>
         </div>
 
         <div className="pf-section">
