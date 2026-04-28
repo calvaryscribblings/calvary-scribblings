@@ -876,9 +876,12 @@ export default function ProfilePage() {
             const toggle = async () => {
               try {
                 const db = await getDB();
-                const { ref, set, remove } = await import('firebase/database');
-                if (visible) await set(ref(db, `users/${authUser.uid}/leaderboardVisible`), false);
-                else         await remove(ref(db, `users/${authUser.uid}/leaderboardVisible`));
+                const { ref, update } = await import('firebase/database');
+                const newValue = visible ? false : null;
+                await update(ref(db, '/'), {
+                  [`users/${authUser.uid}/leaderboardVisible`]:       newValue,
+                  [`leaderboard/${authUser.uid}/leaderboardVisible`]: newValue,
+                });
               } catch (e) {}
             };
             return (

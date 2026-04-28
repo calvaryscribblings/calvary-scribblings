@@ -11,7 +11,7 @@ export default function LeaderboardPage() {
   useEffect(() => {
     (async () => {
       try {
-        const snap = await get(ref(db, 'users'));
+        const snap = await get(ref(db, 'leaderboard'));
         if (!snap.exists()) { setRows([]); return; }
         const all = Object.entries(snap.val())
           .filter(([, u]) => u.leaderboardVisible !== false)

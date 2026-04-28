@@ -352,7 +352,7 @@ function TopReadersStrip() {
     (async () => {
       try {
         const { ref, get } = await import('firebase/database');
-        const snap = await get(ref(db, 'users'));
+        const snap = await get(ref(db, 'leaderboard'));
         if (!snap.exists()) { setRows([]); return; }
         const top = Object.entries(snap.val())
           .filter(([, u]) => u.leaderboardVisible !== false && (u.readerScore ?? 0) > 0)
