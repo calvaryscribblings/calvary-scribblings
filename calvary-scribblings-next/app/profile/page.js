@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { stories as allStories } from '../lib/stories';
 import HeaderAdjuster from '../components/HeaderAdjuster';
+import { BADGES, RARITY_STYLES, getStreakDisplay } from '../lib/badges';
+import { checkAndAwardBadges } from '../lib/badgeEngine';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -358,6 +360,8 @@ export default function ProfilePage() {
   const [showAdjuster, setShowAdjuster] = useState(false);
   const [pendingHeaderFile, setPendingHeaderFile] = useState(null);
   const [saveError, setSaveError] = useState('');
+  const [userBadges, setUserBadges] = useState({});
+  const [streakData, setStreakData] = useState(null);
   const [libNotifs, setLibNotifs] = useState([]);
   const [showLibNotifs, setShowLibNotifs] = useState(false);
   const [unreadLibCount, setUnreadLibCount] = useState(0);
@@ -466,9 +470,23 @@ export default function ProfilePage() {
           setCommentCount(count);
         }));
         try {
-          const [ps, ws] = await Promise.all([get(ref(db, `points/${u.uid}/total`)), get(ref(db, `wallet/${u.uid}/balance`))]);
+          const [ps, ws, badgesSnap, streakSnap] = await Promise.all([
+            get(ref(db, `points/${u.uid}/total`)),
+            get(ref(db, `wallet/${u.uid}/balance`)),
+            get(ref(db, `userBadges/${u.uid}`)),
+            get(ref(db, `userStreaks/${u.uid}`)),
+          ]);
           if (ps.exists()) setPoints(ps.val());
           if (ws.exists()) setWalletBalance(ws.val());
+          if (badgesSnap.exists()) setUserBadges(badgesSnap.val());
+          if (streakSnap.exists()) setStreakData(streakSnap.val());
+          checkAndAwardBadges(u.uid, db).then(newBadges => {
+            if (newBadges.length) setUserBadges(prev => {
+              const updated = { ...prev };
+              newBadges.forEach(b => { updated[b.id] = { earnedAt: Date.now() }; });
+              return updated;
+            });
+          }).catch(() => {});
         } catch (e) {}
       });
     })();
@@ -606,6 +624,9 @@ export default function ProfilePage() {
         .pf-progress-bar-wrap { height: 2px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
         .pf-progress-bar { height: 100%; border-radius: 2px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
 
+        .pf-badge-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.75rem; }
+        @media (max-width: 520px) { .pf-badge-grid { grid-template-columns: repeat(3, 1fr); } }
+
         .pf-rewards-btn { display: block; width: 100%; text-decoration: none; position: relative; overflow: hidden; background: linear-gradient(135deg, #1a0a2e 0%, #0d1a12 50%, #1a0a2e 100%); border: 1px solid rgba(107,47,173,0.2); border-radius: 18px; padding: 1.7rem; transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s; }
         .pf-rewards-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 35px rgba(107,47,173,0.16); border-color: rgba(107,47,173,0.4); }
         .pf-rewards-shimmer { position: absolute; top: 0; left: -100%; width: 60%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.022), transparent); animation: shimmer 3s infinite; }
@@ -700,7 +721,18 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="pf-name">{displayName}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <div className="pf-name">{displayName}</div>
+          {(() => {
+            const streak = getStreakDisplay(streakData);
+            if (!streak || streak.n === 0) return null;
+            return (
+              <span style={{ fontSize: '0.78rem', fontFamily: 'Inter, sans-serif', color: streak.warning ? '#fbbf24' : 'rgba(255,255,255,0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                {streak.icon} {streak.n}d
+              </span>
+            );
+          })()}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.42rem' }}>
           {username && <span className="pf-username" style={{ marginBottom: 0 }}>@{username}</span>}
           {isAuthor ? <WriterBadge size={13} /> : badge ? (
@@ -792,6 +824,29 @@ export default function ProfilePage() {
             <div className="pf-progress-bar-wrap">
               <div className="pf-progress-bar" style={{ width: isAuthor ? '100%' : `${tierProgress}%`, background: isAuthor ? '#581c87' : badge ? badge.color : '#333' }} />
             </div>
+          </div>
+        </div>
+
+        <div className="pf-section">
+          <div className="pf-section-header">
+            <div className="pf-section-title">Honour Badges</div>
+            <div className="pf-section-meta">{Object.keys(userBadges).length}/{BADGES.length} earned</div>
+          </div>
+          <div className="pf-badge-grid">
+            {BADGES.map(badge => {
+              const earned = !!userBadges[badge.id];
+              return (
+                <div key={badge.id} style={{
+                  borderRadius: 10, padding: '0.6rem', textAlign: 'center',
+                  opacity: earned ? 1 : 0.25,
+                  ...(earned ? RARITY_STYLES[badge.rarity] : { border: '1px solid rgba(255,255,255,0.08)', background: 'transparent' }),
+                }}>
+                  <div style={{ fontSize: '1.2rem', marginBottom: '0.3rem' }}>{badge.icon}</div>
+                  <div style={{ fontSize: '0.6rem', fontFamily: 'Cochin, Georgia, serif', color: '#f5f0e8', marginBottom: '0.15rem' }}>{badge.name}</div>
+                  <div style={{ fontSize: '0.52rem', fontFamily: 'Inter, sans-serif', color: 'rgba(255,255,255,0.35)', lineHeight: 1.35 }}>{badge.description}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

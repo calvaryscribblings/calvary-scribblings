@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { stories as allStories } from '../lib/stories';
+import { BADGES, RARITY_STYLES, getStreakDisplay } from '../lib/badges';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -291,6 +292,8 @@ export default function UserPage() {
   const [followingUids, setFollowingUids] = useState([]);
   const [readStorySlugs, setReadStorySlugs] = useState([]);
   const [cmsStories, setCmsStories] = useState([]);
+  const [userBadges, setUserBadges] = useState({});
+  const [streakData, setStreakData] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followsYou, setFollowsYou] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -348,13 +351,15 @@ export default function UserPage() {
             get(ref(db, 'comments')),
             get(ref(db, `followers/${uid}`)),
             get(ref(db, `following/${uid}`)),
+            get(ref(db, `userBadges/${uid}`)),
+            get(ref(db, `userStreaks/${uid}`)),
           ];
           if (u) {
             fetches.push(get(ref(db, `followers/${uid}/${u.uid}`)));
             fetches.push(get(ref(db, `followers/${u.uid}/${uid}`)));
           }
           const results = await Promise.all(fetches);
-          const [userSnap, commentsSnap, followersSnap, followingSnap] = results;
+          const [userSnap, commentsSnap, followersSnap, followingSnap, badgesSnap, streakSnap] = results;
 
           if (userSnap.exists()) {
             const d = userSnap.val();
@@ -373,9 +378,11 @@ export default function UserPage() {
           setFollowerCount(followerUidList.length); setFollowerUids(followerUidList);
           const followingUidList = followingSnap.exists() ? Object.keys(followingSnap.val()) : [];
           setFollowingCount(followingUidList.length); setFollowingUids(followingUidList);
+          if (badgesSnap.exists()) setUserBadges(badgesSnap.val());
+          if (streakSnap.exists()) setStreakData(streakSnap.val());
           if (u) {
-            setIsFollowing(results[4]?.exists() || false);
-            setFollowsYou(results[5]?.exists() || false);
+            setIsFollowing(results[6]?.exists() || false);
+            setFollowsYou(results[7]?.exists() || false);
           }
         } catch (e) { console.error('User profile error:', e); }
         setLoading(false);
@@ -487,10 +494,12 @@ export default function UserPage() {
         .up-more-btn { background: none; border: none; font-size: 0.67rem; color: rgba(155,109,255,0.42); font-family: Inter, sans-serif; cursor: pointer; padding: 0.6rem 0 0; letter-spacing: 0.06em; text-decoration: underline; text-underline-offset: 3px; }
         .up-more-btn:hover { color: #a78bfa; }
 
+        .up-badge-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.75rem; }
         @media (max-width: 520px) {
           .up-banner { height: 190px; }
           .up-avatar { width: 88px; height: 88px; margin-top: -44px; font-size: 28px; }
           .up-name { font-size: 1.62rem; }
+          .up-badge-grid { grid-template-columns: repeat(3, 1fr); }
         }
       `}</style>
 
@@ -513,7 +522,18 @@ export default function UserPage() {
         <div className="up-avatar">
           {profileData.avatarUrl ? <img src={profileData.avatarUrl} alt={initials} /> : initials}
         </div>
-        <div className="up-name">{profileData.displayName || 'Reader'}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <div className="up-name">{profileData.displayName || 'Reader'}</div>
+          {(() => {
+            const streak = getStreakDisplay(streakData);
+            if (!streak || streak.n === 0) return null;
+            return (
+              <span style={{ fontSize: '0.78rem', fontFamily: 'Inter, sans-serif', color: streak.warning ? '#fbbf24' : 'rgba(255,255,255,0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                {streak.icon} {streak.n}d
+              </span>
+            );
+          })()}
+        </div>
         <div className="up-handle-badge-row">
           {profileData.username && <span className="up-username">@{profileData.username}</span>}
           {isAuthor ? <WriterBadge size={13} /> : badge ? (
@@ -554,6 +574,27 @@ export default function UserPage() {
             <div className="up-stat-label">Comments ↗</div>
           </div>
         </div>
+
+        {BADGES.filter(b => userBadges[b.id]).length > 0 && (
+          <div className="up-section">
+            <div className="up-section-header">
+              <div className="up-section-title">Honour Badges</div>
+              <div className="up-section-meta">{BADGES.filter(b => userBadges[b.id]).length} earned</div>
+            </div>
+            <div className="up-badge-grid">
+              {BADGES.filter(b => userBadges[b.id]).map(badge => (
+                <div key={badge.id} style={{
+                  borderRadius: 10, padding: '0.6rem', textAlign: 'center',
+                  ...RARITY_STYLES[badge.rarity],
+                }}>
+                  <div style={{ fontSize: '1.2rem', marginBottom: '0.3rem' }}>{badge.icon}</div>
+                  <div style={{ fontSize: '0.6rem', fontFamily: 'Cochin, Georgia, serif', color: '#f5f0e8', marginBottom: '0.15rem' }}>{badge.name}</div>
+                  <div style={{ fontSize: '0.52rem', fontFamily: 'Inter, sans-serif', color: 'rgba(255,255,255,0.35)', lineHeight: 1.35 }}>{badge.description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="up-section">
           <div className="up-section-header"><div className="up-section-title">The Scribblings Square</div></div>

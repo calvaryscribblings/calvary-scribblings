@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { scoreHardball, scoreEssay, determineTier } from '../lib/quizScoring';
+import { checkAndAwardBadges } from '../lib/badgeEngine';
 import QuizGuidelinesModal from './QuizGuidelinesModal';
 import QuizHardball from './QuizHardball';
 import QuizMain from './QuizMain';
@@ -500,6 +501,36 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
   return null;
 }
 
+// ── Badge toast ───────────────────────────────────────────────────────────────
+
+function BadgeToast({ badge, onDismiss }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 5000);
+    return () => clearTimeout(t);
+  }, [badge.id]);
+  return (
+    <div style={{
+      position: 'fixed', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)',
+      background: '#111', border: '1px solid rgba(167,139,250,0.35)', borderRadius: 12,
+      padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
+      zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+      animation: 'badge-slide-up 0.3s cubic-bezier(0.34,1.56,0.64,1)', minWidth: 260, maxWidth: 320,
+    }}>
+      <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>{badge.icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '0.58rem', fontFamily: 'Inter, sans-serif', fontWeight: 600,
+          letterSpacing: '0.12em', textTransform: 'uppercase', color: '#a78bfa', marginBottom: '0.2rem' }}>
+          🎉 Badge Earned
+        </div>
+        <div style={{ fontSize: '0.88rem', fontFamily: 'Cochin, Georgia, serif', color: '#f5f0e8' }}>{badge.name}</div>
+        <div style={{ fontSize: '0.68rem', fontFamily: 'Inter, sans-serif', color: 'rgba(255,255,255,0.4)', marginTop: '0.15rem' }}>{badge.description}</div>
+      </div>
+      <button onClick={onDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer',
+        color: 'rgba(255,255,255,0.3)', fontSize: '1.1rem', padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+    </div>
+  );
+}
+
 // ── Main QuizCard component ───────────────────────────────────────────────────
 
 export default function QuizCard({ slug, user, onSignIn }) {
@@ -511,7 +542,9 @@ export default function QuizCard({ slug, user, onSignIn }) {
   const [animResult, setAnimResult] = useState(null);
   const [attemptCount, setAttemptCount] = useState(null);
   const hardballEvalRef = useRef(null);
+  const badgeCheckRef = useRef(null);
   const [pendingResult, setPendingResult] = useState(null);
+  const [badgeToastQueue, setBadgeToastQueue] = useState([]);
   const [saveError, setSaveError] = useState(null);
 
   // Load quiz data once
@@ -774,6 +807,8 @@ export default function QuizCard({ slug, user, onSignIn }) {
       }
 
       setPendingResult(null);
+      const dbPromise = getDB();
+      badgeCheckRef.current = dbPromise.then(db => checkAndAwardBadges(user.uid, db).catch(() => []));
       setSaveError(null);
       setAnimResult(result);
       setView('animation');
@@ -793,6 +828,8 @@ export default function QuizCard({ slug, user, onSignIn }) {
         await writeQuizResult(pendingResult.result);
         const result = pendingResult.result;
         setPendingResult(null);
+        const dbPromise = getDB();
+        badgeCheckRef.current = dbPromise.then(db => checkAndAwardBadges(user.uid, db).catch(() => []));
         setAnimResult(result);
         setView('animation');
       } else if (pendingResult.type === 'hardball') {
@@ -807,9 +844,14 @@ export default function QuizCard({ slug, user, onSignIn }) {
     }
   }
 
-  function handleAnimationDone() {
+  async function handleAnimationDone() {
     setAnimResult(null);
     setView('card');
+    if (badgeCheckRef.current) {
+      const earned = await badgeCheckRef.current;
+      badgeCheckRef.current = null;
+      if (earned.length) setBadgeToastQueue(earned);
+    }
   }
 
   const socialProof = typeof attemptCount === 'number' && attemptCount >= 5
@@ -823,6 +865,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@400;500;600&display=swap');
         @keyframes qc-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(107,47,173,0)} 50%{box-shadow:0 0 0 8px rgba(107,47,173,0.2)} }
+        @keyframes badge-slide-up { from{opacity:0;transform:translateX(-50%) translateY(1rem)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
       `}</style>
 
       <div style={{ background: '#0a0a0a' }}>
@@ -958,6 +1001,10 @@ export default function QuizCard({ slug, user, onSignIn }) {
           result={animResult}
           onDone={handleAnimationDone}
         />
+      )}
+
+      {badgeToastQueue.length > 0 && (
+        <BadgeToast badge={badgeToastQueue[0]} onDismiss={() => setBadgeToastQueue(q => q.slice(1))} />
       )}
 
     </>
