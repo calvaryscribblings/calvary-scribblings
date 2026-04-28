@@ -838,7 +838,7 @@ export default function ProfilePage() {
               return (
                 <div key={badge.id} style={{
                   borderRadius: 10, padding: '0.6rem', textAlign: 'center',
-                  opacity: earned ? 1 : 0.25,
+                  opacity: earned ? 1 : 0.35,
                   ...(earned ? RARITY_STYLES[badge.rarity] : { border: '1px solid rgba(255,255,255,0.08)', background: 'transparent' }),
                 }}>
                   <div style={{ fontSize: '1.2rem', marginBottom: '0.3rem' }}>{badge.icon}</div>
