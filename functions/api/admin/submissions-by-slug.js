@@ -44,7 +44,7 @@ async function getAccessToken(clientEmail, privateKeyPem) {
   const payload = base64url(enc.encode(JSON.stringify({
     iss: clientEmail, sub: clientEmail,
     aud: 'https://oauth2.googleapis.com/token',
-    scope: 'https://www.googleapis.com/auth/firebase.database',
+    scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/firebase.database',
     iat: now, exp: now + 3600,
   })));
 
