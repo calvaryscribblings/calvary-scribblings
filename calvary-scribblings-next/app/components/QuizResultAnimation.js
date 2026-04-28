@@ -97,16 +97,16 @@ export default function QuizResultAnimation({ result, onDone }) {
   }
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 1500);
-    const t2 = setTimeout(() => setPhase(2), 4000);
-    const t3 = setTimeout(() => setPhase(3), 4800);
-    const t4 = setTimeout(() => finish(), 5500);
+    const t1 = setTimeout(() => setPhase(1), 2500);
+    const t2 = setTimeout(() => setPhase(2), 6500);
+    const t3 = setTimeout(() => setPhase(3), 9500);
+    const t4 = setTimeout(() => finish(), 11500);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, []);
 
   useEffect(() => {
     if (phase !== 1) return;
-    const duration = 2400;
+    const duration = 3200;
     const startTime = Date.now();
     const target = result.totalPercent;
 
