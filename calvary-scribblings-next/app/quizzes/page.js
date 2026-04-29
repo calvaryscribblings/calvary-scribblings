@@ -127,13 +127,6 @@ export default function QuizzesPage() {
                     <div style={{ position: 'relative', flexShrink: 0 }}>
                       <img src={s.cover} alt={s.title}
                         style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 6, display: 'block' }} />
-                      <div aria-hidden="true" style={{
-                        position: 'absolute', top: 0, right: 0,
-                        width: '65%', height: '50%',
-                        borderTopRightRadius: 6,
-                        background: 'linear-gradient(225deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.35) 40%, rgba(0,0,0,0) 100%)',
-                        pointerEvents: 'none',
-                      }} />
                       <QuizPill hasQuiz={true} userTier={userTier} scorePct={scorePct}
                         scribblesReward={reward} locked={locked} />
                     </div>

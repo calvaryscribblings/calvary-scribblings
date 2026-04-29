@@ -1,10 +1,10 @@
 'use client';
 
 const TIER_STYLES = {
-  bronze:   { background: '#a97142',                                            color: '#fff',     border: 'none' },
-  silver:   { background: '#9ca3af',                                            color: '#fff',     border: 'none' },
-  gold:     { background: '#d4a437',                                            color: '#fff',     border: 'none' },
-  platinum: { background: 'linear-gradient(135deg, #f5f5f5 0%, #e8e6e1 100%)', color: '#3a3f4b', border: '1px solid #3a3f4b' },
+  bronze:   { background: '#c97c2f', color: '#fff',     border: 'none' },
+  silver:   { background: '#c0c0c8', color: '#3a3f4b', border: 'none' },
+  gold:     { background: '#c9a44c', color: '#fff',     border: 'none' },
+  platinum: { background: '#c8daea', color: '#3a3f4b', border: 'none' },
 };
 
 const TIER_LABELS = {
@@ -24,8 +24,8 @@ export default function QuizPill({ hasQuiz, userTier, scribblesReward, scorePct,
           fontWeight: 600, letterSpacing: '0.04em',
           padding: '0.25rem 0.5rem', borderRadius: 999, lineHeight: 1,
           whiteSpace: 'nowrap', pointerEvents: 'none',
-          background: 'rgba(239,68,68,0.12)', color: '#f87171',
-          border: '1px solid rgba(239,68,68,0.3)',
+          background: '#9f4747', color: '#fff',
+          border: 'none',
         }}
       >
         Locked
@@ -39,7 +39,7 @@ export default function QuizPill({ hasQuiz, userTier, scribblesReward, scorePct,
     : `Earn up to ${scribblesReward} Scribbles`;
   const tierStyle = userTier
     ? TIER_STYLES[userTier]
-    : { background: 'rgba(255,255,255,0.9)', color: '#6b2fad', border: 'none' };
+    : { background: '#6b2fad', color: '#fff', border: 'none' };
 
   return (
     <span
