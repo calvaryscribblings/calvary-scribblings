@@ -543,6 +543,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
   const [view, setView] = useState('card'); // 'card'|'guidelines'|'hardball'|'main'|'animation'
   const [animResult, setAnimResult] = useState(null);
   const [attemptCount, setAttemptCount] = useState(null);
+  const [hardballAttemptIndex, setHardballAttemptIndex] = useState(null);
   const hardballEvalRef = useRef(null);
   const badgeCheckRef = useRef(null);
   const [pendingResult, setPendingResult] = useState(null);
@@ -689,6 +690,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
     const updates = {
       [`quiz_submissions/${user.uid}/${slug}`]: {
         hardballPassed: false,
+        attemptIndex: 2,
         tier: null,
         pointsAwarded: 0,
         evaluator: evalMeta.evaluator,
@@ -718,6 +720,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
     const updates = {
       [`quiz_submissions/${user.uid}/${slug}`]: {
         hardballPassed: true,
+        attemptIndex: result.attemptIndex,
         mcqAnswers: result.mcqAnswers,
         essayAnswers: result.essayAnswers,
         mcqScore: result.mcqScore,
@@ -764,7 +767,10 @@ export default function QuizCard({ slug, user, onSignIn }) {
   function handleBeginQuiz() { setView('guidelines'); }
   function handleGuidelinesCancel() { setView('card'); }
   function handleGuidelinesBegin() { setView('hardball'); }
-  function handleHardballPass() { setView('main'); }
+  function handleHardballPass(attemptIndex) {
+    setHardballAttemptIndex(attemptIndex);
+    setView('main');
+  }
 
   async function handleHardballFail() {
     try {
@@ -831,6 +837,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
         totalPercent,
         mcqAnswers,
         essayAnswers,
+        attemptIndex: hardballAttemptIndex,
         evaluator: evalResult.evaluator,
         fallback: evalResult.fallback,
         fallbackReason: evalResult.fallbackReason ?? null,

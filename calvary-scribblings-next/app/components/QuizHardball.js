@@ -12,7 +12,7 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
       clearTimeout(failTimerRef.current);
       failTimerRef.current = null;
     }
-    onFail();
+    onFail(2);
   }
 
   if (passed) {
@@ -53,7 +53,7 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
     const passed = await onCheck(answer, attempts);
 
     if (passed) {
-      onPass();
+      onPass(attempts + 1);
     } else {
       const next = attempts + 1;
       setAttempts(next);
@@ -61,7 +61,7 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
         setStatus('failed');
         failTimerRef.current = setTimeout(() => {
           failTimerRef.current = null;
-          onFail();
+          onFail(2);
         }, 6000);
       } else {
         setStatus('idle');
