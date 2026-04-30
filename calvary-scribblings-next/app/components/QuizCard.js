@@ -798,7 +798,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
         const primeAudio = (src) => {
           try {
             const audio = new Audio(src);
-            audio.muted = true;
+            audio.volume = 0;
             audio.play().then(() => {
               audio.pause();
               audio.currentTime = 0;
@@ -810,12 +810,6 @@ export default function QuizCard({ slug, user, onSignIn }) {
         primeAudio('/sounds/tier-silver.mp3');
         primeAudio('/sounds/tier-gold.mp3');
         primeAudio('/sounds/tier-platinum.mp3');
-
-        try {
-          const submitAudio = new Audio('/sounds/tier-silver.mp3');
-          submitAudio.volume = 0.85;
-          submitAudio.play().catch(() => {});
-        } catch (e) {}
       }
     } catch (e) {}
 
