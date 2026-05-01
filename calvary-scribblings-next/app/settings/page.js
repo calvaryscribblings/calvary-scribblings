@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import DeleteAccountModal from '../components/DeleteAccountModal';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -31,16 +32,26 @@ export default function SettingsPage() {
   const [resetMsg, setResetMsg] = useState('');
   const [verifyState, setVerifyState] = useState('idle');
   const [verifyMsg, setVerifyMsg] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [username, setUsername] = useState(null);
 
   useEffect(() => {
     let unsubAuth = null;
     (async () => {
       const auth = await getFirebaseAuth();
       const { onAuthStateChanged } = await import('firebase/auth');
-      unsubAuth = onAuthStateChanged(auth, u => {
+      unsubAuth = onAuthStateChanged(auth, async u => {
         if (!u) { router.push('/'); return; }
         setAuthUser(u);
         setLoading(false);
+        try {
+          const { getDatabase, ref, get } = await import('firebase/database');
+          const dbInst = getDatabase(await getApp());
+          const snap = await get(ref(dbInst, `users/${u.uid}/username`));
+          setUsername(snap.exists() ? snap.val() : null);
+        } catch {
+          setUsername(null);
+        }
       });
     })();
     return () => { if (unsubAuth) unsubAuth(); };
@@ -165,6 +176,14 @@ export default function SettingsPage() {
         .st-modal-done { width: 100%; background: none; border: 1px solid rgba(167,139,250,0.3); border-radius: 9px; padding: 0.78rem; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #a78bfa; cursor: pointer; font-family: Inter, sans-serif; margin-top: 1.2rem; transition: background 0.2s; }
         .st-modal-done:hover { background: rgba(107,47,173,0.1); }
         .st-modal-error { font-size: 0.7rem; color: #f87171; font-family: Inter, sans-serif; margin-top: 0.8rem; }
+
+        .st-danger { margin-top: 1.2rem; padding: 1.05rem 1.1rem 1.15rem; border: 1px solid rgba(180,86,80,0.18); border-radius: 12px; background: rgba(180,86,80,0.025); }
+        .st-danger-label { font-size: 0.6rem; color: rgba(214,141,133,0.7); letter-spacing: 0.18em; text-transform: uppercase; font-family: Inter, sans-serif; margin-bottom: 0.65rem; }
+        .st-danger-title { font-family: Cochin, 'Cormorant Garamond', Georgia, serif; font-size: 1.1rem; color: #f5f0e8; margin-bottom: 0.4rem; }
+        .st-danger-body { font-size: 0.74rem; color: rgba(232,224,212,0.5); line-height: 1.6; font-family: Inter, sans-serif; margin-bottom: 0.95rem; }
+        .st-danger-body strong { color: rgba(232,224,212,0.78); font-weight: 500; }
+        .st-danger-btn { background: none; border: 1px solid rgba(180,86,80,0.5); color: #d68d85; border-radius: 9px; padding: 0.7rem 1.05rem; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; font-family: Inter, sans-serif; cursor: pointer; transition: all 0.18s; }
+        .st-danger-btn:hover { background: rgba(180,86,80,0.1); border-color: rgba(180,86,80,0.78); color: #f0a59a; }
       `}</style>
 
       <nav className="st-nav">
@@ -224,7 +243,35 @@ export default function SettingsPage() {
           </div>
           <button className="st-signout" onClick={handleSignOut}>Sign out</button>
         </div>
+
+        <div className="st-section">
+          <div className="st-section-header">
+            <div className="st-section-title">delete account</div>
+            <div className="st-section-meta">Danger zone</div>
+          </div>
+          <div className="st-danger">
+            <div className="st-danger-label">Permanent</div>
+            <div className="st-danger-title">Delete my account</div>
+            <div className="st-danger-body">
+              Deletion is scheduled for <strong>7 days</strong> from confirmation. Your content is hidden from
+              the platform immediately and your account is locked from sign-in. To recover your account
+              within the 7-day window, email <strong>Ikennaworksfromhome@gmail.com</strong> from this
+              account&rsquo;s email address.
+            </div>
+            <button className="st-danger-btn" onClick={() => setShowDeleteModal(true)}>
+              Delete my account
+            </button>
+          </div>
+        </div>
       </div>
+
+      <DeleteAccountModal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        uid={authUser?.uid}
+        username={username}
+        email={authUser?.email}
+      />
 
       {showResetModal && (
         <div className="st-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) closeResetModal(); }}>

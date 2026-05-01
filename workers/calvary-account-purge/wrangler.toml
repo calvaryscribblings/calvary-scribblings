@@ -1,0 +1,22 @@
+name = "calvary-account-purge"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# Daily run at 03:00 UTC (off-peak for UK audience).
+# Sweeps users with isDeleted === true and pendingDeletion.scheduledFor <= now
+# and hard-deletes the account + every owned/authored content node listed in
+# the deletion spec. The admin UID is hard-guarded in code.
+[triggers]
+crons = ["0 3 * * *"]
+
+# Required secrets (set via `wrangler secret put`):
+#   FIREBASE_SERVICE_ACCOUNT  — the full Firebase service account JSON, as a
+#                               single string. Used to mint OAuth tokens for
+#                               both RTDB and the Identity Toolkit (Auth) API.
+#   PURGE_TRIGGER_TOKEN       — bearer token gating the manual /run endpoint
+#                               (for ad-hoc invocation during testing).
+#
+# Non-secret config:
+[vars]
+DATABASE_URL = "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app"
+ADMIN_UID = "XaG6bTGqdDXh7VkBTw4y1H2d2s82"

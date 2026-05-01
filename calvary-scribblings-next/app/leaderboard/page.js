@@ -4,6 +4,7 @@ import { ref, get } from 'firebase/database';
 import { db } from '../lib/firebase';
 import Navbar from '../components/Navbar';
 import { RARITY_STYLES, pickHighestBadge } from '../lib/badges';
+import { getDeletedUidSet } from '../lib/userVisibility';
 
 export default function LeaderboardPage() {
   const [rows, setRows] = useState(null);
@@ -23,10 +24,14 @@ export default function LeaderboardPage() {
             readerScore: u.readerScore ?? 0,
             joinDate:    u.joinDate ?? Infinity,
           }))
-          .sort((a, b) => (b.readerScore - a.readerScore) || (a.joinDate - b.joinDate))
-          .slice(0, 50);
+          .sort((a, b) => (b.readerScore - a.readerScore) || (a.joinDate - b.joinDate));
 
-        const withBadges = await Promise.all(all.map(async row => {
+        // Filter out soft-deleted users before slicing — otherwise a deleted
+        // user could occupy a top-50 slot and we'd show 49 rows.
+        const deletedSet = await getDeletedUidSet(all.map(r => r.uid));
+        const visible = all.filter(r => !deletedSet.has(r.uid)).slice(0, 50);
+
+        const withBadges = await Promise.all(visible.map(async row => {
           try {
             const bSnap = await get(ref(db, `userBadges/${row.uid}`));
             return { ...row, highestBadge: pickHighestBadge(bSnap.exists() ? bSnap.val() : null) };

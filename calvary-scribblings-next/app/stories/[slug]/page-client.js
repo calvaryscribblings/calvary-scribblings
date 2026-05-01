@@ -12,6 +12,7 @@ import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
 import StoryAuthorBio from '../../components/StoryAuthorBio';
 import QuizCard from '../../components/QuizCard';
+import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
 
 
 const FB = {
@@ -470,7 +471,7 @@ const CommentNode = React.memo(function CommentNode({
           {children.map(child => (
             <CommentNode
               key={child.id} comment={child} depth={depth + 1} parentAuthorName={comment.authorName}
-              user={user} comments={comments} commentReactions={commentReactions}
+              user={user} comments={comments /* already pre-filtered upstream */} commentReactions={commentReactions}
               replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
               setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
               toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
@@ -656,7 +657,14 @@ function CommentsSection({ slug, onSignIn }) {
   }, [user, slug]);
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
-  const topLevel = comments.filter(c => !c.parentId);
+  // Hide comments from soft-deleted users. The CommentThread also reads
+  // `comments` from a closure to render replies, so we replace the array
+  // with a filtered view rather than only filtering at the top level.
+  const deletedCommentAuthors = useDeletedUids(comments.map(c => c.authorUid));
+  const visibleComments = deletedCommentAuthors
+    ? comments.filter(c => !deletedCommentAuthors.has(c.authorUid))
+    : comments;
+  const topLevel = visibleComments.filter(c => !c.parentId);
 
   return (
     <div className="cs-section">
@@ -693,7 +701,7 @@ function CommentsSection({ slug, onSignIn }) {
           {topLevel.map(comment => (
             <CommentNode
               key={comment.id} comment={comment} depth={1} parentAuthorName={null}
-              user={user} comments={comments} commentReactions={commentReactions}
+              user={user} comments={visibleComments} commentReactions={commentReactions}
               replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
               setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
               toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
@@ -709,7 +717,20 @@ export default function StoryPageClient({ params }) {
   const { slug } = use(params);
   const [story, setStory] = useState(stories.find(s => s.id === slug) || null);
   const [storyReady, setStoryReady] = useState(!!stories.find(s => s.id === slug));
+  const [authorDeleted, setAuthorDeleted] = useState(false);
   useEffect(() => { const t = setTimeout(() => setStoryReady(true), 3000); return () => clearTimeout(t); }, []);
+
+  // CMS-published stories may have an authorUid; if that user is soft-deleted
+  // we treat the story as gone (it'll be hard-deleted by the cron at day 7).
+  // Hardcoded stories in lib/stories.js have no authorUid so this is a no-op.
+  useEffect(() => {
+    if (!story?.authorUid) { setAuthorDeleted(false); return; }
+    let cancelled = false;
+    getDeletedUidSet([story.authorUid]).then(set => {
+      if (!cancelled) setAuthorDeleted(set.has(story.authorUid));
+    });
+    return () => { cancelled = true; };
+  }, [story?.authorUid]);
 
   useEffect(() => {
     if (story && storyReady) return;
@@ -844,6 +865,13 @@ useEffect(() => {
   }, [storyReady]);
   const categoryColors = { news: '#ef4444', flash: '#6b46c1', short: '#6b46c1', poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1' };
   if (!story) return <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />;
+  if (authorDeleted) return (
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.05rem', fontStyle: 'italic', textAlign: 'center' }}>
+        This story is no longer available.
+      </p>
+    </div>
+  );
   const accentColor = categoryColors[story.category] || '#6b46c1';
 
   // ── Derived display values — works for both hardcoded and CMS stories ──

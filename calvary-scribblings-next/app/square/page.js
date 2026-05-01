@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { stories as allStaticStories } from '../lib/stories';
+import { useDeletedUids } from '../lib/userVisibility';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -1163,8 +1164,14 @@ export default function SquarePage() {
   };
 
   const maxChars = user ? getMaxChars(userData?.readCount || 0, user.uid, userData?.isAuthor) : 200;
-  const topLevel = posts.filter(p => !p.parentId);
-  const getReplies = (id) => posts.filter(p => p.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
+  // Hide content from soft-deleted users. Hard-deleted users no longer have
+  // posts in the DB, so this only affects the 7-day grace window.
+  const deletedAuthorSet = useDeletedUids(posts.map(p => p.authorUid));
+  const visiblePosts = deletedAuthorSet
+    ? posts.filter(p => !deletedAuthorSet.has(p.authorUid))
+    : posts;
+  const topLevel = visiblePosts.filter(p => !p.parentId);
+  const getReplies = (id) => visiblePosts.filter(p => p.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
 
   const ReactionBar = ({ p, size = 14 }) => {
@@ -1330,7 +1337,7 @@ export default function SquarePage() {
                 <Avatar uid={user.uid} initials={userInitials} size={36} isAuthor={userData?.isAuthor} avatarUrl={userData?.avatarUrl} />
                 <div style={{ flex: 1, position: 'relative' }}>
                   {quotedPostId && (
-                    <QuotedCard quotedPost={posts.find(p => p.id === quotedPostId)} onClear={() => setQuotedPostId(null)} />
+                    <QuotedCard quotedPost={visiblePosts.find(p => p.id === quotedPostId)} onClear={() => setQuotedPostId(null)} />
                   )}
                   <textarea ref={textareaRef} className="sq-textarea" placeholder="What's on your mind? Type @ to mention someone…" value={text} onChange={e => handleTextChange(e.target.value)} rows={3} />
                   {mentionQuery !== '' && <MentionDropdown query={mentionQuery} onSelect={insertMention} />}
@@ -1415,7 +1422,7 @@ export default function SquarePage() {
                             <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
                             {p.attachedStory && <StoryEmbed story={p.attachedStory} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
-                            {p.quotedPostId && <QuotedCard quotedPost={posts.find(qp => qp.id === p.quotedPostId)} />}
+                            {p.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === p.quotedPostId)} />}
                           </>
                         )}
 
@@ -1459,7 +1466,7 @@ export default function SquarePage() {
                                     ) : (
                                       <>
                                         <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.65 }}>{renderText(r.text)}</div>
-                                        {r.quotedPostId && <QuotedCard quotedPost={posts.find(qp => qp.id === r.quotedPostId)} />}
+                                        {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} />}
                                       </>
                                     )}
                                     <ReactionBar p={r} size={13} />

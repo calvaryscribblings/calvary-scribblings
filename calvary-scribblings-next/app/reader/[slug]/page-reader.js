@@ -9,6 +9,7 @@ import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import StoryAuthorBio from '../../components/StoryAuthorBio';
 import QuizCard from '../../components/QuizCard';
 import { use } from 'react';
+import { useDeletedUids } from '../../lib/userVisibility';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -445,7 +446,11 @@ function CommentsSection({ slug, onSignIn }) {
   }, [user, slug]);
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
-  const topLevel = comments.filter(c => !c.parentId);
+  const deletedCommentAuthors = useDeletedUids(comments.map(c => c.authorUid));
+  const visibleComments = deletedCommentAuthors
+    ? comments.filter(c => !deletedCommentAuthors.has(c.authorUid))
+    : comments;
+  const topLevel = visibleComments.filter(c => !c.parentId);
 
   return (
     <div className="cs-section">
@@ -482,7 +487,7 @@ function CommentsSection({ slug, onSignIn }) {
           {topLevel.map(comment => (
             <CommentNode
               key={comment.id} comment={comment} depth={1} parentAuthorName={null}
-              user={user} comments={comments} commentReactions={commentReactions}
+              user={user} comments={visibleComments} commentReactions={commentReactions}
               replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
               setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
               toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
