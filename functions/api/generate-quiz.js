@@ -95,7 +95,7 @@ ${storyText}
 
 Counts:
 - Story mode: EXACTLY 10 MCQs and 2 essays.
-- Reader mode: EXACTLY 25 MCQs and 5 essays.
+- Reader mode: EXACTLY 15 MCQs and 3 essays.
 
 Rules:
 - All questions in British English. Single quotes for quotations within questions, em dashes with spaces, no Oxford comma.
@@ -123,8 +123,8 @@ function repairJson(text) {
 
 function validateQuiz(quiz, mode) {
   const warnings = [];
-  const mcqCount = mode === 'story' ? 10 : 25;
-  const essayCount = mode === 'story' ? 2 : 5;
+  const mcqCount = mode === 'story' ? 10 : 15;
+  const essayCount = mode === 'story' ? 2 : 3;
   if (!quiz.hardball?.question) warnings.push('Missing hardball question.');
   if (!Array.isArray(quiz.hardball?.keywords) || quiz.hardball.keywords.length < 3)
     warnings.push('Hardball should have at least 3 keywords.');
@@ -176,9 +176,20 @@ export async function onRequestPost(context) {
 
   if (!story) return quizJson({ error: 'Story not found in CMS.' }, 404);
 
-  const storyText = stripHtml(story.content || '');
-  console.log('[generate-quiz] storyText length:', storyText.length);
-  if (!storyText) return quizJson({ error: 'Story has no content to generate from.' }, 400);
+  let storyText;
+  if (mode === 'reader') {
+    storyText = (story.extractedText || '').trim();
+    console.log('[generate-quiz] reader-mode extractedText length:', storyText.length);
+    if (storyText.length < 500) {
+      return quizJson({
+        error: 'Reader story has no extracted text. Run extraction from /admin/extract-text first.',
+      }, 400);
+    }
+  } else {
+    storyText = stripHtml(story.content || '');
+    console.log('[generate-quiz] story-mode storyText length:', storyText.length);
+    if (!storyText) return quizJson({ error: 'Story has no content to generate from.' }, 400);
+  }
 
   const prompt = buildQuizPrompt(story.title || slug, story.author || 'Unknown', mode, storyText);
   console.log('[generate-quiz] prompt length:', prompt.length, '| calling Anthropic...');

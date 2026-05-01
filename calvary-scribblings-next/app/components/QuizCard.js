@@ -211,7 +211,11 @@ function SocialProofLine({ text }) {
   );
 }
 
-function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof }) {
+function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof, mode = 'story', readPercent = 0 }) {
+  const isReader = mode === 'reader';
+  const topReward = isReader ? 100 : 50;
+  const mcqCount = isReader ? 15 : 10;
+  const essayCount = isReader ? 3 : 2;
   const headerLine = (
     <div style={{
       display: 'flex',
@@ -247,7 +251,7 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
         padding: '0.15em 0.6em',
         whiteSpace: 'nowrap',
       }}>
-        50 Scribbles
+        Up to {topReward} Scribbles
       </span>
     </div>
   );
@@ -317,7 +321,9 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
             margin: 0,
             lineHeight: 1.65,
           }}>
-            Read the story first to unlock the quiz.
+            {isReader
+              ? `Keep reading — ${Math.min(99, Math.floor(readPercent))}% complete. Reach the end to unlock the quiz.`
+              : 'Read the story first to unlock the quiz.'}
           </p>
         </div>
         <SocialProofLine text={socialProof} />
@@ -342,7 +348,7 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
           margin: '0 0 1.25rem',
           lineHeight: 1.65,
         }}>
-          10 questions. One attempt. Test your close reading.
+          {mcqCount} questions + {essayCount} essays. One attempt. Test your close reading.
         </p>
         <SocialProofLine text={socialProof} />
         <button
@@ -533,7 +539,7 @@ function BadgeToast({ badge, onDismiss }) {
 
 // ── Main QuizCard component ───────────────────────────────────────────────────
 
-export default function QuizCard({ slug, user, onSignIn }) {
+export default function QuizCard({ slug, user, onSignIn, mode: expectedMode = null, readPercent = 0 }) {
   const [quizData, setQuizData] = useState(null);
   const [quizLoaded, setQuizLoaded] = useState(false);
   const [submission, setSubmission] = useState(null);
@@ -559,12 +565,18 @@ export default function QuizCard({ slug, user, onSignIn }) {
         const snap = await get(ref(db, `cms_quizzes/${slug}`));
         if (snap.exists()) {
           const data = snap.val();
-          if (data.approvedAt) setQuizData(data);
+          const quizMode = data.mode || 'story';
+          // If a mode is expected (host page is reader/story specific), only render matching quizzes.
+          if (expectedMode && quizMode !== expectedMode) {
+            // intentionally don't set quizData — this card is silent on mismatch
+          } else if (data.approvedAt) {
+            setQuizData(data);
+          }
         }
       } catch (e) {}
       setQuizLoaded(true);
     })();
-  }, [slug]);
+  }, [slug, expectedMode]);
 
   // Read attempt count once on mount
   useEffect(() => {
@@ -580,7 +592,11 @@ export default function QuizCard({ slug, user, onSignIn }) {
     })();
   }, [slug]);
 
-  // Subscribe to user-specific Firebase paths reactively
+  const quizMode = quizData?.mode || 'story';
+  const isReaderMode = quizMode === 'reader';
+
+  // Subscribe to user-specific Firebase paths reactively.
+  // For reader-mode quizzes, the read gate uses readPercent (passed in by host page) instead of users/{uid}/readStories.
   useEffect(() => {
     if (!user) {
       setHasRead(false);
@@ -595,11 +611,21 @@ export default function QuizCard({ slug, user, onSignIn }) {
     (async () => {
       try {
         const db = await getDB();
-        const { ref, onValue } = await import('firebase/database');
-        unsubRead = onValue(ref(db, `users/${user.uid}/readStories/${slug}`), snap => {
-          setHasRead(snap.exists());
+        const { ref, onValue, get } = await import('firebase/database');
+        if (isReaderMode) {
+          // Seed from saved progress so the gate doesn't flicker locked while foliate boots.
+          try {
+            const snap = await get(ref(db, `users/${user.uid}/readerProgress/${slug}`));
+            const saved = snap.exists() ? (snap.val()?.fraction ?? 0) : 0;
+            setHasRead(saved * 100 >= 99);
+          } catch {}
           setHasReadLoaded(true);
-        });
+        } else {
+          unsubRead = onValue(ref(db, `users/${user.uid}/readStories/${slug}`), snap => {
+            setHasRead(snap.exists());
+            setHasReadLoaded(true);
+          });
+        }
         unsubSub = onValue(ref(db, `quiz_submissions/${user.uid}/${slug}`), snap => {
           setSubmission(snap.exists() ? snap.val() : null);
           setSubmissionLoaded(true);
@@ -610,7 +636,13 @@ export default function QuizCard({ slug, user, onSignIn }) {
       if (unsubRead) unsubRead();
       if (unsubSub) unsubSub();
     };
-  }, [user?.uid, slug]);
+  }, [user?.uid, slug, isReaderMode]);
+
+  // For reader mode, also live-update from the readPercent prop (foliate progress while user reads).
+  useEffect(() => {
+    if (!isReaderMode) return;
+    if (readPercent >= 99) setHasRead(true);
+  }, [isReaderMode, readPercent]);
 
   if (!quizLoaded || !quizData) return null;
   if (user && (!hasReadLoaded || !submissionLoaded)) return null;
@@ -822,7 +854,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
       const essayScore = safeEssays.reduce((s, e) => s + (e.score || 0), 0);
       const total = quizData.mcqs.length + quizData.essays.length;
       const totalPercent = total > 0 ? (mcqScore + essayScore) / total * 100 : 0;
-      const tierResult = determineTier(totalPercent);
+      const tierResult = determineTier(totalPercent, quizMode);
 
       const result = {
         ...tierResult,
@@ -940,7 +972,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
                 color: 'rgba(240,234,216,0.3)',
                 marginLeft: 'auto',
               }}>
-                {view === 'hardball' ? 'Comprehension check' : view === 'scoring' ? 'Scoring…' : '10 questions + 2 essays'}
+                {view === 'hardball' ? 'Comprehension check' : view === 'scoring' ? 'Scoring…' : `${quizData.mcqs?.length ?? 0} questions + ${quizData.essays?.length ?? 0} essays`}
               </span>
             </div>
           ) : (
@@ -950,6 +982,8 @@ export default function QuizCard({ slug, user, onSignIn }) {
               onSignIn={onSignIn}
               onBeginQuiz={handleBeginQuiz}
               socialProof={socialProof}
+              mode={quizMode}
+              readPercent={readPercent}
             />
           )}
         </div>
@@ -964,6 +998,7 @@ export default function QuizCard({ slug, user, onSignIn }) {
           <QuizGuidelinesModal
             onBegin={handleGuidelinesBegin}
             onCancel={handleGuidelinesCancel}
+            mode={quizMode}
           />
         )}
 

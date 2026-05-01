@@ -142,6 +142,7 @@ export default function QuizzesPage() {
               title: st.title || slug,
               author: st.author || '',
               hasEpub: !!st.epubUrl,
+              hasExtractedText: !!(st.extractedText && st.extractedText.length >= 500),
             }))
             .sort((a, b) => a.title.localeCompare(b.title))
         );
@@ -199,12 +200,13 @@ export default function QuizzesPage() {
 
   async function handleGenerate() {
     if (!selectedSlug || !user) return;
+    const generateMode = modeFilter === 'reader' ? 'reader' : 'story';
     setGenerating(true); setError(''); setMsg(''); setWarnings([]);
     try {
       const res = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ slug: selectedSlug, mode: 'story', uid: user.uid }),
+        body: JSON.stringify({ slug: selectedSlug, mode: generateMode, uid: user.uid }),
       });
       let data;
       try {
@@ -305,8 +307,11 @@ export default function QuizzesPage() {
   const filteredStories = modeFilter === 'story'
     ? cmsStories.filter(s => !s.hasEpub)
     : modeFilter === 'reader'
-      ? cmsStories.filter(s => s.hasEpub)
+      ? cmsStories.filter(s => s.hasEpub && s.hasExtractedText)
       : cmsStories;
+  const readerStoriesNeedingExtraction = modeFilter === 'reader'
+    ? cmsStories.filter(s => s.hasEpub && !s.hasExtractedText)
+    : [];
 
   function statusLabel(slug) {
     const status = quizStatuses[slug];
@@ -363,56 +368,55 @@ export default function QuizzesPage() {
             </div>
           </div>
 
-          {modeFilter !== 'reader' && (
-            <>
-              <div style={s.fg}>
-                <label style={s.label}>Story</label>
-                {loadingData ? (
-                  <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>Loading stories…</div>
-                ) : (
-                  <select
-                    style={s.select}
-                    value={selectedSlug}
-                    onChange={e => setSelectedSlug(e.target.value)}
-                    disabled={busy}
-                  >
-                    <option value="">Select a story…</option>
-                    {filteredStories.map(st => (
-                      <option key={st.slug} value={st.slug}>
-                        {st.title}{statusLabel(st.slug)}
-                        {statusLabel(st.slug) === ' ✓' ? ' — Quiz live' : statusLabel(st.slug) === ' ⚠' ? ' — Draft saved' : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {selectedSlug && quizStatuses[selectedSlug] && (
-                  <div style={s.hint}>
-                    {quizStatuses[selectedSlug] === 'live' ? '✓ This story has a published quiz.' : '⚠ Unpublished draft exists.'}
-                  </div>
-                )}
+          <div style={s.fg}>
+            <label style={s.label}>Story</label>
+            {loadingData ? (
+              <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>Loading stories…</div>
+            ) : (
+              <select
+                style={s.select}
+                value={selectedSlug}
+                onChange={e => setSelectedSlug(e.target.value)}
+                disabled={busy}
+              >
+                <option value="">Select a story…</option>
+                {filteredStories.map(st => (
+                  <option key={st.slug} value={st.slug}>
+                    {st.title}{statusLabel(st.slug)}
+                    {statusLabel(st.slug) === ' ✓' ? ' — Quiz live' : statusLabel(st.slug) === ' ⚠' ? ' — Draft saved' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            {selectedSlug && quizStatuses[selectedSlug] && (
+              <div style={s.hint}>
+                {quizStatuses[selectedSlug] === 'live' ? '✓ This story has a published quiz.' : '⚠ Unpublished draft exists.'}
               </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button
-                  style={{ ...s.btn, opacity: (!selectedSlug || busy) ? 0.5 : 1 }}
-                  disabled={!selectedSlug || busy}
-                  onClick={handleGenerate}
-                >
-                  {generating ? (
-                    <><span style={s.spinner} />Generating quiz… (~30s)</>
-                  ) : quiz ? 'Regenerate' : 'Generate Quiz'}
-                </button>
+            )}
+            {modeFilter === 'reader' && !loadingData && (
+              <div style={{ ...s.hint, marginTop: '0.4rem' }}>
+                Reader-mode quizzes are 15 MCQs + 3 essays, sourced from extracted EPUB text. Worth up to 100 Scribbles.
               </div>
-            </>
-          )}
+            )}
+            {modeFilter === 'reader' && readerStoriesNeedingExtraction.length > 0 && (
+              <div style={{ ...s.warn, marginTop: '0.6rem', marginBottom: 0, fontSize: '0.78rem' }}>
+                {readerStoriesNeedingExtraction.length} reader stor{readerStoriesNeedingExtraction.length === 1 ? 'y has' : 'ies have'} an EPUB but no extracted text yet.
+                {' '}<a href="/admin/extract-text" style={{ color: '#fcd34d', textDecoration: 'underline' }}>Run extraction →</a>
+              </div>
+            )}
+          </div>
 
-          {modeFilter === 'reader' && (
-            <div style={s.comingSoon}>
-              <div style={{ fontSize: '1.1rem', marginBottom: '0.5rem', color: '#c9a44c' }}>Coming in Phase 1.5</div>
-              Book reader quizzes require EPUB text extraction, which is not yet wired up.
-              Switch to <strong>Story page</strong> to generate quizzes now.
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button
+              style={{ ...s.btn, opacity: (!selectedSlug || busy) ? 0.5 : 1 }}
+              disabled={!selectedSlug || busy}
+              onClick={handleGenerate}
+            >
+              {generating ? (
+                <><span style={s.spinner} />Generating quiz… (~30s)</>
+              ) : quiz ? 'Regenerate' : 'Generate Quiz'}
+            </button>
+          </div>
         </div>
 
         {/* Feedback messages */}

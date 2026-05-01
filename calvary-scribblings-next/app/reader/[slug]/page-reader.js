@@ -7,6 +7,7 @@ import { notifyMentions } from '../../lib/mentions';
 import { updateStreak } from '../../lib/streakEngine';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import StoryAuthorBio from '../../components/StoryAuthorBio';
+import QuizCard from '../../components/QuizCard';
 import { use } from 'react';
 
 const FB = {
@@ -511,8 +512,42 @@ export default function StoryReaderClient({ params }) {
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
   const [bookmarkConfirm, setBookmarkConfirm] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [readerUser, setReaderUser] = useState(null);
   const iframeRef = useRef(null);
   const pendingFont = useRef(1);
+  const progressSaveTimer = useRef(null);
+
+  // Lightweight auth observer for QuizCard / progress writes
+  useEffect(() => {
+    let unsub;
+    (async () => {
+      try {
+        const auth = await getFirebaseAuth();
+        const { onAuthStateChanged } = await import('firebase/auth');
+        unsub = onAuthStateChanged(auth, u => setReaderUser(u));
+      } catch {}
+    })();
+    return () => { if (unsub) unsub(); };
+  }, []);
+
+  // Auto-save reading progress (debounced ~2s) — feeds the reader-mode quiz read gate
+  useEffect(() => {
+    if (!readerUser) return;
+    if (!progress || progress < 1) return;
+    if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
+    const fr = currentFraction.current || progress / 100;
+    progressSaveTimer.current = setTimeout(async () => {
+      try {
+        const db = await getDB();
+        const { ref, set } = await import('firebase/database');
+        await set(ref(db, `users/${readerUser.uid}/readerProgress/${slug}`), {
+          fraction: fr,
+          updatedAt: Date.now(),
+        });
+      } catch (e) { console.warn('[reader] readerProgress save failed:', e); }
+    }, 2000);
+    return () => { if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current); };
+  }, [progress, readerUser?.uid, slug]);
 
   useEffect(() => {
     if (story) return;
@@ -783,6 +818,15 @@ export default function StoryReaderClient({ params }) {
 
             </div>
             <StoryAuthorBio authorUid={story.authorUid} fallbackName={story.author} />
+            <div style={{ maxWidth: 680, margin: '2rem auto 0', padding: '0 1.5rem' }}>
+              <QuizCard
+                slug={slug}
+                user={readerUser}
+                mode="reader"
+                readPercent={progress}
+                onSignIn={() => setShowAuthModal(true)}
+              />
+            </div>
             <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
           </div>
         )}

@@ -2,7 +2,13 @@
 
 import { useEffect } from 'react';
 
-export default function QuizGuidelinesModal({ onBegin, onCancel }) {
+const TIER_TABLE = {
+  story: { platinum: 50, gold: 45, silver: 40, bronze: 25 },
+  reader: { platinum: 100, gold: 90, silver: 80, bronze: 70 },
+};
+
+export default function QuizGuidelinesModal({ onBegin, onCancel, mode = 'story' }) {
+  const rewards = TIER_TABLE[mode] || TIER_TABLE.story;
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
@@ -60,12 +66,18 @@ export default function QuizGuidelinesModal({ onBegin, onCancel }) {
         }}>
           <p style={{ margin: 0 }}>One attempt. The comprehension check alone allows two.</p>
 
+          {mode === 'reader' && (
+            <p style={{ margin: 0, color: 'rgba(240,234,216,0.75)' }}>
+              Long-form stories carry larger rewards. Every passing tier earns at least {rewards.bronze} Scribbles.
+            </p>
+          )}
+
           <p style={{ margin: 0 }}>
             Your answers are scored:<br />
-            <span style={{ color: '#e8f0f8' }}>100%</span> = Platinum &nbsp;·&nbsp;
-            <span style={{ color: '#c9a44c' }}>90%</span> = Gold &nbsp;·&nbsp;
-            <span style={{ color: '#c0c0c8' }}>80%</span> = Silver &nbsp;·&nbsp;
-            <span style={{ color: '#c97c2f' }}>60%</span> = Bronze<br />
+            <span style={{ color: '#e8f0f8' }}>100%</span> = Platinum ({rewards.platinum} Scribbles) &nbsp;·&nbsp;
+            <span style={{ color: '#c9a44c' }}>90%</span> = Gold ({rewards.gold}) &nbsp;·&nbsp;
+            <span style={{ color: '#c0c0c8' }}>80%</span> = Silver ({rewards.silver}) &nbsp;·&nbsp;
+            <span style={{ color: '#c97c2f' }}>60%</span> = Bronze ({rewards.bronze})<br />
             Below 60% = no tier
           </p>
 

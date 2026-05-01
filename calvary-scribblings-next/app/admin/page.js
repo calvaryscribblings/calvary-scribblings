@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { extractEpubText } from '../lib/epubExtract';
 
 const ADMIN_EMAIL = 'Ikennaworksfromhome@gmail.com';
 
@@ -219,7 +220,17 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
     setEpubUploading(true);
     try {
       const url = await uploadEPUBToStorage(file);
-      setForm(f => ({ ...f, epubUrl: url }));
+      let extractedText = '';
+      let extractionWarning = '';
+      try {
+        extractedText = await extractEpubText(file);
+        if (extractedText.length < 500) extractionWarning = 'Extracted text is unusually short (' + extractedText.length + ' chars). Reader-mode quizzes may fail. Re-run from /admin/extract-text if needed.';
+      } catch (extractErr) {
+        console.warn('[admin] EPUB text extraction failed:', extractErr);
+        extractionWarning = 'EPUB uploaded but text extraction failed: ' + extractErr.message + '. Run extraction from /admin/extract-text after saving.';
+      }
+      setForm(f => ({ ...f, epubUrl: url, extractedText }));
+      if (extractionWarning) alert(extractionWarning);
     } catch (err) { alert('EPUB upload failed: ' + err.message); }
     setEpubUploading(false);
   }
@@ -350,6 +361,10 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
             <input ref={epubInputRef} type="file" accept=".epub,application/epub+zip" style={{ display: 'none' }} onChange={handleEPUBUpload} />
           </div>
           {epubIsUrl && <div style={s.hintGreen}>✓ EPUB uploaded to Firebase</div>}
+          {epubIsUrl && (form.extractedText
+            ? <div style={s.hintGreen}>✓ Text extracted ({form.extractedText.length.toLocaleString()} chars) — reader-mode quizzes ready.</div>
+            : <div style={{ ...s.hint, color: '#fcd34d' }}>⚠ No extracted text on file. Reader-mode quizzes will fail until you re-upload or run /admin/extract-text.</div>
+          )}
           <div style={s.hint}>Upload an EPUB file for the cinematic book reader. Convert from Word/Google Docs using Calibre (free).</div>
         </div>
 
@@ -435,6 +450,7 @@ export default function AdminPage() {
     title: '', author: AUTHORS[0], category: 'flash', subcategory: '',
     date: formatDate(new Date()), coverFilename: '', coverPreview: null,
     content: '', publishAt: '', epubUrl: '', readerMode: false,
+    extractedText: '',
     authorHandle: '', authorOverride: '',
   };
   const [form, setForm] = useState(emptyForm);
@@ -507,6 +523,7 @@ export default function AdminPage() {
         published: !(form.publishAt && new Date(form.publishAt) > new Date()),
         epubUrl: form.epubUrl || '',
         readerMode: form.readerMode || false,
+        extractedText: form.extractedText || '',
       };
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       await set(ref(db, `cms_stories/${slug}`), storyData);
@@ -560,6 +577,7 @@ export default function AdminPage() {
       content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
       epubUrl: story.epubUrl || '',
       readerMode: story.readerMode || false,
+      extractedText: story.extractedText || '',
       authorHandle: story.authorHandle || '',
       authorOverride: story.authorOverride || '',
     });
