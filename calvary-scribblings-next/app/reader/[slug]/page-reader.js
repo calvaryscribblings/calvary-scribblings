@@ -686,6 +686,7 @@ export default function StoryReaderClient({ params }) {
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         html,body{height:100%;background:#1a0f0a}
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeOpacity{from{opacity:0}to{opacity:1}}
         @keyframes blink{0%,100%{opacity:0.35}50%{opacity:0.9}}
         @keyframes spin{to{transform:rotate(360deg)}}
         .rtop{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:linear-gradient(to bottom,rgba(26,15,10,.96) 60%,transparent);gap:8px}
@@ -710,7 +711,7 @@ export default function StoryReaderClient({ params }) {
         .rprogf{height:100%;background:linear-gradient(90deg,#6b2fad,#c9a44c);transition:width 0.45s ease}
         .rpageinfo{font-family:'Cinzel',serif;font-size:.45rem;letter-spacing:.2em;color:rgba(201,164,76,0.6);text-transform:uppercase;white-space:nowrap;pointer-events:none}
         .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-style:italic;color:#888;font-size:1rem}
-        .bend-wrap{position:fixed;inset:0;top:48px;overflow-y:auto;background:#0a0a0a;animation:fadeUp .5s ease forwards;z-index:10}
+        .bend-wrap{position:fixed;inset:0;top:48px;overflow-y:auto;background:#0a0a0a;animation:fadeOpacity .5s ease forwards;z-index:10}
         .bend{display:flex;flex-direction:column;align-items:center;padding:48px 24px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.06)}
         .beorn{font-size:.9rem;color:#c9a44c;letter-spacing:.5em;margin-bottom:18px}
         .berule{width:60px;height:1px;background:rgba(201,164,76,.3);margin:0 auto 18px}
