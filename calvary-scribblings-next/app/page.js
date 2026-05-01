@@ -250,13 +250,14 @@ function SquareBanner({ squareOpen, countdown }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
             width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-            background: squareOpen ? '#6b2fad' : 'rgba(107,47,173,0.15)',
+            background: squareOpen ? 'transparent' : 'rgba(107,47,173,0.15)',
             border: squareOpen ? 'none' : '1px solid rgba(107,47,173,0.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             animation: squareOpen ? 'none' : 'sq-lockglow 1.8s ease-in-out infinite',
+            overflow: 'hidden',
           }}>
             {squareOpen ? (
-              <span style={{ fontFamily: 'Georgia, serif', fontSize: 20, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
+              <img src="/cs-logo-mark.png" alt="Calvary Scribblings" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} />
             ) : (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9b6dff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -316,10 +317,10 @@ function SquareFAB({ squareOpen, countdown }) {
       {squareOpen ? (
         <div style={{
           width: 18, height: 18, borderRadius: 5,
-          background: 'rgba(255,255,255,0.2)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overflow: 'hidden',
         }}>
-          <span style={{ fontFamily: 'Georgia, serif', fontSize: 11, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
+          <img src="/cs-logo-mark.png" alt="Calvary Scribblings" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 5 }} />
         </div>
       ) : (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9b6dff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'sq-lockglow-icon 1.8s ease-in-out infinite', flexShrink: 0 }}>

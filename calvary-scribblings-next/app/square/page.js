@@ -143,7 +143,8 @@ function QuotedCard({ quotedPost, onClear }) {
   };
   return (
     <div style={cardStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap', paddingRight: onClear ? 18 : 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap', paddingRight: onClear ? 18 : 0 }}>
+        <Avatar uid={quotedPost.authorUid} initials={quotedPost.authorInitials || (quotedPost.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()} size={24} isAuthor={quotedPost.isAuthor} avatarUrl={quotedPost.authorAvatarUrl} />
         <span style={{ fontSize: '0.81rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>{quotedPost.authorName}</span>
         {quotedPost.isAuthor && <VerifiedBadge size={11} />}
         {quotedPost.authorHandle && <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif' }}>@{quotedPost.authorHandle}</span>}
@@ -374,7 +375,7 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              Edit post
+              edit post
             </button>
           )}
           {isMod && (
@@ -1187,22 +1188,22 @@ export default function SquarePage() {
         })}
         {user && (
           <button onClick={() => setReplyTo(replyTo === p.id ? null : p.id)}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', textTransform: 'uppercase', transition: 'color 0.2s' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = '#9b6dff'}
             onMouseLeave={e => e.currentTarget.style.color = idleColor}>
             <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            {replyTo === p.id ? 'Cancel' : 'Reply'}
+            {replyTo === p.id ? 'cancel' : 'reply'}
           </button>
         )}
         <button onClick={() => handleQuote(p.id)} aria-label="Quote this post"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#6b2fad', border: 'none', borderRadius: 999, padding: '3px 10px', cursor: 'pointer', color: '#ffffff', fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginLeft: 'auto', transition: 'background 0.2s' }}
-          onMouseEnter={e => e.currentTarget.style.background = '#7c3aed'}
-          onMouseLeave={e => e.currentTarget.style.background = '#6b2fad'}>
-          <svg width={size - 1} height={size - 1} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
+          onMouseEnter={e => e.currentTarget.style.color = '#9b6dff'}
+          onMouseLeave={e => e.currentTarget.style.color = idleColor}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             <path d="M8 9h2"/><path d="M14 9h2"/>
           </svg>
-          Quote
+          quote
         </button>
       </div>
     );
@@ -1232,8 +1233,8 @@ export default function SquarePage() {
       {/* Nav */}
       <div style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <a href="/" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, background: '#6b2fad', borderRadius: 7, textDecoration: 'none' }}>
-            <span style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: 17, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
+          <a href="/" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, textDecoration: 'none', overflow: 'hidden' }}>
+            <img src="/cs-logo-mark.png" alt="Calvary Scribblings" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 7 }} />
           </a>
           <div>
             <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: 16, color: '#f5f0e8', lineHeight: 1 }}>The Scribblings Square</div>
