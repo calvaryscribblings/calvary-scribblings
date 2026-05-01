@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import AddAuthorModal from './AddAuthorModal';
 
 const ADMIN_EMAIL = 'Ikennaworksfromhome@gmail.com';
 
@@ -30,6 +31,7 @@ const s = {
   cardMeta: { fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' },
   cardStatus: { fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 4 },
   btn: { background: '#c4b5fd', color: '#0f0f0f', border: 'none', borderRadius: 6, padding: '0.55rem 1rem', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' },
+  btnPrimary: { background: '#6b2fad', color: '#fff', border: 'none', borderRadius: 6, padding: '0.55rem 1.05rem', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' },
   btnGhost: { background: 'transparent', color: '#c4b5fd', border: '1px solid rgba(196,181,253,0.4)', borderRadius: 6, padding: '0.5rem 0.9rem', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer' },
   form: { background: '#171717', border: '1px solid #2a2a2a', borderRadius: 10, padding: '1.5rem', marginBottom: '1rem' },
   formRow: { marginBottom: '1.25rem' },
@@ -140,6 +142,7 @@ export default function AdminAuthors() {
   const [editingUid, setEditingUid] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
 
   const isAdmin = user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
@@ -210,6 +213,9 @@ export default function AdminAuthors() {
                 <h2 style={s.h2}>Authors</h2>
                 <div style={s.h2sub}>{authors.length} writers · story-page bios</div>
               </div>
+              <button style={s.btnPrimary} onClick={() => { setShowAdd(true); setMsg(''); }}>
+                Add author
+              </button>
             </div>
             {msg && <div style={s.msg}>{msg}</div>}
             {loading
@@ -250,6 +256,11 @@ export default function AdminAuthors() {
           />
         )}
       </div>
+      <AddAuthorModal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        onAdded={async (name) => { setMsg(`Added ${name}.`); await loadAll(); }}
+      />
     </div>
   );
 }
