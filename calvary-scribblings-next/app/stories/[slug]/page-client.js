@@ -981,9 +981,13 @@ useEffect(() => {
           .story-body { padding: 2.5rem 1.2rem 4rem; }
           .hero-content { padding: 2rem 1.2rem 2.5rem 1.2rem; padding-right: 120px; }
           .prose { font-size: 1.05rem; }
-          .story-nav { padding: 0.85rem 1.2rem; }
+          .story-nav { padding: 0.5rem 1.2rem; }
           .hit-counter-row { padding: 1.5rem 1.2rem; }
           .cs-section { padding: 2rem 1.2rem 5rem; }
+          .story-badge-hero { font-size: 0.72rem; letter-spacing: 0.14em; padding: 0.22em 0.7em; margin-bottom: 0.7rem; }
+          .story-title { font-size: clamp(1.75rem, 6vw, 2.5rem); line-height: 1.15; margin-bottom: 0.7rem; }
+          .story-byline { gap: 0.6rem; font-size: 0.78rem; }
+          .byline-by { margin-right: 0; }
         }
       .prose figure { margin: 2em 0; }
 .prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
@@ -1007,7 +1011,7 @@ useEffect(() => {
             <h1 className="story-title">{story.title}</h1>
             <div className="story-byline">
               <span className="byline-by">by</span>
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.45em', flexWrap: 'wrap' }}>
                 <span>{story.author}</span>
                 {story.authorHandle && (
                   <AuthorHandleLink handle={story.authorHandle}
@@ -1024,7 +1028,7 @@ useEffect(() => {
                 style={{
                   cursor: 'pointer', fontFamily: '"Cormorant Garamond", serif',
                   fontStyle: 'italic', fontSize: '0.85rem', color: '#a78bfa',
-                  textDecoration: 'none', marginTop: '0.6rem', display: 'block',
+                  textDecoration: 'none', marginTop: '0.4rem', display: 'block',
                 }}
               >
                 ✦ This story has a quiz
