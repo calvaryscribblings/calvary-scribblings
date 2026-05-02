@@ -120,7 +120,7 @@ function QuizReview({ submission, quizData }) {
     return acc;
   }, []);
 
-  if (wrongMCQs.length === 0 && essays.length === 0) return null;
+  if (wrongMCQs.length === 0) return null;
 
   return (
     <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 2rem 3rem' }}>
@@ -136,7 +136,7 @@ function QuizReview({ submission, quizData }) {
             }}>
               Where you slipped
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: essays.length > 0 ? '1.75rem' : 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {wrongMCQs.map((item, i) => (
                 <div key={i}>
                   <p style={{
@@ -176,18 +176,6 @@ function QuizReview({ submission, quizData }) {
               ))}
             </div>
           </>
-        )}
-        {essays.length > 0 && (
-          <p style={{
-            fontFamily: 'Cormorant Garamond, Georgia, serif',
-            fontSize: '0.88rem',
-            fontStyle: 'italic',
-            color: 'rgba(240,234,216,0.28)',
-            margin: 0,
-            lineHeight: 1.6,
-          }}>
-            Your essays will be reviewed by the editors.
-          </p>
         )}
       </div>
     </div>
