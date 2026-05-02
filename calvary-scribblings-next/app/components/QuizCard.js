@@ -819,11 +819,35 @@ export default function QuizCard({ slug, user, onSignIn, mode: expectedMode = nu
           try {
             const audio = new Audio(src);
             audio.volume = 0;
+            // Diagnostic logging — remove or downgrade once iOS Safari issue is resolved.
+            audio.addEventListener('error', () => {
+              console.warn('[quiz-audio] load failed', {
+                src,
+                error: audio.error,
+              });
+            });
             audio.play().then(() => {
               audio.pause();
               audio.currentTime = 0;
-            }).catch(() => {});
-          } catch (e) {}
+            }).catch(err => {
+              // Diagnostic logging — remove or downgrade once iOS Safari issue is resolved.
+              console.warn('[quiz-audio] prime play failed', {
+                name: err?.name,
+                message: err?.message,
+                src,
+                muted: false,
+                hasFocus: typeof document !== 'undefined' ? document.hasFocus() : null,
+                visibility: typeof document !== 'undefined' ? document.visibilityState : null,
+              });
+            });
+          } catch (e) {
+            // Diagnostic logging — remove or downgrade once iOS Safari issue is resolved.
+            console.warn('[quiz-audio] prime threw', {
+              name: e?.name,
+              message: e?.message,
+              src,
+            });
+          }
         };
         primeAudio('/sounds/dial-tick.mp3');
         primeAudio('/sounds/tier-bronze.mp3');
@@ -831,7 +855,13 @@ export default function QuizCard({ slug, user, onSignIn, mode: expectedMode = nu
         primeAudio('/sounds/tier-gold.mp3');
         primeAudio('/sounds/tier-platinum.mp3');
       }
-    } catch (e) {}
+    } catch (e) {
+      // Diagnostic logging — remove or downgrade once iOS Safari issue is resolved.
+      console.warn('[quiz-audio] prime block threw', {
+        name: e?.name,
+        message: e?.message,
+      });
+    }
 
     try {
       setView('scoring');

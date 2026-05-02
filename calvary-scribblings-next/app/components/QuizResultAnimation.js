@@ -101,7 +101,18 @@ export default function QuizResultAnimation({ result, onDone }) {
     if (mutedRef.current) return;
     if (!audioRef.current) return;
     audioRef.current.currentTime = 0;
-    audioRef.current.play().catch(() => {});
+    // Diagnostic logging — remove or downgrade once iOS Safari issue is resolved.
+    const src = audioRef.current.currentSrc || audioRef.current.src;
+    audioRef.current.play().catch(err => {
+      console.warn('[quiz-audio] play failed', {
+        name: err?.name,
+        message: err?.message,
+        src,
+        muted: mutedRef.current,
+        hasFocus: typeof document !== 'undefined' ? document.hasFocus() : null,
+        visibility: typeof document !== 'undefined' ? document.visibilityState : null,
+      });
+    });
   }
 
   function finish() {
@@ -119,6 +130,13 @@ export default function QuizResultAnimation({ result, onDone }) {
     const dialAudio = new Audio('/sounds/dial-tick.mp3');
     dialAudio.preload = 'auto';
     dialAudio.volume = 0.55;
+    // Diagnostic logging — remove or downgrade once iOS Safari issue is resolved.
+    dialAudio.addEventListener('error', () => {
+      console.warn('[quiz-audio] load failed', {
+        src: dialAudio.currentSrc || dialAudio.src,
+        error: dialAudio.error,
+      });
+    });
     dialAudioRef.current = dialAudio;
 
     let tierAudio = null;
@@ -126,6 +144,13 @@ export default function QuizResultAnimation({ result, onDone }) {
       tierAudio = new Audio(`/sounds/tier-${result.tier}.mp3`);
       tierAudio.preload = 'auto';
       tierAudio.volume = 0.85;
+      // Diagnostic logging — remove or downgrade once iOS Safari issue is resolved.
+      tierAudio.addEventListener('error', () => {
+        console.warn('[quiz-audio] load failed', {
+          src: tierAudio.currentSrc || tierAudio.src,
+          error: tierAudio.error,
+        });
+      });
       tierAudioRef.current = tierAudio;
     }
 
