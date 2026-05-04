@@ -41,6 +41,13 @@ const s = {
   hint: { fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.35rem' },
   row: { display: 'flex', gap: '0.75rem', alignItems: 'center' },
   msg: { background: 'rgba(196,181,253,0.08)', border: '1px solid rgba(196,181,253,0.25)', borderRadius: 6, padding: '0.7rem 1rem', fontSize: '0.85rem', color: '#c4b5fd', marginBottom: '1rem' },
+  bylineWrap: { marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' },
+  bylineLabel: { fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'rgba(255,255,255,0.5)', fontWeight: 600 },
+  bylineRow: { display: 'flex', gap: '0.5rem', alignItems: 'center' },
+  bylineInput: { flex: 1, background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: 6, padding: '0.5rem 0.75rem', color: '#e8e8e8', fontFamily: 'inherit', fontSize: '0.86rem', boxSizing: 'border-box', minWidth: 0 },
+  bylineSaveBtn: { background: 'transparent', color: '#c4b5fd', border: '1px solid rgba(196,181,253,0.4)', borderRadius: 6, padding: '0.42rem 0.85rem', fontSize: '0.74rem', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
+  bylineSaveBtnSaved: { color: '#86efac', borderColor: 'rgba(134,239,172,0.45)' },
+  bylineHint: { fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.45 },
   gate: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
 };
 
@@ -143,6 +150,9 @@ export default function AdminAuthors() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [bylineDrafts, setBylineDrafts] = useState({});
+  const [bylineSavingUid, setBylineSavingUid] = useState(null);
+  const [bylineSavedUid, setBylineSavedUid] = useState(null);
 
   const isAdmin = user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
@@ -182,6 +192,21 @@ export default function AdminAuthors() {
       setMsg('Save error: ' + e.message);
     }
     setSaving(false);
+  }
+
+  async function saveByline(uid, currentValue) {
+    const value = (bylineDrafts[uid] !== undefined ? bylineDrafts[uid] : (currentValue || '')).trim();
+    setBylineSavingUid(uid);
+    try {
+      const { ref, update } = await import('firebase/database');
+      await update(ref(db, `users/${uid}`), { authorByline: value });
+      setBylineSavedUid(uid);
+      setTimeout(() => setBylineSavedUid(prev => prev === uid ? null : prev), 2000);
+      await loadAll();
+    } catch (e) {
+      setMsg('Byline save error: ' + e.message);
+    }
+    setBylineSavingUid(null);
   }
 
   if (authLoading) return <div style={s.gate}>Loading…</div>;
@@ -225,6 +250,10 @@ export default function AdminAuthors() {
                 : authors.map(a => {
                     const rec = records[a.uid];
                     const hasBio = rec && rec.bio;
+                    const draft = bylineDrafts[a.uid];
+                    const bylineValue = draft !== undefined ? draft : (a.authorByline || '');
+                    const isSaving = bylineSavingUid === a.uid;
+                    const isSaved = bylineSavedUid === a.uid;
                     return (
                       <div key={a.uid} style={s.card}>
                         {rec?.photoUrl
@@ -235,6 +264,26 @@ export default function AdminAuthors() {
                           <div style={s.cardMeta}>{a.username ? `@${a.username}` : 'no username'}</div>
                           <div style={{ ...s.cardStatus, color: hasBio ? '#86efac' : 'rgba(255,255,255,0.35)' }}>
                             {hasBio ? '✓ Bio set' : 'Not set up'}
+                          </div>
+                          <div style={s.bylineWrap}>
+                            <label style={s.bylineLabel}>Author Byline</label>
+                            <div style={s.bylineRow}>
+                              <input
+                                style={s.bylineInput}
+                                value={bylineValue}
+                                placeholder={a.displayName || ''}
+                                onChange={e => setBylineDrafts(d => ({ ...d, [a.uid]: e.target.value }))}
+                                disabled={isSaving}
+                              />
+                              <button
+                                style={{ ...s.bylineSaveBtn, ...(isSaved ? s.bylineSaveBtnSaved : {}) }}
+                                onClick={() => saveByline(a.uid, a.authorByline)}
+                                disabled={isSaving}
+                              >
+                                {isSaved ? 'Saved' : isSaving ? 'Saving…' : 'Save'}
+                              </button>
+                            </div>
+                            <div style={s.bylineHint}>How this writer's name appears on published stories. Leave blank to fall back to displayName.</div>
                           </div>
                         </div>
                         <button style={s.btnGhost} onClick={() => { setEditingUid(a.uid); setMsg(''); }}>Edit</button>
