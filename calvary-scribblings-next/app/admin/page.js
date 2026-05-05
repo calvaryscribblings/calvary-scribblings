@@ -279,11 +279,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
             <label style={s.label}>Author</label>
             <select style={s.select} value={form.author}
               onChange={e => setForm(f => ({ ...f, author: e.target.value }))}>
-              {AUTHORS.map(a => {
-                const uid = authorUids[a];
-                const suffix = uid ? ` · ${uid.slice(0, 8)}…` : ' · (no UID)';
-                return <option key={a} value={a}>{a}{suffix}</option>;
-              })}
+              {AUTHORS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
             <input style={{ ...s.input, marginTop: '0.35rem' }} value={form.authorHandle || ''}
               placeholder={currentHandle ? `@${currentHandle} (auto)` : 'Enter @handle manually…'}
@@ -470,19 +466,9 @@ export default function AdminPage() {
         if (!snap.exists()) return;
         const handles = {};
         const uids = {};
-        const entries = Object.entries(snap.val());
-        // Pass 1: real Auth UIDs win. A synthetic author_* must never
-        // overwrite a real UID for the same displayName.
-        entries.forEach(([uid, u]) => {
-          if (!u.displayName || uid.startsWith('author_')) return;
-          if (u.username) handles[u.displayName] = u.username;
-          uids[u.displayName] = uid;
-        });
-        // Pass 2: synthetic UIDs only fill displayNames the real pass missed.
-        entries.forEach(([uid, u]) => {
-          if (!u.displayName || !uid.startsWith('author_')) return;
-          if (u.username && !handles[u.displayName]) handles[u.displayName] = u.username;
-          if (!uids[u.displayName]) uids[u.displayName] = uid;
+        Object.entries(snap.val()).forEach(([uid, u]) => {
+          if (u.displayName && u.username) handles[u.displayName] = u.username;
+          if (u.displayName) uids[u.displayName] = uid;
         });
         setAuthorHandles(handles);
         setAuthorUids(uids);
