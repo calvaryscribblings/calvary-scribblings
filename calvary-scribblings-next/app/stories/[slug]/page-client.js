@@ -10,7 +10,6 @@ import { updateStreak } from '../../lib/streakEngine';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
-import StoryAuthorBio from '../../components/StoryAuthorBio';
 import QuizCard from '../../components/QuizCard';
 import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
 
@@ -1041,7 +1040,7 @@ useEffect(() => {
               <span className="byline-by">by</span>
               <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.45em', flexWrap: 'wrap' }}>
                 <span>{story.author}</span>
-                {story.authorHandle && (
+                {story.authorHandle && story.authorHandle !== story.authorUid && (
                   <AuthorHandleLink handle={story.authorHandle}
                     style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Inter, sans-serif' }} />
                 )}
@@ -1091,7 +1090,7 @@ useEffect(() => {
             <div className="story-footer">
               <span>
                 By {story.author}
-                {story.authorHandle && (
+                {story.authorHandle && story.authorHandle !== story.authorUid && (
                   <AuthorHandleLink handle={story.authorHandle}
                     style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }} />
                 )} · {story.date}
@@ -1106,7 +1105,6 @@ useEffect(() => {
         <div id="quiz-card">
           <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
         </div>
-        <StoryAuthorBio authorUid={story.authorUid} fallbackName={story.author} />
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
         {showAuthModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>

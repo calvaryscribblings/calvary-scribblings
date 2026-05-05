@@ -6,7 +6,6 @@ import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
 import { updateStreak } from '../../lib/streakEngine';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
-import StoryAuthorBio from '../../components/StoryAuthorBio';
 import QuizCard from '../../components/QuizCard';
 import { use } from 'react';
 import { useDeletedUids } from '../../lib/userVisibility';
@@ -823,7 +822,6 @@ export default function StoryReaderClient({ params }) {
               </div>
 
             </div>
-            <StoryAuthorBio authorUid={story.authorUid} fallbackName={story.author} />
             <div style={{ maxWidth: 680, margin: '2rem auto 0', padding: '0 1.5rem' }}>
               <QuizCard
                 slug={slug}
