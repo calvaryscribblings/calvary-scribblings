@@ -23,11 +23,20 @@ const QUIZ_TOOL = {
           type: 'object',
           properties: {
             question: { type: 'string' },
-            options: { type: 'array', items: { type: 'string' }, minItems: 4, maxItems: 4 },
-            correctAnswer: { type: 'integer', minimum: 0, maximum: 3 },
+            correctAnswer: {
+              type: 'string',
+              description: 'The correct answer as plain text. Do not prefix with a letter, number, or any positional marker.',
+            },
+            distractors: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: 3,
+              maxItems: 3,
+              description: 'Exactly 3 plausible wrong-answer texts. Do not prefix with letters or numbers. Order does not matter — the server will combine these with correctAnswer and randomise positions.',
+            },
             explanation: { type: 'string' },
           },
-          required: ['question', 'options', 'correctAnswer', 'explanation'],
+          required: ['question', 'correctAnswer', 'distractors', 'explanation'],
         },
       },
       essays: {
@@ -99,12 +108,50 @@ Counts:
 
 Rules:
 - All questions in British English. Single quotes for quotations within questions, em dashes with spaces, no Oxford comma.
-- MCQ wrong answers (distractors) must be plausible — not obviously wrong. They should reflect common misreadings or surface-level interpretations.
+- For each MCQ, provide correctAnswer (the right answer as plain text) and distractors (exactly 3 plausible wrong-answer texts). Do not prefix any answer text with letters, numbers, or positional markers. Distractors must not be obviously wrong — they should reflect common misreadings or surface-level interpretations.
 - Spread MCQ difficulty: roughly one third easy (literal recall), one third medium (inference), one third hard (theme/symbolism).
 - Essay keywords should be lowercase. Avoid trivially common words ("the", "and", "story", "character"). Pick words that genuinely signal someone engaged with the text.
 - HARDBALL question must be ungeneralisable — a question that has only one right framing because of a specific detail in this story. It must reference a specific moment, image, or detail that someone who only skimmed a summary or used AI to generate an answer would miss.
 - The hardball helperText is an optional one-sentence hint; use an empty string if not needed.
 - Hardball keywords: 3–5 specific words/phrases a genuine reader would naturally include in their answer.`;
+}
+
+// Position determined server-side to eliminate model position bias.
+// Do not move position logic into the prompt or the tool schema —
+// the model returns correctAnswer (text) + distractors (3 texts) and
+// has no concept of option positions. This function combines them,
+// shuffles, and computes the index that the rest of the pipeline expects.
+function fisherYates(arr) {
+  const a = [...arr];
+  const useCrypto = typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function';
+  for (let i = a.length - 1; i > 0; i--) {
+    let j;
+    if (useCrypto) {
+      const r = new Uint32Array(1);
+      crypto.getRandomValues(r);
+      j = r[0] % (i + 1);
+    } else {
+      j = Math.floor(Math.random() * (i + 1));
+    }
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function shuffleMcqs(mcqs) {
+  if (!Array.isArray(mcqs)) return mcqs;
+  return mcqs.map(mcq => {
+    const correctText = mcq.correctAnswer;
+    const distractors = Array.isArray(mcq.distractors) ? mcq.distractors : [];
+    const pool = [correctText, ...distractors];
+    const options = fisherYates(pool);
+    return {
+      question: mcq.question,
+      options,
+      correctAnswer: options.indexOf(correctText),
+      explanation: mcq.explanation,
+    };
+  });
 }
 
 // Last-resort repair for common JSON corruption before falling back to an error.
@@ -253,6 +300,10 @@ export async function onRequestPost(context) {
     console.error('[generate-quiz] Anthropic threw:', e.message);
     return quizJson({ error: e.message }, 500);
   }
+
+  // Transform model output into stored shape: shuffle options server-side
+  // and compute the correctAnswer index. The model never picks positions.
+  quiz.mcqs = shuffleMcqs(quiz.mcqs);
 
   const warnings = validateQuiz(quiz, mode);
   quiz.generatedAt = Date.now();
