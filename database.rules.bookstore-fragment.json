@@ -1,0 +1,21 @@
+{
+  "rules": {
+    "bookstore_titles": {
+      ".read": true,
+      ".write": "auth != null && auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82'",
+      ".indexOn": ["status", "publishedDate", "genre", "publisherId", "featured", "bestseller", "salesCount"],
+      "$titleId": {
+        ".validate": "newData.hasChildren(['schemaVersion', 'slug', 'title', 'author', 'publisherId', 'synopsis', 'prices', 'genre', 'publishedDate', 'addedAt', 'updatedAt', 'status', 'territoriesAllowed']) && (newData.child('territoriesAllowed').isString() || newData.child('territoriesAllowed').hasChildren())"
+      }
+    },
+    "bookstore_publishers": {
+      ".read": true,
+      ".write": "auth != null && auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82'",
+      ".indexOn": ["status", "slug"]
+    },
+    "bookstore_publishers_private": {
+      ".read": "auth != null && auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82'",
+      ".write": "auth != null && auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82'"
+    }
+  }
+}

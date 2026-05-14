@@ -1,0 +1,40 @@
+// Bookstore Storage rules fragment.
+// IMPORTANT: master EPUBs are admin-write / no-public-read. Purchased-copy delivery happens
+// via a Cloudflare Worker that verifies the buyer's purchase in Realtime DB, then issues a
+// short-lived signed URL via Firebase Admin SDK. See report deliverable 4 for the Worker spec.
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Cover art — public read, admin write, max 5 MB, image/* only.
+    match /bookstore_covers/{titleId} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82'
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Master EPUBs — admin write, NO public read.
+    // Reads happen exclusively through a Cloudflare Worker that issues
+    // signed URLs after validating the buyer's purchase record. Do not
+    // open this rule up; that would defeat purchase gating entirely.
+    match /bookstore_epubs/{titleId}/master.epub {
+      allow read: if false;
+      allow write: if request.auth != null
+                   && request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82'
+                   && request.resource.size < 50 * 1024 * 1024
+                   && request.resource.contentType == 'application/epub+zip';
+    }
+
+    // Per-buyer copies (e.g. watermarked or DRM-stamped). Buyer-readable only;
+    // writes are server-only — the purchase webhook (not yet built) writes via
+    // Admin SDK with elevated privileges, bypassing these rules.
+    match /bookstore_epubs/{titleId}/buyers/{uid}.epub {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+  }
+}

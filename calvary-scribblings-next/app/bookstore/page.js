@@ -1,5 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { notFound } from 'next/navigation';
+import { db } from '../lib/firebase';
+import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 
 const PASSCODE = 'calvary2026';
 
@@ -182,9 +185,27 @@ function PasscodeGate({ onUnlock }) {
 }
 
 export default function BookStorePage() {
+  const [gateState, setGateState] = useState('checking');
   const [unlocked, setUnlocked] = useState(false);
   const [fictionGenre, setFictionGenre] = useState(0);
   const [nonfictionGenre, setNonfictionGenre] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await get(query(ref(db, 'bookstore_titles'), orderByChild('status'), equalTo('published')));
+        if (cancelled) return;
+        setGateState(snap.exists() ? 'open' : 'empty');
+      } catch {
+        if (!cancelled) setGateState('empty');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (gateState === 'checking') return null;
+  if (gateState === 'empty') notFound();
 
   if (!unlocked) return <PasscodeGate onUnlock={() => setUnlocked(true)} />;
 
