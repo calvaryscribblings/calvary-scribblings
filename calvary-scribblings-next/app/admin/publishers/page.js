@@ -284,7 +284,7 @@ export default function AdminPublishersPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [suspendConfirm, setSuspendConfirm] = useState(null); // { pub, affectedCount } or null
 
-  const isAdmin = user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  const isAdmin = user && (user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()));
 
   useEffect(() => {
     function handleResize() { setIsMobile(window.innerWidth < 640); }

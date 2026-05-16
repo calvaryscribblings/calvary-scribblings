@@ -28,7 +28,7 @@ const s = {
 
 export default function MigratePage() {
   const { user, loading: authLoading } = useAuth();
-  const isAdmin = user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  const isAdmin = user && (user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()));
 
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);

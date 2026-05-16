@@ -11,7 +11,7 @@ service firebase.storage {
     match /bookstore_covers/{titleId} {
       allow read: if true;
       allow write: if request.auth != null
-                   && request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82'
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
@@ -23,7 +23,7 @@ service firebase.storage {
     match /bookstore_epubs/{titleId}/master.epub {
       allow read: if false;
       allow write: if request.auth != null
-                   && request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82'
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')
                    && request.resource.size < 50 * 1024 * 1024
                    && request.resource.contentType == 'application/epub+zip';
     }

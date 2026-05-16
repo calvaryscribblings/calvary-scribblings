@@ -1,4 +1,4 @@
-const QUIZ_ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
+const QUIZ_ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
 const QUIZ_TOOL = {
@@ -203,7 +203,7 @@ export async function onRequestPost(context) {
   console.log('[generate-quiz] slug:', slug, '| mode:', mode, '| uid:', uid);
   console.log('[generate-quiz] ANTHROPIC_API_KEY set:', !!env.ANTHROPIC_API_KEY);
 
-  if (uid !== QUIZ_ADMIN_UID) return quizJson({ error: 'Unauthorised.' }, 401);
+  if (!QUIZ_ADMIN_UIDS.includes(uid)) return quizJson({ error: 'Unauthorised.' }, 401);
   if (!slug || !['story', 'reader'].includes(mode))
     return quizJson({ error: 'slug and mode are required.' }, 400);
 

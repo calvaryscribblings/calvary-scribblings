@@ -14,7 +14,7 @@ import {
   TITLE_STATUSES,
 } from './schema';
 
-const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
+const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const PUBLISHERS_PATH = 'bookstore_publishers';
 const PUBLISHERS_PRIVATE_PATH = 'bookstore_publishers_private';
 const TITLES_PATH = 'bookstore_titles';
@@ -52,7 +52,8 @@ function splitPublisherDoc(merged) {
 }
 
 function isAdmin() {
-  return auth?.currentUser?.uid === ADMIN_UID;
+  const uid = auth?.currentUser?.uid;
+  return !!uid && ADMIN_UIDS.includes(uid);
 }
 
 function slugify(input) {

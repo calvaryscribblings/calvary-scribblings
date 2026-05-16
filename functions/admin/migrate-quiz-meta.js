@@ -1,5 +1,5 @@
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
-const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
+const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -34,7 +34,7 @@ export async function onRequestPost(context) {
   if (!token) return json({ error: 'Unauthorised.' }, 401);
 
   const uid = await verifyAdminToken(token, env.NEXT_PUBLIC_FIREBASE_API_KEY);
-  if (uid !== ADMIN_UID) return json({ error: 'Unauthorised.' }, 401);
+  if (!ADMIN_UIDS.includes(uid)) return json({ error: 'Unauthorised.' }, 401);
 
   try {
     const [quizzesRes, storiesRes] = await Promise.all([

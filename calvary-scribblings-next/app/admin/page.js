@@ -455,7 +455,7 @@ export default function AdminPage() {
   };
   const [form, setForm] = useState(emptyForm);
 
-  const isAdmin = user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  const isAdmin = user && (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase() || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
 
   useEffect(() => {
     if (!isAdmin) return;

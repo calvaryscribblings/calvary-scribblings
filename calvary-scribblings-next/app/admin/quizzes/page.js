@@ -92,7 +92,7 @@ function TagInput({ tags, onChange, placeholder, disabled }) {
 
 export default function QuizzesPage() {
   const { user, loading: authLoading } = useAuth();
-  const isAdmin = user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  const isAdmin = user && (user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()));
 
   const [cmsStories, setCmsStories] = useState([]);
   const [quizStatuses, setQuizStatuses] = useState({});
