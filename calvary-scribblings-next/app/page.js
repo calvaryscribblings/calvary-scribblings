@@ -56,14 +56,13 @@ const badgeStyle = {
   inspiring: { background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.4)' },
 };
 
-const _sorted = [...stories]
-  .map((s, i) => ({ ...s, _idx: i }))
-  .sort((a, b) => parseDate(b.date) - parseDate(a.date) || a._idx - b._idx);
-const justAdded = _sorted.slice(0, 5);
-
-function getHourlyCarousel() {
+function getHourlyCarousel(stories) {
+  if (!stories || stories.length === 0) return [];
   const h = Math.floor(Date.now() / 3600000);
-  return [..._sorted].sort((a, b) => ((a.id.charCodeAt(0) * h) % 13) - ((b.id.charCodeAt(0) * h) % 13)).slice(0, 5);
+  const sorted = [...stories].sort((a, b) => parseDate(b.date) - parseDate(a.date));
+  return [...sorted]
+    .sort((a, b) => ((a.id.charCodeAt(0) * h) % 13) - ((b.id.charCodeAt(0) * h) % 13))
+    .slice(0, 5);
 }
 
 function StoryCard({ story, width = 160, height = 240, userTier = null, scorePct }) {
@@ -508,14 +507,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    setCarousel(getHourlyCarousel());
+    setCarousel(getHourlyCarousel(allStories));
     const hourTimer = setInterval(() => {
       heroIndexRef.current = 0;
       setHeroIndex(0);
-      setCarousel(getHourlyCarousel());
+      setCarousel(getHourlyCarousel(allStories));
     }, 3600000);
     return () => clearInterval(hourTimer);
-  }, []);
+  }, [allStories]);
 
   useEffect(() => {
   if (allStories.length === 0) return;
