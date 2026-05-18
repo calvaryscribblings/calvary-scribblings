@@ -5,6 +5,8 @@ import { stories } from '../lib/stories';
 import Navbar from '../components/Navbar';
 import QuizPill from '../components/QuizPill';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
+import { db } from '../lib/firebase';
+import { ref, get } from 'firebase/database';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -71,6 +73,7 @@ export default function SearchPage() {
   const [userResults, setUserResults] = useState([]);
   const [searched, setSearched] = useState(false);
   const [searchingUsers, setSearchingUsers] = useState(false);
+  const [cmsStories, setCmsStories] = useState([]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -78,6 +81,27 @@ export default function SearchPage() {
       const preQuery = params.get('q');
       if (preQuery) setQuery(preQuery);
     }
+  }, []);
+
+  useEffect(() => {
+    async function fetchCMS() {
+      try {
+        const snap = await get(ref(db, 'cms_stories'));
+        if (snap.exists()) {
+          const now = new Date();
+          const data = Object.entries(snap.val())
+            .map(([id, s]) => ({ ...s, id }))
+            .filter(s =>
+              s.published !== false &&
+              (!s.publishAt || new Date(s.publishAt) <= now)
+            );
+          setCmsStories(data);
+        }
+      } catch (e) {
+        console.error('Search CMS fetch error:', e);
+      }
+    }
+    fetchCMS();
   }, []);
 
   useEffect(() => {
@@ -93,8 +117,12 @@ export default function SearchPage() {
     const raw = query.trim();
     const q = raw.startsWith('@') ? raw.slice(1).toLowerCase() : raw.toLowerCase();
 
-    // Story search — instant from local data
-    const matchedStories = stories.filter(s =>
+    // Story search — instant from merged CMS + hardcoded corpus
+    const allStories = [
+      ...cmsStories,
+      ...stories.filter(s => !cmsStories.find(c => c.id === s.id))
+    ];
+    const matchedStories = allStories.filter(s =>
       s.title.toLowerCase().includes(q) ||
       s.author.toLowerCase().includes(q) ||
       (s.categoryName || '').toLowerCase().includes(q) ||
@@ -124,7 +152,7 @@ export default function SearchPage() {
       } catch (e) { setUserResults([]); }
       setSearchingUsers(false);
     })();
-  }, [query]);
+  }, [query, cmsStories]);
 
   const totalResults = storyResults.length + userResults.length;
 
