@@ -424,29 +424,161 @@ function TopReadersStrip() {
   );
 }
 
-function SectionSkeleton({ title, eyebrow = false }) {
-  const widths = ['78%', '85%', '72%', '80%'];
+function StoryCardSkeleton() {
   return (
-    <section style={{ padding: '2rem 0', borderBottom: eyebrow ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-      <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
-        {eyebrow ? (
-          <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ width: 6, height: 6, background: '#7c3aed', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px rgba(124,58,237,0.8)' }} />
-            {title}
-          </h3>
-        ) : (
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>{title}</h3>
-        )}
+    <div style={{
+      width: 160,
+      minWidth: 160,
+      height: 240,
+      borderRadius: 8,
+      background: 'rgba(255,255,255,0.04)',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: '0.9rem 0.85rem',
+        background: 'linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 100%)',
+      }}>
+        <div style={{ height: 11, width: '85%', background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginBottom: 6 }} />
+        <div style={{ height: 8, width: '55%', background: 'rgba(255,255,255,0.05)', borderRadius: 2 }} />
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0 4% 1rem' }}>
-        {widths.map((w, i) => (
-          <div key={i} style={{
-            height: 24,
-            background: 'rgba(255,255,255,0.04)',
-            borderRadius: 4,
-            width: w,
+    </div>
+  );
+}
+
+function JustAddedCardSkeleton() {
+  return (
+    <div style={{
+      width: 260,
+      minWidth: 260,
+      padding: '0.6rem 0.75rem',
+      borderRadius: 8,
+      background: 'rgba(255,255,255,0.02)',
+      display: 'flex',
+      gap: '0.75rem',
+      alignItems: 'center',
+    }}>
+      <div style={{
+        width: 56,
+        minWidth: 56,
+        height: 72,
+        background: 'rgba(255,255,255,0.04)',
+        borderRadius: 4,
+      }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ height: 11, width: '80%', background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginBottom: 6 }} />
+        <div style={{ height: 9, width: '50%', background: 'rgba(255,255,255,0.05)', borderRadius: 2 }} />
+      </div>
+    </div>
+  );
+}
+
+function Top10CardSkeleton() {
+  return (
+    <div style={{
+      width: 180,
+      minWidth: 180,
+      height: 180,
+      marginRight: '0.25rem',
+      position: 'relative',
+    }}>
+      <div style={{
+        position: 'absolute',
+        left: 60,
+        top: 0,
+        width: 120,
+        height: 180,
+        borderRadius: 8,
+        background: 'rgba(255,255,255,0.04)',
+      }} />
+    </div>
+  );
+}
+
+function JustAddedSkeleton() {
+  return (
+    <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
+        <h3 style={{
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.18em',
+          color: '#7c3aed',
+          margin: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+        }}>
+          <span style={{
+            width: 6,
+            height: 6,
+            background: '#7c3aed',
+            borderRadius: '50%',
+            display: 'inline-block',
+            boxShadow: '0 0 8px rgba(124,58,237,0.8)',
           }} />
-        ))}
+          Just Added
+        </h3>
+      </div>
+      <div style={{
+        display: 'flex',
+        gap: '0.6rem',
+        overflowX: 'auto',
+        padding: '0 4% 1rem',
+        scrollbarWidth: 'none',
+      }}>
+        {[0,1,2,3,4].map(i => <JustAddedCardSkeleton key={i} />)}
+      </div>
+    </section>
+  );
+}
+
+function Top10Skeleton() {
+  return (
+    <section style={{ padding: '2.5rem 0' }}>
+      <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+          🔥 Top 10 Stories
+        </h3>
+      </div>
+      <div style={{
+        display: 'flex',
+        gap: '0.6rem',
+        overflowX: 'auto',
+        padding: '0 4% 1rem',
+        scrollbarWidth: 'none',
+      }}>
+        {[0,1,2,3,4,5,6,7,8,9].map(i => <Top10CardSkeleton key={i} />)}
+      </div>
+    </section>
+  );
+}
+
+function RowSkeleton({ title }) {
+  return (
+    <section style={{ padding: '2rem 0' }}>
+      <div style={{
+        padding: '0 4%',
+        marginBottom: '1rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+      }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>{title}</h3>
+      </div>
+      <div style={{
+        display: 'flex',
+        gap: '0.6rem',
+        overflowX: 'auto',
+        padding: '0 4% 1rem',
+        scrollbarWidth: 'none',
+      }}>
+        {[0,1,2,3,4,5,6].map(i => <StoryCardSkeleton key={i} />)}
       </div>
     </section>
   );
@@ -696,7 +828,7 @@ export default function Home() {
 
       {/* Just Added */}
       {allStories.length === 0 ? (
-        <SectionSkeleton title="Just Added" eyebrow />
+        <JustAddedSkeleton />
       ) : (
       <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', paddingLeft: '4%' }}>
@@ -714,7 +846,7 @@ export default function Home() {
 
       {/* Top 10 */}
       {allStories.length === 0 ? (
-        <SectionSkeleton title="🔥 Top 10 Stories" />
+        <Top10Skeleton />
       ) : (
       <section style={{ padding: '2.5rem 0' }}>
         <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
@@ -728,27 +860,27 @@ export default function Home() {
       )}
 
       {allStories.length === 0 ? (
-        <SectionSkeleton title="⚡ Flash Fiction" />
+        <RowSkeleton title="⚡ Flash Fiction" />
       ) : (
         <Row title="⚡ Flash Fiction" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" userTiersMap={userTiersMap} />
       )}
       {allStories.length === 0 ? (
-        <SectionSkeleton title="📖 Short Stories" />
+        <RowSkeleton title="📖 Short Stories" />
       ) : (
         <Row title="📖 Short Stories" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" userTiersMap={userTiersMap} />
       )}
       {allStories.length === 0 ? (
-        <SectionSkeleton title="🖊️ Poetry" />
+        <RowSkeleton title="🖊️ Poetry" />
       ) : (
         <Row title="🖊️ Poetry" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" userTiersMap={userTiersMap} />
       )}
       {allStories.length === 0 ? (
-        <SectionSkeleton title="🗞️ News & Updates" />
+        <RowSkeleton title="🗞️ News & Updates" />
       ) : (
         <Row title="🗞️ News & Updates" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" userTiersMap={userTiersMap} />
       )}
       {allStories.length === 0 ? (
-        <SectionSkeleton title="✨ Inspiring Stories" />
+        <RowSkeleton title="✨ Inspiring Stories" />
       ) : (
         <Row title="✨ Inspiring Stories" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" userTiersMap={userTiersMap} />
       )}
