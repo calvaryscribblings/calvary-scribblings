@@ -6,30 +6,17 @@ import Navbar from './components/Navbar';
 import QuizPill from './components/QuizPill';
 import { useUserStoryTiers } from './lib/useUserStoryTiers';
 import { db } from './lib/firebase';
+import { ref, get } from 'firebase/database';
+
+// Stories source of truth: cms_stories/ in Firebase RTDB.
+// This component fetches on mount via the useEffect below.
+// The hardcoded `stories` array below is intentionally empty —
+// it was migrated to CMS as of 2026-05-18. Do not reintroduce.
 
 const stories = [
-  { id: 'my-dream-man', title: 'My Dream Man', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/my-dream-man', cover: '/my-dream-man-cover.jpeg', author: 'Tricia Ajax', date: 'Mar 27, 2026' },
-  { id: 'the-enabler', title: 'The Enabler', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/the-enabler', cover: '/the-enabler-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 26, 2026' },
-  { id: 'rise-and-shine', title: 'Rise and Shine', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/rise-and-shine', cover: '/rise-and-shine-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 21, 2026' },
-  { id: 'an-appetite-for-love', title: 'An Appetite for Love', category: 'poetry', categoryName: 'Poetry', url: '/stories/an-appetite-for-love', cover: '/an-appetite-for-love-cover.png', author: 'Ufedo Adaji', date: 'Mar 19, 2026' },
-  { id: 'dont-worry', title: "Don't Worry", category: 'flash', categoryName: 'Flash Fiction', url: '/stories/dont-worry', cover: '/dont-worry-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 19, 2026' },
-  { id: 'terms-and-conditions', title: 'Terms and Conditions', category: 'short', categoryName: 'Short Story', url: '/stories/terms-and-conditions', cover: '/terms-and-conditions-cover.jpeg', author: 'Tricia Ajax', date: 'Mar 18, 2026' },
-  { id: 'oscars-2026', title: 'The Oscar Showdowns', category: 'news', categoryName: 'Film', url: '/stories/oscars-2026', cover: '/oscars-2026-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 16, 2026' },
-  { id: 'how-to-make-peppersoup', title: 'How to Make Peppersoup', category: 'inspiring', categoryName: 'Inspiring', url: '/stories/how-to-make-peppersoup', cover: '/peppersoup-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 15, 2026' },
-  { id: 'this-is-nigeria', title: 'This is Nigeria', category: 'news', categoryName: 'Op-Ed', url: '/stories/this-is-nigeria', cover: '/this-is-nigeria-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 13, 2026' },
-  { id: 'london-tube-strike', title: 'Another London Underground Strike!', category: 'news', categoryName: 'News', url: '/stories/london-tube-strike', cover: '/london-tube-strike-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026' },
-  { id: 'the-bride-box-office', title: 'Why The Bride Struggled at the Box Office', category: 'news', categoryName: 'News', url: '/stories/the-bride-box-office', cover: '/the-bride-box-office-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026' },
-  { id: '1967', title: '1967', category: 'short', categoryName: 'Short Story', url: '/stories/1967', cover: '/1967-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 7, 2026' },
-  { id: 'you-didnt-ask', title: "You Didn't Ask", category: 'short', categoryName: 'Short Story', url: '/stories/you-didnt-ask', cover: '/you-didnt-ask-cover.jpg', author: 'Tricia Ajax', date: 'Mar 4, 2026' },
-  { id: 'macbook-neo', title: 'The All New MacBook Neo!', category: 'news', categoryName: 'Tech', url: '/stories/macbook-neo', cover: '/macbook-neo-cover.PNG', author: 'Chioma Okonkwo', date: 'Mar 5, 2026' },
-  { id: 'netflix-harry-styles', title: "Netflix to Stream Harry Styles' New Album", category: 'news', categoryName: 'News', url: '/stories/netflix-harry-styles', cover: '/netflix-harry-styles-cover.jpg', author: 'Chioma Okonkwo', date: 'Mar 4, 2026' },
-  { id: 'paramount-wbd-plans', title: 'Paramount Reveals Plans for the Future', category: 'news', categoryName: 'News', url: '/stories/paramount-wbd-plans', cover: '/paramount-wbd-plans-cover.jpg', author: 'Calvary', date: 'Mar 2, 2026' },
-  { id: 'paramount-warner-bros-discovery', title: 'Hollywood Reacts: Paramount Moves to Take Control of WBD', category: 'news', categoryName: 'News', url: '/stories/paramount-warner-bros-discovery', cover: '/paramount-warner-bros-discovery-cover.jpg', author: 'Chioma Okonkwo', date: 'Feb 28, 2026' },
-  { id: 'the-girl-who-sang-through-the-dark', title: 'The Girl Who Sang Through the Dark', category: 'inspiring', categoryName: 'Inspiring', url: '/stories/the-girl-who-sang-through-the-dark', cover: '/the-girl-who-sang-through-the-dark-cover.jpg', author: 'Tricia Ajax', date: 'Feb 26, 2026' },
-  { id: 'john-davidson-bafta-tourettes', title: "The Man in the Middle: John Davidson", category: 'news', categoryName: 'News', url: '/stories/john-davidson-bafta-tourettes', cover: '/john-davidson-bafta-cover.jpeg', author: 'Chioma Okonkwo', date: 'Feb 25, 2026' },
-  { id: 'bafta-2026', title: 'BAFTA 2026: Winners...', category: 'news', categoryName: 'News', url: '/stories/bafta-2026', cover: '/bafta-2026-cover.webp', author: 'Chioma Okonkwo', date: 'Feb 23, 2026' },
- 
-  { id: 'miss-lady', title: 'Miss Lady', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/miss-lady', cover: '/B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png', author: 'Calvary', date: 'Feb 17, 2026' },
+  // Hardcoded stories array has been migrated to cms_stories/ in RTDB.
+  // The CMS fetch useEffect below populates allStories on mount.
+  // Intentionally empty: do NOT reintroduce hardcoded entries here.
 ];
 
 function parseDate(str) { return new Date(str); }
@@ -438,20 +425,48 @@ function TopReadersStrip() {
   );
 }
 
+function SectionSkeleton({ title, eyebrow = false }) {
+  const widths = ['78%', '85%', '72%', '80%'];
+  return (
+    <section style={{ padding: '2rem 0', borderBottom: eyebrow ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+      <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
+        {eyebrow ? (
+          <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ width: 6, height: 6, background: '#7c3aed', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px rgba(124,58,237,0.8)' }} />
+            {title}
+          </h3>
+        ) : (
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>{title}</h3>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0 4% 1rem' }}>
+        {widths.map((w, i) => (
+          <div key={i} style={{
+            height: 24,
+            background: 'rgba(255,255,255,0.04)',
+            borderRadius: 4,
+            width: w,
+          }} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   const { user, logout } = useAuth();
   const userTiersMap = useUserStoryTiers();
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroTransition, setHeroTransition] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [top10, setTop10] = useState([...stories].slice(0, 10));
+  const [top10, setTop10] = useState([]);
   const [email, setEmail] = useState('');
   const [subscribeStatus, setSubscribeStatus] = useState('');
   const [squareOpen, setSquareOpen] = useState(false);
   const [countdown, setCountdown] = useState('');
   const heroIndexRef = useRef(0);
-  const [allStories, setAllStories] = useState(stories);
-  const [carousel, setCarousel] = useState(_sorted.slice(0, 5));
+  const [allStories, setAllStories] = useState([]);
+  const [carousel, setCarousel] = useState([]);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 1024);
@@ -474,19 +489,6 @@ export default function Home() {
   useEffect(() => {
     async function fetchCMSStories() {
       try {
-        const { initializeApp, getApps } = await import('firebase/app');
-        const { getDatabase, ref, get } = await import('firebase/database');
-        const firebaseConfig = {
-          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-          authDomain: 'calvary-scribblings.firebaseapp.com',
-          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-          projectId: 'calvary-scribblings',
-          storageBucket: 'calvary-scribblings.firebasestorage.app',
-          messagingSenderId: '1052137412283',
-          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-        };
-        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-        const db = getDatabase(app);
         const snap = await get(ref(db, 'cms_stories'));
         if (snap.exists()) {
           const data = snap.val();
@@ -519,19 +521,6 @@ export default function Home() {
   if (allStories.length === 0) return;
   async function fetchTop10() {
     try {
-      const { initializeApp, getApps } = await import('firebase/app');
-      const { getDatabase, ref, get } = await import('firebase/database');
-      const firebaseConfig = {
-        apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-        authDomain: 'calvary-scribblings.firebaseapp.com',
-        databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-        projectId: 'calvary-scribblings',
-        storageBucket: 'calvary-scribblings.firebasestorage.app',
-        messagingSenderId: '1052137412283',
-        appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-      };
-      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-      const db = getDatabase(app);
       const snapshot = await get(ref(db, 'stories'));
       if (snapshot.exists()) {
         const data = snapshot.val();
@@ -590,7 +579,7 @@ export default function Home() {
   }, [carousel.length]);
 
   const featured = carousel[heroIndex];
-  const badge = badgeStyle[featured.category] || badgeStyle.news;
+  const badge = featured ? (badgeStyle[featured.category] || badgeStyle.news) : badgeStyle.news;
 
   return (
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: "'Cochin', Georgia, serif" }}>
@@ -612,7 +601,8 @@ export default function Home() {
 
       <Navbar />
 
-      {/* Hero Carousel */}
+      {/* Hero Carousel — renders only when CMS data lands. Hero CMS wiring tracked for a later phase. */}
+      {carousel.length > 0 && featured && (
       <section style={{ position: 'relative', height: '88vh', minHeight: 600, overflow: 'hidden' }}>
         {carousel.map((s, i) => (
           <img key={s.id} src={s.cover} alt={s.title}
@@ -698,6 +688,7 @@ export default function Home() {
           ))}
         </div>
       </section>
+      )}
 
       {/* Square Banner — desktop only */}
       <div className="sq-banner-desktop">
@@ -705,6 +696,9 @@ export default function Home() {
       </div>
 
       {/* Just Added */}
+      {allStories.length === 0 ? (
+        <SectionSkeleton title="Just Added" eyebrow />
+      ) : (
       <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', paddingLeft: '4%' }}>
           <span style={{ width: 6, height: 6, background: '#7c3aed', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px rgba(124,58,237,0.8)' }} />
@@ -714,11 +708,15 @@ export default function Home() {
           {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map(s => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
+      )}
 
       {/* Top Readers */}
       <TopReadersStrip />
 
       {/* Top 10 */}
+      {allStories.length === 0 ? (
+        <SectionSkeleton title="🔥 Top 10 Stories" />
+      ) : (
       <section style={{ padding: '2.5rem 0' }}>
         <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>🔥 Top 10 Stories</h3>
@@ -728,12 +726,33 @@ export default function Home() {
           {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
+      )}
 
-      <Row title="⚡ Flash Fiction" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" userTiersMap={userTiersMap} />
-      <Row title="📖 Short Stories" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" userTiersMap={userTiersMap} />
-      <Row title="🖊️ Poetry" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" userTiersMap={userTiersMap} />
-      <Row title="🗞️ News & Updates" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" userTiersMap={userTiersMap} />
-      <Row title="✨ Inspiring Stories" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" userTiersMap={userTiersMap} />
+      {allStories.length === 0 ? (
+        <SectionSkeleton title="⚡ Flash Fiction" />
+      ) : (
+        <Row title="⚡ Flash Fiction" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" userTiersMap={userTiersMap} />
+      )}
+      {allStories.length === 0 ? (
+        <SectionSkeleton title="📖 Short Stories" />
+      ) : (
+        <Row title="📖 Short Stories" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" userTiersMap={userTiersMap} />
+      )}
+      {allStories.length === 0 ? (
+        <SectionSkeleton title="🖊️ Poetry" />
+      ) : (
+        <Row title="🖊️ Poetry" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" userTiersMap={userTiersMap} />
+      )}
+      {allStories.length === 0 ? (
+        <SectionSkeleton title="🗞️ News & Updates" />
+      ) : (
+        <Row title="🗞️ News & Updates" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" userTiersMap={userTiersMap} />
+      )}
+      {allStories.length === 0 ? (
+        <SectionSkeleton title="✨ Inspiring Stories" />
+      ) : (
+        <Row title="✨ Inspiring Stories" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" userTiersMap={userTiersMap} />
+      )}
 
       {/* Subscribe */}
       <section id="subscribe" style={{
