@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node *)",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "Bash(npx next *)",
+      "Bash(npm run *)",
+      "Bash(env)",
+      "Bash(tee /tmp/bio-recon-out.txt)",
+      "Bash(git revert *)",
+      "Bash(git stash *)",
+      "Bash(find / -maxdepth 5 -type d \\\\\\( -iname \"*storyisland*\" -o -iname \"*story-island*\" -o -iname \"*story_island*\" \\\\\\))",
+      "Bash(find / -maxdepth 6 -name \"app.json\")",
+      "Bash(timeout 30 npx eas project:info)",
+      "Bash(timeout 25 npx eas credentials --platform ios)",
+      "Bash(curl -s --max-time 8 \"https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app/users/Rq29LDmDSwY5cld6Q58Nyp0E79d2.json\")",
+      "Bash(python3 -c ' *)",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git --no-pager diff calvary-scribblings-next/app/page.js)",
+      "Bash(echo \"exit:$?\")"
+    ]
+  }
+}
