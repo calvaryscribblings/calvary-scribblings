@@ -64,6 +64,7 @@ export default function NewsletterPage() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [draftId, setDraftId] = useState(null);
   const [drafts, setDrafts] = useState([]);
+  const [pickerOpenMobile, setPickerOpenMobile] = useState(false);
   const pickerSearchRef = useRef(null);
 
   const storyCount = blocks.filter((b) => b.type === "story").length;
@@ -167,6 +168,7 @@ export default function NewsletterPage() {
   }
 
   function focusPicker() {
+    setPickerOpenMobile(true);
     pickerSearchRef.current?.focus();
   }
 
@@ -249,53 +251,58 @@ export default function NewsletterPage() {
   );
 
   return (
-    <div style={s.page}>
-      <aside style={s.sidebar}>
-        <div style={s.sidebarLogo}>
+    <div style={s.page} className="ns-page">
+      <style>{responsiveCss}</style>
+      <aside style={s.sidebar} className="ns-sidebar">
+        <div style={s.sidebarLogo} className="ns-sidebarLogo">
           <span style={s.logoMark}>CS</span>
           <div>
             <div style={s.logoTitle}>Calvary Scribblings</div>
             <div style={s.logoSub}>Newsletter Studio</div>
           </div>
         </div>
-        <nav style={s.nav}>
+        <nav style={s.nav} className="ns-nav">
           {["compose","preview","history"].map((t) => (
-            <button key={t} onClick={() => setTab(t)} style={{ ...s.navBtn, ...(tab === t ? s.navBtnActive : {}) }}>
-              <span style={s.navIcon}>{t === "compose" ? "✏️" : t === "preview" ? "👁" : "📋"}</span>
+            <button key={t} onClick={() => setTab(t)} className="ns-navBtn" style={{ ...s.navBtn, ...(tab === t ? s.navBtnActive : {}) }}>
+              <span style={s.navIcon} className="ns-navIcon">{t === "compose" ? "✏️" : t === "preview" ? "👁" : "📋"}</span>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </nav>
-        <div style={s.sidebarStats}>
-          <div style={s.statLabel}>Active Subscribers</div>
-          <div style={s.statValue}>{subscriberCount === null ? "—" : subscriberCount.toLocaleString()}</div>
-          <div style={{ ...s.statLabel, marginTop: 12 }}>Stories Selected</div>
-          <div style={s.statValue}>{storyCount}</div>
+        <div style={s.sidebarStats} className="ns-sidebarStats">
+          <div className="ns-statGroup">
+            <div style={s.statLabel} className="ns-statLabel">Active Subscribers</div>
+            <div style={s.statValue} className="ns-statValue">{subscriberCount === null ? "—" : subscriberCount.toLocaleString()}</div>
+          </div>
+          <div className="ns-statGroup">
+            <div style={{ ...s.statLabel, marginTop: 12 }} className="ns-statLabel ns-statLabel-spacer">Stories Selected</div>
+            <div style={s.statValue} className="ns-statValue">{storyCount}</div>
+          </div>
         </div>
-        <a href="/admin" style={s.backLink}>← Back to CMS</a>
+        <a href="/admin" style={s.backLink} className="ns-backLink">← Back to CMS</a>
       </aside>
 
-      <main style={s.main}>
+      <main style={s.main} className="ns-main">
         {tab === "compose" && (
-          <div style={s.tabContent}>
-            <div style={s.tabHeader}>
-              <h1 style={s.tabTitle}>Compose Newsletter</h1>
-              <p style={s.tabSubtitle}>Build your letter from text, dividers, and stories, then send or preview.</p>
+          <div style={s.tabContent} className="ns-tabContent">
+            <div style={s.tabHeader} className="ns-tabHeader">
+              <h1 style={s.tabTitle} className="ns-tabTitle">Compose Newsletter</h1>
+              <p style={s.tabSubtitle} className="ns-tabSubtitle">Build your letter from text, dividers, and stories, then send or preview.</p>
             </div>
             {status && (
               <div style={{ ...s.banner, background: status === "success" ? "#edfaf3" : status === "error" ? "#fef2f2" : "#f3eefb", borderColor: status === "success" ? "#1a9e6b" : status === "error" ? "#dc2626" : "#6b2fad", color: status === "success" ? "#1a9e6b" : status === "error" ? "#dc2626" : "#6b2fad" }}>
                 {statusMsg}
               </div>
             )}
-            <div style={s.grid}>
-              <div style={s.leftCol}>
+            <div style={s.grid} className="ns-grid">
+              <div style={s.leftCol} className="ns-leftCol">
                 <div style={s.fieldGroup}>
                   <label style={s.label}>Issue Number</label>
-                  <input style={s.input} type="number" placeholder="e.g. 1" value={issueNumber} onChange={(e) => setIssueNumber(e.target.value)} />
+                  <input style={s.input} className="ns-input" type="number" placeholder="e.g. 1" value={issueNumber} onChange={(e) => setIssueNumber(e.target.value)} />
                 </div>
                 <div style={s.fieldGroup}>
                   <label style={s.label}>Subject Line *</label>
-                  <input style={s.input} placeholder="This Week on Calvary Scribblings" value={subject} onChange={(e) => setSubject(e.target.value)} />
+                  <input style={s.input} className="ns-input" placeholder="This Week on Calvary Scribblings" value={subject} onChange={(e) => setSubject(e.target.value)} />
                   <div style={s.charCount}>{subject.length} chars</div>
                 </div>
                 <div style={s.fieldGroup}>
@@ -310,11 +317,12 @@ export default function NewsletterPage() {
                       <div style={s.blockEmpty}>No blocks yet. Add text, a divider, or insert a story.</div>
                     )}
                     {blocks.map((b, i) => (
-                      <div key={b.id} style={{ ...s.blockItem, ...(focusedBlockId === b.id ? s.blockItemActive : {}) }}>
-                        <div style={s.blockBody}>
+                      <div key={b.id} className="ns-blockItem" style={{ ...s.blockItem, ...(focusedBlockId === b.id ? s.blockItemActive : {}) }}>
+                        <div style={s.blockBody} className="ns-blockBody">
                           {b.type === "text" && (
                             <textarea
                               style={s.blockTextarea}
+                              className="ns-blockTextarea"
                               placeholder="Write a paragraph…"
                               value={b.content}
                               rows={4}
@@ -338,55 +346,65 @@ export default function NewsletterPage() {
                             </div>
                           )}
                         </div>
-                        <div style={s.blockControls}>
-                          <button type="button" style={s.reorderBtn} onClick={() => moveBlock(b.id, -1)} disabled={i === 0}>↑</button>
-                          <button type="button" style={s.reorderBtn} onClick={() => moveBlock(b.id, 1)} disabled={i === blocks.length - 1}>↓</button>
-                          <button type="button" style={{ ...s.reorderBtn, color: "#dc2626" }} onClick={() => removeBlock(b.id)}>✕</button>
+                        <div style={s.blockControls} className="ns-blockControls">
+                          <button type="button" className="ns-reorderBtn" style={s.reorderBtn} onClick={() => moveBlock(b.id, -1)} disabled={i === 0}>↑</button>
+                          <button type="button" className="ns-reorderBtn" style={s.reorderBtn} onClick={() => moveBlock(b.id, 1)} disabled={i === blocks.length - 1}>↓</button>
+                          <button type="button" className="ns-reorderBtn" style={{ ...s.reorderBtn, color: "#dc2626" }} onClick={() => removeBlock(b.id)}>✕</button>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div style={s.sendRow}>
+                <div style={s.sendRow} className="ns-sendRow">
                   <div style={s.fieldGroup}>
                     <label style={s.label}>Schedule Send (optional)</label>
-                    <input style={s.input} type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+                    <input style={s.input} className="ns-input" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
                   </div>
-                  <div style={s.testRow}>
-                    <input style={{ ...s.input, flex: 1, marginBottom: 0 }} type="email" placeholder="test@email.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} />
-                    <button style={s.btnSecondary} onClick={() => handleSend(true)} disabled={status === "loading"}>Send Test</button>
+                  <div style={s.testRow} className="ns-testRow">
+                    <input style={{ ...s.input, flex: 1, marginBottom: 0 }} className="ns-input" type="email" placeholder="test@email.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} />
+                    <button className="ns-btnSecondary" style={s.btnSecondary} onClick={() => handleSend(true)} disabled={status === "loading"}>Send Test</button>
                   </div>
-                  <div style={s.testRow}>
-                    <button style={s.btnSecondary} onClick={() => handleSaveDraft(null)} disabled={status === "loading"}>Save Draft</button>
-                    {scheduledAt && <button style={{ ...s.btnSecondary, color: "#1a9e6b", border: "2px solid #1a9e6b" }} onClick={() => handleSaveDraft(scheduledAt)} disabled={status === "loading"}>Schedule</button>}
+                  <div style={s.testRow} className="ns-testRow">
+                    <button className="ns-btnSecondary" style={s.btnSecondary} onClick={() => handleSaveDraft(null)} disabled={status === "loading"}>Save Draft</button>
+                    {scheduledAt && <button className="ns-btnSecondary" style={{ ...s.btnSecondary, color: "#1a9e6b", border: "2px solid #1a9e6b" }} onClick={() => handleSaveDraft(scheduledAt)} disabled={status === "loading"}>Schedule</button>}
                   </div>
-                  <button style={s.btnPrimary} onClick={() => handleSend(false)} disabled={status === "loading"}>
+                  <button className="ns-btnPrimary" style={s.btnPrimary} onClick={() => handleSend(false)} disabled={status === "loading"}>
                     {status === "loading" ? "Sending…" : `Send to ${subscriberCount ?? "—"} Subscribers`}
                   </button>
                 </div>
               </div>
-              <div style={s.rightCol}>
-                <div style={s.pickerHeader}>
-                  <span style={s.label}>Pick Stories</span>
-                  <input ref={pickerSearchRef} style={s.searchInput} placeholder="Search stories…" value={storySearch} onChange={(e) => setStorySearch(e.target.value)} />
-                </div>
-                <div style={s.storyPicker}>
-                  {filteredStories.length === 0 && <div style={s.empty}>No stories found.</div>}
-                  {filteredStories.map((st) => {
-                    const stSlug = st.slug || st.id;
-                    const isSelected = blocks.some((b) => b.type === "story" && b.slug === stSlug);
-                    return (
-                      <div key={st.id} onClick={() => toggleStoryBlock(st)} style={{ ...s.storyCard, ...(isSelected ? s.storyCardSelected : {}) }}>
-                        {(st.cover || st.coverUrl) && <img src={st.cover || st.coverUrl} alt="" style={s.storyCover} />}
-                        <div style={s.storyInfo}>
-                          <div style={s.storyCategory}><span style={{ ...s.catDot, background: categoryColour(st.category) }} />{st.category}</div>
-                          <div style={s.storyTitle}>{st.title}</div>
-                          <div style={s.storyAuthor}>{st.author}</div>
+              <div style={s.rightCol} className="ns-rightCol">
+                <button
+                  type="button"
+                  className="ns-pickerToggle"
+                  onClick={() => setPickerOpenMobile((v) => !v)}
+                  aria-expanded={pickerOpenMobile}
+                >
+                  Pick stories {pickerOpenMobile ? "↑" : "↓"}
+                </button>
+                <div className={`ns-pickerWrap${pickerOpenMobile ? "" : " ns-collapsed"}`}>
+                  <div style={s.pickerHeader}>
+                    <span style={s.label}>Pick Stories</span>
+                    <input ref={pickerSearchRef} style={s.searchInput} className="ns-searchInput" placeholder="Search stories…" value={storySearch} onChange={(e) => setStorySearch(e.target.value)} />
+                  </div>
+                  <div style={s.storyPicker} className="ns-storyPicker">
+                    {filteredStories.length === 0 && <div style={s.empty}>No stories found.</div>}
+                    {filteredStories.map((st) => {
+                      const stSlug = st.slug || st.id;
+                      const isSelected = blocks.some((b) => b.type === "story" && b.slug === stSlug);
+                      return (
+                        <div key={st.id} onClick={() => toggleStoryBlock(st)} style={{ ...s.storyCard, ...(isSelected ? s.storyCardSelected : {}) }}>
+                          {(st.cover || st.coverUrl) && <img src={st.cover || st.coverUrl} alt="" style={s.storyCover} />}
+                          <div style={s.storyInfo}>
+                            <div style={s.storyCategory}><span style={{ ...s.catDot, background: categoryColour(st.category) }} />{st.category}</div>
+                            <div style={s.storyTitle}>{st.title}</div>
+                            <div style={s.storyAuthor}>{st.author}</div>
+                          </div>
+                          <div style={s.checkMark}>{isSelected ? "✓" : "+"}</div>
                         </div>
-                        <div style={s.checkMark}>{isSelected ? "✓" : "+"}</div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -394,10 +412,10 @@ export default function NewsletterPage() {
         )}
 
         {tab === "preview" && (
-          <div style={s.tabContent}>
-            <div style={s.tabHeader}>
-              <h1 style={s.tabTitle}>Email Preview</h1>
-              <p style={s.tabSubtitle}>This is roughly how the email will appear in inboxes.</p>
+          <div style={s.tabContent} className="ns-tabContent">
+            <div style={s.tabHeader} className="ns-tabHeader">
+              <h1 style={s.tabTitle} className="ns-tabTitle">Email Preview</h1>
+              <p style={s.tabSubtitle} className="ns-tabSubtitle">This is roughly how the email will appear in inboxes.</p>
             </div>
             <div style={s.previewShell}>
               <div style={s.emailChrome}>
@@ -456,10 +474,10 @@ export default function NewsletterPage() {
         )}
 
         {tab === "history" && (
-          <div style={s.tabContent}>
-            <div style={s.tabHeader}>
-              <h1 style={s.tabTitle}>Send History</h1>
-              <p style={s.tabSubtitle}>A log of all newsletters sent from Calvary Scribblings.</p>
+          <div style={s.tabContent} className="ns-tabContent">
+            <div style={s.tabHeader} className="ns-tabHeader">
+              <h1 style={s.tabTitle} className="ns-tabTitle">Send History</h1>
+              <p style={s.tabSubtitle} className="ns-tabSubtitle">A log of all newsletters sent from Calvary Scribblings.</p>
             </div>
             
               {drafts.length > 0 && (
@@ -620,3 +638,139 @@ const s = {
   pvDivider: { border: "none", borderTop: `2px solid ${purple}`, margin: "24px 0" },
   pvStorySection: { padding: "12px 40px" },
 };
+
+const responsiveCss = `
+.ns-pickerToggle { display: none; }
+.ns-pickerWrap { display: block; }
+
+@media (max-width: 768px) {
+  .ns-page {
+    flex-direction: column !important;
+    min-height: 100vh;
+  }
+  .ns-sidebar {
+    width: 100% !important;
+    height: auto !important;
+    position: static !important;
+    padding: 14px 16px 10px !important;
+    box-sizing: border-box;
+  }
+  .ns-sidebarLogo {
+    margin-bottom: 12px !important;
+  }
+  .ns-nav {
+    flex-direction: row !important;
+    gap: 4px !important;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    padding: 4px;
+  }
+  .ns-navBtn {
+    flex: 1 1 0 !important;
+    justify-content: center !important;
+    padding: 12px 6px !important;
+    min-height: 44px !important;
+    font-size: 13px !important;
+    text-align: center !important;
+  }
+  .ns-navIcon { display: none !important; }
+  .ns-sidebarStats {
+    margin-top: 10px !important;
+    margin-bottom: 0 !important;
+    padding: 10px 14px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 16px;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .ns-statGroup {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .ns-statLabel-spacer { margin-top: 0 !important; }
+  .ns-statValue { font-size: 18px !important; line-height: 1.1; }
+  .ns-backLink { display: none !important; }
+
+  .ns-main { flex: 1 1 auto !important; min-width: 0; }
+  .ns-tabContent {
+    padding: 20px 16px 16px !important;
+    max-width: 100% !important;
+  }
+  .ns-tabHeader { margin-bottom: 20px !important; }
+  .ns-tabTitle { font-size: 22px !important; line-height: 1.2; word-break: break-word; }
+  .ns-tabSubtitle { font-size: 13px !important; }
+
+  .ns-grid {
+    flex-direction: column !important;
+    gap: 16px !important;
+    align-items: stretch !important;
+  }
+  .ns-leftCol { width: 100% !important; }
+  .ns-rightCol { width: 100% !important; }
+
+  .ns-pickerToggle {
+    display: block !important;
+    width: 100%;
+    padding: 14px 16px;
+    background: #fff;
+    color: ${purple};
+    border: 2px solid ${purple};
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    min-height: 44px;
+    margin-bottom: 10px;
+    box-sizing: border-box;
+  }
+  .ns-pickerWrap.ns-collapsed { display: none !important; }
+  .ns-storyPicker { max-height: 60vh !important; }
+
+  .ns-blockItem {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+  }
+  .ns-blockBody { width: 100%; }
+  .ns-blockControls {
+    flex-direction: row !important;
+    justify-content: flex-end !important;
+    gap: 4px !important;
+    padding-top: 4px;
+    border-top: 1px solid #ede8f5;
+  }
+  .ns-reorderBtn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    font-size: 18px !important;
+    padding: 0 !important;
+  }
+
+  .ns-sendRow {
+    position: sticky !important;
+    bottom: 0;
+    background: #f8f7fc;
+    border-top: 1px solid #ede8f5;
+    margin: 16px -16px 0 -16px !important;
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom)) !important;
+    z-index: 5;
+  }
+  .ns-testRow {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .ns-testRow > * { flex: 1 1 100% !important; }
+  .ns-btnSecondary, .ns-btnPrimary {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    min-height: 44px;
+  }
+
+  .ns-input, .ns-blockTextarea, .ns-searchInput {
+    font-size: 16px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}
+`;
