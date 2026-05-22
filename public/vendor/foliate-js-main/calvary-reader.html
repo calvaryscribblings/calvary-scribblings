@@ -94,8 +94,19 @@ if (!url) {
     } else if (hasNavigated && fraction > 0.1 && lastFraction > 0 && fraction === lastFraction) {
       stuckCount++
       if (stuckCount >= 2 && !atEnd) {
-        atEnd = true
-        window.parent.postMessage({ type: 'ended' }, '*')
+        // Foliate-js emits identical fraction values at spine boundaries
+        // while loading the next section — without this guard the reader
+        // misreads every spine crossing as end-of-book.
+        const section = detail.section
+        const isLastSection = section
+          ? section.current >= section.total - 1
+          : fraction >= 0.999
+        if (isLastSection) {
+          atEnd = true
+          window.parent.postMessage({ type: 'ended' }, '*')
+        } else {
+          stuckCount = 0
+        }
       }
     }
     lastFraction = fraction

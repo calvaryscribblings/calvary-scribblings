@@ -3,30 +3,20 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './lib/AuthContext';
 import AuthModal from './components/AuthModal';
 import Navbar from './components/Navbar';
+import QuizPill from './components/QuizPill';
+import { useUserStoryTiers } from './lib/useUserStoryTiers';
+import { db } from './lib/firebase';
+import { ref, get } from 'firebase/database';
+
+// Stories source of truth: cms_stories/ in Firebase RTDB.
+// This component fetches on mount via the useEffect below.
+// The hardcoded `stories` array below is intentionally empty —
+// it was migrated to CMS as of 2026-05-18. Do not reintroduce.
 
 const stories = [
-  { id: 'my-dream-man', title: 'My Dream Man', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/my-dream-man', cover: '/my-dream-man-cover.jpeg', author: 'Tricia Ajax', date: 'Mar 27, 2026' },
-  { id: 'the-enabler', title: 'The Enabler', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/the-enabler', cover: '/the-enabler-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 26, 2026' },
-  { id: 'rise-and-shine', title: 'Rise and Shine', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/rise-and-shine', cover: '/rise-and-shine-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 21, 2026' },
-  { id: 'an-appetite-for-love', title: 'An Appetite for Love', category: 'poetry', categoryName: 'Poetry', url: '/stories/an-appetite-for-love', cover: '/an-appetite-for-love-cover.png', author: 'Ufedo Adaji', date: 'Mar 19, 2026' },
-  { id: 'dont-worry', title: "Don't Worry", category: 'flash', categoryName: 'Flash Fiction', url: '/stories/dont-worry', cover: '/dont-worry-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 19, 2026' },
-  { id: 'terms-and-conditions', title: 'Terms and Conditions', category: 'short', categoryName: 'Short Story', url: '/stories/terms-and-conditions', cover: '/terms-and-conditions-cover.jpeg', author: 'Tricia Ajax', date: 'Mar 18, 2026' },
-  { id: 'oscars-2026', title: 'The Oscar Showdowns', category: 'news', categoryName: 'Film', url: '/stories/oscars-2026', cover: '/oscars-2026-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 16, 2026' },
-  { id: 'how-to-make-peppersoup', title: 'How to Make Peppersoup', category: 'inspiring', categoryName: 'Inspiring', url: '/stories/how-to-make-peppersoup', cover: '/peppersoup-cover.jpeg', author: 'Ufedo Adaji', date: 'Mar 15, 2026' },
-  { id: 'this-is-nigeria', title: 'This is Nigeria', category: 'news', categoryName: 'Op-Ed', url: '/stories/this-is-nigeria', cover: '/this-is-nigeria-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 13, 2026' },
-  { id: 'london-tube-strike', title: 'Another London Underground Strike!', category: 'news', categoryName: 'News', url: '/stories/london-tube-strike', cover: '/london-tube-strike-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026' },
-  { id: 'the-bride-box-office', title: 'Why The Bride Struggled at the Box Office', category: 'news', categoryName: 'News', url: '/stories/the-bride-box-office', cover: '/the-bride-box-office-cover.jpeg', author: 'Chioma Okonkwo', date: 'Mar 10, 2026' },
-  { id: '1967', title: '1967', category: 'short', categoryName: 'Short Story', url: '/stories/1967', cover: '/1967-cover.jpeg', author: 'Ikenna Okpara', date: 'Mar 7, 2026' },
-  { id: 'you-didnt-ask', title: "You Didn't Ask", category: 'short', categoryName: 'Short Story', url: '/stories/you-didnt-ask', cover: '/you-didnt-ask-cover.jpg', author: 'Tricia Ajax', date: 'Mar 4, 2026' },
-  { id: 'macbook-neo', title: 'The All New MacBook Neo!', category: 'news', categoryName: 'Tech', url: '/stories/macbook-neo', cover: '/macbook-neo-cover.PNG', author: 'Chioma Okonkwo', date: 'Mar 5, 2026' },
-  { id: 'netflix-harry-styles', title: "Netflix to Stream Harry Styles' New Album", category: 'news', categoryName: 'News', url: '/stories/netflix-harry-styles', cover: '/netflix-harry-styles-cover.jpg', author: 'Chioma Okonkwo', date: 'Mar 4, 2026' },
-  { id: 'paramount-wbd-plans', title: 'Paramount Reveals Plans for the Future', category: 'news', categoryName: 'News', url: '/stories/paramount-wbd-plans', cover: '/paramount-wbd-plans-cover.jpg', author: 'Calvary', date: 'Mar 2, 2026' },
-  { id: 'paramount-warner-bros-discovery', title: 'Hollywood Reacts: Paramount Moves to Take Control of WBD', category: 'news', categoryName: 'News', url: '/stories/paramount-warner-bros-discovery', cover: '/paramount-warner-bros-discovery-cover.jpg', author: 'Chioma Okonkwo', date: 'Feb 28, 2026' },
-  { id: 'the-girl-who-sang-through-the-dark', title: 'The Girl Who Sang Through the Dark', category: 'inspiring', categoryName: 'Inspiring', url: '/stories/the-girl-who-sang-through-the-dark', cover: '/the-girl-who-sang-through-the-dark-cover.jpg', author: 'Tricia Ajax', date: 'Feb 26, 2026' },
-  { id: 'john-davidson-bafta-tourettes', title: "The Man in the Middle: John Davidson", category: 'news', categoryName: 'News', url: '/stories/john-davidson-bafta-tourettes', cover: '/john-davidson-bafta-cover.jpeg', author: 'Chioma Okonkwo', date: 'Feb 25, 2026' },
-  { id: 'bafta-2026', title: 'BAFTA 2026: Winners...', category: 'news', categoryName: 'News', url: '/stories/bafta-2026', cover: '/bafta-2026-cover.webp', author: 'Chioma Okonkwo', date: 'Feb 23, 2026' },
- 
-  { id: 'miss-lady', title: 'Miss Lady', category: 'flash', categoryName: 'Flash Fiction', url: '/stories/miss-lady', cover: '/B4E36CD1-7C81-4ED0-BD27-63A125FDFD2D.png', author: 'Calvary', date: 'Feb 17, 2026' },
+  // Hardcoded stories array has been migrated to cms_stories/ in RTDB.
+  // The CMS fetch useEffect below populates allStories on mount.
+  // Intentionally empty: do NOT reintroduce hardcoded entries here.
 ];
 
 function parseDate(str) { return new Date(str); }
@@ -66,17 +56,16 @@ const badgeStyle = {
   inspiring: { background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.4)' },
 };
 
-const _sorted = [...stories]
-  .map((s, i) => ({ ...s, _idx: i }))
-  .sort((a, b) => parseDate(b.date) - parseDate(a.date) || a._idx - b._idx);
-const justAdded = _sorted.slice(0, 5);
-
-function getHourlyCarousel() {
+function getHourlyCarousel(stories) {
+  if (!stories || stories.length === 0) return [];
   const h = Math.floor(Date.now() / 3600000);
-  return [..._sorted].sort((a, b) => ((a.id.charCodeAt(0) * h) % 13) - ((b.id.charCodeAt(0) * h) % 13)).slice(0, 5);
+  const sorted = [...stories].sort((a, b) => parseDate(b.date) - parseDate(a.date));
+  return [...sorted]
+    .sort((a, b) => ((a.id.charCodeAt(0) * h) % 13) - ((b.id.charCodeAt(0) * h) % 13))
+    .slice(0, 5);
 }
 
-function StoryCard({ story, width = 160, height = 240 }) {
+function StoryCard({ story, width = 160, height = 240, userTier = null, scorePct }) {
   const [hovered, setHovered] = useState(false);
   const badge = badgeStyle[story.category] || badgeStyle.news;
   return (
@@ -105,6 +94,7 @@ function StoryCard({ story, width = 160, height = 240 }) {
           boxShadow: '0 2px 8px rgba(124,58,237,0.6)',
         }}>New</span>
       )}
+      <QuizPill hasQuiz={story.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={story.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
         background: 'linear-gradient(to top, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.6) 55%, transparent 100%)',
@@ -120,7 +110,7 @@ function StoryCard({ story, width = 160, height = 240 }) {
   );
 }
 
-function JustAddedCard({ story }) {
+function JustAddedCard({ story, userTier = null, scorePct }) {
   const [hovered, setHovered] = useState(false);
   return (
     <a href={story.url}
@@ -133,8 +123,11 @@ function JustAddedCard({ story }) {
         border: hovered ? '1px solid rgba(139,92,246,0.25)' : '1px solid rgba(255,255,255,0.06)',
         transition: 'all 0.25s ease', width: 260, minWidth: 260,
       }}>
-      <img src={story.cover} alt={story.title}
-        style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <img src={story.cover} alt={story.title}
+          style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 4, display: 'block' }} />
+        <QuizPill hasQuiz={story.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={story.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff',
@@ -157,7 +150,7 @@ function JustAddedCard({ story }) {
   );
 }
 
-function Row({ title, stories, seeAll }) {
+function Row({ title, stories, seeAll, userTiersMap = {} }) {
   return (
     <section style={{ padding: '2rem 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 4%' }}>
@@ -170,13 +163,13 @@ function Row({ title, stories, seeAll }) {
         </a>
       </div>
       <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
-        {stories.map(s => <StoryCard key={s.id} story={s} />)}
+        {stories.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
       </div>
     </section>
   );
 }
 
-function Top10Card({ s, i }) {
+function Top10Card({ s, i, userTier = null, scorePct }) {
   const [active, setActive] = useState(false);
   const CARD_WIDTH = 120;
   const CARD_HEIGHT = 180;
@@ -217,6 +210,7 @@ function Top10Card({ s, i }) {
           transition: 'filter 0.3s',
         }} />
       </div>
+      <QuizPill hasQuiz={s.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={s.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
     </a>
   );
 }
@@ -242,13 +236,14 @@ function SquareBanner({ squareOpen, countdown }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
             width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-            background: squareOpen ? '#6b2fad' : 'rgba(107,47,173,0.15)',
+            background: squareOpen ? 'transparent' : 'rgba(107,47,173,0.15)',
             border: squareOpen ? 'none' : '1px solid rgba(107,47,173,0.25)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             animation: squareOpen ? 'none' : 'sq-lockglow 1.8s ease-in-out infinite',
+            overflow: 'hidden',
           }}>
             {squareOpen ? (
-              <span style={{ fontFamily: 'Georgia, serif', fontSize: 20, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
+              <img src="/cs-logo-mark.png" alt="Calvary Scribblings" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} />
             ) : (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9b6dff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -308,10 +303,10 @@ function SquareFAB({ squareOpen, countdown }) {
       {squareOpen ? (
         <div style={{
           width: 18, height: 18, borderRadius: 5,
-          background: 'rgba(255,255,255,0.2)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overflow: 'hidden',
         }}>
-          <span style={{ fontFamily: 'Georgia, serif', fontSize: 11, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
+          <img src="/cs-logo-mark.png" alt="Calvary Scribblings" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 5 }} />
         </div>
       ) : (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9b6dff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'sq-lockglow-icon 1.8s ease-in-out infinite', flexShrink: 0 }}>
@@ -337,19 +332,272 @@ function SquareFAB({ squareOpen, countdown }) {
   );
 }
 
+function TopReadersStrip() {
+  const [rows, setRows] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, 'leaderboard'));
+        if (!snap.exists()) { setRows([]); return; }
+        const top = Object.entries(snap.val())
+          .filter(([, u]) => u.leaderboardVisible !== false && (u.readerScore ?? 0) > 0)
+          .map(([uid, u]) => ({
+            uid,
+            displayName: u.displayName || 'Reader',
+            username:    u.username || null,
+            avatarUrl:   u.avatarUrl || null,
+            readerScore: u.readerScore ?? 0,
+            joinDate:    u.joinDate ?? Infinity,
+          }))
+          .sort((a, b) => (b.readerScore - a.readerScore) || (a.joinDate - b.joinDate))
+          .slice(0, 5);
+        setRows(top);
+      } catch {
+        setRows([]);
+      }
+    })();
+  }, []);
+
+  if (!rows || rows.length < 3) return null;
+
+  const rankColor = r =>
+    r === 1 ? '#d4a437' : r === 2 ? '#c0c0c8' : r === 3 ? '#a97142' : 'rgba(255,255,255,0.35)';
+
+  return (
+    <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <a href="/leaderboard" style={{ display: 'block', textDecoration: 'none' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', padding: '0 4%' }}>
+          <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ width: 6, height: 6, background: '#7c3aed', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px rgba(124,58,237,0.8)' }} />
+            Top Readers
+          </h3>
+          <span style={{ fontSize: '0.78rem', color: '#a78bfa', fontWeight: 600 }}>View all →</span>
+        </div>
+        <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
+          {rows.map((row, i) => {
+            const rank = i + 1;
+            const initials = row.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+            return (
+              <div key={row.uid} style={{
+                display: 'flex', alignItems: 'center', gap: '0.55rem',
+                padding: '0.55rem 0.75rem', borderRadius: 8,
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                width: 220, minWidth: 220, flexShrink: 0,
+              }}>
+                <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '1.1rem', color: rankColor(rank), fontWeight: 700, width: 18, textAlign: 'center', flexShrink: 0 }}>
+                  {rank}
+                </div>
+                <div style={{
+                  width: 30, height: 30, borderRadius: '50%',
+                  background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(167,139,250,0.22)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0,
+                  fontFamily: 'Cochin, Georgia, serif',
+                }}>
+                  {row.avatarUrl
+                    ? <img src={row.avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : initials}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.76rem', fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {row.displayName}
+                  </div>
+                  {row.username && (
+                    <div style={{ fontSize: '0.6rem', color: 'rgba(167,139,250,0.4)' }}>@{row.username}</div>
+                  )}
+                </div>
+                <div style={{
+                  fontFamily: 'Cochin, Georgia, serif', fontSize: '0.95rem',
+                  color: '#a78bfa', flexShrink: 0,
+                }}>
+                  {row.readerScore.toLocaleString()}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </a>
+    </section>
+  );
+}
+
+function StoryCardSkeleton() {
+  return (
+    <div style={{
+      width: 160,
+      minWidth: 160,
+      height: 240,
+      borderRadius: 8,
+      background: 'rgba(255,255,255,0.04)',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: '0.9rem 0.85rem',
+        background: 'linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 100%)',
+      }}>
+        <div style={{ height: 11, width: '85%', background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginBottom: 6 }} />
+        <div style={{ height: 8, width: '55%', background: 'rgba(255,255,255,0.05)', borderRadius: 2 }} />
+      </div>
+    </div>
+  );
+}
+
+function JustAddedCardSkeleton() {
+  return (
+    <div style={{
+      width: 260,
+      minWidth: 260,
+      padding: '0.6rem 0.75rem',
+      borderRadius: 8,
+      background: 'rgba(255,255,255,0.02)',
+      display: 'flex',
+      gap: '0.75rem',
+      alignItems: 'center',
+    }}>
+      <div style={{
+        width: 56,
+        minWidth: 56,
+        height: 72,
+        background: 'rgba(255,255,255,0.04)',
+        borderRadius: 4,
+      }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ height: 11, width: '80%', background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginBottom: 6 }} />
+        <div style={{ height: 9, width: '50%', background: 'rgba(255,255,255,0.05)', borderRadius: 2 }} />
+      </div>
+    </div>
+  );
+}
+
+function Top10CardSkeleton() {
+  return (
+    <div style={{
+      width: 180,
+      minWidth: 180,
+      height: 180,
+      marginRight: '0.25rem',
+      position: 'relative',
+    }}>
+      <div style={{
+        position: 'absolute',
+        left: 60,
+        top: 0,
+        width: 120,
+        height: 180,
+        borderRadius: 8,
+        background: 'rgba(255,255,255,0.04)',
+      }} />
+    </div>
+  );
+}
+
+function JustAddedSkeleton() {
+  return (
+    <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
+        <h3 style={{
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.18em',
+          color: '#7c3aed',
+          margin: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+        }}>
+          <span style={{
+            width: 6,
+            height: 6,
+            background: '#7c3aed',
+            borderRadius: '50%',
+            display: 'inline-block',
+            boxShadow: '0 0 8px rgba(124,58,237,0.8)',
+          }} />
+          Just Added
+        </h3>
+      </div>
+      <div style={{
+        display: 'flex',
+        gap: '0.6rem',
+        overflowX: 'auto',
+        padding: '0 4% 1rem',
+        scrollbarWidth: 'none',
+      }}>
+        {[0,1,2,3,4].map(i => <JustAddedCardSkeleton key={i} />)}
+      </div>
+    </section>
+  );
+}
+
+function Top10Skeleton() {
+  return (
+    <section style={{ padding: '2.5rem 0' }}>
+      <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+          🔥 Top 10 Stories
+        </h3>
+      </div>
+      <div style={{
+        display: 'flex',
+        gap: '0.6rem',
+        overflowX: 'auto',
+        padding: '0 4% 1rem',
+        scrollbarWidth: 'none',
+      }}>
+        {[0,1,2,3,4,5,6,7,8,9].map(i => <Top10CardSkeleton key={i} />)}
+      </div>
+    </section>
+  );
+}
+
+function RowSkeleton({ title }) {
+  return (
+    <section style={{ padding: '2rem 0' }}>
+      <div style={{
+        padding: '0 4%',
+        marginBottom: '1rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+      }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>{title}</h3>
+      </div>
+      <div style={{
+        display: 'flex',
+        gap: '0.6rem',
+        overflowX: 'auto',
+        padding: '0 4% 1rem',
+        scrollbarWidth: 'none',
+      }}>
+        {[0,1,2,3,4,5,6].map(i => <StoryCardSkeleton key={i} />)}
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   const { user, logout } = useAuth();
+  const userTiersMap = useUserStoryTiers();
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroTransition, setHeroTransition] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [top10, setTop10] = useState([...stories].slice(0, 10));
+  const [top10, setTop10] = useState([]);
   const [email, setEmail] = useState('');
   const [subscribeStatus, setSubscribeStatus] = useState('');
   const [squareOpen, setSquareOpen] = useState(false);
   const [countdown, setCountdown] = useState('');
   const heroIndexRef = useRef(0);
-  const [allStories, setAllStories] = useState(stories);
-  const [carousel, setCarousel] = useState(_sorted.slice(0, 5));
+  const [allStories, setAllStories] = useState([]);
+  const [carousel, setCarousel] = useState([]);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 1024);
@@ -372,19 +620,6 @@ export default function Home() {
   useEffect(() => {
     async function fetchCMSStories() {
       try {
-        const { initializeApp, getApps } = await import('firebase/app');
-        const { getDatabase, ref, get } = await import('firebase/database');
-        const firebaseConfig = {
-          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-          authDomain: 'calvary-scribblings.firebaseapp.com',
-          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-          projectId: 'calvary-scribblings',
-          storageBucket: 'calvary-scribblings.firebasestorage.app',
-          messagingSenderId: '1052137412283',
-          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-        };
-        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-        const db = getDatabase(app);
         const snap = await get(ref(db, 'cms_stories'));
         if (snap.exists()) {
           const data = snap.val();
@@ -404,32 +639,19 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    setCarousel(getHourlyCarousel());
+    setCarousel(getHourlyCarousel(allStories));
     const hourTimer = setInterval(() => {
       heroIndexRef.current = 0;
       setHeroIndex(0);
-      setCarousel(getHourlyCarousel());
+      setCarousel(getHourlyCarousel(allStories));
     }, 3600000);
     return () => clearInterval(hourTimer);
-  }, []);
+  }, [allStories]);
 
   useEffect(() => {
   if (allStories.length === 0) return;
   async function fetchTop10() {
     try {
-      const { initializeApp, getApps } = await import('firebase/app');
-      const { getDatabase, ref, get } = await import('firebase/database');
-      const firebaseConfig = {
-        apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-        authDomain: 'calvary-scribblings.firebaseapp.com',
-        databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-        projectId: 'calvary-scribblings',
-        storageBucket: 'calvary-scribblings.firebasestorage.app',
-        messagingSenderId: '1052137412283',
-        appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-      };
-      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-      const db = getDatabase(app);
       const snapshot = await get(ref(db, 'stories'));
       if (snapshot.exists()) {
         const data = snapshot.val();
@@ -488,7 +710,7 @@ export default function Home() {
   }, [carousel.length]);
 
   const featured = carousel[heroIndex];
-  const badge = badgeStyle[featured.category] || badgeStyle.news;
+  const badge = featured ? (badgeStyle[featured.category] || badgeStyle.news) : badgeStyle.news;
 
   return (
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: "'Cochin', Georgia, serif" }}>
@@ -510,7 +732,8 @@ export default function Home() {
 
       <Navbar />
 
-      {/* Hero Carousel */}
+      {/* Hero Carousel — renders only when CMS data lands. Hero CMS wiring tracked for a later phase. */}
+      {carousel.length > 0 && featured && (
       <section style={{ position: 'relative', height: '88vh', minHeight: 600, overflow: 'hidden' }}>
         {carousel.map((s, i) => (
           <img key={s.id} src={s.cover} alt={s.title}
@@ -596,6 +819,7 @@ export default function Home() {
           ))}
         </div>
       </section>
+      )}
 
       {/* Square Banner — desktop only */}
       <div className="sq-banner-desktop">
@@ -603,32 +827,63 @@ export default function Home() {
       </div>
 
       {/* Just Added */}
+      {allStories.length === 0 ? (
+        <JustAddedSkeleton />
+      ) : (
       <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', paddingLeft: '4%' }}>
           <span style={{ width: 6, height: 6, background: '#7c3aed', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px rgba(124,58,237,0.8)' }} />
           Just Added
         </h3>
         <div className="just-added-scroll" style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
-          {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map(s => <JustAddedCard key={s.id} story={s} />)}
+          {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map(s => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
+      )}
+
+      {/* Top Readers */}
+      <TopReadersStrip />
 
       {/* Top 10 */}
+      {allStories.length === 0 ? (
+        <Top10Skeleton />
+      ) : (
       <section style={{ padding: '2.5rem 0' }}>
         <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>🔥 Top 10 Stories</h3>
           <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.3rem', letterSpacing: '0.05em' }}>Ranked by reads</p>
         </div>
         <div className="top10-scroll" style={{ display: 'flex', gap: '0', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem' }}>
-          {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} />)}
+          {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
+      )}
 
-      <Row title="⚡ Flash Fiction" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" />
-      <Row title="📖 Short Stories" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" />
-      <Row title="🖊️ Poetry" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
-      <Row title="🗞️ News & Updates" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" />
-      <Row title="✨ Inspiring Stories" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
+      {allStories.length === 0 ? (
+        <RowSkeleton title="⚡ Flash Fiction" />
+      ) : (
+        <Row title="⚡ Flash Fiction" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" userTiersMap={userTiersMap} />
+      )}
+      {allStories.length === 0 ? (
+        <RowSkeleton title="📖 Short Stories" />
+      ) : (
+        <Row title="📖 Short Stories" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" userTiersMap={userTiersMap} />
+      )}
+      {allStories.length === 0 ? (
+        <RowSkeleton title="🖊️ Poetry" />
+      ) : (
+        <Row title="🖊️ Poetry" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" userTiersMap={userTiersMap} />
+      )}
+      {allStories.length === 0 ? (
+        <RowSkeleton title="🗞️ News & Updates" />
+      ) : (
+        <Row title="🗞️ News & Updates" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" userTiersMap={userTiersMap} />
+      )}
+      {allStories.length === 0 ? (
+        <RowSkeleton title="✨ Inspiring Stories" />
+      ) : (
+        <Row title="✨ Inspiring Stories" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" userTiersMap={userTiersMap} />
+      )}
 
       {/* Subscribe */}
       <section id="subscribe" style={{

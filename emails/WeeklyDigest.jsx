@@ -5,8 +5,7 @@ import {
 
 export default function WeeklyDigest({
   subject = "This Week on Calvary Scribblings",
-  intro = "Here's what's been published this week — stories worth your time.",
-  stories = [],
+  blocks = [],
   issueNumber = 1,
   unsubscribeUrl = "https://calvary-newsletter.calvarymediauk.workers.dev/unsubscribe?token=TOKEN",
 }) {
@@ -33,53 +32,69 @@ export default function WeeklyDigest({
               The Story Island 🏝️
             </Text>
           </Section>
-          <Section style={{ padding: "36px 40px 24px" }}>
-            <Text style={{ color: darkText, fontSize: "16px", lineHeight: "1.75", margin: 0 }}>{intro}</Text>
-          </Section>
-          <Hr style={{ borderColor: "#ede8f5", margin: "0 40px" }} />
-          {stories.length > 0 ? (
-            <Section style={{ padding: "24px 40px 0" }}>
-              <Text style={{ color: purple, fontSize: "10px", letterSpacing: "3px", textTransform: "uppercase", margin: "0 0 24px", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontWeight: "700" }}>
-                This Week's Stories
-              </Text>
-              {stories.map((story, i) => (
-                <Row key={story.slug} style={{ marginBottom: "28px", paddingBottom: "28px", borderBottom: i < stories.length - 1 ? "1px solid #ede8f5" : "none" }}>
-                  {story.cover && (
-                    <Column style={{ width: "120px", verticalAlign: "top" }}>
-                      <Link href={`${siteUrl}/stories/${story.slug}`}>
-                        <Img src={story.cover} width="110" height="70" alt={story.title} style={{ borderRadius: "6px", objectFit: "cover", display: "block" }} />
+          {blocks.map((block) => {
+            if (block.type === "text") {
+              return (
+                <Section key={block.id} style={{ padding: "20px 40px" }}>
+                  <Text style={{ color: darkText, fontSize: "16px", lineHeight: "1.75", margin: 0, whiteSpace: "pre-wrap" }}>
+                    {block.content}
+                  </Text>
+                </Section>
+              );
+            }
+            if (block.type === "divider") {
+              return (
+                <Hr
+                  key={block.id}
+                  style={{
+                    borderTop: `2px solid ${purple}`,
+                    borderBottom: "none",
+                    borderLeft: "none",
+                    borderRight: "none",
+                    width: "100%",
+                    margin: "24px 0",
+                  }}
+                />
+              );
+            }
+            if (block.type === "story") {
+              return (
+                <Section key={block.id} style={{ padding: "12px 40px" }}>
+                  <Row>
+                    {block.cover && (
+                      <Column style={{ width: "120px", verticalAlign: "top" }}>
+                        <Link href={`${siteUrl}/stories/${block.slug}`}>
+                          <Img src={block.cover} width="110" height="70" alt={block.title} style={{ borderRadius: "6px", objectFit: "cover", display: "block" }} />
+                        </Link>
+                      </Column>
+                    )}
+                    <Column style={{ verticalAlign: "top", paddingLeft: block.cover ? "16px" : "0" }}>
+                      <Text style={{ color: purple, fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", margin: "0 0 6px", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontWeight: "600" }}>
+                        {block.category || "Fiction"}
+                      </Text>
+                      <Link href={`${siteUrl}/stories/${block.slug}`} style={{ textDecoration: "none" }}>
+                        <Heading as="h2" style={{ color: darkText, fontSize: "17px", fontWeight: "700", margin: "0 0 6px", lineHeight: "1.3", fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                          {block.title}
+                        </Heading>
+                      </Link>
+                      <Text style={{ color: mutedText, fontSize: "12px", margin: "0 0 8px", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
+                        by {block.author}
+                      </Text>
+                      {block.excerpt && (
+                        <Text style={{ color: "#444460", fontSize: "13px", lineHeight: "1.6", margin: "0 0 10px" }}>
+                          {block.excerpt.length > 120 ? block.excerpt.slice(0, 120) + "…" : block.excerpt}
+                        </Text>
+                      )}
+                      <Link href={`${siteUrl}/stories/${block.slug}`} style={{ color: purple, fontSize: "12px", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontWeight: "600", letterSpacing: "0.5px", textDecoration: "none" }}>
+                        Read on Calvary Scribblings →
                       </Link>
                     </Column>
-                  )}
-                  <Column style={{ verticalAlign: "top", paddingLeft: story.cover ? "16px" : "0" }}>
-                    <Text style={{ color: purple, fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", margin: "0 0 6px", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontWeight: "600" }}>
-                      {story.category || "Fiction"}
-                    </Text>
-                    <Link href={`${siteUrl}/stories/${story.slug}`} style={{ textDecoration: "none" }}>
-                      <Heading as="h2" style={{ color: darkText, fontSize: "17px", fontWeight: "700", margin: "0 0 6px", lineHeight: "1.3", fontFamily: "Georgia, 'Times New Roman', serif" }}>
-                        {story.title}
-                      </Heading>
-                    </Link>
-                    <Text style={{ color: mutedText, fontSize: "12px", margin: "0 0 8px", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
-                      by {story.author}
-                    </Text>
-                    {story.excerpt && (
-                      <Text style={{ color: "#444460", fontSize: "13px", lineHeight: "1.6", margin: "0 0 10px" }}>
-                        {story.excerpt.length > 120 ? story.excerpt.slice(0, 120) + "…" : story.excerpt}
-                      </Text>
-                    )}
-                    <Link href={`${siteUrl}/stories/${story.slug}`} style={{ color: purple, fontSize: "12px", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontWeight: "600", letterSpacing: "0.5px", textDecoration: "none" }}>
-                      Read Story →
-                    </Link>
-                  </Column>
-                </Row>
-              ))}
-            </Section>
-          ) : (
-            <Section style={{ padding: "24px 40px" }}>
-              <Text style={{ color: mutedText, fontSize: "14px" }}>No stories featured this week.</Text>
-            </Section>
-          )}
+                  </Row>
+                </Section>
+              );
+            }
+            return null;
+          })}
           <Section style={{ padding: "12px 40px 36px" }}>
             <Section style={{ backgroundColor: lightPurple, borderRadius: "10px", padding: "24px 28px", textAlign: "center" }}>
               <Text style={{ color: darkText, fontSize: "15px", margin: "0 0 14px", lineHeight: "1.6" }}>

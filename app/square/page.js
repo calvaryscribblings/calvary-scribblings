@@ -1,8 +1,8 @@
 'use client';
-import TipBox from '../components/TipBox';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { stories as allStaticStories } from '../lib/stories';
+import { useDeletedUids } from '../lib/userVisibility';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -99,6 +99,68 @@ function WriterBadge({ size = 13 }) {
         <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>Writer</span>
       </span>
     </span>
+  );
+}
+
+function VerifiedBadge({ size = 11 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }} aria-label="Verified">
+      <path fill="#6b2fad" d={BADGE_PATH} />
+      <path fill="#e9d5ff" d={CHECK_PATH} />
+    </svg>
+  );
+}
+
+function QuotedCard({ quotedPost, onClear }) {
+  const cardStyle = {
+    background: 'rgba(255,255,255,0.03)',
+    border: '0.5px solid rgba(245,240,230,0.08)',
+    borderRadius: 8,
+    padding: '10px 12px',
+    margin: '8px 0',
+    position: 'relative',
+  };
+  const closeBtn = onClear ? (
+    <button onClick={onClear} aria-label="Remove quoted post"
+      style={{ position: 'absolute', top: 4, right: 6, background: 'none', border: 'none', color: 'rgba(255,255,255,0.55)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '2px 6px', fontFamily: 'Inter, sans-serif' }}>
+      ×
+    </button>
+  ) : null;
+  if (!quotedPost) {
+    return (
+      <div style={cardStyle}>
+        <div style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)' }}>
+          [original post no longer available]
+        </div>
+        {closeBtn}
+      </div>
+    );
+  }
+  const raw = quotedPost.text || '';
+  const excerpt = raw.length > 100 ? raw.slice(0, 100).trimEnd() + '…' : raw;
+  const handleViewPost = (e) => {
+    const el = typeof document !== 'undefined' ? document.getElementById(quotedPost.id) : null;
+    if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  };
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap', paddingRight: onClear ? 18 : 0 }}>
+        <Avatar uid={quotedPost.authorUid} initials={quotedPost.authorInitials || (quotedPost.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()} size={24} isAuthor={quotedPost.isAuthor} avatarUrl={quotedPost.authorAvatarUrl} />
+        <span style={{ fontSize: '0.81rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>{quotedPost.authorName}</span>
+        {quotedPost.isAuthor && <VerifiedBadge size={11} />}
+        {quotedPost.authorHandle && <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif' }}>@{quotedPost.authorHandle}</span>}
+      </div>
+      <div style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '0.86rem', lineHeight: 1.55, color: 'rgba(255,255,255,0.65)' }}>
+        {excerpt}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+        <a href={`#${quotedPost.id}`} onClick={handleViewPost}
+          style={{ fontSize: '0.74rem', color: '#6b2fad', fontFamily: 'Inter, sans-serif', textDecoration: 'none', fontWeight: 500 }}>
+          View post →
+        </a>
+      </div>
+      {closeBtn}
+    </div>
   );
 }
 
@@ -284,7 +346,7 @@ function PollDisplay({ poll, postId, user }) {
 }
 
 // ── Post Menu ─────────────────────────────────────────────────────────────────
-function PostMenu({ post, user, onEdit, onDelete, onPin, isMod }) {
+function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const isOwn = user?.uid === post.authorUid;
@@ -314,7 +376,7 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, isMod }) {
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              Edit post
+              edit post
             </button>
           )}
           {isMod && (
@@ -323,6 +385,14 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, isMod }) {
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <PinIcon size={12} />
               {isPinned ? 'Unpin post' : 'Pin post'}
+            </button>
+          )}
+          {isMod && post.quotedPostId && onStripQuote && (
+            <button onClick={() => { onStripQuote(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+              Strip quote attribution
             </button>
           )}
           {(isOwn || isMod) && (
@@ -807,6 +877,7 @@ export default function SquarePage() {
   const [reactions, setReactions] = useState({});
   const [editingPost, setEditingPost] = useState(null);
   const [editText, setEditText] = useState('');
+  const [quotedPostId, setQuotedPostId] = useState(null);
   const textareaRef = useRef(null);
   const replyTextareaRef = useRef(null);
   const editTextareaRef = useRef(null);
@@ -967,13 +1038,24 @@ export default function SquarePage() {
         isAuthor: userData?.isAuthor || false, attachedStory: attachedStory || null,
         parentId: null, likeCount: 0, pinned: false,
         unpinnedAt: null,
+        quotedPostId: quotedPostId || null,
         createdAt: Date.now(),
       };
       if (pollData) postData.poll = { ...pollData, votes: {} };
       const newPost = await push(ref(db, 'square_posts'), postData);
       await mirrorToUserPosts(newPost.key, postData);
       await sendNotifications(text.trim(), newPost.key, 'post');
-      setText(''); setAttachedStory(null);
+      if (quotedPostId) {
+        const quotedPost = posts.find(p => p.id === quotedPostId);
+        if (quotedPost && quotedPost.authorUid && quotedPost.authorUid !== user.uid) {
+          await push(ref(db, `notifications/${quotedPost.authorUid}`), {
+            type: 'square_quote', fromUid: user.uid, fromName: user.displayName || 'Reader',
+            fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
+            postId: newPost.key, quotedPostId, read: false, createdAt: Date.now(),
+          });
+        }
+      }
+      setText(''); setAttachedStory(null); setQuotedPostId(null);
     } catch (e) { console.error('Post error:', e); }
     setPosting(false);
   };
@@ -1064,15 +1146,39 @@ export default function SquarePage() {
     await post(pollData);
   };
 
+  const handleQuote = (postId) => {
+    if (!user) { setShowAuth(true); return; }
+    setQuotedPostId(postId);
+    setTimeout(() => {
+      textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      textareaRef.current?.focus();
+    }, 50);
+  };
+
+  const handleStripQuote = async (p) => {
+    if (!isMod) return;
+    if (!confirm('Strip quote attribution from this post? The post itself will remain.')) return;
+    const db = await getDB();
+    const { ref, update } = await import('firebase/database');
+    await update(ref(db, `square_posts/${p.id}`), { quotedPostId: null });
+  };
+
   const maxChars = user ? getMaxChars(userData?.readCount || 0, user.uid, userData?.isAuthor) : 200;
-  const topLevel = posts.filter(p => !p.parentId);
-  const getReplies = (id) => posts.filter(p => p.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
+  // Hide content from soft-deleted users. Hard-deleted users no longer have
+  // posts in the DB, so this only affects the 7-day grace window.
+  const deletedAuthorSet = useDeletedUids(posts.map(p => p.authorUid));
+  const visiblePosts = deletedAuthorSet
+    ? posts.filter(p => !deletedAuthorSet.has(p.authorUid))
+    : posts;
+  const topLevel = visiblePosts.filter(p => !p.parentId);
+  const getReplies = (id) => visiblePosts.filter(p => p.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
 
-  const ReactionBar = ({ p, size = 12 }) => {
+  const ReactionBar = ({ p, size = 14 }) => {
     const postReactions = reactions[p.id] || {};
+    const idleColor = 'rgba(255,255,255,0.55)';
     return (
-      <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+      <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         {[
           { type: 'like', Icon: HeartIcon, activeColor: '#d4537e', count: p.likeCount || 0 },
           { type: 'clap', Icon: ClapIcon, activeColor: '#d4941a', count: p.clapCount || 0 },
@@ -1081,18 +1187,31 @@ export default function SquarePage() {
           const active = postReactions[type] || false;
           return (
             <button key={type} onClick={() => toggleReaction(p.id, type)}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, color: active ? activeColor : '#ffffff', fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', transition: 'color 0.2s', letterSpacing: '0.08em' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, color: active ? activeColor : idleColor, fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', transition: 'color 0.2s', letterSpacing: '0.08em' }}>
               <Icon filled={active} size={size} />
               {count > 0 && count}
             </button>
           );
         })}
         {user && (
-          <button className="sq-action-btn" onClick={() => setReplyTo(replyTo === p.id ? null : p.id)}>
+          <button onClick={() => setReplyTo(replyTo === p.id ? null : p.id)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#9b6dff'}
+            onMouseLeave={e => e.currentTarget.style.color = idleColor}>
             <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            {replyTo === p.id ? 'Cancel' : 'Reply'}
+            {replyTo === p.id ? 'cancel' : 'reply'}
           </button>
         )}
+        <button onClick={() => handleQuote(p.id)} aria-label="Quote this post"
+          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
+          onMouseEnter={e => e.currentTarget.style.color = '#9b6dff'}
+          onMouseLeave={e => e.currentTarget.style.color = idleColor}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            <path d="M8 9h2"/><path d="M14 9h2"/>
+          </svg>
+          quote
+        </button>
       </div>
     );
   };
@@ -1121,8 +1240,8 @@ export default function SquarePage() {
       {/* Nav */}
       <div style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <a href="/" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, background: '#6b2fad', borderRadius: 7, textDecoration: 'none' }}>
-            <span style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: 17, fontWeight: 600, color: '#fff', lineHeight: 1 }}>S</span>
+          <a href="/" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, textDecoration: 'none', overflow: 'hidden' }}>
+            <img src="/cs-logo-mark.png" alt="Calvary Scribblings" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 7 }} />
           </a>
           <div>
             <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: 16, color: '#f5f0e8', lineHeight: 1 }}>The Scribblings Square</div>
@@ -1189,7 +1308,6 @@ export default function SquarePage() {
               Opens at <span style={{ color: 'rgba(155,109,255,0.6)' }}>8:00pm London time</span> tonight
             </div>
           </div>
-          <div style={{ margin: '1.5rem 0' }}><TipBox variant="square" /></div>
           {posts.length > 0 && (
             <div style={{ opacity: 0.35 }}>
               <div style={{ fontSize: '0.62rem', color: '#ffffff', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginBottom: 12 }}>Last night in the Square</div>
@@ -1212,14 +1330,15 @@ export default function SquarePage() {
       {/* Open state */}
       {squareOpen && (
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '1.5rem 1.5rem 6rem' }}>
-          <div style={{ marginBottom: '1.5rem' }}><TipBox variant="square" /></div>
-
           {/* Composer */}
           {user ? (
             <div style={{ marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 <Avatar uid={user.uid} initials={userInitials} size={36} isAuthor={userData?.isAuthor} avatarUrl={userData?.avatarUrl} />
                 <div style={{ flex: 1, position: 'relative' }}>
+                  {quotedPostId && (
+                    <QuotedCard quotedPost={visiblePosts.find(p => p.id === quotedPostId)} onClear={() => setQuotedPostId(null)} />
+                  )}
                   <textarea ref={textareaRef} className="sq-textarea" placeholder="What's on your mind? Type @ to mention someone…" value={text} onChange={e => handleTextChange(e.target.value)} rows={3} />
                   {mentionQuery !== '' && <MentionDropdown query={mentionQuery} onSelect={insertMention} />}
                   {attachedStory && (
@@ -1286,7 +1405,7 @@ export default function SquarePage() {
                           </div>
                           <UserBadge uid={p.authorUid} readCount={p.authorReadCount} isAuthor={p.isAuthor} />
                           <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}{p.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
-                          {user && <PostMenu post={p} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} isMod={isMod} />}
+                          {user && <PostMenu post={p} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} isMod={isMod} />}
                         </div>
 
                         {isEditing ? (
@@ -1303,10 +1422,11 @@ export default function SquarePage() {
                             <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
                             {p.attachedStory && <StoryEmbed story={p.attachedStory} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
+                            {p.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === p.quotedPostId)} />}
                           </>
                         )}
 
-                        <ReactionBar p={p} size={12} />
+                        <ReactionBar p={p} size={14} />
 
                         {replyTo === p.id && (
                           <div style={{ marginTop: 10, position: 'relative' }}>
@@ -1332,7 +1452,7 @@ export default function SquarePage() {
                                         onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{r.authorName}</a>
                                       <UserBadge uid={r.authorUid} readCount={r.authorReadCount} isAuthor={r.isAuthor} />
                                       <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(r.createdAt)}{r.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
-                                      {user && <PostMenu post={r} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} isMod={isMod} />}
+                                      {user && <PostMenu post={r} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} isMod={isMod} />}
                                     </div>
                                     {editingPost === r.id ? (
                                       <div style={{ position: 'relative' }}>
@@ -1344,9 +1464,12 @@ export default function SquarePage() {
                                         </div>
                                       </div>
                                     ) : (
-                                      <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.65 }}>{renderText(r.text)}</div>
+                                      <>
+                                        <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.65 }}>{renderText(r.text)}</div>
+                                        {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} />}
+                                      </>
                                     )}
-                                    <ReactionBar p={r} size={11} />
+                                    <ReactionBar p={r} size={13} />
                                   </div>
                                 </div>
                               );

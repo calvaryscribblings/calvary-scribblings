@@ -6,11 +6,12 @@ import { stories } from '../../lib/stories';
 import { use } from 'react';
 import { storyContent } from '../../lib/storyContent';
 import AuthModal from '../../components/AuthModal';
-import TipBox from '../../components/TipBox';
+import { updateStreak } from '../../lib/streakEngine';
+import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
-import StoryAuthorBio from '../../components/StoryAuthorBio';
 import QuizCard from '../../components/QuizCard';
+import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
 
 
 const FB = {
@@ -31,6 +32,92 @@ async function getDB() { const { getDatabase } = await import('firebase/database
 async function getFirebaseAuth() { const { getAuth } = await import('firebase/auth'); return getAuth(await getApp()); }
 
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
+
+const PAYWALL_SLUG = 'dead-end-a-halfway-around-the-moon-story';
+const PAYWALL_STRIPE_URL = 'https://buy.stripe.com/7sYfZ9alE2KSdsSfvTenS07';
+
+function extractFirstParagraph(html) {
+  if (!html) return '';
+  const match = html.match(/<p\b[\s\S]*?<\/p>/i);
+  return match ? match[0] : '';
+}
+
+function PaywallGate({ user, onSignIn }) {
+  const handleUnlock = () => {
+    if (!user) {
+      try {
+        sessionStorage.setItem('postLoginRedirect', `/stories/${PAYWALL_SLUG}`);
+      } catch (e) {}
+      onSignIn();
+      return;
+    }
+    const paymentUrl = `${PAYWALL_STRIPE_URL}?client_reference_id=${user.uid}`;
+    window.open(paymentUrl, '_blank');
+  };
+
+  return (
+    <div style={{ position: 'relative', marginTop: '0.5rem' }}>
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 80,
+        background: 'linear-gradient(to bottom, rgba(240,234,216,1) 0%, rgba(240,234,216,0) 100%)',
+        pointerEvents: 'none', zIndex: 2,
+      }} aria-hidden="true" />
+      <div style={{
+        position: 'relative', zIndex: 1,
+        background: '#06040e',
+        borderRadius: 16,
+        padding: '4.5rem 1.5rem 2.5rem',
+        margin: '0 auto',
+        maxWidth: 520,
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        textAlign: 'center', gap: '0.9rem',
+        boxShadow: '0 20px 60px -20px rgba(6,4,14,0.35)',
+      }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="11" width="18" height="11" rx="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+        <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: 20, color: '#f5f0e8', lineHeight: 1.3 }}>
+          Dead End is a collector's read
+        </div>
+        <p style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 14,
+          color: 'rgba(245,240,232,0.6)', maxWidth: 320,
+          lineHeight: 1.55, margin: 0,
+        }}>
+          Unlock Dead End for a one-time payment of £1.50. Once purchased, it's yours to keep.
+        </p>
+        <button
+          onClick={handleUnlock}
+          style={{
+            background: '#c9a84c', color: '#06040e',
+            fontFamily: 'Cochin, Georgia, serif', fontSize: 16,
+            border: 'none', borderRadius: 999,
+            height: 48, width: 240, cursor: 'pointer',
+            marginTop: '0.4rem', fontWeight: 500, letterSpacing: '0.01em',
+          }}
+        >
+          Unlock for £1.50
+        </button>
+        <div style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 12,
+          color: 'rgba(245,240,232,0.45)', marginTop: '0.4rem',
+          maxWidth: 320, lineHeight: 1.55,
+        }}>
+          {user ? (
+            <>Already purchased? It may take a moment to appear. Refresh the page.</>
+          ) : (
+            <>Already purchased? <a
+              href="#"
+              onClick={(e) => { e.preventDefault(); onSignIn(); }}
+              style={{ color: '#c9a84c', textDecoration: 'none', borderBottom: '1px solid rgba(201,168,76,0.4)' }}
+            >Sign in</a></>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function getBadge(readCount, uid) {
   if (uid === FOUNDER_UID) return { tier: 'founder', label: 'Founder', color: '#c8daea', isFounder: true };
@@ -469,7 +556,7 @@ const CommentNode = React.memo(function CommentNode({
           {children.map(child => (
             <CommentNode
               key={child.id} comment={child} depth={depth + 1} parentAuthorName={comment.authorName}
-              user={user} comments={comments} commentReactions={commentReactions}
+              user={user} comments={comments /* already pre-filtered upstream */} commentReactions={commentReactions}
               replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
               setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
               toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
@@ -655,7 +742,14 @@ function CommentsSection({ slug, onSignIn }) {
   }, [user, slug]);
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
-  const topLevel = comments.filter(c => !c.parentId);
+  // Hide comments from soft-deleted users. The CommentThread also reads
+  // `comments` from a closure to render replies, so we replace the array
+  // with a filtered view rather than only filtering at the top level.
+  const deletedCommentAuthors = useDeletedUids(comments.map(c => c.authorUid));
+  const visibleComments = deletedCommentAuthors
+    ? comments.filter(c => !deletedCommentAuthors.has(c.authorUid))
+    : comments;
+  const topLevel = visibleComments.filter(c => !c.parentId);
 
   return (
     <div className="cs-section">
@@ -692,7 +786,7 @@ function CommentsSection({ slug, onSignIn }) {
           {topLevel.map(comment => (
             <CommentNode
               key={comment.id} comment={comment} depth={1} parentAuthorName={null}
-              user={user} comments={comments} commentReactions={commentReactions}
+              user={user} comments={visibleComments} commentReactions={commentReactions}
               replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
               setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
               toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
@@ -708,13 +802,26 @@ export default function StoryPageClient({ params }) {
   const { slug } = use(params);
   const [story, setStory] = useState(stories.find(s => s.id === slug) || null);
   const [storyReady, setStoryReady] = useState(!!stories.find(s => s.id === slug));
+  const [authorDeleted, setAuthorDeleted] = useState(false);
   useEffect(() => { const t = setTimeout(() => setStoryReady(true), 3000); return () => clearTimeout(t); }, []);
+
+  // CMS-published stories may have an authorUid; if that user is soft-deleted
+  // we treat the story as gone (it'll be hard-deleted by the cron at day 7).
+  // Hardcoded stories in lib/stories.js have no authorUid so this is a no-op.
+  useEffect(() => {
+    if (!story?.authorUid) { setAuthorDeleted(false); return; }
+    let cancelled = false;
+    getDeletedUidSet([story.authorUid]).then(set => {
+      if (!cancelled) setAuthorDeleted(set.has(story.authorUid));
+    });
+    return () => { cancelled = true; };
+  }, [story?.authorUid]);
 
   useEffect(() => {
     if (story && storyReady) return;
     if (story) {
       setStoryReady(true);
-      if (story.category === 'poetry' || story.category === 'novel' || story.readerMode) {
+      if ((story.category === 'poetry' && story.epubUrl) || story.category === 'novel' || story.readerMode) {
   window.location.replace(`/reader/${slug}`);
   return;
 }
@@ -726,7 +833,7 @@ export default function StoryPageClient({ params }) {
         const snap = await get(ref(db, 'cms_stories/' + slug));
         if (snap.exists()) {
           const data = { id: slug, ...snap.val() };
-          if (data.category === 'poetry' || data.category === 'novel' || data.readerMode) {
+          if ((data.category === 'poetry' && data.epubUrl) || data.category === 'novel' || data.readerMode) {
             window.location.replace(`/reader/${slug}`);
             return;
           }
@@ -746,6 +853,8 @@ export default function StoryPageClient({ params }) {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [storyUser, setStoryUser] = useState(null);
+  const [hasPurchased, setHasPurchased] = useState(false);
+  const [purchaseChecked, setPurchaseChecked] = useState(false);
   const articleRef = useRef(null);
 
   useEffect(() => {
@@ -757,6 +866,38 @@ export default function StoryPageClient({ params }) {
     })();
     return () => { if (unsub) unsub(); };
   }, []);
+
+  useEffect(() => {
+    if (slug !== PAYWALL_SLUG) {
+      setHasPurchased(false);
+      setPurchaseChecked(true);
+      return;
+    }
+    if (!storyUser) {
+      setHasPurchased(false);
+      setPurchaseChecked(true);
+      return;
+    }
+    let cancelled = false;
+    setPurchaseChecked(false);
+    (async () => {
+      try {
+        const db = await getDB();
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, `purchases/${storyUser.uid}/${PAYWALL_SLUG}`));
+        if (!cancelled) {
+          setHasPurchased(snap.exists());
+          setPurchaseChecked(true);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setHasPurchased(false);
+          setPurchaseChecked(true);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [slug, storyUser]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -797,6 +938,9 @@ export default function StoryPageClient({ params }) {
           unsubRead();
           try {
             const db = await getDB();
+            updateStreak(user.uid, db)
+              .then(changed => { if (changed) checkAndAwardBadges(user.uid, db).catch(() => {}); })
+              .catch(() => {});
             const { ref, get, set, runTransaction, push, update } = await import('firebase/database');
             const readRef = ref(db, `users/${user.uid}/readStories/${slug}`);
             const snap = await get(readRef);
@@ -840,6 +984,13 @@ useEffect(() => {
   }, [storyReady]);
   const categoryColors = { news: '#ef4444', flash: '#6b46c1', short: '#6b46c1', poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1' };
   if (!story) return <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />;
+  if (authorDeleted) return (
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.05rem', fontStyle: 'italic', textAlign: 'center' }}>
+        This story is no longer available.
+      </p>
+    </div>
+  );
   const accentColor = categoryColors[story.category] || '#6b46c1';
 
   // ── Derived display values — works for both hardcoded and CMS stories ──
@@ -939,10 +1090,10 @@ useEffect(() => {
         .cs-compose-row { display: flex; gap: 12px; align-items: flex-start; }
         .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; overflow: hidden; text-decoration: none; }
         .cs-input-wrap { flex: 1; position: relative; }
-        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; }
+        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
         .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; border-radius: 10px; }
-        .cs-textarea::placeholder { color: #ffffff; font-style: italic; font-family: Georgia, serif; }
-        .cs-textarea:focus { border-color: rgba(107,47,173,0.4); }
+        .cs-textarea::placeholder { color: rgba(255,255,255,0.32); font-style: italic; font-family: Georgia, serif; }
+        .cs-textarea:focus { border-color: rgba(107,47,173,0.4); box-shadow: 0 0 0 2px rgba(107,47,173,0.2); }
         .cs-kite-btn { position: absolute; bottom: 8px; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; opacity: 0.2; transition: opacity 0.2s; }
         .cs-kite-btn.active { opacity: 1; }
         .cs-kite-btn:disabled { cursor: not-allowed; }
@@ -953,8 +1104,8 @@ useEffect(() => {
         .cs-empty { font-size: 0.88rem; color: #ffffff; font-family: Georgia, serif; font-style: italic; padding: 1rem 0; }
         .cs-comments-list { display: flex; flex-direction: column; }
         .cs-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 0.25rem 0 1.75rem; }
-        .cs-comment { display: flex; gap: 12px; margin-bottom: 0.25rem; }
-        .cs-comment-body { flex: 1; min-width: 0; }
+        .cs-comment { display: flex; gap: 12px; margin-bottom: 1.25rem; }
+        .cs-comment-body { flex: 1; min-width: 0; padding-bottom: 0.5rem; }
         .cs-comment-header { display: flex; align-items: center; gap: 6px; margin-bottom: 0.45rem; flex-wrap: wrap; }
         .cs-name { font-size: 0.8rem; font-weight: 500; color: #ffffff; font-family: 'Inter', sans-serif; }
         .cs-name-link { text-decoration: none; transition: color 0.2s; }
@@ -969,7 +1120,7 @@ useEffect(() => {
         .cs-cancel-btn:hover { background: rgba(166,61,76,0.12); border-color: #a63d4c; }
         .cs-reply-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.4); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; }
         .cs-reply-btn:hover { color: #9b6dff; }
-        .cs-reply-compose { margin-top: 0.75rem; }
+        .cs-reply-compose { background: rgba(107,47,173,0.06); border: 1px solid rgba(107,47,173,0.18); border-radius: 10px; padding: 0.75rem; margin-top: 0.75rem; margin-bottom: 0.5rem; }
         .cs-replies { margin-top: 1rem; padding-left: 1rem; border-left: 1px solid rgba(107,47,173,0.2); display: flex; flex-direction: column; gap: 1rem; }
         .cs-reply { display: flex; gap: 10px; }
         @media (max-width: 640px) {
@@ -977,9 +1128,13 @@ useEffect(() => {
           .story-body { padding: 2.5rem 1.2rem 4rem; }
           .hero-content { padding: 2rem 1.2rem 2.5rem 1.2rem; padding-right: 120px; }
           .prose { font-size: 1.05rem; }
-          .story-nav { padding: 0.85rem 1.2rem; }
+          .story-nav { padding: 0.5rem 1.2rem; }
           .hit-counter-row { padding: 1.5rem 1.2rem; }
           .cs-section { padding: 2rem 1.2rem 5rem; }
+          .story-badge-hero { font-size: 0.72rem; letter-spacing: 0.14em; padding: 0.22em 0.7em; margin-bottom: 0.7rem; }
+          .story-title { font-size: clamp(1.75rem, 6vw, 2.5rem); line-height: 1.15; margin-bottom: 0.7rem; }
+          .story-byline { gap: 0.6rem; font-size: 0.78rem; }
+          .byline-by { margin-right: 0; }
         }
       .prose figure { margin: 2em 0; }
 .prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
@@ -1003,9 +1158,9 @@ useEffect(() => {
             <h1 className="story-title">{story.title}</h1>
             <div className="story-byline">
               <span className="byline-by">by</span>
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.45em', flexWrap: 'wrap' }}>
                 <span>{story.author}</span>
-                {story.authorHandle && (
+                {story.authorHandle && story.authorHandle !== story.authorUid && (
                   <AuthorHandleLink handle={story.authorHandle}
                     style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Inter, sans-serif' }} />
                 )}
@@ -1014,6 +1169,18 @@ useEffect(() => {
               <span>{story.date}</span>
               {readingTime > 0 && (<><div className="byline-dot" /><span>⏱ {readingTime} MIN. READ</span></>)}
             </div>
+            {story.quizMeta?.hasQuiz && (
+              <a
+                onClick={() => document.getElementById('quiz-card')?.scrollIntoView({ behavior: 'smooth' })}
+                style={{
+                  cursor: 'pointer', fontFamily: '"Cormorant Garamond", serif',
+                  fontStyle: 'italic', fontSize: '0.85rem', color: '#a78bfa',
+                  textDecoration: 'none', marginTop: '0.4rem', display: 'block',
+                }}
+              >
+                ✦ This story has a quiz
+              </a>
+            )}
           </div>
         </header>
         <div className="story-body-wrap">
@@ -1037,13 +1204,26 @@ useEffect(() => {
     </a>
   )}
 </div>
-              <div className={`prose${isPoetry ? '' : ' has-dropcap'}`} id="story-content" dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }} />
+              {slug === PAYWALL_SLUG && !hasPurchased ? (
+                <>
+                  <div
+                    className="prose has-dropcap"
+                    id="story-content"
+                    dangerouslySetInnerHTML={{ __html: extractFirstParagraph(storyContent[slug] || story.content || '') }}
+                  />
+                  {purchaseChecked && (
+                    <PaywallGate user={storyUser} onSignIn={() => setShowAuthModal(true)} />
+                  )}
+                </>
+              ) : (
+                <div className={`prose${isPoetry ? '' : ' has-dropcap'}`} id="story-content" dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }} />
+              )}
             </article>
             <div className="hit-counter-row">{hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}</div>
             <div className="story-footer">
               <span>
                 By {story.author}
-                {story.authorHandle && (
+                {story.authorHandle && story.authorHandle !== story.authorUid && (
                   <AuthorHandleLink handle={story.authorHandle}
                     style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }} />
                 )} · {story.date}
@@ -1055,9 +1235,9 @@ useEffect(() => {
           </main>
         </div>
         <ExerciseSection slug={slug} />
-        <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
-        <div style={{ background: '#f0ead8', padding: '2rem 0 3rem' }}><div style={{ maxWidth: '680px', margin: '0 auto', padding: '0 2rem' }}><TipBox variant="story" /></div></div>
-        <StoryAuthorBio authorUid={story.authorUid} fallbackName={story.author} />
+        <div id="quiz-card">
+          <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
+        </div>
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
         {showAuthModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>

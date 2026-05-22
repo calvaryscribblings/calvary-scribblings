@@ -41,16 +41,22 @@ export function scoreEssay(answer, essay) {
   return countKeywordMatches(answer, keywordPool) >= requiredMatches;
 }
 
-export function determineTier(percent) {
-  if (percent >= 100) return { tier: 'platinum', label: 'Platinum', pointsAwarded: 50 };
-  if (percent >= 90) return { tier: 'gold', label: 'Gold', pointsAwarded: 45 };
-  if (percent >= 80) return { tier: 'silver', label: 'Silver', pointsAwarded: 40 };
-  if (percent >= 60) return { tier: 'bronze', label: 'Bronze', pointsAwarded: 25 };
+export const TIER_REWARDS = {
+  story: { platinum: 50, gold: 45, silver: 40, bronze: 25 },
+  reader: { platinum: 100, gold: 90, silver: 80, bronze: 70 },
+};
+
+export function determineTier(percent, mode = 'story') {
+  const rewards = TIER_REWARDS[mode] || TIER_REWARDS.story;
+  if (percent >= 100) return { tier: 'platinum', label: 'Platinum', pointsAwarded: rewards.platinum };
+  if (percent >= 90) return { tier: 'gold', label: 'Gold', pointsAwarded: rewards.gold };
+  if (percent >= 80) return { tier: 'silver', label: 'Silver', pointsAwarded: rewards.silver };
+  if (percent >= 60) return { tier: 'bronze', label: 'Bronze', pointsAwarded: rewards.bronze };
   return { tier: null, label: null, pointsAwarded: 0 };
 }
 
 export function scoreQuiz(quizData, mcqAnswers, essayAnswers) {
-  const { mcqs, essays } = quizData;
+  const { mcqs, essays, mode } = quizData;
 
   let mcqScore = 0;
   for (let i = 0; i < mcqs.length; i++) {
@@ -64,7 +70,7 @@ export function scoreQuiz(quizData, mcqAnswers, essayAnswers) {
 
   const total = mcqs.length + essays.length;
   const totalPercent = total > 0 ? ((mcqScore + essayScore) / total) * 100 : 0;
-  const tierResult = determineTier(totalPercent);
+  const tierResult = determineTier(totalPercent, mode);
 
   return { mcqScore, essayScore, totalPercent, ...tierResult };
 }

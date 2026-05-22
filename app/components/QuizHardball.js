@@ -1,11 +1,19 @@
 'use client';
 
-import { useState } from 'react';
-import { scoreHardball } from '../lib/quizScoring';
-
-export default function QuizHardball({ hardball, onPass, onFail, passed }) {
+import { useState, useRef } from 'react';
+export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed }) {
   const [answer, setAnswer] = useState('');
   const [status, setStatus] = useState('idle'); // 'idle' | 'checking' | 'failed'
+  const [attempts, setAttempts] = useState(0);
+  const failTimerRef = useRef(null);
+
+  function continueAfterFail() {
+    if (failTimerRef.current) {
+      clearTimeout(failTimerRef.current);
+      failTimerRef.current = null;
+    }
+    onFail(2);
+  }
 
   if (passed) {
     return (
@@ -42,13 +50,22 @@ export default function QuizHardball({ hardball, onPass, onFail, passed }) {
     if (!answer.trim()) return;
     setStatus('checking');
 
-    const passed = scoreHardball(answer, hardball);
+    const passed = await onCheck(answer, attempts);
 
     if (passed) {
-      onPass();
+      onPass(attempts + 1);
     } else {
-      setStatus('failed');
-      setTimeout(() => onFail(), 3000);
+      const next = attempts + 1;
+      setAttempts(next);
+      if (next >= 2) {
+        setStatus('failed');
+        failTimerRef.current = setTimeout(() => {
+          failTimerRef.current = null;
+          onFail(2);
+        }, 6000);
+      } else {
+        setStatus('idle');
+      }
     }
   }
 
@@ -81,6 +98,32 @@ export default function QuizHardball({ hardball, onPass, onFail, passed }) {
           }}>
             Your answer didn't show enough close reading — the quiz is locked, but you can still join the discussion in the comments below.
           </p>
+          <button
+            onClick={continueAfterFail}
+            style={{
+              marginTop: '1.25rem',
+              background: 'transparent',
+              border: '1px solid rgba(248,113,113,0.3)',
+              borderRadius: 6,
+              padding: '0.55rem 1.1rem',
+              color: '#fca5a5',
+              fontFamily: 'Inter, sans-serif',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background 0.2s, border-color 0.2s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = 'rgba(248,113,113,0.5)';
+              e.currentTarget.style.background = 'rgba(248,113,113,0.05)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'rgba(248,113,113,0.3)';
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            Continue →
+          </button>
         </div>
       </div>
     );
@@ -155,6 +198,23 @@ export default function QuizHardball({ hardball, onPass, onFail, passed }) {
           onFocus={e => e.currentTarget.style.borderColor = 'rgba(107,47,173,0.5)'}
           onBlur={e => e.currentTarget.style.borderColor = 'rgba(107,47,173,0.25)'}
         />
+
+        {attempts === 1 && (
+          <div style={{
+            marginTop: '0.75rem',
+            padding: '0.7rem 1rem',
+            background: 'rgba(201,164,76,0.05)',
+            border: '1px solid rgba(201,164,76,0.2)',
+            borderRadius: 8,
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: '0.98rem',
+            fontStyle: 'italic',
+            color: 'rgba(201,164,76,0.8)',
+            lineHeight: 1.6,
+          }}>
+            That's not quite the word the story uses. One more try.
+          </div>
+        )}
 
         <button
           onClick={handleSubmit}

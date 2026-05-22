@@ -1,3 +1,0 @@
-name = "calvary-age-verify"
-main = "age-verify-worker.js"
-compatibility_date = "2024-01-01"

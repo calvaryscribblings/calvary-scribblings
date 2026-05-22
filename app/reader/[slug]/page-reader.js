@@ -1,8 +1,14 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import React from 'react';
 import { stories } from '../../lib/stories';
-import TipBox from '../../components/TipBox';
+import MentionTextarea from '../../components/MentionTextarea';
+import { notifyMentions } from '../../lib/mentions';
+import { updateStreak } from '../../lib/streakEngine';
+import { checkAndAwardBadges } from '../../lib/badgeEngine';
+import QuizCard from '../../components/QuizCard';
 import { use } from 'react';
+import { useDeletedUids } from '../../lib/userVisibility';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -148,6 +154,128 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
+function renderCommentText(text) {
+  if (!text) return text;
+  const parts = [];
+  let last = 0;
+  const re = /(^|\s)@([a-z0-9_]{3,20})\b/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const [, pre, handle] = m;
+    const start = m.index + pre.length;
+    const end = start + 1 + handle.length;
+    if (start > last) parts.push(text.slice(last, start));
+    parts.push(<a key={start} href={`/user?handle=${handle}`} style={{ color: '#a78bfa', textDecoration: 'none', fontWeight: 500 }}>@{handle}</a>);
+    last = end;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+const CommentNode = React.memo(function CommentNode({
+  comment, depth, parentAuthorName,
+  user, comments, commentReactions,
+  replyTo, replyText, editingId, editText, menuId, posting,
+  setReplyTo, setReplyText, setEditingId, setEditText, setMenuId,
+  toggleCommentReaction, postComment, editComment, deleteComment,
+}) {
+  const isOwn = user?.uid === comment.authorUid;
+  const children = comments.filter(c => c.parentId === comment.id).sort((a, b) => a.createdAt - b.createdAt);
+  const visualDepth = Math.min(depth, 3);
+  const isFlattened = depth > 3;
+  const indentPx = (visualDepth - 1) * 28;
+
+  return (
+    <div style={{ marginLeft: indentPx }}>
+      <div className={depth === 1 ? "cs-comment" : "cs-reply"}>
+        <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size={depth === 1 ? "sm" : "xs"} isOwnComment={isOwn} />
+        <div className="cs-comment-body">
+          <div className="cs-comment-header" style={{ position: 'relative' }}>
+            <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
+            <CommentUsername uid={comment.authorUid} />
+            <CommentBadge uid={comment.authorUid} size={depth === 1 ? 13 : 12} />
+            <span className="cs-time">{timeAgo(comment.createdAt)}</span>
+            {comment.editedAt && <span className="cs-time"> · edited</span>}
+            {isOwn && (
+              <div style={{ marginLeft: 'auto', position: 'relative' }}>
+                <button onClick={() => setMenuId(menuId === comment.id ? null : comment.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', padding: '0 4px', fontSize: '1rem', lineHeight: 1 }}>···</button>
+                {menuId === comment.id && (
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuId(null)} />
+                    <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, zIndex: 100, minWidth: 110, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+                      <button onClick={() => { setEditingId(comment.id); setEditText(comment.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Edit</button>
+                      <button onClick={() => { setMenuId(null); if (window.confirm(depth === 1 ? 'Delete this comment?' : 'Delete this reply?')) deleteComment(comment.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Delete</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <div className={depth === 1 ? "cs-comment-text" : "cs-comment-text cs-comment-text-sm"}>
+            {editingId === comment.id ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <MentionTextarea value={editText} onChange={setEditText} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className="cs-save-btn" onClick={() => editComment(comment.id)}>Save</button>
+                  <button className="cs-cancel-btn" onClick={() => { setEditingId(null); setEditText(''); }}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {isFlattened && parentAuthorName && (
+                  <span style={{ color: '#a78bfa', fontWeight: 500, marginRight: 4 }}>@{parentAuthorName}</span>
+                )}
+                {renderCommentText(comment.text)}
+              </>
+            )}
+          </div>
+          <div className="cs-comment-footer" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
+            {[
+              { type: 'heart', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
+              { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
+              { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
+            ].map(({ type, activeColor, d }) => {
+              const active = commentReactions[comment.id]?.[type];
+              const count = comment[type + 'Count'] || 0;
+              return (
+                <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
+                  style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
+                  <svg width={depth === 1 ? "12" : "11"} height={depth === 1 ? "12" : "11"} viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
+                  {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
+                </button>
+              );
+            })}
+            {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
+          </div>
+          {replyTo === comment.id && (
+            <div className="cs-reply-compose">
+              <div className="cs-input-wrap">
+                <MentionTextarea value={replyText} onChange={setReplyText} placeholder={`Reply to ${comment.authorName}...`} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
+                <button className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`} onClick={() => postComment(replyText, comment.id)} disabled={posting || !replyText.trim()}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {children.length > 0 && (
+        <div className="cs-replies">
+          {children.map(child => (
+            <CommentNode
+              key={child.id} comment={child} depth={depth + 1} parentAuthorName={comment.authorName}
+              user={user} comments={comments} commentReactions={commentReactions}
+              replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
+              setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
+              toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
 function CommentsSection({ slug, onSignIn }) {
   const [user, setUser] = useState(null);
   const [userAvatarUrl, setUserAvatarUrl] = useState(null);
@@ -158,6 +286,9 @@ function CommentsSection({ slug, onSignIn }) {
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [commentReactions, setCommentReactions] = useState({});
+  const [menuId, setMenuId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState('');
 
   useEffect(() => {
     let unsubAuth;
@@ -203,9 +334,9 @@ function CommentsSection({ slug, onSignIn }) {
       } catch (e) { setLoading(false); }
     })();
     return () => { if (unsubDB) unsubDB(); if (unsubReactions) unsubReactions(); };
-  }, [slug]);
+  }, [slug, user]);
 
-  const toggleCommentReaction = async (commentId, type, commentAuthorUid) => {
+  const toggleCommentReaction = useCallback(async (commentId, type, commentAuthorUid) => {
     if (!user) return;
     try {
       const db = await getDB();
@@ -233,9 +364,9 @@ function CommentsSection({ slug, onSignIn }) {
         return updated;
       });
     } catch (e) {}
-  };
+  }, [user, slug, commentReactions]);
 
-  const postComment = async (commentText, parentId = null) => {
+  const postComment = useCallback(async (commentText, parentId = null) => {
     if (!commentText.trim() || !user) return;
     setPosting(true);
     try {
@@ -249,6 +380,13 @@ function CommentsSection({ slug, onSignIn }) {
         parentId: parentId || null,
         createdAt: Date.now(),
       });
+      try {
+        await notifyMentions({
+          text: commentText.trim(), slug,
+          fromUid: user.uid, fromName: user.displayName || 'Reader',
+          excludeUid: user.uid,
+        });
+      } catch (e) {}
       if (parentId) {
         const parentComment = comments.find(c => c.id === parentId);
         if (parentComment && parentComment.authorUid !== user.uid) {
@@ -281,11 +419,37 @@ function CommentsSection({ slug, onSignIn }) {
       } catch (e) {}
     } catch (e) {}
     setPosting(false);
-  };
+  }, [user, slug, comments]);
+
+  const editComment = useCallback(async (commentId) => {
+    if (!editText.trim() || !user) return;
+    try {
+      const db = await getDB();
+      const { ref, update } = await import('firebase/database');
+      await update(ref(db, `comments/${slug}/${commentId}`), {
+        text: editText.trim(),
+        editedAt: Date.now(),
+      });
+      setEditingId(null);
+      setEditText('');
+    } catch (e) {}
+  }, [user, slug, editText]);
+
+  const deleteComment = useCallback(async (commentId) => {
+    if (!user) return;
+    try {
+      const db = await getDB();
+      const { ref, remove } = await import('firebase/database');
+      await remove(ref(db, `comments/${slug}/${commentId}`));
+    } catch (e) {}
+  }, [user, slug]);
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
-  const topLevel = comments.filter(c => !c.parentId);
-  const getReplies = (id) => comments.filter(c => c.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
+  const deletedCommentAuthors = useDeletedUids(comments.map(c => c.authorUid));
+  const visibleComments = deletedCommentAuthors
+    ? comments.filter(c => !deletedCommentAuthors.has(c.authorUid))
+    : comments;
+  const topLevel = visibleComments.filter(c => !c.parentId);
 
   return (
     <div className="cs-section">
@@ -300,7 +464,7 @@ function CommentsSection({ slug, onSignIn }) {
               {userAvatarUrl ? <img src={userAvatarUrl} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : userInitials}
             </a>
             <div className="cs-input-wrap">
-              <textarea className="cs-textarea" placeholder="Share your thoughts on this story..." value={text} onChange={e => setText(e.target.value)} rows={3} />
+              <MentionTextarea value={text} onChange={setText} placeholder="Share your thoughts on this story..." rows={3} />
               <button className={`cs-kite-btn${text.trim() ? ' active' : ''}`} onClick={() => postComment(text)} disabled={posting || !text.trim()} title="Post comment">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
               </button>
@@ -319,78 +483,15 @@ function CommentsSection({ slug, onSignIn }) {
         <div className="cs-empty">No comments yet. Be the first to share your thoughts.</div>
       ) : (
         <div className="cs-comments-list">
-          {topLevel.map((comment, i) => {
-            const replies = getReplies(comment.id);
-            const isOwn = user?.uid === comment.authorUid;
-            return (
-              <div key={comment.id}>
-                {i > 0 && <div className="cs-divider" />}
-                <div className="cs-comment">
-                  <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size="sm" isOwnComment={isOwn} />
-                  <div className="cs-comment-body">
-                    <div className="cs-comment-header">
-                      <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
-                      <CommentUsername uid={comment.authorUid} />
-                      <CommentBadge uid={comment.authorUid} size={13} />
-                      <span className="cs-time">{timeAgo(comment.createdAt)}</span>
-                    </div>
-                    <div className="cs-comment-text">{comment.text}</div>
-                    <div className="cs-comment-footer">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {[
-                          { type: 'heart', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
-                          { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
-                          { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
-                        ].map(({ type, activeColor, d }) => {
-                          const active = commentReactions[comment.id]?.[type];
-                          const count = comment[type + 'Count'] || 0;
-                          return (
-                            <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
-                              style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-                              {count > 0 && <span style={{ fontSize: '0.6rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
-                            </button>
-                          );
-                        })}
-                        {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
-                      </div>
-                    </div>
-                    {replyTo === comment.id && (
-                      <div className="cs-reply-compose">
-                        <div className="cs-input-wrap">
-                          <textarea className="cs-textarea cs-textarea-sm" placeholder={`Reply to ${comment.authorName}...`} value={replyText} onChange={e => setReplyText(e.target.value)} rows={2} autoFocus />
-                          <button className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`} onClick={() => postComment(replyText, comment.id)} disabled={posting || !replyText.trim()}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {replies.length > 0 && (
-                      <div className="cs-replies">
-                        {replies.map(reply => {
-                          const replyIsOwn = user?.uid === reply.authorUid;
-                          return (
-                            <div key={reply.id} className="cs-reply">
-                              <CommentAvatar uid={reply.authorUid} initials={reply.authorInitials} size="xs" isOwnComment={replyIsOwn} />
-                              <div className="cs-comment-body">
-                                <div className="cs-comment-header">
-                                  <a href={replyIsOwn ? '/profile' : `/user?id=${reply.authorUid}`} className="cs-name cs-name-link">{reply.authorName}</a>
-                                  <CommentUsername uid={reply.authorUid} />
-                                  <CommentBadge uid={reply.authorUid} size={12} />
-                                  <span className="cs-time">{timeAgo(reply.createdAt)}</span>
-                                </div>
-                                <div className="cs-comment-text cs-comment-text-sm">{reply.text}</div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {topLevel.map(comment => (
+            <CommentNode
+              key={comment.id} comment={comment} depth={1} parentAuthorName={null}
+              user={user} comments={visibleComments} commentReactions={commentReactions}
+              replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
+              setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
+              toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -415,8 +516,42 @@ export default function StoryReaderClient({ params }) {
   const [bookmarkSaved, setBookmarkSaved] = useState(false);
   const [bookmarkConfirm, setBookmarkConfirm] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [readerUser, setReaderUser] = useState(null);
   const iframeRef = useRef(null);
   const pendingFont = useRef(1);
+  const progressSaveTimer = useRef(null);
+
+  // Lightweight auth observer for QuizCard / progress writes
+  useEffect(() => {
+    let unsub;
+    (async () => {
+      try {
+        const auth = await getFirebaseAuth();
+        const { onAuthStateChanged } = await import('firebase/auth');
+        unsub = onAuthStateChanged(auth, u => setReaderUser(u));
+      } catch {}
+    })();
+    return () => { if (unsub) unsub(); };
+  }, []);
+
+  // Auto-save reading progress (debounced ~2s) — feeds the reader-mode quiz read gate
+  useEffect(() => {
+    if (!readerUser) return;
+    if (!progress || progress < 1) return;
+    if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
+    const fr = currentFraction.current || progress / 100;
+    progressSaveTimer.current = setTimeout(async () => {
+      try {
+        const db = await getDB();
+        const { ref, set } = await import('firebase/database');
+        await set(ref(db, `users/${readerUser.uid}/readerProgress/${slug}`), {
+          fraction: fr,
+          updatedAt: Date.now(),
+        });
+      } catch (e) { console.warn('[reader] readerProgress save failed:', e); }
+    }, 2000);
+    return () => { if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current); };
+  }, [progress, readerUser?.uid, slug]);
 
   useEffect(() => {
     if (story) return;
@@ -429,6 +564,12 @@ export default function StoryReaderClient({ params }) {
       } catch (e) {}
     })();
   }, [slug]);
+
+  useEffect(() => {
+    if (story && !story.epubUrl) {
+      window.location.replace(`/stories/${slug}`);
+    }
+  }, [story, slug]);
 
   useEffect(() => {
     if (!slug) return;
@@ -463,6 +604,9 @@ export default function StoryReaderClient({ params }) {
         const u = onAuthStateChanged(auth, async (user) => {
           if (!user) return; u();
           const db = await getDB();
+          updateStreak(user.uid, db)
+            .then(changed => { if (changed) checkAndAwardBadges(user.uid, db).catch(() => {}); })
+            .catch(() => {});
           const { ref, get, set, runTransaction } = await import('firebase/database');
           const rr = ref(db, 'users/' + user.uid + '/readStories/' + slug);
           const s = await get(rr);
@@ -552,12 +696,13 @@ export default function StoryReaderClient({ params }) {
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         html,body{height:100%;background:#1a0f0a}
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeOpacity{from{opacity:0}to{opacity:1}}
         @keyframes blink{0%,100%{opacity:0.35}50%{opacity:0.9}}
         @keyframes spin{to{transform:rotate(360deg)}}
         .rtop{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:linear-gradient(to bottom,rgba(26,15,10,.96) 60%,transparent);gap:8px}
         .rlogo{font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.2em;color:rgba(201,164,76,.45);text-decoration:none;text-transform:uppercase;white-space:nowrap}
         .rlogo:hover{color:rgba(201,164,76,.85)}
-        .rtitle{font-family:'Cormorant Garamond',serif;font-size:.72rem;font-style:italic;color:rgba(240,234,216,.28);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center}
+        .rtitle{font-family:Georgia,serif;font-size:.72rem;font-style:italic;color:rgba(240,234,216,.28);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center}
         .rtop-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
         .rbtn{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.5);text-transform:uppercase;background:none;border:1px solid rgba(201,164,76,.25);border-radius:3px;padding:4px 9px;cursor:pointer;transition:all .2s;white-space:nowrap}
         .rbtn:hover{color:rgba(201,164,76,.9);border-color:rgba(201,164,76,.6)}
@@ -565,9 +710,9 @@ export default function StoryReaderClient({ params }) {
         .rclose:hover{color:rgba(201,164,76,.85)}
         .bcover{position:fixed;inset:0;background:linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;text-align:center;z-index:150;cursor:pointer;animation:fadeUp .7s ease forwards}
         .bcover::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 65% at 50% 38%,rgba(107,47,173,.28) 0%,transparent 68%)}
-        .bcimg{width:min(280px,62vw);height:min(460px,55vh);object-fit:cover;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2);margin-bottom:14px}
+        .bcimg{width:auto;height:auto;max-width:min(320px,75vw);max-height:65vh;object-fit:contain;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2);margin-bottom:14px}
         .bcorn{font-size:.55rem;letter-spacing:.4em;color:rgba(201,164,76,.3);margin-bottom:10px;position:relative;z-index:1}
-        .bctitle{font-family:'Cormorant Garamond',serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
+        .bctitle{font-family:Georgia,serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
         .bcauthor{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.24em;color:rgba(201,164,76,.65);text-transform:uppercase;position:relative;z-index:1}
         .bccta{position:absolute;bottom:22px;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;color:rgba(201,164,76,.4);text-transform:uppercase;animation:blink 2.2s ease-in-out infinite}
         .reader-frame{position:fixed;top:48px;left:0;right:0;bottom:32px;border:none;width:100%;height:calc(100dvh - 96px)}
@@ -575,14 +720,14 @@ export default function StoryReaderClient({ params }) {
         .rprog{position:absolute;top:0;left:0;right:0;height:2px;background:rgba(201,164,76,0.07)}
         .rprogf{height:100%;background:linear-gradient(90deg,#6b2fad,#c9a44c);transition:width 0.45s ease}
         .rpageinfo{font-family:'Cinzel',serif;font-size:.45rem;letter-spacing:.2em;color:rgba(201,164,76,0.6);text-transform:uppercase;white-space:nowrap;pointer-events:none}
-        .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-style:italic;color:#888;font-size:1rem}
-        .bend-wrap{position:fixed;inset:0;top:48px;overflow-y:auto;background:#0a0a0a;animation:fadeUp .5s ease forwards;z-index:10}
+        .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-style:italic;color:#888;font-size:1rem}
+        .bend-wrap{position:fixed;inset:0;top:48px;overflow-y:auto;background:#0a0a0a;animation:fadeOpacity .5s ease forwards;z-index:10}
         .bend{display:flex;flex-direction:column;align-items:center;padding:48px 24px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.06)}
         .beorn{font-size:.9rem;color:#c9a44c;letter-spacing:.5em;margin-bottom:18px}
         .berule{width:60px;height:1px;background:rgba(201,164,76,.3);margin:0 auto 18px}
-        .betitle{font-family:'Cormorant Garamond',serif;font-size:1.35rem;font-style:italic;color:#f5efe0;margin-bottom:6px}
+        .betitle{font-family:Georgia,serif;font-size:1.35rem;font-style:italic;color:#f5efe0;margin-bottom:6px}
         .beauth{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.2em;color:rgba(201,164,76,.55);text-transform:uppercase;margin-bottom:24px}
-        .bemeta{font-family:'Cormorant Garamond',serif;font-size:.85rem;font-style:italic;color:rgba(255,255,255,.3);margin-bottom:24px}
+        .bemeta{font-family:Georgia,serif;font-size:.85rem;font-style:italic;color:rgba(255,255,255,.3);margin-bottom:24px}
         .bebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#9b6dff;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
         .bebtn:hover{background:rgba(107,47,173,.12);border-color:#9b6dff}
         .cs-section{background:#0a0a0a;max-width:680px;margin:0 auto;padding:2.5rem 1.5rem 6rem}
@@ -604,7 +749,7 @@ export default function StoryReaderClient({ params }) {
         .cs-signin-prompt p{font-size:.82rem;color:rgba(255,255,255,.3);margin-bottom:.75rem;font-family:'Inter',sans-serif}
         .cs-signin-btn{background:none;border:1px solid rgba(107,47,173,.4);border-radius:8px;padding:.55rem 1.4rem;font-size:.68rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9b6dff;cursor:pointer;font-family:'Inter',sans-serif}
         .cs-loading{font-size:.8rem;color:rgba(255,255,255,.2);font-family:'Inter',sans-serif;padding:1rem 0}
-        .cs-empty{font-size:.88rem;color:rgba(255,255,255,.2);font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;padding:1rem 0}
+        .cs-empty{font-size:.88rem;color:rgba(255,255,255,.2);font-family:Georgia,serif;font-style:italic;padding:1rem 0}
         .cs-comments-list{display:flex;flex-direction:column}
         .cs-divider{height:1px;background:rgba(255,255,255,.05);margin:.25rem 0 1.75rem}
         .cs-comment{display:flex;gap:12px;margin-bottom:.25rem}
@@ -624,12 +769,13 @@ export default function StoryReaderClient({ params }) {
         .cs-reply{display:flex;gap:10px}
         @media(max-width:600px){.rtitle{display:none}.rbtn{font-size:.44rem;padding:3px 7px}.cs-section{padding:2rem 1rem 5rem}}
         @keyframes confirmDrop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-        .bookmark-confirm{position:absolute;top:44px;right:0;background:#1a0f0a;border:1px solid rgba(201,164,76,0.3);border-radius:8px;padding:8px 14px;font-family:'Cormorant Garamond',serif;font-size:.78rem;font-style:italic;color:rgba(240,234,216,0.7);white-space:nowrap;z-index:300;animation:confirmDrop .3s ease forwards;pointer-events:none;}
+        .bookmark-confirm{position:absolute;top:44px;right:0;background:#1a0f0a;border:1px solid rgba(201,164,76,0.3);border-radius:8px;padding:8px 14px;font-family:Georgia,serif;font-size:.78rem;font-style:italic;color:rgba(240,234,216,0.7);white-space:nowrap;z-index:300;animation:confirmDrop .3s ease forwards;pointer-events:none;}
         @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
         @keyframes toastOut{from{opacity:1;transform:translateX(-50%) translateY(0)}to{opacity:0;transform:translateX(-50%) translateY(-8px)}}
-        .bookmark-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:'Cormorant Garamond',serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:300;pointer-events:none;}
+        .bookmark-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:Georgia,serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:300;pointer-events:none;}
         .bookmark-toast.in{animation:toastIn .4s ease forwards}
         .bookmark-toast.out{animation:toastOut .4s ease forwards}
+        @media(max-width:600px){.cs-textarea,.cs-textarea-sm{font-size:16px !important}}
       `}</style>
 
       <div style={{ width: '100vw', height: '100vh', background: '#1a0f0a', overflow: 'hidden' }}>
@@ -682,7 +828,15 @@ export default function StoryReaderClient({ params }) {
               </div>
 
             </div>
-            <div style={{ padding: '0 1.5rem 1.5rem', background: '#0a0a0a' }}><TipBox variant="reader" /></div>
+            <div style={{ maxWidth: 680, margin: '2rem auto 0', padding: '0 1.5rem' }}>
+              <QuizCard
+                slug={slug}
+                user={readerUser}
+                mode="reader"
+                readPercent={progress}
+                onSignIn={() => setShowAuthModal(true)}
+              />
+            </div>
             <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
           </div>
         )}
@@ -720,8 +874,8 @@ export default function StoryReaderClient({ params }) {
           <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowAuthModal(false)}>
             <div onClick={e => e.stopPropagation()} style={{ background: '#12091e', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 16, padding: '2rem', maxWidth: 360, width: '90vw', textAlign: 'center' }}>
               <div style={{ fontFamily: 'Cinzel,serif', fontSize: '.6rem', letterSpacing: '.25em', color: 'rgba(201,164,76,.6)', textTransform: 'uppercase', marginBottom: '1rem' }}>Calvary Scribblings</div>
-              <div style={{ fontFamily: 'Cormorant Garamond,serif', fontSize: '1.4rem', fontStyle: 'italic', color: '#f5efe0', marginBottom: '.5rem' }}>Join the Discussion</div>
-              <div style={{ fontFamily: 'Cormorant Garamond,serif', fontSize: '.9rem', fontStyle: 'italic', color: 'rgba(255,255,255,.35)', marginBottom: '1.5rem' }}>Sign in to comment on this story</div>
+              <div style={{ fontFamily: 'Georgia, serif', fontSize: '1.4rem', fontStyle: 'italic', color: '#f5efe0', marginBottom: '.5rem' }}>Join the Discussion</div>
+              <div style={{ fontFamily: 'Georgia, serif', fontSize: '.9rem', fontStyle: 'italic', color: 'rgba(255,255,255,.35)', marginBottom: '1.5rem' }}>Sign in to comment on this story</div>
               <a href="/auth" style={{ display: 'block', padding: '.75rem', background: '#6b2fad', color: '#fff', fontFamily: 'Cinzel,serif', fontSize: '.6rem', letterSpacing: '.18em', textTransform: 'uppercase', textDecoration: 'none', borderRadius: 8, marginBottom: '.75rem' }}>Sign In</a>
               <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.3)', fontFamily: 'Cinzel,serif', fontSize: '.55rem', letterSpacing: '.15em', cursor: 'pointer' }}>Cancel</button>
             </div>

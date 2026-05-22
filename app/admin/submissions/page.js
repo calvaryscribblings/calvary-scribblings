@@ -26,7 +26,7 @@ export default function SubmissionsPage() {
   const [scores, setScores] = useState({});
   const [msg, setMsg] = useState('');
 
-  const isAdmin = user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  const isAdmin = user && (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase() || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
 
   useEffect(() => {
     if (!isAdmin) return;

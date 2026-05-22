@@ -8,9 +8,28 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
+  signOut,
 } from 'firebase/auth';
-import { getDatabase, ref, set } from 'firebase/database';
+import { getDatabase, ref, set, get } from 'firebase/database';
 import { auth } from '../lib/firebase';
+import { SUSPENDED_MESSAGE } from '../lib/AuthContext';
+
+// Returns true if the just-signed-in account is soft-deleted; signs them
+// back out and surfaces the suspension message so the modal can show it.
+async function rejectIfSoftDeleted(uid) {
+  try {
+    const { getApp } = await import('firebase/app');
+    const db = getDatabase(getApp());
+    const snap = await get(ref(db, `users/${uid}/isDeleted`));
+    if (snap.exists() && snap.val() === true) {
+      await signOut(auth);
+      return true;
+    }
+  } catch {
+    // Read failure — let the AuthContext-level guard catch it.
+  }
+  return false;
+}
 
 export default function AuthModal({ onClose }) {
   const [mode, setMode] = useState('signin');
@@ -67,7 +86,12 @@ export default function AuthModal({ onClose }) {
     setLoading(true);
     try {
       if (mode === 'signin') {
-        await signInWithEmailAndPassword(auth, email, password);
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        if (await rejectIfSoftDeleted(cred.user.uid)) {
+          setError(SUSPENDED_MESSAGE);
+          setLoading(false);
+          return;
+        }
         onClose();
       } else if (mode === 'register') {
         if (!name.trim()) { setError('Please enter your name.'); setLoading(false); return; }
@@ -119,7 +143,11 @@ export default function AuthModal({ onClose }) {
     clearMessages();
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const cred = await signInWithPopup(auth, provider);
+      if (await rejectIfSoftDeleted(cred.user.uid)) {
+        setError(SUSPENDED_MESSAGE);
+        return;
+      }
       onClose();
     } catch (e) {
       setError('Google sign-in failed. Please try again.');

@@ -1,8 +1,34 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getDatabase, ref, get } from "firebase/database";
 import { initializeApp, getApps } from "firebase/app";
+
+const uuid = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `b_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+
+function legacyDraftToBlocks(d) {
+  if (Array.isArray(d.blocks)) return d.blocks;
+  const blocks = [];
+  if (d.intro && d.intro.trim()) {
+    blocks.push({ type: "text", id: uuid(), content: d.intro });
+  }
+  (d.stories || []).forEach((st) => {
+    blocks.push({
+      type: "story",
+      id: uuid(),
+      slug: st.slug || st.id,
+      title: st.title,
+      author: st.author,
+      category: st.category,
+      cover: st.cover || st.coverUrl || "",
+      excerpt: st.excerpt || st.summary || "",
+    });
+  });
+  return blocks;
+}
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -24,10 +50,10 @@ export default function NewsletterPage() {
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [subject, setSubject] = useState("");
-  const [intro, setIntro] = useState("");
+  const [blocks, setBlocks] = useState([]);
+  const [focusedBlockId, setFocusedBlockId] = useState(null);
   const [issueNumber, setIssueNumber] = useState("");
   const [testEmail, setTestEmail] = useState("");
-  const [selectedStories, setSelectedStories] = useState([]);
   const [allStories, setAllStories] = useState([]);
   const [subscriberCount, setSubscriberCount] = useState(null);
   const [sendHistory, setSendHistory] = useState([]);
@@ -38,6 +64,9 @@ export default function NewsletterPage() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [draftId, setDraftId] = useState(null);
   const [drafts, setDrafts] = useState([]);
+  const pickerSearchRef = useRef(null);
+
+  const storyCount = blocks.filter((b) => b.type === "story").length;
 
   useEffect(() => {
     const app = getFirebaseApp();
@@ -80,31 +109,76 @@ export default function NewsletterPage() {
     });
   }, [user]);
 
-  function toggleStory(story) {
-    setSelectedStories((prev) => {
-      const exists = prev.find((s) => s.id === story.id);
-      if (exists) return prev.filter((s) => s.id !== story.id);
-      return [...prev, { id: story.id, slug: story.slug || story.id, title: story.title, author: story.author, category: story.category, cover: story.cover || story.coverUrl || "", excerpt: story.excerpt || story.summary || "" }];
+  function insertBlock(block) {
+    setBlocks((prev) => {
+      const idx = focusedBlockId ? prev.findIndex((b) => b.id === focusedBlockId) : -1;
+      if (idx === -1) return [...prev, block];
+      return [...prev.slice(0, idx + 1), block, ...prev.slice(idx + 1)];
+    });
+    setFocusedBlockId(block.id);
+  }
+
+  function addTextBlock() {
+    insertBlock({ type: "text", id: uuid(), content: "" });
+  }
+
+  function addDividerBlock() {
+    insertBlock({ type: "divider", id: uuid() });
+  }
+
+  function toggleStoryBlock(story) {
+    const slug = story.slug || story.id;
+    const existing = blocks.find((b) => b.type === "story" && b.slug === slug);
+    if (existing) {
+      setBlocks((prev) => prev.filter((b) => b.id !== existing.id));
+      if (focusedBlockId === existing.id) setFocusedBlockId(null);
+      return;
+    }
+    insertBlock({
+      type: "story",
+      id: uuid(),
+      slug,
+      title: story.title,
+      author: story.author,
+      category: story.category,
+      cover: story.cover || story.coverUrl || "",
+      excerpt: story.excerpt || story.summary || "",
     });
   }
 
-  function moveStory(index, dir) {
-    const next = [...selectedStories];
-    const swap = index + dir;
-    if (swap < 0 || swap >= next.length) return;
-    [next[index], next[swap]] = [next[swap], next[index]];
-    setSelectedStories(next);
+  function removeBlock(id) {
+    setBlocks((prev) => prev.filter((b) => b.id !== id));
+    if (focusedBlockId === id) setFocusedBlockId(null);
+  }
+
+  function moveBlock(id, dir) {
+    setBlocks((prev) => {
+      const idx = prev.findIndex((b) => b.id === id);
+      const swap = idx + dir;
+      if (idx === -1 || swap < 0 || swap >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[swap]] = [next[swap], next[idx]];
+      return next;
+    });
+  }
+
+  function updateTextBlock(id, content) {
+    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, content } : b)));
+  }
+
+  function focusPicker() {
+    pickerSearchRef.current?.focus();
   }
 
 
   async function handleSaveDraft(scheduleTime) {
-    if (!subject.trim() && !intro.trim()) {
+    if (!subject.trim() && blocks.length === 0) {
       setStatus("error");
-      setStatusMsg("Add a subject or intro before saving.");
+      setStatusMsg("Add a subject or at least one block before saving.");
       return;
     }
     setStatus("loading");
-    setStatusMsg(scheduleTime ? "Scheduling newsletter..." : "Saving draft...");
+    setStatusMsg(scheduleTime ? "Scheduling newsletter…" : "Saving draft…");
     try {
       const res = await fetch("https://calvary-newsletter.calvarymediauk.workers.dev/draft", {
         method: "POST",
@@ -112,8 +186,7 @@ export default function NewsletterPage() {
         body: JSON.stringify({
           id: draftId || undefined,
           subject: subject.trim(),
-          intro: intro.trim(),
-          stories: selectedStories,
+          blocks,
           issueNumber: issueNumber ? parseInt(issueNumber) : undefined,
           scheduledAt: scheduleTime || null,
         }),
@@ -130,7 +203,12 @@ export default function NewsletterPage() {
   }
 
   async function handleSend(isTest) {
-    if (!subject.trim() || !intro.trim()) { setStatus("error"); setStatusMsg("Subject and intro are required."); return; }
+    const hasContent = blocks.some((b) => b.type === "text" || b.type === "story");
+    if (!subject.trim() || !hasContent) {
+      setStatus("error");
+      setStatusMsg("Subject and at least one text or story block are required.");
+      return;
+    }
     if (isTest && !testEmail.trim()) { setStatus("error"); setStatusMsg("Enter a test email address."); return; }
     setStatus("loading");
     setStatusMsg(isTest ? "Sending test email…" : "Sending to all subscribers…");
@@ -138,7 +216,7 @@ export default function NewsletterPage() {
       const res = await fetch("https://calvary-newsletter.calvarymediauk.workers.dev/send", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca" },
-        body: JSON.stringify({ subject: subject.trim(), intro: intro.trim(), stories: selectedStories, issueNumber: issueNumber ? parseInt(issueNumber) : undefined, testEmail: isTest ? testEmail.trim() : undefined }),
+        body: JSON.stringify({ subject: subject.trim(), blocks, issueNumber: issueNumber ? parseInt(issueNumber) : undefined, testEmail: isTest ? testEmail.trim() : undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Send failed");
@@ -192,7 +270,7 @@ export default function NewsletterPage() {
           <div style={s.statLabel}>Active Subscribers</div>
           <div style={s.statValue}>{subscriberCount === null ? "—" : subscriberCount.toLocaleString()}</div>
           <div style={{ ...s.statLabel, marginTop: 12 }}>Stories Selected</div>
-          <div style={s.statValue}>{selectedStories.length}</div>
+          <div style={s.statValue}>{storyCount}</div>
         </div>
         <a href="/admin" style={s.backLink}>← Back to CMS</a>
       </aside>
@@ -202,7 +280,7 @@ export default function NewsletterPage() {
           <div style={s.tabContent}>
             <div style={s.tabHeader}>
               <h1 style={s.tabTitle}>Compose Newsletter</h1>
-              <p style={s.tabSubtitle}>Write your intro, pick stories, then send or preview.</p>
+              <p style={s.tabSubtitle}>Build your letter from text, dividers, and stories, then send or preview.</p>
             </div>
             {status && (
               <div style={{ ...s.banner, background: status === "success" ? "#edfaf3" : status === "error" ? "#fef2f2" : "#f3eefb", borderColor: status === "success" ? "#1a9e6b" : status === "error" ? "#dc2626" : "#6b2fad", color: status === "success" ? "#1a9e6b" : status === "error" ? "#dc2626" : "#6b2fad" }}>
@@ -221,28 +299,54 @@ export default function NewsletterPage() {
                   <div style={s.charCount}>{subject.length} chars</div>
                 </div>
                 <div style={s.fieldGroup}>
-                  <label style={s.label}>Opening Intro *</label>
-                  <textarea style={s.textarea} placeholder="Write a warm opening for your readers…" value={intro} onChange={(e) => setIntro(e.target.value)} rows={5} />
-                  <div style={s.charCount}>{intro.length} chars</div>
-                </div>
-                {selectedStories.length > 0 && (
-                  <div style={s.fieldGroup}>
-                    <label style={s.label}>Featured Stories</label>
-                    <div style={s.selectedList}>
-                      {selectedStories.map((st, i) => (
-                        <div key={st.slug} style={s.selectedItem}>
-                          <span style={{ ...s.catDot, background: categoryColour(st.category) }} />
-                          <span style={s.selectedTitle}>{st.title}</span>
-                          <div style={s.reorderBtns}>
-                            <button style={s.reorderBtn} onClick={() => moveStory(i, -1)} disabled={i === 0}>↑</button>
-                            <button style={s.reorderBtn} onClick={() => moveStory(i, 1)} disabled={i === selectedStories.length - 1}>↓</button>
-                            <button style={{ ...s.reorderBtn, color: "#dc2626" }} onClick={() => toggleStory(st)}>✕</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  <label style={s.label}>Letter Body *</label>
+                  <div style={s.blockToolbar}>
+                    <button type="button" style={s.toolBtn} onClick={addTextBlock}>+ Add text</button>
+                    <button type="button" style={s.toolBtn} onClick={addDividerBlock}>+ Add divider</button>
+                    <button type="button" style={s.toolBtn} onClick={focusPicker}>+ Insert story</button>
                   </div>
-                )}
+                  <div style={s.blockList}>
+                    {blocks.length === 0 && (
+                      <div style={s.blockEmpty}>No blocks yet. Add text, a divider, or insert a story.</div>
+                    )}
+                    {blocks.map((b, i) => (
+                      <div key={b.id} style={{ ...s.blockItem, ...(focusedBlockId === b.id ? s.blockItemActive : {}) }}>
+                        <div style={s.blockBody}>
+                          {b.type === "text" && (
+                            <textarea
+                              style={s.blockTextarea}
+                              placeholder="Write a paragraph…"
+                              value={b.content}
+                              rows={4}
+                              onChange={(e) => updateTextBlock(b.id, e.target.value)}
+                              onFocus={() => setFocusedBlockId(b.id)}
+                            />
+                          )}
+                          {b.type === "divider" && (
+                            <div style={s.blockDividerWrap} onClick={() => setFocusedBlockId(b.id)}>
+                              <span style={s.blockDividerLabel}>Divider</span>
+                              <hr style={s.blockDividerLine} />
+                            </div>
+                          )}
+                          {b.type === "story" && (
+                            <div style={s.blockStoryCard} onClick={() => setFocusedBlockId(b.id)}>
+                              <span style={{ ...s.catDot, background: categoryColour(b.category) }} />
+                              <div style={s.blockStoryInfo}>
+                                <div style={s.blockStoryTitle}>{b.title}</div>
+                                <div style={s.blockStoryAuthor}>by {b.author}</div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div style={s.blockControls}>
+                          <button type="button" style={s.reorderBtn} onClick={() => moveBlock(b.id, -1)} disabled={i === 0}>↑</button>
+                          <button type="button" style={s.reorderBtn} onClick={() => moveBlock(b.id, 1)} disabled={i === blocks.length - 1}>↓</button>
+                          <button type="button" style={{ ...s.reorderBtn, color: "#dc2626" }} onClick={() => removeBlock(b.id)}>✕</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 <div style={s.sendRow}>
                   <div style={s.fieldGroup}>
                     <label style={s.label}>Schedule Send (optional)</label>
@@ -264,14 +368,15 @@ export default function NewsletterPage() {
               <div style={s.rightCol}>
                 <div style={s.pickerHeader}>
                   <span style={s.label}>Pick Stories</span>
-                  <input style={s.searchInput} placeholder="Search stories…" value={storySearch} onChange={(e) => setStorySearch(e.target.value)} />
+                  <input ref={pickerSearchRef} style={s.searchInput} placeholder="Search stories…" value={storySearch} onChange={(e) => setStorySearch(e.target.value)} />
                 </div>
                 <div style={s.storyPicker}>
                   {filteredStories.length === 0 && <div style={s.empty}>No stories found.</div>}
                   {filteredStories.map((st) => {
-                    const isSelected = selectedStories.find((x) => x.id === st.id);
+                    const stSlug = st.slug || st.id;
+                    const isSelected = blocks.some((b) => b.type === "story" && b.slug === stSlug);
                     return (
-                      <div key={st.id} onClick={() => toggleStory(st)} style={{ ...s.storyCard, ...(isSelected ? s.storyCardSelected : {}) }}>
+                      <div key={st.id} onClick={() => toggleStoryBlock(st)} style={{ ...s.storyCard, ...(isSelected ? s.storyCardSelected : {}) }}>
                         {(st.cover || st.coverUrl) && <img src={st.cover || st.coverUrl} alt="" style={s.storyCover} />}
                         <div style={s.storyInfo}>
                           <div style={s.storyCategory}><span style={{ ...s.catDot, background: categoryColour(st.category) }} />{st.category}</div>
@@ -305,25 +410,38 @@ export default function NewsletterPage() {
                   <div style={s.pvLogo}>Calvary Scribblings</div>
                   <div style={s.pvTagline}>The Story Island 🏝️</div>
                 </div>
-                <div style={s.pvIntro}>{intro || <em style={{ color: "#aaa" }}>( intro will appear here )</em>}</div>
-                <hr style={{ border: "none", borderTop: "1px solid #ede8f5", margin: "0 40px" }} />
-                {selectedStories.length > 0 && (
-                  <div style={{ padding: "20px 40px 0" }}>
-                    <div style={s.pvSectionLabel}>This Week's Stories</div>
-                    {selectedStories.map((st) => (
-                      <div key={st.slug} style={s.pvStoryRow}>
-                        {st.cover && <img src={st.cover} alt="" style={s.pvStoryCover} />}
-                        <div>
-                          <div style={{ ...s.pvStoryCategory, color: categoryColour(st.category) }}>{st.category}</div>
-                          <div style={s.pvStoryTitle}>{st.title}</div>
-                          <div style={s.pvStoryAuthor}>by {st.author}</div>
-                          {st.excerpt && <div style={s.pvStoryExcerpt}>{st.excerpt.slice(0, 120)}{st.excerpt.length > 120 ? "…" : ""}</div>}
-                          <div style={s.pvReadLink}>Read Story →</div>
+                {blocks.length === 0 && (
+                  <div style={{ padding: "28px 40px", color: "#aaa", fontStyle: "italic" }}>( letter body will appear here )</div>
+                )}
+                {blocks.map((b) => {
+                  if (b.type === "text") {
+                    return (
+                      <div key={b.id} style={s.pvTextBlock}>
+                        {b.content || <em style={{ color: "#aaa" }}>( empty paragraph )</em>}
+                      </div>
+                    );
+                  }
+                  if (b.type === "divider") {
+                    return <hr key={b.id} style={s.pvDivider} />;
+                  }
+                  if (b.type === "story") {
+                    return (
+                      <div key={b.id} style={s.pvStorySection}>
+                        <div style={{ display: "flex", gap: 14 }}>
+                          {b.cover && <img src={b.cover} alt="" style={s.pvStoryCover} />}
+                          <div>
+                            <div style={{ ...s.pvStoryCategory, color: categoryColour(b.category) }}>{b.category}</div>
+                            <div style={s.pvStoryTitle}>{b.title}</div>
+                            <div style={s.pvStoryAuthor}>by {b.author}</div>
+                            {b.excerpt && <div style={s.pvStoryExcerpt}>{b.excerpt.slice(0, 120)}{b.excerpt.length > 120 ? "…" : ""}</div>}
+                            <div style={s.pvReadLink}>Read on Calvary Scribblings →</div>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    );
+                  }
+                  return null;
+                })}
                 <div style={s.pvCTA}>
                   <div style={{ fontSize: 14, color: "#1a1a2e", marginBottom: 12 }}>More stories are waiting for you on the platform.</div>
                   <div style={s.pvCTABtn}>Visit Calvary Scribblings</div>
@@ -360,7 +478,7 @@ export default function NewsletterPage() {
                           </div>
                         </div>
                         <div style={{display:"flex", gap:8}}>
-                          <button onClick={() => { setSubject(d.subject||""); setIntro(d.intro||""); setSelectedStories(d.stories||[]); setIssueNumber(d.issueNumber||""); setDraftId(d.id); setScheduledAt(d.scheduledAt||""); setTab("compose"); }}
+                          <button onClick={() => { setSubject(d.subject||""); setBlocks(legacyDraftToBlocks(d)); setFocusedBlockId(null); setIssueNumber(d.issueNumber||""); setDraftId(d.id); setScheduledAt(d.scheduledAt||""); setTab("compose"); }}
                             style={{background:"#f3eefb", color:"#6b2fad", border:"none", borderRadius:6, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"}}>Edit</button>
                           <button onClick={async () => {
                             await fetch("https://calvary-newsletter.calvarymediauk.workers.dev/draft/" + d.id, { method:"DELETE", headers:{Authorization:"Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca"} });
@@ -482,4 +600,23 @@ const s = {
   centred: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8f7fc" },
   authCard: { background: "#fff", borderRadius: 12, padding: 48, textAlign: "center", boxShadow: "0 4px 24px rgba(107,47,173,0.08)" },
   dot: { width: 14, height: 14, background: purple, borderRadius: "50%" },
+  blockToolbar: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" },
+  toolBtn: { background: "#fff", color: purple, border: `1px solid ${purple}`, padding: "8px 14px", borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: "pointer" },
+  blockList: { display: "flex", flexDirection: "column", gap: 8, background: "#fff", border: "1px solid #ede8f5", borderRadius: 8, padding: 10, minHeight: 80 },
+  blockEmpty: { color: "#888", fontSize: 13, padding: 24, textAlign: "center", fontStyle: "italic" },
+  blockItem: { display: "flex", gap: 8, padding: 8, background: "#fafaff", border: "1px solid #ede8f5", borderRadius: 7, alignItems: "stretch" },
+  blockItemActive: { border: `1px solid ${purple}`, background: "#f9f5ff" },
+  blockBody: { flex: 1, minWidth: 0, display: "flex", alignItems: "stretch" },
+  blockTextarea: { width: "100%", padding: "10px 12px", border: "1px solid #ede8f5", borderRadius: 6, fontSize: 14, color: "#1a1a2e", background: "#fff", outline: "none", resize: "vertical", lineHeight: 1.6, fontFamily: "Georgia, serif", boxSizing: "border-box" },
+  blockDividerWrap: { display: "flex", alignItems: "center", gap: 10, padding: "12px 8px", width: "100%", cursor: "pointer" },
+  blockDividerLabel: { fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: purple, fontWeight: 700, flexShrink: 0 },
+  blockDividerLine: { flex: 1, border: "none", borderTop: `2px solid ${purple}`, margin: 0 },
+  blockStoryCard: { display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "#f3eefb", borderRadius: 6, width: "100%", cursor: "pointer" },
+  blockStoryInfo: { flex: 1, minWidth: 0 },
+  blockStoryTitle: { fontSize: 14, fontWeight: 700, color: "#1a1a2e" },
+  blockStoryAuthor: { fontSize: 12, color: "#666680", marginTop: 2 },
+  blockControls: { display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 },
+  pvTextBlock: { padding: "20px 40px", fontSize: 15, color: "#1a1a2e", lineHeight: 1.75, fontFamily: "Georgia, serif", whiteSpace: "pre-wrap" },
+  pvDivider: { border: "none", borderTop: `2px solid ${purple}`, margin: "24px 0" },
+  pvStorySection: { padding: "12px 40px" },
 };

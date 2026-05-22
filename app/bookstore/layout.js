@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'The Book Store — Calvary Scribblings',
-  description: 'Worlds waiting to be entered.',
+  title: 'Calvary Scribblings',
+  robots: { index: false, follow: false },
 };
 export default function BookStoreLayout({ children }) {
   return children;

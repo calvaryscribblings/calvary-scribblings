@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import { stories } from '../lib/stories';
+import QuizPill from '../components/QuizPill';
+import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 
 const cat = 'news';
 
@@ -19,7 +21,7 @@ const SUBCATEGORIES = [
 
 const _filtered = stories.filter(s => s.category === cat).sort((a, b) => new Date(b.date) - new Date(a.date));
 
-function StoryCard({ story }) {
+function StoryCard({ story, userTier = null, scorePct }) {
   const [hovered, setHovered] = useState(false);
   return (
     <a href={story.url || '/stories/' + story.id}
@@ -29,9 +31,10 @@ function StoryCard({ story }) {
         textDecoration: 'none', display: 'block', borderRadius: 10, overflow: 'hidden',
         background: hovered ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.03)',
         border: hovered ? '1px solid rgba(239,68,68,0.25)' : '1px solid rgba(255,255,255,0.07)',
-        transition: 'all 0.25s ease', cursor: 'pointer',
+        transition: 'all 0.25s ease', cursor: 'pointer', position: 'relative',
       }}>
       <img src={story.cover} alt={story.title} style={{ width: '100%', height: 200, objectFit: 'cover', display: 'block' }} />
+      <QuizPill hasQuiz={story.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={story.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
       <div style={{ padding: '1.25rem' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '0.6rem', alignItems: 'center' }}>
           <span style={{ fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 3, display: 'inline-block', background: 'rgba(220,38,38,0.2)', color: '#f87171', border: '1px solid rgba(220,38,38,0.4)' }}>
@@ -51,6 +54,7 @@ function StoryCard({ story }) {
 }
 
 export default function NewsPage() {
+  const userTiersMap = useUserStoryTiers();
   const [allStories, setAllStories] = useState(_filtered);
   const [activeTab, setActiveTab] = useState('all');
 
@@ -126,7 +130,7 @@ export default function NewsPage() {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem', maxWidth: 1400, margin: '0 auto' }}>
-            {displayed.map(s => <StoryCard key={s.id} story={s} />)}
+            {displayed.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
           </div>
         )}
       </section>
