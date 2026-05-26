@@ -28,7 +28,6 @@ async function getStorageInstance() { const { getStorage } = await import('fireb
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 
 function getBadge(readCount, uid) {
-  if (uid === FOUNDER_UID) return { tier: 'founder', label: 'Founder', color: '#c8daea', isFounder: true };
   if (readCount >= 1000) return { tier: 'immortal', label: 'Immortal of the Island', color: '#9b6dff' };
   if (readCount >= 150) return { tier: 'legend', label: 'Legend of the Island', color: '#d4537e' };
   if (readCount >= 90) return { tier: 'islander', label: 'Story Islander', color: '#d4941a' };
@@ -38,7 +37,6 @@ function getBadge(readCount, uid) {
 }
 
 function getNextBadge(readCount, uid) {
-  if (uid === FOUNDER_UID) return null;
   if (readCount < 25) return { label: 'Reader', threshold: 25 };
   if (readCount < 60) return { label: 'Island Reader', threshold: 60 };
   if (readCount < 90) return { label: 'Story Islander', threshold: 90 };

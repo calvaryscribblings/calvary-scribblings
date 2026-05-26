@@ -30,7 +30,6 @@ const BADGE_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-
 const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
 
 function getBadge(readCount, uid) {
-  if (uid === FOUNDER_UID) return { color: '#c8daea', isFounder: true };
   if (readCount >= 1000) return { color: '#9b6dff' };
   if (readCount >= 150) return { color: '#d4537e' };
   if (readCount >= 90) return { color: '#d4941a' };

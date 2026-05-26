@@ -40,7 +40,6 @@ const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.2
 const HEART_PATH = "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z";
 
 function getBadge(readCount, uid) {
-  if (uid === FOUNDER_UID) return { tier: 'founder', label: 'Founder', color: '#c8daea' };
   if (readCount >= 1000) return { tier: 'immortal', label: 'Immortal of the Island', color: '#9b6dff' };
   if (readCount >= 150) return { tier: 'legend', label: 'Legend of the Island', color: '#d4537e' };
   if (readCount >= 90) return { tier: 'islander', label: 'Story Islander', color: '#d4941a' };

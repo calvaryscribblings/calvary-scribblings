@@ -59,7 +59,6 @@ function isFriday() { return getLondonTime().day === 5; }
 function isMonday() { return getLondonTime().day === 1; }
 
 function getBadge(readCount, uid) {
-  if (uid === FOUNDER_UID) return { tier: 'founder', label: 'Founder', color: '#c8daea', isFounder: true };
   if (readCount >= 1000) return { tier: 'immortal', label: 'Immortal of the Island', color: '#9b6dff' };
   if (readCount >= 150) return { tier: 'legend', label: 'Legend of the Island', color: '#d4537e' };
   if (readCount >= 90) return { tier: 'islander', label: 'Story Islander', color: '#d4941a' };
