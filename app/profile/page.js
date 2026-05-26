@@ -49,6 +49,14 @@ function getPrevThreshold(t) {
   return { 25: 0, 60: 25, 90: 60, 150: 90, 1000: 150 }[t] || 0;
 }
 
+const BADGE_LADDER = [
+  { tier: 'reader',   label: 'Reader',                 color: '#b4b2a9', threshold: 25,   description: "You've begun. The page is turning." },
+  { tier: 'island',   label: 'Island Reader',          color: '#1d9e75', threshold: 60,   description: "You've found your place among the stories." },
+  { tier: 'islander', label: 'Story Islander',         color: '#d4941a', threshold: 90,   description: "The island knows your name." },
+  { tier: 'legend',   label: 'Legend of the Island',   color: '#d4537e', threshold: 150,  description: "Your reading has become a kind of devotion." },
+  { tier: 'immortal', label: 'Immortal of the Island', color: '#9b6dff', threshold: 1000, description: "Some readers leave a mark that outlasts them." },
+];
+
 const BADGE_PATH = 'M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z';
 const CHECK_PATH = 'M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z';
 const HEART_PATH = 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z';
@@ -81,6 +89,91 @@ function WriterBadge({ size = 13 }) {
         <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>Writer</span>
       </span>
     </span>
+  );
+}
+
+function BadgeLadderTooltip({ anchorRef, currentTier, onClose }) {
+  const [pos, setPos] = useState(null);
+
+  useEffect(() => {
+    const calc = () => {
+      if (!anchorRef.current) return;
+      const a = anchorRef.current.getBoundingClientRect();
+      const tw = 290;
+      const th = 380;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let top = a.bottom + 10;
+      let arrowSide = 'top';
+      if (top + th > vh - 8) {
+        top = a.top - th - 10;
+        arrowSide = 'bottom';
+      }
+      let left = a.left + a.width / 2 - tw / 2;
+      if (left < 8) left = 8;
+      if (left + tw > vw - 8) left = vw - tw - 8;
+      const arrowLeft = a.left + a.width / 2 - left;
+      setPos({ top, left, arrowSide, arrowLeft });
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    window.addEventListener('scroll', calc, true);
+    return () => {
+      window.removeEventListener('resize', calc);
+      window.removeEventListener('scroll', calc, true);
+    };
+  }, [anchorRef]);
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'transparent' }} />
+      <div
+        onMouseLeave={onClose}
+        style={{
+          position: 'fixed',
+          top: pos?.top ?? -9999,
+          left: pos?.left ?? -9999,
+          width: 290,
+          minWidth: 260,
+          maxWidth: 320,
+          background: '#0f0f0f',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 12,
+          padding: '1rem',
+          zIndex: 1000,
+          opacity: pos ? 1 : 0,
+          transform: pos ? 'translateY(0)' : 'translateY(4px)',
+          transition: 'opacity 0.15s ease, transform 0.15s ease',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+        }}
+      >
+        {pos && (
+          <div style={{
+            position: 'absolute',
+            left: pos.arrowLeft - 6,
+            ...(pos.arrowSide === 'top'
+              ? { top: -6, width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderBottom: '6px solid #0f0f0f' }
+              : { bottom: -6, width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid #0f0f0f' }),
+          }} />
+        )}
+        <div style={{ fontSize: '0.6rem', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.35)', fontFamily: 'Cinzel, Inter, sans-serif', marginBottom: '0.75rem', textTransform: 'uppercase' }}>BADGE LADDER</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {BADGE_LADDER.map(b => {
+            const isCurrent = b.tier === currentTier;
+            return (
+              <div key={b.tier} style={{ paddingLeft: isCurrent ? '0.55rem' : 0, borderLeft: isCurrent ? `2px solid ${b.color}` : '2px solid transparent' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: b.color, flexShrink: 0 }} />
+                  <div style={{ fontSize: '0.85rem', color: isCurrent ? '#fff' : '#e8e0d4', fontFamily: 'Cochin, Georgia, serif' }}>{b.label}</div>
+                  <div style={{ fontSize: '0.72rem', color: isCurrent ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.45)', fontFamily: 'Inter, sans-serif', marginLeft: 'auto' }}>{b.threshold.toLocaleString()} reads</div>
+                </div>
+                <div style={{ marginTop: '0.25rem', marginLeft: '1.1rem', fontSize: '0.78rem', color: isCurrent ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.6)', fontFamily: 'Georgia, serif', fontStyle: 'italic', lineHeight: 1.4 }}>{b.description}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -366,6 +459,8 @@ export default function ProfilePage() {
   const avatarInputRef = useRef(null);
   const headerInputRef = useRef(null);
   const modalAvatarInputRef = useRef(null);
+  const badgeAnchorRef = useRef(null);
+  const [showBadgeLadder, setShowBadgeLadder] = useState(false);
   const [notifUsers, setNotifUsers] = useState({});
 
   useEffect(() => {
@@ -734,10 +829,23 @@ export default function ProfilePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.42rem' }}>
           {username && <span className="pf-username" style={{ marginBottom: 0 }}>@{username}</span>}
           {isAuthor ? <WriterBadge size={13} /> : badge ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <BadgeIcon color={badge.color} size={13} isFounder={badge.isFounder} />
-              <span className="pf-badge-label" style={{ color: badge.color }}>{badge.label}</span>
-            </span>
+            <>
+              <span
+                ref={badgeAnchorRef}
+                onClick={() => setShowBadgeLadder(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', position: 'relative' }}
+              >
+                <BadgeIcon color={badge.color} size={13} isFounder={badge.isFounder} />
+                <span className="pf-badge-label" style={{ color: badge.color }}>{badge.label}</span>
+              </span>
+              {showBadgeLadder && (
+                <BadgeLadderTooltip
+                  anchorRef={badgeAnchorRef}
+                  currentTier={badge.tier}
+                  onClose={() => setShowBadgeLadder(false)}
+                />
+              )}
+            </>
           ) : null}
         </div>
         <div className="pf-verified-row">
