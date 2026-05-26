@@ -149,7 +149,7 @@ export default function SettingsPage() {
         .st-msg.success { color: #86efac; }
         .st-msg.error { color: #f87171; }
 
-        .st-signout { width: 100%; margin-top: 0.82rem; background: none; border: 1px solid rgba(220,38,38,0.1); border-radius: 10px; padding: 0.82rem; font-size: 0.57rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(248,113,113,0.26); cursor: pointer; font-family: Inter, sans-serif; transition: color 0.2s, border-color 0.2s; }
+        .st-signout { width: 100%; margin-top: 0.82rem; background: none; border: 1px solid rgba(220,38,38,0.1); border-radius: 10px; padding: 0.82rem; font-size: 0.57rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(248,113,113,0.55); cursor: pointer; font-family: Inter, sans-serif; transition: color 0.2s, border-color 0.2s; }
         .st-signout:hover { color: #f87171; border-color: rgba(220,38,38,0.3); }
 
         .st-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
