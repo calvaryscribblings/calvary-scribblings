@@ -251,7 +251,7 @@ export async function onRequestPost(context) {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
+        model: 'claude-sonnet-4-6',
         max_tokens: 8192,
         system: SYSTEM_PROMPT,
         tools: [QUIZ_TOOL],
@@ -307,7 +307,7 @@ export async function onRequestPost(context) {
 
   const warnings = validateQuiz(quiz, mode);
   quiz.generatedAt = Date.now();
-  quiz.model = 'claude-sonnet-4-5-20250929';
+  quiz.model = 'claude-sonnet-4-6';
   console.log('[generate-quiz] success, warnings:', warnings.length);
   return quizJson({ quiz, warnings });
 }
