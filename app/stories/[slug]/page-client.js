@@ -463,6 +463,34 @@ function renderCommentText(text) {
   return parts;
 }
 
+function CommentSkeleton() {
+  return (
+    <div style={{ display: 'flex', gap: 12, marginBottom: '1.25rem' }}>
+      <div style={{
+        width: 36, height: 36, borderRadius: '50%',
+        background: 'rgba(255,255,255,0.04)', flexShrink: 0,
+      }} />
+      <div style={{ flex: 1, paddingBottom: '0.5rem' }}>
+        <div style={{
+          height: 10, width: '35%',
+          background: 'rgba(255,255,255,0.05)',
+          borderRadius: 4, marginBottom: 10,
+        }} />
+        <div style={{
+          height: 9, width: '90%',
+          background: 'rgba(255,255,255,0.04)',
+          borderRadius: 3, marginBottom: 6,
+        }} />
+        <div style={{
+          height: 9, width: '65%',
+          background: 'rgba(255,255,255,0.04)',
+          borderRadius: 3,
+        }} />
+      </div>
+    </div>
+  );
+}
+
 const CommentNode = React.memo(function CommentNode({
   comment, depth, parentAuthorName,
   user, comments, commentReactions,
@@ -649,12 +677,26 @@ function CommentsSection({ slug, onSignIn }) {
 
   const toggleCommentReaction = useCallback(async (commentId, type, commentAuthorUid) => {
     if (!user) return;
+    const hasReacted = commentReactions[commentId]?.[type];
+    const comment = comments.find(c => c.id === commentId) || {};
+    const currentCount = comment[type + 'Count'] || 0;
+    const newCount = hasReacted ? Math.max(0, currentCount - 1) : currentCount + 1;
+    setCommentReactions(prev => {
+      const updated = { ...prev };
+      if (!updated[commentId]) updated[commentId] = {};
+      updated[commentId] = { ...updated[commentId], [type]: !hasReacted };
+      return updated;
+    });
+    setComments(prev => prev.map(c =>
+      c.id === commentId
+        ? { ...c, [type + 'Count']: newCount }
+        : c
+    ));
     try {
       const db = await getDB();
       const { ref, set, remove, runTransaction, push, get } = await import('firebase/database');
       const reactionRef = ref(db, `comment_reactions/${slug}/${user.uid}/${commentId}/${type}`);
       const countRef = ref(db, `comments/${slug}/${commentId}/${type}Count`);
-      const hasReacted = commentReactions[commentId]?.[type];
       if (hasReacted) {
         await remove(reactionRef);
         await runTransaction(countRef, c => Math.max(0, (c || 0) - 1));
@@ -670,32 +712,66 @@ function CommentsSection({ slug, onSignIn }) {
           });
         }
       }
+    } catch (e) {
+      console.error('Reaction error:', e);
+      setComments(prev => prev.map(c =>
+        c.id === commentId
+          ? { ...c, [type + 'Count']: currentCount }
+          : c
+      ));
       setCommentReactions(prev => {
         const updated = { ...prev };
-        if (!updated[commentId]) updated[commentId] = {};
-        updated[commentId] = { ...updated[commentId], [type]: !hasReacted };
+        if (updated[commentId]) {
+          updated[commentId] = { ...updated[commentId], [type]: hasReacted };
+        }
         return updated;
       });
-    } catch (e) {}
-  }, [user, slug, commentReactions]);
+    }
+  }, [user, slug, commentReactions, comments]);
 
   const postComment = useCallback(async (commentText, parentId = null) => {
     if (!commentText.trim() || !user) return;
     setPosting(true);
+    const trimmed = commentText.trim();
+    const tempId = 'temp_' + Date.now();
+    const optimisticComment = {
+      id: tempId,
+      text: trimmed,
+      authorName: user.displayName || 'You',
+      authorUid: user.uid,
+      createdAt: Date.now(),
+      heartCount: 0,
+      clapCount: 0,
+      fireCount: 0,
+      parentId: parentId || null,
+      _optimistic: true,
+    };
+    setComments(prev => [optimisticComment, ...prev]);
+    if (parentId) { setReplyText(''); setReplyTo(null); }
+    else setText('');
     try {
       const db = await getDB();
       const { ref, push, get, update } = await import('firebase/database');
-      await push(ref(db, `comments/${slug}`), {
-        text: commentText.trim(),
-        authorName: user.displayName || 'Reader',
-        authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
-        authorUid: user.uid,
-        parentId: parentId || null,
-        createdAt: Date.now(),
-      });
+      try {
+        await push(ref(db, `comments/${slug}`), {
+          text: trimmed,
+          authorName: user.displayName || 'Reader',
+          authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
+          authorUid: user.uid,
+          parentId: parentId || null,
+          createdAt: Date.now(),
+        });
+      } catch (e) {
+        setComments(prev => prev.filter(c => c.id !== tempId));
+        if (parentId) setReplyText(trimmed);
+        else setText(trimmed);
+        console.error('Comment post error:', e);
+        setPosting(false);
+        return;
+      }
       try {
         await notifyMentions({
-          text: commentText.trim(), slug,
+          text: trimmed, slug,
           fromUid: user.uid, fromName: user.displayName || 'Reader',
           excludeUid: user.uid,
         });
@@ -703,16 +779,17 @@ function CommentsSection({ slug, onSignIn }) {
       if (parentId) {
         const parentComment = comments.find(c => c.id === parentId);
         if (parentComment && parentComment.authorUid !== user.uid) {
-          await push(ref(db, `library_notifications/${parentComment.authorUid}`), {
-            type: 'reply', fromUid: user.uid,
-            fromName: user.displayName || 'Reader',
-            slug, commentId: parentId,
-            commentText: (parentComment.text || '').slice(0, 120),
-            read: false, createdAt: Date.now(),
-          });
+          try {
+            await push(ref(db, `library_notifications/${parentComment.authorUid}`), {
+              type: 'reply', fromUid: user.uid,
+              fromName: user.displayName || 'Reader',
+              slug, commentId: parentId,
+              commentText: (parentComment.text || '').slice(0, 120),
+              read: false, createdAt: Date.now(),
+            });
+          } catch (e) {}
         }
-        setReplyText(''); setReplyTo(null);
-      } else setText('');
+      }
       try {
         const commentsSnap = await get(ref(db, 'comments'));
         let userCommentCount = 0;
@@ -737,7 +814,12 @@ function CommentsSection({ slug, onSignIn }) {
           });
         }
       } catch (e) {}
-    } catch (e) {}
+    } catch (e) {
+      setComments(prev => prev.filter(c => c.id !== tempId));
+      if (parentId) setReplyText(trimmed);
+      else setText(trimmed);
+      console.error('Comment post error:', e);
+    }
     setPosting(false);
   }, [user, slug, comments]);
 
@@ -797,7 +879,11 @@ function CommentsSection({ slug, onSignIn }) {
         </div>
       )}
       {loading ? (
-        <div className="cs-loading">Loading comments…</div>
+        <div style={{ padding: '0.5rem 0' }}>
+          <CommentSkeleton />
+          <CommentSkeleton />
+          <CommentSkeleton />
+        </div>
       ) : topLevel.length === 0 ? (
         <div className="cs-empty">No comments yet. Be the first to share your thoughts.</div>
       ) : (
