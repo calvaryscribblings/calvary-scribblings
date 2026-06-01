@@ -504,6 +504,7 @@ const CommentNode = React.memo(function CommentNode({
   const visualDepth = Math.min(depth, 3);
   const isFlattened = depth > 3;
   const indentPx = (visualDepth - 1) * 28;
+  const [pressedReaction, setPressedReaction] = useState(null);
 
   return (
     <div style={{ marginLeft: indentPx }}>
@@ -569,7 +570,12 @@ const CommentNode = React.memo(function CommentNode({
               const count = comment[type + 'Count'] || 0;
               return (
                 <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
-                  style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
+                  onMouseDown={() => setPressedReaction(`${comment.id}:${type}`)}
+                  onMouseUp={() => setPressedReaction(null)}
+                  onMouseLeave={() => setPressedReaction(null)}
+                  onTouchStart={() => setPressedReaction(`${comment.id}:${type}`)}
+                  onTouchEnd={() => setPressedReaction(null)}
+                  style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transform: pressedReaction === `${comment.id}:${type}` ? 'scale(0.82)' : 'scale(1)', transition: 'transform 0.1s ease, color 0.2s' }}>
                   <svg width={depth === 1 ? "12" : "11"} height={depth === 1 ? "12" : "11"} viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
                   {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
                 </button>
@@ -621,6 +627,7 @@ function CommentsSection({ slug, onSignIn }) {
   const [loading, setLoading] = useState(true);
   const [commentReactions, setCommentReactions] = useState({});
   const [expandedComment, setExpandedComment] = useState(null);
+  const reactingRef = useRef(new Set());
 
   useEffect(() => {
     if (!expandedComment) return;
@@ -677,6 +684,9 @@ function CommentsSection({ slug, onSignIn }) {
 
   const toggleCommentReaction = useCallback(async (commentId, type, commentAuthorUid) => {
     if (!user) return;
+    const key = `${commentId}:${type}`;
+    if (reactingRef.current.has(key)) return;
+    reactingRef.current.add(key);
     const hasReacted = commentReactions[commentId]?.[type];
     const comment = comments.find(c => c.id === commentId) || {};
     const currentCount = comment[type + 'Count'] || 0;
@@ -712,6 +722,7 @@ function CommentsSection({ slug, onSignIn }) {
           });
         }
       }
+      reactingRef.current.delete(key);
     } catch (e) {
       console.error('Reaction error:', e);
       setComments(prev => prev.map(c =>
@@ -726,6 +737,7 @@ function CommentsSection({ slug, onSignIn }) {
         }
         return updated;
       });
+      reactingRef.current.delete(key);
     }
   }, [user, slug, commentReactions, comments]);
 
