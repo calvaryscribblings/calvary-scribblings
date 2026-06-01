@@ -469,6 +469,7 @@ const CommentNode = React.memo(function CommentNode({
   replyTo, replyText, editingId, editText, menuId, posting,
   setReplyTo, setReplyText, setEditingId, setEditText, setMenuId,
   toggleCommentReaction, postComment, editComment, deleteComment,
+  setExpandedComment,
 }) {
   const isOwn = user?.uid === comment.authorUid;
   const children = comments.filter(c => c.parentId === comment.id).sort((a, b) => a.createdAt - b.createdAt);
@@ -516,7 +517,17 @@ const CommentNode = React.memo(function CommentNode({
                 {isFlattened && parentAuthorName && (
                   <span style={{ color: '#a78bfa', fontWeight: 500, marginRight: 4 }}>@{parentAuthorName}</span>
                 )}
-                {renderCommentText(comment.text)}
+                {comment.text && comment.text.length > 100 ? (
+                  <>
+                    {renderCommentText(comment.text.slice(0, 100))}…
+                    <button
+                      onClick={() => setExpandedComment({ text: comment.text, authorName: comment.authorName })}
+                      style={{ color: 'rgba(107,47,173,0.8)', fontSize: '0.75rem', fontFamily: 'Inter, sans-serif', cursor: 'pointer', marginLeft: 4, background: 'none', border: 'none', padding: 0 }}
+                    >more</button>
+                  </>
+                ) : (
+                  renderCommentText(comment.text)
+                )}
               </>
             )}
           </div>
@@ -559,6 +570,7 @@ const CommentNode = React.memo(function CommentNode({
               replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
               setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
               toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
+              setExpandedComment={setExpandedComment}
             />
           ))}
         </div>
@@ -580,6 +592,14 @@ function CommentsSection({ slug, onSignIn }) {
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [commentReactions, setCommentReactions] = useState({});
+  const [expandedComment, setExpandedComment] = useState(null);
+
+  useEffect(() => {
+    if (!expandedComment) return;
+    const onKey = (e) => { if (e.key === 'Escape') setExpandedComment(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [expandedComment]);
 
   useEffect(() => {
     let unsubAuth;
@@ -789,8 +809,18 @@ function CommentsSection({ slug, onSignIn }) {
               replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
               setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
               toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
+              setExpandedComment={setExpandedComment}
             />
           ))}
+        </div>
+      )}
+      {expandedComment !== null && (
+        <div onClick={() => setExpandedComment(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '1.5rem', maxWidth: 480, width: '100%', maxHeight: '80vh', overflowY: 'auto', position: 'relative' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff', fontFamily: 'Inter, sans-serif', marginBottom: '0.75rem' }}>{expandedComment.authorName}</div>
+            <div style={{ fontSize: '0.9rem', color: '#e8e0d4', fontFamily: 'Georgia, serif', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{expandedComment.text}</div>
+            <button onClick={() => setExpandedComment(null)} style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 16 }}>×</button>
+          </div>
         </div>
       )}
     </div>
