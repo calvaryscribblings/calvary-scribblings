@@ -382,6 +382,17 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
           </div>
         </div>
 
+        {/* Prose Poem toggle */}
+        <div style={s.readerBox}>
+          <label style={s.scheduleToggle}>
+            <input type="checkbox" checked={form.prosePoetry || false}
+              onChange={e => setForm(f => ({ ...f, prosePoetry: e.target.checked }))} />
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c4b5fd' }}>
+              Prose Poem
+            </span>
+          </label>
+        </div>
+
         <div style={s.scheduleBox}>
           <label style={s.scheduleToggle}>
             <input type="checkbox" checked={isScheduled}
@@ -449,7 +460,7 @@ export default function AdminPage() {
   const emptyForm = {
     title: '', author: AUTHORS[0], category: 'flash', subcategory: '',
     date: formatDate(new Date()), coverFilename: '', coverPreview: null,
-    content: '', publishAt: '', epubUrl: '', readerMode: false,
+    content: '', publishAt: '', epubUrl: '', readerMode: false, prosePoetry: false,
     extractedText: '',
     authorHandle: '', authorOverride: '',
   };
@@ -523,6 +534,7 @@ export default function AdminPage() {
         published: !(form.publishAt && new Date(form.publishAt) > new Date()),
         epubUrl: form.epubUrl || '',
         readerMode: form.readerMode || false,
+        prosePoetry: form.prosePoetry || false,
         extractedText: form.extractedText || '',
       };
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
@@ -577,6 +589,7 @@ export default function AdminPage() {
       content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
       epubUrl: story.epubUrl || '',
       readerMode: story.readerMode || false,
+      prosePoetry: story.prosePoetry || false,
       extractedText: story.extractedText || '',
       authorHandle: story.authorHandle || '',
       authorOverride: story.authorOverride || '',
