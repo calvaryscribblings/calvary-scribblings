@@ -1193,6 +1193,9 @@ useEffect(() => {
         .prose i { font-style: italic; color: inherit; font-family: Georgia, serif; }
         .prose strong { font-weight: 700; color: #1a1a1a; }
         .prose .poem-collection-intro { font-style: italic; font-family: Georgia, serif; color: #555; margin-bottom: 1.5em; display: block; font-size: 1.1rem; }
+        .prose .section-break { text-align: center; font-family: Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
+        .prose .poem-numeral { text-align: center; font-family: Georgia, serif; letter-spacing: 0.3em; color: ${accentColor}; margin: 2.5em auto 1em; font-size: 1.05rem; }
+        .prose .intro-note { font-style: italic; font-family: Georgia, serif; color: ${accentColor}; display: block; font-size: 1.1rem; margin-bottom: 1.5em; }
         .prose .poem-contents { border-left: 4px solid ${accentColor}; padding: 0.8em 1.2em; margin: 1.5em 0; background: #ede6f5; border-radius: 0 4px 4px 0; }
         .prose .poem-contents p { margin-bottom: 0.5em; font-weight: 600; color: #1a1a1a; }
         .prose .poem-contents ol, .prose .poem-contents ul { background: transparent; border: none; padding: 0 0 0 1.2em; margin: 0; }
