@@ -286,12 +286,15 @@ function AboutTheAuthor({ story }) {
           const snap = await get(ref(db, `users/${uid}`));
           if (!snap.exists()) return null;
           const u = snap.val() || {};
+          // Prefer the editorial authorBio over the self-authored profile bio.
+          const bio = (u.authorBio || '').trim() || (u.bio || '').trim();
           return {
             mode: 'full',
             uid,
             name: (u.displayName || '').trim() || fallbackName,
             avatarUrl: u.avatarUrl || '',
-            bio: (u.bio || '').trim(),
+            bio,
+            role: (u.authorRole || '').trim(),
             username: u.username || '',
           };
         };
@@ -340,6 +343,9 @@ function AboutTheAuthor({ story }) {
           </div>
           <div className="ata-meta">
             <div className="ata-name">{profile.name}</div>
+            {profile.mode === 'full' && profile.role && (
+              <div className="ata-role">{profile.role}</div>
+            )}
             {showHandle && (
               <a className="ata-handle" href={`/user?id=${profile.uid}`}>@{profile.username}</a>
             )}
@@ -1310,6 +1316,7 @@ useEffect(() => {
         .ata-avatar span { font-family: Cochin, Georgia, serif; font-size: 1.5rem; color: #6b2fad; line-height: 1; }
         .ata-meta { min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
         .ata-name { font-family: Cochin, Georgia, serif; font-size: 1.3rem; color: #1a1a1a; line-height: 1.2; }
+        .ata-role { font-family: Inter, sans-serif; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.04em; color: #6b2fad; }
         .ata-handle { font-family: Inter, sans-serif; font-size: 0.74rem; color: #6b2fad; text-decoration: none; transition: color 0.2s; }
         .ata-handle:hover { color: #8b4fd6; text-decoration: underline; }
         .ata-bio { margin: 0.9rem 0 0; font-family: Georgia, serif; font-size: 0.92rem; line-height: 1.6; color: #4a4640; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
