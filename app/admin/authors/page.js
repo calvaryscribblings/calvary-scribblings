@@ -62,7 +62,55 @@ function Avatar({ src, name }) {
   );
 }
 
-const emptyGuest = { name: '', role: '', bio: '', photoUrl: '' };
+const emptyGuest = { name: '', role: '', bio: '', photoUrl: '', instagram: '', x: '', tiktok: '', website: '' };
+const emptySocials = { instagram: '', x: '', tiktok: '', website: '' };
+
+// Build the authorSocials object from form fields. Bare handles (leading @
+// stripped) for instagram/x/tiktok; website stored as-is (full URL). Empty
+// platforms are omitted so the record stays clean.
+function buildSocials(form) {
+  const stripAt = (v) => (v || '').trim().replace(/^@+/, '');
+  const out = {};
+  const instagram = stripAt(form.instagram);
+  const x = stripAt(form.x);
+  const tiktok = stripAt(form.tiktok);
+  const website = (form.website || '').trim();
+  if (instagram) out.instagram = instagram;
+  if (x) out.x = x;
+  if (tiktok) out.tiktok = tiktok;
+  if (website) out.website = website;
+  return out;
+}
+
+const optionalTag = <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>;
+
+// Four social inputs shared by the registered-author and guest-author forms.
+function SocialFields({ form, set }) {
+  return (
+    <>
+      <div style={s.fg}>
+        <label style={s.label}>Instagram {optionalTag}</label>
+        <input style={s.input} value={form.instagram || ''} placeholder="@handle"
+          onChange={(e) => set('instagram', e.target.value)} />
+      </div>
+      <div style={s.fg}>
+        <label style={s.label}>X (Twitter) {optionalTag}</label>
+        <input style={s.input} value={form.x || ''} placeholder="@handle"
+          onChange={(e) => set('x', e.target.value)} />
+      </div>
+      <div style={s.fg}>
+        <label style={s.label}>TikTok {optionalTag}</label>
+        <input style={s.input} value={form.tiktok || ''} placeholder="@handle"
+          onChange={(e) => set('tiktok', e.target.value)} />
+      </div>
+      <div style={s.fg}>
+        <label style={s.label}>Website {optionalTag}</label>
+        <input style={s.input} value={form.website || ''} placeholder="https://example.com"
+          onChange={(e) => set('website', e.target.value)} />
+      </div>
+    </>
+  );
+}
 
 export default function AuthorsAdmin() {
   const { user } = useAuth();
@@ -74,7 +122,7 @@ export default function AuthorsAdmin() {
 
   // Registered-author edit form
   const [editingUid, setEditingUid] = useState(null);
-  const [editForm, setEditForm] = useState({ authorRole: '', authorBio: '', authorPhotoUrl: '', newPhoto: false });
+  const [editForm, setEditForm] = useState({ authorRole: '', authorBio: '', authorPhotoUrl: '', newPhoto: false, ...emptySocials });
 
   // Guest-author add form
   const [showGuestForm, setShowGuestForm] = useState(false);
@@ -125,6 +173,7 @@ export default function AuthorsAdmin() {
             authorBio: u.authorBio || '',
             authorRole: u.authorRole || '',
             authorPhotoUrl: u.authorPhotoUrl || '',
+            authorSocials: u.authorSocials || {},
             count: counts[uid],
           };
         } catch (e) {
@@ -149,7 +198,11 @@ export default function AuthorsAdmin() {
   // ── Registered authors ─────────────────────────────────────────────────
   function openEditAuthor(a) {
     setEditingUid(a.uid);
-    setEditForm({ authorRole: a.authorRole || '', authorBio: a.authorBio || '', authorPhotoUrl: a.authorPhotoUrl || '', newPhoto: false });
+    const soc = a.authorSocials || {};
+    setEditForm({
+      authorRole: a.authorRole || '', authorBio: a.authorBio || '', authorPhotoUrl: a.authorPhotoUrl || '', newPhoto: false,
+      instagram: soc.instagram || '', x: soc.x || '', tiktok: soc.tiktok || '', website: soc.website || '',
+    });
     setMsg('');
   }
 
@@ -176,6 +229,7 @@ export default function AuthorsAdmin() {
       const payload = {
         authorBio: editForm.authorBio.trim(),
         authorRole: editForm.authorRole.trim(),
+        authorSocials: buildSocials(editForm),
       };
       // Only write authorPhotoUrl if a new photo was uploaded this session.
       if (editForm.newPhoto && editForm.authorPhotoUrl) {
@@ -223,6 +277,7 @@ export default function AuthorsAdmin() {
         role: guestForm.role.trim(),
         bio: guestForm.bio.trim(),
         photoUrl: guestForm.photoUrl || '',
+        authorSocials: buildSocials(guestForm),
         createdAt: Date.now(),
       });
       setMsg('✓ Guest author added.');
@@ -325,6 +380,7 @@ export default function AuthorsAdmin() {
                       </div>
                       <div style={s.hint}>Stored as authorPhotoUrl. Only written when you upload a new photo.</div>
                     </div>
+                    <SocialFields form={editForm} set={(k, v) => setEditForm((f) => ({ ...f, [k]: v }))} />
                     <div style={s.formActions}>
                       <button style={s.btnGhost} onClick={() => setEditingUid(null)} disabled={saving}>Cancel</button>
                       <button style={s.btn} onClick={saveAuthor} disabled={saving}>{saving ? 'Saving…' : 'Save author'}</button>
@@ -373,6 +429,7 @@ export default function AuthorsAdmin() {
                   <input type="file" accept="image/*" onChange={handleGuestPhoto} style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem' }} />
                 </div>
               </div>
+              <SocialFields form={guestForm} set={(k, v) => setGuestForm((f) => ({ ...f, [k]: v }))} />
               <div style={s.formActions}>
                 <button style={s.btnGhost} onClick={() => { setShowGuestForm(false); setGuestForm(emptyGuest); }} disabled={saving}>Cancel</button>
                 <button style={s.btn} onClick={addGuest} disabled={saving}>{saving ? 'Saving…' : 'Add guest author'}</button>
