@@ -268,15 +268,15 @@ function AuthorHandleLink({ handle, style }) {
 // Generic monochrome social icons (not exact brand logos). ~18px, currentColor.
 const ATA_ICONS = {
   instagram: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="2" width="20" height="20" rx="5.5" />
+      <circle cx="12" cy="12" r="4.2" />
+      <circle cx="17.6" cy="6.4" r="1.1" fill="currentColor" stroke="none" />
     </svg>
   ),
   x: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <line x1="5" y1="5" x2="19" y2="19" />
-      <line x1="19" y1="5" x2="5" y2="19" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.66l-5.214-6.817-5.967 6.817H1.683l7.73-8.835L1.254 2.25h6.83l4.713 6.231 5.447-6.231zm-1.161 17.52h1.833L7.084 4.126H5.117l11.966 15.644z" />
     </svg>
   ),
   tiktok: (
@@ -1380,7 +1380,7 @@ useEffect(() => {
         .ata-role { font-family: Inter, sans-serif; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.04em; color: #6b2fad; }
         .ata-handle { font-family: Inter, sans-serif; font-size: 0.74rem; color: #6b2fad; text-decoration: none; transition: color 0.2s; }
         .ata-handle:hover { color: #8b4fd6; text-decoration: underline; }
-        .ata-bio { margin: 0.9rem 0 0; font-family: Georgia, serif; font-size: 0.92rem; line-height: 1.6; color: #4a4640; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .ata-bio { margin: 0.9rem 0 0; font-family: Georgia, serif; font-size: 0.92rem; line-height: 1.6; color: #4a4640; }
         .ata-socials { display: flex; align-items: center; gap: 0.7rem; margin-top: 0.9rem; }
         .ata-social { display: inline-flex; color: #6b2fad; opacity: 0.7; transition: opacity 0.2s; }
         .ata-social:hover { opacity: 1; }
