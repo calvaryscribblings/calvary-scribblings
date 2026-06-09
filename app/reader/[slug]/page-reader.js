@@ -8,6 +8,7 @@ import { updateStreak } from '../../lib/streakEngine';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import QuizCard from '../../components/QuizCard';
 import AuthModal from '../../components/AuthModal';
+import AboutTheAuthor from '../../components/AboutTheAuthor';
 import { use } from 'react';
 import { useDeletedUids } from '../../lib/userVisibility';
 
@@ -714,6 +715,7 @@ export default function StoryReaderClient({ params }) {
         .bcorn{font-size:.55rem;letter-spacing:.4em;color:rgba(201,164,76,.3);margin-bottom:10px;position:relative;z-index:1}
         .bctitle{font-family:Georgia,serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
         .bcauthor{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.24em;color:rgba(201,164,76,.65);text-transform:uppercase;position:relative;z-index:1}
+        .bcabout{position:relative;z-index:1;margin-top:16px;width:100%;max-width:440px;display:flex;justify-content:center}
         .bccta{position:absolute;bottom:22px;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;color:rgba(201,164,76,.4);text-transform:uppercase;animation:blink 2.2s ease-in-out infinite}
         .reader-frame{position:fixed;top:48px;left:0;right:0;bottom:32px;border:none;width:100%;height:calc(100dvh - 96px)}
         .rbot{position:fixed;bottom:0;left:0;right:0;height:32px;background:rgba(26,15,10,0.92);display:flex;align-items:center;justify-content:center;z-index:200}
@@ -810,6 +812,9 @@ export default function StoryReaderClient({ params }) {
             <img src={story.cover} alt={story.title} className="bcimg" />
             <div className="bctitle">{story.title}</div>
             <div className="bcauthor">by {story.author}</div>
+            <div className="bcabout" onClick={e => e.stopPropagation()}>
+              <AboutTheAuthor story={story} variant="condensed" />
+            </div>
             <div className="bccta">Open to begin reading</div>
           </div>
         )}
