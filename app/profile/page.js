@@ -616,6 +616,8 @@ export default function ProfilePage() {
       if (username) await set(ref(db, `usernames/${username}`), authUser.uid);
       const old = profileData?.username;
       if (old && old !== username) await remove(ref(db, `usernames/${old}`));
+      // Keep the public name-search index current (skip if no displayName).
+      if (newName) await update(ref(db, `user_search/${authUser.uid}`), { displayName: newName, username: username || '', avatarUrl: newAvatarUrl || '' });
       setShowEdit(false);
     } catch (e) { setSaveError('Something went wrong. Please try again.'); }
     setSaving(false);
