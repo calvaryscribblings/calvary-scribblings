@@ -1125,6 +1125,7 @@ useEffect(() => {
   const displaySubcategory = story.subcategory || null;
 
   const isPoetry = story.category === 'poetry';
+  const isVerse = isPoetry && !story.prosePoetry;
 
   return (
     
@@ -1163,7 +1164,7 @@ useEffect(() => {
         .back-link:hover { text-decoration: underline; }
         .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cochin, Georgia, serif; font-weight: 400; }
         .prose em, .prose i { font-family: Georgia, serif; font-style: italic; }
-        .prose p { margin-bottom: 0; } .prose p + p { text-indent: 1.5em; }
+        .prose p { margin-bottom: 0; } .prose:not(.is-verse) p + p { text-indent: 1.5em; }
         .prose.has-dropcap > p:first-of-type::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: Cochin, 'Cormorant Garamond', Cochin, Georgia, serif; }
         .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cochin, Georgia, serif; line-height: 1.3; }
         .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: Georgia, serif; }
@@ -1337,7 +1338,7 @@ useEffect(() => {
               {slug === PAYWALL_SLUG && !hasPurchased ? (
                 <>
                   <div
-                    className="prose has-dropcap"
+                    className={`prose has-dropcap${isVerse ? ' is-verse' : ''}`}
                     id="story-content"
                     dangerouslySetInnerHTML={{ __html: extractFirstParagraph(storyContent[slug] || story.content || '') }}
                   />
@@ -1346,7 +1347,7 @@ useEffect(() => {
                   )}
                 </>
               ) : (
-                <div className={`prose${isPoetry ? '' : ' has-dropcap'}`} id="story-content" dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }} />
+                <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }} />
               )}
             </article>
             <div className="hit-counter-row">{hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}</div>
