@@ -292,7 +292,8 @@ function AboutTheAuthor({ story }) {
             mode: 'full',
             uid,
             name: (u.displayName || '').trim() || fallbackName,
-            avatarUrl: u.avatarUrl || '',
+            // Prefer the editorial authorPhotoUrl over the self-set profile avatar.
+            avatarUrl: u.authorPhotoUrl || u.avatarUrl || '',
             bio,
             role: (u.authorRole || '').trim(),
             username: u.username || '',
