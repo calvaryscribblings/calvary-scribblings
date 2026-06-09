@@ -265,6 +265,52 @@ function AuthorHandleLink({ handle, style }) {
   );
 }
 
+// Generic monochrome social icons (not exact brand logos). ~18px, currentColor.
+const ATA_ICONS = {
+  instagram: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+    </svg>
+  ),
+  x: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="5" y1="5" x2="19" y2="19" />
+      <line x1="19" y1="5" x2="5" y2="19" />
+    </svg>
+  ),
+  tiktok: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="8" cy="18" r="3" />
+      <path d="M11 18V4l2 1.5a5 5 0 0 0 4 2" />
+    </svg>
+  ),
+  website: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="3" x2="12" y2="21" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+    </svg>
+  ),
+};
+
+// Map a socials object to the rendered links (non-empty platforms only).
+function atalSocialLinks(socials) {
+  if (!socials || typeof socials !== 'object') return [];
+  const clean = (v) => (typeof v === 'string' ? v.trim() : '');
+  const bare = (v) => clean(v).replace(/^@+/, '');
+  const out = [];
+  const ig = bare(socials.instagram);
+  if (ig) out.push({ key: 'instagram', label: 'Instagram', href: `https://instagram.com/${ig}` });
+  const x = bare(socials.x);
+  if (x) out.push({ key: 'x', label: 'X', href: `https://x.com/${x}` });
+  const tt = bare(socials.tiktok);
+  if (tt) out.push({ key: 'tiktok', label: 'TikTok', href: `https://tiktok.com/@${tt}` });
+  const web = clean(socials.website);
+  if (web) out.push({ key: 'website', label: 'Website', href: web });
+  return out;
+}
+
 // ── About the Author ──────────────────────────────────────────────────────────
 // Compact, house-styled card placed before the Discussion block. Three-tier
 // resolution: authorUid → usernames/{handle} → name-only fallback. Never renders
@@ -297,6 +343,7 @@ function AboutTheAuthor({ story }) {
             bio,
             role: (u.authorRole || '').trim(),
             username: u.username || '',
+            socials: (u.authorSocials && typeof u.authorSocials === 'object') ? u.authorSocials : {},
           };
         };
 
@@ -355,6 +402,19 @@ function AboutTheAuthor({ story }) {
         {profile.mode === 'full' && profile.bio && (
           <p className="ata-bio">{profile.bio}</p>
         )}
+        {profile.mode === 'full' && (() => {
+          const links = atalSocialLinks(profile.socials);
+          if (!links.length) return null;
+          return (
+            <div className="ata-socials">
+              {links.map((l) => (
+                <a key={l.key} className="ata-social" href={l.href} target="_blank" rel="noopener noreferrer" aria-label={l.label}>
+                  {ATA_ICONS[l.key]}
+                </a>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </section>
   );
@@ -1321,6 +1381,9 @@ useEffect(() => {
         .ata-handle { font-family: Inter, sans-serif; font-size: 0.74rem; color: #6b2fad; text-decoration: none; transition: color 0.2s; }
         .ata-handle:hover { color: #8b4fd6; text-decoration: underline; }
         .ata-bio { margin: 0.9rem 0 0; font-family: Georgia, serif; font-size: 0.92rem; line-height: 1.6; color: #4a4640; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .ata-socials { display: flex; align-items: center; gap: 0.7rem; margin-top: 0.9rem; }
+        .ata-social { display: inline-flex; color: #6b2fad; opacity: 0.7; transition: opacity 0.2s; }
+        .ata-social:hover { opacity: 1; }
         .cs-section { background: #0a0a0a; max-width: 680px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
         .cs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
         .cs-title { font-family: Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; letter-spacing: 0.02em; }
