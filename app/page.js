@@ -652,6 +652,20 @@ export default function Home() {
   if (allStories.length === 0) return;
   async function fetchTop10() {
     try {
+      const weeklySnap = await get(ref(db, 'top_stories/weekly'));
+      const weekly = weeklySnap.exists() ? weeklySnap.val() : null;
+      if (weekly && Array.isArray(weekly.items) && weekly.items.length > 0) {
+        const byId = new Map(allStories.map(s => [s.id, s]));
+        const precomputed = weekly.items
+          .map(item => {
+            const story = byId.get(item.slug);
+            return story ? { ...story, hits: item.count || 0 } : null;
+          })
+          .filter(Boolean)
+          .slice(0, 10);
+        setTop10(precomputed);
+        return;
+      }
       const snapshot = await get(ref(db, 'stories'));
       if (snapshot.exists()) {
         const data = snapshot.val();
