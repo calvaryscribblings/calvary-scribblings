@@ -265,6 +265,94 @@ function AuthorHandleLink({ handle, style }) {
   );
 }
 
+// ── About the Author ──────────────────────────────────────────────────────────
+// Compact, house-styled card placed before the Discussion block. Three-tier
+// resolution: authorUid → usernames/{handle} → name-only fallback. Never renders
+// a broken card — any failed read falls back to the plain author name.
+function AboutTheAuthor({ story }) {
+  const [profile, setProfile] = useState(null); // null = still resolving
+  const fallbackName = (story?.author || '').trim();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const nameOnly = () => ({ mode: 'name', name: fallbackName });
+      try {
+        const db = await getDB();
+        const { ref, get } = await import('firebase/database');
+
+        const readUser = async (uid) => {
+          if (!uid) return null;
+          const snap = await get(ref(db, `users/${uid}`));
+          if (!snap.exists()) return null;
+          const u = snap.val() || {};
+          return {
+            mode: 'full',
+            uid,
+            name: (u.displayName || '').trim() || fallbackName,
+            avatarUrl: u.avatarUrl || '',
+            bio: (u.bio || '').trim(),
+            username: u.username || '',
+          };
+        };
+
+        // Tier 1 — explicit uid.
+        const uid = (story?.authorUid || '').toString().trim();
+        if (uid) {
+          const p = await readUser(uid);
+          if (!cancelled) setProfile(p || nameOnly());
+          return;
+        }
+
+        // Tier 2 — resolve handle → uid → user.
+        const handle = (story?.authorHandle || '').toString().trim();
+        if (handle) {
+          const hSnap = await get(ref(db, `usernames/${handle}`));
+          const resolvedUid = hSnap.exists() ? (hSnap.val() || '').toString().trim() : '';
+          const p = resolvedUid ? await readUser(resolvedUid) : null;
+          if (!cancelled) setProfile(p || nameOnly());
+          return;
+        }
+
+        // Tier 3 — name only.
+        if (!cancelled) setProfile(nameOnly());
+      } catch (e) {
+        if (!cancelled) setProfile(nameOnly());
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [story?.authorUid, story?.authorHandle, fallbackName]);
+
+  if (!profile || !profile.name) return null;
+
+  const initial = (profile.name || '?').trim().charAt(0).toUpperCase() || '?';
+  const showHandle = profile.mode === 'full' && profile.username && profile.uid;
+
+  return (
+    <section className="ata-section">
+      <div className="ata-card">
+        <div className="ata-eyebrow">About the Author</div>
+        <div className="ata-row">
+          <div className="ata-avatar" aria-hidden={profile.avatarUrl ? undefined : 'true'}>
+            {profile.avatarUrl
+              ? <img src={profile.avatarUrl} alt={profile.name} />
+              : <span>{initial}</span>}
+          </div>
+          <div className="ata-meta">
+            <div className="ata-name">{profile.name}</div>
+            {showHandle && (
+              <a className="ata-handle" href={`/user?id=${profile.uid}`}>@{profile.username}</a>
+            )}
+          </div>
+        </div>
+        {profile.mode === 'full' && profile.bio && (
+          <p className="ata-bio">{profile.bio}</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function timeAgo(ts) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
@@ -1213,6 +1301,18 @@ useEffect(() => {
         .back-to-top { position: fixed; bottom: 2rem; right: 2rem; width: 44px; height: 44px; border-radius: 50%; background: rgba(124,58,237,0.85); border: 1px solid rgba(168,85,247,0.4); color: #fff; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease, transform 0.3s ease; z-index: 998; box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
         .back-to-top:hover { background: rgba(124,58,237,1); transform: translateY(-2px); }
         .back-to-top.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
+        .ata-section { background: #0a0a0a; padding: 2.25rem 2rem 0; }
+        .ata-card { max-width: 680px; margin: 0 auto; background: #f0ead8; border: 1px solid #e0dbd2; border-radius: 14px; padding: 1.4rem 1.6rem; box-shadow: 0 8px 30px -18px rgba(0,0,0,0.45); }
+        .ata-eyebrow { font-family: Inter, sans-serif; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #6b2fad; margin-bottom: 0.9rem; }
+        .ata-row { display: flex; align-items: center; gap: 0.95rem; }
+        .ata-avatar { width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; overflow: hidden; background: rgba(107,47,173,0.12); border: 1.5px solid rgba(107,47,173,0.25); display: flex; align-items: center; justify-content: center; }
+        .ata-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .ata-avatar span { font-family: Cochin, Georgia, serif; font-size: 1.5rem; color: #6b2fad; line-height: 1; }
+        .ata-meta { min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+        .ata-name { font-family: Cochin, Georgia, serif; font-size: 1.3rem; color: #1a1a1a; line-height: 1.2; }
+        .ata-handle { font-family: Inter, sans-serif; font-size: 0.74rem; color: #6b2fad; text-decoration: none; transition: color 0.2s; }
+        .ata-handle:hover { color: #8b4fd6; text-decoration: underline; }
+        .ata-bio { margin: 0.9rem 0 0; font-family: Georgia, serif; font-size: 0.92rem; line-height: 1.6; color: #4a4640; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         .cs-section { background: #0a0a0a; max-width: 680px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
         .cs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
         .cs-title { font-family: Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; letter-spacing: 0.02em; }
@@ -1369,6 +1469,7 @@ useEffect(() => {
         <div id="quiz-card">
           <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
         </div>
+        <AboutTheAuthor story={story} />
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
         {showAuthModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>
