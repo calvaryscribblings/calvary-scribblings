@@ -184,6 +184,7 @@ export function AboutTheAuthor({ story, variant = 'full' }) {
   const showHandle = !condensed && profile.mode === 'full' && profile.username && profile.uid;
 
   return (
+    <>
     <section className={'ata-section' + (condensed ? ' is-condensed' : '')}>
       <div className="ata-card">
         <div className="ata-eyebrow">About the Author</div>
@@ -226,10 +227,13 @@ export function AboutTheAuthor({ story, variant = 'full' }) {
           );
         })()}
       </div>
+    </section>
 
-      {/* Condensed-only modal: reuses the FULL variant. Every interactive node
-          stops propagation so it never bubbles to the reader cover's open-book
-          onClick (don't rely on the parent wrapper alone). */}
+      {/* Condensed-only modal — rendered as a SIBLING of the condensed section
+          (NOT nested inside .is-condensed), so condensed overrides such as the
+          bio line-clamp never leak into the full card it renders. Reuses the
+          FULL variant. Every interactive node stops propagation so it never
+          bubbles to the reader cover's open-book onClick. */}
       {condensed && modalOpen && (
         <div className="ata-modal-scrim"
           onClick={(e) => { e.stopPropagation(); setModalOpen(false); }}>
@@ -282,7 +286,7 @@ export function AboutTheAuthor({ story, variant = 'full' }) {
         .ata-modal-close:hover { background: rgba(0,0,0,0.7); }
         @keyframes ataFade { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
-    </section>
+    </>
   );
 }
 
