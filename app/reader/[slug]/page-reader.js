@@ -7,6 +7,7 @@ import { notifyMentions } from '../../lib/mentions';
 import { updateStreak } from '../../lib/streakEngine';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import QuizCard from '../../components/QuizCard';
+import AuthModal from '../../components/AuthModal';
 import { use } from 'react';
 import { useDeletedUids } from '../../lib/userVisibility';
 
@@ -870,14 +871,8 @@ export default function StoryReaderClient({ params }) {
         )}
 
         {showAuthModal && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowAuthModal(false)}>
-            <div onClick={e => e.stopPropagation()} style={{ background: '#12091e', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 16, padding: '2rem', maxWidth: 360, width: '90vw', textAlign: 'center' }}>
-              <div style={{ fontFamily: 'Cinzel,serif', fontSize: '.6rem', letterSpacing: '.25em', color: 'rgba(201,164,76,.6)', textTransform: 'uppercase', marginBottom: '1rem' }}>Calvary Scribblings</div>
-              <div style={{ fontFamily: 'Georgia, serif', fontSize: '1.4rem', fontStyle: 'italic', color: '#f5efe0', marginBottom: '.5rem' }}>Join the Discussion</div>
-              <div style={{ fontFamily: 'Georgia, serif', fontSize: '.9rem', fontStyle: 'italic', color: 'rgba(255,255,255,.35)', marginBottom: '1.5rem' }}>Sign in to comment on this story</div>
-              <a href="/auth" style={{ display: 'block', padding: '.75rem', background: '#6b2fad', color: '#fff', fontFamily: 'Cinzel,serif', fontSize: '.6rem', letterSpacing: '.18em', textTransform: 'uppercase', textDecoration: 'none', borderRadius: 8, marginBottom: '.75rem' }}>Sign In</a>
-              <button onClick={() => setShowAuthModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.3)', fontFamily: 'Cinzel,serif', fontSize: '.55rem', letterSpacing: '.15em', cursor: 'pointer' }}>Cancel</button>
-            </div>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>
+            <AuthModal onClose={() => setShowAuthModal(false)} />
           </div>
         )}
         {showBookmarkToast && (
