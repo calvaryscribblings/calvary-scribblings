@@ -28,17 +28,6 @@ const NEWS_SUBCATEGORIES = [
   { value: 'Food', label: 'Food' },
 ];
 
-const AUTHORS = [
-  'Calvary',
-  'Tricia Ajax',
-  'Ufedo Adaji',
-  'Chioma Okonkwo',
-  'Ikenna Okpara',
-  'Kalu Rebecca',
-  'Okere Josiah',
-  'Arthur Eze',
-];
-
 function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -190,7 +179,7 @@ function ImageModal({ onInsert, onClose }) {
   );
 }
 
-function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, authorHandles, authorUids }) {
+function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, roster, guestList }) {
   const [showImageModal, setShowImageModal] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [epubUploading, setEpubUploading] = useState(false);
@@ -200,8 +189,37 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
   const isScheduled = !!form.publishAt;
   const scheduleStatus = form.publishAt ? getScheduleStatus(form.publishAt) : null;
   const isNews = form.category === 'news';
-  const currentHandle = authorHandles[form.author] || '';
-  const currentUid = authorUids[form.author] || '';
+
+  // Live-resolve a typed @handle → uid when "Attribute by @handle" is chosen.
+  useEffect(() => {
+    if (form.selectedAuthor !== 'newhandle') return;
+    const raw = (form.handleInput || '').trim().toLowerCase().replace(/^@+/, '');
+    if (!raw) { setForm(f => ({ ...f, resolvedHandle: null, handleError: '' })); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const { ref, get } = await import('firebase/database');
+        const hSnap = await get(ref(db, `usernames/${raw}`));
+        const uid = hSnap.exists() ? String(hSnap.val() || '').trim() : '';
+        if (!uid) { if (!cancelled) setForm(f => ({ ...f, resolvedHandle: null, handleError: `No user found for @${raw}.` })); return; }
+        const uSnap = await get(ref(db, `users/${uid}`));
+        const u = uSnap.exists() ? (uSnap.val() || {}) : {};
+        if (!cancelled) setForm(f => ({ ...f, resolvedHandle: { uid, displayName: u.displayName || '', username: u.username || raw }, handleError: '', authorHandle: f.authorHandle || u.username || raw }));
+      } catch (e) {
+        if (!cancelled) setForm(f => ({ ...f, resolvedHandle: null, handleError: 'Lookup failed: ' + e.message }));
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [form.selectedAuthor, form.handleInput, setForm]);
+
+  // Username of the currently-selected identity (for the override placeholder).
+  const selUsername = (() => {
+    if (form.selectedAuthor && form.selectedAuthor.startsWith('uid:')) { const r = roster.find(x => `uid:${x.uid}` === form.selectedAuthor); return (r && r.username) || ''; }
+    if (form.selectedAuthor === 'newhandle') return (form.resolvedHandle && form.resolvedHandle.username) || '';
+    return '';
+  })();
+  // True unless the selected uid is missing from the roster (legacy/edit case).
+  const selKnownInRoster = !form.selectedAuthor || !form.selectedAuthor.startsWith('uid:') || roster.some(r => `uid:${r.uid}` === form.selectedAuthor);
 
   async function handleCoverUpload(e) {
     const file = e.target.files[0];
@@ -277,23 +295,43 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, au
         <div style={s.row2}>
           <div style={s.fg}>
             <label style={s.label}>Author</label>
-            <select style={s.select} value={form.author}
-              onChange={e => setForm(f => ({ ...f, author: e.target.value }))}>
-              {AUTHORS.map(a => <option key={a} value={a}>{a}</option>)}
+            <select style={s.select} value={form.selectedAuthor || ''}
+              onChange={e => {
+                const val = e.target.value;
+                setForm(f => {
+                  let authorHandle = f.authorHandle;
+                  if (val.startsWith('uid:')) { const r = roster.find(x => `uid:${x.uid}` === val); authorHandle = (r && r.username) || ''; }
+                  else if (val.startsWith('guest:')) authorHandle = '';
+                  return { ...f, selectedAuthor: val, authorHandle, handleInput: '', resolvedHandle: null, handleError: '' };
+                });
+              }}>
+              <option value="">— Select author —</option>
+              {!selKnownInRoster && <option value={form.selectedAuthor}>{form.author || '(current author)'}</option>}
+              <optgroup label="Registered">
+                {roster.map(r => <option key={r.uid} value={`uid:${r.uid}`}>{r.displayName}{r.username ? ` (@${r.username})` : ''}</option>)}
+              </optgroup>
+              <optgroup label="Guests">
+                {guestList.map(g => <option key={g.guestId} value={`guest:${g.guestId}`}>{g.name}</option>)}
+              </optgroup>
+              <option value="newhandle">+ Attribute by @handle…</option>
             </select>
+
+            {form.selectedAuthor === 'newhandle' && (
+              <div style={{ marginTop: '0.35rem' }}>
+                <input style={s.input} value={form.handleInput || ''} placeholder="Enter @handle to resolve…"
+                  onChange={e => setForm(f => ({ ...f, handleInput: e.target.value }))} />
+                {form.resolvedHandle && form.resolvedHandle.uid
+                  ? <div style={s.hintGreen}>Resolved → {form.resolvedHandle.displayName || '(no name)'} (@{form.resolvedHandle.username})</div>
+                  : form.handleError
+                    ? <div style={{ ...s.hint, color: '#f87171' }}>{form.handleError}</div>
+                    : <div style={s.hint}>Looks up usernames/&lt;handle&gt; → uid. Resolves as you type.</div>}
+              </div>
+            )}
+
             <input style={{ ...s.input, marginTop: '0.35rem' }} value={form.authorHandle || ''}
-              placeholder={currentHandle ? `@${currentHandle} (auto)` : 'Enter @handle manually…'}
+              placeholder={selUsername ? `@${selUsername} (default)` : 'Optional @handle override…'}
               onChange={e => setForm(f => ({ ...f, authorHandle: e.target.value.replace(/^@/, '') }))} />
-            {currentHandle
-              ? <div style={s.hintGreen}>Auto-lookup found @{currentHandle} — override above if different.</div>
-              : <div style={s.hint}>No auto-match — enter the writer's @handle manually.</div>
-            }
-            <div style={s.fg}>
-              <label style={s.label}>Author Override <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for guest authors)</span></label>
-              <input style={s.input} value={form.authorOverride || ''} placeholder="e.g. Ikenna Okpara & Jane Smith"
-                onChange={e => setForm(f => ({ ...f, authorOverride: e.target.value }))} />
-              <div style={s.hint}>If filled, this replaces the dropdown selection on the story page.</div>
-            </div>
+            <div style={s.hint}>Optional handle override. Defaults to the selected author’s username.</div>
           </div>
           <div style={s.fg}>
             <label style={s.label}>Category</label>
@@ -454,15 +492,16 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [editingId, setEditingId] = useState(null);
-  const [authorHandles, setAuthorHandles] = useState({});
-  const [authorUids, setAuthorUids] = useState({});
+  // Stable-identity rosters for the author picker.
+  const [roster, setRoster] = useState([]);       // [{ uid, displayName, username }]
+  const [guestList, setGuestList] = useState([]);  // [{ guestId, name }]
 
   const emptyForm = {
-    title: '', author: AUTHORS[0], category: 'flash', subcategory: '',
+    title: '', selectedAuthor: '', category: 'flash', subcategory: '',
     date: formatDate(new Date()), coverFilename: '', coverPreview: null,
     content: '', publishAt: '', epubUrl: '', readerMode: false, prosePoetry: false,
     extractedText: '',
-    authorHandle: '', authorOverride: '',
+    authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -473,16 +512,35 @@ export default function AdminPage() {
     (async () => {
       try {
         const { ref, get } = await import('firebase/database');
-        const snap = await get(ref(db, 'users'));
-        if (!snap.exists()) return;
-        const handles = {};
-        const uids = {};
-        Object.entries(snap.val()).forEach(([uid, u]) => {
-          if (u.displayName && u.username) handles[u.displayName] = u.username;
-          if (u.displayName) uids[u.displayName] = uid;
-        });
-        setAuthorHandles(handles);
-        setAuthorUids(uids);
+        // Top-level users read is blocked by rules — derive the roster from the
+        // authorUids actually used across stories, then read each user per-uid.
+        const [storiesSnap, guestsSnap] = await Promise.all([
+          get(ref(db, 'cms_stories')),
+          get(ref(db, 'cms_authors')),
+        ]);
+        const uidSet = new Set();
+        if (storiesSnap.exists()) {
+          Object.values(storiesSnap.val()).forEach(st => {
+            const u = (st && st.authorUid ? String(st.authorUid) : '').trim();
+            if (u) uidSet.add(u);
+          });
+        }
+        const rosterArr = (await Promise.all([...uidSet].map(async uid => {
+          try {
+            const snap = await get(ref(db, `users/${uid}`));
+            if (!snap.exists()) return null;
+            const u = snap.val() || {};
+            return { uid, displayName: u.displayName || '(unknown user)', username: u.username || '' };
+          } catch (e) { return null; }
+        }))).filter(Boolean);
+        rosterArr.sort((a, b) => a.displayName.localeCompare(b.displayName));
+        setRoster(rosterArr);
+
+        const gv = guestsSnap.exists() ? guestsSnap.val() : {};
+        const guestArr = Object.entries(gv)
+          .map(([guestId, g]) => ({ guestId, name: (g && g.name) || '(unnamed)' }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setGuestList(guestArr);
       } catch (e) {}
     })();
     loadStories();
@@ -512,6 +570,30 @@ export default function AdminPage() {
     const isEpubCategory = form.category === 'poetry' || form.category === 'novel' || form.category === 'short';
     if (!form.content.trim() && !(isEpubCategory && form.epubUrl)) { setMsg('Content is required (or upload an EPUB for Poetry/Novel/Short Story).'); return; }
     if (!form.coverFilename.trim()) { setMsg('Cover image is required.'); return; }
+
+    // Derive author identity from the stable selection token — never from a typed name.
+    let authorUid = '', authorGuestId = null, authorName = '', defaultHandle = '';
+    const sel = form.selectedAuthor || '';
+    if (sel.startsWith('uid:')) {
+      authorUid = sel.slice(4);
+      const r = roster.find(x => x.uid === authorUid);
+      authorName = (r && r.displayName) || form.author || '';
+      defaultHandle = (r && r.username) || '';
+    } else if (sel.startsWith('guest:')) {
+      authorGuestId = sel.slice(6);
+      const g = guestList.find(x => x.guestId === authorGuestId);
+      authorName = (g && g.name) || form.author || '';
+      defaultHandle = '';
+    } else if (sel === 'newhandle') {
+      if (!form.resolvedHandle || !form.resolvedHandle.uid) { setMsg('Resolve the @handle (or pick an author) before saving.'); return; }
+      authorUid = form.resolvedHandle.uid;
+      authorName = form.resolvedHandle.displayName || form.author || '';
+      defaultHandle = form.resolvedHandle.username || '';
+    } else {
+      setMsg('Select an author before saving.'); return;
+    }
+    const authorHandle = (form.authorHandle || '').trim() || defaultHandle || '';
+
     setSaving(true); setMsg('');
     try {
       const { ref, set } = await import('firebase/database');
@@ -521,9 +603,10 @@ export default function AdminPage() {
       const coverPath = coverFilename.startsWith('http') ? coverFilename : (coverFilename.startsWith('/') ? coverFilename : `/${coverFilename}`);
       const storyData = {
         title: form.title.trim(),
-        author: form.authorOverride?.trim() || form.author,
-        authorHandle: form.authorHandle || authorHandles[form.author] || '',
-        authorUid: authorUids[form.author] || '',
+        author: authorName,
+        authorHandle: authorHandle,
+        authorUid: authorUid,
+        authorGuestId: authorGuestId, // null for non-guest → removed by set()
         category: form.category,
         categoryName: categoryObj.label,
         subcategory: form.category === 'news' ? (form.subcategory || '') : '',
@@ -541,7 +624,7 @@ export default function AdminPage() {
       await set(ref(db, `cms_stories/${slug}`), storyData);
       // Notify followers of this author if publishing now (not scheduled)
       if (!form.publishAt || new Date(form.publishAt) <= new Date()) {
-        const authorUid = authorUids[form.author] || storyData.authorUid;
+        // Notify followers of the selected uid only — guest selections have no uid.
         if (authorUid) {
           try {
             const { get: getSnap, push: pushNotif } = await import('firebase/database');
@@ -582,8 +665,12 @@ export default function AdminPage() {
   }
 
   function openEdit(story) {
+    // Preserve existing (backfilled) attribution by stable id — never re-derive by name.
+    const selectedAuthor = story.authorGuestId
+      ? `guest:${story.authorGuestId}`
+      : (story.authorUid ? `uid:${story.authorUid}` : '');
     setForm({
-      title: story.title, author: story.author, category: story.category,
+      title: story.title, author: story.author || '', category: story.category,
       subcategory: story.subcategory || '', date: story.date,
       coverFilename: story.cover, coverPreview: story.cover,
       content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
@@ -592,7 +679,8 @@ export default function AdminPage() {
       prosePoetry: story.prosePoetry || false,
       extractedText: story.extractedText || '',
       authorHandle: story.authorHandle || '',
-      authorOverride: story.authorOverride || '',
+      selectedAuthor,
+      handleInput: '', resolvedHandle: null, handleError: '',
     });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
@@ -640,7 +728,7 @@ export default function AdminPage() {
         {(view === 'new' || view === 'edit') && (
           <StoryForm form={form} setForm={setForm} editingId={editingId}
             saving={saving} msg={msg} onSave={saveStory} onCancel={handleCancel}
-            authorHandles={authorHandles} authorUids={authorUids} />
+            roster={roster} guestList={guestList} />
         )}
         {view === 'list' && (
           <div>
