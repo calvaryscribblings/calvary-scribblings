@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // Self-contained Firebase access (lazy — nothing initialises at module eval).
 const FB = {
@@ -73,6 +73,12 @@ export function AboutTheAuthor({ story, variant = 'full' }) {
   const condensed = variant === 'condensed';
   const [profile, setProfile] = useState(null); // null = still resolving
   const fallbackName = (story?.author || '').trim();
+
+  // Condensed-only: detect whether the 2-line-clamped bio actually overflows
+  // (so "More" appears only when there's hidden text), and modal open state.
+  const bioRef = useRef(null);
+  const [bioTruncated, setBioTruncated] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +155,28 @@ export function AboutTheAuthor({ story, variant = 'full' }) {
     return () => { cancelled = true; };
   }, [story?.authorUid, story?.authorHandle, story?.authorGuestId, fallbackName]);
 
+  // Measure clamp overflow (condensed only). Re-measure on resize + after a tick
+  // (web-font settle can change line wrapping).
+  useEffect(() => {
+    if (!condensed) { setBioTruncated(false); return; }
+    const measure = () => {
+      const el = bioRef.current;
+      setBioTruncated(!!el && el.scrollHeight > el.clientHeight + 1);
+    };
+    measure();
+    const t = setTimeout(measure, 200);
+    window.addEventListener('resize', measure);
+    return () => { clearTimeout(t); window.removeEventListener('resize', measure); };
+  }, [condensed, profile]);
+
+  // Esc closes the modal.
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setModalOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [modalOpen]);
+
   if (!profile || !profile.name) return null;
 
   const initial = (profile.name || '?').trim().charAt(0).toUpperCase() || '?';
@@ -176,7 +204,13 @@ export function AboutTheAuthor({ story, variant = 'full' }) {
           </div>
         </div>
         {profile.mode === 'full' && profile.bio && (
-          <p className="ata-bio">{profile.bio}</p>
+          <p className="ata-bio" ref={bioRef}>{profile.bio}</p>
+        )}
+        {condensed && profile.mode === 'full' && profile.bio && bioTruncated && (
+          <button type="button" className="ata-more"
+            onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}>
+            More
+          </button>
         )}
         {profile.mode === 'full' && (() => {
           const links = atalSocialLinks(profile.socials);
@@ -192,6 +226,20 @@ export function AboutTheAuthor({ story, variant = 'full' }) {
           );
         })()}
       </div>
+
+      {/* Condensed-only modal: reuses the FULL variant. Every interactive node
+          stops propagation so it never bubbles to the reader cover's open-book
+          onClick (don't rely on the parent wrapper alone). */}
+      {condensed && modalOpen && (
+        <div className="ata-modal-scrim"
+          onClick={(e) => { e.stopPropagation(); setModalOpen(false); }}>
+          <div className="ata-modal" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="ata-modal-close" aria-label="Close"
+              onClick={(e) => { e.stopPropagation(); setModalOpen(false); }}>×</button>
+            <AboutTheAuthor story={story} variant="full" />
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         /* ── 'full' variant — byte-identical to the original story-page card ── */
@@ -224,6 +272,15 @@ export function AboutTheAuthor({ story, variant = 'full' }) {
         .is-condensed .ata-bio { margin-top: 0.6rem; font-size: 0.82rem; line-height: 1.5; color: rgba(240,234,216,0.82); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .is-condensed .ata-socials { margin-top: 0.65rem; gap: 0.6rem; }
         .is-condensed .ata-social { color: #c9a44c; }
+
+        /* "More" affordance + full-card modal (condensed only) */
+        .ata-more { margin-top: 0.5rem; padding: 0; background: none; border: none; cursor: pointer; font-family: Inter, sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; color: #c9a44c; transition: color 0.2s; }
+        .ata-more:hover { color: #e3c879; text-decoration: underline; }
+        .ata-modal-scrim { position: fixed; inset: 0; z-index: 1000; background: rgba(6,4,14,0.74); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 20px; cursor: default; animation: ataFade 0.18s ease; }
+        .ata-modal { position: relative; width: 100%; max-width: 560px; max-height: 86vh; overflow-y: auto; border-radius: 16px; background: #0a0a0a; padding-bottom: 1.25rem; box-shadow: 0 24px 70px -20px rgba(0,0,0,0.7); }
+        .ata-modal-close { position: absolute; top: 10px; right: 10px; z-index: 2; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.5); color: #f0ead8; font-size: 18px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .ata-modal-close:hover { background: rgba(0,0,0,0.7); }
+        @keyframes ataFade { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
     </section>
   );
