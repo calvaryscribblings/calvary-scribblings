@@ -91,9 +91,11 @@ export default function AuthorsAdmin() {
     setLoading(true);
     try {
       const { ref, get } = await import('firebase/database');
-      const [storiesSnap, usersSnap, guestsSnap] = await Promise.all([
+      // Top-level reads: cms_stories (to derive author uids) and cms_authors (public).
+      // The users node is locked to per-uid reads by RTDB rules, so it is NOT read
+      // wholesale here — each author is fetched individually below.
+      const [storiesSnap, guestsSnap] = await Promise.all([
         get(ref(db, 'cms_stories')),
-        get(ref(db, 'users')),
         get(ref(db, 'cms_authors')),
       ]);
 
@@ -105,21 +107,31 @@ export default function AuthorsAdmin() {
           if (uid) counts[uid] = (counts[uid] || 0) + 1;
         });
       }
-      const usersVal = usersSnap.exists() ? usersSnap.val() : {};
-      const list = Object.keys(counts).map((uid) => {
-        const u = usersVal[uid] || {};
-        return {
-          uid,
-          displayName: u.displayName || '(unknown user)',
-          username: u.username || '',
-          bio: u.bio || '',
-          avatarUrl: u.avatarUrl || '',
-          authorBio: u.authorBio || '',
-          authorRole: u.authorRole || '',
-          authorPhotoUrl: u.authorPhotoUrl || '',
-          count: counts[uid],
-        };
-      });
+
+      // Fetch each author per-uid (rules permit users/{uid}). A failed or empty
+      // read is skipped gracefully so one bad uid never blanks the whole list.
+      const uids = Object.keys(counts);
+      const fetched = await Promise.all(uids.map(async (uid) => {
+        try {
+          const snap = await get(ref(db, `users/${uid}`));
+          if (!snap.exists()) return null;
+          const u = snap.val() || {};
+          return {
+            uid,
+            displayName: u.displayName || '(unknown user)',
+            username: u.username || '',
+            bio: u.bio || '',
+            avatarUrl: u.avatarUrl || '',
+            authorBio: u.authorBio || '',
+            authorRole: u.authorRole || '',
+            authorPhotoUrl: u.authorPhotoUrl || '',
+            count: counts[uid],
+          };
+        } catch (e) {
+          return null;
+        }
+      }));
+      const list = fetched.filter(Boolean);
       list.sort((a, b) => b.count - a.count || a.displayName.localeCompare(b.displayName));
       setAuthors(list);
 
