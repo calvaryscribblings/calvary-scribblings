@@ -365,14 +365,34 @@ function AboutTheAuthor({ story }) {
           return;
         }
 
-        // Tier 3 — name only.
+        // Tier 3 — guest author from cms_authors (public read). Shape written by
+        // /admin/authors: { name, role, bio, photoUrl, authorSocials }.
+        const guestId = (story?.authorGuestId || '').toString().trim();
+        if (guestId) {
+          const gSnap = await get(ref(db, `cms_authors/${guestId}`));
+          const g = gSnap.exists() ? (gSnap.val() || {}) : null;
+          const guestProfile = g ? {
+            mode: 'full',
+            uid: '',            // no uid/username → no profile-handle link
+            username: '',
+            name: (g.name || '').trim() || fallbackName,
+            avatarUrl: g.photoUrl || '',
+            bio: (g.bio || '').trim(),
+            role: (g.role || '').trim(),
+            socials: (g.authorSocials && typeof g.authorSocials === 'object') ? g.authorSocials : {},
+          } : null;
+          if (!cancelled) setProfile((guestProfile && guestProfile.name) ? guestProfile : nameOnly());
+          return;
+        }
+
+        // Tier 4 — name only.
         if (!cancelled) setProfile(nameOnly());
       } catch (e) {
         if (!cancelled) setProfile(nameOnly());
       }
     })();
     return () => { cancelled = true; };
-  }, [story?.authorUid, story?.authorHandle, fallbackName]);
+  }, [story?.authorUid, story?.authorHandle, story?.authorGuestId, fallbackName]);
 
   if (!profile || !profile.name) return null;
 
