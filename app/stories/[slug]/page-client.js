@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import React from 'react';
 import { stories } from '../../lib/stories';
+import { resolveAuthorNames, currentAuthorName } from '../../lib/resolveAuthorNames';
 import { use } from 'react';
 import { storyContent } from '../../lib/storyContent';
 import AuthModal from '../../components/AuthModal';
@@ -965,6 +966,9 @@ export default function StoryPageClient({ params }) {
             window.location.replace(`/reader/${slug}`);
             return;
           }
+          // Show the author's CURRENT display name (live), not the frozen copy.
+          const nameMap = await resolveAuthorNames([data]);
+          data.author = currentAuthorName(data, nameMap);
           setStory(data);
           setStoryReady(true);
         }

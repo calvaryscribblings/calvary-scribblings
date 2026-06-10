@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { stories as allStaticStories } from '../lib/stories';
 import { useDeletedUids } from '../lib/userVisibility';
+import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -959,7 +960,9 @@ export default function SquarePage() {
       const { ref, get } = await import('firebase/database');
       const snap = await get(ref(db, 'cms_stories'));
       if (snap.exists()) {
-        setCmsStories(Object.entries(snap.val()).map(([id, s]) => ({ id, ...s, cover: s.cover || '', url: `/stories/${id}` })));
+        const list = Object.entries(snap.val()).map(([id, s]) => ({ id, ...s, cover: s.cover || '', url: `/stories/${id}` }));
+        const nameMap = await resolveAuthorNames(list);
+        setCmsStories(withCurrentAuthorNames(list, nameMap));
       }
     })();
   }, []);

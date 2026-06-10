@@ -7,6 +7,7 @@ import QuizPill from './components/QuizPill';
 import { useUserStoryTiers } from './lib/useUserStoryTiers';
 import { db } from './lib/firebase';
 import { ref, get } from 'firebase/database';
+import { resolveAuthorNames, withCurrentAuthorNames } from './lib/resolveAuthorNames';
 
 // Stories source of truth: cms_stories/ in Firebase RTDB.
 // This component fetches on mount via the useEffect below.
@@ -627,8 +628,11 @@ export default function Home() {
           const cmsStories = Object.entries(data)
             .map(([id, s]) => ({ ...s, id }))
             .filter(s => s.published !== false && (!s.publishAt || new Date(s.publishAt) <= now));
+          // Resolve author display names live (batched, deduped) before render.
+          const nameMap = await resolveAuthorNames(cmsStories);
+          const resolved = withCurrentAuthorNames(cmsStories, nameMap);
           setAllStories(prev => {
-            const merged = [...cmsStories, ...prev].filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
+            const merged = [...resolved, ...prev].filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
             merged.sort((a, b) => parseDate(b.date) - parseDate(a.date));
             return merged;
           });

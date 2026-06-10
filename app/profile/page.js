@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { stories as allStories } from '../lib/stories';
+import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import HeaderAdjuster from '../components/HeaderAdjuster';
 import { BADGES, RARITY_STYLES, getStreakDisplay } from '../lib/badges';
 import { checkAndAwardBadges } from '../lib/badgeEngine';
@@ -468,7 +469,13 @@ export default function ProfilePage() {
       const db = await getDB();
       const { ref, get } = await import('firebase/database');
       const snap = await get(ref(db, 'cms_stories'));
-      if (snap.exists()) setCmsStories(Object.entries(snap.val()).map(([id, s]) => ({ id, title: s.title || '', cover: s.cover || '', category: s.category || '' })));
+      if (snap.exists()) {
+        // Read stories can be by many authors — keep authorUid + frozen author
+        // and resolve each distinct author's CURRENT display name (batched).
+        const list = Object.entries(snap.val()).map(([id, s]) => ({ id, title: s.title || '', cover: s.cover || '', category: s.category || '', author: s.author || '', authorUid: s.authorUid || '' }));
+        const nameMap = await resolveAuthorNames(list);
+        setCmsStories(withCurrentAuthorNames(list, nameMap));
+      }
     })();
   }, []);
 

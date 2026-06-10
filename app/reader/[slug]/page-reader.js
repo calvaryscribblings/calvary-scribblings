@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import React from 'react';
 import { stories } from '../../lib/stories';
+import { resolveAuthorNames, currentAuthorName } from '../../lib/resolveAuthorNames';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
 import { updateStreak } from '../../lib/streakEngine';
@@ -561,7 +562,13 @@ export default function StoryReaderClient({ params }) {
         const db = await getDB();
         const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, 'cms_stories/' + slug));
-        if (snap.exists()) setStory({ id: slug, ...snap.val() });
+        if (snap.exists()) {
+          const data = { id: slug, ...snap.val() };
+          // Show the author's CURRENT display name (live), not the frozen copy.
+          const nameMap = await resolveAuthorNames([data]);
+          data.author = currentAuthorName(data, nameMap);
+          setStory(data);
+        }
       } catch (e) {}
     })();
   }, [slug]);

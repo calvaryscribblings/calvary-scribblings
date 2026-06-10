@@ -7,6 +7,7 @@ import QuizPill from '../components/QuizPill';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { db } from '../lib/firebase';
 import { ref, get } from 'firebase/database';
+import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -94,7 +95,11 @@ export default function SearchPage() {
               s.published !== false &&
               (!s.publishAt || new Date(s.publishAt) <= now)
             );
-          setCmsStories(data);
+          // Resolve author names INTO the corpus before any author-match filter,
+          // so searching an author's CURRENT name finds their stories (and the
+          // old name no longer matches). Correctness, not just display.
+          const nameMap = await resolveAuthorNames(data);
+          setCmsStories(withCurrentAuthorNames(data, nameMap));
         }
       } catch (e) {
         console.error('Search CMS fetch error:', e);

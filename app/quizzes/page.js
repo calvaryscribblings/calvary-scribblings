@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { ref, get } from 'firebase/database';
 import { db } from '../lib/firebase';
+import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { useAuth } from '../lib/AuthContext';
 import Navbar from '../components/Navbar';
 import AuthModal from '../components/AuthModal';
@@ -31,7 +32,8 @@ export default function QuizzesPage() {
           .filter(([, s]) => s.quizMeta?.hasQuiz === true)
           .map(([slug, s]) => ({ slug, ...s }))
           .sort((a, b) => (b.quizMeta?.attemptCount ?? 0) - (a.quizMeta?.attemptCount ?? 0));
-        setStories(list);
+        const nameMap = await resolveAuthorNames(list);
+        setStories(withCurrentAuthorNames(list, nameMap));
       } catch (e) {
         console.error('[quizzes] cms_stories load failed:', e);
         setStories([]);

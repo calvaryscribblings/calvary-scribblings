@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { stories, categoryMeta } from '../lib/stories';
 import StoryCard from '../components/StoryCard';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
+import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 
 const cat = 'poetry';
 const meta = categoryMeta[cat];
@@ -34,8 +35,10 @@ export default function PoetryPage() {
           const cms = Object.entries(snap.val())
             .map(([id, s]) => ({ ...s, id }))
             .filter(s => s.category === cat && s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now));
+          const nameMap = await resolveAuthorNames(cms);
+          const resolved = withCurrentAuthorNames(cms, nameMap);
           setAllStories(prev => {
-            const merged = [...cms, ...prev].filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
+            const merged = [...resolved, ...prev].filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
             return merged.sort((a, b) => new Date(b.date) - new Date(a.date));
           });
         }
