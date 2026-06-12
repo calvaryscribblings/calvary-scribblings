@@ -4,7 +4,7 @@ import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { extractEpubText } from '../lib/epubExtract';
 
-const ADMIN_EMAIL = 'Ikennaworksfromhome@gmail.com';
+const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
 const CATEGORIES = [
   { value: 'flash', label: 'Flash Fiction' },
@@ -505,7 +505,7 @@ export default function AdminPage() {
   };
   const [form, setForm] = useState(emptyForm);
 
-  const isAdmin = user && (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase() || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
+  const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
 
   useEffect(() => {
     if (!isAdmin) return;

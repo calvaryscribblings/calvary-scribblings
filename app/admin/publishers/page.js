@@ -4,7 +4,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { getAllPublishers, getPublisher } from '../../lib/bookstore/loader';
 import { createPublisher, updatePublisher, setPublisherStatus } from '../../lib/bookstore/admin-writes';
 
-const ADMIN_EMAIL = 'Ikennaworksfromhome@gmail.com';
+const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
@@ -284,7 +284,7 @@ export default function AdminPublishersPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [suspendConfirm, setSuspendConfirm] = useState(null); // { pub, affectedCount } or null
 
-  const isAdmin = user && (user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()));
+  const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
 
   useEffect(() => {
     function handleResize() { setIsMobile(window.innerWidth < 640); }

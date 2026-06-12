@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 
-const ADMIN_EMAIL = 'Ikennaworksfromhome@gmail.com';
+const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
 const s = {
   page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
@@ -26,7 +26,7 @@ export default function SubmissionsPage() {
   const [scores, setScores] = useState({});
   const [msg, setMsg] = useState('');
 
-  const isAdmin = user && (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase() || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
+  const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
 
   useEffect(() => {
     if (!isAdmin) return;

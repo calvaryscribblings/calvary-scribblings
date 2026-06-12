@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 
-const ADMIN_EMAIL = 'Ikennaworksfromhome@gmail.com';
+const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 
 const TIER_COLORS = {
@@ -83,7 +83,7 @@ const s = {
 
 export default function QuizResetsPage() {
   const { user, loading: authLoading } = useAuth();
-  const isAdmin = user && (user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()));
+  const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
 
   const [stories, setStories]           = useState([]);
   const [quizStatuses, setQuizStatuses] = useState({});
