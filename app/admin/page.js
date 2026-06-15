@@ -247,7 +247,8 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
         console.warn('[admin] EPUB text extraction failed:', extractErr);
         extractionWarning = 'EPUB uploaded but text extraction failed: ' + extractErr.message + '. Run extraction from /admin/extract-text after saving.';
       }
-      setForm(f => ({ ...f, epubUrl: url, extractedText }));
+      // Stamp a fresh version signal on every upload/replace — app cache-busts on this.
+      setForm(f => ({ ...f, epubUrl: url, epubUpdatedAt: Date.now(), extractedText }));
       if (extractionWarning) alert(extractionWarning);
     } catch (err) { alert('EPUB upload failed: ' + err.message); }
     setEpubUploading(false);
@@ -499,7 +500,7 @@ export default function AdminPage() {
   const emptyForm = {
     title: '', selectedAuthor: '', category: 'flash', subcategory: '',
     date: formatDate(new Date()), coverFilename: '', coverPreview: null,
-    content: '', publishAt: '', epubUrl: '', readerMode: false, prosePoetry: false,
+    content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, prosePoetry: false,
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
   };
@@ -620,6 +621,9 @@ export default function AdminPage() {
         prosePoetry: form.prosePoetry || false,
         extractedText: form.extractedText || '',
       };
+      // Carry the EPUB version signal through the full-node overwrite: fresh on a new
+      // upload, preserved from the loaded story otherwise, absent on stories never uploaded.
+      if (form.epubUpdatedAt) storyData.epubUpdatedAt = form.epubUpdatedAt;
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       await set(ref(db, `cms_stories/${slug}`), storyData);
       // Notify followers of this author if publishing now (not scheduled)
@@ -675,6 +679,7 @@ export default function AdminPage() {
       coverFilename: story.cover, coverPreview: story.cover,
       content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
       epubUrl: story.epubUrl || '',
+      epubUpdatedAt: story.epubUpdatedAt || null,
       readerMode: story.readerMode || false,
       prosePoetry: story.prosePoetry || false,
       extractedText: story.extractedText || '',
