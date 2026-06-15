@@ -44,14 +44,15 @@ window.addEventListener('message', e => {
 function getCSS() {
   const sz = fontSizes[currentFontSize]
   return `
+    @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap');
     body {
-      font-family: 'Cormorant Garamond', Cochin, Georgia, serif !important;
+      font-family: 'EB Garamond', Georgia, serif !important;
       color: #2a1a0e !important;
       background: #f6f0e2 !important;
       font-size: ${sz}px !important;
     }
     p, li, blockquote, dd {
-      font-family: 'Cormorant Garamond', Cochin, Georgia, serif !important;
+      font-family: 'EB Garamond', Georgia, serif !important;
       font-size: ${sz}px !important;
       line-height: 1.9 !important;
       text-align: justify;
@@ -59,8 +60,8 @@ function getCSS() {
       -webkit-hyphens: auto !important;
     }
     p + p { text-indent: 1.5em !important; }
-    h1, h2 { font-weight: 300 !important; color: #1a0a00 !important; }
-    h3 { font-style: italic !important; color: #6b2fad !important; font-weight: 400 !important; }
+    h1, h2 { font-family: 'EB Garamond', Georgia, serif !important; font-weight: 300 !important; color: #1a0a00 !important; }
+    h3 { font-family: 'EB Garamond', Georgia, serif !important; font-style: italic !important; color: #6b2fad !important; font-weight: 400 !important; }
     blockquote { border-left: 2px solid #c9a44c !important; padding: 0.4em 1em !important; font-style: italic !important; color: #5a3820 !important; }
     a { color: #6b2fad !important; }
     pre { white-space: pre-wrap !important; }
