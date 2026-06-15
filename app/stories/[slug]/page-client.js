@@ -244,6 +244,22 @@ function CommentUsername({ uid }) {
   return <span style={{ fontSize: '0.62rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{username}</span>;
 }
 
+function CommentName({ uid, fallback }) {
+  const [name, setName] = useState(null);
+  useEffect(() => {
+    if (!uid) return;
+    (async () => {
+      try {
+        const db = await getDB();
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, `users/${uid}/displayName`));
+        if (snap.exists()) setName(snap.val());
+      } catch (e) {}
+    })();
+  }, [uid]);
+  return <>{name || fallback}</>;
+}
+
 function AuthorHandleLink({ handle, style }) {
   const [uid, setUid] = useState(null);
   useEffect(() => {
@@ -514,7 +530,7 @@ const CommentNode = React.memo(function CommentNode({
         <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size={depth === 1 ? "sm" : "xs"} isOwnComment={isOwn} />
         <div className="cs-comment-body">
           <div className="cs-comment-header" style={{ position: 'relative' }}>
-            <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link">{comment.authorName}</a>
+            <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link"><CommentName uid={comment.authorUid} fallback={comment.authorName} /></a>
             <CommentUsername uid={comment.authorUid} />
             <CommentBadge uid={comment.authorUid} size={depth === 1 ? 13 : 12} />
             <span className="cs-time">{timeAgo(comment.createdAt)}</span>
