@@ -42,6 +42,18 @@ function getFirebaseApp() {
   return initializeApp(firebaseConfig);
 }
 
+// TEMP DEBUG: parse a failed /api/newsletter/* response and build an on-screen
+// message that surfaces the HTTP status + the proxy's `debug` reason, so the
+// cause is visible without browser dev tools. Remove with the send.js diagnostics.
+async function describeFailure(res, fallback) {
+  const raw = await res.text();
+  let data = null;
+  try { data = JSON.parse(raw); } catch {}
+  const reason = data?.debug || data?.error || raw || "(no body)";
+  const extra = data?.callerEmail ? ` [caller: ${data.callerEmail}]` : "";
+  return `${fallback}: ${res.status} — ${reason}${extra}`;
+}
+
 const ALLOWED_EMAILS = ["Ikennaworksfromhome@gmail.com", "fynbecki@gmail.com"];
 const CATEGORY_COLOURS = { flash: "#e05c2a", short: "#2a7ae0", poetry: "#6b2fad", news: "#1a9e6b", inspiring: "#c4a200" };
 function categoryColour(cat) { return CATEGORY_COLOURS[(cat || "").toLowerCase()] || "#6b2fad"; }
@@ -196,8 +208,8 @@ export default function NewsletterPage() {
           scheduledAt: scheduleTime || null,
         }),
       });
+      if (!res.ok) throw new Error(await describeFailure(res, scheduleTime ? "Schedule failed" : "Save failed"));
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Save failed");
       setDraftId(data.id);
       setStatus("success");
       setStatusMsg(scheduleTime ? "Newsletter scheduled!" : "Draft saved!");
@@ -224,8 +236,8 @@ export default function NewsletterPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ subject: subject.trim(), blocks, issueNumber: issueNumber ? parseInt(issueNumber) : undefined, testEmail: isTest ? testEmail.trim() : undefined }),
       });
+      if (!res.ok) throw new Error(await describeFailure(res, isTest ? "Test failed" : "Send failed"));
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Send failed");
       setStatus("success");
       setStatusMsg(isTest ? `Test sent to ${testEmail}!` : `Newsletter sent to ${data.sent} subscribers.`);
       if (!isTest) setTimeout(() => window.location.reload(), 2000);
