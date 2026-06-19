@@ -21,6 +21,8 @@ function json(data, status = 200) {
 }
 
 async function verifyAdminToken(token, apiKey) {
+  // TEMP DEBUG: confirm the API key var actually arrives in the Functions env.
+  console.log('[newsletter/send] verify: apiKey present?', !!apiKey, 'len', apiKey ? apiKey.length : 0);
   const res = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
     {
@@ -29,10 +31,22 @@ async function verifyAdminToken(token, apiKey) {
       body: JSON.stringify({ idToken: token }),
     }
   );
-  if (!res.ok) return null;
+  // TEMP DEBUG: surface the identitytoolkit response status; a non-OK here
+  // (wrong/missing key, expired token) silently becomes null and reads as "Unauthorised".
+  if (!res.ok) {
+    let detail = '';
+    try { detail = (await res.text()).slice(0, 300); } catch {}
+    console.log('[newsletter/send] verify: lookup NOT ok, status', res.status, 'body', detail);
+    return null;
+  }
   const data = await res.json();
   const u = data?.users?.[0];
-  return u ? { uid: u.localId ?? null, email: u.email ?? null } : null;
+  if (!u) {
+    console.log('[newsletter/send] verify: lookup ok but no user record in response');
+    return null;
+  }
+  console.log('[newsletter/send] verify: ok uid', u.localId ?? null, 'email', u.email ?? null);
+  return { uid: u.localId ?? null, email: u.email ?? null };
 }
 
 export async function onRequestPost(context) {
@@ -40,10 +54,20 @@ export async function onRequestPost(context) {
 
   const authHeader = request.headers.get('authorization') ?? '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  if (!token) return json({ error: 'Unauthorised.' }, 401);
+  // TEMP DEBUG: did the Authorization header arrive with a Bearer token?
+  console.log('[newsletter/send] auth header present?', !!authHeader, 'token present?', !!token);
+  if (!token) return json({ error: 'Unauthorised.', debug: 'no-token' }, 401);
 
   const caller = await verifyAdminToken(token, env.NEXT_PUBLIC_FIREBASE_API_KEY);
-  if (!isAdmin(caller)) return json({ error: 'Unauthorised.' }, 401);
+  // TEMP DEBUG: did verify return a caller, and is that caller an admin?
+  console.log('[newsletter/send] caller', caller ? JSON.stringify(caller) : 'null', 'isAdmin?', isAdmin(caller));
+  if (!caller) return json({ error: 'Unauthorised.', debug: 'verify-null' }, 401);
+  if (!isAdmin(caller)) {
+    return json(
+      { error: 'Unauthorised.', debug: 'not-admin', callerUid: caller.uid, callerEmail: caller.email },
+      401
+    );
+  }
 
   if (!env.NEWSLETTER_SEND_SECRET) return json({ error: 'Server misconfigured.' }, 500);
 
