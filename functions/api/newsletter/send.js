@@ -56,15 +56,24 @@ export async function onRequestPost(context) {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   // TEMP DEBUG: did the Authorization header arrive with a Bearer token?
   console.log('[newsletter/send] auth header present?', !!authHeader, 'token present?', !!token);
-  if (!token) return json({ error: 'Unauthorised.', debug: 'no-token' }, 401);
+  // TEMP DEBUG: `fn` marker proves WHICH function version is live. If you don't
+  // see fn:'send-debug-v2' in the 401, the deployed Function is stale.
+  if (!token) return json({ error: 'Unauthorised.', debug: 'no-token', fn: 'send-debug-v2' }, 401);
 
   const caller = await verifyAdminToken(token, env.NEXT_PUBLIC_FIREBASE_API_KEY);
   // TEMP DEBUG: did verify return a caller, and is that caller an admin?
   console.log('[newsletter/send] caller', caller ? JSON.stringify(caller) : 'null', 'isAdmin?', isAdmin(caller));
-  if (!caller) return json({ error: 'Unauthorised.', debug: 'verify-null' }, 401);
-  if (!isAdmin(caller)) {
+  if (!caller) {
     return json(
-      { error: 'Unauthorised.', debug: 'not-admin', callerUid: caller.uid, callerEmail: caller.email },
+      { error: 'Unauthorised.', debug: 'verify-null', fn: 'send-debug-v2', apiKeyPresent: !!env.NEXT_PUBLIC_FIREBASE_API_KEY },
+      401
+    );
+  }
+  if (!isAdmin(caller)) {
+    // CRITICAL: echo the EXACT identity Firebase resolved so we can see if the
+    // logged-in account is not the founder email / UID in the allowlist.
+    return json(
+      { error: 'Unauthorised.', debug: 'not-admin', fn: 'send-debug-v2', sawUid: caller.uid, sawEmail: caller.email },
       401
     );
   }

@@ -49,9 +49,13 @@ async function describeFailure(res, fallback) {
   const raw = await res.text();
   let data = null;
   try { data = JSON.parse(raw); } catch {}
-  const reason = data?.debug || data?.error || raw || "(no body)";
-  const extra = data?.callerEmail ? ` [caller: ${data.callerEmail}]` : "";
-  return `${fallback}: ${res.status} — ${reason}${extra}`;
+  if (!data) return `${fallback}: ${res.status} — ${raw || "(no body)"}`;
+  const parts = [`${fallback}: ${res.status} — ${data.debug || data.error || "(no debug)"}`];
+  if (data.sawEmail || data.sawUid) parts.push(`saw ${data.sawEmail || "?"} / uid ${data.sawUid || "?"}`);
+  if (data.apiKeyPresent !== undefined) parts.push(`apiKeyPresent=${data.apiKeyPresent}`);
+  // `fn` marker tells us whether the NEW debug function is actually deployed.
+  parts.push(data.fn ? `[${data.fn}]` : "[STALE FN — no fn marker]");
+  return parts.join(" · ");
 }
 
 const ALLOWED_EMAILS = ["Ikennaworksfromhome@gmail.com", "fynbecki@gmail.com"];
