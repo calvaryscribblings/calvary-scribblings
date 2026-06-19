@@ -92,10 +92,12 @@ export default function NewsletterPage() {
         setSubscriberCount(active.length);
       } else { setSubscriberCount(0); }
     });
-    // Load drafts from Worker
-    fetch('https://calvary-newsletter.calvarymediauk.workers.dev/drafts', {
-      headers: { Authorization: 'Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca' }
-    }).then(r => r.json()).then(data => {
+    // Load drafts via server-side proxy (Worker secret held in Pages env, never shipped to the client)
+    user.getIdToken().then((idToken) =>
+      fetch('/api/newsletter/drafts', {
+        headers: { Authorization: `Bearer ${idToken}` }
+      })
+    ).then(r => r.json()).then(data => {
       if (data && typeof data === 'object') {
         const list = Object.values(data).sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
         setDrafts(list);
@@ -182,9 +184,10 @@ export default function NewsletterPage() {
     setStatus("loading");
     setStatusMsg(scheduleTime ? "Scheduling newsletter…" : "Saving draft…");
     try {
-      const res = await fetch("https://calvary-newsletter.calvarymediauk.workers.dev/draft", {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/newsletter/draft", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
           id: draftId || undefined,
           subject: subject.trim(),
@@ -215,9 +218,10 @@ export default function NewsletterPage() {
     setStatus("loading");
     setStatusMsg(isTest ? "Sending test email…" : "Sending to all subscribers…");
     try {
-      const res = await fetch("https://calvary-newsletter.calvarymediauk.workers.dev/send", {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/newsletter/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ subject: subject.trim(), blocks, issueNumber: issueNumber ? parseInt(issueNumber) : undefined, testEmail: isTest ? testEmail.trim() : undefined }),
       });
       const data = await res.json();
@@ -499,7 +503,8 @@ export default function NewsletterPage() {
                           <button onClick={() => { setSubject(d.subject||""); setBlocks(legacyDraftToBlocks(d)); setFocusedBlockId(null); setIssueNumber(d.issueNumber||""); setDraftId(d.id); setScheduledAt(d.scheduledAt||""); setTab("compose"); }}
                             style={{background:"#f3eefb", color:"#6b2fad", border:"none", borderRadius:6, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"}}>Edit</button>
                           <button onClick={async () => {
-                            await fetch("https://calvary-newsletter.calvarymediauk.workers.dev/draft/" + d.id, { method:"DELETE", headers:{Authorization:"Bearer ddd5f8404323f52bc4e5aff5ff5be117cdf593ced85d5e309fa1e5ff745972ca"} });
+                            const idToken = await user.getIdToken();
+                            await fetch("/api/newsletter/draft?id=" + encodeURIComponent(d.id), { method:"DELETE", headers:{Authorization:`Bearer ${idToken}`} });
                             setDrafts(prev => prev.filter(x => x.id !== d.id));
                           }} style={{background:"#fef2f2", color:"#dc2626", border:"none", borderRadius:6, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"}}>Delete</button>
                         </div>
