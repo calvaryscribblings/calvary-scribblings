@@ -360,33 +360,36 @@ export default function NewOpenPagePage() {
       <div style={{ background: INK, minHeight: '100vh', color: CREAM, fontFamily: BODY_SERIF }}>
         <Navbar />
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '5rem 1.5rem', textAlign: 'center' }}>
-          <div style={{ fontFamily: SERIF, fontSize: '2.2rem', fontWeight: 700, color: GOLD, marginBottom: '0.75rem' }}>
+          <div style={{ fontFamily: SANS, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 16 }}>
             Open Pages
           </div>
-          <p style={{ fontSize: '1.15rem', lineHeight: 1.7, color: 'rgba(245,240,232,0.85)', marginBottom: '2rem' }}>
+          <div style={{ fontFamily: SERIF, fontSize: '2.4rem', fontWeight: 500, color: CREAM, marginBottom: '0.9rem', lineHeight: 1.1 }}>
+            Tell your story
+          </div>
+          <p style={{ fontSize: '1.15rem', lineHeight: 1.7, color: 'rgba(245,240,232,0.7)', marginBottom: '2rem' }}>
             Open Pages is a place for our community to publish their own writing.
             Sign in to share a post.
           </p>
           <button
             onClick={() => setShowAuth(true)}
             style={{
-              background: `linear-gradient(135deg, ${PURPLE}, #8b4fd1)`,
-              color: '#fff',
+              background: PURPLE,
+              color: CREAM,
               border: 'none',
-              padding: '0.85rem 2rem',
-              borderRadius: 8,
+              padding: '0.9rem 3rem',
+              borderRadius: 9,
               fontWeight: 700,
               fontSize: '1rem',
               cursor: 'pointer',
               fontFamily: BODY_SERIF,
-              boxShadow: '0 6px 22px rgba(107,47,173,0.4)',
+              boxShadow: '0 8px 28px rgba(107,47,173,0.35)',
             }}
           >
             Sign in to write
           </button>
           <div style={{ marginTop: '1.5rem' }}>
-            <a href="/open-pages" style={{ color: 'rgba(245,240,232,0.5)', fontSize: '0.9rem', textDecoration: 'none' }}>
-              ← Browse Open Pages
+            <a href="/open-pages" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'rgba(245,240,232,0.5)', fontSize: '0.9rem', textDecoration: 'none' }}>
+              <IconArrowLeft size={15} /> Browse Open Pages
             </a>
           </div>
         </div>
@@ -399,13 +402,17 @@ export default function NewOpenPagePage() {
     <div style={{ background: INK, minHeight: '100vh', color: CREAM, fontFamily: BODY_SERIF }}>
       <Navbar />
 
-      <div style={{ maxWidth: 760, margin: '0 auto', padding: '2.5rem 1.5rem 5rem' }}>
-        <div style={{ marginBottom: '1.75rem' }}>
-          <div style={{ fontFamily: SERIF, fontSize: '2.4rem', fontWeight: 700, color: GOLD, lineHeight: 1.1 }}>
-            Write on Open Pages
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '60px 24px 96px' }}>
+        {/* Centred header */}
+        <div style={{ textAlign: 'center', marginBottom: '2.75rem' }}>
+          <div style={{ fontFamily: SANS, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 16 }}>
+            Open Pages
           </div>
-          <p style={{ fontSize: '1.05rem', color: 'rgba(245,240,232,0.7)', marginTop: '0.5rem', lineHeight: 1.6 }}>
-            Share a story, a poem, a reflection. Your post is checked before it goes live.
+          <h1 style={{ fontFamily: SERIF, fontSize: '2.5rem', fontWeight: 500, color: CREAM, margin: 0, lineHeight: 1.1 }}>
+            Tell your story
+          </h1>
+          <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '1.18rem', color: 'rgba(245,240,232,0.55)', marginTop: 14, marginBottom: 0 }}>
+            A story, a poem, a reflection — checked before it goes live.
           </p>
         </div>
 
@@ -440,8 +447,8 @@ export default function NewOpenPagePage() {
             </div>
             <p style={{ margin: 0, lineHeight: 1.6, color: 'rgba(245,240,232,0.9)' }}>{outcome.message}</p>
             {outcome.link && (
-              <a href={outcome.link} style={{ display: 'inline-block', marginTop: '0.6rem', color: GOLD, fontWeight: 700, textDecoration: 'none' }}>
-                View on Open Pages →
+              <a href={outcome.link} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: '0.6rem', color: GOLD, fontWeight: 700, textDecoration: 'none' }}>
+                View on Open Pages <IconArrowRight size={16} />
               </a>
             )}
           </div>
@@ -496,17 +503,22 @@ export default function NewOpenPagePage() {
                 disabled={coverUploading || submitting}
                 style={{
                   width: '100%',
-                  border: '1px dashed rgba(245,240,232,0.3)',
-                  background: 'rgba(245,240,232,0.03)',
-                  borderRadius: 10,
-                  padding: '1.4rem',
-                  color: coverUploading ? 'rgba(245,240,232,0.5)' : 'rgba(245,240,232,0.7)',
-                  fontSize: '0.95rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 10,
+                  border: '1px dashed rgba(201,168,76,0.3)',
+                  background: 'rgba(201,168,76,0.02)',
+                  borderRadius: 12,
+                  padding: '1.6rem',
+                  color: coverUploading ? 'rgba(245,240,232,0.45)' : 'rgba(245,240,232,0.7)',
+                  fontSize: '0.98rem',
                   fontFamily: BODY_SERIF,
                   cursor: coverUploading || submitting ? 'not-allowed' : 'pointer',
                 }}
               >
-                {coverUploading ? 'Uploading cover…' : '＋ Add cover image (optional)'}
+                <IconUpload size={18} style={{ color: GOLD, opacity: 0.85 }} />
+                {coverUploading ? 'Uploading cover…' : 'Add a cover image'}
               </button>
             )}
             {coverError && (
@@ -514,78 +526,77 @@ export default function NewOpenPagePage() {
             )}
           </div>
 
-          {/* Title */}
-          <label style={{ display: 'block', marginBottom: '1.25rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
-              <span style={{ fontSize: '0.78rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.55)' }}>Title</span>
-              <span style={{ fontSize: '0.78rem', color: titleNearLimit ? '#e88' : 'rgba(245,240,232,0.4)' }}>{titleLeft}</span>
+          {/* Title — borderless, placeholder-only, subtle counter top-right */}
+          <div style={{ marginBottom: '1.9rem' }}>
+            <div style={{ textAlign: 'right', fontSize: '0.72rem', color: titleNearLimit ? '#e88' : 'rgba(245,240,232,0.3)', marginBottom: 2 }}>
+              {titleLeft}
             </div>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX))}
               maxLength={TITLE_MAX}
-              placeholder="Give your post a title"
+              placeholder="Title"
               disabled={submitting}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
-                background: 'rgba(245,240,232,0.04)',
-                border: '1px solid rgba(245,240,232,0.18)',
-                borderRadius: 8,
-                padding: '0.8rem 1rem',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: '0.5px solid rgba(245,240,232,0.12)',
+                borderRadius: 0,
+                padding: '0.4rem 0',
                 color: CREAM,
-                fontSize: '1.2rem',
+                fontSize: '1.85rem',
+                fontWeight: 500,
                 fontFamily: SERIF,
                 outline: 'none',
               }}
             />
-          </label>
+          </div>
 
-          {/* Body */}
-          <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
-              <span style={{ fontSize: '0.78rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.55)' }}>Your writing</span>
-              <span style={{ fontSize: '0.78rem', color: bodyNearLimit ? '#e88' : 'rgba(245,240,232,0.4)' }}>{bodyLeft.toLocaleString()}</span>
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => setPreview(false)}
-                style={tabStyle(!preview)}
-              >
-                Write
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreview(true)}
-                style={tabStyle(preview)}
-              >
-                Preview
-              </button>
-              <button
-                type="button"
-                onClick={() => imgInputRef.current && imgInputRef.current.click()}
-                disabled={imgUploading || submitting || inlineCapReached}
-                title={inlineCapReached ? `Up to ${MAX_INLINE_IMAGES} images per post` : 'Insert an image at the cursor'}
-                style={{
-                  ...tabStyle(false),
-                  marginLeft: 'auto',
-                  opacity: imgUploading || inlineCapReached ? 0.5 : 1,
-                  cursor: imgUploading || submitting || inlineCapReached ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {imgUploading ? 'Uploading…' : '🖼 Insert image'}
-              </button>
-              {inlineCount > 0 && (
-                <span style={{ fontSize: '0.74rem', color: inlineCapReached ? '#e88' : 'rgba(245,240,232,0.4)' }}>
-                  {inlineCount}/{MAX_INLINE_IMAGES}
-                </span>
-              )}
+          {/* Body — borderless writing area */}
+          <div>
+            {/* Toolbar: segmented Write/Preview + Insert image */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <div style={segWrap}>
+                <button type="button" onClick={() => setPreview(false)} style={segBtn(!preview)}>Write</button>
+                <button type="button" onClick={() => setPreview(true)} style={segBtn(preview)}>Preview</button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {inlineCount > 0 && (
+                  <span style={{ fontSize: '0.72rem', color: inlineCapReached ? '#e88' : 'rgba(245,240,232,0.35)' }}>
+                    {inlineCount}/{MAX_INLINE_IMAGES}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => imgInputRef.current && imgInputRef.current.click()}
+                  disabled={imgUploading || submitting || inlineCapReached}
+                  title={inlineCapReached ? `Up to ${MAX_INLINE_IMAGES} images per post` : 'Insert an image at the cursor'}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    background: 'transparent',
+                    border: '1px solid rgba(245,240,232,0.15)',
+                    borderRadius: 7,
+                    padding: '0.4rem 0.85rem',
+                    color: 'rgba(245,240,232,0.7)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    fontFamily: BODY_SERIF,
+                    opacity: imgUploading || inlineCapReached ? 0.45 : 1,
+                    cursor: imgUploading || submitting || inlineCapReached ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <IconImagePlus size={15} />
+                  {imgUploading ? 'Uploading…' : 'Insert image'}
+                </button>
+              </div>
             </div>
             {imgError && (
-              <div style={{ color: '#e88', fontSize: '0.82rem', marginBottom: '0.5rem' }}>{imgError}</div>
+              <div style={{ color: '#e88', fontSize: '0.82rem', marginBottom: '0.6rem' }}>{imgError}</div>
             )}
 
             {!preview ? (
@@ -594,23 +605,23 @@ export default function NewOpenPagePage() {
                 value={body}
                 onChange={(e) => setBody(e.target.value.slice(0, BODY_MAX))}
                 maxLength={BODY_MAX}
-                placeholder="Write your post in Markdown…"
+                placeholder="Begin writing…"
                 disabled={submitting}
                 rows={16}
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  background: 'rgba(245,240,232,0.04)',
-                  border: '1px solid rgba(245,240,232,0.18)',
-                  borderRadius: 8,
-                  padding: '1rem 1.1rem',
-                  color: CREAM,
-                  fontSize: '1.08rem',
-                  lineHeight: 1.7,
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: 0,
+                  padding: 0,
+                  color: 'rgba(245,240,232,0.85)',
+                  fontSize: '1.18rem',
+                  lineHeight: 1.75,
                   fontFamily: BODY_SERIF,
                   outline: 'none',
                   resize: 'vertical',
-                  minHeight: 320,
+                  minHeight: 340,
                 }}
               />
             ) : (
@@ -618,55 +629,58 @@ export default function NewOpenPagePage() {
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  background: 'rgba(245,240,232,0.04)',
-                  border: '1px solid rgba(245,240,232,0.18)',
-                  borderRadius: 8,
-                  padding: '1.1rem 1.2rem',
-                  minHeight: 320,
-                  fontSize: '1.08rem',
+                  minHeight: 340,
+                  fontSize: '1.18rem',
+                  lineHeight: 1.75,
+                  color: 'rgba(245,240,232,0.85)',
                 }}
               >
                 {body.trim() ? (
                   renderMarkdown(body)
                 ) : (
-                  <span style={{ color: 'rgba(245,240,232,0.4)' }}>Nothing to preview yet.</span>
+                  <span style={{ color: 'rgba(245,240,232,0.35)' }}>Nothing to preview yet.</span>
                 )}
               </div>
             )}
-          </label>
 
-          {/* Markdown hint */}
-          <div style={{ fontSize: '0.82rem', color: 'rgba(245,240,232,0.45)', marginBottom: '1.75rem', lineHeight: 1.6 }}>
-            <strong style={{ color: 'rgba(245,240,232,0.6)' }}>Markdown supported</strong> — bold <code style={hintCode}>**like this**</code>, italic{' '}
-            <code style={hintCode}>*like this*</code>, links <code style={hintCode}>[text](url)</code>, headings <code style={hintCode}>#</code>. Use{' '}
-            <strong style={{ color: 'rgba(245,240,232,0.6)' }}>Insert image</strong> to add pictures.
+            {/* Markdown hint (left) + body counter (right), low-key under the body */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16, marginTop: '0.9rem', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(245,240,232,0.4)', lineHeight: 1.5 }}>
+                Markdown supported — bold <code style={hintCode}>**like this**</code>, italic{' '}
+                <code style={hintCode}>*like this*</code>, links <code style={hintCode}>[text](url)</code>, headings <code style={hintCode}>#</code>.
+              </div>
+              <div style={{ fontSize: '0.72rem', color: bodyNearLimit ? '#e88' : 'rgba(245,240,232,0.3)', whiteSpace: 'nowrap' }}>
+                {bodyLeft.toLocaleString()}
+              </div>
+            </div>
           </div>
 
-          {/* Publish */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          {/* Publish — centred */}
+          <div style={{ textAlign: 'center', marginTop: '2.75rem' }}>
             <button
               type="submit"
               disabled={!canSubmit}
               style={{
-                background: canSubmit ? `linear-gradient(135deg, ${PURPLE}, #8b4fd1)` : 'rgba(245,240,232,0.1)',
-                color: canSubmit ? '#fff' : 'rgba(245,240,232,0.4)',
+                background: canSubmit ? PURPLE : 'rgba(245,240,232,0.1)',
+                color: canSubmit ? CREAM : 'rgba(245,240,232,0.4)',
                 border: 'none',
-                padding: '0.85rem 2.2rem',
-                borderRadius: 8,
+                padding: '0.9rem 3.2rem',
+                borderRadius: 9,
                 fontWeight: 700,
                 fontSize: '1rem',
+                letterSpacing: '0.02em',
                 cursor: canSubmit ? 'pointer' : 'not-allowed',
                 fontFamily: BODY_SERIF,
-                boxShadow: canSubmit ? '0 6px 22px rgba(107,47,173,0.35)' : 'none',
+                boxShadow: canSubmit ? '0 8px 28px rgba(107,47,173,0.35)' : 'none',
                 transition: 'all 0.2s',
               }}
             >
               {submitting ? 'Checking your post…' : 'Publish'}
             </button>
             {submitting && (
-              <span style={{ fontSize: '0.9rem', color: 'rgba(245,240,232,0.55)' }}>
+              <div style={{ marginTop: 12, fontSize: '0.85rem', color: 'rgba(245,240,232,0.5)' }}>
                 Running a quick safety check — this takes a moment.
-              </span>
+              </div>
             )}
           </div>
         </form>
@@ -675,18 +689,86 @@ export default function NewOpenPagePage() {
   );
 }
 
+const SANS = "'Helvetica Neue', Arial, sans-serif";
 const hintCode = { background: 'rgba(245,240,232,0.08)', padding: '0.05em 0.35em', borderRadius: 3 };
 
-function tabStyle(active) {
+// Segmented Write/Preview toggle.
+const segWrap = {
+  display: 'inline-flex',
+  gap: 2,
+  padding: 3,
+  background: 'rgba(245,240,232,0.05)',
+  borderRadius: 9,
+};
+function segBtn(active) {
   return {
-    background: active ? 'rgba(107,47,173,0.25)' : 'transparent',
+    background: active ? PURPLE : 'transparent',
     color: active ? CREAM : 'rgba(245,240,232,0.5)',
-    border: `1px solid ${active ? 'rgba(107,47,173,0.5)' : 'rgba(245,240,232,0.15)'}`,
-    padding: '0.35rem 0.9rem',
-    borderRadius: 6,
+    border: 'none',
+    padding: '0.4rem 1.1rem',
+    borderRadius: 7,
     fontSize: '0.8rem',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: BODY_SERIF,
+    transition: 'all 0.18s',
   };
 }
+
+// ---------------------------------------------------------------------------
+// Inline SVG icons — the platform uses inline <svg> (no icon library is
+// installed). These are Lucide glyphs (MIT) inlined to match that convention.
+// ---------------------------------------------------------------------------
+
+function Icon({ size = 18, children, style }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: 'block', flexShrink: 0, ...style }}
+    >
+      {children}
+    </svg>
+  );
+}
+
+// Lucide "image-plus"
+const IconImagePlus = (p) => (
+  <Icon {...p}>
+    <path d="M16 5h6" />
+    <path d="M19 2v6" />
+    <path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5" />
+    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+    <circle cx="9" cy="9" r="2" />
+  </Icon>
+);
+
+// Lucide "upload"
+const IconUpload = (p) => (
+  <Icon {...p}>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <path d="M17 8 12 3 7 8" />
+    <path d="M12 3v12" />
+  </Icon>
+);
+
+// Lucide "arrow-left" / "arrow-right"
+const IconArrowLeft = (p) => (
+  <Icon {...p}>
+    <path d="m12 19-7-7 7-7" />
+    <path d="M19 12H5" />
+  </Icon>
+);
+const IconArrowRight = (p) => (
+  <Icon {...p}>
+    <path d="M5 12h14" />
+    <path d="m12 5 7 7-7 7" />
+  </Icon>
+);
