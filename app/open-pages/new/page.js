@@ -114,7 +114,7 @@ function renderInline(text, keyPrefix) {
     } else if (m[7]) {
       nodes.push(<strong key={`${keyPrefix}-b-${k++}`}>{m[8]}</strong>);
     } else if (m[9]) {
-      nodes.push(<em key={`${keyPrefix}-i-${k++}`}>{m[10]}</em>);
+      nodes.push(<em key={`${keyPrefix}-i-${k++}`} style={{ fontFamily: SERIF }}>{m[10]}</em>);
     } else if (m[11]) {
       nodes.push(
         <code key={`${keyPrefix}-c-${k++}`} style={{ background: 'rgba(245,240,232,0.08)', padding: '0.05em 0.35em', borderRadius: 3, fontSize: '0.9em' }}>
@@ -186,7 +186,7 @@ function renderMarkdown(md) {
       flushPara();
       flushList();
       blocks.push(
-        <blockquote key={`q-${key++}`} style={{ margin: '0 0 0.85rem', padding: '0.2rem 0 0.2rem 1rem', borderLeft: `3px solid ${PURPLE}`, color: 'rgba(245,240,232,0.85)', fontStyle: 'italic' }}>
+        <blockquote key={`q-${key++}`} style={{ margin: '0 0 0.85rem', padding: '0.2rem 0 0.2rem 1rem', borderLeft: `3px solid ${PURPLE}`, color: 'rgba(245,240,232,0.85)', fontStyle: 'italic', fontFamily: SERIF }}>
           {renderInline(quote[1], `q${key}`)}
         </blockquote>
       );
