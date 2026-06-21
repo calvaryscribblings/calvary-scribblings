@@ -12,13 +12,44 @@
 // editor. The optional live preview renders Markdown to React ELEMENTS only via a
 // tiny inline renderer (no dangerouslySetInnerHTML, no raw HTML — XSS-safe).
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/AuthContext';
+import { storage } from '../../lib/firebase';
 
 const TITLE_MAX = 200;
 const BODY_MAX = 50000;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_INLINE_IMAGES = 10; // soft cap per post
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const ACCEPT_ATTR = 'image/jpeg,image/png,image/webp,image/gif';
+
+// Validate a chosen file before upload. Returns an error string, or null if ok.
+function validateImageFile(file) {
+  if (!file) return 'No file selected.';
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) return 'Please choose a JPG, PNG, WebP, or GIF image.';
+  if (file.size > MAX_IMAGE_BYTES) return 'Image is too large — please keep it under 5MB.';
+  return null;
+}
+
+// Upload an image to Firebase Storage under open_pages/{uid}/ and return its
+// download URL. Reuses the platform's storage upload pattern (uploadBytes +
+// getDownloadURL, lazy-imported), same storage instance as profile avatars.
+async function uploadOpenPageImage(uid, file, kind) {
+  const safeName = (file.name || 'image').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
+  const path = `open_pages/${uid}/${kind}-${Date.now()}-${safeName}`;
+  const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
+  const r = sRef(storage, path);
+  await uploadBytes(r, file);
+  return getDownloadURL(r);
+}
+
+// Count inline Markdown images currently in the body.
+function countInlineImages(md) {
+  const m = (md || '').match(/!\[[^\]]*\]\([^)\s]+\)/g);
+  return m ? m.length : 0;
+}
 
 // Brand palette.
 const INK = '#080610';
@@ -44,39 +75,54 @@ function safeHref(url) {
 
 function renderInline(text, keyPrefix) {
   const nodes = [];
-  let i = 0;
   let k = 0;
-  const push = (n) => nodes.push(typeof n === 'string' ? n : { ...n });
-  // Token regex: links, bold, italic, code (in priority order via alternation).
-  const re = /(\[([^\]]+)\]\(([^)\s]+)\))|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(`([^`]+)`)/g;
+  // Token regex (priority order via alternation):
+  //   image ![alt](url) — MUST come before link so the leading ! isn't stripped
+  //   link [text](url), bold **x**, italic *x*, code `x`
+  const re =
+    /(!\[([^\]]*)\]\(([^)\s]+)\))|(\[([^\]]+)\]\(([^)\s]+)\))|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(`([^`]+)`)/g;
   let m;
   let last = 0;
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) nodes.push(text.slice(last, m.index));
     if (m[1]) {
-      const href = safeHref(m[3]);
+      // image — same href sanitisation as links; render a width-capped <img>
+      const src = safeHref(m[3]);
+      if (src) {
+        nodes.push(
+          <img
+            key={`${keyPrefix}-img-${k++}`}
+            src={src}
+            alt={m[2] || ''}
+            style={{ maxWidth: '100%', height: 'auto', borderRadius: 8, display: 'block', margin: '0.6rem 0' }}
+          />
+        );
+      } else {
+        nodes.push(m[2] || ''); // unsafe src → keep alt text only
+      }
+    } else if (m[4]) {
+      const href = safeHref(m[6]);
       if (href) {
         nodes.push(
           <a key={`${keyPrefix}-a-${k++}`} href={href} target="_blank" rel="noopener noreferrer nofollow" style={{ color: GOLD, textDecoration: 'underline' }}>
-            {m[2]}
+            {m[5]}
           </a>
         );
       } else {
-        nodes.push(m[2]); // drop unsafe link, keep its text
+        nodes.push(m[5]); // drop unsafe link, keep its text
       }
-    } else if (m[4]) {
-      nodes.push(<strong key={`${keyPrefix}-b-${k++}`}>{m[5]}</strong>);
-    } else if (m[6]) {
-      nodes.push(<em key={`${keyPrefix}-i-${k++}`}>{m[7]}</em>);
-    } else if (m[8]) {
+    } else if (m[7]) {
+      nodes.push(<strong key={`${keyPrefix}-b-${k++}`}>{m[8]}</strong>);
+    } else if (m[9]) {
+      nodes.push(<em key={`${keyPrefix}-i-${k++}`}>{m[10]}</em>);
+    } else if (m[11]) {
       nodes.push(
         <code key={`${keyPrefix}-c-${k++}`} style={{ background: 'rgba(245,240,232,0.08)', padding: '0.05em 0.35em', borderRadius: 3, fontSize: '0.9em' }}>
-          {m[9]}
+          {m[12]}
         </code>
       );
     }
     last = re.lastIndex;
-    i++;
   }
   if (last < text.length) nodes.push(text.slice(last));
   return nodes;
@@ -167,8 +213,81 @@ export default function NewOpenPagePage() {
   const [submitting, setSubmitting] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
+  // Cover image (optional hero).
+  const [coverImage, setCoverImage] = useState(null); // download URL
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverError, setCoverError] = useState('');
+
+  // Inline image upload state.
+  const [imgUploading, setImgUploading] = useState(false);
+  const [imgError, setImgError] = useState('');
+
+  const coverInputRef = useRef(null);
+  const imgInputRef = useRef(null);
+  const bodyRef = useRef(null);
+
   // outcome: { kind: 'published'|'pending'|'rejected'|'error', message, link? }
   const [outcome, setOutcome] = useState(null);
+
+  const inlineCount = countInlineImages(body);
+  const inlineCapReached = inlineCount >= MAX_INLINE_IMAGES;
+
+  async function handleCoverSelect(e) {
+    const file = e.target.files && e.target.files[0];
+    if (e.target) e.target.value = '';
+    if (!file || !user) return;
+    setCoverError('');
+    const err = validateImageFile(file);
+    if (err) { setCoverError(err); return; }
+    setCoverUploading(true);
+    try {
+      const url = await uploadOpenPageImage(user.uid, file, 'cover');
+      setCoverImage(url);
+    } catch {
+      setCoverError('Cover upload failed, try again.');
+    }
+    setCoverUploading(false);
+  }
+
+  function handleRemoveCover() {
+    setCoverImage(null);
+    setCoverError('');
+  }
+
+  async function handleInlineSelect(e) {
+    const file = e.target.files && e.target.files[0];
+    if (e.target) e.target.value = '';
+    if (!file || !user) return;
+    setImgError('');
+    if (inlineCapReached) { setImgError(`You can add up to ${MAX_INLINE_IMAGES} images per post.`); return; }
+    const err = validateImageFile(file);
+    if (err) { setImgError(err); return; }
+    setImgUploading(true);
+    try {
+      const url = await uploadOpenPageImage(user.uid, file, 'img');
+      const alt = (file.name || 'image').replace(/\.[^.]+$/, '');
+      const snippet = `\n\n![${alt}](${url})\n\n`;
+      // Insert at the textarea cursor if available, else append.
+      const ta = bodyRef.current;
+      let next;
+      if (ta && typeof ta.selectionStart === 'number') {
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        next = body.slice(0, start) + snippet + body.slice(end);
+      } else {
+        next = body + snippet;
+      }
+      if (next.length > BODY_MAX) {
+        setImgError('Adding this image would exceed the length limit.');
+      } else {
+        setBody(next);
+        setPreview(false);
+      }
+    } catch {
+      setImgError('Image upload failed, try again.');
+    }
+    setImgUploading(false);
+  }
 
   const titleLeft = TITLE_MAX - title.length;
   const bodyLeft = BODY_MAX - body.length;
@@ -180,7 +299,9 @@ export default function NewOpenPagePage() {
     !!body.trim() &&
     title.length <= TITLE_MAX &&
     body.length <= BODY_MAX &&
-    !submitting;
+    !submitting &&
+    !coverUploading &&
+    !imgUploading;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -191,7 +312,7 @@ export default function NewOpenPagePage() {
       const res = await fetch('/api/open-pages/moderate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: user.uid, title: title.trim(), body: body.trim() }),
+        body: JSON.stringify({ uid: user.uid, title: title.trim(), body: body.trim(), coverImage }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -203,6 +324,7 @@ export default function NewOpenPagePage() {
         });
         setTitle('');
         setBody('');
+        setCoverImage(null);
         setPreview(false);
       } else if (res.ok && data.status === 'pending') {
         setOutcome({
@@ -212,6 +334,7 @@ export default function NewOpenPagePage() {
         });
         setTitle('');
         setBody('');
+        setCoverImage(null);
         setPreview(false);
       } else if (res.ok && data.status === 'rejected') {
         // Keep the form so they can edit. Non-graphic generic message.
@@ -325,6 +448,72 @@ export default function NewOpenPagePage() {
         )}
 
         <form onSubmit={handleSubmit}>
+          {/* Hidden file inputs */}
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept={ACCEPT_ATTR}
+            style={{ display: 'none' }}
+            onChange={handleCoverSelect}
+          />
+          <input
+            ref={imgInputRef}
+            type="file"
+            accept={ACCEPT_ATTR}
+            style={{ display: 'none' }}
+            onChange={handleInlineSelect}
+          />
+
+          {/* Cover image */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            {coverImage ? (
+              <div style={{ position: 'relative' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={coverImage}
+                  alt="Cover preview"
+                  style={{ width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 10, display: 'block', border: '1px solid rgba(245,240,232,0.18)' }}
+                />
+                <button
+                  type="button"
+                  onClick={handleRemoveCover}
+                  disabled={submitting}
+                  style={{
+                    position: 'absolute', top: 10, right: 10,
+                    background: 'rgba(8,6,16,0.8)', color: CREAM,
+                    border: '1px solid rgba(245,240,232,0.3)', borderRadius: 6,
+                    padding: '0.35rem 0.8rem', fontSize: '0.8rem', fontWeight: 600,
+                    cursor: 'pointer', fontFamily: BODY_SERIF,
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => coverInputRef.current && coverInputRef.current.click()}
+                disabled={coverUploading || submitting}
+                style={{
+                  width: '100%',
+                  border: '1px dashed rgba(245,240,232,0.3)',
+                  background: 'rgba(245,240,232,0.03)',
+                  borderRadius: 10,
+                  padding: '1.4rem',
+                  color: coverUploading ? 'rgba(245,240,232,0.5)' : 'rgba(245,240,232,0.7)',
+                  fontSize: '0.95rem',
+                  fontFamily: BODY_SERIF,
+                  cursor: coverUploading || submitting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {coverUploading ? 'Uploading cover…' : '＋ Add cover image (optional)'}
+              </button>
+            )}
+            {coverError && (
+              <div style={{ color: '#e88', fontSize: '0.82rem', marginTop: '0.5rem' }}>{coverError}</div>
+            )}
+          </div>
+
           {/* Title */}
           <label style={{ display: 'block', marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
@@ -360,7 +549,7 @@ export default function NewOpenPagePage() {
               <span style={{ fontSize: '0.78rem', color: bodyNearLimit ? '#e88' : 'rgba(245,240,232,0.4)' }}>{bodyLeft.toLocaleString()}</span>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setPreview(false)}
@@ -375,10 +564,33 @@ export default function NewOpenPagePage() {
               >
                 Preview
               </button>
+              <button
+                type="button"
+                onClick={() => imgInputRef.current && imgInputRef.current.click()}
+                disabled={imgUploading || submitting || inlineCapReached}
+                title={inlineCapReached ? `Up to ${MAX_INLINE_IMAGES} images per post` : 'Insert an image at the cursor'}
+                style={{
+                  ...tabStyle(false),
+                  marginLeft: 'auto',
+                  opacity: imgUploading || inlineCapReached ? 0.5 : 1,
+                  cursor: imgUploading || submitting || inlineCapReached ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {imgUploading ? 'Uploading…' : '🖼 Insert image'}
+              </button>
+              {inlineCount > 0 && (
+                <span style={{ fontSize: '0.74rem', color: inlineCapReached ? '#e88' : 'rgba(245,240,232,0.4)' }}>
+                  {inlineCount}/{MAX_INLINE_IMAGES}
+                </span>
+              )}
             </div>
+            {imgError && (
+              <div style={{ color: '#e88', fontSize: '0.82rem', marginBottom: '0.5rem' }}>{imgError}</div>
+            )}
 
             {!preview ? (
               <textarea
+                ref={bodyRef}
                 value={body}
                 onChange={(e) => setBody(e.target.value.slice(0, BODY_MAX))}
                 maxLength={BODY_MAX}
@@ -426,7 +638,8 @@ export default function NewOpenPagePage() {
           {/* Markdown hint */}
           <div style={{ fontSize: '0.82rem', color: 'rgba(245,240,232,0.45)', marginBottom: '1.75rem', lineHeight: 1.6 }}>
             <strong style={{ color: 'rgba(245,240,232,0.6)' }}>Markdown supported</strong> — bold <code style={hintCode}>**like this**</code>, italic{' '}
-            <code style={hintCode}>*like this*</code>, links <code style={hintCode}>[text](url)</code>, headings <code style={hintCode}>#</code>.
+            <code style={hintCode}>*like this*</code>, links <code style={hintCode}>[text](url)</code>, headings <code style={hintCode}>#</code>. Use{' '}
+            <strong style={{ color: 'rgba(245,240,232,0.6)' }}>Insert image</strong> to add pictures.
           </div>
 
           {/* Publish */}

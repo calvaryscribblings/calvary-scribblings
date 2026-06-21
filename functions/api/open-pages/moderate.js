@@ -38,6 +38,15 @@ const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedat
 const MODEL = 'claude-haiku-4-5';
 const TITLE_MAX = 200;
 const BODY_MAX = 50000;
+const COVER_MAX = 2000; // download URL length cap
+
+// Cover image must be a Firebase Storage (or other https) download URL, or absent.
+function cleanCoverImage(v) {
+  if (v == null || v === '') return null;
+  if (typeof v !== 'string') return null;
+  if (v.length > COVER_MAX) return null;
+  return /^https?:\/\//i.test(v.trim()) ? v.trim() : null;
+}
 
 // ---------------------------------------------------------------------------
 // Moderation tool (structured output via forced tool_use).
@@ -277,7 +286,7 @@ export async function onRequestPost(context) {
     return json({ error: 'Invalid request body.' }, 400);
   }
 
-  const { uid, title, body: postBody } = body || {};
+  const { uid, title, body: postBody, coverImage } = body || {};
   console.log('[open-pages/moderate] uid:', uid, '| ANTHROPIC set:', !!env.ANTHROPIC_API_KEY);
 
   // Server-side validation.
@@ -293,6 +302,7 @@ export async function onRequestPost(context) {
 
   const cleanTitle = title.trim();
   const cleanBody = postBody.trim();
+  const cover = cleanCoverImage(coverImage);
 
   // Service credentials.
   const clientEmail = env.FIREBASE_CLIENT_EMAIL;
@@ -331,7 +341,7 @@ export async function onRequestPost(context) {
   const postId = generatePushId(now);
 
   // Base record (status PENDING, moderation null) — status + moderation set per decision below.
-  const base = buildPendingPost(snapshot, { title: cleanTitle, body: cleanBody }, now);
+  const base = buildPendingPost(snapshot, { title: cleanTitle, body: cleanBody, coverImage: cover }, now);
 
   // Moderate — fail closed on any error.
   let mod;

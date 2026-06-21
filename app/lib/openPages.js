@@ -78,7 +78,8 @@ export function isValidOpenPageStatus(s) {
 //     authorHandle:    string,          // denormalized snapshot — users/{uid}/username ('' if none)
 //     authorAvatarUrl: string | null,   // denormalized snapshot — users/{uid}/avatarUrl
 //     title:           string,
-//     body:            string,          // MARKDOWN (never HTML)
+//     body:            string,          // MARKDOWN (never HTML); inline images are ![alt](url)
+//     coverImage:      string | null,   // optional hero image — Firebase Storage download URL
 //     status:          'pending' | 'live' | 'flagged' | 'removed',
 //     moderation:      { result, reason, checkedAt, model } | null,
 //     createdAt:       number,          // Date.now() (ms)
@@ -118,11 +119,14 @@ export function buildAuthorSnapshot(authUser, profile = {}) {
  * function fills moderation and decides live/flagged.
  *
  * @param {object} snapshot  Result of buildAuthorSnapshot().
- * @param {{ title: string, body: string }} content  Post title + Markdown body.
+ * @param {{ title: string, body: string, coverImage?: string|null }} content
+ *        Post title + Markdown body, plus an optional cover image download URL
+ *        (Firebase Storage). Inline images live inside `body` as Markdown image
+ *        syntax — only the hero/cover lives in its own field.
  * @param {number} now  Date.now() — pass in so callers control the clock.
  * @returns {object} A full post record.
  */
-export function buildPendingPost(snapshot, { title, body }, now) {
+export function buildPendingPost(snapshot, { title, body, coverImage }, now) {
   return {
     authorUid: snapshot.authorUid,
     authorName: snapshot.authorName,
@@ -130,6 +134,7 @@ export function buildPendingPost(snapshot, { title, body }, now) {
     authorAvatarUrl: snapshot.authorAvatarUrl,
     title: title || '',
     body: body || '',
+    coverImage: coverImage || null,
     status: OPEN_PAGE_STATUS.PENDING,
     moderation: null,
     createdAt: now,
