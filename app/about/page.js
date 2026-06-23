@@ -1,4 +1,5 @@
 import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
 export default function AboutPage() {
   return (
@@ -15,6 +16,7 @@ export default function AboutPage() {
           <p>Our contributors are writers united by a love of craft and a belief that every story, wherever it comes from, deserves to be told well.</p>
         </div>
       </section>
+      <Footer />
     </div>
   );
 }

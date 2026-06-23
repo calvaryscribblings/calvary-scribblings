@@ -1,4 +1,5 @@
 import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
 export default function ContactPage() {
   return (
@@ -18,6 +19,7 @@ export default function ContactPage() {
           <p style={{ fontSize: '0.95rem', color: 'rgba(255,255,255,0.45)' }}>We aim to respond within 48 hours.</p>
         </div>
       </section>
+      <Footer />
     </div>
   );
 }
