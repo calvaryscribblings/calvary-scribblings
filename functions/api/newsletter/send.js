@@ -4,6 +4,9 @@
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const ADMIN_EMAILS = ['ikennaworksfromhome@gmail.com', 'fynbecki@gmail.com'];
 const WORKER = 'https://calvary-newsletter.calvarymediauk.workers.dev';
+// Public Firebase Web API key (client identifier, safe to hardcode — matches
+// app/lib/firebase.js). NEWSLETTER_SEND_SECRET is the real secret and stays in env.
+const FIREBASE_API_KEY = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
 
 // Authorise by UID OR admin email — matches the app's admin rule (commit 3293247).
 function isAdmin(caller) {
@@ -20,33 +23,19 @@ function json(data, status = 200) {
   });
 }
 
-async function verifyAdminToken(token, apiKey) {
-  // TEMP DEBUG: confirm the API key var actually arrives in the Functions env.
-  console.log('[newsletter/send] verify: apiKey present?', !!apiKey, 'len', apiKey ? apiKey.length : 0);
+async function verifyAdminToken(token) {
   const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken: token }),
     }
   );
-  // TEMP DEBUG: surface the identitytoolkit response status; a non-OK here
-  // (wrong/missing key, expired token) silently becomes null and reads as "Unauthorised".
-  if (!res.ok) {
-    let detail = '';
-    try { detail = (await res.text()).slice(0, 300); } catch {}
-    console.log('[newsletter/send] verify: lookup NOT ok, status', res.status, 'body', detail);
-    return null;
-  }
+  if (!res.ok) return null;
   const data = await res.json();
   const u = data?.users?.[0];
-  if (!u) {
-    console.log('[newsletter/send] verify: lookup ok but no user record in response');
-    return null;
-  }
-  console.log('[newsletter/send] verify: ok uid', u.localId ?? null, 'email', u.email ?? null);
-  return { uid: u.localId ?? null, email: u.email ?? null };
+  return u ? { uid: u.localId ?? null, email: u.email ?? null } : null;
 }
 
 export async function onRequestPost(context) {
@@ -54,29 +43,10 @@ export async function onRequestPost(context) {
 
   const authHeader = request.headers.get('authorization') ?? '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  // TEMP DEBUG: did the Authorization header arrive with a Bearer token?
-  console.log('[newsletter/send] auth header present?', !!authHeader, 'token present?', !!token);
-  // TEMP DEBUG: `fn` marker proves WHICH function version is live. If you don't
-  // see fn:'send-debug-v2' in the 401, the deployed Function is stale.
-  if (!token) return json({ error: 'Unauthorised.', debug: 'no-token', fn: 'send-debug-v2' }, 401);
+  if (!token) return json({ error: 'Unauthorised.' }, 401);
 
-  const caller = await verifyAdminToken(token, env.NEXT_PUBLIC_FIREBASE_API_KEY);
-  // TEMP DEBUG: did verify return a caller, and is that caller an admin?
-  console.log('[newsletter/send] caller', caller ? JSON.stringify(caller) : 'null', 'isAdmin?', isAdmin(caller));
-  if (!caller) {
-    return json(
-      { error: 'Unauthorised.', debug: 'verify-null', fn: 'send-debug-v2', apiKeyPresent: !!env.NEXT_PUBLIC_FIREBASE_API_KEY },
-      401
-    );
-  }
-  if (!isAdmin(caller)) {
-    // CRITICAL: echo the EXACT identity Firebase resolved so we can see if the
-    // logged-in account is not the founder email / UID in the allowlist.
-    return json(
-      { error: 'Unauthorised.', debug: 'not-admin', fn: 'send-debug-v2', sawUid: caller.uid, sawEmail: caller.email },
-      401
-    );
-  }
+  const caller = await verifyAdminToken(token);
+  if (!isAdmin(caller)) return json({ error: 'Unauthorised.' }, 401);
 
   if (!env.NEWSLETTER_SEND_SECRET) return json({ error: 'Server misconfigured.' }, 500);
 
