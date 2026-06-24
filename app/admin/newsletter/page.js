@@ -42,20 +42,13 @@ function getFirebaseApp() {
   return initializeApp(firebaseConfig);
 }
 
-// TEMP DEBUG: parse a failed /api/newsletter/* response and build an on-screen
-// message that surfaces the HTTP status + the proxy's `debug` reason, so the
-// cause is visible without browser dev tools. Remove with the send.js diagnostics.
+// Parse a failed /api/newsletter/* response into a readable error message.
 async function describeFailure(res, fallback) {
   const raw = await res.text();
   let data = null;
   try { data = JSON.parse(raw); } catch {}
   if (!data) return `${fallback}: ${res.status} — ${raw || "(no body)"}`;
-  const parts = [`${fallback}: ${res.status} — ${data.debug || data.error || "(no debug)"}`];
-  if (data.sawEmail || data.sawUid) parts.push(`saw ${data.sawEmail || "?"} / uid ${data.sawUid || "?"}`);
-  if (data.apiKeyPresent !== undefined) parts.push(`apiKeyPresent=${data.apiKeyPresent}`);
-  // `fn` marker tells us whether the NEW debug function is actually deployed.
-  parts.push(data.fn ? `[${data.fn}]` : "[STALE FN — no fn marker]");
-  return parts.join(" · ");
+  return `${fallback}: ${res.status} — ${data.error || "(no detail)"}`;
 }
 
 const ALLOWED_EMAILS = ["Ikennaworksfromhome@gmail.com", "fynbecki@gmail.com"];
@@ -109,11 +102,8 @@ export default function NewsletterPage() {
       } else { setSubscriberCount(0); }
     });
     // Load drafts via server-side proxy (Worker secret held in Pages env, never shipped to the client)
-    user.getIdToken().then((idToken) =>
-      fetch('/api/newsletter/drafts', {
-        headers: { Authorization: `Bearer ${idToken}` }
-      })
-    ).then(r => r.json()).then(data => {
+    fetch(`/api/newsletter/drafts?uid=${encodeURIComponent(user.uid)}`)
+    .then(r => r.json()).then(data => {
       if (data && typeof data === 'object') {
         const list = Object.values(data).sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
         setDrafts(list);
@@ -200,11 +190,11 @@ export default function NewsletterPage() {
     setStatus("loading");
     setStatusMsg(scheduleTime ? "Scheduling newsletter…" : "Saving draft…");
     try {
-      const idToken = await user.getIdToken();
       const res = await fetch("/api/newsletter/draft", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          uid: user.uid,
           id: draftId || undefined,
           subject: subject.trim(),
           blocks,
@@ -234,11 +224,10 @@ export default function NewsletterPage() {
     setStatus("loading");
     setStatusMsg(isTest ? "Sending test email…" : "Sending to all subscribers…");
     try {
-      const idToken = await user.getIdToken();
       const res = await fetch("/api/newsletter/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ subject: subject.trim(), blocks, issueNumber: issueNumber ? parseInt(issueNumber) : undefined, testEmail: isTest ? testEmail.trim() : undefined }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user.uid, subject: subject.trim(), blocks, issueNumber: issueNumber ? parseInt(issueNumber) : undefined, testEmail: isTest ? testEmail.trim() : undefined }),
       });
       if (!res.ok) throw new Error(await describeFailure(res, isTest ? "Test failed" : "Send failed"));
       const data = await res.json();
@@ -519,8 +508,7 @@ export default function NewsletterPage() {
                           <button onClick={() => { setSubject(d.subject||""); setBlocks(legacyDraftToBlocks(d)); setFocusedBlockId(null); setIssueNumber(d.issueNumber||""); setDraftId(d.id); setScheduledAt(d.scheduledAt||""); setTab("compose"); }}
                             style={{background:"#f3eefb", color:"#6b2fad", border:"none", borderRadius:6, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"}}>Edit</button>
                           <button onClick={async () => {
-                            const idToken = await user.getIdToken();
-                            await fetch("/api/newsletter/draft?id=" + encodeURIComponent(d.id), { method:"DELETE", headers:{Authorization:`Bearer ${idToken}`} });
+                            await fetch("/api/newsletter/draft?id=" + encodeURIComponent(d.id) + "&uid=" + encodeURIComponent(user.uid), { method:"DELETE" });
                             setDrafts(prev => prev.filter(x => x.id !== d.id));
                           }} style={{background:"#fef2f2", color:"#dc2626", border:"none", borderRadius:6, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"}}>Delete</button>
                         </div>
