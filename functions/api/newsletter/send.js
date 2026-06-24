@@ -22,8 +22,7 @@ export async function onRequestPost(context) {
   try { body = await request.json(); }
   catch { return json({ error: 'Invalid request body.' }, 400); }
 
-  // TEMP DEBUG: echo the received uid so we can see what the function gets. STRIP after.
-  if (!ADMIN_UIDS.includes(body.uid)) return json({ error: 'Unauthorised.', receivedUid: body.uid ?? null }, 401);
+  if (!ADMIN_UIDS.includes(body.uid)) return json({ error: 'Unauthorised.' }, 401);
   if (!env.NEWSLETTER_SEND_SECRET) return json({ error: 'Server misconfigured.' }, 500);
 
   // Forward everything except the uid (the Worker authorises via the secret).
