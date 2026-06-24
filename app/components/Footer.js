@@ -16,7 +16,7 @@ export default function Footer() {
         {[
           { title: 'Explore', links: [['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Poetry', '/poetry'], ['News & Updates', '/news'], ['Inspiring Stories', '/inspiring'], ['Serial Stories', '/serial']] },
           { title: 'Connect', links: [['Newsletter', 'https://calvaryscribblings.co.uk/#subscribe'], ['Contact Us', '/contact'], ['About Us', '/about']] },
-          { title: 'Legal', links: [['Privacy Policy', '/privacy'], ['Terms of Service', '/terms']] },
+          { title: 'Legal', links: [['Privacy Policy', '/privacy'], ['Terms of Service', '/terms'], ['Delete Account', '/delete-account']] },
         ].map(({ title, links }) => (
           <div key={title}>
             <h5 style={{ color: '#a78bfa', marginBottom: '1rem', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{title}</h5>
