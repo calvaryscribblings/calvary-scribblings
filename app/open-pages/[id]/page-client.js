@@ -12,9 +12,13 @@
 
 import { use, useEffect, useState } from 'react';
 import Navbar from '../../components/Navbar';
+import AuthModal from '../../components/AuthModal';
+import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
 import { OPEN_PAGES_NODE, normalizeGenre } from '../../lib/openPages';
 import { renderMarkdown } from '../../lib/openPagesMarkdown';
+
+const REPORT_REASONS = ['Harmful content', 'Spam', 'Plagiarism', 'Other'];
 
 // Brand palette.
 const INK = '#080610';
@@ -34,9 +38,43 @@ function formatDate(ts) {
 
 export default function OpenPageDetailClient({ params }) {
   const { id } = use(params);
+  const { user } = useAuth();
 
   const [post, setPost] = useState(undefined); // undefined = loading, null = not found
+
+  // Report flow. One report per user per post — the RTDB path is keyed by the
+  // reporter's uid, so re-reporting just overwrites their own entry. We disable
+  // the control for the session once submitted.
+  const [reportOpen, setReportOpen] = useState(false);
   const [reported, setReported] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const [showAuth, setShowAuth] = useState(false);
+
+  async function submitReport(reason) {
+    if (!user) { setShowAuth(true); return; }
+    setReporting(true);
+    setReportError('');
+    try {
+      const { ref, set } = await import('firebase/database');
+      await set(ref(db, `open_pages_reports/${id}/${user.uid}`), {
+        reason,
+        reporterUid: user.uid,
+        createdAt: Date.now(),
+      });
+      setReported(true);
+      setReportOpen(false);
+    } catch (e) {
+      console.error('[open-pages] report failed:', e);
+      setReportError('Couldn’t submit your report. Please try again.');
+    }
+    setReporting(false);
+  }
+
+  function handleReportClick() {
+    if (!user) { setShowAuth(true); return; }
+    setReportOpen((v) => !v);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -187,17 +225,56 @@ export default function OpenPageDetailClient({ params }) {
           </div>
         </div>
 
-        {/* Report */}
+        {/* Report — writes open_pages_reports/{postId}/{reporterUid}; the admin
+            queue (app/admin/forum) reviews and acts on these. */}
         <div style={{ textAlign: 'center', marginTop: 30 }}>
           {reported ? (
-            <span style={{ fontSize: '0.86rem', color: 'rgba(245,240,232,0.5)' }}>
-              Thanks — reporting goes live soon.
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: '0.86rem', color: GOLD }}>
+              <IconCheck size={15} /> Thanks — our moderators will take a look.
             </span>
+          ) : reportOpen ? (
+            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 12, background: SURFACE, border: '1px solid rgba(245,240,232,0.1)', borderRadius: 12, padding: '1.1rem 1.3rem' }}>
+              <div style={{ fontFamily: CINZEL, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.55)' }}>
+                Why are you reporting this?
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, maxWidth: 360 }}>
+                {REPORT_REASONS.map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    disabled={reporting}
+                    onClick={() => submitReport(reason)}
+                    style={{
+                      background: 'rgba(245,240,232,0.04)',
+                      border: '1px solid rgba(245,240,232,0.16)',
+                      color: 'rgba(245,240,232,0.8)',
+                      borderRadius: 999,
+                      padding: '0.45rem 1rem',
+                      fontSize: '0.84rem',
+                      fontFamily: BODY_SERIF,
+                      cursor: reporting ? 'not-allowed' : 'pointer',
+                      opacity: reporting ? 0.5 : 1,
+                    }}
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+              {reportError ? (
+                <div style={{ fontSize: '0.8rem', color: '#e88' }}>{reportError}</div>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => { setReportOpen(false); setReportError(''); }}
+                style={{ background: 'transparent', border: 'none', color: 'rgba(245,240,232,0.4)', fontSize: '0.8rem', fontFamily: BODY_SERIF, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
           ) : (
             <button
               type="button"
-              // UI only — Stage 5 wires this to the admin moderation queue.
-              onClick={() => setReported(true)}
+              onClick={handleReportClick}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -216,6 +293,7 @@ export default function OpenPageDetailClient({ params }) {
           )}
         </div>
       </article>
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </Shell>
   );
 }
@@ -294,5 +372,10 @@ const IconFlag = (p) => (
   <Svg {...p}>
     <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
     <line x1="4" y1="22" x2="4" y2="15" />
+  </Svg>
+);
+const IconCheck = (p) => (
+  <Svg {...p}>
+    <path d="M20 6 9 17l-5-5" />
   </Svg>
 );
