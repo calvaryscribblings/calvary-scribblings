@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { stories as allStories } from '../lib/stories';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import HeaderAdjuster from '../components/HeaderAdjuster';
+import OpenPagesProfileSection from '../components/OpenPagesProfileSection';
 import { BADGES, RARITY_STYLES, getStreakDisplay } from '../lib/badges';
 import { checkAndAwardBadges } from '../lib/badgeEngine';
 
@@ -902,6 +903,8 @@ export default function ProfilePage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.32)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
           </button>
         </div>
+
+        <OpenPagesProfileSection profileUid={authUser.uid} isOwner profileName={displayName.split(' ')[0]} />
 
         {readStories.length > 0 && (
           <div className="pf-section">

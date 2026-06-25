@@ -28,12 +28,17 @@ export async function generateStaticParams() {
     const db = getDatabase(app);
     const snap = await get(ref(db, 'open_pages'));
     if (snap.exists()) {
-      return Object.keys(snap.val()).map((id) => ({ id }));
+      const ids = Object.keys(snap.val());
+      if (ids.length) return ids.map((id) => ({ id }));
     }
   } catch (e) {
     console.error('open-pages generateStaticParams error:', e);
   }
-  return [];
+  // output:'export' requires a dynamic segment to emit at least one path. When
+  // there are no published posts yet (empty open_pages), emit a single throwaway
+  // id so the build stays green — page-client.js renders its not-found state for
+  // it, and real posts are picked up on the next deploy.
+  return [{ id: 'none' }];
 }
 
 export default function OpenPageDetailPage({ params }) {

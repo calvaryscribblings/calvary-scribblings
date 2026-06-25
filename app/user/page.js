@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { stories as allStories } from '../lib/stories';
 import { BADGES, RARITY_STYLES, getStreakDisplay } from '../lib/badges';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
+import OpenPagesProfileSection from '../components/OpenPagesProfileSection';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -619,6 +620,8 @@ export default function UserPage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.32)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
           </button>
         </div>
+
+        <OpenPagesProfileSection profileUid={uid} isOwner={currentUser?.uid === uid} profileName={firstName} />
 
         {readStories.length > 0 && (
           <div className="up-section">
