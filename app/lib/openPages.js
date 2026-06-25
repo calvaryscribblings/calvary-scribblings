@@ -67,6 +67,31 @@ export function isValidOpenPageStatus(s) {
 }
 
 // ---------------------------------------------------------------------------
+// Genres — the six categories a post can be filed under. Shared by the composer
+// picker, the moderation function (which persists the value), and the public
+// feed's filter bar so they can never drift. 'General' is the default/fallback
+// and is listed last (it's the catch-all).
+// ---------------------------------------------------------------------------
+
+export const OPEN_PAGE_GENRES = Object.freeze([
+  'Literary',
+  'Flash',
+  'Short Story',
+  'Poetry',
+  'Inspiring',
+  'General',
+]);
+
+export const DEFAULT_GENRE = 'General';
+
+const VALID_GENRES = new Set(OPEN_PAGE_GENRES);
+
+/** Coerce any input to one of the six valid genres, defaulting to 'General'. */
+export function normalizeGenre(g) {
+  return typeof g === 'string' && VALID_GENRES.has(g) ? g : DEFAULT_GENRE;
+}
+
+// ---------------------------------------------------------------------------
 // Post shape (documentation — both nodes share this shape).
 // ---------------------------------------------------------------------------
 //
@@ -119,14 +144,15 @@ export function buildAuthorSnapshot(authUser, profile = {}) {
  * function fills moderation and decides live/flagged.
  *
  * @param {object} snapshot  Result of buildAuthorSnapshot().
- * @param {{ title: string, body: string, coverImage?: string|null }} content
+ * @param {{ title: string, body: string, coverImage?: string|null, genre?: string }} content
  *        Post title + Markdown body, plus an optional cover image download URL
- *        (Firebase Storage). Inline images live inside `body` as Markdown image
- *        syntax — only the hero/cover lives in its own field.
+ *        (Firebase Storage) and a genre (one of OPEN_PAGE_GENRES, defaults to
+ *        'General'). Inline images live inside `body` as Markdown image syntax —
+ *        only the hero/cover lives in its own field.
  * @param {number} now  Date.now() — pass in so callers control the clock.
  * @returns {object} A full post record.
  */
-export function buildPendingPost(snapshot, { title, body, coverImage }, now) {
+export function buildPendingPost(snapshot, { title, body, coverImage, genre }, now) {
   return {
     authorUid: snapshot.authorUid,
     authorName: snapshot.authorName,
@@ -135,6 +161,7 @@ export function buildPendingPost(snapshot, { title, body, coverImage }, now) {
     title: title || '',
     body: body || '',
     coverImage: coverImage || null,
+    genre: normalizeGenre(genre),
     status: OPEN_PAGE_STATUS.PENDING,
     moderation: null,
     createdAt: now,

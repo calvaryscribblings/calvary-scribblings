@@ -286,7 +286,7 @@ export async function onRequestPost(context) {
     return json({ error: 'Invalid request body.' }, 400);
   }
 
-  const { uid, title, body: postBody, coverImage } = body || {};
+  const { uid, title, body: postBody, coverImage, genre } = body || {};
   console.log('[open-pages/moderate] uid:', uid, '| ANTHROPIC set:', !!env.ANTHROPIC_API_KEY);
 
   // Server-side validation.
@@ -341,7 +341,8 @@ export async function onRequestPost(context) {
   const postId = generatePushId(now);
 
   // Base record (status PENDING, moderation null) — status + moderation set per decision below.
-  const base = buildPendingPost(snapshot, { title: cleanTitle, body: cleanBody, coverImage: cover }, now);
+  // genre is normalised inside buildPendingPost (falls back to 'General').
+  const base = buildPendingPost(snapshot, { title: cleanTitle, body: cleanBody, coverImage: cover, genre }, now);
 
   // Moderate — fail closed on any error.
   let mod;

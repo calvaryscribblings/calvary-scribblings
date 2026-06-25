@@ -17,6 +17,7 @@ import Navbar from '../../components/Navbar';
 import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/AuthContext';
 import { storage } from '../../lib/firebase';
+import { OPEN_PAGE_GENRES, DEFAULT_GENRE } from '../../lib/openPages';
 
 const TITLE_MAX = 200;
 const BODY_MAX = 50000;
@@ -209,9 +210,14 @@ export default function NewOpenPagePage() {
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [genre, setGenre] = useState(DEFAULT_GENRE);
   const [preview, setPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+
+  // Pocket eligibility strip — collapsed by default (Task 4). Real thresholds
+  // arrive in Stage 7; for now the values are placeholders (all 0).
+  const [pocketOpen, setPocketOpen] = useState(false);
 
   // Cover image (optional hero).
   const [coverImage, setCoverImage] = useState(null); // download URL
@@ -312,7 +318,7 @@ export default function NewOpenPagePage() {
       const res = await fetch('/api/open-pages/moderate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: user.uid, title: title.trim(), body: body.trim(), coverImage }),
+        body: JSON.stringify({ uid: user.uid, title: title.trim(), body: body.trim(), coverImage, genre }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -324,6 +330,7 @@ export default function NewOpenPagePage() {
         });
         setTitle('');
         setBody('');
+        setGenre(DEFAULT_GENRE);
         setCoverImage(null);
         setPreview(false);
       } else if (res.ok && data.status === 'pending') {
@@ -334,6 +341,7 @@ export default function NewOpenPagePage() {
         });
         setTitle('');
         setBody('');
+        setGenre(DEFAULT_GENRE);
         setCoverImage(null);
         setPreview(false);
       } else if (res.ok && data.status === 'rejected') {
@@ -555,6 +563,41 @@ export default function NewOpenPagePage() {
             />
           </div>
 
+          {/* Genre picker — six categories; defaults to General */}
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{ fontFamily: CINZEL, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.45)', marginBottom: 10 }}>
+              Genre
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {OPEN_PAGE_GENRES.map((g) => {
+                const active = genre === g;
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGenre(g)}
+                    disabled={submitting}
+                    style={{
+                      background: active ? PURPLE : 'rgba(245,240,232,0.04)',
+                      color: active ? CREAM : 'rgba(245,240,232,0.6)',
+                      border: `1px solid ${active ? PURPLE : 'rgba(245,240,232,0.14)'}`,
+                      borderRadius: 999,
+                      padding: '0.4rem 1rem',
+                      fontFamily: CINZEL,
+                      fontSize: '0.74rem',
+                      letterSpacing: '0.06em',
+                      fontWeight: active ? 600 : 500,
+                      cursor: submitting ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.18s',
+                    }}
+                  >
+                    {g}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Body — borderless writing area */}
           <div>
             {/* Toolbar: segmented Write/Preview + Insert image */}
@@ -683,6 +726,10 @@ export default function NewOpenPagePage() {
               </div>
             )}
           </div>
+
+          {/* Pocket eligibility — collapsed accordion, subtle, below Publish.
+              Placeholder progress (all 0) until real data lands in Stage 7. */}
+          <PocketEligibility open={pocketOpen} onToggle={() => setPocketOpen((v) => !v)} />
         </form>
       </div>
     </div>
@@ -690,6 +737,7 @@ export default function NewOpenPagePage() {
 }
 
 const SANS = "'Helvetica Neue', Arial, sans-serif";
+const CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 const hintCode = { background: 'rgba(245,240,232,0.08)', padding: '0.05em 0.35em', borderRadius: 3 };
 
 // Segmented Write/Preview toggle.
@@ -713,6 +761,141 @@ function segBtn(active) {
     fontFamily: BODY_SERIF,
     transition: 'all 0.18s',
   };
+}
+
+// ---------------------------------------------------------------------------
+// Pocket eligibility strip.
+//
+// "Pocket" is a future creator-earnings tier. Eligibility is gated on four
+// thresholds. The real progress numbers arrive in Stage 7 — for now every value
+// is a placeholder 0, so the strip renders the four bars empty and never shows
+// the "Pocket Ready" badge. Collapsed by default so it doesn't interrupt writing.
+// ---------------------------------------------------------------------------
+
+const POCKET_THRESHOLDS = [
+  { key: 'weeks', label: 'Consistent posting', detail: '8 consecutive weeks, min. 2 posts/week — resets on a missed week', current: 0, target: 8, unit: 'weeks' },
+  { key: 'followers', label: 'Verified followers', detail: 'genuine, verified accounts following you', current: 0, target: 100, unit: 'followers' },
+  { key: 'comments', label: 'Received comments', detail: 'comments from others, excluding your own', current: 0, target: 200, unit: 'comments' },
+  { key: 'stories', label: 'Published stories', detail: 'cleared by moderation and live on Open Pages', current: 0, target: 10, unit: 'stories' },
+];
+
+function PocketEligibility({ open, onToggle }) {
+  const allMet = POCKET_THRESHOLDS.every((t) => t.current >= t.target);
+
+  return (
+    <div
+      style={{
+        marginTop: '2.25rem',
+        border: '1px solid rgba(245,240,232,0.08)',
+        borderRadius: 12,
+        background: 'rgba(245,240,232,0.015)',
+        overflow: 'hidden',
+      }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          background: 'transparent',
+          border: 'none',
+          padding: '0.95rem 1.15rem',
+          cursor: 'pointer',
+          color: 'rgba(245,240,232,0.7)',
+          fontFamily: CINZEL,
+          fontSize: '0.72rem',
+          letterSpacing: '0.16em',
+          textTransform: 'uppercase',
+        }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+          <IconPocket size={15} style={{ color: GOLD, opacity: 0.8 }} />
+          Pocket eligibility
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          {allMet ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'rgba(201,168,76,0.14)',
+                border: `1px solid ${GOLD}`,
+                color: GOLD,
+                borderRadius: 999,
+                padding: '0.2rem 0.7rem',
+                fontSize: '0.64rem',
+                letterSpacing: '0.12em',
+              }}
+            >
+              <IconCheck size={12} /> Pocket Ready
+            </span>
+          ) : null}
+          <IconChevron
+            size={16}
+            style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.6 }}
+          />
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '0.25rem 1.15rem 1.2rem' }}>
+          <p style={{ margin: '0 0 1.1rem', fontFamily: BODY_SERIF, fontSize: '0.92rem', lineHeight: 1.6, color: 'rgba(245,240,232,0.5)' }}>
+            Meet all four and you can apply to the Pocket creator tier. Progress
+            updates automatically as you publish — nothing to do here yet.
+          </p>
+          <div style={{ display: 'grid', gap: '1.1rem' }}>
+            {POCKET_THRESHOLDS.map((t) => {
+              const pct = t.target > 0 ? Math.min(100, Math.round((t.current / t.target) * 100)) : 0;
+              const met = t.current >= t.target;
+              return (
+                <div key={t.key}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 6 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: SERIF, fontSize: '1.05rem', fontWeight: 600, color: met ? GOLD : CREAM }}>
+                        {t.label}
+                      </div>
+                      <div style={{ fontFamily: BODY_SERIF, fontSize: '0.8rem', color: 'rgba(245,240,232,0.4)', lineHeight: 1.45, marginTop: 1 }}>
+                        {t.detail}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        flexShrink: 0,
+                        fontFamily: CINZEL,
+                        fontSize: '0.74rem',
+                        letterSpacing: '0.04em',
+                        color: met ? GOLD : 'rgba(245,240,232,0.55)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {t.current}/{t.target} {t.unit}
+                    </div>
+                  </div>
+                  <div style={{ height: 5, borderRadius: 999, background: 'rgba(245,240,232,0.07)', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${pct}%`,
+                        height: '100%',
+                        borderRadius: 999,
+                        background: met ? GOLD : PURPLE,
+                        transition: 'width 0.3s',
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -770,5 +953,27 @@ const IconArrowRight = (p) => (
   <Icon {...p}>
     <path d="M5 12h14" />
     <path d="m12 5 7 7-7 7" />
+  </Icon>
+);
+
+// Lucide "wallet" — stands in for the Pocket tier.
+const IconPocket = (p) => (
+  <Icon {...p}>
+    <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+    <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+  </Icon>
+);
+
+// Lucide "check"
+const IconCheck = (p) => (
+  <Icon {...p}>
+    <path d="M20 6 9 17l-5-5" />
+  </Icon>
+);
+
+// Lucide "chevron-down"
+const IconChevron = (p) => (
+  <Icon {...p}>
+    <path d="m6 9 6 6 6-6" />
   </Icon>
 );
