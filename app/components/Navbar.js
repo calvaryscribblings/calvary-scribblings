@@ -161,6 +161,7 @@ export default function Navbar() {
               </div>
             )}
           </div>
+          <a href="/open-pages">Open Pages</a>
           <a href="/about">About</a>
           <a href="https://calvaryscribblings.co.uk/#subscribe">Subscribe</a>
           <a href="/contact">Contact</a>
@@ -226,6 +227,7 @@ export default function Navbar() {
               <a className="cs-drawer-subnav-item" href="/inspiring" onClick={() => setMenuOpen(false)}>Inspiring Stories</a>
             </div>
           )}
+          <a href="/open-pages" onClick={() => setMenuOpen(false)}>Open Pages</a>
           <a href="/about" onClick={() => setMenuOpen(false)}>About</a>
           <a href="https://calvaryscribblings.co.uk/#subscribe" onClick={() => setMenuOpen(false)}>Subscribe</a>
           <a href="/contact" onClick={() => setMenuOpen(false)}>Contact</a>

@@ -9,6 +9,7 @@ import { useUserStoryTiers } from './lib/useUserStoryTiers';
 import { db } from './lib/firebase';
 import { ref, get } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from './lib/resolveAuthorNames';
+import { normalizeGenre } from './lib/openPages';
 
 // Stories source of truth: cms_stories/ in Firebase RTDB.
 // This component fetches on mount via the useEffect below.
@@ -586,6 +587,136 @@ function RowSkeleton({ title }) {
   );
 }
 
+// ── Open Pages row (Stage 6) ───────────────────────────────────────────────
+// Community-written posts. Self-contained: fetches the 6 most recent live posts
+// from open_pages on mount and renders the homepage's horizontal-scroll row
+// pattern. Renders nothing until there are posts, so it never leaves an empty
+// rail at the bottom of the page. Carries the Open Pages gold/Cormorant identity
+// on the homepage's dark canvas.
+const OP_GOLD = '#c9a84c';
+const OP_SERIF = "'Cormorant Garamond', 'Cochin', Georgia, serif";
+const OP_CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
+
+function opTimeAgo(ts) {
+  if (!ts || typeof ts !== 'number') return '';
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  const weeks = Math.floor(days / 7);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  if (weeks < 5) return `${weeks}w ago`;
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function OpenPagesCard({ post }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <a
+      href={`/open-pages/${post.id}`}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        textDecoration: 'none', flexShrink: 0, width: 210, minWidth: 210,
+        display: 'flex', flexDirection: 'column',
+        background: hover ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${hover ? 'rgba(201,168,76,0.3)' : 'rgba(255,255,255,0.06)'}`,
+        borderRadius: 10, overflow: 'hidden', transition: 'all 0.25s ease',
+      }}
+    >
+      {post.coverImage ? (
+        <img src={post.coverImage} alt="" style={{ width: '100%', height: 118, objectFit: 'cover', display: 'block', background: '#1a1326' }} />
+      ) : (
+        <div style={{ width: '100%', height: 118, background: 'linear-gradient(135deg, #1a1326, #0d0916)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(201,168,76,0.3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z" />
+            <path d="M16 8 2 22" />
+            <path d="M17.5 15H9" />
+          </svg>
+        </div>
+      )}
+      <div style={{ padding: '0.7rem 0.8rem 0.85rem', display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
+        <span style={{
+          alignSelf: 'flex-start', fontFamily: OP_CINZEL, fontSize: '0.56rem', letterSpacing: '0.1em',
+          textTransform: 'uppercase', color: OP_GOLD, background: 'rgba(201,168,76,0.1)',
+          border: '1px solid rgba(201,168,76,0.3)', borderRadius: 999, padding: '0.18rem 0.55rem',
+        }}>
+          {normalizeGenre(post.genre)}
+        </span>
+        <div style={{
+          fontFamily: OP_SERIF, fontSize: '1.05rem', fontWeight: 600, color: '#fff', lineHeight: 1.2,
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>
+          {post.title}
+        </div>
+        <div style={{ marginTop: 'auto', fontSize: '0.68rem', color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {post.authorName || 'Reader'} · {opTimeAgo(post.createdAt)}
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function OpenPagesRow() {
+  const [posts, setPosts] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await get(ref(db, 'open_pages'));
+        if (cancelled) return;
+        if (!snap.exists()) { setPosts([]); return; }
+        const list = Object.entries(snap.val())
+          .map(([id, p]) => ({ id, ...p }))
+          .filter(p => p && p.status === 'live' && p.title)
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+          .slice(0, 6);
+        setPosts(list);
+      } catch (e) {
+        console.error('Open Pages row error:', e);
+        if (!cancelled) setPosts([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!posts || posts.length === 0) return null;
+
+  return (
+    <section style={{ padding: '2.5rem 0 3rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: '1.25rem', padding: '0 4%' }}>
+        <div>
+          <div style={{ fontFamily: OP_CINZEL, fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: OP_GOLD, marginBottom: 7 }}>
+            The Forum
+          </div>
+          <h3 style={{ fontFamily: OP_SERIF, fontSize: '1.85rem', fontWeight: 600, color: '#fff', margin: 0, lineHeight: 1.05 }}>
+            Open Pages
+          </h3>
+          <p style={{ fontFamily: OP_SERIF, fontStyle: 'italic', fontSize: '1.05rem', color: 'rgba(255,255,255,0.5)', margin: '5px 0 0' }}>
+            Stories written by the community.
+          </p>
+        </div>
+        <a
+          href="/open-pages"
+          style={{ fontSize: '0.8rem', color: '#a78bfa', textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}
+          onMouseEnter={e => e.target.style.color = '#c4b5fd'}
+          onMouseLeave={e => e.target.style.color = '#a78bfa'}
+        >
+          See all →
+        </a>
+      </div>
+      <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
+        {posts.map(p => <OpenPagesCard key={p.id} post={p} />)}
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   const { user, logout } = useAuth();
   const userTiersMap = useUserStoryTiers();
@@ -935,6 +1066,9 @@ export default function Home() {
           )}
         </div>
       </section>
+
+      {/* Open Pages — community stories, the last content section before the footer */}
+      <OpenPagesRow />
 
       {/* Footer */}
       <Footer />
