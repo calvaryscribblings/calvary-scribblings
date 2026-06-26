@@ -166,6 +166,10 @@ export default function OpenPageDetailClient({ params }) {
   // (see buildLikesMap). Count and "did I like it" are derived at render.
   const [likes, setLikes] = useState({});
 
+  // TEMPORARY DEBUG — visible on-page trace of the comments fetch.
+  const [rawSnap, setRawSnap] = useState(null);
+  const [fetchError, setFetchError] = useState(null);
+
   // Inline reply composer. Only one reply box is open at a time, keyed by the
   // path of the node being replied to; the draft + submitting flag are shared.
   const [replyOpenPath, setReplyOpenPath] = useState(null);
@@ -250,6 +254,7 @@ export default function OpenPageDetailClient({ params }) {
           get(ref(db, `comment_likes/${id}`)),
         ]);
         if (cancelled) return;
+        setRawSnap(cSnap.exists() ? cSnap.val() : null); // TEMPORARY DEBUG
         setReactions(rSnap.exists() ? rSnap.val() : {});
         // Top-level comments newest-first; nested replies oldest-first (normalizeNode).
         const tree = cSnap.exists()
@@ -266,7 +271,7 @@ export default function OpenPageDetailClient({ params }) {
         setLikes(likesMap);
       } catch (e) {
         console.error('[open-pages] reactions/comments read failed:', e);
-        if (!cancelled) { setReactions({}); setComments([]); }
+        if (!cancelled) { setReactions({}); setComments([]); setFetchError(e && e.message ? e.message : String(e)); } // TEMPORARY DEBUG
       }
     })();
     return () => { cancelled = true; };
@@ -912,6 +917,15 @@ export default function OpenPageDetailClient({ params }) {
             >
               Sign in to leave a comment
             </button>
+          )}
+
+          {/* TEMPORARY DEBUG — visible comments trace (remove once diagnosed). */}
+          {comments !== null && (
+            <div style={{background:'#1a1326', border:'1px solid #6b2fad', borderRadius:6, padding:12, marginBottom:16, fontSize:12, fontFamily:'monospace', color:'#c9a84c', whiteSpace:'pre-wrap', wordBreak:'break-all'}}>
+              DEBUG — raw snap: {JSON.stringify(rawSnap)}{'\n'}
+              normalized count: {comments.length}{'\n'}
+              error: {fetchError || 'none'}
+            </div>
           )}
 
           {/* List */}
