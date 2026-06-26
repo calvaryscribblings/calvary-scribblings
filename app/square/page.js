@@ -794,6 +794,7 @@ function NotificationsPanel({ user, onClose }) {
   const notifLabel = (n) => {
     if (n.type === 'mention') return ' mentioned you in the Square';
     if (n.type === 'reply') return ' replied to your comment';
+    if (n.type === 'open_pages_reply') return ' replied to your comment on Open Pages';
     if (n.type === 'follow') return ' started following you';
     if (n.type === 'heart') return ' loved your post';
     if (n.type === 'clap') return ' liked your post';
@@ -822,7 +823,7 @@ function NotificationsPanel({ user, onClose }) {
           ) : notifs.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet.</div>
           ) : notifs.map(n => {
-            const href = n.type === 'follow' ? `/user?id=${n.fromUid}` : n.postId ? `/square#${n.postId}` : null;
+            const href = n.type === 'follow' ? `/user?id=${n.fromUid}` : n.type === 'open_pages_reply' ? (n.postId ? `/open-pages/${n.postId}` : null) : n.postId ? `/square#${n.postId}` : null;
             const ini = (n.fromName || 'R').split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
             return (
               <a key={n.id} href={href || '#'} onClick={!href ? e => e.preventDefault() : undefined}
