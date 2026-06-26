@@ -40,3 +40,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+serviceAccountKey.json
+
+# vestigial sibling projects living in the workspace (separate projects — ignore,
+# do not commit). They are not part of this Next.js app.
+/calvary-app/
+/calvary-brand-video/
+/calvary-scribblings-next/
+/calvary-open-pages-video/
+
+# build artifacts / archives (any depth — catches nested vendor builds too)
+.next/
+out/
+*.zip
