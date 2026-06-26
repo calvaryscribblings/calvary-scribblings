@@ -252,6 +252,31 @@ export default function OpenPageDetailClient({ params }) {
           </div>
         </div>
 
+        {/* Edit — owner only. Ghost button linking to the edit composer. */}
+        {user && user.uid === post.authorUid ? (
+          <div style={{ textAlign: 'center', marginTop: 22 }}>
+            <a
+              href={`/open-pages/edit/${post.id}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'transparent',
+                color: 'rgba(245,240,232,0.7)',
+                border: '1px solid rgba(245,240,232,0.18)',
+                borderRadius: 10,
+                padding: '0.7rem 1.8rem',
+                fontWeight: 600,
+                fontSize: '0.95rem',
+                fontFamily: BODY_SERIF,
+                textDecoration: 'none',
+              }}
+            >
+              <IconPencil size={15} /> Edit story
+            </a>
+          </div>
+        ) : null}
+
         {/* Report — writes open_pages_reports/{postId}/{reporterUid}; the admin
             queue (app/admin/forum) reviews and acts on these. */}
         <div style={{ textAlign: 'center', marginTop: 30 }}>
@@ -406,6 +431,12 @@ const IconArrowLeft = (p) => (
 const IconHeart = (p) => (
   <Svg {...p}>
     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+  </Svg>
+);
+const IconPencil = (p) => (
+  <Svg {...p}>
+    <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+    <path d="m15 5 4 4" />
   </Svg>
 );
 const IconFlag = (p) => (

@@ -136,20 +136,30 @@ export default function OpenPagesProfileSection({ profileUid, isOwner = false, p
         ) : (
           <div>
             {posts.map((p) => (
-              <a key={p.id} href={`/open-pages/${p.id}`} style={postRow}
-                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: SERIF, fontSize: '1.1rem', color: CREAM, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {p.title}
+              <div key={p.id} style={postRow}>
+                <a href={`/open-pages/${p.id}`} style={postLink}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: SERIF, fontSize: '1.1rem', color: CREAM, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.title}
+                    </div>
+                    <div style={{ fontSize: '0.66rem', color: 'rgba(245,240,232,0.3)', fontFamily: 'Inter, sans-serif', marginTop: 3 }}>
+                      {fmtDate(p.createdAt)}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.66rem', color: 'rgba(245,240,232,0.3)', fontFamily: 'Inter, sans-serif', marginTop: 3 }}>
-                    {fmtDate(p.createdAt)}
-                  </div>
-                </div>
-                <span style={genrePill}>{normalizeGenre(p.genre)}</span>
-              </a>
+                  <span style={genrePill}>{normalizeGenre(p.genre)}</span>
+                </a>
+                {isOwner && (
+                  <a href={`/open-pages/edit/${p.id}`} style={editLink}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = GOLD; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(245,240,232,0.5)'; }}
+                  >
+                    Edit
+                  </a>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -270,8 +280,30 @@ const postRow = {
   gap: 12,
   padding: '0.7rem 0',
   borderBottom: '1px solid rgba(255,255,255,0.04)',
+};
+
+const postLink = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 12,
+  flex: 1,
+  minWidth: 0,
   textDecoration: 'none',
   transition: 'opacity 0.2s',
+};
+
+const editLink = {
+  flexShrink: 0,
+  fontFamily: CINZEL,
+  fontSize: '0.6rem',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  color: 'rgba(245,240,232,0.5)',
+  textDecoration: 'none',
+  border: '1px solid rgba(245,240,232,0.16)',
+  borderRadius: 999,
+  padding: '0.28rem 0.7rem',
+  transition: 'color 0.2s',
 };
 
 const genrePill = {
