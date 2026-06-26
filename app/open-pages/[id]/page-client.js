@@ -141,9 +141,6 @@ export default function OpenPageDetailClient({ params }) {
   // (see buildLikesMap). Count and "did I like it" are derived at render.
   const [likes, setLikes] = useState({});
 
-  // TEMPORARY DEBUG — surfaces any comments-read failure on the page.
-  const [fetchError, setFetchError] = useState(null);
-
   // Inline reply composer. Only one reply box is open at a time, keyed by the
   // path of the node being replied to; the draft + submitting flag are shared.
   const [replyOpenPath, setReplyOpenPath] = useState(null);
@@ -270,10 +267,9 @@ export default function OpenPageDetailClient({ params }) {
         } else {
           setComments([]);
         }
-        setFetchError(null);
       } catch (err) {
         console.error('[open-pages] comments read failed:', err);
-        if (!cancelled) { setComments([]); setFetchError(err && err.message ? err.message : String(err)); }
+        if (!cancelled) { setComments([]); }
       }
 
       // ---- Reactions — non-fatal, independent of comments ----
