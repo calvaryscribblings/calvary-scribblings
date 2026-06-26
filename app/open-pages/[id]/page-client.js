@@ -31,6 +31,88 @@ const CREAM = '#f5f0e8';
 const SERIF = "'Cormorant Garamond', 'Cochin', Georgia, serif";
 const BODY_SERIF = "'Cochin', Georgia, serif";
 const CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
+// Faint cream used for the un-liked heart and the "Reply" affordance.
+const CREAM_FAINT = 'rgba(245,240,232,0.4)';
+// Left rule on indented reply threads.
+const THREAD_BORDER = '2px solid #2a2036';
+
+// ---------------------------------------------------------------------------
+// Comment-tree helpers (pure).
+//
+// Replies are stored as RTDB children of their parent:
+//   comments/{postId}/{commentId}/replies/{replyId}             (level 1)
+//   comments/{postId}/{commentId}/replies/{replyId}/replies/…   (level 2, max)
+// So one read of comments/{postId} returns the whole tree. We normalise each
+// node to { id, path, text, authorName, authorUid, createdAt, replies: [] }
+// where `path` is the node's location *under* comments/{postId} — reused
+// verbatim for the like path (comment_likes/{postId}/{path}/{uid}) and for the
+// replies write path (comments/{postId}/{path}/replies).
+// ---------------------------------------------------------------------------
+
+function normalizeNode(id, val, path) {
+  const node = {
+    id,
+    path,
+    text: val.text,
+    authorName: val.authorName,
+    authorUid: val.authorUid,
+    createdAt: val.createdAt,
+    replies: [],
+  };
+  if (val.replies && typeof val.replies === 'object') {
+    node.replies = Object.entries(val.replies)
+      .map(([rid, rval]) => normalizeNode(rid, rval, `${path}/replies/${rid}`))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); // replies read oldest-first
+  }
+  return node;
+}
+
+// Flatten comment_likes/{postId} into a { path -> { uid: true } } map mirroring
+// the comment tree. Each likes node holds uid keys plus an optional `replies`
+// child that recurses; `replies` is never a uid so we skip it.
+function buildLikesMap(node, path, out) {
+  if (!node || typeof node !== 'object') return out;
+  const uids = {};
+  for (const k of Object.keys(node)) {
+    if (k === 'replies') continue;
+    if (node[k] === true) uids[k] = true;
+  }
+  out[path] = uids;
+  if (node.replies && typeof node.replies === 'object') {
+    for (const rid of Object.keys(node.replies)) {
+      buildLikesMap(node.replies[rid], `${path}/replies/${rid}`, out);
+    }
+  }
+  return out;
+}
+
+// Collect every authorUid across the tree (for lazy profile resolution).
+function collectUids(nodes, out) {
+  for (const n of nodes) {
+    if (n.authorUid) out.add(n.authorUid);
+    if (n.replies && n.replies.length) collectUids(n.replies, out);
+  }
+  return out;
+}
+
+// Immutably insert `reply` under the node whose path === parentPath.
+function addReplyToTree(nodes, parentPath, reply) {
+  return nodes.map((n) => {
+    if (n.path === parentPath) return { ...n, replies: [...n.replies, reply] };
+    if (n.replies && n.replies.length) return { ...n, replies: addReplyToTree(n.replies, parentPath, reply) };
+    return n;
+  });
+}
+
+// Immutably drop a reply (by id) from under parentPath — used to roll back a
+// failed optimistic insert.
+function removeReplyFromTree(nodes, parentPath, replyId) {
+  return nodes.map((n) => {
+    if (n.path === parentPath) return { ...n, replies: n.replies.filter((r) => r.id !== replyId) };
+    if (n.replies && n.replies.length) return { ...n, replies: removeReplyFromTree(n.replies, parentPath, replyId) };
+    return n;
+  });
+}
 
 function formatDate(ts) {
   if (!ts || typeof ts !== 'number') return '';
@@ -72,6 +154,16 @@ export default function OpenPageDetailClient({ params }) {
   const [commenterProfiles, setCommenterProfiles] = useState({}); // uid -> profile|null
   const [commentText, setCommentText] = useState('');
   const [posting, setPosting] = useState(false);
+
+  // Comment + reply likes — comment_likes/{postId} flattened to { path -> { uid: true } }
+  // (see buildLikesMap). Count and "did I like it" are derived at render.
+  const [likes, setLikes] = useState({});
+
+  // Inline reply composer. Only one reply box is open at a time, keyed by the
+  // path of the node being replied to; the draft + submitting flag are shared.
+  const [replyOpenPath, setReplyOpenPath] = useState(null);
+  const [replyDraft, setReplyDraft] = useState('');
+  const [replySubmitting, setReplySubmitting] = useState(false);
 
   // Report flow. One report per user per post — the RTDB path is keyed by the
   // reporter's uid, so re-reporting just overwrites their own entry. We disable
@@ -145,18 +237,26 @@ export default function OpenPageDetailClient({ params }) {
     (async () => {
       try {
         const { ref, get } = await import('firebase/database');
-        const [rSnap, cSnap] = await Promise.all([
+        const [rSnap, cSnap, lSnap] = await Promise.all([
           get(ref(db, `open_pages_reactions/${id}`)),
           get(ref(db, `comments/${id}`)),
+          get(ref(db, `comment_likes/${id}`)),
         ]);
         if (cancelled) return;
         setReactions(rSnap.exists() ? rSnap.val() : {});
-        const list = cSnap.exists()
+        // Top-level comments newest-first; nested replies oldest-first (normalizeNode).
+        const tree = cSnap.exists()
           ? Object.entries(cSnap.val())
-              .map(([cid, c]) => ({ id: cid, ...c }))
+              .map(([cid, c]) => normalizeNode(cid, c, cid))
               .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
           : [];
-        setComments(list);
+        setComments(tree);
+        const likesMap = {};
+        if (lSnap.exists()) {
+          const lv = lSnap.val();
+          for (const cid of Object.keys(lv)) buildLikesMap(lv[cid], cid, likesMap);
+        }
+        setLikes(likesMap);
       } catch (e) {
         console.error('[open-pages] reactions/comments read failed:', e);
         if (!cancelled) { setReactions({}); setComments([]); }
@@ -171,8 +271,8 @@ export default function OpenPageDetailClient({ params }) {
     if (!comments || !comments.length) return;
     let cancelled = false;
     (async () => {
-      const need = [...new Set(comments.map((c) => c.authorUid).filter(Boolean))]
-        .filter((u) => !(u in commenterProfiles));
+      const need = [...collectUids(comments, new Set())]
+        .filter((u) => u && !(u in commenterProfiles));
       if (!need.length) return;
       try {
         const { ref, get } = await import('firebase/database');
@@ -228,31 +328,251 @@ export default function OpenPageDetailClient({ params }) {
     const trimmed = commentText.trim();
     if (!trimmed || posting) return;
     setPosting(true);
-    const optimistic = {
-      id: 'temp_' + Date.now(),
-      text: trimmed,
-      authorName: user.displayName || 'Reader',
-      authorUid: user.uid,
-      createdAt: Date.now(),
-      _optimistic: true,
-    };
-    setComments((prev) => [optimistic, ...(prev || [])]);
-    setCommentText('');
+    const createdAt = Date.now();
+    // Match the platform's comments shape exactly.
+    const data = { text: trimmed, authorName: user.displayName || 'Reader', authorUid: user.uid, createdAt };
+    let cid;
     try {
-      const { ref, push } = await import('firebase/database');
-      // Match the platform's comments shape exactly.
-      await push(ref(db, `comments/${id}`), {
-        text: trimmed,
-        authorName: user.displayName || 'Reader',
-        authorUid: user.uid,
-        createdAt: Date.now(),
-      });
+      const { ref, push, set } = await import('firebase/database');
+      // Generate the key up front so the optimistic node carries its real path.
+      const newRef = push(ref(db, `comments/${id}`));
+      cid = newRef.key;
+      const optimistic = { id: cid, path: cid, ...data, replies: [], _optimistic: true };
+      setComments((prev) => [optimistic, ...(prev || [])]);
+      setCommentText('');
+      await set(newRef, data);
     } catch (err) {
       console.error('[open-pages] comment post failed:', err);
-      setComments((prev) => (prev || []).filter((c) => c.id !== optimistic.id));
+      if (cid) setComments((prev) => (prev || []).filter((c) => c.id !== cid));
       setCommentText(trimmed);
     }
     setPosting(false);
+  }
+
+  // ---- Like a comment or reply (optimistic) ----
+  // comment_likes/{postId}/{node.path}/{uid} = true. `node.path` already encodes
+  // the full nesting, so the same code likes comments and replies at any depth.
+  async function toggleNodeLike(node) {
+    if (!user) { setShowAuth(true); return; }
+    const path = node.path;
+    const willLike = !(likes[path] && likes[path][user.uid]);
+    setLikes((prev) => {
+      const cur = { ...(prev[path] || {}) };
+      if (willLike) cur[user.uid] = true; else delete cur[user.uid];
+      return { ...prev, [path]: cur };
+    });
+    try {
+      const { ref, set, remove } = await import('firebase/database');
+      const likeRef = ref(db, `comment_likes/${id}/${path}/${user.uid}`);
+      if (willLike) await set(likeRef, true); else await remove(likeRef);
+    } catch (err) {
+      console.error('[open-pages] comment like toggle failed:', err);
+      setLikes((prev) => {
+        const cur = { ...(prev[path] || {}) };
+        if (willLike) delete cur[user.uid]; else cur[user.uid] = true;
+        return { ...prev, [path]: cur };
+      });
+    }
+  }
+
+  // Open/close the inline reply composer for a node (auth-gated).
+  function handleReplyClick(node) {
+    if (!user) { setShowAuth(true); return; }
+    setReplyDraft('');
+    setReplyOpenPath((cur) => (cur === node.path ? null : node.path));
+  }
+
+  // ---- Post a reply to `parentNode` (optimistic) + notify the parent author ----
+  async function submitReply(parentNode, e) {
+    if (e) e.preventDefault();
+    if (!user) { setShowAuth(true); return; }
+    const trimmed = replyDraft.trim();
+    if (!trimmed || replySubmitting) return;
+    setReplySubmitting(true);
+    const createdAt = Date.now();
+    const data = { text: trimmed, authorName: user.displayName || 'Reader', authorUid: user.uid, createdAt };
+    let replyId;
+    try {
+      const { ref, push, set } = await import('firebase/database');
+      const newRef = push(ref(db, `comments/${id}/${parentNode.path}/replies`));
+      replyId = newRef.key;
+      const optimistic = {
+        id: replyId,
+        path: `${parentNode.path}/replies/${replyId}`,
+        ...data,
+        replies: [],
+        _optimistic: true,
+      };
+      setComments((prev) => addReplyToTree(prev || [], parentNode.path, optimistic));
+      setReplyOpenPath(null);
+      setReplyDraft('');
+      await set(newRef, data);
+      // Notify the author of the comment/reply being replied to — same shape as
+      // notifications/{uid} elsewhere (see app/square/page.js). Skip self-replies.
+      if (parentNode.authorUid && parentNode.authorUid !== user.uid) {
+        await push(ref(db, `notifications/${parentNode.authorUid}`), {
+          type: 'open_pages_reply',
+          fromUid: user.uid,
+          fromName: user.displayName || 'Reader',
+          fromUsername: null,
+          fromAvatarUrl: user.photoURL || null,
+          postId: id,
+          read: false,
+          createdAt: Date.now(),
+        });
+      }
+    } catch (err) {
+      console.error('[open-pages] reply post failed:', err);
+      if (replyId) setComments((prev) => removeReplyFromTree(prev || [], parentNode.path, replyId));
+      setReplyOpenPath(parentNode.path);
+      setReplyDraft(trimmed);
+    }
+    setReplySubmitting(false);
+  }
+
+  // Recursive renderer for a comment / reply / reply-to-reply. depth 0 = comment,
+  // 1 = reply, 2 = reply-to-reply (no further "Reply" affordance — max depth).
+  function renderNode(node, depth) {
+    const profile = commenterProfiles[node.authorUid];
+    const name = profile?.displayName || node.authorName || 'Reader';
+    const handle = profile?.username || '';
+    const avatar = profile?.avatarUrl || profile?.photoURL || null;
+    const initial = (name || '?').trim().charAt(0).toUpperCase();
+    const href = handle ? `/u/${handle}` : null;
+    const nodeLikes = likes[node.path] || {};
+    const likeCount = Object.keys(nodeLikes).length;
+    const liked = !!(user && nodeLikes[user.uid]);
+    const canReply = depth < 2;
+    const replyOpen = replyOpenPath === node.path;
+    const avatarSize = depth === 0 ? 38 : 30;
+
+    return (
+      <div key={node.path}>
+        <div style={{ display: 'flex', gap: 12, padding: '16px 0', borderBottom: '1px solid rgba(245,240,232,0.06)' }}>
+          <AuthorLink href={href} style={{ flexShrink: 0, display: 'block' }}>
+            <AuthorAvatar src={avatar} initial={initial} size={avatarSize} fontSize={depth === 0 ? '1rem' : '0.85rem'} />
+          </AuthorLink>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+              <AuthorLink href={href} style={{ fontFamily: SERIF, fontSize: '1.05rem', color: CREAM, fontWeight: 600 }}>
+                {name}
+              </AuthorLink>
+              {handle ? <span style={{ fontSize: '0.82rem', color: 'rgba(245,240,232,0.4)' }}>@{handle}</span> : null}
+              <span style={{ fontSize: '0.78rem', color: 'rgba(245,240,232,0.3)' }}>· {timeAgo(node.createdAt)}</span>
+            </div>
+            <div style={{ fontSize: '1.05rem', lineHeight: 1.6, color: 'rgba(245,240,232,0.82)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {node.text}
+            </div>
+
+            {/* Actions — like (gold when liked) + reply (hidden at max depth). */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => toggleNodeLike(node)}
+                aria-pressed={liked}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  color: liked ? GOLD : CREAM_FAINT,
+                  fontSize: '0.85rem',
+                  fontFamily: BODY_SERIF,
+                  cursor: 'pointer',
+                  transition: 'color 0.15s',
+                }}
+              >
+                <IconHeart size={15} style={{ fill: liked ? GOLD : 'none' }} /> {likeCount}
+              </button>
+              {canReply ? (
+                <button
+                  type="button"
+                  onClick={() => handleReplyClick(node)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    color: CREAM_FAINT,
+                    fontFamily: CINZEL,
+                    fontSize: '0.72rem',
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reply
+                </button>
+              ) : null}
+            </div>
+
+            {/* Inline reply composer — collapses on submit/cancel. */}
+            {replyOpen ? (
+              <form onSubmit={(e) => submitReply(node, e)} style={{ marginTop: 12 }}>
+                <textarea
+                  value={replyDraft}
+                  onChange={(e) => setReplyDraft(e.target.value)}
+                  placeholder="Write a reply…"
+                  rows={2}
+                  autoFocus
+                  disabled={replySubmitting}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    background: SURFACE,
+                    border: '1px solid rgba(245,240,232,0.12)',
+                    borderRadius: 10,
+                    padding: '0.7rem 0.9rem',
+                    color: CREAM,
+                    fontSize: '0.98rem',
+                    lineHeight: 1.5,
+                    fontFamily: BODY_SERIF,
+                    outline: 'none',
+                    resize: 'vertical',
+                    minHeight: 60,
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setReplyOpenPath(null); setReplyDraft(''); }}
+                    style={{ background: 'transparent', border: 'none', color: CREAM_FAINT, fontSize: '0.85rem', fontFamily: BODY_SERIF, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!replyDraft.trim() || replySubmitting}
+                    style={{
+                      background: replyDraft.trim() && !replySubmitting ? PURPLE : 'rgba(245,240,232,0.1)',
+                      color: replyDraft.trim() && !replySubmitting ? CREAM : 'rgba(245,240,232,0.4)',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '0.45rem 1.3rem',
+                      fontWeight: 700,
+                      fontSize: '0.88rem',
+                      fontFamily: BODY_SERIF,
+                      cursor: replyDraft.trim() && !replySubmitting ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    {replySubmitting ? 'Posting…' : 'Reply'}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {/* Nested replies — indented with a left rule. Levels 1 and 2 share the
+                same indentation style; level 2 nodes render no further "Reply". */}
+            {node.replies && node.replies.length ? (
+              <div style={{ marginTop: 6, marginLeft: 4, paddingLeft: 14, borderLeft: THREAD_BORDER }}>
+                {node.replies.map((child) => renderNode(child, depth + 1))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // ---- Loading ----
@@ -598,9 +918,7 @@ export default function OpenPageDetailClient({ params }) {
             </div>
           ) : (
             <div>
-              {comments.map((c) => (
-                <CommentRow key={c.id} comment={c} profile={commenterProfiles[c.authorUid]} />
-              ))}
+              {comments.map((c) => renderNode(c, 0))}
             </div>
           )}
         </section>
@@ -639,35 +957,6 @@ function AuthorAvatar({ src, initial, size = 40, fontSize = '1.1rem' }) {
     <span style={{ ...base, background: `linear-gradient(135deg, ${PURPLE}, #3a1a63)`, color: CREAM, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 700, fontFamily: SERIF }}>
       {initial}
     </span>
-  );
-}
-
-// A single comment — avatar + name/handle/time + text. Name/handle/avatar link
-// to the commenter's profile (/u/{handle}) when a handle is known.
-function CommentRow({ comment, profile }) {
-  const name = profile?.displayName || comment.authorName || 'Reader';
-  const handle = profile?.username || '';
-  const avatar = profile?.avatarUrl || profile?.photoURL || null;
-  const initial = (name || '?').trim().charAt(0).toUpperCase();
-  const href = handle ? `/u/${handle}` : null;
-  return (
-    <div style={{ display: 'flex', gap: 12, padding: '16px 0', borderBottom: '1px solid rgba(245,240,232,0.06)' }}>
-      <AuthorLink href={href} style={{ flexShrink: 0, display: 'block' }}>
-        <AuthorAvatar src={avatar} initial={initial} size={38} fontSize="1rem" />
-      </AuthorLink>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-          <AuthorLink href={href} style={{ fontFamily: SERIF, fontSize: '1.05rem', color: CREAM, fontWeight: 600 }}>
-            {name}
-          </AuthorLink>
-          {handle ? <span style={{ fontSize: '0.82rem', color: 'rgba(245,240,232,0.4)' }}>@{handle}</span> : null}
-          <span style={{ fontSize: '0.78rem', color: 'rgba(245,240,232,0.3)' }}>· {timeAgo(comment.createdAt)}</span>
-        </div>
-        <div style={{ fontSize: '1.05rem', lineHeight: 1.6, color: 'rgba(245,240,232,0.82)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-          {comment.text}
-        </div>
-      </div>
-    </div>
   );
 }
 
