@@ -42,37 +42,12 @@ const THREAD_BORDER = '2px solid #2a2036';
 // Replies are stored as RTDB children of their parent:
 //   comments/{postId}/{commentId}/replies/{replyId}             (level 1)
 //   comments/{postId}/{commentId}/replies/{replyId}/replies/…   (level 2, max)
-// So one read of comments/{postId} returns the whole tree. We normalise each
-// node to { id, path, text, authorName, authorUid, createdAt, replies: [] }
-// where `path` is the node's location *under* comments/{postId} — reused
-// verbatim for the like path (comment_likes/{postId}/{path}/{uid}) and for the
-// replies write path (comments/{postId}/{path}/replies).
+// Each node carries a `path` — its location *under* comments/{postId} — reused
+// verbatim for the like path (comment_likes/{postId}/{path}/{uid}) and the
+// replies write path (comments/{postId}/{path}/replies). The comment tree is
+// built inline in the fetch effect (see below) so a parse edge case can never
+// take down the whole list.
 // ---------------------------------------------------------------------------
-
-function normalizeNode(id, val, path) {
-  // Defensive: legacy comments (written before threading) have no `replies` key
-  // and may carry unrelated fields (heartCount/fireCount/parentId from other
-  // comment sections). Never throw on a missing/odd value — an intact comment of
-  // just { text, authorName, authorUid, createdAt } must still render. A non-object
-  // value yields an empty node rather than crashing the whole comment list.
-  const v = val && typeof val === 'object' ? val : {};
-  const node = {
-    id,
-    path,
-    text: v.text,
-    authorName: v.authorName,
-    authorUid: v.authorUid,
-    createdAt: v.createdAt,
-    replies: [], // missing `replies` → empty array, not an error
-  };
-  if (v.replies && typeof v.replies === 'object') {
-    node.replies = Object.entries(v.replies)
-      .filter(([, rval]) => rval && typeof rval === 'object') // skip null/tombstoned reply entries
-      .map(([rid, rval]) => normalizeNode(rid, rval, `${path}/replies/${rid}`))
-      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); // replies read oldest-first
-  }
-  return node;
-}
 
 // Flatten comment_likes/{postId} into a { path -> { uid: true } } map mirroring
 // the comment tree. Each likes node holds uid keys plus an optional `replies`
@@ -166,6 +141,9 @@ export default function OpenPageDetailClient({ params }) {
   // (see buildLikesMap). Count and "did I like it" are derived at render.
   const [likes, setLikes] = useState({});
 
+  // TEMPORARY DEBUG — surfaces any comments-read failure on the page.
+  const [fetchError, setFetchError] = useState(null);
+
   // Inline reply composer. Only one reply box is open at a time, keyed by the
   // path of the node being replied to; the draft + submitting flag are shared.
   const [replyOpenPath, setReplyOpenPath] = useState(null);
@@ -248,31 +226,75 @@ export default function OpenPageDetailClient({ params }) {
     if (!id || typeof id !== 'string') return; // don't fetch with a missing/invalid post id
     let cancelled = false;
     (async () => {
+      const { ref, get } = await import('firebase/database');
+
+      // ---- Comments — the critical read, ISOLATED ----
+      // Previously comments shared a single Promise.all with the reactions and
+      // comment_likes reads, so a rules rejection on *either* of those (e.g.
+      // comment_likes lacking a deployed .read) rejected the whole batch and
+      // blanked the comments — even though comments/{id} is publicly readable
+      // (which is why feed counts work). Reading comments on its own guarantees
+      // those other reads can never take the comment list down. Parsing is done
+      // explicitly inline with optional chaining so a malformed node can't throw.
       try {
-        const { ref, get } = await import('firebase/database');
-        const [rSnap, cSnap, lSnap] = await Promise.all([
-          get(ref(db, `open_pages_reactions/${id}`)),
-          get(ref(db, `comments/${id}`)),
-          get(ref(db, `comment_likes/${id}`)),
-        ]);
+        const cSnap = await get(ref(db, `comments/${id}`));
         if (cancelled) return;
-        setReactions(rSnap.exists() ? rSnap.val() : {});
-        // Top-level comments newest-first; nested replies oldest-first (normalizeNode).
-        const tree = cSnap.exists()
-          ? Object.entries(cSnap.val())
-              .map(([cid, c]) => normalizeNode(cid, c, cid))
-              .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-          : [];
-        setComments(tree);
-        const likesMap = {};
-        if (lSnap.exists()) {
+        if (cSnap.exists()) {
+          const raw = cSnap.val();
+          const list = Object.entries(raw).map(([cid, cval]) => ({
+            id: cid,
+            path: cid,
+            text: cval?.text || '',
+            authorName: cval?.authorName || 'Anonymous',
+            authorUid: cval?.authorUid || '',
+            createdAt: cval?.createdAt || 0,
+            replies: cval?.replies ? Object.entries(cval.replies).map(([rid, rval]) => ({
+              id: rid,
+              path: `${cid}/replies/${rid}`,
+              text: rval?.text || '',
+              authorName: rval?.authorName || 'Anonymous',
+              authorUid: rval?.authorUid || '',
+              createdAt: rval?.createdAt || 0,
+              replies: rval?.replies ? Object.entries(rval.replies).map(([r2id, r2val]) => ({
+                id: r2id,
+                path: `${cid}/replies/${rid}/replies/${r2id}`,
+                text: r2val?.text || '',
+                authorName: r2val?.authorName || 'Anonymous',
+                authorUid: r2val?.authorUid || '',
+                createdAt: r2val?.createdAt || 0,
+                replies: [],
+              })).filter(r2 => r2.text) : [],
+            })).filter(r => r.text).sort((a, b) => a.createdAt - b.createdAt) : [],
+          })).filter(c => c.text).sort((a, b) => b.createdAt - a.createdAt);
+          setComments(list);
+        } else {
+          setComments([]);
+        }
+        setFetchError(null);
+      } catch (err) {
+        console.error('[open-pages] comments read failed:', err);
+        if (!cancelled) { setComments([]); setFetchError(err && err.message ? err.message : String(err)); }
+      }
+
+      // ---- Reactions — non-fatal, independent of comments ----
+      try {
+        const rSnap = await get(ref(db, `open_pages_reactions/${id}`));
+        if (!cancelled) setReactions(rSnap.exists() ? rSnap.val() : {});
+      } catch (err) {
+        console.warn('[open-pages] reactions read failed:', err);
+      }
+
+      // ---- Comment likes — non-fatal; a denial here must NOT blank comments ----
+      try {
+        const lSnap = await get(ref(db, `comment_likes/${id}`));
+        if (!cancelled && lSnap.exists()) {
+          const likesMap = {};
           const lv = lSnap.val();
           for (const cid of Object.keys(lv)) buildLikesMap(lv[cid], cid, likesMap);
+          setLikes(likesMap);
         }
-        setLikes(likesMap);
-      } catch (e) {
-        console.error('[open-pages] reactions/comments read failed:', e);
-        if (!cancelled) { setReactions({}); setComments([]); }
+      } catch (err) {
+        console.warn('[open-pages] comment_likes read failed:', err);
       }
     })();
     return () => { cancelled = true; };
@@ -922,7 +944,9 @@ export default function OpenPageDetailClient({ params }) {
 
           {/* TEMPORARY DEBUG — confirm the post id reaching the fetch. */}
           <div style={{background:'#1a1326', border:'1px solid #6b2fad', borderRadius:6, padding:12, marginBottom:16, fontSize:12, fontFamily:'monospace', color:'#c9a84c', whiteSpace:'pre-wrap', wordBreak:'break-all'}}>
-            Post ID: {String(id)} (type: {typeof id})
+            Post ID: {String(id)} (type: {typeof id}){'\n'}
+            fetch error: {fetchError || 'none'}{'\n'}
+            comment count: {comments === null ? 'loading' : comments.length}
           </div>
 
           {/* List */}
