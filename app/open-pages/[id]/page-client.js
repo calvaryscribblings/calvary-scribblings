@@ -50,17 +50,24 @@ const THREAD_BORDER = '2px solid #2a2036';
 // ---------------------------------------------------------------------------
 
 function normalizeNode(id, val, path) {
+  // Defensive: legacy comments (written before threading) have no `replies` key
+  // and may carry unrelated fields (heartCount/fireCount/parentId from other
+  // comment sections). Never throw on a missing/odd value — an intact comment of
+  // just { text, authorName, authorUid, createdAt } must still render. A non-object
+  // value yields an empty node rather than crashing the whole comment list.
+  const v = val && typeof val === 'object' ? val : {};
   const node = {
     id,
     path,
-    text: val.text,
-    authorName: val.authorName,
-    authorUid: val.authorUid,
-    createdAt: val.createdAt,
-    replies: [],
+    text: v.text,
+    authorName: v.authorName,
+    authorUid: v.authorUid,
+    createdAt: v.createdAt,
+    replies: [], // missing `replies` → empty array, not an error
   };
-  if (val.replies && typeof val.replies === 'object') {
-    node.replies = Object.entries(val.replies)
+  if (v.replies && typeof v.replies === 'object') {
+    node.replies = Object.entries(v.replies)
+      .filter(([, rval]) => rval && typeof rval === 'object') // skip null/tombstoned reply entries
       .map(([rid, rval]) => normalizeNode(rid, rval, `${path}/replies/${rid}`))
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); // replies read oldest-first
   }
