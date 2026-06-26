@@ -14,6 +14,7 @@
 // post key IS the id. We read those exact fields here.
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import Navbar from '../components/Navbar';
 import { db } from '../lib/firebase';
 import { OPEN_PAGES_NODE, OPEN_PAGE_GENRES, normalizeGenre } from '../lib/openPages';
@@ -63,6 +64,9 @@ export default function OpenPagesFeed() {
   const [posts, setPosts] = useState(null); // null = loading, [] = loaded empty
   const [error, setError] = useState(false);
   const [filter, setFilter] = useState('All');
+  // Per-post engagement counts, keyed by postId: { commentCount, reactionCount }.
+  // Fetched in a second pass once the feed list is known.
+  const [counts, setCounts] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +85,29 @@ export default function OpenPagesFeed() {
           .filter((p) => p && p.status === 'live' && p.title)
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         setPosts(list);
+
+        // Second pass: one parallel read per post for comment + reaction counts.
+        // comments/{postId} — count the keys. open_pages_reactions/{postId} —
+        // count the keys (one per reactor); falls back to a count stored on the
+        // post object, else 0. Both degrade gracefully when the node is absent.
+        const entries = await Promise.all(
+          list.map(async (p) => {
+            try {
+              const [cSnap, rSnap] = await Promise.all([
+                get(ref(db, `comments/${p.id}`)),
+                get(ref(db, `open_pages_reactions/${p.id}`)),
+              ]);
+              const commentCount = cSnap.exists() ? Object.keys(cSnap.val()).length : 0;
+              let reactionCount = rSnap.exists() ? Object.keys(rSnap.val()).length : 0;
+              if (!reactionCount && typeof p.reactionCount === 'number') reactionCount = p.reactionCount;
+              return [p.id, { commentCount, reactionCount }];
+            } catch {
+              return [p.id, { commentCount: 0, reactionCount: 0 }];
+            }
+          })
+        );
+        if (cancelled) return;
+        setCounts(Object.fromEntries(entries));
       } catch (e) {
         console.error('[open-pages] feed read failed:', e);
         if (!cancelled) setError(true);
@@ -191,7 +218,7 @@ export default function OpenPagesFeed() {
         ) : (
           <div style={cardGrid}>
             {visible.map((p) => (
-              <PostCard key={p.id} post={p} />
+              <PostCard key={p.id} post={p} counts={counts[p.id]} />
             ))}
           </div>
         )}
@@ -204,19 +231,25 @@ export default function OpenPagesFeed() {
 // Post card.
 // ---------------------------------------------------------------------------
 
-function PostCard({ post }) {
+function PostCard({ post, counts }) {
   const genre = normalizeGenre(post.genre);
+  const likeCount = counts?.reactionCount ?? 0;
+  const commentCount = counts?.commentCount ?? 0;
+  const initial = (post.authorName || '?').trim().charAt(0).toUpperCase();
+
+  // The whole card links to the post via a stretched overlay anchor (zIndex 1),
+  // while the author name/handle is its own Link (zIndex 2) to /u/{handle} — this
+  // keeps both clickable without nesting one anchor inside another.
   return (
-    <a
-      href={`/open-pages/${post.id}`}
+    <div
       style={{
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         background: SURFACE,
         border: '1px solid rgba(245,240,232,0.07)',
         borderRadius: 14,
         overflow: 'hidden',
-        textDecoration: 'none',
         color: CREAM,
         transition: 'transform 0.18s, border-color 0.18s',
       }}
@@ -229,6 +262,13 @@ function PostCard({ post }) {
         e.currentTarget.style.borderColor = 'rgba(245,240,232,0.07)';
       }}
     >
+      {/* Card-wide click target → post detail. */}
+      <a
+        href={`/open-pages/${post.id}`}
+        aria-label={post.title}
+        style={{ position: 'absolute', inset: 0, zIndex: 1 }}
+      />
+
       {post.coverImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -257,16 +297,32 @@ function PostCard({ post }) {
         </p>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 'auto' }}>
-          <span style={avatarDot}>{(post.authorName || '?').trim().charAt(0).toUpperCase()}</span>
-          <span style={{ fontSize: '0.9rem', color: 'rgba(245,240,232,0.8)' }}>
-            {post.authorName || 'Reader'}
-            {post.authorHandle ? (
-              <span style={{ color: 'rgba(245,240,232,0.4)' }}> · @{post.authorHandle}</span>
-            ) : null}
+          {post.authorHandle ? (
+            <Link
+              href={`/u/${post.authorHandle}`}
+              style={{ position: 'relative', zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'inherit' }}
+            >
+              <span style={avatarDot}>{initial}</span>
+              <span style={{ fontSize: '0.9rem', color: 'rgba(245,240,232,0.8)' }}>
+                {post.authorName || 'Reader'}
+                <span style={{ color: 'rgba(245,240,232,0.4)' }}> · @{post.authorHandle}</span>
+              </span>
+            </Link>
+          ) : (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+              <span style={avatarDot}>{initial}</span>
+              <span style={{ fontSize: '0.9rem', color: 'rgba(245,240,232,0.8)' }}>{post.authorName || 'Reader'}</span>
+            </span>
+          )}
+
+          {/* Engagement counts. */}
+          <span style={countRow}>
+            <span>♡ {likeCount}</span>
+            <span>💬 {commentCount}</span>
           </span>
         </div>
       </div>
-    </a>
+    </div>
   );
 }
 
@@ -357,6 +413,17 @@ const genrePill = {
   border: '1px solid rgba(201,168,76,0.3)',
   borderRadius: 999,
   padding: '0.22rem 0.7rem',
+};
+
+const countRow = {
+  marginLeft: 'auto',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 12,
+  fontFamily: CINZEL,
+  fontSize: 12,
+  color: 'rgba(245,240,232,0.45)',
+  flexShrink: 0,
 };
 
 const avatarDot = {

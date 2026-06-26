@@ -11,6 +11,7 @@
 // to the admin queue and a later stage wires subscriptions.
 
 import { use, useEffect, useState } from 'react';
+import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/AuthContext';
@@ -41,6 +42,9 @@ export default function OpenPageDetailClient({ params }) {
   const { user } = useAuth();
 
   const [post, setPost] = useState(undefined); // undefined = loading, null = not found
+  // Live author profile resolved from users/{authorUid} — richer/fresher than the
+  // denormalized snapshot stored on the post (real displayName, avatar, bio).
+  const [author, setAuthor] = useState(null);
 
   // Report flow. One report per user per post — the RTDB path is keyed by the
   // reporter's uid, so re-reporting just overwrites their own entry. We disable
@@ -85,7 +89,19 @@ export default function OpenPageDetailClient({ params }) {
         if (cancelled) return;
         const val = snap.exists() ? snap.val() : null;
         // Only ever show live posts (the public node should only hold these).
-        setPost(val && val.status === 'live' ? { id, ...val } : null);
+        const live = val && val.status === 'live' ? { id, ...val } : null;
+        setPost(live);
+
+        // Secondary fetch: resolve the live author profile from users/{authorUid}
+        // (displayName, avatarUrl/photoURL, bio…) to enrich the author card.
+        if (live && live.authorUid) {
+          try {
+            const pSnap = await get(ref(db, `users/${live.authorUid}`));
+            if (!cancelled && pSnap.exists()) setAuthor(pSnap.val());
+          } catch (e2) {
+            console.warn('[open-pages] author profile read failed:', e2);
+          }
+        }
       } catch (e) {
         console.error('[open-pages] detail read failed:', e);
         if (!cancelled) setPost(null);
@@ -131,7 +147,13 @@ export default function OpenPageDetailClient({ params }) {
   }
 
   const genre = normalizeGenre(post.genre);
-  const initial = (post.authorName || '?').trim().charAt(0).toUpperCase();
+  // Prefer the live profile (Fix 4), falling back to the post's denormalized snapshot.
+  const authorName = author?.displayName || post.authorName || 'Reader';
+  const authorHandle = post.authorHandle || author?.username || '';
+  const authorAvatar = author?.avatarUrl || author?.photoURL || post.authorAvatarUrl || null;
+  const authorBio = author?.bio || '';
+  const initial = (authorName || '?').trim().charAt(0).toUpperCase();
+  const profileHref = authorHandle ? `/u/${authorHandle}` : null;
 
   return (
     <Shell>
@@ -164,38 +186,43 @@ export default function OpenPageDetailClient({ params }) {
           {post.title}
         </h1>
 
-        {/* Author row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 34, paddingBottom: 28, borderBottom: '1px solid rgba(245,240,232,0.08)' }}>
-          <span style={avatar}>{initial}</span>
+        {/* Author row — links to the writer's profile (Fix 3). */}
+        <AuthorLink href={profileHref} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 34, paddingBottom: 28, borderBottom: '1px solid rgba(245,240,232,0.08)' }}>
+          <AuthorAvatar src={authorAvatar} initial={initial} size={40} fontSize="1.1rem" />
           <div>
-            <div style={{ fontFamily: SERIF, fontSize: '1.2rem', color: CREAM, fontWeight: 600 }}>{post.authorName || 'Reader'}</div>
-            {post.authorHandle ? (
-              <div style={{ fontSize: '0.88rem', color: 'rgba(245,240,232,0.45)' }}>@{post.authorHandle}</div>
+            <div style={{ fontFamily: SERIF, fontSize: '1.2rem', color: CREAM, fontWeight: 600 }}>{authorName}</div>
+            {authorHandle ? (
+              <div style={{ fontSize: '0.88rem', color: 'rgba(245,240,232,0.45)' }}>@{authorHandle}</div>
             ) : null}
           </div>
-        </div>
+        </AuthorLink>
 
         {/* Body */}
         <div style={{ fontFamily: BODY_SERIF, fontSize: '1.22rem', lineHeight: 1.8 }}>
           {renderMarkdown(post.body)}
         </div>
 
-        {/* Author card */}
+        {/* Author card — enriched from users/{authorUid} (Fix 4), clickable (Fix 3). */}
         <div style={{ marginTop: 56, background: SURFACE, border: '1px solid rgba(245,240,232,0.08)', borderRadius: 16, padding: '1.8rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-            <span style={{ ...avatar, width: 52, height: 52, fontSize: '1.4rem' }}>{initial}</span>
+          <AuthorLink href={profileHref} style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+            <AuthorAvatar src={authorAvatar} initial={initial} size={52} fontSize="1.4rem" />
             <div>
               <div style={{ fontFamily: CINZEL, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 4 }}>
                 Written by
               </div>
               <div style={{ fontFamily: SERIF, fontSize: '1.5rem', color: CREAM, fontWeight: 600, lineHeight: 1.1 }}>
-                {post.authorName || 'Reader'}
+                {authorName}
               </div>
-              {post.authorHandle ? (
-                <div style={{ fontSize: '0.9rem', color: 'rgba(245,240,232,0.45)' }}>@{post.authorHandle}</div>
+              {authorHandle ? (
+                <div style={{ fontSize: '0.9rem', color: 'rgba(245,240,232,0.45)' }}>@{authorHandle}</div>
               ) : null}
             </div>
-          </div>
+          </AuthorLink>
+          {authorBio ? (
+            <p style={{ fontFamily: BODY_SERIF, fontSize: '1rem', lineHeight: 1.7, color: 'rgba(245,240,232,0.7)', margin: '0 0 18px' }}>
+              {authorBio}
+            </p>
+          ) : null}
           <button
             type="button"
             // UI only — subscriptions/support are wired in a later stage.
@@ -302,6 +329,34 @@ export default function OpenPageDetailClient({ params }) {
 // Shell + styles + icons.
 // ---------------------------------------------------------------------------
 
+// Wraps an author block in a Link to /u/{handle} when a handle is known, else a
+// plain div — so name/handle/avatar are all clickable (Fix 3) without breaking
+// when the author has no handle.
+function AuthorLink({ href, style, children }) {
+  if (href) {
+    return (
+      <Link href={href} style={{ ...style, textDecoration: 'none', color: 'inherit' }}>
+        {children}
+      </Link>
+    );
+  }
+  return <div style={style}>{children}</div>;
+}
+
+// Real profile photo when available, else the purple-gradient initial avatar.
+function AuthorAvatar({ src, initial, size = 40, fontSize = '1.1rem' }) {
+  const base = { width: size, height: size, borderRadius: '50%', flexShrink: 0 };
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt="" style={{ ...base, objectFit: 'cover', display: 'block', border: '1px solid rgba(245,240,232,0.1)' }} />;
+  }
+  return (
+    <span style={{ ...base, background: `linear-gradient(135deg, ${PURPLE}, #3a1a63)`, color: CREAM, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 700, fontFamily: SERIF }}>
+      {initial}
+    </span>
+  );
+}
+
 function Shell({ children }) {
   return (
     <div style={{ background: INK, minHeight: '100vh', color: CREAM, fontFamily: BODY_SERIF }}>
@@ -333,21 +388,6 @@ const genrePill = {
   border: '1px solid rgba(201,168,76,0.3)',
   borderRadius: 999,
   padding: '0.26rem 0.8rem',
-};
-
-const avatar = {
-  width: 40,
-  height: 40,
-  borderRadius: '50%',
-  background: `linear-gradient(135deg, ${PURPLE}, #3a1a63)`,
-  color: CREAM,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: '1.1rem',
-  fontWeight: 700,
-  flexShrink: 0,
-  fontFamily: SERIF,
 };
 
 function Svg({ size = 18, style, children }) {

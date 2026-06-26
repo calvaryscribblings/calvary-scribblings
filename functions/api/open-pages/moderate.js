@@ -35,6 +35,10 @@ import {
 
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
+// Cloudflare Pages deploy hook — POSTed (fire-and-forget) whenever a post goes
+// live, so the static export rebuilds and pre-renders the new /open-pages/[id].
+const DEPLOY_HOOK = 'https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/6667c809-d3bf-4c93-bab0-065323c09d76';
+
 const MODEL = 'claude-haiku-4-5';
 const TITLE_MAX = 200;
 const BODY_MAX = 50000;
@@ -410,6 +414,12 @@ export async function onRequestPost(context) {
     console.error('[open-pages/moderate] publish write failed:', e.message);
     return json({ error: 'Failed to publish post.' }, 500);
   }
+
+  // A new post is now live — kick the Cloudflare deploy hook so the static export
+  // rebuilds and the post's /open-pages/[id] URL is pre-rendered (never 404s).
+  // Fire and forget: don't await, and never let a hook failure fail the response.
+  fetch(DEPLOY_HOOK, { method: 'POST', body: '' }).catch(() => {});
+
   return json({ status: 'published', postId });
 }
 
