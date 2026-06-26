@@ -942,13 +942,6 @@ export default function OpenPageDetailClient({ params }) {
             </button>
           )}
 
-          {/* TEMPORARY DEBUG — confirm the post id reaching the fetch. */}
-          <div style={{background:'#1a1326', border:'1px solid #6b2fad', borderRadius:6, padding:12, marginBottom:16, fontSize:12, fontFamily:'monospace', color:'#c9a84c', whiteSpace:'pre-wrap', wordBreak:'break-all'}}>
-            Post ID: {String(id)} (type: {typeof id}){'\n'}
-            fetch error: {fetchError || 'none'}{'\n'}
-            comment count: {comments === null ? 'loading' : comments.length}
-          </div>
-
           {/* List */}
           {comments === null ? (
             <div style={{ color: 'rgba(245,240,232,0.4)', fontStyle: 'italic', fontFamily: SERIF, fontSize: '1.1rem' }}>
