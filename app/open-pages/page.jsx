@@ -67,6 +67,10 @@ export default function OpenPagesFeed() {
   // Per-post engagement counts, keyed by postId: { commentCount, reactionCount }.
   // Fetched in a second pass once the feed list is known.
   const [counts, setCounts] = useState({});
+  // Author profile photos, keyed by authorUid -> photo URL (or null). Fetched in
+  // the same second pass so cards can show real avatars (same source as the
+  // detail page: users/{uid} avatarUrl/photoURL).
+  const [authorPhotos, setAuthorPhotos] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -108,6 +112,23 @@ export default function OpenPagesFeed() {
         );
         if (cancelled) return;
         setCounts(Object.fromEntries(entries));
+
+        // Author avatars: one read per unique author at users/{authorUid} for the
+        // real profile photo (avatarUrl/photoURL), matching the detail page.
+        const uids = [...new Set(list.map((p) => p.authorUid).filter(Boolean))];
+        const photoEntries = await Promise.all(
+          uids.map(async (uid) => {
+            try {
+              const s = await get(ref(db, `users/${uid}`));
+              const v = s.exists() ? s.val() : null;
+              return [uid, v ? v.avatarUrl || v.photoURL || null : null];
+            } catch {
+              return [uid, null];
+            }
+          })
+        );
+        if (cancelled) return;
+        setAuthorPhotos(Object.fromEntries(photoEntries));
       } catch (e) {
         console.error('[open-pages] feed read failed:', e);
         if (!cancelled) setError(true);
@@ -218,7 +239,7 @@ export default function OpenPagesFeed() {
         ) : (
           <div style={cardGrid}>
             {visible.map((p) => (
-              <PostCard key={p.id} post={p} counts={counts[p.id]} />
+              <PostCard key={p.id} post={p} counts={counts[p.id]} photo={authorPhotos[p.authorUid]} />
             ))}
           </div>
         )}
@@ -231,11 +252,23 @@ export default function OpenPagesFeed() {
 // Post card.
 // ---------------------------------------------------------------------------
 
-function PostCard({ post, counts }) {
+function PostCard({ post, counts, photo }) {
   const genre = normalizeGenre(post.genre);
   const likeCount = counts?.reactionCount ?? 0;
   const commentCount = counts?.commentCount ?? 0;
   const initial = (post.authorName || '?').trim().charAt(0).toUpperCase();
+
+  // Real profile photo (28px circular) when present, else the gradient initial.
+  const avatarEl = photo ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={photo}
+      alt=""
+      style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, display: 'block', border: '1px solid rgba(245,240,232,0.1)' }}
+    />
+  ) : (
+    <span style={avatarDot}>{initial}</span>
+  );
 
   // The whole card links to the post via a stretched overlay anchor (zIndex 1),
   // while the author name/handle is its own Link (zIndex 2) to /u/{handle} — this
@@ -302,7 +335,7 @@ function PostCard({ post, counts }) {
               href={`/u/${post.authorHandle}`}
               style={{ position: 'relative', zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'inherit' }}
             >
-              <span style={avatarDot}>{initial}</span>
+              {avatarEl}
               <span style={{ fontSize: '0.9rem', color: 'rgba(245,240,232,0.8)' }}>
                 {post.authorName || 'Reader'}
                 <span style={{ color: 'rgba(245,240,232,0.4)' }}> · @{post.authorHandle}</span>
@@ -310,7 +343,7 @@ function PostCard({ post, counts }) {
             </Link>
           ) : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
-              <span style={avatarDot}>{initial}</span>
+              {avatarEl}
               <span style={{ fontSize: '0.9rem', color: 'rgba(245,240,232,0.8)' }}>{post.authorName || 'Reader'}</span>
             </span>
           )}

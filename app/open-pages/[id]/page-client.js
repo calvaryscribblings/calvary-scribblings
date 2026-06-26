@@ -37,6 +37,22 @@ function formatDate(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+// Relative time for comments — "just now", "5 minutes ago", then a date.
+function timeAgo(ts) {
+  if (!ts || typeof ts !== 'number') return '';
+  const diff = Date.now() - ts;
+  if (diff < 0) return 'just now';
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export default function OpenPageDetailClient({ params }) {
   const { id } = use(params);
   const { user } = useAuth();
@@ -45,6 +61,17 @@ export default function OpenPageDetailClient({ params }) {
   // Live author profile resolved from users/{authorUid} — richer/fresher than the
   // denormalized snapshot stored on the post (real displayName, avatar, bio).
   const [author, setAuthor] = useState(null);
+
+  // Reactions — open_pages_reactions/{postId}/{uid} = true. Held as a uid->true
+  // map; count and "did I like it" are derived at render so they react to auth.
+  const [reactions, setReactions] = useState({});
+
+  // Comments — comments/{postId}. null = loading. Commenter profiles (avatar,
+  // handle) are resolved lazily from users/{uid} into commenterProfiles.
+  const [comments, setComments] = useState(null);
+  const [commenterProfiles, setCommenterProfiles] = useState({}); // uid -> profile|null
+  const [commentText, setCommentText] = useState('');
+  const [posting, setPosting] = useState(false);
 
   // Report flow. One report per user per post — the RTDB path is keyed by the
   // reporter's uid, so re-reporting just overwrites their own entry. We disable
@@ -111,6 +138,122 @@ export default function OpenPageDetailClient({ params }) {
       cancelled = true;
     };
   }, [id]);
+
+  // Reactions + comments — one read each on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { ref, get } = await import('firebase/database');
+        const [rSnap, cSnap] = await Promise.all([
+          get(ref(db, `open_pages_reactions/${id}`)),
+          get(ref(db, `comments/${id}`)),
+        ]);
+        if (cancelled) return;
+        setReactions(rSnap.exists() ? rSnap.val() : {});
+        const list = cSnap.exists()
+          ? Object.entries(cSnap.val())
+              .map(([cid, c]) => ({ id: cid, ...c }))
+              .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+          : [];
+        setComments(list);
+      } catch (e) {
+        console.error('[open-pages] reactions/comments read failed:', e);
+        if (!cancelled) { setReactions({}); setComments([]); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  // Resolve commenter profiles (avatar/handle) for any uids not yet fetched —
+  // re-runs as comments arrive (including an optimistic one the user just posted).
+  useEffect(() => {
+    if (!comments || !comments.length) return;
+    let cancelled = false;
+    (async () => {
+      const need = [...new Set(comments.map((c) => c.authorUid).filter(Boolean))]
+        .filter((u) => !(u in commenterProfiles));
+      if (!need.length) return;
+      try {
+        const { ref, get } = await import('firebase/database');
+        const results = await Promise.all(
+          need.map((u) =>
+            get(ref(db, `users/${u}`))
+              .then((s) => [u, s.exists() ? s.val() : null])
+              .catch(() => [u, null])
+          )
+        );
+        if (!cancelled) setCommenterProfiles((prev) => ({ ...prev, ...Object.fromEntries(results) }));
+      } catch (e) {
+        console.warn('[open-pages] commenter profile read failed:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [comments]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- Like toggle (optimistic) ----
+  const likeCount = Object.keys(reactions).length;
+  const liked = !!(user && reactions[user.uid]);
+
+  async function toggleLike() {
+    if (!user) { setShowAuth(true); return; }
+    const willLike = !liked;
+    // Optimistic.
+    setReactions((prev) => {
+      const next = { ...prev };
+      if (willLike) next[user.uid] = true;
+      else delete next[user.uid];
+      return next;
+    });
+    try {
+      const { ref, set, remove } = await import('firebase/database');
+      if (willLike) await set(ref(db, `open_pages_reactions/${id}/${user.uid}`), true);
+      else await remove(ref(db, `open_pages_reactions/${id}/${user.uid}`));
+    } catch (e) {
+      console.error('[open-pages] like toggle failed:', e);
+      // Revert.
+      setReactions((prev) => {
+        const next = { ...prev };
+        if (willLike) delete next[user.uid];
+        else next[user.uid] = true;
+        return next;
+      });
+    }
+  }
+
+  // ---- Post a comment (optimistic) ----
+  async function submitComment(e) {
+    e.preventDefault();
+    if (!user) { setShowAuth(true); return; }
+    const trimmed = commentText.trim();
+    if (!trimmed || posting) return;
+    setPosting(true);
+    const optimistic = {
+      id: 'temp_' + Date.now(),
+      text: trimmed,
+      authorName: user.displayName || 'Reader',
+      authorUid: user.uid,
+      createdAt: Date.now(),
+      _optimistic: true,
+    };
+    setComments((prev) => [optimistic, ...(prev || [])]);
+    setCommentText('');
+    try {
+      const { ref, push } = await import('firebase/database');
+      // Match the platform's comments shape exactly.
+      await push(ref(db, `comments/${id}`), {
+        text: trimmed,
+        authorName: user.displayName || 'Reader',
+        authorUid: user.uid,
+        createdAt: Date.now(),
+      });
+    } catch (err) {
+      console.error('[open-pages] comment post failed:', err);
+      setComments((prev) => (prev || []).filter((c) => c.id !== optimistic.id));
+      setCommentText(trimmed);
+    }
+    setPosting(false);
+  }
 
   // ---- Loading ----
   if (post === undefined) {
@@ -200,6 +343,32 @@ export default function OpenPageDetailClient({ params }) {
         {/* Body */}
         <div style={{ fontFamily: BODY_SERIF, fontSize: '1.22rem', lineHeight: 1.8 }}>
           {renderMarkdown(post.body)}
+        </div>
+
+        {/* Like — open_pages_reactions/{postId}/{uid}. Gold when liked. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 36, paddingTop: 24, borderTop: '1px solid rgba(245,240,232,0.08)' }}>
+          <button
+            type="button"
+            onClick={toggleLike}
+            aria-pressed={liked}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 9,
+              background: 'transparent',
+              border: `1px solid ${liked ? 'rgba(201,168,76,0.5)' : 'rgba(245,240,232,0.18)'}`,
+              borderRadius: 999,
+              padding: '0.5rem 1.2rem',
+              color: liked ? GOLD : 'rgba(245,240,232,0.55)',
+              fontSize: '0.95rem',
+              fontFamily: BODY_SERIF,
+              cursor: 'pointer',
+              transition: 'color 0.18s, border-color 0.18s',
+            }}
+          >
+            <IconHeart size={18} style={{ fill: liked ? GOLD : 'none' }} />
+            {likeCount}
+          </button>
         </div>
 
         {/* Author card — enriched from users/{authorUid} (Fix 4), clickable (Fix 3). */}
@@ -344,6 +513,97 @@ export default function OpenPageDetailClient({ params }) {
             </button>
           )}
         </div>
+
+        {/* Comments — comments/{postId} (shared platform node). */}
+        <section style={{ marginTop: 56, paddingTop: 34, borderTop: '1px solid rgba(245,240,232,0.08)' }}>
+          <div style={{ fontFamily: CINZEL, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: GOLD, opacity: 0.85, marginBottom: 22 }}>
+            Comments{comments && comments.length ? ` · ${comments.length}` : ''}
+          </div>
+
+          {/* Composer (signed-in) or sign-in prompt (signed-out). */}
+          {user ? (
+            <form onSubmit={submitComment} style={{ marginBottom: 30 }}>
+              <textarea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Add a comment…"
+                rows={3}
+                disabled={posting}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  background: SURFACE,
+                  border: '1px solid rgba(245,240,232,0.12)',
+                  borderRadius: 12,
+                  padding: '0.9rem 1rem',
+                  color: CREAM,
+                  fontSize: '1.02rem',
+                  lineHeight: 1.6,
+                  fontFamily: BODY_SERIF,
+                  outline: 'none',
+                  resize: 'vertical',
+                  minHeight: 84,
+                }}
+              />
+              <div style={{ textAlign: 'right', marginTop: 12 }}>
+                <button
+                  type="submit"
+                  disabled={!commentText.trim() || posting}
+                  style={{
+                    background: commentText.trim() && !posting ? PURPLE : 'rgba(245,240,232,0.1)',
+                    color: commentText.trim() && !posting ? CREAM : 'rgba(245,240,232,0.4)',
+                    border: 'none',
+                    borderRadius: 9,
+                    padding: '0.6rem 1.8rem',
+                    fontWeight: 700,
+                    fontSize: '0.95rem',
+                    fontFamily: BODY_SERIF,
+                    cursor: commentText.trim() && !posting ? 'pointer' : 'not-allowed',
+                    boxShadow: commentText.trim() && !posting ? '0 8px 22px rgba(107,47,173,0.3)' : 'none',
+                  }}
+                >
+                  {posting ? 'Posting…' : 'Post comment'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAuth(true)}
+              style={{
+                width: '100%',
+                background: SURFACE,
+                border: '1px solid rgba(245,240,232,0.12)',
+                borderRadius: 12,
+                padding: '0.95rem 1rem',
+                color: 'rgba(245,240,232,0.6)',
+                fontSize: '1rem',
+                fontFamily: BODY_SERIF,
+                cursor: 'pointer',
+                marginBottom: 30,
+              }}
+            >
+              Sign in to leave a comment
+            </button>
+          )}
+
+          {/* List */}
+          {comments === null ? (
+            <div style={{ color: 'rgba(245,240,232,0.4)', fontStyle: 'italic', fontFamily: SERIF, fontSize: '1.1rem' }}>
+              Loading comments…
+            </div>
+          ) : comments.length === 0 ? (
+            <div style={{ color: 'rgba(245,240,232,0.4)', fontStyle: 'italic', fontFamily: SERIF, fontSize: '1.2rem' }}>
+              No comments yet — be the first.
+            </div>
+          ) : (
+            <div>
+              {comments.map((c) => (
+                <CommentRow key={c.id} comment={c} profile={commenterProfiles[c.authorUid]} />
+              ))}
+            </div>
+          )}
+        </section>
       </article>
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </Shell>
@@ -379,6 +639,35 @@ function AuthorAvatar({ src, initial, size = 40, fontSize = '1.1rem' }) {
     <span style={{ ...base, background: `linear-gradient(135deg, ${PURPLE}, #3a1a63)`, color: CREAM, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 700, fontFamily: SERIF }}>
       {initial}
     </span>
+  );
+}
+
+// A single comment — avatar + name/handle/time + text. Name/handle/avatar link
+// to the commenter's profile (/u/{handle}) when a handle is known.
+function CommentRow({ comment, profile }) {
+  const name = profile?.displayName || comment.authorName || 'Reader';
+  const handle = profile?.username || '';
+  const avatar = profile?.avatarUrl || profile?.photoURL || null;
+  const initial = (name || '?').trim().charAt(0).toUpperCase();
+  const href = handle ? `/u/${handle}` : null;
+  return (
+    <div style={{ display: 'flex', gap: 12, padding: '16px 0', borderBottom: '1px solid rgba(245,240,232,0.06)' }}>
+      <AuthorLink href={href} style={{ flexShrink: 0, display: 'block' }}>
+        <AuthorAvatar src={avatar} initial={initial} size={38} fontSize="1rem" />
+      </AuthorLink>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+          <AuthorLink href={href} style={{ fontFamily: SERIF, fontSize: '1.05rem', color: CREAM, fontWeight: 600 }}>
+            {name}
+          </AuthorLink>
+          {handle ? <span style={{ fontSize: '0.82rem', color: 'rgba(245,240,232,0.4)' }}>@{handle}</span> : null}
+          <span style={{ fontSize: '0.78rem', color: 'rgba(245,240,232,0.3)' }}>· {timeAgo(comment.createdAt)}</span>
+        </div>
+        <div style={{ fontSize: '1.05rem', lineHeight: 1.6, color: 'rgba(245,240,232,0.82)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          {comment.text}
+        </div>
+      </div>
+    </div>
   );
 }
 
