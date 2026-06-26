@@ -245,6 +245,7 @@ export default function OpenPageDetailClient({ params }) {
   // state (signed-in OR confirmed signed-out) is settled before we read.
   useEffect(() => {
     if (authLoading) return; // wait for auth to initialise (deps re-run when it does)
+    if (!id || typeof id !== 'string') return; // don't fetch with a missing/invalid post id
     let cancelled = false;
     (async () => {
       try {
@@ -918,6 +919,11 @@ export default function OpenPageDetailClient({ params }) {
               Sign in to leave a comment
             </button>
           )}
+
+          {/* TEMPORARY DEBUG — confirm the post id reaching the fetch. */}
+          <div style={{background:'#1a1326', border:'1px solid #6b2fad', borderRadius:6, padding:12, marginBottom:16, fontSize:12, fontFamily:'monospace', color:'#c9a84c', whiteSpace:'pre-wrap', wordBreak:'break-all'}}>
+            Post ID: {String(id)} (type: {typeof id})
+          </div>
 
           {/* List */}
           {comments === null ? (
