@@ -597,6 +597,33 @@ const OP_GOLD = '#c9a84c';
 const OP_SERIF = "'Cormorant Garamond', 'Cochin', Georgia, serif";
 const OP_CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 
+// Footer avatar fallback + count row — mirror the feed's avatarDot / countRow.
+const opAvatarDot = {
+  width: 28,
+  height: 28,
+  borderRadius: '50%',
+  background: 'linear-gradient(135deg, #6b2fad, #3a1a63)',
+  color: '#f5f0e8',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '0.8rem',
+  fontWeight: 700,
+  flexShrink: 0,
+  fontFamily: OP_SERIF,
+};
+
+const opCountRow = {
+  marginLeft: 'auto',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 12,
+  fontFamily: OP_CINZEL,
+  fontSize: 12,
+  color: 'rgba(245,240,232,0.45)',
+  flexShrink: 0,
+};
+
 function opTimeAgo(ts) {
   if (!ts || typeof ts !== 'number') return '';
   const diff = Date.now() - ts;
@@ -613,8 +640,20 @@ function opTimeAgo(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-function OpenPagesCard({ post }) {
+function OpenPagesCard({ post, counts, photo }) {
   const [hover, setHover] = useState(false);
+  const likeCount = counts?.reactionCount ?? 0;
+  const commentCount = counts?.commentCount ?? 0;
+  const initial = (post.authorName || '?').trim().charAt(0).toUpperCase();
+
+  // Real profile photo (28px circle) when present, else the gradient initial.
+  const avatarEl = photo ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={photo} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, display: 'block', border: '1px solid rgba(245,240,232,0.1)' }} />
+  ) : (
+    <span style={opAvatarDot}>{initial}</span>
+  );
+
   return (
     <a
       href={`/open-pages/${post.id}`}
@@ -653,8 +692,15 @@ function OpenPagesCard({ post }) {
         }}>
           {post.title}
         </div>
-        <div style={{ marginTop: 'auto', fontSize: '0.68rem', color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {post.authorName || 'Reader'} · {opTimeAgo(post.createdAt)}
+        <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
+          {avatarEl}
+          <span style={{ flex: 1, minWidth: 0, fontSize: '0.68rem', color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {post.authorName || 'Reader'} · {opTimeAgo(post.createdAt)}
+          </span>
+          <span style={opCountRow}>
+            <span>♡ {likeCount}</span>
+            <span>💬 {commentCount}</span>
+          </span>
         </div>
       </div>
     </a>
@@ -663,6 +709,11 @@ function OpenPagesCard({ post }) {
 
 function OpenPagesRow() {
   const [posts, setPosts] = useState(null);
+  // Per-post engagement counts (postId -> { commentCount, reactionCount }) and
+  // author photos (authorUid -> url|null) — fetched in a second pass, exactly as
+  // the feed (app/open-pages/page.jsx) does it.
+  const [counts, setCounts] = useState({});
+  const [authorPhotos, setAuthorPhotos] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -677,6 +728,38 @@ function OpenPagesRow() {
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
           .slice(0, 6);
         setPosts(list);
+
+        // Comment + like counts: one read each per post, count the keys.
+        const entries = await Promise.all(list.map(async (p) => {
+          try {
+            const [cSnap, rSnap] = await Promise.all([
+              get(ref(db, `comments/${p.id}`)),
+              get(ref(db, `open_pages_reactions/${p.id}`)),
+            ]);
+            const commentCount = cSnap.exists() ? Object.keys(cSnap.val()).length : 0;
+            const reactionCount = rSnap.exists() ? Object.keys(rSnap.val()).length : 0;
+            return [p.id, { commentCount, reactionCount }];
+          } catch {
+            return [p.id, { commentCount: 0, reactionCount: 0 }];
+          }
+        }));
+        if (cancelled) return;
+        setCounts(Object.fromEntries(entries));
+
+        // Author avatars: one read per unique author at users/{uid} for the real
+        // profile photo (avatarUrl/photoURL), same source as the feed.
+        const uids = [...new Set(list.map((p) => p.authorUid).filter(Boolean))];
+        const photoEntries = await Promise.all(uids.map(async (uid) => {
+          try {
+            const s = await get(ref(db, `users/${uid}`));
+            const v = s.exists() ? s.val() : null;
+            return [uid, v ? v.avatarUrl || v.photoURL || null : null];
+          } catch {
+            return [uid, null];
+          }
+        }));
+        if (cancelled) return;
+        setAuthorPhotos(Object.fromEntries(photoEntries));
       } catch (e) {
         console.error('Open Pages row error:', e);
         if (!cancelled) setPosts([]);
@@ -711,7 +794,7 @@ function OpenPagesRow() {
         </a>
       </div>
       <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
-        {posts.map(p => <OpenPagesCard key={p.id} post={p} />)}
+        {posts.map(p => <OpenPagesCard key={p.id} post={p} counts={counts[p.id]} photo={authorPhotos[p.authorUid]} />)}
       </div>
     </section>
   );
