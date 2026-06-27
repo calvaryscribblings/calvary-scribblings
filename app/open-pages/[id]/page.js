@@ -20,6 +20,80 @@ const FB = {
   appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
 };
 
+const SITE_URL = 'https://calvaryscribblings.co.uk';
+const OG_DEFAULT = `${SITE_URL}/og-default.png`;
+
+// Read a single published post by id at build time, using the same lazy
+// firebase/app + firebase/database client pattern generateStaticParams uses.
+// Returns the post object, or null if missing / on error.
+async function fetchPost(id) {
+  try {
+    const { initializeApp, getApps } = await import('firebase/app');
+    const { getDatabase, ref, get } = await import('firebase/database');
+    const app = getApps().length ? getApps()[0] : initializeApp(FB);
+    const db = getDatabase(app);
+    const snap = await get(ref(db, `open_pages/${id}`));
+    if (snap.exists()) return snap.val();
+  } catch (e) {
+    console.error('open-pages fetchPost error:', e);
+  }
+  return null;
+}
+
+// Strip Markdown to plain text and truncate to 160 chars for meta descriptions.
+function plainExcerpt(markdown) {
+  if (!markdown || typeof markdown !== 'string') return '';
+  const text = markdown
+    .replace(/```[\s\S]*?```/g, ' ')      // fenced code blocks
+    .replace(/`[^`]*`/g, ' ')             // inline code
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ') // images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links -> text
+    .replace(/^>+\s?/gm, '')              // blockquotes
+    .replace(/^#{1,6}\s+/gm, '')          // headings
+    .replace(/^\s*[-*+]\s+/gm, '')        // unordered list markers
+    .replace(/^\s*\d+\.\s+/gm, '')        // ordered list markers
+    .replace(/[*_~]/g, '')                // emphasis / strikethrough
+    .replace(/\s+/g, ' ')                 // collapse whitespace
+    .trim();
+  return text.length > 160 ? text.slice(0, 160) : text;
+}
+
+export async function generateMetadata({ params }) {
+  const { id } = params;
+  const post = await fetchPost(id);
+
+  if (!post || !post.title) {
+    return {
+      title: 'Open Pages · Calvary Scribblings',
+      description: 'Community writing on Calvary Scribblings.',
+    };
+  }
+
+  const title = post.title;
+  const description = plainExcerpt(post.body);
+  const url = `${SITE_URL}/open-pages/${id}`;
+  const image = post.coverImage || OG_DEFAULT;
+
+  return {
+    title: `${title} · Open Pages · Calvary Scribblings`,
+    description,
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: 'Calvary Scribblings',
+      images: [{ url: image, width: 1200, height: 630 }],
+      type: 'article',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [image],
+    },
+  };
+}
+
 export async function generateStaticParams() {
   try {
     const { initializeApp, getApps } = await import('firebase/app');

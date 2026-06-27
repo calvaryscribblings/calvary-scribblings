@@ -417,10 +417,19 @@ export async function onRequestPost(context) {
 
   // A new post is now live — kick the Cloudflare deploy hook so the static export
   // rebuilds and the post's /open-pages/[id] URL is pre-rendered (never 404s).
-  // Fire and forget: don't await, and never let a hook failure fail the response.
-  fetch(DEPLOY_HOOK, { method: 'POST', body: '' }).catch(() => {});
+  // TEMP DIAGNOSTIC: await the hook and surface its outcome in the response body
+  // (hookStatus) so we can confirm whether it fires — Pages Functions have no
+  // dashboard-accessible console logs without Workers Logs. A hook failure still
+  // must not fail the response, so the call is wrapped in try/catch.
+  let hookStatus = 'not_called';
+  try {
+    const hookRes = await fetch(DEPLOY_HOOK, { method: 'POST', body: '' });
+    hookStatus = hookRes.ok ? 'ok_' + hookRes.status : 'fail_' + hookRes.status;
+  } catch (e) {
+    hookStatus = 'error_' + e.message;
+  }
 
-  return json({ status: 'published', postId });
+  return json({ status: 'published', postId, hookStatus });
 }
 
 // users/{uid} profile path helper (kept inline so the function is self-describing).
