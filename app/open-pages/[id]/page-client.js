@@ -31,10 +31,18 @@ const CREAM = '#f5f0e8';
 const SERIF = "'Cormorant Garamond', 'Cochin', Georgia, serif";
 const BODY_SERIF = "'Cochin', Georgia, serif";
 const CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
-// Faint cream used for the un-liked heart and the "Reply" affordance.
-const CREAM_FAINT = 'rgba(245,240,232,0.4)';
-// Left rule on indented reply threads.
-const THREAD_BORDER = '2px solid #2a2036';
+// Muted cream scale — consolidated from the inline rgba literals scattered
+// through the file. DIM = secondary reading text, MUTE = quiet UI controls and
+// captions, FAINT = very subtle borders/hints.
+const CREAM_DIM = 'rgba(245,240,232,0.62)';
+const CREAM_MUTE = 'rgba(245,240,232,0.35)';
+const CREAM_FAINT = 'rgba(245,240,232,0.18)';
+// Muted gold for hairline rules and faint accents.
+const GOLD_SOFT = 'rgba(201,168,76,0.35)';
+const GOLD_FAINT = 'rgba(201,168,76,0.15)';
+// Indent/thread rule colour, reused on the nested-reply left rule.
+const LINE = '#2a2036';
+const THREAD_BORDER = `2px solid ${LINE}`;
 
 // ---------------------------------------------------------------------------
 // Comment-tree helpers (pure).
@@ -478,8 +486,8 @@ export default function OpenPageDetailClient({ params }) {
     const avatarSize = depth === 0 ? 38 : 30;
 
     return (
-      <div key={node.path}>
-        <div style={{ display: 'flex', gap: 12, padding: '16px 0', borderBottom: '1px solid rgba(245,240,232,0.06)' }}>
+      <div key={node.path} style={{ marginBottom: depth === 0 ? 28 : 20 }}>
+        <div style={{ display: 'flex', gap: 12 }}>
           <AuthorLink href={href} style={{ flexShrink: 0, display: 'block' }}>
             <AuthorAvatar src={avatar} initial={initial} size={avatarSize} fontSize={depth === 0 ? '1rem' : '0.85rem'} />
           </AuthorLink>
@@ -488,7 +496,7 @@ export default function OpenPageDetailClient({ params }) {
               <AuthorLink href={href} style={{ fontFamily: SERIF, fontSize: '1.05rem', color: CREAM, fontWeight: 600 }}>
                 {name}
               </AuthorLink>
-              {handle ? <span style={{ fontSize: '0.82rem', color: 'rgba(245,240,232,0.4)' }}>@{handle}</span> : null}
+              {handle ? <span style={{ fontSize: '0.82rem', color: CREAM_MUTE }}>@{handle}</span> : null}
               <span style={{ fontSize: '0.78rem', color: 'rgba(245,240,232,0.3)' }}>· {timeAgo(node.createdAt)}</span>
             </div>
             <div style={{ fontSize: '1.05rem', lineHeight: 1.6, color: 'rgba(245,240,232,0.82)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -508,27 +516,29 @@ export default function OpenPageDetailClient({ params }) {
                   background: 'transparent',
                   border: 'none',
                   padding: 0,
-                  color: liked ? GOLD : CREAM_FAINT,
-                  fontSize: '0.85rem',
-                  fontFamily: BODY_SERIF,
+                  color: liked ? GOLD : CREAM_MUTE,
+                  fontFamily: CINZEL,
+                  fontSize: 10,
+                  letterSpacing: '0.1em',
                   cursor: 'pointer',
                   transition: 'color 0.15s',
                 }}
               >
-                <IconHeart size={15} style={{ fill: liked ? GOLD : 'none' }} /> {likeCount}
+                <IconHeart size={13} style={{ fill: liked ? GOLD : 'none' }} /> {likeCount}
               </button>
               {canReply ? (
                 <button
                   type="button"
                   onClick={() => handleReplyClick(node)}
+                  className="op-reply-btn"
                   style={{
                     background: 'transparent',
                     border: 'none',
                     padding: 0,
-                    color: CREAM_FAINT,
+                    color: 'rgba(245,240,232,0.45)',
                     fontFamily: CINZEL,
-                    fontSize: '0.72rem',
-                    letterSpacing: '0.08em',
+                    fontSize: 10,
+                    letterSpacing: '0.14em',
                     textTransform: 'uppercase',
                     cursor: 'pointer',
                   }}
@@ -548,18 +558,17 @@ export default function OpenPageDetailClient({ params }) {
                   rows={2}
                   autoFocus
                   disabled={replySubmitting}
+                  className="op-input"
                   style={{
                     width: '100%',
                     boxSizing: 'border-box',
                     background: SURFACE,
-                    border: '1px solid rgba(245,240,232,0.12)',
-                    borderRadius: 10,
+                    borderRadius: 6,
                     padding: '0.7rem 0.9rem',
                     color: CREAM,
-                    fontSize: '0.98rem',
+                    fontSize: 16,
                     lineHeight: 1.5,
                     fontFamily: BODY_SERIF,
-                    outline: 'none',
                     resize: 'vertical',
                     minHeight: 60,
                   }}
@@ -568,7 +577,7 @@ export default function OpenPageDetailClient({ params }) {
                   <button
                     type="button"
                     onClick={() => { setReplyOpenPath(null); setReplyDraft(''); }}
-                    style={{ background: 'transparent', border: 'none', color: CREAM_FAINT, fontSize: '0.85rem', fontFamily: BODY_SERIF, cursor: 'pointer' }}
+                    style={{ background: 'transparent', border: 'none', padding: 0, color: CREAM_MUTE, fontFamily: CINZEL, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}
                   >
                     Cancel
                   </button>
@@ -576,14 +585,15 @@ export default function OpenPageDetailClient({ params }) {
                     type="submit"
                     disabled={!replyDraft.trim() || replySubmitting}
                     style={{
-                      background: replyDraft.trim() && !replySubmitting ? PURPLE : 'rgba(245,240,232,0.1)',
-                      color: replyDraft.trim() && !replySubmitting ? CREAM : 'rgba(245,240,232,0.4)',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '0.45rem 1.3rem',
-                      fontWeight: 700,
-                      fontSize: '0.88rem',
-                      fontFamily: BODY_SERIF,
+                      background: replyDraft.trim() && !replySubmitting ? PURPLE : 'transparent',
+                      color: replyDraft.trim() && !replySubmitting ? CREAM : CREAM_MUTE,
+                      border: replyDraft.trim() && !replySubmitting ? 'none' : '1px solid rgba(245,240,232,0.12)',
+                      borderRadius: 4,
+                      padding: '8px 16px',
+                      fontFamily: CINZEL,
+                      fontSize: 10,
+                      letterSpacing: '0.16em',
+                      textTransform: 'uppercase',
                       cursor: replyDraft.trim() && !replySubmitting ? 'pointer' : 'not-allowed',
                     }}
                   >
@@ -696,8 +706,9 @@ export default function OpenPageDetailClient({ params }) {
           {renderMarkdown(post.body)}
         </div>
 
-        {/* Like — open_pages_reactions/{postId}/{uid}. Gold when liked. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 36, paddingTop: 24, borderTop: '1px solid rgba(245,240,232,0.08)' }}>
+        {/* Like — open_pages_reactions/{postId}/{uid}. A quiet heart + count, no
+            chrome; the heart gives one small scale pulse when it turns gold. */}
+        <div style={{ display: 'flex', alignItems: 'center', marginTop: 20 }}>
           <button
             type="button"
             onClick={toggleLike}
@@ -705,29 +716,32 @@ export default function OpenPageDetailClient({ params }) {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 9,
+              gap: 8,
               background: 'transparent',
-              border: `1px solid ${liked ? 'rgba(201,168,76,0.5)' : 'rgba(245,240,232,0.18)'}`,
-              borderRadius: 999,
-              padding: '0.5rem 1.2rem',
-              color: liked ? GOLD : 'rgba(245,240,232,0.55)',
-              fontSize: '0.95rem',
-              fontFamily: BODY_SERIF,
+              border: 'none',
+              padding: 0,
+              color: liked ? GOLD : CREAM_MUTE,
+              fontFamily: CINZEL,
+              fontSize: 11,
+              letterSpacing: '0.12em',
               cursor: 'pointer',
-              transition: 'color 0.18s, border-color 0.18s',
+              transition: 'color 0.18s',
             }}
           >
-            <IconHeart size={18} style={{ fill: liked ? GOLD : 'none' }} />
+            <IconHeart
+              size={18}
+              style={{ fill: liked ? GOLD : 'none', animation: liked ? 'opLikePulse 200ms ease' : 'none' }}
+            />
             {likeCount}
           </button>
         </div>
 
         {/* Author card — enriched from users/{authorUid} (Fix 4), clickable (Fix 3). */}
-        <div style={{ marginTop: 56, background: SURFACE, border: '1px solid rgba(245,240,232,0.08)', borderRadius: 16, padding: '1.8rem' }}>
+        <div style={{ marginTop: 56, background: SURFACE, borderTop: '1px solid rgba(245,240,232,0.08)', border: '1px solid rgba(245,240,232,0.08)', borderRadius: 8, padding: '1.8rem' }}>
           <AuthorLink href={profileHref} style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
             <AuthorAvatar src={authorAvatar} initial={initial} size={52} fontSize="1.4rem" />
             <div>
-              <div style={{ fontFamily: CINZEL, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 4 }}>
+              <div style={{ fontFamily: CINZEL, fontSize: 9, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.6)', marginBottom: 4 }}>
                 Written by
               </div>
               <div style={{ fontFamily: SERIF, fontSize: '1.5rem', color: CREAM, fontWeight: 600, lineHeight: 1.1 }}>
@@ -747,27 +761,28 @@ export default function OpenPageDetailClient({ params }) {
             type="button"
             // UI only — subscriptions/support are wired in a later stage.
             onClick={() => {}}
+            className="op-subscribe"
             style={{
               width: '100%',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 9,
-              background: PURPLE,
-              color: CREAM,
-              border: 'none',
+              background: 'transparent',
+              color: 'rgba(107,47,173,0.9)',
+              border: '1px solid rgba(107,47,173,0.6)',
               borderRadius: 10,
               padding: '0.85rem 1.5rem',
               fontWeight: 700,
               fontSize: '1rem',
               fontFamily: BODY_SERIF,
               cursor: 'pointer',
-              boxShadow: '0 8px 26px rgba(107,47,173,0.32)',
+              transition: 'background 0.2s',
             }}
           >
             <IconHeart size={17} /> Subscribe · Support
           </button>
-          <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'rgba(245,240,232,0.35)', marginTop: 10 }}>
+          <div style={{ textAlign: 'center', fontFamily: CINZEL, fontSize: 9, letterSpacing: '0.12em', color: 'rgba(245,240,232,0.3)', marginTop: 10 }}>
             Supporting creators is coming soon.
           </div>
         </div>
@@ -783,7 +798,7 @@ export default function OpenPageDetailClient({ params }) {
                 gap: 8,
                 background: 'transparent',
                 color: 'rgba(245,240,232,0.7)',
-                border: '1px solid rgba(245,240,232,0.18)',
+                border: `1px solid ${CREAM_FAINT}`,
                 borderRadius: 10,
                 padding: '0.7rem 1.8rem',
                 fontWeight: 600,
@@ -838,7 +853,7 @@ export default function OpenPageDetailClient({ params }) {
               <button
                 type="button"
                 onClick={() => { setReportOpen(false); setReportError(''); }}
-                style={{ background: 'transparent', border: 'none', color: 'rgba(245,240,232,0.4)', fontSize: '0.8rem', fontFamily: BODY_SERIF, cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: CREAM_MUTE, fontSize: '0.8rem', fontFamily: BODY_SERIF, cursor: 'pointer' }}
               >
                 Cancel
               </button>
@@ -853,7 +868,7 @@ export default function OpenPageDetailClient({ params }) {
                 gap: 7,
                 background: 'transparent',
                 border: 'none',
-                color: 'rgba(245,240,232,0.4)',
+                color: CREAM_MUTE,
                 fontSize: '0.86rem',
                 fontFamily: BODY_SERIF,
                 cursor: 'pointer',
@@ -867,9 +882,10 @@ export default function OpenPageDetailClient({ params }) {
 
         {/* Comments — comments/{postId} (shared platform node). */}
         <section style={{ marginTop: 56, paddingTop: 34, borderTop: '1px solid rgba(245,240,232,0.08)' }}>
-          <div style={{ fontFamily: CINZEL, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: GOLD, opacity: 0.85, marginBottom: 22 }}>
+          <div style={{ fontFamily: CINZEL, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: GOLD, opacity: 0.7, marginBottom: 14 }}>
             Comments{comments && comments.length ? ` · ${comments.length}` : ''}
           </div>
+          <div style={{ borderBottom: '1px solid rgba(201,168,76,0.2)', marginBottom: 24 }} />
 
           {/* Composer (signed-in) or sign-in prompt (signed-out). */}
           {user ? (
@@ -880,20 +896,19 @@ export default function OpenPageDetailClient({ params }) {
                 placeholder="Add a comment…"
                 rows={3}
                 disabled={posting}
+                className="op-input"
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
                   background: SURFACE,
-                  border: '1px solid rgba(245,240,232,0.12)',
-                  borderRadius: 12,
+                  borderRadius: 6,
                   padding: '0.9rem 1rem',
                   color: CREAM,
-                  fontSize: '1.02rem',
+                  fontSize: 16,
                   lineHeight: 1.6,
                   fontFamily: BODY_SERIF,
-                  outline: 'none',
                   resize: 'vertical',
-                  minHeight: 84,
+                  minHeight: 96,
                 }}
               />
               <div style={{ textAlign: 'right', marginTop: 12 }}>
@@ -901,16 +916,16 @@ export default function OpenPageDetailClient({ params }) {
                   type="submit"
                   disabled={!commentText.trim() || posting}
                   style={{
-                    background: commentText.trim() && !posting ? PURPLE : 'rgba(245,240,232,0.1)',
-                    color: commentText.trim() && !posting ? CREAM : 'rgba(245,240,232,0.4)',
-                    border: 'none',
-                    borderRadius: 9,
-                    padding: '0.6rem 1.8rem',
-                    fontWeight: 700,
-                    fontSize: '0.95rem',
-                    fontFamily: BODY_SERIF,
+                    background: commentText.trim() && !posting ? PURPLE : 'transparent',
+                    color: commentText.trim() && !posting ? CREAM : CREAM_MUTE,
+                    border: commentText.trim() && !posting ? 'none' : '1px solid rgba(245,240,232,0.12)',
+                    borderRadius: 4,
+                    padding: '10px 20px',
+                    fontFamily: CINZEL,
+                    fontSize: 10,
+                    letterSpacing: '0.16em',
+                    textTransform: 'uppercase',
                     cursor: commentText.trim() && !posting ? 'pointer' : 'not-allowed',
-                    boxShadow: commentText.trim() && !posting ? '0 8px 22px rgba(107,47,173,0.3)' : 'none',
                   }}
                 >
                   {posting ? 'Posting…' : 'Post comment'}
@@ -940,11 +955,11 @@ export default function OpenPageDetailClient({ params }) {
 
           {/* List */}
           {comments === null ? (
-            <div style={{ color: 'rgba(245,240,232,0.4)', fontStyle: 'italic', fontFamily: SERIF, fontSize: '1.1rem' }}>
+            <div style={{ color: CREAM_MUTE, fontStyle: 'italic', fontFamily: SERIF, fontSize: '1.1rem' }}>
               Loading comments…
             </div>
           ) : comments.length === 0 ? (
-            <div style={{ color: 'rgba(245,240,232,0.4)', fontStyle: 'italic', fontFamily: SERIF, fontSize: '1.2rem' }}>
+            <div style={{ color: CREAM_MUTE, fontStyle: 'italic', fontFamily: SERIF, fontSize: '1.2rem' }}>
               No comments yet — be the first.
             </div>
           ) : (
@@ -991,9 +1006,21 @@ function AuthorAvatar({ src, initial, size = 40, fontSize = '1.1rem' }) {
   );
 }
 
+// Styling-only CSS: the one signature moment (heart pulse on like), the gold
+// focus ring on the composers (inline styles can't express :focus), and the two
+// quiet hover brightenings. Injected once via Shell.
+const GLOBAL_CSS = `
+@keyframes opLikePulse { from { transform: scale(1.2); } to { transform: scale(1); } }
+.op-input { border: 1px solid rgba(245,240,232,0.08); outline: none; transition: border-color 0.2s; }
+.op-input:focus { border-color: ${GOLD_SOFT}; }
+.op-reply-btn:hover { color: ${CREAM_DIM} !important; }
+.op-subscribe:hover { background: rgba(107,47,173,0.1) !important; }
+`;
+
 function Shell({ children }) {
   return (
     <div style={{ background: INK, minHeight: '100vh', color: CREAM, fontFamily: BODY_SERIF }}>
+      <style>{GLOBAL_CSS}</style>
       <Navbar />
       {children}
     </div>
