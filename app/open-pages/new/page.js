@@ -12,7 +12,7 @@
 // editor. The optional live preview renders Markdown to React ELEMENTS only via a
 // tiny inline renderer (no dangerouslySetInnerHTML, no raw HTML — XSS-safe).
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/AuthContext';
@@ -327,6 +327,7 @@ export default function NewOpenPagePage() {
           kind: 'published',
           message: 'Your post is live on Open Pages.',
           link: '/open-pages',
+          hookStatus: data.hookStatus || 'not_called',
         });
         setTitle('');
         setBody('');
@@ -453,6 +454,7 @@ export default function NewOpenPagePage() {
               {outcome.kind === 'rejected' && 'Couldn’t publish this'}
               {outcome.kind === 'error' && 'Hmm — that didn’t work'}
             </div>
+            {outcome.kind === 'published' && <DeployStatusPulse hookStatus={outcome.hookStatus} />}
             <p style={{ margin: 0, lineHeight: 1.6, color: 'rgba(245,240,232,0.9)' }}>{outcome.message}</p>
             {outcome.link && (
               <a href={outcome.link} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: '0.6rem', color: GOLD, fontWeight: 700, textDecoration: 'none' }}>
@@ -761,6 +763,82 @@ function segBtn(active) {
     fontFamily: BODY_SERIF,
     transition: 'all 0.18s',
   };
+}
+
+// ---------------------------------------------------------------------------
+// Deploy status pulse — a subtle, self-dismissing system-status line shown under
+// the "Your post is live!" heading once a post publishes. It reflects whether the
+// Cloudflare deploy hook fired (hookStatus from the moderation response), cycling
+// through three stages and then fading out. Not a prominent UI element.
+//   stage 1 (immediate): "Notifying the web…"            — gold, pulsing
+//   stage 2 (+1.2s):     hook ok  -> "Going live…"        — gold, settled
+//                        hook bad -> "Deploy queued…"     — creamFaint
+//   stage 3 (+2.5s):     fade out; stage 4 unmounts.
+// ---------------------------------------------------------------------------
+
+const CREAM_FAINT = 'rgba(245,240,232,0.45)';
+
+function DeployStatusPulse({ hookStatus }) {
+  const [stage, setStage] = useState(1);
+
+  useEffect(() => {
+    const timers = [
+      setTimeout(() => setStage(2), 1200),
+      setTimeout(() => setStage(3), 2500),
+      setTimeout(() => setStage(4), 3050), // after the fade transition completes
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  if (stage >= 4) return null;
+
+  const ok = typeof hookStatus === 'string' && hookStatus.startsWith('ok_');
+  const settled = stage >= 2;
+  const fading = stage === 3;
+
+  let label;
+  let color;
+  if (!settled) {
+    label = 'Notifying the web…';
+    color = GOLD;
+  } else if (ok) {
+    label = 'Going live on Calvary Scribblings ✓';
+    color = GOLD;
+  } else {
+    label = 'Deploy queued — your story will appear shortly';
+    color = CREAM_FAINT;
+  }
+
+  return (
+    <div
+      aria-live="polite"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        margin: '0.1rem 0 0.45rem',
+        opacity: fading ? 0 : 1,
+        transition: 'opacity 0.5s ease',
+        fontFamily: CINZEL,
+        fontSize: 10,
+        letterSpacing: '0.15em',
+        color,
+      }}
+    >
+      <style>{`@keyframes opDeployPulse{0%,100%{opacity:0.35;transform:scale(0.8)}50%{opacity:1;transform:scale(1.25)}}`}</style>
+      <span
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: '50%',
+          background: color,
+          flexShrink: 0,
+          animation: settled ? 'none' : 'opDeployPulse 0.9s ease-in-out infinite',
+        }}
+      />
+      {label}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
