@@ -10,7 +10,7 @@
 // Subscribe·Support and Report are UI ONLY in this stage — Stage 5 wires Report
 // to the admin queue and a later stage wires subscriptions.
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import AuthModal from '../../components/AuthModal';
@@ -134,6 +134,10 @@ export default function OpenPageDetailClient({ params }) {
   // denormalized snapshot stored on the post (real displayName, avatar, bio).
   const [author, setAuthor] = useState(null);
 
+  // Guards the read-count increment to once per mount (effects can re-run, and
+  // React strict mode double-invokes them in dev).
+  const readCountedRef = useRef(false);
+
   // Reactions — open_pages_reactions/{postId}/{uid} = true. Held as a uid->true
   // map; count and "did I like it" are derived at render so they react to auth.
   const [reactions, setReactions] = useState({});
@@ -193,13 +197,22 @@ export default function OpenPageDetailClient({ params }) {
     let cancelled = false;
     (async () => {
       try {
-        const { ref, get } = await import('firebase/database');
+        const { ref, get, runTransaction } = await import('firebase/database');
         const snap = await get(ref(db, `${OPEN_PAGES_NODE}/${id}`));
         if (cancelled) return;
         const val = snap.exists() ? snap.val() : null;
         // Only ever show live posts (the public node should only hold these).
         const live = val && val.status === 'live' ? { id, ...val } : null;
         setPost(live);
+
+        // Read count — bump open_pages/{id}/readCount once per mount, fire-and-
+        // forget. Not awaited so it never blocks render; errors are swallowed so
+        // a rules denial can never surface. runTransaction keeps concurrent reads
+        // from clobbering each other's increment.
+        if (live && !readCountedRef.current) {
+          readCountedRef.current = true;
+          runTransaction(ref(db, `${OPEN_PAGES_NODE}/${id}/readCount`), (cur) => (cur || 0) + 1).catch(() => {});
+        }
 
         // Secondary fetch: resolve the live author profile from users/{authorUid}
         // (displayName, avatarUrl/photoURL, bio…) to enrich the author card.
@@ -683,6 +696,10 @@ export default function OpenPageDetailClient({ params }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <span style={genrePill}>{genre}</span>
           <span style={{ fontSize: '0.82rem', color: 'rgba(245,240,232,0.45)' }}>{formatDate(post.createdAt)}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: CINZEL, fontSize: 11, letterSpacing: '0.1em', color: CREAM_MUTE }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            {post.readCount || 0} reads
+          </span>
         </div>
 
         {/* Title */}
