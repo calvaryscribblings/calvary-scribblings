@@ -18,13 +18,16 @@ const DESCRIPTION = "What's happening on the Island and beyond. Straight to the 
 const SUBCATEGORIES = [
   { value: 'all', label: 'All' },
   { value: 'Op-Ed', label: 'Op-Ed' },
+  { value: 'Essay', label: 'Essay' },
   { value: 'Music', label: 'Music' },
-  { value: 'Tech', label: 'Tech' },
   { value: 'Film', label: 'Film' },
-  { value: 'Fitness', label: 'Fitness' },
-  { value: 'Agriculture', label: 'Agriculture' },
+  { value: 'Tech', label: 'Tech' },
+  { value: 'Science', label: 'Science' },
+  { value: 'Business', label: 'Business' },
+  { value: 'Finance', label: 'Finance' },
+  { value: 'Sport', label: 'Sport' },
   { value: 'Politics', label: 'Politics' },
-  { value: 'Food', label: 'Food' },
+  { value: 'Culture', label: 'Culture' },
 ];
 
 const _filtered = stories.filter(s => s.category === cat).sort((a, b) => new Date(b.date) - new Date(a.date));

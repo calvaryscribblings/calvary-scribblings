@@ -15,18 +15,19 @@ const CATEGORIES = [
   { value: 'novel', label: 'Novel' },
 ];
 
-const NEWS_SUBCATEGORIES = [
-  { value: '', label: 'General' },
-  { value: 'Op-Ed', label: 'Op-Ed' },
-  { value: 'Music', label: 'Music' },
-  { value: 'Culture', label: 'Culture' },
-  { value: 'Tech', label: 'Tech' },
-  { value: 'Film', label: 'Film' },
-  { value: 'Fitness', label: 'Fitness' },
-  { value: 'Agriculture', label: 'Agriculture' },
-  { value: 'Politics', label: 'Politics' },
-  { value: 'Food', label: 'Food' },
-];
+// Subcategory options keyed by the selected category. The picker is populated
+// dynamically from this map. Book Reader (readerMode) content is authored under
+// the 'novel' category, so its subcategories live there (with a 'serial' alias
+// in case a dedicated category is ever added).
+const SUBCATEGORY_MAP = {
+  news: ['Op-Ed', 'Essay', 'Music', 'Film', 'Tech', 'Science', 'Business', 'Finance', 'Sport', 'Politics', 'Culture'],
+  flash: ['Romance', 'Horror', 'Humour', 'Drama', 'Thriller', 'Slice of Life'],
+  short: ['Romance', 'Horror', 'Humour', 'Drama', 'Thriller', 'Slice of Life', 'Mystery', 'Sci-Fi', 'Historical', 'Fantasy'],
+  poetry: ['Love', 'Grief', 'Political', 'Nature', 'Spiritual', 'Spoken Word'],
+  inspiring: ['Personal Essay', 'Overcoming', 'Faith', 'Ambition', 'Loss & Recovery'],
+  novel: ['Novel', 'Novella', 'Serial'],
+  serial: ['Novel', 'Novella', 'Serial'],
+};
 
 function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -188,7 +189,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
   const epubInputRef = useRef(null);
   const isScheduled = !!form.publishAt;
   const scheduleStatus = form.publishAt ? getScheduleStatus(form.publishAt) : null;
-  const isNews = form.category === 'news';
+  const subcatOptions = SUBCATEGORY_MAP[form.category] || [];
 
   // Live-resolve a typed @handle → uid when "Attribute by @handle" is chosen.
   useEffect(() => {
@@ -343,14 +344,15 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
           </div>
         </div>
 
-        {isNews && (
+        {subcatOptions.length > 0 && (
           <div style={s.fg}>
-            <label style={s.label}>News Subcategory</label>
+            <label style={s.label}>Subcategory</label>
             <select style={s.select} value={form.subcategory || ''}
               onChange={e => setForm(f => ({ ...f, subcategory: e.target.value }))}>
-              {NEWS_SUBCATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              <option value="">— Select subcategory —</option>
+              {subcatOptions.map(sc => <option key={sc} value={sc}>{sc}</option>)}
             </select>
-            <div style={s.hint}>Subcategory appears alongside the News badge on the story card and page.</div>
+            <div style={s.hint}>Subcategory appears alongside the category badge on the story card and page.</div>
           </div>
         )}
 
@@ -610,7 +612,7 @@ export default function AdminPage() {
         authorGuestId: authorGuestId, // null for non-guest → removed by set()
         category: form.category,
         categoryName: categoryObj.label,
-        subcategory: form.category === 'news' ? (form.subcategory || '') : '',
+        subcategory: form.subcategory || '',
         date: form.date,
         content: convertToHTML(form.content.trim()),
         cover: coverPath,

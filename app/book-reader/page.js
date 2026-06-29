@@ -13,6 +13,13 @@ const KICKER = 'THE COLLECTION';
 const TITLE = 'Book Reader';
 const DESCRIPTION = 'Long-form fiction for the committed reader. Pull up a chair.';
 
+const SUBCATEGORIES = [
+  { value: 'all', label: 'All' },
+  { value: 'Novel', label: 'Novel' },
+  { value: 'Novella', label: 'Novella' },
+  { value: 'Serial', label: 'Serial' },
+];
+
 // Decorative book spines for the hero — left edge, width, fill colour.
 const SPINES = [
   { x: 20, w: 22, fill: '#6b2fad' },
@@ -42,6 +49,7 @@ export default function BookReaderPage() {
   const userTiersMap = useUserStoryTiers();
   const [allStories, setAllStories] = useState([]);
   const [sortMode, setSortMode] = useState('hits');
+  const [activeTab, setActiveTab] = useState('all');
 
   useEffect(() => {
     async function fetchCMS() {
@@ -82,8 +90,13 @@ export default function BookReaderPage() {
     fetchCMS();
   }, []);
 
-  // Sort toggle re-orders the already-fetched array (no re-fetch on change).
-  const sorted = [...allStories].sort((a, b) =>
+  // Filter by the active subcategory tab, then apply the Most Read / Newest sort
+  // within that filtered set (sort never replaces the tab filter). Stories with
+  // no subcategory only appear under "All".
+  const filtered = activeTab === 'all'
+    ? allStories
+    : allStories.filter(s => s.subcategory === activeTab);
+  const sorted = [...filtered].sort((a, b) =>
     sortMode === 'hits'
       ? (b.hits - a.hits) || (new Date(b.date) - new Date(a.date))
       : (new Date(b.date) - new Date(a.date))
@@ -94,6 +107,9 @@ export default function BookReaderPage() {
       <style>{`
         .cat-hero { min-height: 220px; }
         @media (min-width: 768px) { .cat-hero { min-height: 260px; } }
+        .cat-tab { background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 0.35rem 1rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.45); cursor: pointer; font-family: Cochin, Georgia, serif; transition: all 0.2s; white-space: nowrap; }
+        .cat-tab:hover { border-color: rgba(107,47,173,0.5); color: #c4b5fd; }
+        .cat-tab.active { background: #6b2fad; border-color: #6b2fad; color: #f5f0e8; }
       `}</style>
       <nav style={{ position: 'sticky', top: 0, zIndex: 100, padding: '0 4%', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(8,6,16,0.96)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
@@ -126,6 +142,18 @@ export default function BookReaderPage() {
           <button onClick={() => setSortMode('hits')} style={sortBtnStyle(sortMode === 'hits')}>Most Read</button>
           <button onClick={() => setSortMode('date')} style={sortBtnStyle(sortMode === 'date')}>Newest</button>
         </div>
+      </div>
+
+      {/* Subcategory filter tabs. */}
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        {SUBCATEGORIES.map(tab => (
+          <button
+            key={tab.value}
+            className={`cat-tab${activeTab === tab.value ? ' active' : ''}`}
+            onClick={() => setActiveTab(tab.value)}>
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <section style={{ padding: '3rem 4%' }}>
