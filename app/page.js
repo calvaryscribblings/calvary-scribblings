@@ -11,6 +11,22 @@ import { ref, get } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from './lib/resolveAuthorNames';
 import { normalizeGenre } from './lib/openPages';
 
+// ── Typography system ───────────────────────────────────────────────────────
+// DISPLAY for headings/titles, LABEL for kickers/badges/controls, BODY for meta.
+const DISPLAY = "'Cormorant Garamond', Georgia, serif";
+const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
+const BODY = "'Cochin', Georgia, serif";
+
+// ── Unified section-header styles (used by every content row) ────────────────
+const kickerStyle = { fontFamily: LABEL, fontSize: '0.6rem', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8, display: 'block' };
+const sectionTitleStyle = { fontFamily: DISPLAY, fontSize: '1.85rem', fontWeight: 600, color: '#f5f0e8', lineHeight: 1, margin: 0 };
+const seeAllStyle = { fontFamily: LABEL, fontSize: '0.62rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.75)', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' };
+
+// Right-pointing chevron used on every "See all" / "View all" link.
+const seeAllChevron = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', marginLeft: 4 }}><polyline points="9 18 15 12 9 6"/></svg>
+);
+
 // Stories source of truth: cms_stories/ in Firebase RTDB.
 // This component fetches on mount via the useEffect below.
 // The hardcoded `stories` array below is intentionally empty —
@@ -68,7 +84,7 @@ function getHourlyCarousel(stories) {
     .slice(0, 5);
 }
 
-function StoryCard({ story, width = 160, height = 240, userTier = null, scorePct }) {
+function StoryCard({ story, width = 180, height = 270, userTier = null, scorePct }) {
   const [hovered, setHovered] = useState(false);
   const badge = badgeStyle[story.category] || badgeStyle.news;
   return (
@@ -77,11 +93,11 @@ function StoryCard({ story, width = 160, height = 240, userTier = null, scorePct
       onMouseLeave={() => setHovered(false)}
       style={{
         textDecoration: 'none', flexShrink: 0, width,
-        borderRadius: 8, overflow: 'hidden', display: 'block',
+        borderRadius: 6, overflow: 'hidden', display: 'block',
         position: 'relative', cursor: 'pointer',
         transform: hovered ? 'scale(1.05)' : 'scale(1)',
         transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s ease',
-        boxShadow: hovered ? '0 25px 60px rgba(0,0,0,0.9), 0 0 0 1px rgba(139,92,246,0.3)' : '0 4px 20px rgba(0,0,0,0.5)',
+        boxShadow: hovered ? '0 25px 60px rgba(0,0,0,0.9), 0 0 0 1px rgba(201,168,76,0.25)' : '0 4px 20px rgba(0,0,0,0.5)',
       }}>
       <img src={story.cover} alt={story.title}
         style={{ width: '100%', height, objectFit: 'cover', display: 'block',
@@ -91,8 +107,8 @@ function StoryCard({ story, width = 160, height = 240, userTier = null, scorePct
         <span style={{
           position: 'absolute', top: 8, left: 8,
           background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-          color: '#fff', fontSize: '0.5rem', fontWeight: 800,
-          letterSpacing: '0.12em', textTransform: 'uppercase',
+          color: '#fff', fontFamily: LABEL, fontSize: '0.5rem', fontWeight: 800,
+          letterSpacing: '0.1em', textTransform: 'uppercase',
           padding: '0.2rem 0.5rem', borderRadius: 3,
           boxShadow: '0 2px 8px rgba(124,58,237,0.6)',
         }}>New</span>
@@ -100,14 +116,14 @@ function StoryCard({ story, width = 160, height = 240, userTier = null, scorePct
       <QuizPill hasQuiz={story.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={story.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        background: 'linear-gradient(to top, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.6) 55%, transparent 100%)',
+        background: 'linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.7) 50%, transparent 100%)',
         padding: '2.5rem 0.85rem 0.9rem',
       }}>
-        <span style={{ ...badge, fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.15rem 0.45rem', borderRadius: 3, display: 'inline-block', marginBottom: '0.4rem' }}>
+        <span style={{ ...badge, fontFamily: LABEL, fontSize: '0.55rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', padding: '0.15rem 0.45rem', borderRadius: 3, display: 'inline-block', marginBottom: '0.4rem' }}>
           {story.categoryName}
         </span>
-        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff', lineHeight: 1.35, marginBottom: '0.25rem' }}>{story.title}</div>
-        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.75)' }}>{story.author}</div>
+        <div style={{ fontFamily: DISPLAY, fontSize: '0.88rem', fontWeight: 600, color: '#fff', lineHeight: 1.3, marginBottom: '0.25rem' }}>{story.title}</div>
+        <div style={{ fontFamily: BODY, fontSize: '0.7rem', color: 'rgba(255,255,255,0.75)' }}>{story.author}</div>
       </div>
     </a>
   );
@@ -124,28 +140,28 @@ function JustAddedCard({ story, userTier = null, scorePct }) {
         padding: '0.6rem 0.75rem', borderRadius: 8, flexShrink: 0,
         background: hovered ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.03)',
         border: hovered ? '1px solid rgba(139,92,246,0.25)' : '1px solid rgba(255,255,255,0.06)',
-        transition: 'all 0.25s ease', width: 260, minWidth: 260,
+        transition: 'all 0.25s ease', width: 280, minWidth: 280,
       }}>
       <div style={{ position: 'relative', flexShrink: 0 }}>
         <img src={story.cover} alt={story.title}
-          style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 4, display: 'block' }} />
+          style={{ width: 64, height: 84, objectFit: 'cover', borderRadius: 4, display: 'block' }} />
         <QuizPill hasQuiz={story.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={story.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff',
+          <div style={{ fontFamily: DISPLAY, fontSize: '0.82rem', fontWeight: 600, color: '#ffffff',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 6 }}>
             {story.title}
           </div>
           {story.isNew && (
             <span style={{
-              background: '#7c3aed', color: '#fff', fontSize: '0.6rem',
+              background: '#7c3aed', color: '#fff', fontFamily: LABEL, fontSize: '0.6rem',
               fontWeight: 700, padding: '2px 6px', borderRadius: 3,
               letterSpacing: '0.06em', flexShrink: 0,
             }}>NEW</span>
           )}
         </div>
-        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.65)' }}>
+        <div style={{ fontFamily: BODY, fontSize: '0.68rem', color: 'rgba(255,255,255,0.65)' }}>
           By {story.author} · {story.date}
         </div>
       </div>
@@ -153,19 +169,22 @@ function JustAddedCard({ story, userTier = null, scorePct }) {
   );
 }
 
-function Row({ title, stories, seeAll, userTiersMap = {} }) {
+function Row({ title, kicker, stories, seeAll, userTiersMap = {} }) {
   return (
-    <section style={{ padding: '2rem 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 4%' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>{title}</h3>
+    <section style={{ padding: '2.5rem 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', padding: '0 4%' }}>
+        <div>
+          {kicker && <span style={kickerStyle}>{kicker}</span>}
+          <h3 style={sectionTitleStyle}>{title}</h3>
+        </div>
         <a href={seeAll}
-          style={{ fontSize: '0.8rem', color: '#a78bfa', textDecoration: 'none', fontWeight: 600 }}
-          onMouseEnter={e => e.target.style.color = '#c4b5fd'}
-          onMouseLeave={e => e.target.style.color = '#a78bfa'}>
-          See all →
+          style={seeAllStyle}
+          onMouseEnter={e => { e.currentTarget.style.color = '#c9a84c'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'rgba(201,168,76,0.75)'; }}>
+          See all{seeAllChevron}
         </a>
       </div>
-      <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
         {stories.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
       </div>
     </section>
@@ -174,8 +193,8 @@ function Row({ title, stories, seeAll, userTiersMap = {} }) {
 
 function Top10Card({ s, i, userTier = null, scorePct }) {
   const [active, setActive] = useState(false);
-  const CARD_WIDTH = 120;
-  const CARD_HEIGHT = 180;
+  const CARD_WIDTH = 140;
+  const CARD_HEIGHT = 210;
   const NUM_W = 60;
   const VB_H = 300;
   const strokeColor = active ? 'rgba(167,139,250,0.7)' : 'rgba(255,255,255,0.18)';
@@ -369,16 +388,16 @@ function TopReadersStrip() {
     r === 1 ? '#d4a437' : r === 2 ? '#c0c0c8' : r === 3 ? '#a97142' : 'rgba(255,255,255,0.35)';
 
   return (
-    <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+    <section style={{ padding: '2.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
       <a href="/leaderboard" style={{ display: 'block', textDecoration: 'none' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', padding: '0 4%' }}>
-          <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ width: 6, height: 6, background: '#7c3aed', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px rgba(124,58,237,0.8)' }} />
-            Top Readers
-          </h3>
-          <span style={{ fontSize: '0.78rem', color: '#a78bfa', fontWeight: 600 }}>View all →</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', padding: '0 4%' }}>
+          <div>
+            <span style={kickerStyle}>THIS WEEK</span>
+            <h3 style={sectionTitleStyle}>Top Readers</h3>
+          </div>
+          <span style={seeAllStyle}>View all{seeAllChevron}</span>
         </div>
-        <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
           {rows.map((row, i) => {
             const rank = i + 1;
             const initials = row.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -390,7 +409,7 @@ function TopReadersStrip() {
                 border: '1px solid rgba(255,255,255,0.06)',
                 width: 220, minWidth: 220, flexShrink: 0,
               }}>
-                <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '1.1rem', color: rankColor(rank), fontWeight: 700, width: 18, textAlign: 'center', flexShrink: 0 }}>
+                <div style={{ fontFamily: DISPLAY, fontSize: '1.1rem', color: rankColor(rank), fontWeight: 600, width: 18, textAlign: 'center', flexShrink: 0 }}>
                   {rank}
                 </div>
                 <div style={{
@@ -405,16 +424,16 @@ function TopReadersStrip() {
                     : initials}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.76rem', fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontFamily: DISPLAY, fontSize: '0.82rem', fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {row.displayName}
                   </div>
                   {row.username && (
-                    <div style={{ fontSize: '0.6rem', color: 'rgba(167,139,250,0.4)' }}>@{row.username}</div>
+                    <div style={{ fontFamily: LABEL, fontSize: '0.6rem', letterSpacing: '0.1em', color: 'rgba(167,139,250,0.5)' }}>@{row.username}</div>
                   )}
                 </div>
                 <div style={{
-                  fontFamily: 'Cochin, Georgia, serif', fontSize: '0.95rem',
-                  color: '#a78bfa', flexShrink: 0,
+                  fontFamily: LABEL, fontSize: '0.9rem',
+                  color: '#c9a84c', flexShrink: 0,
                 }}>
                   {row.readerScore.toLocaleString()}
                 </div>
@@ -430,10 +449,10 @@ function TopReadersStrip() {
 function StoryCardSkeleton() {
   return (
     <div style={{
-      width: 160,
-      minWidth: 160,
-      height: 240,
-      borderRadius: 8,
+      width: 180,
+      minWidth: 180,
+      height: 270,
+      borderRadius: 6,
       background: 'rgba(255,255,255,0.04)',
       position: 'relative',
       overflow: 'hidden',
@@ -456,8 +475,8 @@ function StoryCardSkeleton() {
 function JustAddedCardSkeleton() {
   return (
     <div style={{
-      width: 260,
-      minWidth: 260,
+      width: 280,
+      minWidth: 280,
       padding: '0.6rem 0.75rem',
       borderRadius: 8,
       background: 'rgba(255,255,255,0.02)',
@@ -466,9 +485,9 @@ function JustAddedCardSkeleton() {
       alignItems: 'center',
     }}>
       <div style={{
-        width: 56,
-        minWidth: 56,
-        height: 72,
+        width: 64,
+        minWidth: 64,
+        height: 84,
         background: 'rgba(255,255,255,0.04)',
         borderRadius: 4,
       }} />
@@ -483,9 +502,9 @@ function JustAddedCardSkeleton() {
 function Top10CardSkeleton() {
   return (
     <div style={{
-      width: 180,
-      minWidth: 180,
-      height: 180,
+      width: 200,
+      minWidth: 200,
+      height: 210,
       marginRight: '0.25rem',
       position: 'relative',
     }}>
@@ -493,8 +512,8 @@ function Top10CardSkeleton() {
         position: 'absolute',
         left: 60,
         top: 0,
-        width: 120,
-        height: 180,
+        width: 140,
+        height: 210,
         borderRadius: 8,
         background: 'rgba(255,255,255,0.04)',
       }} />
@@ -504,35 +523,16 @@ function Top10CardSkeleton() {
 
 function JustAddedSkeleton() {
   return (
-    <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+    <section style={{ padding: '2.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
       <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
-        <h3 style={{
-          fontSize: '0.78rem',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.18em',
-          color: '#7c3aed',
-          margin: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-        }}>
-          <span style={{
-            width: 6,
-            height: 6,
-            background: '#7c3aed',
-            borderRadius: '50%',
-            display: 'inline-block',
-            boxShadow: '0 0 8px rgba(124,58,237,0.8)',
-          }} />
-          Just Added
-        </h3>
+        <span style={kickerStyle}>FRESH OFF THE PRESS</span>
+        <h3 style={sectionTitleStyle}>Just Added</h3>
       </div>
       <div style={{
         display: 'flex',
-        gap: '0.6rem',
+        gap: '0.75rem',
         overflowX: 'auto',
-        padding: '0 4% 1rem',
+        padding: '0 4% 0.5rem',
         scrollbarWidth: 'none',
       }}>
         {[0,1,2,3,4].map(i => <JustAddedCardSkeleton key={i} />)}
@@ -545,15 +545,14 @@ function Top10Skeleton() {
   return (
     <section style={{ padding: '2.5rem 0' }}>
       <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
-          🔥 Top 10 Stories
-        </h3>
+        <span style={kickerStyle}>RANKED BY READS</span>
+        <h3 style={sectionTitleStyle}>Top 10 Stories</h3>
       </div>
       <div style={{
         display: 'flex',
-        gap: '0.6rem',
+        gap: '0',
         overflowX: 'auto',
-        padding: '0 4% 1rem',
+        padding: '0 4% 0.5rem',
         scrollbarWidth: 'none',
       }}>
         {[0,1,2,3,4,5,6,7,8,9].map(i => <Top10CardSkeleton key={i} />)}
@@ -562,23 +561,21 @@ function Top10Skeleton() {
   );
 }
 
-function RowSkeleton({ title }) {
+function RowSkeleton({ title, kicker }) {
   return (
-    <section style={{ padding: '2rem 0' }}>
+    <section style={{ padding: '2.5rem 0' }}>
       <div style={{
         padding: '0 4%',
-        marginBottom: '1rem',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'baseline',
+        marginBottom: '1.25rem',
       }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>{title}</h3>
+        {kicker && <span style={kickerStyle}>{kicker}</span>}
+        <h3 style={sectionTitleStyle}>{title}</h3>
       </div>
       <div style={{
         display: 'flex',
-        gap: '0.6rem',
+        gap: '0.75rem',
         overflowX: 'auto',
-        padding: '0 4% 1rem',
+        padding: '0 4% 0.5rem',
         scrollbarWidth: 'none',
       }}>
         {[0,1,2,3,4,5,6].map(i => <StoryCardSkeleton key={i} />)}
@@ -694,12 +691,18 @@ function OpenPagesCard({ post, counts, photo }) {
         </div>
         <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
           {avatarEl}
-          <span style={{ flex: 1, minWidth: 0, fontSize: '0.68rem', color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: DISPLAY, flex: 1, minWidth: 0, fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {post.authorName || 'Reader'} · {opTimeAgo(post.createdAt)}
           </span>
           <span style={opCountRow}>
-            <span>♡ {likeCount}</span>
-            <span>💬 {commentCount}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              {likeCount}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              {commentCount}
+            </span>
           </span>
         </div>
       </div>
@@ -989,25 +992,27 @@ export default function Home() {
           transition: 'opacity 0.5s ease, transform 0.5s ease',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-            <span style={{ width: 3, height: 18, background: 'linear-gradient(to bottom, #7c3aed, #a855f7)', borderRadius: 2, display: 'inline-block' }} />
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#c4b5fd' }}>Featured Story</span>
+            <span style={{ width: 3, height: 18, background: 'linear-gradient(to bottom, #c9a84c, #9a7b2e)', borderRadius: 2, display: 'inline-block' }} />
+            <span style={{ fontFamily: LABEL, fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3em', color: '#c9a84c' }}>Featured Story</span>
           </div>
-          <h1 style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)', fontWeight: 700, lineHeight: 1.1, marginBottom: '0.75rem', color: '#ffffff', textShadow: '0 2px 30px rgba(0,0,0,0.6)' }}>
+          <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(2rem, 4.5vw, 3.4rem)', fontWeight: 600, lineHeight: 1.1, marginBottom: '0.75rem', color: '#ffffff', textShadow: '0 2px 30px rgba(0,0,0,0.6)' }}>
             {featured.title}
           </h1>
-          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.95rem', marginBottom: '1.75rem' }}>
+          <p style={{ fontFamily: BODY, color: 'rgba(255,255,255,0.8)', fontSize: '0.95rem', marginBottom: '1.75rem' }}>
             By {featured.author} · {featured.date}
           </p>
           <a href={featured.url} style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
             background: '#fff', color: '#0a0a0a',
-            padding: '0.75rem 1.75rem', borderRadius: 6, fontWeight: 700, fontSize: '0.9rem',
+            padding: '0.8rem 2rem', borderRadius: 4,
+            fontFamily: LABEL, fontSize: '0.72rem', letterSpacing: '0.16em', textTransform: 'uppercase',
             textDecoration: 'none', transition: 'all 0.2s',
             boxShadow: '0 4px 20px rgba(255,255,255,0.15)',
           }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#e8e0ff'; e.currentTarget.style.transform = 'scale(1.03)'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#f5ecd2'; e.currentTarget.style.transform = 'scale(1.03)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.transform = 'scale(1)'; }}>
-            ▶ Read Now
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle' }}><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Read Now
           </a>
         </div>
 
@@ -1024,13 +1029,17 @@ export default function Home() {
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button onClick={() => goTo((heroIndex - 1 + carousel.length) % carousel.length)}
-              style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#fff', cursor: 'pointer', fontSize: '0.9rem', backdropFilter: 'blur(8px)', transition: 'all 0.2s' }}
-              onMouseEnter={e => { e.target.style.background = 'rgba(124,58,237,0.4)'; e.target.style.borderColor = 'rgba(124,58,237,0.6)'; }}
-              onMouseLeave={e => { e.target.style.background = 'rgba(0,0,0,0.4)'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}>‹</button>
+              style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.4)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.6)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.4)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
             <button onClick={() => goTo((heroIndex + 1) % carousel.length)}
-              style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#fff', cursor: 'pointer', fontSize: '0.9rem', backdropFilter: 'blur(8px)', transition: 'all 0.2s' }}
-              onMouseEnter={e => { e.target.style.background = 'rgba(124,58,237,0.4)'; e.target.style.borderColor = 'rgba(124,58,237,0.6)'; }}
-              onMouseLeave={e => { e.target.style.background = 'rgba(0,0,0,0.4)'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}>›</button>
+              style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.4)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.6)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.4)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
           </div>
         </div>
 
@@ -1063,12 +1072,12 @@ export default function Home() {
       {allStories.length === 0 ? (
         <JustAddedSkeleton />
       ) : (
-      <section style={{ padding: '2rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <h3 style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#7c3aed', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', paddingLeft: '4%' }}>
-          <span style={{ width: 6, height: 6, background: '#7c3aed', borderRadius: '50%', display: 'inline-block', boxShadow: '0 0 8px rgba(124,58,237,0.8)' }} />
-          Just Added
-        </h3>
-        <div className="just-added-scroll" style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
+      <section style={{ padding: '2.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ paddingLeft: '4%', marginBottom: '1.25rem' }}>
+          <span style={kickerStyle}>FRESH OFF THE PRESS</span>
+          <h3 style={sectionTitleStyle}>Just Added</h3>
+        </div>
+        <div className="just-added-scroll" style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
           {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map(s => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
@@ -1083,39 +1092,39 @@ export default function Home() {
       ) : (
       <section style={{ padding: '2.5rem 0' }}>
         <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>🔥 Top 10 Stories</h3>
-          <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', marginTop: '0.3rem', letterSpacing: '0.05em' }}>Ranked by reads</p>
+          <span style={kickerStyle}>RANKED BY READS</span>
+          <h3 style={sectionTitleStyle}>Top 10 Stories</h3>
         </div>
-        <div className="top10-scroll" style={{ display: 'flex', gap: '0', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem' }}>
+        <div className="top10-scroll" style={{ display: 'flex', gap: '0', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem' }}>
           {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
       )}
 
       {allStories.length === 0 ? (
-        <RowSkeleton title="⚡ Flash Fiction" />
+        <RowSkeleton title="Flash Fiction" kicker="THE FLASH" />
       ) : (
-        <Row title="⚡ Flash Fiction" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" userTiersMap={userTiersMap} />
+        <Row title="Flash Fiction" kicker="THE FLASH" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" userTiersMap={userTiersMap} />
       )}
       {allStories.length === 0 ? (
-        <RowSkeleton title="📖 Short Stories" />
+        <RowSkeleton title="Short Stories" kicker="THE SHELF" />
       ) : (
-        <Row title="📖 Short Stories" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" userTiersMap={userTiersMap} />
+        <Row title="Short Stories" kicker="THE SHELF" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" userTiersMap={userTiersMap} />
       )}
       {allStories.length === 0 ? (
-        <RowSkeleton title="🖊️ Poetry" />
+        <RowSkeleton title="Poetry" kicker="THE VERSE" />
       ) : (
-        <Row title="🖊️ Poetry" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" userTiersMap={userTiersMap} />
+        <Row title="Poetry" kicker="THE VERSE" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" userTiersMap={userTiersMap} />
       )}
       {allStories.length === 0 ? (
-        <RowSkeleton title="🗞️ News & Updates" />
+        <RowSkeleton title="News & Updates" kicker="THE BRIEF" />
       ) : (
-        <Row title="🗞️ News & Updates" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" userTiersMap={userTiersMap} />
+        <Row title="News & Updates" kicker="THE BRIEF" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" userTiersMap={userTiersMap} />
       )}
       {allStories.length === 0 ? (
-        <RowSkeleton title="✨ Inspiring Stories" />
+        <RowSkeleton title="Inspiring Stories" kicker="THE LIGHT" />
       ) : (
-        <Row title="✨ Inspiring Stories" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" userTiersMap={userTiersMap} />
+        <Row title="Inspiring Stories" kicker="THE LIGHT" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" userTiersMap={userTiersMap} />
       )}
 
       {/* Subscribe */}
@@ -1126,8 +1135,8 @@ export default function Home() {
         borderBottom: '1px solid rgba(255,255,255,0.04)',
       }}>
         <div style={{ maxWidth: 520, margin: '0 auto' }}>
-          <h2 style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '0.85rem', color: '#ffffff', lineHeight: 1.2 }}>Never Miss a Story</h2>
-          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '1rem', marginBottom: '2.5rem', lineHeight: 1.7 }}>
+          <h2 style={{ fontFamily: DISPLAY, fontSize: '2.4rem', fontWeight: 600, marginBottom: '0.85rem', color: '#f5f0e8', lineHeight: 1.15 }}>Never Miss a Story</h2>
+          <p style={{ fontFamily: BODY, color: 'rgba(255,255,255,0.75)', fontSize: '1rem', marginBottom: '2.5rem', lineHeight: 1.7 }}>
             Subscribe to our newsletter and get the latest stories delivered to your inbox.
           </p>
           <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -1136,7 +1145,7 @@ export default function Home() {
               onKeyDown={e => e.key === 'Enter' && handleSubscribe()}
               style={{ flex: 1, minWidth: 250, padding: '0.85rem 1.25rem', borderRadius: 6, border: '1px solid rgba(124,58,237,0.3)', background: 'rgba(124,58,237,0.08)', color: '#fff', fontSize: '0.9rem', outline: 'none', fontFamily: 'inherit' }} />
             <button onClick={handleSubscribe}
-              style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', padding: '0.85rem 1.75rem', borderRadius: 6, border: 'none', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 20px rgba(124,58,237,0.4)', transition: 'all 0.2s' }}
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', padding: '0.85rem 1.9rem', borderRadius: 6, border: 'none', fontFamily: LABEL, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: '0 4px 20px rgba(124,58,237,0.4)', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.target.style.transform = 'scale(1.04)'; e.target.style.boxShadow = '0 6px 28px rgba(124,58,237,0.6)'; }}
               onMouseLeave={e => { e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = '0 4px 20px rgba(124,58,237,0.4)'; }}>
               Subscribe
