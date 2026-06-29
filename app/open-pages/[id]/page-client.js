@@ -707,7 +707,7 @@ export default function OpenPageDetailClient({ params }) {
             {post.readCount || 0} reads
           </span>
           <span style={{ fontFamily: CINZEL, fontSize: 11, letterSpacing: '0.1em', color: CREAM_MUTE }}>
-            {readTime(post.body)} min read
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline-block',verticalAlign:'middle',marginRight:3}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>{readTime(post.body)} min read
           </span>
         </div>
 
