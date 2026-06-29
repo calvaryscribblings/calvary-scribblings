@@ -545,7 +545,7 @@ function Top10Skeleton() {
   return (
     <section style={{ padding: '2.5rem 0' }}>
       <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
-        <span style={kickerStyle}>RANKED BY READS</span>
+        <span style={kickerStyle}>TOP ON THE SHELF</span>
         <h3 style={sectionTitleStyle}>Top 10 Stories</h3>
       </div>
       <div style={{
@@ -1092,7 +1092,7 @@ export default function Home() {
       ) : (
       <section style={{ padding: '2.5rem 0' }}>
         <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
-          <span style={kickerStyle}>RANKED BY READS</span>
+          <span style={kickerStyle}>TOP ON THE SHELF</span>
           <h3 style={sectionTitleStyle}>Top 10 Stories</h3>
         </div>
         <div className="top10-scroll" style={{ display: 'flex', gap: '0', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem' }}>
