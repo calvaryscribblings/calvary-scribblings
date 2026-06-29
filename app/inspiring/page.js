@@ -18,6 +18,7 @@ const DESCRIPTION = 'True grit, unlikely grace. Stories that remind you what peo
 const SUBCATEGORIES = [
   { value: 'all', label: 'All' },
   { value: 'Personal Essay', label: 'Personal Essay' },
+  { value: 'Essay', label: 'Essay' },
   { value: 'Overcoming', label: 'Overcoming' },
   { value: 'Faith', label: 'Faith' },
   { value: 'Ambition', label: 'Ambition' },

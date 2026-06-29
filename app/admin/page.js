@@ -24,7 +24,7 @@ const SUBCATEGORY_MAP = {
   flash: ['Romance', 'Horror', 'Humour', 'Drama', 'Thriller', 'Slice of Life'],
   short: ['Romance', 'Horror', 'Humour', 'Drama', 'Thriller', 'Slice of Life', 'Mystery', 'Sci-Fi', 'Historical', 'Fantasy'],
   poetry: ['Love', 'Grief', 'Political', 'Nature', 'Spiritual', 'Spoken Word'],
-  inspiring: ['Personal Essay', 'Overcoming', 'Faith', 'Ambition', 'Loss & Recovery'],
+  inspiring: ['Personal Essay', 'Essay', 'Overcoming', 'Faith', 'Ambition', 'Loss & Recovery'],
   novel: ['Novel', 'Novella', 'Serial'],
   serial: ['Novel', 'Novella', 'Serial'],
 };
