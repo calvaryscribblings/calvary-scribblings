@@ -1,6 +1,5 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { categoryMeta } from '../lib/stories';
 import StoryCard from '../components/StoryCard';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
@@ -9,11 +8,10 @@ import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthor
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 
-const cat = 'short';
-const meta = categoryMeta[cat];
-const KICKER = 'THE SHELF';
+const KICKER = 'THE COLLECTION';
+const TITLE = 'Book Reader';
 
-export default function ShortPage() {
+export default function BookReaderPage() {
   const userTiersMap = useUserStoryTiers();
   const [allStories, setAllStories] = useState([]);
 
@@ -38,7 +36,7 @@ export default function ShortPage() {
           const now = Date.now();
           const cms = Object.entries(snap.val())
             .map(([id, s]) => ({ ...s, id }))
-            .filter(s => s.category === cat && s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now));
+            .filter(s => s.bookReader === true && s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now));
           const nameMap = await resolveAuthorNames(cms);
           const resolved = withCurrentAuthorNames(cms, nameMap);
           // Secondary fetch: per-story read counts (stories/{id}/hits) to sort by
@@ -68,7 +66,7 @@ export default function ShortPage() {
       </nav>
       <section style={{ padding: '4rem 4% 3rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <span style={{ fontFamily: LABEL, fontSize: '0.7rem', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 14, display: 'block' }}>{KICKER}</span>
-        <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 600, color: '#f5f0e8', marginBottom: '0.75rem' }}>{meta.label}</h1>
+        <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 600, color: '#f5f0e8', marginBottom: '0.75rem' }}>{TITLE}</h1>
         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '1rem' }}>{allStories.length} stories</p>
       </section>
       <section style={{ padding: '3rem 4%' }}>

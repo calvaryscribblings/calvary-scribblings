@@ -8,6 +8,11 @@ import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthor
 
 const cat = 'news';
 
+// Typography — matches the homepage overhaul (DISPLAY title + gold LABEL kicker).
+const DISPLAY = "'Cormorant Garamond', Georgia, serif";
+const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
+const KICKER = 'THE BRIEF';
+
 const SUBCATEGORIES = [
   { value: 'all', label: 'All' },
   { value: 'Op-Ed', label: 'Op-Ed' },
@@ -83,10 +88,16 @@ export default function NewsPage() {
             .filter(s => s.category === cat && s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now));
           const nameMap = await resolveAuthorNames(cms);
           const resolved = withCurrentAuthorNames(cms, nameMap);
-          setAllStories(prev => {
-            const merged = [...resolved, ...prev].filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
-            return merged.sort((a, b) => new Date(b.date) - new Date(a.date));
-          });
+          // Secondary fetch: per-story read counts (stories/{id}/hits) to sort by
+          // popularity. Stories with no hits data default to 0 and sort last.
+          let hitsData = {};
+          try {
+            const hitsSnap = await get(ref(db, 'stories'));
+            if (hitsSnap.exists()) hitsData = hitsSnap.val();
+          } catch (e) {}
+          const withHits = resolved.map(s => ({ ...s, hits: hitsData[s.id]?.hits || 0 }));
+          withHits.sort((a, b) => (b.hits - a.hits) || (new Date(b.date) - new Date(a.date)));
+          setAllStories(withHits);
         }
       } catch(e) { console.error('CMS fetch error:', e); }
     }
@@ -111,8 +122,8 @@ export default function NewsPage() {
       `}</style>
       <Navbar />
       <section style={{ paddingTop: '7rem', paddingBottom: '2rem', paddingLeft: '4%', paddingRight: '4%', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#ef4444', marginBottom: '1rem', padding: '0.25em 0.75em', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 3 }}>News & Updates</div>
-        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 700, color: '#fff', marginBottom: '0.75rem' }}>News & Updates</h1>
+        <span style={{ fontFamily: LABEL, fontSize: '0.7rem', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 14, display: 'block' }}>{KICKER}</span>
+        <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 600, color: '#f5f0e8', marginBottom: '0.75rem' }}>News &amp; Updates</h1>
         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '1rem', marginBottom: '1.5rem' }}>{displayed.length} {displayed.length === 1 ? 'story' : 'stories'}</p>
         {/* Subcategory filter tabs */}
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -132,7 +143,7 @@ export default function NewsPage() {
             No stories in this category yet.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem', maxWidth: 1400, margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1.5rem', maxWidth: 1400, margin: '0 auto' }}>
             {displayed.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
           </div>
         )}
