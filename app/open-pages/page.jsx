@@ -58,6 +58,12 @@ function excerpt(body) {
   return text.slice(0, EXCERPT_LEN).replace(/\s+\S*$/, '') + '…';
 }
 
+// Estimated reading time in whole minutes (~200 wpm), floored at 1.
+function readTime(body) {
+  const wordCount = (body || '').trim().split(/\s+/).length;
+  return Math.max(1, Math.round(wordCount / 200));
+}
+
 // ---------------------------------------------------------------------------
 
 export default function OpenPagesFeed() {
@@ -350,6 +356,7 @@ function PostCard({ post, counts, photo }) {
 
           {/* Engagement counts. */}
           <span style={countRow}>
+            <span style={{ fontSize: 11 }}>{readTime(post.body)} min read</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               {post.readCount || 0}

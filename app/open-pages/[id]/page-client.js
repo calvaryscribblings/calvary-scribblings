@@ -109,6 +109,12 @@ function formatDate(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+// Estimated reading time in whole minutes (~200 wpm), floored at 1.
+function readTime(body) {
+  const wordCount = (body || '').trim().split(/\s+/).length;
+  return Math.max(1, Math.round(wordCount / 200));
+}
+
 // Relative time for comments — "just now", "5 minutes ago", then a date.
 function timeAgo(ts) {
   if (!ts || typeof ts !== 'number') return '';
@@ -699,6 +705,9 @@ export default function OpenPageDetailClient({ params }) {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: CINZEL, fontSize: 11, letterSpacing: '0.1em', color: CREAM_MUTE }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             {post.readCount || 0} reads
+          </span>
+          <span style={{ fontFamily: CINZEL, fontSize: 11, letterSpacing: '0.1em', color: CREAM_MUTE }}>
+            {readTime(post.body)} min read
           </span>
         </div>
 
