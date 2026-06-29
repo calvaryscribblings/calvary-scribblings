@@ -108,8 +108,11 @@ function BadgeLadderTooltip({ anchorRef, currentTier, onClose }) {
   );
 }
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
 export default function LeaderboardPage() {
-  const [rows, setRows] = useState(null);
+  const [rows, setRows] = useState(null); // null = loading; else { week: [], all: [] }
+  const [tab, setTab] = useState('week'); // default tab: This Week
   const [showBadgeLadder, setShowBadgeLadder] = useState(false);
   const [badgeTier, setBadgeTier] = useState(null);
   const badgeAnchorRef = useRef(null);
@@ -118,47 +121,60 @@ export default function LeaderboardPage() {
     (async () => {
       try {
         const snap = await get(ref(db, 'leaderboard'));
-        if (!snap.exists()) { setRows([]); return; }
-        const all = Object.entries(snap.val())
-          .filter(([, u]) => u.leaderboardVisible !== false)
+        if (!snap.exists()) { setRows({ week: [], all: [] }); return; }
+        const base = Object.entries(snap.val())
+          .filter(([, u]) => u.leaderboardVisible !== false && (u.readerScore ?? 0) > 0)
           .map(([uid, u]) => ({
             uid,
             displayName: u.displayName || 'Reader',
             username:    u.username || null,
             avatarUrl:   u.avatarUrl || null,
             readerScore: u.readerScore ?? 0,
+            scoreUpdatedAt: u.scoreUpdatedAt ?? 0,
             joinDate:    u.joinDate ?? Infinity,
           }))
           .sort((a, b) => (b.readerScore - a.readerScore) || (a.joinDate - b.joinDate));
 
         // Filter out soft-deleted users before slicing — otherwise a deleted
         // user could occupy a top-50 slot and we'd show 49 rows.
-        const deletedSet = await getDeletedUidSet(all.map(r => r.uid));
-        const visible = all.filter(r => !deletedSet.has(r.uid)).slice(0, 50);
+        const deletedSet = await getDeletedUidSet(base.map(r => r.uid));
+        const live = base.filter(r => !deletedSet.has(r.uid));
 
-        const withBadges = await Promise.all(visible.map(async row => {
+        // Two views over the same data: All Time = top 50 by score; This Week =
+        // top 50 among those whose score updated in the last 7 days.
+        const cutoff = Date.now() - WEEK_MS;
+        const allList  = live.slice(0, 50);
+        const weekList = live.filter(r => r.scoreUpdatedAt > cutoff).slice(0, 50);
+
+        // Enrich (badges + readCount) the union of both tabs' rows once — bounded
+        // to ≤100 users — so switching tabs never triggers another read pass.
+        const unionUids = [...new Set([...allList, ...weekList].map(r => r.uid))];
+        const enrichEntries = await Promise.all(unionUids.map(async uid => {
           try {
             const [bSnap, rcSnap] = await Promise.all([
-              get(ref(db, `userBadges/${row.uid}`)),
-              get(ref(db, `users/${row.uid}/readCount`)),
+              get(ref(db, `userBadges/${uid}`)),
+              get(ref(db, `users/${uid}/readCount`)),
             ]);
-            return {
-              ...row,
+            return [uid, {
               highestBadge: pickHighestBadge(bSnap.exists() ? bSnap.val() : null),
               readCount: rcSnap.exists() ? (rcSnap.val() || 0) : 0,
-            };
+            }];
           } catch {
-            return { ...row, highestBadge: null, readCount: 0 };
+            return [uid, { highestBadge: null, readCount: 0 }];
           }
         }));
+        const enrich = Object.fromEntries(enrichEntries);
+        const attach = list => list.map(r => ({ ...r, ...(enrich[r.uid] || { highestBadge: null, readCount: 0 }) }));
 
-        setRows(withBadges);
+        setRows({ week: attach(weekList), all: attach(allList) });
       } catch (e) {
         console.error('[leaderboard] load failed:', e);
-        setRows([]);
+        setRows({ week: [], all: [] });
       }
     })();
   }, []);
+
+  const displayed = rows ? rows[tab] : null;
 
   const tintFor = rank =>
     rank === 1 ? { borderColor: 'rgba(212,164,55,0.35)', background: 'rgba(212,164,55,0.05)' } :
@@ -180,31 +196,64 @@ export default function LeaderboardPage() {
           <div style={{ marginBottom: '0.5rem' }}>
             <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#fff', margin: '0 0 0.4rem' }}>Leaderboard</h1>
             <p style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.45)', margin: 0 }}>
-              Top 50 readers, ranked by Reader Score — earned through quiz tiers, stories read, and reading streak.
+              The Island's top readers, ranked by Reader Score — earned through quiz tiers, stories read, comments, and reading streak.
             </p>
           </div>
 
-          <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', margin: '0 0 1.75rem' }}>
+          <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', margin: '0 0 1.25rem' }}>
             Don't want to be listed?{' '}
             <a href="/profile" style={{ color: '#a78bfa', textDecoration: 'underline' }}>
               Manage visibility in your account settings
             </a>.
           </p>
 
-          {rows === null ? (
+          {/* Tabs — This Week / All Time. Cinzel labels, gold active state. */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: '1.75rem' }}>
+            {[['week', 'This Week'], ['all', 'All Time']].map(([key, label]) => {
+              const active = tab === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  style={{
+                    fontFamily: 'Cinzel, Georgia, serif',
+                    fontSize: '0.7rem', letterSpacing: '0.14em', textTransform: 'uppercase',
+                    padding: '0.5rem 1.15rem', borderRadius: 999, cursor: 'pointer',
+                    background: active ? 'rgba(201,168,76,0.12)' : 'transparent',
+                    border: `1px solid ${active ? 'rgba(201,168,76,0.5)' : 'rgba(255,255,255,0.12)'}`,
+                    color: active ? '#c9a84c' : 'rgba(255,255,255,0.5)',
+                    transition: 'all 0.18s',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active-tab description — Cormorant italic, sits above the first row. */}
+          <p style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic', fontSize: 15, color: 'rgba(245,240,232,0.5)', margin: '0 0 24px' }}>
+            {tab === 'week'
+              ? "Readers who've been active in the last 7 days, ranked by their total score."
+              : 'Every reader on the Island, ranked by total score since they joined.'}
+          </p>
+
+          {displayed === null ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} style={{ height: 56, borderRadius: 10,
                   background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }} />
               ))}
             </div>
-          ) : rows.length === 0 ? (
+          ) : displayed.length === 0 ? (
             <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.88rem', textAlign: 'center', paddingTop: '3rem' }}>
-              Leaderboard fills as readers earn their first scores.
+              {tab === 'week'
+                ? 'No readers have scored this week yet — check back soon.'
+                : 'Leaderboard fills as readers earn their first scores.'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {rows.map((row, i) => {
+              {displayed.map((row, i) => {
                 const rank = i + 1;
                 const tint = tintFor(rank);
                 const initials = row.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();

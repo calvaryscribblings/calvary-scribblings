@@ -363,8 +363,9 @@ function TopReadersStrip() {
         const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, 'leaderboard'));
         if (!snap.exists()) { setRows([]); return; }
+        const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
         const top = Object.entries(snap.val())
-          .filter(([, u]) => u.leaderboardVisible !== false && (u.readerScore ?? 0) > 0)
+          .filter(([, u]) => u.leaderboardVisible !== false && (u.readerScore ?? 0) > 0 && (u.scoreUpdatedAt ?? 0) > weekAgo)
           .map(([uid, u]) => ({
             uid,
             displayName: u.displayName || 'Reader',

@@ -799,6 +799,9 @@ function CommentsSection({ slug, onSignIn }) {
         setPosting(false);
         return;
       }
+      // Comment landed — recompute reader score (distinct commented slugs feed
+      // the leaderboard formula). Fire-and-forget; never block the comment UI.
+      checkAndAwardBadges(user.uid, db).catch(() => {});
       try {
         await notifyMentions({
           text: trimmed, slug,
