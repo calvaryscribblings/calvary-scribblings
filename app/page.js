@@ -1131,8 +1131,8 @@ export default function Home() {
       ) : (
         <Row title="Inspiring Stories" kicker="THE LIGHT" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" userTiersMap={userTiersMap} />
       )}
-      {allStories.filter(s => s.bookReader === true).length > 0 && (
-        <Row title="Book Reader" kicker="THE COLLECTION" stories={allStories.filter(s => s.bookReader === true)} seeAll="/book-reader" userTiersMap={userTiersMap} />
+      {allStories.filter(s => s.readerMode === true).length > 0 && (
+        <Row title="Book Reader" kicker="THE COLLECTION" stories={allStories.filter(s => s.readerMode === true)} seeAll="/book-reader" userTiersMap={userTiersMap} />
       )}
 
       {/* Subscribe */}

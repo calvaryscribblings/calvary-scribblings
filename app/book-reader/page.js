@@ -36,7 +36,7 @@ export default function BookReaderPage() {
           const now = Date.now();
           const cms = Object.entries(snap.val())
             .map(([id, s]) => ({ ...s, id }))
-            .filter(s => s.bookReader === true && s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now));
+            .filter(s => s.readerMode === true && s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now));
           const nameMap = await resolveAuthorNames(cms);
           const resolved = withCurrentAuthorNames(cms, nameMap);
           // Secondary fetch: per-story read counts (stories/{id}/hits) to sort by
