@@ -8,14 +8,27 @@ import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthor
 // Typography — matches the homepage overhaul (DISPLAY title + gold LABEL kicker).
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
+const BODY = "'Cochin', Georgia, serif";
 
 const cat = 'short';
 const meta = categoryMeta[cat];
 const KICKER = 'THE SHELF';
+const DESCRIPTION = 'Character, place, consequence. The full arc in a single sitting.';
+
+function sortBtnStyle(active) {
+  return {
+    fontFamily: LABEL, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
+    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+    paddingBottom: active ? 1 : 0,
+    color: active ? '#c9a84c' : 'rgba(245,240,232,0.28)',
+    borderBottom: active ? '1px solid rgba(201,168,76,0.5)' : 'none',
+  };
+}
 
 export default function ShortPage() {
   const userTiersMap = useUserStoryTiers();
   const [allStories, setAllStories] = useState([]);
+  const [sortMode, setSortMode] = useState('hits');
 
   useEffect(() => {
     async function fetchCMS() {
@@ -41,15 +54,14 @@ export default function ShortPage() {
             .filter(s => s.category === cat && s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now));
           const nameMap = await resolveAuthorNames(cms);
           const resolved = withCurrentAuthorNames(cms, nameMap);
-          // Secondary fetch: per-story read counts (stories/{id}/hits) to sort by
-          // popularity. Stories with no hits data default to 0 and sort last.
+          // Secondary fetch: per-story read counts (stories/{id}/hits) so the
+          // "Most Read" sort works. Stories with no hits data default to 0.
           let hitsData = {};
           try {
             const hitsSnap = await get(ref(db, 'stories'));
             if (hitsSnap.exists()) hitsData = hitsSnap.val();
           } catch (e) {}
           const withHits = resolved.map(s => ({ ...s, hits: hitsData[s.id]?.hits || 0 }));
-          withHits.sort((a, b) => (b.hits - a.hits) || (new Date(b.date) - new Date(a.date)));
           setAllStories(withHits);
         }
       } catch(e) { console.error('CMS fetch error:', e); }
@@ -57,23 +69,55 @@ export default function ShortPage() {
     fetchCMS();
   }, []);
 
+  // Sort toggle re-orders the already-fetched array (no re-fetch on change).
+  const sorted = [...allStories].sort((a, b) =>
+    sortMode === 'hits'
+      ? (b.hits - a.hits) || (new Date(b.date) - new Date(a.date))
+      : (new Date(b.date) - new Date(a.date))
+  );
+
   return (
-    <div style={{ background: '#0a0a0a', minHeight: '100vh', fontFamily: "'Cochin', Georgia, serif" }}>
-      <nav style={{ position: 'sticky', top: 0, zIndex: 100, padding: '0 4%', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(10,10,10,0.96)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+    <div style={{ background: '#080610', minHeight: '100vh', fontFamily: BODY }}>
+      <style>{`
+        .cat-hero { min-height: 220px; }
+        @media (min-width: 768px) { .cat-hero { min-height: 260px; } }
+      `}</style>
+      <nav style={{ position: 'sticky', top: 0, zIndex: 100, padding: '0 4%', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(8,6,16,0.96)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
           <img src="/logo-header.jpg" alt="CS" style={{ width: 38, height: 38, borderRadius: 7, objectFit: 'cover' }} />
           <span style={{ fontSize: '1rem', fontWeight: 700, color: '#c4b5fd' }}>Calvary Scribblings</span>
         </a>
         <a href="/" style={{ color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontSize: '0.85rem' }} onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.5)'}>← Back to Home</a>
       </nav>
-      <section style={{ padding: '4rem 4% 3rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <span style={{ fontFamily: LABEL, fontSize: '0.7rem', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 14, display: 'block' }}>{KICKER}</span>
-        <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 600, color: '#f5f0e8', marginBottom: '0.75rem' }}>{meta.label}</h1>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '1rem' }}>{allStories.length} stories</p>
+
+      {/* Hero — ruled-page motif (THE SHELF). */}
+      <section className="cat-hero" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(160deg, #0f1a0a 0%, #080610 55%)' }}>
+        <svg viewBox="0 0 380 220" preserveAspectRatio="xMidYMid slice" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+          <defs><pattern id="ps" x="0" y="0" width="380" height="24" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="380" y2="0" stroke="#c9a84c" strokeWidth="0.8" /></pattern></defs>
+          <rect width="100%" height="100%" fill="url(#ps)" opacity="0.12" />
+          <line x1="48" y1="0" x2="48" y2="220" stroke="#c9a84c" strokeWidth="0.5" opacity="0.05" />
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(40,80,30,0.30) 0%, transparent 55%)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #080610 0%, transparent 65%)' }} />
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '24px 20px 20px', zIndex: 2 }}>
+          <span style={{ fontFamily: LABEL, fontSize: 9, letterSpacing: '0.32em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8, display: 'block' }}>{KICKER}</span>
+          <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(2rem, 8vw, 2.8rem)', fontWeight: 600, color: '#f5f0e8', lineHeight: 1, marginBottom: 10 }}>{meta.label}</h1>
+          <p style={{ fontFamily: DISPLAY, fontSize: 13, fontStyle: 'italic', color: 'rgba(245,240,232,0.52)', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>{DESCRIPTION}</p>
+        </div>
       </section>
+
+      {/* Sort / count bar. */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0c0918' }}>
+        <span style={{ fontFamily: BODY, fontSize: 11, color: 'rgba(245,240,232,0.35)' }}>{sorted.length} stories</span>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <button onClick={() => setSortMode('hits')} style={sortBtnStyle(sortMode === 'hits')}>Most Read</button>
+          <button onClick={() => setSortMode('date')} style={sortBtnStyle(sortMode === 'date')}>Newest</button>
+        </div>
+      </div>
+
       <section style={{ padding: '3rem 4%' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1.5rem', maxWidth: 1400, margin: '0 auto' }}>
-          {allStories.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
+          {sorted.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
     </div>
