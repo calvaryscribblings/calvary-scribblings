@@ -146,7 +146,7 @@ function JustAddedCard({ story, userTier = null, scorePct }) {
 
 function Row({ title, kicker, stories, seeAll, userTiersMap = {} }) {
   return (
-    <section style={{ padding: '1.5rem 0' }}>
+    <section style={{ padding: '0.75rem 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', padding: '0 4%' }}>
         <div>
           {kicker && <span style={kickerStyle}>{kicker}</span>}
@@ -370,9 +370,9 @@ function TopReadersStrip() {
     r === 1 ? '#c9a84c' : r === 2 ? 'rgba(201,168,76,0.6)' : r === 3 ? 'rgba(201,168,76,0.4)' : 'rgba(255,255,255,0.35)';
 
   return (
-    <section style={{ padding: '1.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+    <section style={{ padding: '0.75rem 0' }}>
       <a href="/leaderboard" style={{ display: 'block', textDecoration: 'none' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', padding: '0 4%' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.75rem', padding: '0 4%' }}>
           <div>
             <span style={kickerStyle}>THIS WEEK</span>
             <h3 style={sectionTitleStyle}>Top Readers</h3>
@@ -501,8 +501,8 @@ function Top10CardSkeleton() {
 
 function JustAddedSkeleton() {
   return (
-    <section style={{ padding: '1.5rem 0' }}>
-      <div style={{ padding: '0 4%', marginBottom: '1rem' }}>
+    <section style={{ padding: '0.75rem 0' }}>
+      <div style={{ padding: '0 4%', marginBottom: '0.75rem' }}>
         <span style={kickerStyle}>FRESH OFF THE PRESS</span>
         <h3 style={sectionTitleStyle}>Just Added</h3>
       </div>
@@ -510,7 +510,7 @@ function JustAddedSkeleton() {
         display: 'flex',
         gap: 14,
         overflowX: 'auto',
-        padding: '0 4% 0.75rem',
+        padding: '0 4% 0.5rem',
         scrollbarWidth: 'none',
       }}>
         {[0,1,2,3,4].map(i => <JustAddedCardSkeleton key={i} />)}
@@ -521,7 +521,7 @@ function JustAddedSkeleton() {
 
 function Top10Skeleton() {
   return (
-    <section style={{ padding: '1.5rem 0' }}>
+    <section style={{ padding: '1rem 0' }}>
       <div style={{ padding: '0 4%', marginBottom: '1rem' }}>
         <span style={kickerStyle}>TOP ON THE SHELF</span>
         <h3 style={sectionTitleStyle}>Top 10 Stories</h3>
@@ -541,7 +541,7 @@ function Top10Skeleton() {
 
 function RowSkeleton({ title, kicker }) {
   return (
-    <section style={{ padding: '1.5rem 0' }}>
+    <section style={{ padding: '0.75rem 0' }}>
       <div style={{
         padding: '0 4%',
         marginBottom: '1rem',
@@ -778,7 +778,7 @@ function OpenPagesRow() {
           See all →
         </a>
       </div>
-      <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '1rem', scrollbarWidth: 'none' }}>
+      <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
         {posts.map(p => <OpenPagesCard key={p.id} post={p} counts={counts[p.id]} photo={authorPhotos[p.authorUid]} />)}
       </div>
     </section>
@@ -1054,12 +1054,12 @@ export default function Home() {
       {allStories.length === 0 ? (
         <JustAddedSkeleton />
       ) : (
-      <section style={{ padding: '1.5rem 0' }}>
-        <div style={{ paddingLeft: '4%', marginBottom: '1rem' }}>
+      <section style={{ padding: '0.75rem 0' }}>
+        <div style={{ paddingLeft: '4%', marginBottom: '0.75rem' }}>
           <span style={kickerStyle}>FRESH OFF THE PRESS</span>
           <h3 style={sectionTitleStyle}>Just Added</h3>
         </div>
-        <div className="just-added-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.75rem', scrollbarWidth: 'none' }}>
+        <div className="just-added-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
           {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map(s => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
         </div>
       </section>
@@ -1072,7 +1072,7 @@ export default function Home() {
       {allStories.length === 0 ? (
         <Top10Skeleton />
       ) : (
-      <section style={{ padding: '1.5rem 0' }}>
+      <section style={{ padding: '1rem 0' }}>
         <div style={{ padding: '0 4%', marginBottom: '1rem' }}>
           <span style={kickerStyle}>TOP ON THE SHELF</span>
           <h3 style={sectionTitleStyle}>Top 10 Stories</h3>
@@ -1114,30 +1114,90 @@ export default function Home() {
 
       {/* Subscribe */}
       <section id="subscribe" style={{
-        padding: '6rem 4%', textAlign: 'center',
-        background: 'linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(168,85,247,0.06) 100%)',
-        borderTop: '1px solid rgba(124,58,237,0.15)',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        padding: '3rem 4%',
+        borderTop: '1px solid rgba(107,47,173,0.2)',
       }}>
-        <div style={{ maxWidth: 520, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: DISPLAY, fontSize: '2.4rem', fontWeight: 600, marginBottom: '0.85rem', color: '#f5f0e8', lineHeight: 1.15 }}>Never Miss a Story</h2>
-          <p style={{ fontFamily: BODY, color: 'rgba(255,255,255,0.75)', fontSize: '1rem', marginBottom: '2.5rem', lineHeight: 1.7 }}>
-            Subscribe to our newsletter and get the latest stories delivered to your inbox.
-          </p>
-          <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <input type="email" placeholder="Enter your email address" value={email}
+        <div style={{
+          maxWidth: 480,
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '0.75rem',
+        }}>
+          <span style={{
+            fontFamily: LABEL,
+            fontSize: '0.55rem',
+            letterSpacing: '0.3em',
+            textTransform: 'uppercase',
+            color: '#c9a84c',
+          }}>The Dispatch</span>
+          <h2 style={{
+            fontFamily: DISPLAY,
+            fontSize: '1.6rem',
+            fontWeight: 600,
+            color: '#f5f0e8',
+            lineHeight: 1.1,
+            textAlign: 'center',
+            margin: 0,
+          }}>Never miss a story.</h2>
+          <p style={{
+            fontFamily: BODY,
+            fontSize: '0.8rem',
+            color: 'rgba(245,240,232,0.5)',
+            textAlign: 'center',
+            margin: '0 0 0.5rem',
+            lineHeight: 1.6,
+          }}>New stories, straight to your inbox.</p>
+          <div style={{
+            display: 'flex',
+            gap: '0.5rem',
+            width: '100%',
+            maxWidth: 400,
+          }}>
+            <input
+              type="email"
+              placeholder="your@email.com"
+              value={email}
               onChange={e => setEmail(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSubscribe()}
-              style={{ flex: 1, minWidth: 250, padding: '0.85rem 1.25rem', borderRadius: 6, border: '1px solid rgba(124,58,237,0.3)', background: 'rgba(124,58,237,0.08)', color: '#fff', fontSize: '0.9rem', outline: 'none', fontFamily: 'inherit' }} />
-            <button onClick={handleSubscribe}
-              style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', padding: '0.85rem 1.9rem', borderRadius: 6, border: 'none', fontFamily: LABEL, fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: '0 4px 20px rgba(124,58,237,0.4)', transition: 'all 0.2s' }}
-              onMouseEnter={e => { e.target.style.transform = 'scale(1.04)'; e.target.style.boxShadow = '0 6px 28px rgba(124,58,237,0.6)'; }}
-              onMouseLeave={e => { e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = '0 4px 20px rgba(124,58,237,0.4)'; }}>
+              style={{
+                flex: 1,
+                padding: '0.65rem 1rem',
+                borderRadius: 8,
+                border: '1px solid rgba(107,47,173,0.3)',
+                background: 'rgba(107,47,173,0.08)',
+                color: '#f5f0e8',
+                fontSize: '0.8rem',
+                outline: 'none',
+                fontFamily: BODY,
+              }}
+            />
+            <button
+              onClick={handleSubscribe}
+              style={{
+                background: '#6b2fad',
+                color: '#f5f0e8',
+                padding: '0.65rem 1.25rem',
+                borderRadius: 8,
+                border: 'none',
+                fontFamily: LABEL,
+                fontSize: '0.55rem',
+                letterSpacing: '0.2em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
               Subscribe
             </button>
           </div>
           {subscribeStatus && (
-            <p style={{ marginTop: '1rem', fontSize: '0.9rem', color: subscribeStatus.includes('Thank') ? '#a3e635' : '#f87171' }}>
+            <p style={{
+              fontSize: '0.75rem',
+              color: subscribeStatus.includes('Thank') ? '#a3e635' : '#f87171',
+              margin: 0,
+            }}>
               {subscribeStatus}
             </p>
           )}
