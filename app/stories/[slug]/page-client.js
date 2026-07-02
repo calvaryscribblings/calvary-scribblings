@@ -951,7 +951,6 @@ export default function StoryPageClient({ params }) {
   const [story, setStory] = useState(stories.find(s => s.id === slug) || null);
   const [storyReady, setStoryReady] = useState(!!stories.find(s => s.id === slug));
   const [authorDeleted, setAuthorDeleted] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setStoryReady(true), 3000); return () => clearTimeout(t); }, []);
 
   // CMS-published stories may have an authorUid; if that user is soft-deleted
   // we treat the story as gone (it'll be hard-deleted by the cron at day 7).
@@ -1134,7 +1133,34 @@ useEffect(() => {
     });
   }, [storyReady]);
   const categoryColors = { news: '#ef4444', flash: '#6b46c1', short: '#6b46c1', poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1' };
-  if (!story) return <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />;
+  if (!story) return (
+    <div style={{ minHeight: '100vh', background: '#0a0a0a' }}>
+      {/* Nav skeleton */}
+      <div style={{ height: 60, borderBottom: '1px solid rgba(255,255,255,0.06)' }} />
+      {/* Hero skeleton */}
+      <div style={{ position: 'relative', width: '100%', height: '70vh', background: '#0f0a1a', overflow: 'hidden' }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to bottom, transparent 40%, #0a0a0a)',
+        }} />
+        <div style={{ position: 'absolute', bottom: 40, left: '4%', right: '4%' }}>
+          {/* Category badge skeleton */}
+          <div style={{ width: 120, height: 22, borderRadius: 4, background: 'rgba(107,47,173,0.3)', marginBottom: 16 }} />
+          {/* Title skeleton — 2 lines */}
+          <div style={{ width: '75%', height: 36, borderRadius: 6, background: 'rgba(245,240,232,0.08)', marginBottom: 10 }} />
+          <div style={{ width: '50%', height: 36, borderRadius: 6, background: 'rgba(245,240,232,0.06)', marginBottom: 20 }} />
+          {/* Author + date skeleton */}
+          <div style={{ width: 200, height: 16, borderRadius: 4, background: 'rgba(245,240,232,0.05)' }} />
+        </div>
+      </div>
+      {/* Body skeleton */}
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '3rem 4%' }}>
+        {[100, 90, 95, 80, 100, 85].map((w, i) => (
+          <div key={i} style={{ width: `${w}%`, height: 18, borderRadius: 4, background: 'rgba(245,240,232,0.05)', marginBottom: 14 }} />
+        ))}
+      </div>
+    </div>
+  );
   if (authorDeleted) return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
       <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.05rem', fontStyle: 'italic', textAlign: 'center' }}>
@@ -1155,7 +1181,6 @@ useEffect(() => {
     
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500&display=swap');
         @keyframes storyFadeIn { from { opacity: 0; } to { opacity: 1; } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { background: #0a0a0a; }
@@ -1301,7 +1326,7 @@ useEffect(() => {
           <span className="nav-meta">{displayCategory}</span>
         </nav>
         <header className="story-hero">
-          <img className="hero-bg" src={story.cover} alt="" aria-hidden="true" />
+          <img className="hero-bg" src={story.cover} alt="" aria-hidden="true" loading="eager" fetchPriority="high" />
           <div className="hero-overlay" />
           <img className="hero-mobile-cover" src={story.cover} alt={story.title} />
           <div className="hero-mobile-overlay" />
