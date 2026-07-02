@@ -18,8 +18,8 @@ const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 const BODY = "'Cochin', Georgia, serif";
 
 // ── Unified section-header styles (used by every content row) ────────────────
-const kickerStyle = { fontFamily: LABEL, fontSize: '0.6rem', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8, display: 'block' };
-const sectionTitleStyle = { fontFamily: DISPLAY, fontSize: '1.85rem', fontWeight: 600, color: '#f5f0e8', lineHeight: 1, margin: 0 };
+const kickerStyle = { fontFamily: LABEL, fontSize: '0.55rem', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8, display: 'block' };
+const sectionTitleStyle = { fontFamily: DISPLAY, fontSize: '1.6rem', fontWeight: 600, color: '#f5f0e8', lineHeight: 1, margin: 0 };
 const seeAllStyle = { fontFamily: LABEL, fontSize: '0.62rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(201,168,76,0.75)', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' };
 
 // Right-pointing chevron used on every "See all" / "View all" link.
@@ -84,7 +84,7 @@ function getHourlyCarousel(stories) {
     .slice(0, 5);
 }
 
-function StoryCard({ story, width = 180, height = 270, userTier = null, scorePct }) {
+function StoryCard({ story, width = 160, height = 240, userTier = null, scorePct }) {
   const [hovered, setHovered] = useState(false);
   const badge = badgeStyle[story.category] || badgeStyle.news;
   return (
@@ -119,11 +119,11 @@ function StoryCard({ story, width = 180, height = 270, userTier = null, scorePct
         background: 'linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.7) 50%, transparent 100%)',
         padding: '2.5rem 0.85rem 0.9rem',
       }}>
-        <span style={{ ...badge, fontFamily: LABEL, fontSize: '0.55rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', padding: '0.15rem 0.45rem', borderRadius: 3, display: 'inline-block', marginBottom: '0.4rem' }}>
+        <span style={{ ...badge, fontFamily: LABEL, fontSize: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', padding: '0.15rem 0.45rem', borderRadius: 3, display: 'inline-block', marginBottom: '0.4rem' }}>
           {story.categoryName}
         </span>
-        <div style={{ fontFamily: DISPLAY, fontSize: '0.88rem', fontWeight: 600, color: '#fff', lineHeight: 1.3, marginBottom: '0.25rem' }}>{story.title}</div>
-        <div style={{ fontFamily: BODY, fontSize: '0.7rem', color: 'rgba(255,255,255,0.75)' }}>{story.author}</div>
+        <div style={{ fontFamily: DISPLAY, fontSize: '0.8rem', fontWeight: 600, color: '#fff', lineHeight: 1.3, marginBottom: '0.25rem' }}>{story.title}</div>
+        <div style={{ fontFamily: BODY, fontSize: '0.65rem', color: 'rgba(255,255,255,0.75)' }}>{story.author}</div>
       </div>
     </a>
   );
@@ -140,7 +140,7 @@ function JustAddedCard({ story, userTier = null, scorePct }) {
         padding: '0.6rem 0.75rem', borderRadius: 8, flexShrink: 0,
         background: hovered ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.03)',
         border: hovered ? '1px solid rgba(139,92,246,0.25)' : '1px solid rgba(255,255,255,0.06)',
-        transition: 'all 0.25s ease', width: 280, minWidth: 280,
+        transition: 'all 0.25s ease', width: 240, minWidth: 240,
       }}>
       <div style={{ position: 'relative', flexShrink: 0 }}>
         <img src={story.cover} alt={story.title}
@@ -171,7 +171,7 @@ function JustAddedCard({ story, userTier = null, scorePct }) {
 
 function Row({ title, kicker, stories, seeAll, userTiersMap = {} }) {
   return (
-    <section style={{ padding: '2.5rem 0' }}>
+    <section style={{ padding: '1.5rem 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', padding: '0 4%' }}>
         <div>
           {kicker && <span style={kickerStyle}>{kicker}</span>}
@@ -193,8 +193,8 @@ function Row({ title, kicker, stories, seeAll, userTiersMap = {} }) {
 
 function Top10Card({ s, i, userTier = null, scorePct }) {
   const [active, setActive] = useState(false);
-  const CARD_WIDTH = 140;
-  const CARD_HEIGHT = 210;
+  const CARD_WIDTH = 120;
+  const CARD_HEIGHT = 180;
   const NUM_W = 60;
   const VB_H = 300;
   const strokeColor = active ? 'rgba(167,139,250,0.7)' : 'rgba(255,255,255,0.18)';
@@ -450,9 +450,9 @@ function TopReadersStrip() {
 function StoryCardSkeleton() {
   return (
     <div style={{
-      width: 180,
-      minWidth: 180,
-      height: 270,
+      width: 160,
+      minWidth: 160,
+      height: 240,
       borderRadius: 6,
       background: 'rgba(255,255,255,0.04)',
       position: 'relative',
@@ -476,8 +476,8 @@ function StoryCardSkeleton() {
 function JustAddedCardSkeleton() {
   return (
     <div style={{
-      width: 280,
-      minWidth: 280,
+      width: 240,
+      minWidth: 240,
       padding: '0.6rem 0.75rem',
       borderRadius: 8,
       background: 'rgba(255,255,255,0.02)',
@@ -503,9 +503,9 @@ function JustAddedCardSkeleton() {
 function Top10CardSkeleton() {
   return (
     <div style={{
-      width: 200,
-      minWidth: 200,
-      height: 210,
+      width: 180,
+      minWidth: 180,
+      height: 180,
       marginRight: '0.25rem',
       position: 'relative',
     }}>
@@ -513,8 +513,8 @@ function Top10CardSkeleton() {
         position: 'absolute',
         left: 60,
         top: 0,
-        width: 140,
-        height: 210,
+        width: 120,
+        height: 180,
         borderRadius: 8,
         background: 'rgba(255,255,255,0.04)',
       }} />
@@ -524,7 +524,7 @@ function Top10CardSkeleton() {
 
 function JustAddedSkeleton() {
   return (
-    <section style={{ padding: '2.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+    <section style={{ padding: '1.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
       <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
         <span style={kickerStyle}>FRESH OFF THE PRESS</span>
         <h3 style={sectionTitleStyle}>Just Added</h3>
@@ -544,7 +544,7 @@ function JustAddedSkeleton() {
 
 function Top10Skeleton() {
   return (
-    <section style={{ padding: '2.5rem 0' }}>
+    <section style={{ padding: '1.5rem 0' }}>
       <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
         <span style={kickerStyle}>TOP ON THE SHELF</span>
         <h3 style={sectionTitleStyle}>Top 10 Stories</h3>
@@ -564,7 +564,7 @@ function Top10Skeleton() {
 
 function RowSkeleton({ title, kicker }) {
   return (
-    <section style={{ padding: '2.5rem 0' }}>
+    <section style={{ padding: '1.5rem 0' }}>
       <div style={{
         padding: '0 4%',
         marginBottom: '1.25rem',
@@ -779,7 +779,7 @@ function OpenPagesRow() {
   if (!posts || posts.length === 0) return null;
 
   return (
-    <section style={{ padding: '2.5rem 0 3rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+    <section style={{ padding: '1.5rem 0 2rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: '1.25rem', padding: '0 4%' }}>
         <div>
           <div style={{ fontFamily: OP_CINZEL, fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: OP_GOLD, marginBottom: 7 }}>
@@ -1077,7 +1077,7 @@ export default function Home() {
       {allStories.length === 0 ? (
         <JustAddedSkeleton />
       ) : (
-      <section style={{ padding: '2.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <section style={{ padding: '1.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <div style={{ paddingLeft: '4%', marginBottom: '1.25rem' }}>
           <span style={kickerStyle}>FRESH OFF THE PRESS</span>
           <h3 style={sectionTitleStyle}>Just Added</h3>
@@ -1095,7 +1095,7 @@ export default function Home() {
       {allStories.length === 0 ? (
         <Top10Skeleton />
       ) : (
-      <section style={{ padding: '2.5rem 0' }}>
+      <section style={{ padding: '1.5rem 0' }}>
         <div style={{ padding: '0 4%', marginBottom: '1.25rem' }}>
           <span style={kickerStyle}>TOP ON THE SHELF</span>
           <h3 style={sectionTitleStyle}>Top 10 Stories</h3>
