@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import { stories } from '../lib/stories';
-import QuizPill from '../components/QuizPill';
+import StoryCard from '../components/StoryCard';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 
@@ -40,38 +40,6 @@ function sortBtnStyle(active) {
     color: active ? '#c9a84c' : 'rgba(245,240,232,0.28)',
     borderBottom: active ? '1px solid rgba(201,168,76,0.5)' : 'none',
   };
-}
-
-function StoryCard({ story, userTier = null, scorePct }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <a href={story.url || '/stories/' + story.id}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        textDecoration: 'none', display: 'block', borderRadius: 10, overflow: 'hidden',
-        background: hovered ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.03)',
-        border: hovered ? '1px solid rgba(239,68,68,0.25)' : '1px solid rgba(255,255,255,0.07)',
-        transition: 'all 0.25s ease', cursor: 'pointer', position: 'relative',
-      }}>
-      <img src={story.cover} alt={story.title} style={{ width: '100%', height: 200, objectFit: 'cover', display: 'block' }} />
-      <QuizPill hasQuiz={story.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={story.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
-      <div style={{ padding: '1.25rem' }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '0.6rem', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 3, display: 'inline-block', background: 'rgba(220,38,38,0.2)', color: '#f87171', border: '1px solid rgba(220,38,38,0.4)' }}>
-            News
-          </span>
-          {story.subcategory && (
-            <span style={{ fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.15rem 0.5rem', borderRadius: 3, display: 'inline-block', background: 'rgba(220,38,38,0.1)', color: '#fca5a5', border: '1px solid rgba(220,38,38,0.2)' }}>
-              {story.subcategory}
-            </span>
-          )}
-        </div>
-        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#fff', lineHeight: 1.4, marginBottom: '0.5rem' }}>{story.title}</div>
-        <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)' }}>By {story.author} · {story.date}</div>
-      </div>
-    </a>
-  );
 }
 
 export default function NewsPage() {
@@ -184,17 +152,24 @@ export default function NewsPage() {
         ))}
       </div>
 
-      <section style={{ padding: '3rem 4%' }}>
-        {displayed.length === 0 ? (
-          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '4rem 0', fontStyle: 'italic' }}>
-            No stories in this category yet.
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1.5rem', maxWidth: 1400, margin: '0 auto' }}>
-            {displayed.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
-          </div>
-        )}
-      </section>
+      {/* Story grid — 2-col portrait cards matching the app, rank badges on Most Read. */}
+      {displayed.length === 0 ? (
+        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '4rem 0', fontStyle: 'italic' }}>
+          No stories in this category yet.
+        </div>
+      ) : (
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', padding: '0 16px 32px', marginTop: 16 }}>
+          {displayed.map((s, i) => (
+            <StoryCard
+              key={s.id}
+              story={s}
+              userTier={userTiersMap[s.id]?.tier ?? null}
+              scorePct={userTiersMap[s.id]?.scorePct}
+              rank={sortMode === 'hits' ? i + 1 : null}
+            />
+          ))}
+        </section>
+      )}
     </div>
   );
 }

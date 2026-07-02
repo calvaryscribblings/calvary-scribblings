@@ -156,10 +156,17 @@ export default function BookReaderPage() {
         ))}
       </div>
 
-      <section style={{ padding: '3rem 4%' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1.5rem', maxWidth: 1400, margin: '0 auto' }}>
-          {sorted.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
-        </div>
+      {/* Story grid — 2-col portrait cards matching the app, rank badges on Most Read. */}
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', padding: '0 16px 32px', marginTop: 16 }}>
+        {sorted.map((s, i) => (
+          <StoryCard
+            key={s.id}
+            story={s}
+            userTier={userTiersMap[s.id]?.tier ?? null}
+            scorePct={userTiersMap[s.id]?.scorePct}
+            rank={sortMode === 'hits' ? i + 1 : null}
+          />
+        ))}
       </section>
     </div>
   );
