@@ -110,7 +110,7 @@ export default function PoetryPage() {
       </nav>
 
       {/* Hero — constellation motif (THE VERSE). */}
-      <section className="cat-hero" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(200deg, #05102a 0%, #080610 50%)' }}>
+      <section className="cat-hero" data-reveal="fade" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(200deg, #05102a 0%, #080610 50%)' }}>
         <svg viewBox="0 0 380 220" preserveAspectRatio="xMidYMid slice" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.25 }}>
           <g stroke="#9a5fd6" strokeWidth="0.3" opacity="0.35">
             <line x1="190" y1="60" x2="120" y2="30" />
@@ -143,7 +143,7 @@ export default function PoetryPage() {
       </section>
 
       {/* Sort / count bar. */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0c0918' }}>
+      <div data-reveal="up" data-reveal-delay="1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0c0918' }}>
         <span style={{ fontFamily: BODY, fontSize: 11, color: 'rgba(245,240,232,0.35)' }}>{sorted.length} stories</span>
         <div style={{ display: 'flex', gap: 16 }}>
           <button onClick={() => setSortMode('hits')} style={sortBtnStyle(sortMode === 'hits')}>Most Read</button>
@@ -152,7 +152,7 @@ export default function PoetryPage() {
       </div>
 
       {/* Subcategory filter tabs. */}
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div data-reveal="up" data-reveal-delay="2" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         {SUBCATEGORIES.map(tab => (
           <button
             key={tab.value}
@@ -172,6 +172,8 @@ export default function PoetryPage() {
             userTier={userTiersMap[s.id]?.tier ?? null}
             scorePct={userTiersMap[s.id]?.scorePct}
             rank={sortMode === 'hits' ? i + 1 : null}
+            data-reveal="up"
+            data-reveal-delay={(i % 6) + 1}
           />
         ))}
       </section>

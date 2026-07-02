@@ -115,7 +115,7 @@ export default function NewsPage() {
       <Navbar />
 
       {/* Hero — newsprint column-rule motif (THE BRIEF). */}
-      <section className="cat-hero" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(180deg, #0a0e18 0%, #080610 60%)' }}>
+      <section className="cat-hero" data-reveal="fade" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(180deg, #0a0e18 0%, #080610 60%)' }}>
         <svg viewBox="0 0 380 220" preserveAspectRatio="xMidYMid slice" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.12 }}>
           {[0, 40, 80, 120, 160, 200, 240, 280, 320, 360].map(x => (
             <line key={x} x1={x} y1="0" x2={x} y2="220" stroke="#94a3b8" strokeWidth={x === 0 ? 1 : 0.5} />
@@ -132,7 +132,7 @@ export default function NewsPage() {
       </section>
 
       {/* Sort / count bar. */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0c0918' }}>
+      <div data-reveal="up" data-reveal-delay="1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0c0918' }}>
         <span style={{ fontFamily: BODY, fontSize: 11, color: 'rgba(245,240,232,0.35)' }}>{displayed.length} stories</span>
         <div style={{ display: 'flex', gap: 16 }}>
           <button onClick={() => setSortMode('hits')} style={sortBtnStyle(sortMode === 'hits')}>Most Read</button>
@@ -141,7 +141,7 @@ export default function NewsPage() {
       </div>
 
       {/* Subcategory filter tabs (preserved). */}
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div data-reveal="up" data-reveal-delay="2" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         {availableTabs.map(tab => (
           <button
             key={tab.value}
@@ -166,6 +166,8 @@ export default function NewsPage() {
               userTier={userTiersMap[s.id]?.tier ?? null}
               scorePct={userTiersMap[s.id]?.scorePct}
               rank={sortMode === 'hits' ? i + 1 : null}
+              data-reveal="up"
+              data-reveal-delay={(i % 6) + 1}
             />
           ))}
         </section>

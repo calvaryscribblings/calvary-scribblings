@@ -886,7 +886,7 @@ function CommentsSection({ slug, onSignIn }) {
   const topLevel = visibleComments.filter(c => !c.parentId);
 
   return (
-    <div className="cs-section">
+    <div className="cs-section" data-reveal="up">
       <div className="cs-header">
         <div className="cs-title">Discussion</div>
         {comments.length > 0 && <div className="cs-count">{comments.length} {comments.length === 1 ? 'comment' : 'comments'}</div>}
@@ -1331,7 +1331,7 @@ useEffect(() => {
           <img className="hero-mobile-cover" src={story.cover} alt={story.title} />
           <div className="hero-mobile-overlay" />
           <img className="hero-cover-panel" src={story.cover} alt={story.title} />
-          <div className="hero-content">
+          <div className="hero-content" data-reveal="up">
             <div className="story-badge-hero">
               {displaySubcategory || displayCategory}
             </div>
@@ -1363,7 +1363,7 @@ useEffect(() => {
             )}
           </div>
         </header>
-        <div className="story-body-wrap">
+        <div className="story-body-wrap" data-reveal="fade">
           <main>
             <article className="story-body" ref={articleRef}>
               <div className="back-link-row">

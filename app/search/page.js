@@ -250,7 +250,7 @@ export default function SearchPage() {
           </div>
         </div>
 
-        <div className="search-body">
+        <div className="search-body" data-reveal="fade">
           {!searched ? (
             <>
               <div className="state-message">

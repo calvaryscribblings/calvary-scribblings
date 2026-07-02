@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { isNew } from '../lib/stories';
 import QuizPill from './QuizPill';
 
-export default function StoryCard({ story, userTier = null, scorePct, rank = null }) {
+export default function StoryCard({ story, userTier = null, scorePct, rank = null, ...rest }) {
   const [hovered, setHovered] = useState(false);
 
   return (
-    <a href={story.url || '/stories/' + story.id}
+    <a {...rest} href={story.url || '/stories/' + story.id}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{

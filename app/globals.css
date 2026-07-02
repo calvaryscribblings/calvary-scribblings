@@ -53,3 +53,56 @@ a {
   .nav-desktop { display: none !important; }
   .nav-hamburger { display: flex !important; }
 }
+
+/* Scroll-triggered stagger reveals — elements tagged data-reveal start hidden
+   and animate in when the global IntersectionObserver (app/layout.js) adds
+   .is-revealed. Delay tiers stagger siblings. */
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes revealFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+[data-reveal] {
+  opacity: 0;
+}
+
+[data-reveal].is-revealed {
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
+  animation-duration: 320ms;
+}
+
+[data-reveal="up"].is-revealed {
+  animation-name: revealUp;
+}
+
+[data-reveal="fade"].is-revealed {
+  animation-name: revealFade;
+}
+
+[data-reveal-delay="1"].is-revealed { animation-delay: 55ms; }
+[data-reveal-delay="2"].is-revealed { animation-delay: 110ms; }
+[data-reveal-delay="3"].is-revealed { animation-delay: 165ms; }
+[data-reveal-delay="4"].is-revealed { animation-delay: 220ms; }
+[data-reveal-delay="5"].is-revealed { animation-delay: 275ms; }
+[data-reveal-delay="6"].is-revealed { animation-delay: 330ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+  }
+  [data-reveal].is-revealed {
+    animation: none;
+  }
+}

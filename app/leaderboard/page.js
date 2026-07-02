@@ -259,7 +259,7 @@ export default function LeaderboardPage() {
                 const initials = row.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
                 return (
-                  <a key={row.uid} href={`/user?id=${row.uid}`} style={{
+                  <a key={row.uid} href={`/user?id=${row.uid}`} data-reveal="up" data-reveal-delay={(i % 6) + 1} style={{
                     display: 'flex', alignItems: 'center', gap: '0.85rem',
                     textDecoration: 'none', padding: '0.7rem 0.85rem',
                     borderRadius: 10,

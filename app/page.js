@@ -88,10 +88,10 @@ function getHourlyCarousel(stories) {
     .slice(0, 5);
 }
 
-function StoryCard({ story, userTier = null, scorePct }) {
+function StoryCard({ story, userTier = null, scorePct, ...rest }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <a href={story.url}
+    <a {...rest} href={story.url}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -117,10 +117,10 @@ function StoryCard({ story, userTier = null, scorePct }) {
   );
 }
 
-function JustAddedCard({ story, userTier = null, scorePct }) {
+function JustAddedCard({ story, userTier = null, scorePct, ...rest }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <a href={story.url}
+    <a {...rest} href={story.url}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{ textDecoration: 'none', display: 'block', flexShrink: 0, width: 160, minWidth: 160 }}>
@@ -148,7 +148,7 @@ function Row({ title, kicker, stories, seeAll, userTiersMap = {} }) {
   return (
     <section style={{ padding: '0.75rem 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', padding: '0 4%' }}>
-        <div>
+        <div data-reveal="up">
           {kicker && <span style={kickerStyle}>{kicker}</span>}
           <h3 style={sectionTitleStyle}>{title}</h3>
         </div>
@@ -157,13 +157,13 @@ function Row({ title, kicker, stories, seeAll, userTiersMap = {} }) {
         </a>
       </div>
       <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
-        {stories.map(s => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
+        {stories.map((s, i) => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} data-reveal="up" data-reveal-delay={(i % 6) + 1} />)}
       </div>
     </section>
   );
 }
 
-function Top10Card({ s, i, userTier = null, scorePct }) {
+function Top10Card({ s, i, userTier = null, scorePct, ...rest }) {
   const [active, setActive] = useState(false);
   const CARD_WIDTH = 120;
   const CARD_HEIGHT = 180;
@@ -171,7 +171,7 @@ function Top10Card({ s, i, userTier = null, scorePct }) {
   const VB_H = 300;
   const strokeColor = active ? 'rgba(107,47,173,0.4)' : 'rgba(255,255,255,0.18)';
   return (
-    <a href={s.url}
+    <a {...rest} href={s.url}
       onMouseEnter={() => setActive(true)}
       onMouseLeave={() => setActive(false)}
       style={{
@@ -373,7 +373,7 @@ function TopReadersStrip() {
     <section style={{ padding: '0.75rem 0' }}>
       <a href="/leaderboard" style={{ display: 'block', textDecoration: 'none' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.75rem', padding: '0 4%' }}>
-          <div>
+          <div data-reveal="up">
             <span style={kickerStyle}>THIS WEEK</span>
             <h3 style={sectionTitleStyle}>Top Readers</h3>
           </div>
@@ -1055,12 +1055,12 @@ export default function Home() {
         <JustAddedSkeleton />
       ) : (
       <section style={{ padding: '0.75rem 0' }}>
-        <div style={{ paddingLeft: '4%', marginBottom: '0.75rem' }}>
+        <div data-reveal="up" style={{ paddingLeft: '4%', marginBottom: '0.75rem' }}>
           <span style={kickerStyle}>FRESH OFF THE PRESS</span>
           <h3 style={sectionTitleStyle}>Just Added</h3>
         </div>
         <div className="just-added-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
-          {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map(s => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
+          {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map((s, i) => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} data-reveal="up" data-reveal-delay={(i % 4) + 1} />)}
         </div>
       </section>
       )}
@@ -1073,12 +1073,12 @@ export default function Home() {
         <Top10Skeleton />
       ) : (
       <section style={{ padding: '1rem 0' }}>
-        <div style={{ padding: '0 4%', marginBottom: '1rem' }}>
+        <div data-reveal="up" style={{ padding: '0 4%', marginBottom: '1rem' }}>
           <span style={kickerStyle}>TOP ON THE SHELF</span>
           <h3 style={sectionTitleStyle}>Top 10 Stories</h3>
         </div>
         <div className="top10-scroll" style={{ display: 'flex', gap: '0', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem' }}>
-          {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} />)}
+          {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} data-reveal="up" data-reveal-delay={(i % 6) + 1} />)}
         </div>
       </section>
       )}
@@ -1132,7 +1132,7 @@ export default function Home() {
             textTransform: 'uppercase',
             color: '#c9a84c',
           }}>The Dispatch</span>
-          <h2 style={{
+          <h2 data-reveal="fade" style={{
             fontFamily: DISPLAY,
             fontSize: '1.6rem',
             fontWeight: 600,
@@ -1149,7 +1149,7 @@ export default function Home() {
             margin: '0 0 0.5rem',
             lineHeight: 1.6,
           }}>New stories, straight to your inbox.</p>
-          <div style={{
+          <div data-reveal="fade" style={{
             display: 'flex',
             gap: '0.5rem',
             width: '100%',

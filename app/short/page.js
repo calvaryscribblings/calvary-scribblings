@@ -114,7 +114,7 @@ export default function ShortPage() {
       </nav>
 
       {/* Hero — ruled-page motif (THE SHELF). */}
-      <section className="cat-hero" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(160deg, #0f1a0a 0%, #080610 55%)' }}>
+      <section className="cat-hero" data-reveal="fade" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(160deg, #0f1a0a 0%, #080610 55%)' }}>
         <svg viewBox="0 0 380 220" preserveAspectRatio="xMidYMid slice" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
           <defs><pattern id="ps" x="0" y="0" width="380" height="24" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="380" y2="0" stroke="#c9a84c" strokeWidth="0.8" /></pattern></defs>
           <rect width="100%" height="100%" fill="url(#ps)" opacity="0.12" />
@@ -130,7 +130,7 @@ export default function ShortPage() {
       </section>
 
       {/* Sort / count bar. */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0c0918' }}>
+      <div data-reveal="up" data-reveal-delay="1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0c0918' }}>
         <span style={{ fontFamily: BODY, fontSize: 11, color: 'rgba(245,240,232,0.35)' }}>{sorted.length} stories</span>
         <div style={{ display: 'flex', gap: 16 }}>
           <button onClick={() => setSortMode('hits')} style={sortBtnStyle(sortMode === 'hits')}>Most Read</button>
@@ -139,7 +139,7 @@ export default function ShortPage() {
       </div>
 
       {/* Subcategory filter tabs. */}
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div data-reveal="up" data-reveal-delay="2" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         {SUBCATEGORIES.map(tab => (
           <button
             key={tab.value}
@@ -159,6 +159,8 @@ export default function ShortPage() {
             userTier={userTiersMap[s.id]?.tier ?? null}
             scorePct={userTiersMap[s.id]?.scorePct}
             rank={sortMode === 'hits' ? i + 1 : null}
+            data-reveal="up"
+            data-reveal-delay={(i % 6) + 1}
           />
         ))}
       </section>

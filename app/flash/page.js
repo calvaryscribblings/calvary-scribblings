@@ -110,7 +110,7 @@ export default function FlashPage() {
       </nav>
 
       {/* Hero — diagonal speed-lines motif (THE FLASH). */}
-      <section className="cat-hero" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #1a0535 0%, #080610 60%)' }}>
+      <section className="cat-hero" data-reveal="fade" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #1a0535 0%, #080610 60%)' }}>
         <svg viewBox="0 0 380 220" preserveAspectRatio="xMidYMid slice" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.18 }}>
           <defs><pattern id="pf" x="0" y="0" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M0 30 L30 0" stroke="#6b2fad" strokeWidth="1" fill="none" /></pattern></defs>
           <rect width="100%" height="100%" fill="url(#pf)" />
@@ -125,7 +125,7 @@ export default function FlashPage() {
       </section>
 
       {/* Sort / count bar. */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0c0918' }}>
+      <div data-reveal="up" data-reveal-delay="1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0c0918' }}>
         <span style={{ fontFamily: BODY, fontSize: 11, color: 'rgba(245,240,232,0.35)' }}>{sorted.length} stories</span>
         <div style={{ display: 'flex', gap: 16 }}>
           <button onClick={() => setSortMode('hits')} style={sortBtnStyle(sortMode === 'hits')}>Most Read</button>
@@ -134,7 +134,7 @@ export default function FlashPage() {
       </div>
 
       {/* Subcategory filter tabs. */}
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div data-reveal="up" data-reveal-delay="2" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         {SUBCATEGORIES.map(tab => (
           <button
             key={tab.value}
@@ -154,6 +154,8 @@ export default function FlashPage() {
             userTier={userTiersMap[s.id]?.tier ?? null}
             scorePct={userTiersMap[s.id]?.scorePct}
             rank={sortMode === 'hits' ? i + 1 : null}
+            data-reveal="up"
+            data-reveal-delay={(i % 6) + 1}
           />
         ))}
       </section>
