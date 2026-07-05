@@ -1195,24 +1195,6 @@ export default function Home() {
             </button>
           </div>
         </div>
-
-        <div style={{
-          position: 'absolute', right: '3%', top: '50%', transform: 'translateY(-50%)',
-          zIndex: 3, display: 'flex', flexDirection: 'column', gap: '0.6rem',
-        }}>
-          {carousel.map((s, i) => (
-            <button key={s.id} onClick={() => goTo(i)} style={{
-              width: 56, height: 72, borderRadius: 6, overflow: 'hidden', border: 'none',
-              cursor: 'pointer', padding: 0,
-              opacity: i === heroIndex ? 1 : 0.45,
-              transform: i === heroIndex ? 'scale(1.08)' : 'scale(1)',
-              transition: 'all 0.3s ease',
-              boxShadow: i === heroIndex ? '0 0 0 2px #a855f7, 0 8px 24px rgba(0,0,0,0.6)' : '0 4px 12px rgba(0,0,0,0.4)',
-            }}>
-              <img src={s.cover} alt={s.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </button>
-          ))}
-        </div>
       </section>
       )}
 
