@@ -476,6 +476,14 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
           </div>
         </div>
 
+        <div style={s.fg}>
+          <label style={s.label}>Trailer Quote <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+          <textarea rows={2} style={{ ...s.textarea, minHeight: 0, fontFamily: 'inherit' }} value={form.trailerQuote}
+            placeholder="One striking line from the story, quoted verbatim…"
+            onChange={e => setForm(f => ({ ...f, trailerQuote: e.target.value }))} />
+          <div style={s.hint}>One striking line from the story, quoted verbatim. Powers the featured-story trailer. 8–20 words. Leave empty to skip this story in the trailer rotation.</div>
+        </div>
+
         <div style={s.formActions}>
           <button style={s.btnGhost} onClick={onCancel}>Cancel</button>
           <button style={{ ...s.btn, opacity: saving ? 0.6 : 1 }} onClick={onSave} disabled={saving}>
@@ -505,6 +513,7 @@ export default function AdminPage() {
     content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, prosePoetry: false,
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
+    trailerQuote: '',
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -622,6 +631,7 @@ export default function AdminPage() {
         readerMode: form.readerMode || false,
         prosePoetry: form.prosePoetry || false,
         extractedText: form.extractedText || '',
+        trailerQuote: form.trailerQuote?.trim() || '',
       };
       // Carry the EPUB version signal through the full-node overwrite: fresh on a new
       // upload, preserved from the loaded story otherwise, absent on stories never uploaded.
@@ -688,6 +698,7 @@ export default function AdminPage() {
       authorHandle: story.authorHandle || '',
       selectedAuthor,
       handleInput: '', resolvedHandle: null, handleError: '',
+      trailerQuote: story.trailerQuote || '',
     });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
