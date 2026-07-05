@@ -96,11 +96,11 @@ function getHourlyCarousel(stories) {
   const sorted = [...stories].sort((a, b) => parseDate(b.date) - parseDate(a.date));
   return [...sorted]
     .sort((a, b) => ((a.id.charCodeAt(0) * h) % 13) - ((b.id.charCodeAt(0) * h) % 13))
-    .slice(0, 5);
+    .slice(0, 10);
 }
 
 // ── Featured-story trailer ──────────────────────────────────────────────────
-// Every third hero slot is a trailer: the next story's trailerQuote animates
+// Every second story's card is preceded by a trailer: its trailerQuote animates
 // word by word over its blurred cover, then dissolves into that story's card.
 // The rotation is a sequence of steps over the carousel — cards keep their
 // duration, trailers get a computed one. Trailer steps share the story's dot.
@@ -116,21 +116,19 @@ function getTrailerDuration(quote) {
   return Math.min(350 + wordCount * 150 + 750 + hold, TRAILER_CAP_MS);
 }
 
-// Steps: { type: 'card'|'trailer', storyIndex, duration }. After every 2 cards,
-// if the next story has a non-empty trailerQuote, its card is preceded by a
-// trailer step. Stories without a quote never get one. Under reduced motion
-// the sequence is cards only — rotation behaves exactly as before.
+// Steps: { type: 'card'|'trailer', storyIndex, duration }. Every 2nd story
+// (even positions: 2nd, 4th, …) gets a trailer step before its card, provided
+// it has a non-empty trailerQuote. Stories without a quote show plain and do
+// NOT steal a trailer from a neighbour. Under reduced motion the sequence is
+// cards only — rotation behaves exactly as before.
 function buildHeroSequence(carousel, reducedMotion) {
   const seq = [];
-  let cardsSinceTrailer = 0;
   carousel.forEach((s, storyIndex) => {
     const quote = typeof s.trailerQuote === 'string' ? s.trailerQuote.trim() : '';
-    if (!reducedMotion && cardsSinceTrailer >= 2 && quote) {
+    if (!reducedMotion && storyIndex % 2 === 1 && quote) {
       seq.push({ type: 'trailer', storyIndex, duration: getTrailerDuration(quote) });
-      cardsSinceTrailer = 0;
     }
     seq.push({ type: 'card', storyIndex, duration: HERO_CARD_MS });
-    cardsSinceTrailer++;
   });
   return seq;
 }
@@ -165,7 +163,7 @@ function HeroTrailer({ story, dissolving }) {
         <div className="trailer-aurora" />
       )}
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,6,16,0.35)' }} />
-      <div style={{ position: 'absolute', left: '4%', right: '4%', bottom: '16%', maxWidth: 640, zIndex: 1 }}>
+      <div style={{ position: 'absolute', left: '4%', right: '4%', bottom: '22%', maxWidth: 640, zIndex: 1 }}>
         <p style={{
           fontFamily: DISPLAY, fontWeight: 500,
           fontSize: 'clamp(1.5rem, 3.5vw, 2.4rem)',
@@ -1170,10 +1168,12 @@ export default function Home() {
         )}
 
         <div style={{ position: 'absolute', bottom: '5%', left: '4%', zIndex: 3, display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {/* 10 dots now — slightly smaller/tighter than the 5-dot sizing so the
+              row stays comfortable next to the arrows on a 390px viewport. */}
+          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
             {carousel.map((_, i) => (
               <button key={i} onClick={() => goTo(i)} style={{
-                width: i === heroIndex ? 24 : 8, height: 4, borderRadius: 2,
+                width: i === heroIndex ? 20 : 6, height: 4, borderRadius: 2,
                 border: 'none', cursor: 'pointer',
                 background: i === heroIndex ? '#a855f7' : 'rgba(255,255,255,0.3)',
                 transition: 'all 0.3s ease', padding: 0,
