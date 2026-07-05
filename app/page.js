@@ -7,7 +7,7 @@ import Footer from './components/Footer';
 import QuizPill from './components/QuizPill';
 import { useUserStoryTiers } from './lib/useUserStoryTiers';
 import { db } from './lib/firebase';
-import { ref, get } from 'firebase/database';
+import { ref, get, onValue } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from './lib/resolveAuthorNames';
 import { normalizeGenre } from './lib/openPages';
 
@@ -42,7 +42,18 @@ const stories = [
   // Intentionally empty: do NOT reintroduce hardcoded entries here.
 ];
 
-function parseDate(str) { return new Date(str); }
+function parseDate(str) {
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function getStorySortTime(story) {
+  if (story.publishAt) {
+    const t = new Date(story.publishAt).getTime();
+    if (!isNaN(t)) return t;
+  }
+  return parseDate(story.date);
+}
 function isNew(s) { return (Date.now() - parseDate(s.date)) / 86400000 <= 7; }
 
 function getLondonHour() {
@@ -513,7 +524,7 @@ function JustAddedSkeleton() {
         padding: '0 4% 0.5rem',
         scrollbarWidth: 'none',
       }}>
-        {[0,1,2,3,4].map(i => <JustAddedCardSkeleton key={i} />)}
+        {[0,1,2,3,4,5,6,7].map(i => <JustAddedCardSkeleton key={i} />)}
       </div>
     </section>
   );
@@ -819,9 +830,9 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    async function fetchCMSStories() {
+    const storiesRef = ref(db, 'cms_stories');
+    const unsubscribe = onValue(storiesRef, async (snap) => {
       try {
-        const snap = await get(ref(db, 'cms_stories'));
         if (snap.exists()) {
           const data = snap.val();
           const now = new Date();
@@ -831,15 +842,15 @@ export default function Home() {
           // Resolve author display names live (batched, deduped) before render.
           const nameMap = await resolveAuthorNames(cmsStories);
           const resolved = withCurrentAuthorNames(cmsStories, nameMap);
-          setAllStories(prev => {
-            const merged = [...resolved, ...prev].filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
-            merged.sort((a, b) => parseDate(b.date) - parseDate(a.date));
-            return merged;
-          });
+          // Category rows render allStories in array order — keep newest-first.
+          resolved.sort((a, b) => getStorySortTime(b) - getStorySortTime(a));
+          setAllStories(resolved);
         }
-      } catch(e) { console.error('CMS merge error:', e); }
-    }
-    fetchCMSStories();
+      } catch (e) {
+        console.error('CMS merge error:', e);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -1060,7 +1071,7 @@ export default function Home() {
           <h3 style={sectionTitleStyle}>Just Added</h3>
         </div>
         <div className="just-added-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
-          {[...allStories].sort((a,b) => parseDate(b.date)-parseDate(a.date)).slice(0,5).map((s, i) => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} data-reveal="up" data-reveal-delay={(i % 4) + 1} />)}
+          {[...allStories].sort((a,b) => getStorySortTime(b)-getStorySortTime(a)).slice(0,8).map((s, i) => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} data-reveal="up" data-reveal-delay={(i % 4) + 1} />)}
         </div>
       </section>
       )}
