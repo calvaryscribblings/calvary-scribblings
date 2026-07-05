@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './lib/AuthContext';
 import AuthModal from './components/AuthModal';
 import Navbar from './components/Navbar';
@@ -97,6 +97,94 @@ function getHourlyCarousel(stories) {
   return [...sorted]
     .sort((a, b) => ((a.id.charCodeAt(0) * h) % 13) - ((b.id.charCodeAt(0) * h) % 13))
     .slice(0, 5);
+}
+
+// ── Featured-story trailer ──────────────────────────────────────────────────
+// Every third hero slot is a trailer: the next story's trailerQuote animates
+// word by word over its blurred cover, then dissolves into that story's card.
+// The rotation is a sequence of steps over the carousel — cards keep their
+// duration, trailers get a computed one. Trailer steps share the story's dot.
+
+const HERO_CARD_MS = 5000;
+const TRAILER_CAP_MS = 8000;
+const TRAILER_DISSOLVE_MS = 900;
+
+function getTrailerDuration(quote) {
+  const wordCount = quote.trim().split(/\s+/).filter(Boolean).length;
+  const hold = Math.max(1600, Math.min(3200, wordCount * 120));
+  // leadIn 350 + words×150 + rule 450 + attribution 300 + hold, capped.
+  return Math.min(350 + wordCount * 150 + 750 + hold, TRAILER_CAP_MS);
+}
+
+// Steps: { type: 'card'|'trailer', storyIndex, duration }. After every 2 cards,
+// if the next story has a non-empty trailerQuote, its card is preceded by a
+// trailer step. Stories without a quote never get one. Under reduced motion
+// the sequence is cards only — rotation behaves exactly as before.
+function buildHeroSequence(carousel, reducedMotion) {
+  const seq = [];
+  let cardsSinceTrailer = 0;
+  carousel.forEach((s, storyIndex) => {
+    const quote = typeof s.trailerQuote === 'string' ? s.trailerQuote.trim() : '';
+    if (!reducedMotion && cardsSinceTrailer >= 2 && quote) {
+      seq.push({ type: 'trailer', storyIndex, duration: getTrailerDuration(quote) });
+      cardsSinceTrailer = 0;
+    }
+    seq.push({ type: 'card', storyIndex, duration: HERO_CARD_MS });
+    cardsSinceTrailer++;
+  });
+  return seq;
+}
+
+// The trailer layer: blurred slow-zooming cover (or aurora fallback), staggered
+// word reveal, gold rule, attribution. Stays mounted through the dissolve into
+// the card (same story, so `story` doesn't change across that boundary).
+function HeroTrailer({ story, dissolving }) {
+  const quote = (story.trailerQuote || '').trim();
+  const words = quote.split(/\s+/).filter(Boolean);
+  const duration = getTrailerDuration(quote);
+  const ruleDelay = 350 + words.length * 150 + 450;
+  const attrDelay = ruleDelay + 300;
+  return (
+    <div
+      className={`hero-trailer${dissolving ? ' is-dissolving' : ''}`}
+      style={{ position: 'absolute', inset: 0, zIndex: 3, overflow: 'hidden', background: '#0c0918' }}
+    >
+      {story.cover ? (
+        <img
+          src={story.cover}
+          alt=""
+          aria-hidden="true"
+          style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover', objectPosition: 'center top',
+            filter: 'blur(22px) brightness(0.45) saturate(1.1)',
+            animation: `trailer-zoom ${duration}ms linear forwards`,
+          }}
+        />
+      ) : (
+        <div className="trailer-aurora" />
+      )}
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,6,16,0.35)' }} />
+      <div style={{ position: 'absolute', left: '4%', right: '4%', bottom: '16%', maxWidth: 640, zIndex: 1 }}>
+        <p style={{
+          fontFamily: DISPLAY, fontWeight: 500,
+          fontSize: 'clamp(1.5rem, 3.5vw, 2.4rem)',
+          color: '#f5f0e8', lineHeight: 1.45, margin: 0,
+          textShadow: '0 2px 24px rgba(107,47,173,0.5)',
+        }}>
+          {words.map((w, i) => (
+            <span key={i} className="trailer-word" style={{ animationDelay: `${350 + i * 150}ms` }}>
+              {w}{i < words.length - 1 ? ' ' : ''}
+            </span>
+          ))}
+        </p>
+        <div className="trailer-rule" style={{ animationDelay: `${ruleDelay}ms` }} />
+        <div className="trailer-attr" style={{ animationDelay: `${attrDelay}ms` }}>
+          from {story.title} · {story.author}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function StoryCard({ story, userTier = null, scorePct, ...rest }) {
@@ -799,17 +887,38 @@ function OpenPagesRow() {
 export default function Home() {
   const { user, logout } = useAuth();
   const userTiersMap = useUserStoryTiers();
-  const [heroIndex, setHeroIndex] = useState(0);
+  const [seqIdx, setSeqIdx] = useState(0);
   const [heroTransition, setHeroTransition] = useState(true);
+  // Trailer layer lingering over the entering card during the 900ms dissolve.
+  const [trailerDissolving, setTrailerDissolving] = useState(false);
+  // Card content staggering in out of a trailer dissolve.
+  const [cardEntering, setCardEntering] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [pageVisible, setPageVisible] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [top10, setTop10] = useState([]);
   const [email, setEmail] = useState('');
   const [subscribeStatus, setSubscribeStatus] = useState('');
   const [squareOpen, setSquareOpen] = useState(false);
   const [countdown, setCountdown] = useState('');
-  const heroIndexRef = useRef(0);
   const [allStories, setAllStories] = useState([]);
   const [carousel, setCarousel] = useState([]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setReducedMotion(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // Pause the hero rotation while the tab is hidden so trailers don't play to
+  // nobody and desync; the current step restarts fresh on return.
+  useEffect(() => {
+    const onVis = () => setPageVisible(!document.hidden);
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 1024);
@@ -856,12 +965,19 @@ export default function Home() {
   useEffect(() => {
     setCarousel(getHourlyCarousel(allStories));
     const hourTimer = setInterval(() => {
-      heroIndexRef.current = 0;
-      setHeroIndex(0);
+      setSeqIdx(0);
       setCarousel(getHourlyCarousel(allStories));
     }, 3600000);
     return () => clearInterval(hourTimer);
   }, [allStories]);
+
+  // Rotation sequence: cards + trailer interstitials over the hourly carousel.
+  const sequence = useMemo(() => buildHeroSequence(carousel, reducedMotion), [carousel, reducedMotion]);
+
+  // Keep seqIdx in range when the sequence shrinks (hourly reshuffle, CMS update).
+  useEffect(() => {
+    if (sequence.length > 0 && seqIdx >= sequence.length) setSeqIdx(0);
+  }, [sequence, seqIdx]);
 
   useEffect(() => {
   if (allStories.length === 0) return;
@@ -916,28 +1032,63 @@ export default function Home() {
     }
   };
 
-  const goTo = useCallback((idx) => {
+  // Manual navigation always lands on a story's CARD step — an active trailer
+  // is skipped straight to its card, never replayed.
+  const goTo = useCallback((storyIdx) => {
+    setTrailerDissolving(false);
+    setCardEntering(false);
     setHeroTransition(false);
     setTimeout(() => {
-      heroIndexRef.current = idx;
-      setHeroIndex(idx);
+      const idx = sequence.findIndex(st => st.type === 'card' && st.storyIndex === storyIdx);
+      setSeqIdx(idx >= 0 ? idx : 0);
       setHeroTransition(true);
     }, 300);
-  }, []);
+  }, [sequence]);
+
+  // Auto-advance: each step schedules its own timeout (cards 5s, trailers their
+  // computed duration). A finished trailer dissolves into its card; a card
+  // hands off with the existing 300ms cross-fade.
+  useEffect(() => {
+    if (sequence.length === 0 || !pageVisible) return;
+    const cur = seqIdx < sequence.length ? seqIdx : 0;
+    const step = sequence[cur];
+    let inner;
+    const timer = setTimeout(() => {
+      const next = (cur + 1) % sequence.length;
+      if (step.type === 'trailer') {
+        // Next step is this story's card: dissolve overlaps into the card entrance.
+        setSeqIdx(next);
+        setTrailerDissolving(true);
+        setCardEntering(true);
+      } else {
+        setHeroTransition(false);
+        inner = setTimeout(() => {
+          setSeqIdx(next);
+          setHeroTransition(true);
+        }, 300);
+      }
+    }, step.duration);
+    return () => { clearTimeout(timer); clearTimeout(inner); };
+  }, [seqIdx, sequence, pageVisible]);
+
+  // Dissolve/entrance flags time out in their own effects so advancing seqIdx
+  // (which re-runs the timer effect above) can't cancel them mid-flight.
+  useEffect(() => {
+    if (!trailerDissolving) return;
+    const t = setTimeout(() => setTrailerDissolving(false), TRAILER_DISSOLVE_MS + 50);
+    return () => clearTimeout(t);
+  }, [trailerDissolving]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      const next = (heroIndexRef.current + 1) % carousel.length;
-      setHeroTransition(false);
-      setTimeout(() => {
-        heroIndexRef.current = next;
-        setHeroIndex(next);
-        setHeroTransition(true);
-      }, 300);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [carousel.length]);
+    if (!cardEntering) return;
+    // Covers the 900ms container animation plus the last child's 390ms stagger.
+    const t = setTimeout(() => setCardEntering(false), 1800);
+    return () => clearTimeout(t);
+  }, [cardEntering]);
 
+  const step = sequence[seqIdx < sequence.length ? seqIdx : 0];
+  const heroIndex = step ? step.storyIndex : 0;
+  const isTrailerStep = step?.type === 'trailer';
   const featured = carousel[heroIndex];
   const badge = featured ? (badgeStyle[featured.category] || badgeStyle.news) : badgeStyle.news;
 
@@ -978,9 +1129,11 @@ export default function Home() {
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(105deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.5) 60%, transparent 100%)', zIndex: 1 }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #0a0a0a 0%, transparent 45%)', zIndex: 1 }} />
 
-        <div style={{
+        <div className={cardEntering ? 'hero-card-enter' : undefined} style={{
           position: 'absolute', bottom: '12%', left: '4%', maxWidth: 560, zIndex: 2,
-          opacity: heroTransition ? 1 : 0,
+          // Hidden while a trailer plays so it can't bleed through the layer's
+          // fade-in; the hero-card-enter animation drives opacity on dissolve.
+          opacity: heroTransition && !isTrailerStep ? 1 : 0,
           transform: heroTransition ? 'translateY(0)' : 'translateY(12px)',
           transition: 'opacity 0.5s ease, transform 0.5s ease',
         }}>
@@ -1009,6 +1162,13 @@ export default function Home() {
           </a>
         </div>
 
+        {/* Trailer interstitial — covers the hero card while playing, then
+            dissolves out over the same story's entering card. Dots/arrows
+            (rendered after, same z-index) stay on top throughout. */}
+        {(isTrailerStep || trailerDissolving) && featured && !reducedMotion && (
+          <HeroTrailer key={`${featured.id}-${pageVisible}`} story={featured} dissolving={trailerDissolving} />
+        )}
+
         <div style={{ position: 'absolute', bottom: '5%', left: '4%', zIndex: 3, display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             {carousel.map((_, i) => (
@@ -1021,13 +1181,13 @@ export default function Home() {
             ))}
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button onClick={() => goTo((heroIndex - 1 + carousel.length) % carousel.length)}
+            <button onClick={() => goTo(isTrailerStep ? heroIndex : (heroIndex - 1 + carousel.length) % carousel.length)}
               style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.4)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.6)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.4)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-            <button onClick={() => goTo((heroIndex + 1) % carousel.length)}
+            <button onClick={() => goTo(isTrailerStep ? heroIndex : (heroIndex + 1) % carousel.length)}
               style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.4)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.6)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.4)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}>

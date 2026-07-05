@@ -106,3 +106,144 @@ a {
     animation: none;
   }
 }
+
+/* Featured-story trailer — cinematic quote interstitials in the hero rotation
+   (app/page.js). Layer fades in, blurred cover slow-zooms, quote words spring
+   in one by one, a gold rule draws, attribution fades up, then the whole layer
+   dissolves into the story card. */
+@keyframes trailer-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.hero-trailer {
+  animation: trailer-in 0.45s ease both;
+}
+
+/* Background slow zoom — duration is set inline to match the trailer length. */
+@keyframes trailer-zoom {
+  from { transform: scale(1.15); }
+  to { transform: scale(1.22); }
+}
+
+/* No-cover fallback: purple aurora slowly drifting on #0c0918. */
+@keyframes trailer-aurora-drift {
+  0% { transform: translate3d(-4%, -3%, 0) scale(1); }
+  50% { transform: translate3d(4%, 3%, 0) scale(1.1); }
+  100% { transform: translate3d(-4%, -3%, 0) scale(1); }
+}
+
+.trailer-aurora {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle at 50% 45%, rgba(107,47,173,0.3), transparent 65%);
+  animation: trailer-aurora-drift 9s ease-in-out infinite;
+}
+
+/* Word reveal — overshoot spring, staggered 150ms per word via inline delay. */
+@keyframes trailer-word-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(1.28);
+    filter: blur(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.trailer-word {
+  display: inline-block;
+  animation: trailer-word-in 0.7s cubic-bezier(0.22, 1.4, 0.36, 1) both;
+}
+
+/* Gold rule draws to 88px after the last word lands (inline delay). */
+@keyframes trailer-rule-in {
+  from { width: 0; }
+  to { width: 88px; }
+}
+
+.trailer-rule {
+  height: 1px;
+  width: 0;
+  background: linear-gradient(to right, #c9a84c, transparent);
+  margin-top: 18px;
+  animation: trailer-rule-in 0.7s ease-out both;
+}
+
+/* "from {title} · {author}" fades up after the rule (inline delay). */
+@keyframes trailer-attr-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.trailer-attr {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 0.9rem;
+  color: #c9a84c;
+  margin-top: 10px;
+  animation: trailer-attr-in 0.6s ease-out both;
+}
+
+/* Dissolve out — overrides the entrance animation on the same layer. */
+@keyframes trailer-dissolve {
+  to {
+    opacity: 0;
+    filter: blur(10px);
+    transform: scale(1.06);
+  }
+}
+
+.hero-trailer.is-dissolving {
+  animation: trailer-dissolve 0.9s ease both;
+  pointer-events: none;
+}
+
+/* Story card entering out of the dissolve; children stagger 130ms apart. */
+@keyframes hero-card-in {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: scale(0.965);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: scale(1);
+  }
+}
+
+.hero-card-enter {
+  animation: hero-card-in 0.9s cubic-bezier(0.25, 0.1, 0.25, 1) both;
+}
+
+@keyframes hero-card-child-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-card-enter > * {
+  animation: hero-card-child-in 0.6s cubic-bezier(0.25, 0.1, 0.25, 1) both;
+}
+
+.hero-card-enter > *:nth-child(2) { animation-delay: 130ms; }
+.hero-card-enter > *:nth-child(3) { animation-delay: 260ms; }
+.hero-card-enter > *:nth-child(4) { animation-delay: 390ms; }
+
+/* Defensive: trailer steps are skipped entirely under reduced motion in JS,
+   but if the layer ever renders, show everything static. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-trailer,
+  .trailer-aurora,
+  .trailer-word,
+  .trailer-rule,
+  .trailer-attr,
+  .hero-card-enter,
+  .hero-card-enter > * {
+    animation: none !important;
+  }
+  .trailer-rule { width: 88px; }
+}
