@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from './lib/AuthContext';
 import AuthModal from './components/AuthModal';
 import Navbar from './components/Navbar';
@@ -90,9 +90,13 @@ const badgeStyle = {
   inspiring: { background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.4)' },
 };
 
+// One rotation window: the shuffle seed and the re-roll timer both derive from
+// this so the roll boundary and the seed flip together.
+const ROTATION_MS = 3600000;
+
 function getHourlyCarousel(stories) {
   if (!stories || stories.length === 0) return [];
-  const h = Math.floor(Date.now() / 3600000);
+  const h = Math.floor(Date.now() / ROTATION_MS);
   const sorted = [...stories].sort((a, b) => parseDate(b.date) - parseDate(a.date));
   return [...sorted]
     .sort((a, b) => ((a.id.charCodeAt(0) * h) % 13) - ((b.id.charCodeAt(0) * h) % 13))
@@ -108,6 +112,10 @@ function getHourlyCarousel(stories) {
 const HERO_CARD_MS = 5000;
 const TRAILER_CAP_MS = 8000;
 const TRAILER_DISSOLVE_MS = 900;
+// Longest any single step can legitimately run; the watchdog force-advances
+// past this plus a grace window if the step's own timer never fired.
+const MAX_STEP_MS = Math.max(HERO_CARD_MS, TRAILER_CAP_MS);
+const WATCHDOG_GRACE_MS = 1500;
 
 function getTrailerDuration(quote) {
   const wordCount = quote.trim().split(/\s+/).filter(Boolean).length;
@@ -960,22 +968,43 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
+  // Live CMS updates re-pick with the current seed; the ref lets the re-roll
+  // timer read fresh stories without being torn down on every onValue fire.
+  const allStoriesRef = useRef([]);
   useEffect(() => {
+    allStoriesRef.current = allStories;
     setCarousel(getHourlyCarousel(allStories));
-    const hourTimer = setInterval(() => {
-      setSeqIdx(0);
-      setCarousel(getHourlyCarousel(allStories));
-    }, 3600000);
-    return () => clearInterval(hourTimer);
   }, [allStories]);
+
+  // Re-roll just past each ROTATION_MS boundary — chained timeout, aligned to
+  // the clock so the Date.now()-derived seed has flipped when it fires. A
+  // timer starved by sleep/throttling fires late with the then-current seed
+  // and re-arms to the next boundary, so picks recover instead of going stale.
+  useEffect(() => {
+    let t;
+    const arm = () => {
+      t = setTimeout(() => {
+        setSeqIdx(0);
+        setCarousel(getHourlyCarousel(allStoriesRef.current));
+        arm();
+      }, ROTATION_MS - (Date.now() % ROTATION_MS) + 250);
+    };
+    arm();
+    return () => clearTimeout(t);
+  }, []);
 
   // Rotation sequence: cards + trailer interstitials over the hourly carousel.
   const sequence = useMemo(() => buildHeroSequence(carousel, reducedMotion), [carousel, reducedMotion]);
 
-  // Keep seqIdx in range when the sequence shrinks (hourly reshuffle, CMS update).
+  // Any sequence rebuild (re-roll, CMS update, motion-pref change) clamps the
+  // step index back into range and resets in-flight presentation state so a
+  // trailer from the old sequence can't keep playing over a new card.
   useEffect(() => {
-    if (sequence.length > 0 && seqIdx >= sequence.length) setSeqIdx(0);
-  }, [sequence, seqIdx]);
+    setTrailerDissolving(false);
+    setCardEntering(false);
+    setHeroTransition(true);
+    setSeqIdx(i => (sequence.length > 0 && i >= sequence.length ? 0 : i));
+  }, [sequence]);
 
   useEffect(() => {
   if (allStories.length === 0) return;
@@ -1031,25 +1060,38 @@ export default function Home() {
   };
 
   // Manual navigation always lands on a story's CARD step — an active trailer
-  // is skipped straight to its card, never replayed.
+  // is skipped straight to its card, never replayed. Only one hand-off can be
+  // pending: a rapid second click cancels the first so a stale timeout can't
+  // land on an index computed from a superseded sequence.
+  const goToTimeoutRef = useRef(null);
   const goTo = useCallback((storyIdx) => {
     setTrailerDissolving(false);
     setCardEntering(false);
     setHeroTransition(false);
-    setTimeout(() => {
+    clearTimeout(goToTimeoutRef.current);
+    goToTimeoutRef.current = setTimeout(() => {
       const idx = sequence.findIndex(st => st.type === 'card' && st.storyIndex === storyIdx);
       setSeqIdx(idx >= 0 ? idx : 0);
       setHeroTransition(true);
     }, 300);
   }, [sequence]);
+  useEffect(() => () => clearTimeout(goToTimeoutRef.current), []);
 
   // Auto-advance: each step schedules its own timeout (cards 5s, trailers their
   // computed duration). A finished trailer dissolves into its card; a card
-  // hands off with the existing 300ms cross-fade.
+  // hands off with the existing 300ms cross-fade. Each run also arms the
+  // watchdog deadline below; Infinity disarms it while paused/empty.
+  const sequenceLenRef = useRef(0);
+  const stepDeadlineRef = useRef(Infinity);
   useEffect(() => {
-    if (sequence.length === 0 || !pageVisible) return;
+    sequenceLenRef.current = sequence.length;
+    if (sequence.length === 0 || !pageVisible) {
+      stepDeadlineRef.current = Infinity;
+      return;
+    }
     const cur = seqIdx < sequence.length ? seqIdx : 0;
     const step = sequence[cur];
+    stepDeadlineRef.current = Date.now() + MAX_STEP_MS + WATCHDOG_GRACE_MS;
     let inner;
     const timer = setTimeout(() => {
       const next = (cur + 1) % sequence.length;
@@ -1068,6 +1110,23 @@ export default function Home() {
     }, step.duration);
     return () => { clearTimeout(timer); clearTimeout(inner); };
   }, [seqIdx, sequence, pageVisible]);
+
+  // Watchdog: a wall-clock heartbeat that force-advances if the step's own
+  // timeout never fired (dropped by sleep/throttling, or a future logic bug).
+  // Checks a Date.now() deadline rather than racing a sibling setTimeout, so
+  // it recovers even when the browser sheds pending one-shot timers. The
+  // carousel must never be able to freeze, whatever bug arrives.
+  useEffect(() => {
+    const wd = setInterval(() => {
+      if (Date.now() < stepDeadlineRef.current) return;
+      stepDeadlineRef.current = Date.now() + MAX_STEP_MS + WATCHDOG_GRACE_MS;
+      setTrailerDissolving(false);
+      setCardEntering(false);
+      setHeroTransition(true);
+      setSeqIdx(i => (sequenceLenRef.current > 0 ? (i + 1) % sequenceLenRef.current : 0));
+    }, 1000);
+    return () => clearInterval(wd);
+  }, []);
 
   // Dissolve/entrance flags time out in their own effects so advancing seqIdx
   // (which re-runs the timer effect above) can't cancel them mid-flight.
