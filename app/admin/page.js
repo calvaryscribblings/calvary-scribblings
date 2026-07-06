@@ -103,6 +103,12 @@ const s = {
   badgeScheduled: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.35)', marginLeft: '0.5rem', verticalAlign: 'middle' },
   badgeSub: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(220,38,38,0.15)', color: '#f87171', border: '1px solid rgba(220,38,38,0.3)', marginLeft: '0.5rem', verticalAlign: 'middle' },
   badgeReader: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(201,164,76,0.15)', color: '#fcd34d', border: '1px solid rgba(201,164,76,0.3)', marginLeft: '0.5rem', verticalAlign: 'middle' },
+  badgeHidden: { display: 'inline-block', fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0.12rem 0.45rem', borderRadius: 3, background: 'rgba(201,164,76,0.1)', color: '#e0c068', border: '1px solid rgba(201,164,76,0.55)', marginLeft: '0.5rem', verticalAlign: 'middle' },
+  filterRow: { display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' },
+  filterChip: { background: 'transparent', color: 'rgba(255,255,255,0.5)', border: '1px solid #2a2a2a', padding: '0.4rem 0.9rem', borderRadius: 6, fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' },
+  filterChipActive: { background: 'rgba(124,58,237,0.15)', color: '#c4b5fd', border: '1px solid rgba(124,58,237,0.4)' },
+  hiddenNotice: { background: 'rgba(201,164,76,0.1)', border: '1px solid rgba(201,164,76,0.4)', borderRadius: 8, padding: '0.7rem 1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.5rem' },
+  btnUnhide: { background: 'rgba(201,164,76,0.15)', color: '#e0c068', border: '1px solid rgba(201,164,76,0.5)', padding: '0.45rem 0.9rem', borderRadius: 5, fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   cardActions: { display: 'flex', gap: '0.5rem', flexShrink: 0 },
   form: { display: 'flex', flexDirection: 'column', gap: '1.4rem' },
   fg: { display: 'flex', flexDirection: 'column', gap: '0.45rem' },
@@ -180,7 +186,7 @@ function ImageModal({ onInsert, onClose }) {
   );
 }
 
-function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, roster, guestList }) {
+function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, roster, guestList, hidden, onUnhide }) {
   const [showImageModal, setShowImageModal] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [epubUploading, setEpubUploading] = useState(false);
@@ -286,6 +292,12 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
         <button style={s.btnGhost} onClick={onCancel}>← Back</button>
       </div>
       {msg && <div style={s.msg}>{msg}</div>}
+      {hidden && (
+        <div style={s.hiddenNotice}>
+          <span style={{ fontSize: '0.82rem', color: '#e0c068' }}>This story is hidden from the platform.</span>
+          <button style={s.btnUnhide} onClick={onUnhide}>Unhide</button>
+        </div>
+      )}
       <div style={s.form}>
 
         <div style={s.fg}>
@@ -525,9 +537,10 @@ export default function AdminPage() {
     content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, prosePoetry: false, featuredPin: false,
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
-    trailerQuote: '',
+    trailerQuote: '', published: true,
   };
   const [form, setForm] = useState(emptyForm);
+  const [filter, setFilter] = useState('all'); // all · published · hidden
 
   const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
 
@@ -638,7 +651,9 @@ export default function AdminPage() {
         content: convertToHTML(form.content.trim()),
         cover: coverPath,
         url: `/stories/${slug}`,
-        published: !(form.publishAt && new Date(form.publishAt) > new Date()),
+        // New/scheduled stories derive published from publishAt (unchanged). Edits
+        // preserve the existing flag so saving never hides or unhides a story.
+        published: editingId ? (form.published !== false) : !(form.publishAt && new Date(form.publishAt) > new Date()),
         epubUrl: form.epubUrl || '',
         readerMode: form.readerMode || false,
         prosePoetry: form.prosePoetry || false,
@@ -693,6 +708,31 @@ export default function AdminPage() {
     } catch (e) { setMsg('Error: ' + e.message); }
   }
 
+  // Targeted field update — never rewrites the whole story object.
+  async function hideStory(id) {
+    if (!confirm('Hide this story? It disappears from the platform immediately but keeps all data (reads, comments, quotes). Unhide anytime.')) return;
+    try {
+      const { ref, update } = await import('firebase/database');
+      await update(ref(db, `cms_stories/${id}`), { published: false });
+      setMsg('Story hidden.'); loadStories();
+    } catch (e) { setMsg('Error: ' + e.message); }
+  }
+
+  async function unhideStory(id) {
+    try {
+      const { ref, update } = await import('firebase/database');
+      await update(ref(db, `cms_stories/${id}`), { published: true });
+      setMsg('Story unhidden.'); loadStories();
+    } catch (e) { setMsg('Error: ' + e.message); }
+  }
+
+  // Unhide from within the editor, keeping the current edit session open.
+  async function unhideFromEditor() {
+    if (!editingId) return;
+    await unhideStory(editingId);
+    setForm(f => ({ ...f, published: true }));
+  }
+
   function openEdit(story) {
     // Preserve existing (backfilled) attribution by stable id — never re-derive by name.
     const selectedAuthor = story.authorGuestId
@@ -713,6 +753,7 @@ export default function AdminPage() {
       selectedAuthor,
       handleInput: '', resolvedHandle: null, handleError: '',
       trailerQuote: story.trailerQuote || '',
+      published: story.published,
     });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
@@ -736,8 +777,17 @@ export default function AdminPage() {
     </div>
   );
 
+  // A future publishAt means "scheduled", not "hidden" — scheduled stories carry
+  // published:false but are pending publish, so they stay out of the Hidden bucket.
+  const isSchedRow = st => st.publishAt && new Date(st.publishAt) > new Date();
+  const isHiddenRow = st => st.published === false && !isSchedRow(st);
+
   const liveCount = stories.filter(s => !s.publishAt || new Date(s.publishAt) <= new Date()).length;
   const scheduledCount = stories.filter(s => s.publishAt && new Date(s.publishAt) > new Date()).length;
+  const hiddenCount = stories.filter(isHiddenRow).length;
+  const publishedCount = stories.length - hiddenCount;
+  const visibleStories = stories.filter(st =>
+    filter === 'hidden' ? isHiddenRow(st) : filter === 'published' ? !isHiddenRow(st) : true);
 
   return (
     <div style={s.page}>
@@ -760,7 +810,9 @@ export default function AdminPage() {
         {(view === 'new' || view === 'edit') && (
           <StoryForm form={form} setForm={setForm} editingId={editingId}
             saving={saving} msg={msg} onSave={saveStory} onCancel={handleCancel}
-            roster={roster} guestList={guestList} />
+            roster={roster} guestList={guestList}
+            hidden={!!editingId && form.published === false && !(form.publishAt && new Date(form.publishAt) > new Date())}
+            onUnhide={unhideFromEditor} />
         )}
         {view === 'list' && (
           <div>
@@ -772,15 +824,29 @@ export default function AdminPage() {
               <button style={s.btn} onClick={openNew}>+ New Story</button>
             </div>
             {msg && <div style={s.msg}>{msg}</div>}
+            <div style={s.filterRow}>
+              {[
+                { key: 'all', label: `All (${stories.length})` },
+                { key: 'published', label: `Published (${publishedCount})` },
+                { key: 'hidden', label: `Hidden (${hiddenCount})` },
+              ].map(f => (
+                <button key={f.key}
+                  style={{ ...s.filterChip, ...(filter === f.key ? s.filterChipActive : {}) }}
+                  onClick={() => setFilter(f.key)}>{f.label}</button>
+              ))}
+            </div>
             {loading
               ? <div style={s.empty}>Loading…</div>
               : stories.length === 0
                 ? <div style={s.empty}>No stories yet.<br />Hit "+ New Story" to publish your first.</div>
-                : stories.map(story => {
+                : visibleStories.length === 0
+                  ? <div style={s.empty}>No {filter} stories.</div>
+                  : visibleStories.map(story => {
                     const scheduled = story.publishAt && new Date(story.publishAt) > new Date();
+                    const hidden = isHiddenRow(story);
                     const status = story.publishAt ? getScheduleStatus(story.publishAt) : null;
                     return (
-                      <div key={story.id} style={{ ...s.card, opacity: scheduled ? 0.75 : 1 }}>
+                      <div key={story.id} style={{ ...s.card, opacity: hidden ? 0.5 : scheduled ? 0.75 : 1 }}>
                         <img src={story.cover} alt={story.title} style={s.coverThumb} onError={e => { e.target.style.opacity = 0.2; }} />
                         <div style={s.cardInfo}>
                           <div style={s.cardTitle}>
@@ -789,16 +855,20 @@ export default function AdminPage() {
                             {story.subcategory && <span style={s.badgeSub}>{story.subcategory}</span>}
                             {story.readerMode && <span style={s.badgeReader}>Book Reader</span>}
                             {scheduled && <span style={s.badgeScheduled}>Scheduled</span>}
+                            {hidden && <span style={s.badgeHidden}>Hidden</span>}
                           </div>
                           <div style={s.cardMeta}>
                             By {story.author}{story.authorHandle ? ` (@${story.authorHandle})` : ''} · {story.date}
                             {status && status !== 'Live' && ` · ${status}`}
-                            {!scheduled && <> · <a href={story.url} target="_blank" rel="noreferrer" style={{ color: '#a78bfa', textDecoration: 'none' }}>View →</a></>}
+                            {!scheduled && !hidden && <> · <a href={story.url} target="_blank" rel="noreferrer" style={{ color: '#a78bfa', textDecoration: 'none' }}>View →</a></>}
                             {story.readerMode && <> · <a href={`/reader/${story.id}`} target="_blank" rel="noreferrer" style={{ color: '#fcd34d', textDecoration: 'none' }}>Book Reader →</a></>}
                           </div>
                         </div>
                         <div style={s.cardActions}>
                           <button style={s.btnGhost} onClick={() => openEdit(story)}>Edit</button>
+                          {hidden
+                            ? <button style={s.btnUnhide} onClick={() => unhideStory(story.id)}>Unhide</button>
+                            : <button style={s.btnGhost} onClick={() => hideStory(story.id)}>Hide</button>}
                           <button style={s.btnDanger} onClick={() => deleteStory(story.id)}>Delete</button>
                         </div>
                       </div>
