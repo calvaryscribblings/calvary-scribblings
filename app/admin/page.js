@@ -434,6 +434,18 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
           </label>
         </div>
 
+        {/* Featured pin toggle */}
+        <div style={s.readerBox}>
+          <label style={s.scheduleToggle}>
+            <input type="checkbox" checked={form.featuredPin || false}
+              onChange={e => setForm(f => ({ ...f, featuredPin: e.target.checked }))} />
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c4b5fd' }}>
+              Feature on homepage
+            </span>
+          </label>
+          <div style={s.hint}>Pins this story into the featured carousel every rotation.</div>
+        </div>
+
         <div style={s.scheduleBox}>
           <label style={s.scheduleToggle}>
             <input type="checkbox" checked={isScheduled}
@@ -510,7 +522,7 @@ export default function AdminPage() {
   const emptyForm = {
     title: '', selectedAuthor: '', category: 'flash', subcategory: '',
     date: formatDate(new Date()), coverFilename: '', coverPreview: null,
-    content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, prosePoetry: false,
+    content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, prosePoetry: false, featuredPin: false,
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
     trailerQuote: '',
@@ -630,6 +642,7 @@ export default function AdminPage() {
         epubUrl: form.epubUrl || '',
         readerMode: form.readerMode || false,
         prosePoetry: form.prosePoetry || false,
+        featuredPin: form.featuredPin || false,
         extractedText: form.extractedText || '',
         trailerQuote: form.trailerQuote?.trim() || '',
       };
@@ -694,6 +707,7 @@ export default function AdminPage() {
       epubUpdatedAt: story.epubUpdatedAt || null,
       readerMode: story.readerMode || false,
       prosePoetry: story.prosePoetry || false,
+      featuredPin: story.featuredPin || false,
       extractedText: story.extractedText || '',
       authorHandle: story.authorHandle || '',
       selectedAuthor,

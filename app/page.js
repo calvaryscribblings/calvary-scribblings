@@ -90,17 +90,29 @@ const badgeStyle = {
   inspiring: { background: 'rgba(217,119,6,0.2)', color: '#fcd34d', border: '1px solid rgba(217,119,6,0.4)' },
 };
 
-// One rotation window: the shuffle seed and the re-roll timer both derive from
-// this so the roll boundary and the seed flip together.
-const ROTATION_MS = 3600000;
+// One rotation window (30 min): the shuffle seed and the re-roll timer both
+// derive from this so the roll boundary and the seed flip together.
+const ROTATION_MS = 1800000;
 
-function getHourlyCarousel(stories) {
+// Pinned stories (featuredPin in the CMS) always lead the pick — the 3 newest
+// pins win if more are flagged — and the remaining slots fill from the
+// deterministic per-rotation shuffle over everything else (math unchanged).
+function getRotationCarousel(stories) {
   if (!stories || stories.length === 0) return [];
-  const h = Math.floor(Date.now() / ROTATION_MS);
-  const sorted = [...stories].sort((a, b) => parseDate(b.date) - parseDate(a.date));
-  return [...sorted]
-    .sort((a, b) => ((a.id.charCodeAt(0) * h) % 13) - ((b.id.charCodeAt(0) * h) % 13))
-    .slice(0, 10);
+  const seed = Math.floor(Date.now() / ROTATION_MS);
+  const pinned = stories
+    .filter(st => st.featuredPin === true)
+    .sort((a, b) => getStorySortTime(b) - getStorySortTime(a))
+    .slice(0, 3);
+  const pinnedIds = new Set(pinned.map(st => st.id));
+  const rest = stories.filter(st => !pinnedIds.has(st.id));
+  const sorted = [...rest].sort((a, b) => parseDate(b.date) - parseDate(a.date));
+  return [
+    ...pinned,
+    ...[...sorted]
+      .sort((a, b) => ((a.id.charCodeAt(0) * seed) % 13) - ((b.id.charCodeAt(0) * seed) % 13))
+      .slice(0, 10 - pinned.length),
+  ];
 }
 
 // ── Featured-story trailer ──────────────────────────────────────────────────
@@ -973,7 +985,7 @@ export default function Home() {
   const allStoriesRef = useRef([]);
   useEffect(() => {
     allStoriesRef.current = allStories;
-    setCarousel(getHourlyCarousel(allStories));
+    setCarousel(getRotationCarousel(allStories));
   }, [allStories]);
 
   // Re-roll just past each ROTATION_MS boundary — chained timeout, aligned to
@@ -985,7 +997,7 @@ export default function Home() {
     const arm = () => {
       t = setTimeout(() => {
         setSeqIdx(0);
-        setCarousel(getHourlyCarousel(allStoriesRef.current));
+        setCarousel(getRotationCarousel(allStoriesRef.current));
         arm();
       }, ROTATION_MS - (Date.now() % ROTATION_MS) + 250);
     };
@@ -993,7 +1005,7 @@ export default function Home() {
     return () => clearTimeout(t);
   }, []);
 
-  // Rotation sequence: cards + trailer interstitials over the hourly carousel.
+  // Rotation sequence: cards + trailer interstitials over the rotation carousel.
   const sequence = useMemo(() => buildHeroSequence(carousel, reducedMotion), [carousel, reducedMotion]);
 
   // Any sequence rebuild (re-roll, CMS update, motion-pref change) clamps the
