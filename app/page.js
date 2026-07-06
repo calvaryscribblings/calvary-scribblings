@@ -94,9 +94,19 @@ const badgeStyle = {
 // derive from this so the roll boundary and the seed flip together.
 const ROTATION_MS = 1800000;
 
+// Deterministic per-rotation score: seeded hash over the full slug, so every
+// character contributes and no first-letter class can pin itself to the front.
+function rotationScore(slug, seed) {
+  let h = (seed >>> 0) || 1;
+  for (let i = 0; i < slug.length; i++) {
+    h = Math.imul(h ^ slug.charCodeAt(i), 2654435761) >>> 0;
+  }
+  return h;
+}
+
 // Pinned stories (featuredPin in the CMS) always lead the pick — the 3 newest
 // pins win if more are flagged — and the remaining slots fill from the
-// deterministic per-rotation shuffle over everything else (math unchanged).
+// deterministic per-rotation shuffle over everything else.
 function getRotationCarousel(stories) {
   if (!stories || stories.length === 0) return [];
   const seed = Math.floor(Date.now() / ROTATION_MS);
@@ -110,7 +120,10 @@ function getRotationCarousel(stories) {
   return [
     ...pinned,
     ...[...sorted]
-      .sort((a, b) => ((a.id.charCodeAt(0) * seed) % 13) - ((b.id.charCodeAt(0) * seed) % 13))
+      .sort((a, b) =>
+        (rotationScore(a.id, seed) - rotationScore(b.id, seed)) ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      )
       .slice(0, 10 - pinned.length),
   ];
 }
