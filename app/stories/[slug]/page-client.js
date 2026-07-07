@@ -1153,6 +1153,9 @@ export default function StoryPageClient({ params }) {
           paras.forEach((p) => p.classList.remove('dropcap-target', 'story-frontmatter'));
           if (paras.length) {
             const FRONTMATTER_RE = /^(content note|content warning|cw|trigger warning|tw|author's note|note|dedication|epigraph)[:\s—–-]/i;
+            // A line that ends on sentence-ending punctuation reads as prose, not
+            // a bare label — closing quotes after the terminal mark still count.
+            const TERMINATED_RE = /[.!?…]['"”’]*$/;
             const isEntirelyItalic = (p) => {
               const t = (p.textContent || '').trim();
               if (!t) return false;
@@ -1166,7 +1169,7 @@ export default function StoryPageClient({ params }) {
               if (!t) return false;
               if (FRONTMATTER_RE.test(t)) return true;
               if (isEntirelyItalic(p)) return true;
-              if (t.length < 40 && next && (next.textContent || '').trim().length > t.length) return true;
+              if (t.length < 40 && !TERMINATED_RE.test(t) && next && (next.textContent || '').trim().length > t.length) return true;
               return false;
             };
             const frontmatter = [];
