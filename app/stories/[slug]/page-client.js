@@ -1140,6 +1140,49 @@ export default function StoryPageClient({ params }) {
       setTimeout(() => {
         const text = articleRef.current?.innerText || '';
         setReadingTime(Math.ceil(text.trim().split(/\s+/).length / 220));
+
+        // Drop cap targeting — the CSS ::first-letter can't tell front-matter
+        // (content notes, epigraphs, dedications) from the story proper, so a
+        // story that opens with a note would drop-cap the note. Walk the body's
+        // leading <p> children, skip the front-matter, and tag the first real
+        // paragraph with .dropcap-target for the CSS to hook. Idempotent.
+        const container = articleRef.current?.querySelector('.prose.has-dropcap');
+        if (container) {
+          const paras = Array.from(container.children).filter((el) => el.tagName === 'P');
+          // Clear any tags from a prior run so re-runs converge on the same state.
+          paras.forEach((p) => p.classList.remove('dropcap-target', 'story-frontmatter'));
+          if (paras.length) {
+            const FRONTMATTER_RE = /^(content note|content warning|cw|trigger warning|tw|author's note|note|dedication|epigraph)[:\s—–-]/i;
+            const isEntirelyItalic = (p) => {
+              const t = (p.textContent || '').trim();
+              if (!t) return false;
+              const kids = Array.from(p.children);
+              return kids.length === 1
+                && (kids[0].tagName === 'EM' || kids[0].tagName === 'I')
+                && (kids[0].textContent || '').trim().length >= t.length * 0.9;
+            };
+            const isFrontmatter = (p, next) => {
+              const t = (p.textContent || '').trim();
+              if (!t) return false;
+              if (FRONTMATTER_RE.test(t)) return true;
+              if (isEntirelyItalic(p)) return true;
+              if (t.length < 40 && next && (next.textContent || '').trim().length > t.length) return true;
+              return false;
+            };
+            const frontmatter = [];
+            let target = null;
+            for (let i = 0; i < paras.length; i++) {
+              const t = (paras[i].textContent || '').trim();
+              if (!t) continue; // ignore blank leading paragraphs entirely
+              if (isFrontmatter(paras[i], paras[i + 1] || null)) { frontmatter.push(paras[i]); continue; }
+              target = paras[i];
+              break;
+            }
+            if (!target) target = paras[0]; // safety: everything looked like front-matter
+            frontmatter.forEach((p) => { if (p !== target) p.classList.add('story-frontmatter'); });
+            target.classList.add('dropcap-target');
+          }
+        }
       }, 100);
     }
   }, [story]);
@@ -1287,7 +1330,9 @@ useEffect(() => {
         .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cormorant Garamond, Georgia, serif; font-weight: 400; }
         .prose em, .prose i { font-family: Cormorant Garamond, Georgia, serif; font-style: italic; }
         .prose p { margin-bottom: 0; } .prose:not(.is-verse) p + p { text-indent: 1.5em; }
-        .prose.has-dropcap > p:first-of-type::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: #c9a84c; font-family: Cormorant Garamond, Georgia, serif; }
+        .prose.has-dropcap p.dropcap-target::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: #c9a84c; font-family: Cormorant Garamond, Georgia, serif; }
+        .prose.has-dropcap p.dropcap-target { text-indent: 0; }
+        .prose.has-dropcap p.story-frontmatter { font-style: italic; font-size: 0.85em; color: rgba(26,26,26,0.55); margin-bottom: 1.5em; }
         .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cormorant Garamond, Georgia, serif; line-height: 1.3; }
         .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: Cormorant Garamond, Georgia, serif; }
         .prose p[style*='text-align:center'], .prose p[style*='text-align: center'] { text-align: center; font-family: Cormorant Garamond, Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
