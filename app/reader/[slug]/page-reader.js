@@ -10,6 +10,7 @@ import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import QuizCard from '../../components/QuizCard';
 import AuthModal from '../../components/AuthModal';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
+import ReadSeal from '../../components/ReadSeal';
 import { use } from 'react';
 import { useDeletedUids } from '../../lib/userVisibility';
 import { getReaderId } from '../../lib/readerId';
@@ -771,7 +772,9 @@ export default function StoryReaderClient({ params }) {
               <div className="berule" />
               <div className="betitle">{story.title}</div>
               <div className="beauth">by {story.author}</div>
-              {hitCount !== null && <div className="bemeta">{hitCount.toLocaleString()} reads</div>}
+              <div style={{ margin: '4px 0 24px' }}>
+                <ReadSeal count={hitCount} active ink="#f5efe0" />
+              </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
                 <button className="bebtn" onClick={() => setShowEnd(false)}>← Back to book</button>
                 <a href={'/' + (story.category || '')} className="bebtn">More stories</a>

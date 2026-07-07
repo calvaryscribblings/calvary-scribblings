@@ -13,6 +13,7 @@ import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
 import QuizCard from '../../components/QuizCard';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
+import ReadSeal from '../../components/ReadSeal';
 import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
 import { getReaderId } from '../../lib/readerId';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
@@ -1321,12 +1322,14 @@ useEffect(() => {
         .lp-rule { display: block; width: 88px; height: 1px; background: #c9a84c; transform: scaleX(0); transform-origin: center; transition: transform 700ms ease 400ms; }
         main.story-closed .lp-rule { transform: scaleX(1); }
         main.story-closed .lp-orn { opacity: 1; }
-        .hit-counter-row, .story-footer { opacity: 0; transform: translateY(12px); transition: opacity 700ms ease 1500ms, transform 700ms ease 1500ms; }
-        main.story-closed .hit-counter-row, main.story-closed .story-footer { opacity: 1; transform: translateY(0); }
+        /* The seal (.hit-counter-row's contents) drives its own reveal ceremony,
+           so the row stays put; only the footer rises with the story-closed beat. */
+        .story-footer { opacity: 0; transform: translateY(12px); transition: opacity 700ms ease 1500ms, transform 700ms ease 1500ms; }
+        main.story-closed .story-footer { opacity: 1; transform: translateY(0); }
         @media (prefers-reduced-motion: reduce) {
           .lp-rule { transform: scaleX(1); transition: none; }
           .lp-orn { opacity: 1; transition: none; }
-          .hit-counter-row, .story-footer { opacity: 1; transform: none; transition: none; }
+          .story-footer { opacity: 1; transform: none; transition: none; }
         }
         .story-badge-footer { display: inline-block; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25em 0.8em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; }
         .back-to-top { position: fixed; bottom: 2rem; right: 2rem; width: 44px; height: 44px; border-radius: 50%; background: rgba(124,58,237,0.85); border: 1px solid rgba(168,85,247,0.4); color: #f5f0e8; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease, transform 0.3s ease; z-index: 998; box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
@@ -1474,7 +1477,9 @@ useEffect(() => {
               <span className="lp-orn">✦</span>
               <span className="lp-rule" />
             </div>
-            <div className="hit-counter-row">{hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}</div>
+            <div className="hit-counter-row">
+              <ReadSeal count={hitCount} active={endReached} />
+            </div>
             <div className="story-footer">
               <span>
                 By {story.author}
