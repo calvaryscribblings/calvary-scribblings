@@ -1007,6 +1007,8 @@ export default function StoryPageClient({ params }) {
   const articleRef = useRef(null);
   const threadRef = useRef(null);
   const articleMetrics = useRef({ top: 0, height: 0 });
+  const endSentinelRef = useRef(null);
+  const [endReached, setEndReached] = useState(false);
 
   useEffect(() => {
     let unsub;
@@ -1113,6 +1115,25 @@ export default function StoryPageClient({ params }) {
       if (raf) cancelAnimationFrame(raf);
     };
   }, [story, storyReady]);
+
+  // The last page — fire once, the first time the end of the story scrolls into
+  // view. endReached drives the staged closing (rule → ornament → footer) purely
+  // through CSS transition delays. If IntersectionObserver is unavailable, close
+  // immediately so the footer still reveals.
+  useEffect(() => {
+    if (!story || endReached) return undefined;
+    const el = endSentinelRef.current;
+    if (!el) return undefined;
+    if (typeof IntersectionObserver === 'undefined') { setEndReached(true); return undefined; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        setEndReached(true);
+        io.disconnect();
+      }
+    }, { rootMargin: '0px 0px -10% 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [story, storyReady, endReached]);
 
   useEffect(() => {
     if (articleRef.current && story) {
@@ -1310,6 +1331,23 @@ useEffect(() => {
         .prose .poem-stanza br { display: block; }
         .hit-counter-row { text-align: center; padding: 1.8rem 2rem 1.5rem; color: #888; font-size: 0.9rem; font-family: Cormorant Garamond, Georgia, serif; border-top: 1px solid #e0dbd2; max-width: 680px; margin: 0 auto; background: #f0ead8; }
         .story-footer { background: #f0ead8; max-width: 680px; margin: 0 auto; padding: 1rem 2rem 2rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: #888; gap: 1rem; flex-wrap: wrap; font-family: Cormorant Garamond, Georgia, serif; border-top: 1px solid #e0dbd2; }
+        /* The last page — a quiet closing mark that draws itself once, the first
+           time the end of the story scrolls into view (main.story-closed, set by
+           the endReached observer). Staged purely through transition delays:
+           400ms beat → the rule draws (700ms) → the ✦ fades in above it → the
+           reads + footer rise into place. No text, no CTA — the story just closes. */
+        .last-page { display: flex; flex-direction: column; align-items: center; gap: 14px; background: #f0ead8; padding: 2.75rem 2rem 1rem; }
+        .lp-orn { color: #c9a84c; font-size: 0.9rem; line-height: 1; opacity: 0; transition: opacity 600ms ease 1400ms; }
+        .lp-rule { display: block; width: 88px; height: 1px; background: #c9a84c; transform: scaleX(0); transform-origin: center; transition: transform 700ms ease 400ms; }
+        main.story-closed .lp-rule { transform: scaleX(1); }
+        main.story-closed .lp-orn { opacity: 1; }
+        .hit-counter-row, .story-footer { opacity: 0; transform: translateY(12px); transition: opacity 700ms ease 1500ms, transform 700ms ease 1500ms; }
+        main.story-closed .hit-counter-row, main.story-closed .story-footer { opacity: 1; transform: translateY(0); }
+        @media (prefers-reduced-motion: reduce) {
+          .lp-rule { transform: scaleX(1); transition: none; }
+          .lp-orn { opacity: 1; transition: none; }
+          .hit-counter-row, .story-footer { opacity: 1; transform: none; transition: none; }
+        }
         .story-badge-footer { display: inline-block; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25em 0.8em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; }
         .back-to-top { position: fixed; bottom: 2rem; right: 2rem; width: 44px; height: 44px; border-radius: 50%; background: rgba(124,58,237,0.85); border: 1px solid rgba(168,85,247,0.4); color: #fff; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease, transform 0.3s ease; z-index: 998; box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
         .back-to-top:hover { background: rgba(124,58,237,1); transform: translateY(-2px); }
@@ -1416,7 +1454,7 @@ useEffect(() => {
           </div>
         </header>
         <div className="story-body-wrap" data-reveal="fade">
-          <main>
+          <main className={endReached ? 'story-closed' : ''}>
             <article className="story-body" ref={articleRef}>
               <div className="back-link-row">
   <a href={`/${story.category}`} className="back-link">
@@ -1451,6 +1489,10 @@ useEffect(() => {
                 <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }} />
               )}
             </article>
+            <div ref={endSentinelRef} className="last-page" aria-hidden="true">
+              <span className="lp-orn">✦</span>
+              <span className="lp-rule" />
+            </div>
             <div className="hit-counter-row">{hitCount !== null ? `${hitCount.toLocaleString()} Reads` : '— Reads'}</div>
             <div className="story-footer">
               <span>
