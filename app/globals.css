@@ -289,12 +289,12 @@ a {
 }
 .ll-feather-l {
   left: 0;
-  background: linear-gradient(to right, rgba(var(--ll-ember, 212,140,70), calc(0.13 * var(--ll-intensity, 0))), transparent);
+  background: linear-gradient(to right, rgba(var(--ll-ember, 212,140,70), calc(0.10 * var(--ll-intensity, 0))), transparent);
   animation: ll-breathe-a 11s ease-in-out infinite alternate;
 }
 .ll-feather-r {
   right: 0;
-  background: linear-gradient(to left, rgba(var(--ll-ember, 212,140,70), calc(0.13 * var(--ll-intensity, 0))), transparent);
+  background: linear-gradient(to left, rgba(var(--ll-ember, 212,140,70), calc(0.10 * var(--ll-intensity, 0))), transparent);
   animation: ll-breathe-a 11s ease-in-out infinite alternate;
   animation-delay: -5.5s;
 }
@@ -307,12 +307,12 @@ a {
 }
 .ll-pool-l {
   left: -56px;
-  background: radial-gradient(ellipse 62% 60% at 32% 82%, rgba(var(--ll-ember, 212,140,70), calc(0.18 * var(--ll-intensity, 0))), transparent 70%);
+  background: radial-gradient(ellipse 62% 60% at 32% 82%, rgba(var(--ll-ember, 212,140,70), calc(0.14 * var(--ll-intensity, 0))), transparent 70%);
   animation: ll-breathe-b 14s ease-in-out infinite alternate;
 }
 .ll-pool-r {
   right: -56px;
-  background: radial-gradient(ellipse 62% 60% at 68% 82%, rgba(var(--ll-ember, 212,140,70), calc(0.15 * var(--ll-intensity, 0))), transparent 70%);
+  background: radial-gradient(ellipse 62% 60% at 68% 82%, rgba(var(--ll-ember, 212,140,70), calc(0.12 * var(--ll-intensity, 0))), transparent 70%);
   animation: ll-breathe-b 14s ease-in-out infinite alternate;
   animation-delay: -7s;
 }

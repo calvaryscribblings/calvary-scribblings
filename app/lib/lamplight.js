@@ -26,7 +26,21 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 const EMBER_WARM = [212, 140, 70]; // warmth 0 — early-evening amber
 const EMBER_DEEP = [196, 104, 58]; // warmth 1 — deep late-night ember
 
+// ── Night-paper tones (story surface) ──────────────────────────────────────
+// The reading surface itself after dark: lamplit paper, not the brand near-black.
+const PAPER_LIT = [22, 18, 14];  // #16120e — warmth 0, a shade lifted and warm
+const PAPER_DEEP = [25, 16, 8];  // #191008 — warmth 1, the paper deepens at night
+
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+// The night-paper background for a given time-warmth, as an rgb() string.
+function paperColor(warmth) {
+  const w = clamp01(warmth);
+  const r = Math.round(PAPER_LIT[0] + (PAPER_DEEP[0] - PAPER_LIT[0]) * w);
+  const g = Math.round(PAPER_LIT[1] + (PAPER_DEEP[1] - PAPER_LIT[1]) * w);
+  const b = Math.round(PAPER_LIT[2] + (PAPER_DEEP[2] - PAPER_LIT[2]) * w);
+  return `rgb(${r},${g},${b})`;
+}
 
 // Linear interpolation between the two ember tones. Returns an "r,g,b" string
 // ready to drop into rgba(var(--ll-ember), a).
@@ -97,7 +111,7 @@ const SPRING_DAMPING = 11.2;
 //
 // Imperative handle (ref): bump(amount), pulse(), chapter(), setProgress(p),
 // startSession(). The book reader wires these to Foliate page/chapter events.
-export const Lamplight = forwardRef(function Lamplight({ scroll = false, reader = false }, ref) {
+export const Lamplight = forwardRef(function Lamplight({ scroll = false, reader = false, surface = false }, ref) {
   const [mounted, setMounted] = useState(false);
   const mountedRef = useRef(false);
   const rootRef = useRef(null);
@@ -140,6 +154,14 @@ export const Lamplight = forwardRef(function Lamplight({ scroll = false, reader 
     const intensity = Math.max(0, t.intensity + sessI);
     setVar('--ll-ember', lerpEmber(warmth), true);
     setVar('--ll-intensity', intensity.toFixed(3), true);
+    // Night paper (story surface): the background follows the TIME warmth only —
+    // it deepens through the night, not as you scroll. Published on <html> so the
+    // story page's scoped [data-lamplight] rules can crossfade the surface.
+    if (surface && typeof document !== 'undefined') {
+      const doc = document.documentElement;
+      doc.style.setProperty('--ll-paper', paperColor(t.warmth));
+      doc.style.setProperty('--ll-warmth', t.warmth.toFixed(3));
+    }
   };
 
   // The single rAF loop — runs ONLY while something is animating, then stops.
@@ -253,6 +275,8 @@ export const Lamplight = forwardRef(function Lamplight({ scroll = false, reader 
         setMounted(true);
       } else if (!L.active && mountedRef.current) {
         setVar('--ll-mount', '0', false); // fade the lamps down like lamps
+        // Let the reading surface crossfade back to cream over the same 2.5s.
+        if (surface && typeof document !== 'undefined') document.documentElement.removeAttribute('data-lamplight');
         clearTimeout(unmountTimer);
         unmountTimer = setTimeout(() => { mountedRef.current = false; setMounted(false); }, 2600);
       }
@@ -270,7 +294,12 @@ export const Lamplight = forwardRef(function Lamplight({ scroll = false, reader 
     if (reader) st.current.sessionStart = st.current.sessionStart ?? Date.now();
     applyVars();
     const r1 = requestAnimationFrame(() => {
-      const r2 = requestAnimationFrame(() => setVar('--ll-mount', '1', false));
+      const r2 = requestAnimationFrame(() => {
+        setVar('--ll-mount', '1', false);
+        // Arrive with the same 2.5s grace as the lamps: flip the surface signal
+        // on <html> now so the story page's night-paper crossfade begins in step.
+        if (surface && typeof document !== 'undefined') document.documentElement.setAttribute('data-lamplight', 'on');
+      });
       st.current._r2 = r2;
     });
     return () => { cancelAnimationFrame(r1); if (st.current._r2) cancelAnimationFrame(st.current._r2); };
@@ -295,10 +324,11 @@ export const Lamplight = forwardRef(function Lamplight({ scroll = false, reader 
     return () => window.removeEventListener('scroll', onScroll);
   }, [scroll, mounted]);
 
-  // Stop any loop on unmount.
+  // Stop any loop on unmount; drop the surface signal so day styling returns.
   useEffect(() => () => {
     if (st.current.rafId) cancelAnimationFrame(st.current.rafId);
     st.current.running = false;
+    if (surface && typeof document !== 'undefined') document.documentElement.removeAttribute('data-lamplight');
   }, []);
 
   if (!mounted) return null;

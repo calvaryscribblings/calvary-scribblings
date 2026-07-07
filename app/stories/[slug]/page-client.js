@@ -1181,9 +1181,10 @@ useEffect(() => {
   return (
 
     <>
-      {/* Ambient night reading light — self-manages (off by day); scroll prop
-          wires flame-physics disturbance + reading-progress warmth. */}
-      <Lamplight scroll />
+      {/* Ambient night reading light — self-manages (off by day); scroll wires
+          flame-physics disturbance + reading-progress warmth; surface flips the
+          night-paper signal on <html> so the reading surface darkens with it. */}
+      <Lamplight scroll surface />
       <style>{`
         @keyframes storyFadeIn { from { opacity: 0; } to { opacity: 1; } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1321,7 +1322,118 @@ useEffect(() => {
           .byline-by { margin-right: 0; }
         }
       .prose figure { margin: 2em 0; }
-.prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
+.prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }
+
+        /* ── LAMPLIGHT NIGHT PAPER ─────────────────────────────────────────────
+           After 8pm the reading SURFACE itself darkens and warms so the lamps
+           read as lamplight. Driven by [data-lamplight="on"] on <html> (set by
+           app/lib/lamplight.js) with --ll-paper interpolating the background
+           through the night. Daytime (no attribute) = the cream product, exactly
+           as before. The 2.5s crossfade is the same grace the lamps arrive with. */
+        .story-body-wrap, .hit-counter-row, .story-footer, .cs-section,
+        .ata-section:not(.is-condensed) .ata-card, .back-link-row,
+        .prose, .prose p, .prose h2, .prose h3, .prose h4, .prose strong, .prose li,
+        .prose blockquote, .prose blockquote p, .prose hr, .prose .poem-stanza,
+        .prose .poem-stanza p, .prose .poem-title, .prose .poem-numeral, .prose .intro-note,
+        .prose .poem-collection-intro, .prose .poem-contents, .prose .poem-contents li,
+        .prose .poem-contents p, .prose figcaption, .prose .image-caption,
+        .prose .inline-image-caption, .prose .section-break, .prose .features-list,
+        .prose ul, .prose ul li::marker, .prose .features-list ul li::before,
+        .prose.has-dropcap > p:first-of-type::first-letter, .back-link,
+        .cs-name, .cs-comment-text, .cs-time, .cs-loading, .cs-empty, .cs-signin-prompt p,
+        .ata-card .ata-eyebrow, .ata-card .ata-name, .ata-card .ata-role,
+        .ata-card .ata-handle, .ata-card .ata-bio, .ata-card .ata-avatar span, .ata-card .ata-social {
+          transition: background-color 2.5s ease, color 2.5s ease, border-color 2.5s ease;
+        }
+
+        /* Surfaces → warm lamplit paper (deepens with warmth through the night) */
+        [data-lamplight="on"] .story-body-wrap,
+        [data-lamplight="on"] .hit-counter-row,
+        [data-lamplight="on"] .story-footer,
+        [data-lamplight="on"] .cs-section,
+        [data-lamplight="on"] .ata-section:not(.is-condensed) .ata-card {
+          background: var(--ll-paper, #16120e);
+        }
+        [data-lamplight="on"] .back-link-row,
+        [data-lamplight="on"] .hit-counter-row,
+        [data-lamplight="on"] .story-footer,
+        [data-lamplight="on"] .ata-section:not(.is-condensed) .ata-card {
+          border-color: rgba(232,220,200,0.12);
+        }
+
+        /* Body ink → warm cream */
+        [data-lamplight="on"] .prose,
+        [data-lamplight="on"] .prose p,
+        [data-lamplight="on"] .prose h2,
+        [data-lamplight="on"] .prose h4,
+        [data-lamplight="on"] .prose strong,
+        [data-lamplight="on"] .prose li,
+        [data-lamplight="on"] .prose .poem-stanza,
+        [data-lamplight="on"] .prose .poem-stanza p,
+        [data-lamplight="on"] .prose .poem-contents p,
+        [data-lamplight="on"] .prose .poem-contents li,
+        [data-lamplight="on"] .cs-name,
+        [data-lamplight="on"] .cs-comment-text,
+        [data-lamplight="on"] .ata-card .ata-name {
+          color: rgba(232,220,200,0.92);
+        }
+        [data-lamplight="on"] .prose ul li::marker { color: #c9a84c; }
+
+        /* Meta → warm cream at 0.55 */
+        [data-lamplight="on"] .prose figcaption,
+        [data-lamplight="on"] .prose .image-caption,
+        [data-lamplight="on"] .prose .inline-image-caption,
+        [data-lamplight="on"] .prose img + em,
+        [data-lamplight="on"] .prose .section-break,
+        [data-lamplight="on"] .prose .poem-collection-intro,
+        [data-lamplight="on"] .prose p[style*='text-align:center'],
+        [data-lamplight="on"] .prose p[style*='text-align: center'],
+        [data-lamplight="on"] .hit-counter-row,
+        [data-lamplight="on"] .story-footer,
+        [data-lamplight="on"] .cs-time,
+        [data-lamplight="on"] .ata-card .ata-eyebrow,
+        [data-lamplight="on"] .ata-card .ata-role {
+          color: rgba(232,220,200,0.55);
+        }
+
+        /* Links & warm-gold accents; drop cap stays gold */
+        [data-lamplight="on"] .back-link,
+        [data-lamplight="on"] .prose h3,
+        [data-lamplight="on"] .prose .poem-title,
+        [data-lamplight="on"] .prose .poem-numeral,
+        [data-lamplight="on"] .prose .intro-note,
+        [data-lamplight="on"] .prose.has-dropcap > p:first-of-type::first-letter,
+        [data-lamplight="on"] .ata-card .ata-handle,
+        [data-lamplight="on"] .ata-card .ata-avatar span,
+        [data-lamplight="on"] .ata-card .ata-social {
+          color: #c9a84c;
+        }
+
+        /* Softer warm cream for longer secondary text */
+        [data-lamplight="on"] .ata-card .ata-bio,
+        [data-lamplight="on"] .cs-loading,
+        [data-lamplight="on"] .cs-empty,
+        [data-lamplight="on"] .cs-signin-prompt p {
+          color: rgba(232,220,200,0.72);
+        }
+
+        /* Blockquote & rule → warm ember-gold */
+        [data-lamplight="on"] .prose blockquote {
+          border-left-color: #c9a84c;
+          background: rgba(201,168,76,0.08);
+          color: #dcc9a0;
+        }
+        [data-lamplight="on"] .prose blockquote p { color: #dcc9a0; }
+        [data-lamplight="on"] .prose hr { background: linear-gradient(90deg, transparent, #c9a84c, transparent); }
+
+        /* Pale callout/list backgrounds → warm dark with a gold rule */
+        [data-lamplight="on"] .prose .features-list,
+        [data-lamplight="on"] .prose ul,
+        [data-lamplight="on"] .prose .poem-contents {
+          background: rgba(40,30,18,0.5);
+          border-left-color: #c9a84c;
+        }
+        [data-lamplight="on"] .prose .features-list ul li::before { color: #c9a84c; }`}</style>
 
       <div className="reading-progress" style={{ width: `${scrollProgress}%` }} />
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
