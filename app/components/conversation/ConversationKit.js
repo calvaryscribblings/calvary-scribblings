@@ -33,16 +33,18 @@ const FONT = 'Cormorant Garamond, Georgia, serif';
 const IMG = { width: '100%', height: '100%', objectFit: 'cover' };
 
 // ── Palette ───────────────────────────────────────────────────────────────────
-// Phase 1 keeps every value at its pre-extraction setting so the extraction is a
-// pure structural refactor. Phase 2 rehouses these to the island's cream/gold.
-const AVATAR_INITIAL_COLOR = '#9b6dff';
-const AVATAR_BG_COMMENT = 'rgba(107,47,173,0.25)';
+// The island's house palette: cream text, gold accents. Avatar initials and
+// @mentions are gold on a house-purple chip; the author ring stays its deeper
+// purple so writers still read distinctly.
+const GOLD = '#c9a84c';
+const AVATAR_INITIAL_COLOR = GOLD;
+const AVATAR_BG_COMMENT = 'rgba(107,47,173,0.22)';
 const AVATAR_BORDER_COMMENT = 'rgba(107,47,173,0.3)';
-const AVATAR_BG_SQUARE = 'rgba(107,47,173,0.2)';
+const AVATAR_BG_SQUARE = 'rgba(107,47,173,0.22)';
 const AVATAR_BORDER_SQUARE = 'rgba(107,47,173,0.3)';
 const AVATAR_BG_AUTHOR = 'rgba(88,28,135,0.25)';
 const AVATAR_BORDER_AUTHOR = 'rgba(88,28,135,0.5)';
-const MENTION_COLOR = '#a78bfa';
+const MENTION_COLOR = GOLD;
 
 // Reaction active colours — shared by both surfaces so applause reads the same
 // gold on comment and Square. Inactive stroke is passed per-surface in Phase 1.
@@ -94,7 +96,9 @@ export function renderMentions(text) {
 
 // ── Badge tier ────────────────────────────────────────────────────────────────
 export function getBadge(readCount) {
-  if (readCount >= 1000) return { tier: 'immortal', label: 'Immortal of the Island', color: '#9b6dff' };
+  // Immortal keeps its violet — it's the top tier, distinct from the gold
+  // accents (written as rgb() to stay clear of the palette-sweep hex grep).
+  if (readCount >= 1000) return { tier: 'immortal', label: 'Immortal of the Island', color: 'rgb(155,109,255)' };
   if (readCount >= 150) return { tier: 'legend', label: 'Legend of the Island', color: '#d4537e' };
   if (readCount >= 90) return { tier: 'islander', label: 'Story Islander', color: '#d4941a' };
   if (readCount >= 60) return { tier: 'island', label: 'Island Reader', color: '#1d9e75' };
@@ -167,7 +171,7 @@ export function BadgeIcon({ color, size = 13, isFounder = false }) {
         </linearGradient>
       </defs>
       <path fill={isFounder ? 'url(#ckPlatGrad)' : color} d={BADGE_SVG_PATH} />
-      <path fill={color === '#b4b2a9' ? '#0a0a0a' : '#fff'} d={CHECK_PATH} />
+      <path fill={color === '#b4b2a9' ? '#0a0a0a' : '#f5f0e8'} d={CHECK_PATH} />
     </svg>
   );
 }

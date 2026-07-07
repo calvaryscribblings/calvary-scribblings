@@ -138,7 +138,7 @@ function CommentUsername({ uid }) {
     })();
   }, [uid]);
   if (!username) return null;
-  return <span style={{ fontSize: '0.7rem', fontWeight: 500, color: 'rgba(167,139,250,0.5)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{username}</span>;
+  return <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'rgba(245,240,232,0.45)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{username}</span>;
 }
 
 function CommentName({ uid, fallback }) {
@@ -173,7 +173,7 @@ function AuthorHandleLink({ handle, style }) {
   if (!handle) return null;
   return (
     <a href={uid ? `/user?id=${uid}` : `/search?q=${handle}`} style={style}
-      onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
+      onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
       onMouseLeave={e => e.currentTarget.style.color = style.color}>
       @{handle}
     </a>
@@ -289,7 +289,7 @@ function ExerciseSection({ slug }) {
         {submitted ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {submission.answers.map((a, i) => (
-              <div key={i} style={{ background: '#fff', border: `1px solid ${a.type === 'mcq' ? (a.correct ? 'rgba(29,158,117,0.3)' : 'rgba(220,38,38,0.3)') : 'rgba(107,47,173,0.2)'}`, borderRadius: 10, padding: '1rem' }}>
+              <div key={i} style={{ background: '#f5f0e8', border: `1px solid ${a.type === 'mcq' ? (a.correct ? 'rgba(29,158,117,0.3)' : 'rgba(220,38,38,0.3)') : 'rgba(107,47,173,0.2)'}`, borderRadius: 10, padding: '1rem' }}>
                 <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.4rem' }}>Q{i + 1} · {a.type === 'mcq' ? 'Multiple Choice' : 'Essay'}</div>
                 <div style={{ fontSize: '0.92rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.5rem' }}>{a.question}</div>
                 {a.type === 'mcq' ? (
@@ -307,7 +307,7 @@ function ExerciseSection({ slug }) {
         ) : user ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {exercise.map((q, i) => (
-              <div key={i} style={{ background: '#fff', border: '1px solid #e0dbd2', borderRadius: 10, padding: '1.25rem' }}>
+              <div key={i} style={{ background: '#f5f0e8', border: '1px solid #e0dbd2', borderRadius: 10, padding: '1.25rem' }}>
                 <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.4rem' }}>Q{i + 1} · {q.type === 'mcq' ? 'Multiple Choice' : 'Essay'} · {q.points} Scribbles</div>
                 <div style={{ fontSize: '1rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '1rem', lineHeight: 1.6 }}>{q.question}</div>
                 {q.type === 'mcq' ? (
@@ -332,7 +332,7 @@ function ExerciseSection({ slug }) {
             ))}
             {msg && <div style={{ fontSize: '0.9rem', fontWeight: 500, color: '#dc2626', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{msg}</div>}
             <button onClick={submit} disabled={submitting}
-              style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.85rem 2rem', color: '#fff', fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif', opacity: submitting ? 0.6 : 1 }}>
+              style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.85rem 2rem', color: '#f5f0e8', fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif', opacity: submitting ? 0.6 : 1 }}>
               {submitting ? 'Submitting…' : 'Submit Exercise'}
             </button>
           </div>
@@ -399,7 +399,7 @@ const CommentNode = React.memo(function CommentNode({
             <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link"><CommentName uid={comment.authorUid} fallback={comment.authorName} /></a>
             <CommentUsername uid={comment.authorUid} />
             <UserBadge self uid={comment.authorUid} size={depth === 1 ? 13 : 12} labelSize="0.68rem" gap="4px" />
-            <span className="cs-time">{timeAgo(comment.createdAt)}</span>
+            <span className="cs-time" style={{ marginLeft: -2 }}>· {timeAgo(comment.createdAt)}</span>
             {comment.editedAt && <span className="cs-time"> · edited</span>}
             {isOwn && (
               <div style={{ marginLeft: 'auto', position: 'relative' }}>
@@ -428,7 +428,7 @@ const CommentNode = React.memo(function CommentNode({
             ) : (
               <>
                 {isFlattened && parentAuthorName && (
-                  <span style={{ color: '#a78bfa', fontWeight: 500, marginRight: 4 }}>@{parentAuthorName}</span>
+                  <span style={{ color: '#c9a84c', fontWeight: 500, marginRight: 4 }}>@{parentAuthorName}</span>
                 )}
                 {comment.text && comment.text.length > 100 ? (
                   <>
@@ -462,7 +462,7 @@ const CommentNode = React.memo(function CommentNode({
               <div className="cs-input-wrap">
                 <MentionTextarea value={replyText} onChange={setReplyText} placeholder={`Reply to ${comment.authorName}…`} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
                 <button className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`} onClick={() => postComment(replyText, comment.id)} disabled={posting || !replyText.trim()}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#c9a84c"/></svg>
                 </button>
               </div>
             </div>
@@ -756,7 +756,7 @@ function CommentsSection({ slug, onSignIn }) {
             <div className="cs-input-wrap">
               <MentionTextarea value={text} onChange={setText} placeholder="Share your thoughts on this story…" rows={3} />
               <button className={`cs-kite-btn${text.trim() ? ' active' : ''}`} onClick={() => postComment(text)} disabled={posting || !text.trim()} title="Post comment">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#c9a84c"/></svg>
               </button>
             </div>
           </div>
@@ -777,24 +777,27 @@ function CommentsSection({ slug, onSignIn }) {
         <div className="cs-empty">No comments yet. Be the first to share your thoughts.</div>
       ) : (
         <div className="cs-comments-list">
-          {topLevel.map(comment => (
-            <CommentNode
-              key={comment.id} comment={comment} depth={1} parentAuthorName={null}
-              user={user} comments={visibleComments} commentReactions={commentReactions}
-              replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
-              setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
-              toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
-              setExpandedComment={setExpandedComment}
-            />
+          {topLevel.map((comment, i) => (
+            <React.Fragment key={comment.id}>
+              {i > 0 && <div className="cs-divider" aria-hidden="true" />}
+              <CommentNode
+                comment={comment} depth={1} parentAuthorName={null}
+                user={user} comments={visibleComments} commentReactions={commentReactions}
+                replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
+                setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
+                toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
+                setExpandedComment={setExpandedComment}
+              />
+            </React.Fragment>
           ))}
         </div>
       )}
       {expandedComment !== null && (
         <div onClick={() => setExpandedComment(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '1.5rem', maxWidth: 480, width: '100%', maxHeight: '80vh', overflowY: 'auto', position: 'relative' }}>
-            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.75rem' }}>{expandedComment.authorName}</div>
+            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.75rem' }}>{expandedComment.authorName}</div>
             <div style={{ fontSize: '0.9rem', color: '#e8e0d4', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{expandedComment.text}</div>
-            <button onClick={() => setExpandedComment(null)} style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 16 }}>×</button>
+            <button onClick={() => setExpandedComment(null)} style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', color: '#f5f0e8', border: 'none', cursor: 'pointer', fontSize: 16 }}>×</button>
           </div>
         </div>
       )}
@@ -1127,7 +1130,7 @@ useEffect(() => {
       else img.addEventListener('load', () => img.classList.add('loaded'));
     });
   }, [storyReady]);
-  const categoryColors = { news: '#ef4444', flash: '#6b46c1', short: '#6b46c1', poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1' };
+  const categoryColors = { news: '#dc2626', flash: '#6b46c1', short: '#6b46c1', poetry: '#6b46c1', inspiring: '#d97706', serial: '#6b46c1' };
   if (!story) return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a' }}>
       {/* Nav skeleton */}
@@ -1273,7 +1276,7 @@ useEffect(() => {
           .hit-counter-row, .story-footer { opacity: 1; transform: none; transition: none; }
         }
         .story-badge-footer { display: inline-block; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25em 0.8em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; }
-        .back-to-top { position: fixed; bottom: 2rem; right: 2rem; width: 44px; height: 44px; border-radius: 50%; background: rgba(124,58,237,0.85); border: 1px solid rgba(168,85,247,0.4); color: #fff; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease, transform 0.3s ease; z-index: 998; box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
+        .back-to-top { position: fixed; bottom: 2rem; right: 2rem; width: 44px; height: 44px; border-radius: 50%; background: rgba(124,58,237,0.85); border: 1px solid rgba(168,85,247,0.4); color: #f5f0e8; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease, transform 0.3s ease; z-index: 998; box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
         .back-to-top:hover { background: rgba(124,58,237,1); transform: translateY(-2px); }
         .back-to-top.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
         .cs-section { background: #0a0a0a; max-width: 680px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
@@ -1282,30 +1285,31 @@ useEffect(() => {
         .cs-count { font-size: 0.75rem; font-weight: 500; color: rgba(255,255,255,0.92); letter-spacing: 0.12em; text-transform: uppercase; font-family: Cormorant Garamond, Georgia, serif; }
         .cs-compose { margin-bottom: 2rem; }
         .cs-compose-row { display: flex; gap: 12px; align-items: flex-start; }
-        .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: Cormorant Garamond, Georgia, serif; overflow: hidden; text-decoration: none; }
+        .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #c9a84c; flex-shrink: 0; font-family: Cormorant Garamond, Georgia, serif; overflow: hidden; text-decoration: none; }
         .cs-input-wrap { flex: 1; position: relative; }
-        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: Cormorant Garamond, Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+        .cs-textarea { width: 100%; background: rgba(107,47,173,0.05); border: 1px solid rgba(107,47,173,0.2); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: Cormorant Garamond, Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
         .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; border-radius: 10px; }
         .cs-textarea::placeholder { color: rgba(255,255,255,0.32); font-style: italic; font-family: Cormorant Garamond, Georgia, serif; }
-        .cs-textarea:focus { border-color: rgba(107,47,173,0.4); box-shadow: 0 0 0 2px rgba(107,47,173,0.2); }
+        .cs-textarea:focus { border-color: rgba(201,168,76,0.5); box-shadow: 0 0 0 2px rgba(201,168,76,0.12); }
         .cs-kite-btn { position: absolute; bottom: 8px; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; opacity: 0.2; transition: opacity 0.2s; }
         .cs-kite-btn.active { opacity: 1; }
         .cs-kite-btn:disabled { cursor: not-allowed; }
         .cs-signin-prompt { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 1.5rem; text-align: center; margin-bottom: 2rem; }
         .cs-signin-prompt p { font-size: 0.9rem; font-weight: 500; color: rgba(255,255,255,0.95); margin-bottom: 0.75rem; font-family: Cormorant Garamond, Georgia, serif; }
-        .cs-signin-btn { background: none; border: 1px solid rgba(107,47,173,0.4); border-radius: 8px; padding: 0.55rem 1.4rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9b6dff; cursor: pointer; font-family: Cormorant Garamond, Georgia, serif; }
-        .cs-loading { font-size: 0.88rem; font-weight: 500; color: #ffffff; font-family: Cormorant Garamond, Georgia, serif; padding: 1rem 0; }
-        .cs-empty { font-size: 0.88rem; color: #ffffff; font-family: Cormorant Garamond, Georgia, serif; font-style: italic; padding: 1rem 0; }
+        .cs-signin-btn { background: none; border: 1px solid rgba(107,47,173,0.4); border-radius: 8px; padding: 0.55rem 1.4rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #c9a84c; cursor: pointer; font-family: Cormorant Garamond, Georgia, serif; }
+        .cs-loading { font-size: 0.88rem; font-weight: 500; color: #f5f0e8; font-family: Cormorant Garamond, Georgia, serif; padding: 1rem 0; }
+        .cs-empty { font-size: 0.88rem; color: #f5f0e8; font-family: Cormorant Garamond, Georgia, serif; font-style: italic; padding: 1rem 0; }
         .cs-comments-list { display: flex; flex-direction: column; }
-        .cs-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 0.25rem 0 1.75rem; }
-        .cs-comment { display: flex; gap: 12px; margin-bottom: 1.25rem; }
-        .cs-comment-body { flex: 1; min-width: 0; padding-bottom: 0.5rem; }
-        .cs-comment-header { display: flex; align-items: center; gap: 6px; margin-bottom: 0.45rem; flex-wrap: wrap; }
-        .cs-name { font-size: 0.88rem; font-weight: 500; color: #ffffff; font-family: Cormorant Garamond, Georgia, serif; }
+        .cs-divider { height: 1px; background: rgba(245,240,232,0.06); margin: 1.1rem 0; }
+        .cs-comment { display: flex; gap: 10px; align-items: flex-start; }
+        .cs-comment > a:first-child, .cs-reply > a:first-child { margin-top: 2px; }
+        .cs-comment-body { flex: 1; min-width: 0; }
+        .cs-comment-header { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; flex-wrap: wrap; }
+        .cs-name { font-size: 0.92rem; font-weight: 600; color: #f5f0e8; font-family: Cormorant Garamond, Georgia, serif; }
         .cs-name-link { text-decoration: none; transition: color 0.2s; }
-        .cs-name-link:hover { color: #a78bfa; }
-        .cs-time { font-size: 0.74rem; font-weight: 500; color: rgba(255,255,255,0.4); font-family: Cormorant Garamond, Georgia, serif; }
-        .cs-comment-text { font-family: Cormorant Garamond, Georgia, serif; font-size: 1rem; color: #ffffff; line-height: 1.75; }
+        .cs-name-link:hover { color: #c9a84c; }
+        .cs-time { font-size: 0.74rem; font-weight: 500; color: rgba(245,240,232,0.42); font-family: Cormorant Garamond, Georgia, serif; }
+        .cs-comment-text { font-family: Cormorant Garamond, Georgia, serif; font-size: 0.98rem; color: #f5f0e8; line-height: 1.68; margin-top: 0; }
         .cs-comment-text-sm { font-size: 0.92rem; }
         .cs-comment-footer { margin-top: 0.5rem; }
         .cs-save-btn { background: #6b2fad; border: none; color: #f0ead8; font-family: Cormorant Garamond, Georgia, serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
@@ -1313,9 +1317,9 @@ useEffect(() => {
         .cs-cancel-btn { background: transparent; border: 1px solid rgba(166,61,76,0.5); color: #a63d4c; font-family: Cormorant Garamond, Georgia, serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
         .cs-cancel-btn:hover { background: rgba(166,61,76,0.12); border-color: #a63d4c; }
         .cs-reply-btn { background: none; border: none; font-size: 0.7rem; font-weight: 500; color: rgba(255,255,255,0.4); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: Cormorant Garamond, Georgia, serif; transition: color 0.2s; }
-        .cs-reply-btn:hover { color: #9b6dff; }
+        .cs-reply-btn:hover { color: #c9a84c; }
         .cs-reply-compose { background: rgba(107,47,173,0.06); border: 1px solid rgba(107,47,173,0.18); border-radius: 10px; padding: 0.75rem; margin-top: 0.75rem; margin-bottom: 0.5rem; }
-        .cs-replies { margin-top: 1rem; padding-left: 1rem; border-left: 1px solid rgba(107,47,173,0.2); display: flex; flex-direction: column; gap: 1rem; }
+        .cs-replies { margin-top: 0.75rem; padding-left: 1rem; border-left: 1px solid rgba(107,47,173,0.25); display: flex; flex-direction: column; gap: 0.75rem; }
         .cs-reply { display: flex; gap: 10px; }
         @media (max-width: 640px) {
           .hero-cover-panel { width: 100px; height: 145px; bottom: 0; right: 4%; z-index: 0; }
@@ -1368,7 +1372,7 @@ useEffect(() => {
                 onClick={() => document.getElementById('quiz-card')?.scrollIntoView({ behavior: 'smooth' })}
                 style={{
                   cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif',
-                  fontStyle: 'italic', fontSize: '0.85rem', color: '#a78bfa',
+                  fontStyle: 'italic', fontSize: '0.85rem', color: '#c9a84c',
                   textDecoration: 'none', marginTop: '0.4rem', display: 'block',
                 }}
               >
