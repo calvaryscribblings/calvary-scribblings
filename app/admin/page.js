@@ -73,6 +73,28 @@ async function uploadToStorage(file) {
   return await getDownloadURL(storageRef);
 }
 
+// Compute a blurhash for an image File by drawing a downscaled (~64px wide)
+// copy to a canvas and encoding 4x3 components. Best-effort: resolves to ''
+// on any failure so a cover upload/replace never blocks on hash generation.
+async function computeBlurhash(file) {
+  try {
+    const { encode } = await import('blurhash');
+    const bitmap = await createImageBitmap(file);
+    const w = 64;
+    const h = Math.max(1, Math.round((bitmap.height / bitmap.width) * w));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    if (typeof bitmap.close === 'function') bitmap.close();
+    const { data } = ctx.getImageData(0, 0, w, h);
+    return encode(new Uint8ClampedArray(data), w, h, 4, 3);
+  } catch (err) {
+    console.warn('[admin] blurhash generation failed:', err);
+    return '';
+  }
+}
+
 async function uploadEPUBToStorage(file) {
   const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
   const filename = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
@@ -234,7 +256,10 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
     setCoverUploading(true);
     try {
       const url = await uploadToStorage(file);
-      setForm(f => ({ ...f, coverFilename: url, coverPreview: url }));
+      // Compute the blurhash placeholder from the same file (both first upload
+      // and replace-on-edit go through here). Non-blocking: '' if it fails.
+      const coverHash = await computeBlurhash(file);
+      setForm(f => ({ ...f, coverFilename: url, coverPreview: url, coverHash }));
     } catch (err) { alert('Cover upload failed: ' + err.message); }
     setCoverUploading(false);
   }
@@ -380,7 +405,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
                 <input style={s.input} value={form.coverFilename} placeholder="my-story-cover.jpeg or upload →"
-                  onChange={e => setForm(f => ({ ...f, coverFilename: e.target.value, coverPreview: null }))} />
+                  onChange={e => setForm(f => ({ ...f, coverFilename: e.target.value, coverPreview: null, coverHash: '' }))} />
               </div>
               <button style={{ ...s.btnImg, flexShrink: 0 }}
                 onClick={() => coverInputRef.current.click()} disabled={coverUploading}>
@@ -533,7 +558,7 @@ export default function AdminPage() {
 
   const emptyForm = {
     title: '', selectedAuthor: '', category: 'flash', subcategory: '',
-    date: formatDate(new Date()), coverFilename: '', coverPreview: null,
+    date: formatDate(new Date()), coverFilename: '', coverPreview: null, coverHash: '',
     content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, prosePoetry: false, featuredPin: false,
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
@@ -650,6 +675,7 @@ export default function AdminPage() {
         date: form.date,
         content: convertToHTML(form.content.trim()),
         cover: coverPath,
+        coverHash: form.coverHash || '',
         url: `/stories/${slug}`,
         // New/scheduled stories derive published from publishAt (unchanged). Edits
         // preserve the existing flag so saving never hides or unhides a story.
@@ -741,7 +767,7 @@ export default function AdminPage() {
     setForm({
       title: story.title, author: story.author || '', category: story.category,
       subcategory: story.subcategory || '', date: story.date,
-      coverFilename: story.cover, coverPreview: story.cover,
+      coverFilename: story.cover, coverPreview: story.cover, coverHash: story.coverHash || '',
       content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
       epubUrl: story.epubUrl || '',
       epubUpdatedAt: story.epubUpdatedAt || null,
