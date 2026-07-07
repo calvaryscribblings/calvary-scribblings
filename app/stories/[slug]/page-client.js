@@ -450,11 +450,7 @@ const CommentNode = React.memo(function CommentNode({
             activeMap={commentReactions[comment.id]}
             onToggle={(key) => toggleCommentReaction(comment.id, key, comment.authorUid)}
             canReact={!!user}
-            iconSize={depth === 1 ? 12 : 11}
-            inactiveColor="rgba(255,255,255,0.4)"
-            countSize={depth === 1 ? '0.6rem' : '0.58rem'}
-            press
-            gap={12} buttonGap={3} marginTop={6}
+            iconSize={depth === 1 ? 16 : 14}
             trailing={user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
           />
           {replyTo === comment.id && (

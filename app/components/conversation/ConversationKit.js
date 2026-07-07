@@ -12,7 +12,7 @@
 // both map their own key onto the shared heart icon. Firebase paths are never
 // touched here — this module is presentation only.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -46,9 +46,11 @@ const AVATAR_BG_AUTHOR = 'rgba(88,28,135,0.25)';
 const AVATAR_BORDER_AUTHOR = 'rgba(88,28,135,0.5)';
 const MENTION_COLOR = GOLD;
 
-// Reaction active colours — shared by both surfaces so applause reads the same
-// gold on comment and Square. Inactive stroke is passed per-surface in Phase 1.
-export const REACTION_COLORS = { heart: '#d4537e', clap: '#d4941a', fire: '#ef4444' };
+// Reaction active colours — shared by both surfaces so a reaction reads the
+// same on comment and Square. Applause is gold on this island; fire is a warm
+// ember, not a Tailwind red; the heart keeps its rose.
+export const REACTION_COLORS = { heart: '#d4537e', clap: GOLD, fire: '#e0762e' };
+const REACTION_INACTIVE = 'rgba(245,240,232,0.45)';
 
 // ── Icon paths ────────────────────────────────────────────────────────────────
 export const BADGE_SVG_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
@@ -240,37 +242,103 @@ export function buildReactions(heartKey) {
   ];
 }
 
-function ReactionIcon({ type, size, active, color, strokeWidth = 1.5 }) {
-  const common = { width: size, height: size, viewBox: '0 0 24 24', fill: active ? color : 'none', stroke: color, strokeWidth, strokeLinecap: 'round', strokeLinejoin: 'round' };
+function ReactionIcon({ type, size, active, color, bursting }) {
+  const common = {
+    width: size, height: size, viewBox: '0 0 24 24',
+    fill: active ? color : 'none', stroke: color, strokeWidth: 1.75,
+    strokeLinecap: 'round', strokeLinejoin: 'round',
+    style: { display: 'block', transformOrigin: 'center', animation: bursting ? 'ck-burst 350ms cubic-bezier(0.34,1.56,0.64,1)' : 'none' },
+  };
   if (type === 'heart') return <svg {...common}><path d={HEART_PATH} /></svg>;
   if (type === 'clap') return <svg {...common}><path d={CLAP_PATH_1} /><path d={CLAP_PATH_2} /></svg>;
   if (type === 'fire') return <svg {...common}><path d={FIRE_PATH} /></svg>;
   return null;
 }
 
+// The count rolls up on increment: the incoming digit slides in from below
+// inside a clipping box, so a reaction feels like it lands. Decrements just
+// swap. Reduced motion snaps.
+function RollingCount({ value, color, reducedMotion }) {
+  const prev = useRef(value);
+  const rolling = !reducedMotion && value > prev.current;
+  useEffect(() => { prev.current = value; });
+  return (
+    <span style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'bottom', color, fontSize: '0.74rem', fontFamily: FONT, letterSpacing: '0.04em', lineHeight: 1.1 }}>
+      <span key={value} style={{ display: 'inline-block', animation: rolling ? 'ck-roll 200ms ease' : 'none' }}>{value}</span>
+    </span>
+  );
+}
+
+// Injected once per document — keyframes for the activation spring and the
+// count roll. Kept out of the surfaces' style blocks so the kit owns its motion.
+let ckStylesInjected = false;
+function useReactionStyles() {
+  useEffect(() => {
+    if (ckStylesInjected || typeof document === 'undefined') return;
+    ckStylesInjected = true;
+    const el = document.createElement('style');
+    el.textContent = '@keyframes ck-burst{0%{transform:scale(1)}45%{transform:scale(1.18)}100%{transform:scale(1)}}@keyframes ck-roll{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}';
+    document.head.appendChild(el);
+  }, []);
+}
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => setReduced(mq.matches);
+    apply();
+    mq.addEventListener?.('change', apply);
+    return () => mq.removeEventListener?.('change', apply);
+  }, []);
+  return reduced;
+}
+
+// Unified across both surfaces: 16px icons (14 for replies), a 32px minimum
+// touch target regardless of icon size, a spring overshoot when a reaction is
+// added (never when removed — celebration is for adding), gold counts once the
+// viewer has reacted, and colour-only changes under reduced motion.
 export function ReactionRow({
   reactions, item, activeMap, onToggle, canReact,
-  iconSize = 14, inactiveColor = 'rgba(255,255,255,0.4)',
-  countSize = '0.7rem', press = false,
-  gap = 12, buttonGap = 4, marginTop = 8, trailing = null,
+  iconSize = 16, trailing = null,
 }) {
   const [pressed, setPressed] = useState(null);
-  const pressHandlers = press ? (key) => ({
-    onMouseDown: () => setPressed(key), onMouseUp: () => setPressed(null),
-    onMouseLeave: () => setPressed(null),
-    onTouchStart: () => setPressed(key), onTouchEnd: () => setPressed(null),
-  }) : () => ({});
+  const [burst, setBurst] = useState(null);
+  const reducedMotion = usePrefersReducedMotion();
+  useReactionStyles();
+
+  // Celebrate only a fresh add — fire the spring off the click, when the
+  // reaction is about to switch on. Un-reacting and background data loads never
+  // burst.
+  const handleClick = (key) => {
+    if (!activeMap?.[key] && !reducedMotion) {
+      setBurst(key);
+      setTimeout(() => setBurst(b => (b === key ? null : b)), 360);
+    }
+    onToggle(key);
+  };
+
+  const clearPress = () => setPressed(null);
   return (
-    <div style={{ display: 'flex', gap, marginTop, alignItems: 'center', flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
       {reactions.map(({ key, icon, activeColor }) => {
-        const active = activeMap?.[key];
+        const active = !!activeMap?.[key];
         const count = item[`${key}Count`] || 0;
-        const color = active ? activeColor : inactiveColor;
+        const color = active ? activeColor : REACTION_INACTIVE;
         return (
-          <button key={key} onClick={() => onToggle(key)} {...pressHandlers(key)}
-            style={{ background: 'none', border: 'none', cursor: canReact ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: buttonGap, color, fontSize: countSize, fontWeight: 500, fontFamily: FONT, letterSpacing: '0.08em', transform: (press && pressed === key) ? 'scale(0.82)' : 'scale(1)', transition: 'transform 0.1s ease, color 0.2s' }}>
-            <ReactionIcon type={icon} size={iconSize} active={active} color={color} />
-            {count > 0 && <span style={{ fontFamily: FONT }}>{count}</span>}
+          <button key={key} onClick={() => handleClick(key)}
+            onMouseDown={() => setPressed(key)} onMouseUp={clearPress} onMouseLeave={clearPress}
+            onTouchStart={() => setPressed(key)} onTouchEnd={clearPress}
+            style={{
+              background: 'none', border: 'none', cursor: canReact ? 'pointer' : 'default',
+              minWidth: 32, minHeight: 32, padding: '0 4px',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+              transform: (pressed === key && !reducedMotion) ? 'scale(0.82)' : 'scale(1)',
+              transition: reducedMotion ? 'none' : 'transform 0.15s ease',
+            }}>
+            <ReactionIcon type={icon} size={iconSize} active={active} color={color} bursting={burst === key} />
+            {count > 0 && <RollingCount value={count} color={active ? GOLD : REACTION_INACTIVE} reducedMotion={reducedMotion} />}
           </button>
         );
       })}

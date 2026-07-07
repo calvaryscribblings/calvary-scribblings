@@ -1065,8 +1065,8 @@ export default function SquarePage() {
   const getReplies = (id) => visiblePosts.filter(p => p.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
 
-  const ReactionBar = ({ p, size = 14 }) => {
-    const idleColor = 'rgba(255,255,255,0.55)';
+  const ReactionBar = ({ p, size = 16 }) => {
+    const idleColor = 'rgba(245,240,232,0.45)';
     const trailing = (
       <>
         {user && (
@@ -1098,9 +1098,6 @@ export default function SquarePage() {
         onToggle={(key) => toggleReaction(p.id, key)}
         canReact={!!user}
         iconSize={size}
-        inactiveColor={idleColor}
-        countSize="0.7rem"
-        gap={12} buttonGap={4} marginTop={8}
         trailing={trailing}
       />
     );
@@ -1314,7 +1311,7 @@ export default function SquarePage() {
                           </>
                         )}
 
-                        <ReactionBar p={p} size={14} />
+                        <ReactionBar p={p} size={16} />
 
                         {replyTo === p.id && (
                           <div style={{ marginTop: 10, position: 'relative' }}>
@@ -1358,7 +1355,7 @@ export default function SquarePage() {
                                         {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} />}
                                       </>
                                     )}
-                                    <ReactionBar p={r} size={13} />
+                                    <ReactionBar p={r} size={14} />
                                   </div>
                                 </div>
                               );
