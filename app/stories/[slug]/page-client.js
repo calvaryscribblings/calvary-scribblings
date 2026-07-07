@@ -14,7 +14,6 @@ import { notifyMentions } from '../../lib/mentions';
 import QuizCard from '../../components/QuizCard';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
-import { Lamplight } from '../../lib/lamplight';
 
 
 const FB = {
@@ -388,15 +387,15 @@ function ExerciseSection({ slug }) {
   if (!exercise || exercise.length === 0) return null;
 
   return (
-    <div className="ex-section" style={{ background: '#f0ead8', maxWidth: 680, margin: '0 auto', padding: '0 2rem 3rem' }}>
-      <div className="ex-inner" style={{ borderTop: '1px solid #e0dbd2', paddingTop: '2rem' }}>
+    <div style={{ background: '#f0ead8', maxWidth: 680, margin: '0 auto', padding: '0 2rem 3rem' }}>
+      <div style={{ borderTop: '1px solid #e0dbd2', paddingTop: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <div>
-            <div className="ex-title" style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>Story Exercise</div>
-            <div className="ex-sub" style={{ fontSize: '0.8rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{exercise.length} question{exercise.length !== 1 ? 's' : ''} · Up to {exercise.reduce((s, q) => s + q.points, 0)} Scribbles</div>
+            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>Story Exercise</div>
+            <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{exercise.length} question{exercise.length !== 1 ? 's' : ''} · Up to {exercise.reduce((s, q) => s + q.points, 0)} Scribbles</div>
           </div>
           {submitted && (
-            <div className="ex-score-chip" style={{ background: 'rgba(107,47,173,0.1)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 8, padding: '0.4rem 0.9rem', fontSize: '0.8rem', color: '#6b2fad', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600 }}>
+            <div style={{ background: 'rgba(107,47,173,0.1)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 8, padding: '0.4rem 0.9rem', fontSize: '0.8rem', color: '#6b2fad', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600 }}>
               {submission.status === 'pending_review' ? '⏳ Essay pending review' : `✓ ${submission.totalScore} Scribbles earned`}
             </div>
           )}
@@ -405,9 +404,9 @@ function ExerciseSection({ slug }) {
         {submitted ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {submission.answers.map((a, i) => (
-              <div key={i} className="ex-result-card" style={{ background: '#fff', border: `1px solid ${a.type === 'mcq' ? (a.correct ? 'rgba(29,158,117,0.3)' : 'rgba(220,38,38,0.3)') : 'rgba(107,47,173,0.2)'}`, borderRadius: 10, padding: '1rem' }}>
-                <div className="ex-q-meta" style={{ fontSize: '0.85rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.4rem' }}>Q{i + 1} · {a.type === 'mcq' ? 'Multiple Choice' : 'Essay'}</div>
-                <div className="ex-q-text" style={{ fontSize: '0.92rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.5rem' }}>{a.question}</div>
+              <div key={i} style={{ background: '#fff', border: `1px solid ${a.type === 'mcq' ? (a.correct ? 'rgba(29,158,117,0.3)' : 'rgba(220,38,38,0.3)') : 'rgba(107,47,173,0.2)'}`, borderRadius: 10, padding: '1rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.4rem' }}>Q{i + 1} · {a.type === 'mcq' ? 'Multiple Choice' : 'Essay'}</div>
+                <div style={{ fontSize: '0.92rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.5rem' }}>{a.question}</div>
                 {a.type === 'mcq' ? (
                   <div style={{ fontSize: '0.9rem', fontFamily: 'Cormorant Garamond, Georgia, serif', color: a.correct ? '#1d9e75' : '#dc2626', fontWeight: 600 }}>
                     {a.correct ? `✓ Correct — +${a.awardedPoints} Scribbles` : '✗ Incorrect — 0 Scribbles'}
@@ -423,15 +422,15 @@ function ExerciseSection({ slug }) {
         ) : user ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {exercise.map((q, i) => (
-              <div key={i} className="ex-card" style={{ background: '#fff', border: '1px solid #e0dbd2', borderRadius: 10, padding: '1.25rem' }}>
-                <div className="ex-q-meta" style={{ fontSize: '0.8rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.4rem' }}>Q{i + 1} · {q.type === 'mcq' ? 'Multiple Choice' : 'Essay'} · {q.points} Scribbles</div>
-                <div className="ex-q-text" style={{ fontSize: '1rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '1rem', lineHeight: 1.6 }}>{q.question}</div>
+              <div key={i} style={{ background: '#fff', border: '1px solid #e0dbd2', borderRadius: 10, padding: '1.25rem' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.4rem' }}>Q{i + 1} · {q.type === 'mcq' ? 'Multiple Choice' : 'Essay'} · {q.points} Scribbles</div>
+                <div style={{ fontSize: '1rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '1rem', lineHeight: 1.6 }}>{q.question}</div>
                 {q.type === 'mcq' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {q.options.filter(o => o.trim()).map((opt, oi) => (
-                      <label key={oi} className={'ex-opt' + (answers[i] === oi ? ' is-sel' : '')} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', padding: '0.6rem 0.75rem', borderRadius: 8, border: `1px solid ${answers[i] === oi ? 'rgba(107,47,173,0.4)' : '#e0dbd2'}`, background: answers[i] === oi ? 'rgba(107,47,173,0.06)' : 'transparent', transition: 'all 0.15s' }}>
+                      <label key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', padding: '0.6rem 0.75rem', borderRadius: 8, border: `1px solid ${answers[i] === oi ? 'rgba(107,47,173,0.4)' : '#e0dbd2'}`, background: answers[i] === oi ? 'rgba(107,47,173,0.06)' : 'transparent', transition: 'all 0.15s' }}>
                         <input type="radio" name={`q${i}`} checked={answers[i] === oi} onChange={() => setAnswers(a => a.map((v, idx) => idx === i ? oi : v))} style={{ accentColor: '#6b2fad' }} />
-                        <span className="ex-opt-text" style={{ fontSize: '0.9rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{opt}</span>
+                        <span style={{ fontSize: '0.9rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{opt}</span>
                       </label>
                     ))}
                   </div>
@@ -441,7 +440,6 @@ function ExerciseSection({ slug }) {
                     onChange={e => setAnswers(a => a.map((v, idx) => idx === i ? e.target.value : v))}
                     placeholder="Write your response here…"
                     rows={5}
-                    className="ex-textarea"
                     style={{ width: '100%', border: '1px solid #e0dbd2', borderRadius: 8, padding: '0.75rem', fontSize: '0.92rem', fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#1a1a1a', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.7 }}
                   />
                 )}
@@ -454,8 +452,8 @@ function ExerciseSection({ slug }) {
             </button>
           </div>
         ) : (
-          <div className="ex-signin" style={{ background: 'rgba(107,47,173,0.06)', border: '1px solid rgba(107,47,173,0.15)', borderRadius: 10, padding: '1.5rem', textAlign: 'center' }}>
-            <div className="ex-signin-text" style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#555', marginBottom: '0.5rem' }}>Sign in to attempt this exercise and earn Scribbles.</div>
+          <div style={{ background: 'rgba(107,47,173,0.06)', border: '1px solid rgba(107,47,173,0.15)', borderRadius: 10, padding: '1.5rem', textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#555', marginBottom: '0.5rem' }}>Sign in to attempt this exercise and earn Scribbles.</div>
           </div>
         )}
       </div>
@@ -1182,14 +1180,6 @@ useEffect(() => {
   return (
 
     <>
-      {/* Ambient night reading light — self-manages (off by day); scroll wires
-          flame-physics disturbance + reading-progress warmth; surface flips the
-          night-paper signal on <html> so the reading surface darkens with it. */}
-      <Lamplight scroll surface />
-      {/* The lit paper: a fixed pool of warm light behind the reading content.
-          Sits OUTSIDE .story-fade-in so its opacity animation can't trap this
-          z-index:-1 layer. Invisible by day; fades in under [data-lamplight]. */}
-      <div className="ll-paper-light" aria-hidden="true"><div className="ll-paper-glow" /></div>
       <style>{`
         @keyframes storyFadeIn { from { opacity: 0; } to { opacity: 1; } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1327,148 +1317,7 @@ useEffect(() => {
           .byline-by { margin-right: 0; }
         }
       .prose figure { margin: 2em 0; }
-.prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }
-
-        /* ── LAMPLIGHT NIGHT PAPER ─────────────────────────────────────────────
-           After 8pm the reading SURFACE itself darkens and warms so the lamps
-           read as lamplight. Driven by [data-lamplight="on"] on <html> (set by
-           app/lib/lamplight.js) with --ll-paper interpolating the background
-           through the night. Daytime (no attribute) = the cream product, exactly
-           as before. The 2.5s crossfade is the same grace the lamps arrive with. */
-        .story-body-wrap, .hit-counter-row, .story-footer, .cs-section,
-        .ata-section:not(.is-condensed) .ata-card, .back-link-row,
-        .prose, .prose p, .prose h2, .prose h3, .prose h4, .prose strong, .prose li,
-        .prose blockquote, .prose blockquote p, .prose hr, .prose .poem-stanza,
-        .prose .poem-stanza p, .prose .poem-title, .prose .poem-numeral, .prose .intro-note,
-        .prose .poem-collection-intro, .prose .poem-contents, .prose .poem-contents li,
-        .prose .poem-contents p, .prose figcaption, .prose .image-caption,
-        .prose .inline-image-caption, .prose .section-break, .prose .features-list,
-        .prose ul, .prose ul li::marker, .prose .features-list ul li::before,
-        .prose.has-dropcap > p:first-of-type::first-letter, .back-link,
-        .cs-name, .cs-comment-text, .cs-time, .cs-loading, .cs-empty, .cs-signin-prompt p,
-        .ata-card .ata-eyebrow, .ata-card .ata-name, .ata-card .ata-role,
-        .ata-card .ata-handle, .ata-card .ata-bio, .ata-card .ata-avatar span, .ata-card .ata-social {
-          transition: background-color 2.5s ease, color 2.5s ease, border-color 2.5s ease;
-        }
-
-        /* Surfaces → warm lamplit paper (deepens with warmth through the night) */
-        /* Surfaces go transparent so the fixed lit-paper layer shows THROUGH —
-           the light is what you read on, not a flat fill. */
-        [data-lamplight="on"] .story-body-wrap,
-        [data-lamplight="on"] .hit-counter-row,
-        [data-lamplight="on"] .story-footer,
-        [data-lamplight="on"] .cs-section {
-          background: transparent;
-        }
-        /* The author card reads as a raised surface catching the light. */
-        [data-lamplight="on"] .ata-section:not(.is-condensed) .ata-card {
-          background: rgba(34,26,17,0.55);
-        }
-        [data-lamplight="on"] .back-link-row,
-        [data-lamplight="on"] .hit-counter-row,
-        [data-lamplight="on"] .story-footer,
-        [data-lamplight="on"] .ata-section:not(.is-condensed) .ata-card {
-          border-color: rgba(232,220,200,0.12);
-        }
-
-        /* Body ink → warm cream */
-        [data-lamplight="on"] .prose,
-        [data-lamplight="on"] .prose p,
-        [data-lamplight="on"] .prose h2,
-        [data-lamplight="on"] .prose h4,
-        [data-lamplight="on"] .prose strong,
-        [data-lamplight="on"] .prose li,
-        [data-lamplight="on"] .prose .poem-stanza,
-        [data-lamplight="on"] .prose .poem-stanza p,
-        [data-lamplight="on"] .prose .poem-contents p,
-        [data-lamplight="on"] .prose .poem-contents li,
-        [data-lamplight="on"] .cs-name,
-        [data-lamplight="on"] .cs-comment-text,
-        [data-lamplight="on"] .ata-card .ata-name {
-          color: rgba(232,220,200,0.92);
-        }
-        [data-lamplight="on"] .prose ul li::marker { color: #c9a84c; }
-
-        /* Meta → warm cream at 0.55 */
-        [data-lamplight="on"] .prose figcaption,
-        [data-lamplight="on"] .prose .image-caption,
-        [data-lamplight="on"] .prose .inline-image-caption,
-        [data-lamplight="on"] .prose img + em,
-        [data-lamplight="on"] .prose .section-break,
-        [data-lamplight="on"] .prose .poem-collection-intro,
-        [data-lamplight="on"] .prose p[style*='text-align:center'],
-        [data-lamplight="on"] .prose p[style*='text-align: center'],
-        [data-lamplight="on"] .hit-counter-row,
-        [data-lamplight="on"] .story-footer,
-        [data-lamplight="on"] .cs-time,
-        [data-lamplight="on"] .ata-card .ata-eyebrow,
-        [data-lamplight="on"] .ata-card .ata-role {
-          color: rgba(232,220,200,0.55);
-        }
-
-        /* Links & warm-gold accents; drop cap stays gold */
-        [data-lamplight="on"] .back-link,
-        [data-lamplight="on"] .prose h3,
-        [data-lamplight="on"] .prose .poem-title,
-        [data-lamplight="on"] .prose .poem-numeral,
-        [data-lamplight="on"] .prose .intro-note,
-        [data-lamplight="on"] .prose.has-dropcap > p:first-of-type::first-letter,
-        [data-lamplight="on"] .ata-card .ata-handle,
-        [data-lamplight="on"] .ata-card .ata-avatar span,
-        [data-lamplight="on"] .ata-card .ata-social {
-          color: #c9a84c;
-        }
-
-        /* Softer warm cream for longer secondary text */
-        [data-lamplight="on"] .ata-card .ata-bio,
-        [data-lamplight="on"] .cs-loading,
-        [data-lamplight="on"] .cs-empty,
-        [data-lamplight="on"] .cs-signin-prompt p {
-          color: rgba(232,220,200,0.72);
-        }
-
-        /* Blockquote & rule → warm ember-gold */
-        [data-lamplight="on"] .prose blockquote {
-          border-left-color: #c9a84c;
-          background: rgba(201,168,76,0.08);
-          color: #dcc9a0;
-        }
-        [data-lamplight="on"] .prose blockquote p { color: #dcc9a0; }
-        [data-lamplight="on"] .prose hr { background: linear-gradient(90deg, transparent, #c9a84c, transparent); }
-
-        /* Pale callout/list backgrounds → warm dark with a gold rule */
-        [data-lamplight="on"] .prose .features-list,
-        [data-lamplight="on"] .prose ul,
-        [data-lamplight="on"] .prose .poem-contents {
-          background: rgba(40,30,18,0.5);
-          border-left-color: #c9a84c;
-        }
-        [data-lamplight="on"] .prose .features-list ul li::before { color: #c9a84c; }
-
-        /* Story Exercise cards — inline-styled, so the night overrides need
-           !important to win over the element style. Result-card borders are left
-           inline (they carry the green/red/amber verdict, legible on dark). */
-        .ex-section, .ex-inner, .ex-title, .ex-sub, .ex-score-chip, .ex-result-card,
-        .ex-card, .ex-q-meta, .ex-q-text, .ex-opt-text, .ex-textarea,
-        .ex-signin, .ex-signin-text {
-          transition: background-color 2.5s ease, color 2.5s ease, border-color 2.5s ease;
-        }
-        [data-lamplight="on"] .ex-section { background: transparent !important; }
-        [data-lamplight="on"] .ex-inner { border-top-color: rgba(232,220,200,0.12) !important; }
-        [data-lamplight="on"] .ex-result-card { background: rgba(40,30,18,0.5) !important; }
-        [data-lamplight="on"] .ex-card { background: rgba(40,30,18,0.5) !important; border-color: rgba(232,220,200,0.12) !important; }
-        [data-lamplight="on"] .ex-textarea { background: rgba(20,15,9,0.6) !important; border-color: rgba(232,220,200,0.14) !important; }
-        [data-lamplight="on"] .ex-signin { background: rgba(40,30,18,0.5) !important; border-color: rgba(201,168,76,0.2) !important; }
-        [data-lamplight="on"] .ex-opt { border-color: rgba(232,220,200,0.14) !important; }
-        [data-lamplight="on"] .ex-opt.is-sel { border-color: #c9a84c !important; background: rgba(201,168,76,0.1) !important; }
-        [data-lamplight="on"] .ex-title,
-        [data-lamplight="on"] .ex-q-text,
-        [data-lamplight="on"] .ex-opt-text,
-        [data-lamplight="on"] .ex-textarea { color: rgba(232,220,200,0.92) !important; }
-        [data-lamplight="on"] .ex-sub,
-        [data-lamplight="on"] .ex-q-meta { color: rgba(232,220,200,0.55) !important; }
-        [data-lamplight="on"] .ex-signin-text { color: rgba(232,220,200,0.72) !important; }
-        [data-lamplight="on"] .ex-score-chip { background: rgba(201,168,76,0.1) !important; border-color: rgba(201,168,76,0.35) !important; color: #c9a84c !important; }`}</style>
+.prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
 
       <div className="reading-progress" style={{ width: `${scrollProgress}%` }} />
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>

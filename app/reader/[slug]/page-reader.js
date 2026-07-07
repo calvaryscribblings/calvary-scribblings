@@ -12,7 +12,6 @@ import AuthModal from '../../components/AuthModal';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import { use } from 'react';
 import { useDeletedUids } from '../../lib/userVisibility';
-import { Lamplight } from '../../lib/lamplight';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -537,8 +536,6 @@ export default function StoryReaderClient({ params }) {
   const [progress, setProgress] = useState(0);
   const [readerUser, setReaderUser] = useState(null);
   const iframeRef = useRef(null);
-  const lampRef = useRef(null);       // Lamplight imperative handle (the Hearth)
-  const lastSpine = useRef(null);     // CFI spine index — chapter-boundary detection
   const pendingFont = useRef(1);
   const progressSaveTimer = useRef(null);
 
@@ -655,21 +652,6 @@ export default function StoryReaderClient({ params }) {
         currentFraction.current = fr;
         if (e.data.cfi) bookmarkCFI.current = e.data.cfi;
 
-        // Lamplight (The Hearth): progress deepens warmth; each page turn draws a
-        // soft brightness swell + a breath of air across the flame; crossing into
-        // a new spine item (chapter) dims and restores like a scene change.
-        if (lampRef.current) {
-          lampRef.current.setProgress(fr);
-          lampRef.current.pulse();
-          lampRef.current.bump(0.4);
-          const m = typeof e.data.cfi === 'string' && e.data.cfi.match(/^epubcfi\(\/(\d+)\/(\d+)/);
-          const spine = m ? `${m[1]}/${m[2]}` : null;
-          if (spine) {
-            if (lastSpine.current !== null && spine !== lastSpine.current) lampRef.current.chapter();
-            lastSpine.current = spine;
-          }
-        }
-
         setProgress(fr * 100);
         if (fr > 0 && e.data.step > 0) {
           const total = Math.max(1, Math.round(1 / e.data.step));
@@ -733,9 +715,6 @@ export default function StoryReaderClient({ params }) {
 
   return (
     <>
-      {/* The Hearth — ambient night reading light. Page/chapter turns are wired
-          through the relocate handler above via lampRef. Off by day. */}
-      <Lamplight ref={lampRef} reader />
       <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         html,body{height:100%;background:#1a0f0a}
