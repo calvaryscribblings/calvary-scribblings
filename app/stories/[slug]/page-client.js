@@ -1186,6 +1186,10 @@ useEffect(() => {
           flame-physics disturbance + reading-progress warmth; surface flips the
           night-paper signal on <html> so the reading surface darkens with it. */}
       <Lamplight scroll surface />
+      {/* The lit paper: a fixed pool of warm light behind the reading content.
+          Sits OUTSIDE .story-fade-in so its opacity animation can't trap this
+          z-index:-1 layer. Invisible by day; fades in under [data-lamplight]. */}
+      <div className="ll-paper-light" aria-hidden="true"><div className="ll-paper-glow" /></div>
       <style>{`
         @keyframes storyFadeIn { from { opacity: 0; } to { opacity: 1; } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1348,12 +1352,17 @@ useEffect(() => {
         }
 
         /* Surfaces → warm lamplit paper (deepens with warmth through the night) */
+        /* Surfaces go transparent so the fixed lit-paper layer shows THROUGH —
+           the light is what you read on, not a flat fill. */
         [data-lamplight="on"] .story-body-wrap,
         [data-lamplight="on"] .hit-counter-row,
         [data-lamplight="on"] .story-footer,
-        [data-lamplight="on"] .cs-section,
+        [data-lamplight="on"] .cs-section {
+          background: transparent;
+        }
+        /* The author card reads as a raised surface catching the light. */
         [data-lamplight="on"] .ata-section:not(.is-condensed) .ata-card {
-          background: var(--ll-paper, #16120e);
+          background: rgba(34,26,17,0.55);
         }
         [data-lamplight="on"] .back-link-row,
         [data-lamplight="on"] .hit-counter-row,
@@ -1444,7 +1453,7 @@ useEffect(() => {
         .ex-signin, .ex-signin-text {
           transition: background-color 2.5s ease, color 2.5s ease, border-color 2.5s ease;
         }
-        [data-lamplight="on"] .ex-section { background: var(--ll-paper, #16120e) !important; }
+        [data-lamplight="on"] .ex-section { background: transparent !important; }
         [data-lamplight="on"] .ex-inner { border-top-color: rgba(232,220,200,0.12) !important; }
         [data-lamplight="on"] .ex-result-card { background: rgba(40,30,18,0.5) !important; }
         [data-lamplight="on"] .ex-card { background: rgba(40,30,18,0.5) !important; border-color: rgba(232,220,200,0.12) !important; }
