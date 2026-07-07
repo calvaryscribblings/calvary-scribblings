@@ -12,6 +12,7 @@ import AuthModal from '../../components/AuthModal';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import { use } from 'react';
 import { useDeletedUids } from '../../lib/userVisibility';
+import { getReaderId } from '../../lib/readerId';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
 
 const COMMENT_REACTIONS = buildReactions('heart');
@@ -416,6 +417,25 @@ export default function StoryReaderClient({ params }) {
   const iframeRef = useRef(null);
   const pendingFont = useRef(1);
   const progressSaveTimer = useRef(null);
+  const hitFired = useRef(false);
+
+  // Read counter — engagement-gated, fired once per load. slug is stable for a
+  // mounted reader, so this closure is safe to call from the message handler.
+  // readerId lets the server de-dupe to one read per reader.
+  const fireReadHit = useCallback(() => {
+    if (hitFired.current) return;
+    hitFired.current = true;
+    getReaderId().then((readerId) => {
+      fetch('/api/hit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, readerId }),
+      })
+        .then((r) => r.json())
+        .then((d) => { if (typeof d.count === 'number') setHitCount(d.count); })
+        .catch(() => {});
+    });
+  }, [slug]);
 
   // Lightweight auth observer for QuizCard / progress writes
   useEffect(() => {
@@ -495,10 +515,32 @@ export default function StoryReaderClient({ params }) {
     })();
   }, [slug]);
 
+  // Read counter — engagement-gated. Fire on the first of: the reader's first
+  // page turn (relocate, wired in the message handler), or 12s of *foreground*
+  // dwell. The dwell timer only advances while the tab is visible, so a
+  // backgrounded tab never counts.
+  useEffect(() => {
+    if (!slug) return undefined;
+    let dwellMs = 0;
+    let lastTick = document.visibilityState === 'visible' ? Date.now() : null;
+    const tick = () => {
+      if (hitFired.current) return;
+      if (document.visibilityState !== 'visible') { lastTick = null; return; }
+      const now = Date.now();
+      if (lastTick != null) dwellMs += now - lastTick;
+      lastTick = now;
+      if (dwellMs >= 12000) fireReadHit();
+    };
+    const onVis = () => {
+      lastTick = document.visibilityState === 'visible' ? Date.now() : null;
+    };
+    const interval = setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVis); };
+  }, [slug, fireReadHit]);
+
   useEffect(() => {
     if (!slug) return;
-    fetch('/api/hit?slug=' + slug, { method: 'POST' })
-      .then(r => r.json()).then(d => { if (typeof d.count === 'number') setHitCount(d.count); }).catch(() => {});
     (async () => {
       try {
         const auth = await getFirebaseAuth();
@@ -526,6 +568,8 @@ export default function StoryReaderClient({ params }) {
       if (e.data.type === 'debugDetail') { setDebugMsg('keys:' + e.data.keys + ' cfi:' + e.data.cfi); }
       if (e.data.type === 'ended') setShowEnd(true);
       if (e.data.type === 'relocate') {
+        // First page turn = engagement. Counts the read (once; guarded internally).
+        fireReadHit();
         const fr = e.data.fraction;
         currentFraction.current = fr;
         if (e.data.cfi) bookmarkCFI.current = e.data.cfi;

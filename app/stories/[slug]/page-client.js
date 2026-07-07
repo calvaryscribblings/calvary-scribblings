@@ -14,6 +14,7 @@ import { notifyMentions } from '../../lib/mentions';
 import QuizCard from '../../components/QuizCard';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
+import { getReaderId } from '../../lib/readerId';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
 
 const COMMENT_REACTIONS = buildReactions('heart');
@@ -1065,12 +1066,68 @@ export default function StoryPageClient({ params }) {
     return () => { if (obs) obs.disconnect(); };
   }, [story, storyReady]);
 
+  // Read counter — engagement-gated. Fire the hit once per page load on the
+  // first of: 12s of *foreground* dwell, or scrolling ≥25% through the article.
+  // The scroll gate reuses the reading-thread measurement (articleMetrics). The
+  // dwell timer only advances while the tab is visible, so a backgrounded tab
+  // never counts. readerId lets the server de-dupe to one read per reader.
+  useEffect(() => {
+    if (!slug || !story) return undefined;
+    let fired = false;
+    let dwellMs = 0;
+    let lastTick = document.visibilityState === 'visible' ? Date.now() : null;
+
+    const fire = () => {
+      if (fired) return;
+      fired = true;
+      cleanup();
+      getReaderId().then((readerId) => {
+        fetch('/api/hit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, readerId }),
+        })
+          .then((r) => r.json())
+          .then((data) => { if (typeof data.count === 'number') setHitCount(data.count); })
+          .catch(() => {});
+      });
+    };
+
+    const checkScroll = () => {
+      if (fired) return;
+      const { top, height } = articleMetrics.current;
+      const range = height - window.innerHeight;
+      if (range <= 0) return; // article fits the viewport — the dwell gate handles it
+      if ((window.scrollY - top) / range >= 0.25) fire();
+    };
+
+    const tick = () => {
+      if (fired) return;
+      if (document.visibilityState !== 'visible') { lastTick = null; return; }
+      const now = Date.now();
+      if (lastTick != null) dwellMs += now - lastTick;
+      lastTick = now;
+      if (dwellMs >= 12000) fire();
+    };
+
+    const onVis = () => {
+      lastTick = document.visibilityState === 'visible' ? Date.now() : null;
+    };
+
+    const interval = setInterval(tick, 1000);
+    window.addEventListener('scroll', checkScroll, { passive: true });
+    document.addEventListener('visibilitychange', onVis);
+
+    function cleanup() {
+      clearInterval(interval);
+      window.removeEventListener('scroll', checkScroll);
+      document.removeEventListener('visibilitychange', onVis);
+    }
+    return cleanup;
+  }, [slug, story]);
+
   useEffect(() => {
     if (!slug) return;
-    fetch(`/api/hit?slug=${slug}`, { method: 'POST' })
-      .then(r => r.json())
-      .then(data => { if (typeof data.count === 'number') setHitCount(data.count); })
-      .catch(() => {});
 
     let unsubRead;
     (async () => {

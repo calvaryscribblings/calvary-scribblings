@@ -1,12 +1,15 @@
 // Story read-counter Pages Function.
 //
-//   POST (or GET) /api/hit?slug=<storySlug>  ->  { count: <updatedTotal> }
+//   POST /api/hit  { slug, readerId }  ->  { count, counted }   (deduped)
+//   POST/GET /api/hit?slug=<slug>      ->  { count }            (back-compat)
 //
 // Replaces the /api/hit endpoint that was removed in the functions/ restructure.
-// The story and reader pages call this on mount —
-//   fetch('/api/hit?slug=…', { method: 'POST' })
-// — to record a read and display the live total (app/stories/[slug]/page-client.js
-// and app/reader/[slug]/page-reader.js both read { count }).
+// The web story/reader pages now fire this behind an engagement gate (not on
+// mount) and pass a readerId so a read counts at most once per (slug, readerId):
+// the ledger at storyReads/{slug}/{readerId} is checked before the counter is
+// bumped. Requests WITHOUT a readerId (old app binaries) keep counting
+// unconditionally — see the back-compat branch below. Callers read { count }
+// (app/stories/[slug]/page-client.js and app/reader/[slug]/page-reader.js).
 //
 // This is a Cloudflare Pages Function (the deployed app is a static `output:'export'`
 // build served from out/, so Next.js Route Handlers do not run as live endpoints —
@@ -100,9 +103,33 @@ async function getAccessToken(clientEmail, privateKeyPem) {
 
 async function handle(context) {
   const { request, env } = context;
-  const { searchParams } = new URL(request.url);
-  const slug = (searchParams.get('slug') || '').trim();
+  const url = new URL(request.url);
+
+  // slug + readerId may arrive via query (old app binaries POST ?slug=…, no
+  // body) or as a JSON body { slug, readerId } (current web client). Query wins.
+  let slug = (url.searchParams.get('slug') || '').trim();
+  let readerId = (url.searchParams.get('readerId') || '').trim();
+  if (request.method === 'POST') {
+    try {
+      const body = await request.json();
+      if (body && typeof body === 'object') {
+        if (!slug && typeof body.slug === 'string') slug = body.slug.trim();
+        if (!readerId && typeof body.readerId === 'string') readerId = body.readerId.trim();
+      }
+    } catch (e) {
+      // No / non-JSON body — old app binaries send none. Fall through to query.
+    }
+  }
+
   if (!slug) return json({ error: 'slug required.' }, 400);
+  // slug is used as an RTDB path key — constrain to the published-slug charset.
+  if (slug.length > 200 || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(slug)) {
+    return json({ error: 'Invalid slug.' }, 400);
+  }
+  // readerId is a Firebase uid or a client UUID — sane charset, ≤64 chars.
+  if (readerId && (readerId.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(readerId))) {
+    return json({ error: 'Invalid readerId.' }, 400);
+  }
 
   const clientEmail = env.FIREBASE_CLIENT_EMAIL;
   const privateKey = (env.FIREBASE_PRIVATE_KEY ?? '').replace(/\\n/g, '\n');
@@ -124,7 +151,72 @@ async function handle(context) {
   const auth = { Authorization: `Bearer ${accessToken}` };
   const hitsPath = `${fbDb}/stories/${encodeURIComponent(slug)}/hits.json`;
 
-  // Atomic server-side increment (ServerValue.increment over REST).
+  // Authoritative post-write total (ServerValue.increment is applied server-side).
+  const readBackCount = async () => {
+    try {
+      const getRes = await fetch(hitsPath, { headers: auth });
+      if (getRes.ok) {
+        const v = await getRes.json();
+        if (typeof v === 'number') return v;
+      }
+    } catch (e) {
+      console.warn('[hit] read-back failed:', e.message);
+    }
+    return null;
+  };
+
+  // ── Deduped path — one read per (slug, readerId). ─────────────────────────
+  // storyReads/{slug}/{readerId} is the ledger. It is written ONLY by this
+  // function (which holds the DB credential and bypasses rules); clients are
+  // locked out of it (see database.rules.storyReads-fragment.json).
+  if (readerId) {
+    const ledgerPath = `${fbDb}/storyReads/${encodeURIComponent(slug)}/${encodeURIComponent(readerId)}.json`;
+    try {
+      const seenRes = await fetch(ledgerPath, { headers: auth });
+      if (seenRes.ok) {
+        const seen = await seenRes.json();
+        if (seen !== null && seen !== undefined) {
+          // Already counted this reader — return the current total untouched.
+          return json({ count: await readBackCount(), counted: false });
+        }
+      } else {
+        const text = await seenRes.text();
+        console.error('[hit] ledger read failed:', seenRes.status, text.slice(0, 200));
+        return json({ error: 'Failed to check read ledger.' }, 500);
+      }
+    } catch (e) {
+      console.error('[hit] ledger read error:', e.message);
+      return json({ error: 'Failed to check read ledger.' }, 500);
+    }
+
+    // First read for this reader: mark the ledger AND bump the counter in one
+    // atomic root PATCH (same shape as functions/api/record-attempt.js).
+    const updates = {
+      [`storyReads/${slug}/${readerId}`]: { '.sv': 'timestamp' },
+      [`stories/${slug}/hits`]: { '.sv': { increment: 1 } },
+    };
+    try {
+      const patchRes = await fetch(`${fbDb}/.json`, {
+        method: 'PATCH',
+        headers: { ...auth, 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!patchRes.ok) {
+        const text = await patchRes.text();
+        console.error('[hit] ledger+increment failed:', patchRes.status, text.slice(0, 200));
+        return json({ error: `Increment failed (${patchRes.status}).` }, 500);
+      }
+    } catch (e) {
+      console.error('[hit] ledger+increment error:', e.message);
+      return json({ error: 'Increment failed.' }, 500);
+    }
+
+    return json({ count: await readBackCount(), counted: true });
+  }
+
+  // ── BACK-COMPAT path — no readerId: count unconditionally (old behavior). ──
+  // TODO(reads-dedupe): remove this branch once the held app OTA has rolled and
+  // every live binary sends a readerId. Until then, old app builds land here.
   try {
     const incRes = await fetch(hitsPath, {
       method: 'PUT',
@@ -141,19 +233,7 @@ async function handle(context) {
     return json({ error: 'Increment failed.' }, 500);
   }
 
-  // Read back the authoritative post-increment total.
-  let count = null;
-  try {
-    const getRes = await fetch(hitsPath, { headers: auth });
-    if (getRes.ok) {
-      const v = await getRes.json();
-      if (typeof v === 'number') count = v;
-    }
-  } catch (e) {
-    console.warn('[hit] read-back failed:', e.message);
-  }
-
-  return json({ count });
+  return json({ count: await readBackCount() });
 }
 
 export async function onRequestGet(context) {
