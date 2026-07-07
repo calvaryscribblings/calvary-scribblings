@@ -14,6 +14,9 @@ import { notifyMentions } from '../../lib/mentions';
 import QuizCard from '../../components/QuizCard';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
+import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
+
+const COMMENT_REACTIONS = buildReactions('heart');
 
 
 const FB = {
@@ -121,112 +124,6 @@ function PaywallGate({ user, onSignIn }) {
   );
 }
 
-function getBadge(readCount, uid) {
-  if (readCount >= 1000) return { tier: 'immortal', label: 'Immortal of the Island', color: '#9b6dff' };
-  if (readCount >= 150) return { tier: 'legend', label: 'Legend of the Island', color: '#d4537e' };
-  if (readCount >= 90) return { tier: 'islander', label: 'Story Islander', color: '#d4941a' };
-  if (readCount >= 60) return { tier: 'island', label: 'Island Reader', color: '#1d9e75' };
-  if (readCount >= 25) return { tier: 'reader', label: 'Reader', color: '#b4b2a9' };
-  return null;
-}
-
-const BADGE_SVG_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
-const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
-const HEART_PATH = "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z";
-
-function BadgeIcon({ color, size = 14, isFounder = false }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-      <defs>
-        <linearGradient id="platGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#e8f0f8"/><stop offset="50%" stopColor="#c8daea"/><stop offset="100%" stopColor="#a8c0d6"/>
-        </linearGradient>
-      </defs>
-      <path fill={isFounder ? 'url(#platGrad)' : color} d={BADGE_SVG_PATH} />
-      <path fill={color === '#b4b2a9' ? '#0a0a0a' : '#fff'} d={CHECK_PATH} />
-    </svg>
-  );
-}
-
-function BadgeDisplay({ tier, label, color, size = 13 }) {
-  if (!tier) return null;
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-      <BadgeIcon color={color} size={size} isFounder={tier === 'founder'} />
-      <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: tier === 'founder' ? '#c8daea' : color, fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap' }}>{label}</span>
-    </span>
-  );
-}
-
-function WriterBadge({ size = 13 }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-        <path fill="#581c87" d={BADGE_SVG_PATH} />
-        <path fill="#e9d5ff" d={CHECK_PATH} />
-      </svg>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)', borderRadius: 6, padding: '1px 7px 1px 5px' }}>
-        <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path fill="#d4537e" d={HEART_PATH} /></svg>
-        <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap' }}>Writer</span>
-      </span>
-    </span>
-  );
-}
-
-function CommentBadge({ uid, size = 13 }) {
-  const [badge, setBadge] = useState(null);
-  const [isAuthor, setIsAuthor] = useState(false);
-  useEffect(() => {
-    if (!uid) return;
-    (async () => {
-      try {
-        const db = await getDB();
-        const { ref, get } = await import('firebase/database');
-        const snap = await get(ref(db, `users/${uid}`));
-        if (snap.exists()) {
-          const data = snap.val();
-          setIsAuthor(data.isAuthor || false);
-          setBadge(getBadge(data.readCount || 0, uid));
-        }
-      } catch (e) {}
-    })();
-  }, [uid]);
-  if (isAuthor) return <WriterBadge size={size} />;
-  if (!badge) return null;
-  return <BadgeDisplay tier={badge.tier} label={badge.label} color={badge.color} size={size} />;
-}
-
-function CommentAvatar({ uid, initials, size = 'sm', isOwnComment }) {
-  const [photoUrl, setPhotoUrl] = useState(null);
-  const dim = size === 'xs' ? 26 : size === 'sm' ? 34 : 36;
-  const fontSize = size === 'xs' ? 9 : size === 'sm' ? 11 : 12;
-  const href = isOwnComment ? '/profile' : `/user?id=${uid}`;
-
-  useEffect(() => {
-    if (!uid) return;
-    (async () => {
-      try {
-        const db = await getDB();
-        const { ref, get } = await import('firebase/database');
-        const snap = await get(ref(db, `users/${uid}/avatarUrl`));
-        if (snap.exists()) setPhotoUrl(snap.val());
-      } catch (e) {}
-    })();
-  }, [uid]);
-
-  return (
-    <a href={href} style={{
-      width: dim, height: dim, borderRadius: '50%',
-      background: 'rgba(107,47,173,0.25)', border: '1px solid rgba(107,47,173,0.3)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize, fontWeight: 500, color: '#9b6dff', flexShrink: 0,
-      fontFamily: 'Cormorant Garamond, Georgia, serif', overflow: 'hidden', textDecoration: 'none',
-    }}>
-      {photoUrl ? <img src={photoUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
-    </a>
-  );
-}
-
 function CommentUsername({ uid }) {
   const [username, setUsername] = useState(null);
   useEffect(() => {
@@ -281,18 +178,6 @@ function AuthorHandleLink({ handle, style }) {
       @{handle}
     </a>
   );
-}
-
-function timeAgo(ts) {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 // ── Exercise Section ──────────────────────────────────────────────────────────
@@ -463,24 +348,6 @@ function ExerciseSection({ slug }) {
 
 // ── Comments Section ──────────────────────────────────────────────────────────
 
-function renderCommentText(text) {
-  if (!text) return text;
-  const parts = [];
-  let last = 0;
-  const re = /(^|\s)@([a-z0-9_]{3,20})\b/gi;
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    const [, pre, handle] = m;
-    const start = m.index + pre.length;
-    const end = start + 1 + handle.length;
-    if (start > last) parts.push(text.slice(last, start));
-    parts.push(<a key={start} href={`/user?handle=${handle}`} style={{ color: '#a78bfa', textDecoration: 'none', fontWeight: 500 }}>@{handle}</a>);
-    last = end;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return parts;
-}
-
 function CommentSkeleton() {
   return (
     <div style={{ display: 'flex', gap: 12, marginBottom: '1.25rem' }}>
@@ -522,17 +389,16 @@ const CommentNode = React.memo(function CommentNode({
   const visualDepth = Math.min(depth, 3);
   const isFlattened = depth > 3;
   const indentPx = (visualDepth - 1) * 28;
-  const [pressedReaction, setPressedReaction] = useState(null);
 
   return (
     <div style={{ marginLeft: indentPx }}>
       <div className={depth === 1 ? "cs-comment" : "cs-reply"}>
-        <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size={depth === 1 ? "sm" : "xs"} isOwnComment={isOwn} />
+        <Avatar variant="comment" uid={comment.authorUid} initials={comment.authorInitials} size={depth === 1 ? "sm" : "xs"} isOwn={isOwn} />
         <div className="cs-comment-body">
           <div className="cs-comment-header" style={{ position: 'relative' }}>
             <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link"><CommentName uid={comment.authorUid} fallback={comment.authorName} /></a>
             <CommentUsername uid={comment.authorUid} />
-            <CommentBadge uid={comment.authorUid} size={depth === 1 ? 13 : 12} />
+            <UserBadge self uid={comment.authorUid} size={depth === 1 ? 13 : 12} labelSize="0.68rem" gap="4px" />
             <span className="cs-time">{timeAgo(comment.createdAt)}</span>
             {comment.editedAt && <span className="cs-time"> · edited</span>}
             {isOwn && (
@@ -566,41 +432,31 @@ const CommentNode = React.memo(function CommentNode({
                 )}
                 {comment.text && comment.text.length > 100 ? (
                   <>
-                    {renderCommentText(comment.text.slice(0, 100))}…
+                    {renderMentions(comment.text.slice(0, 100))}…
                     <button
                       onClick={() => setExpandedComment({ text: comment.text, authorName: comment.authorName })}
                       style={{ color: 'rgba(107,47,173,0.8)', fontSize: '0.82rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', cursor: 'pointer', marginLeft: 4, background: 'none', border: 'none', padding: 0 }}
                     >more</button>
                   </>
                 ) : (
-                  renderCommentText(comment.text)
+                  renderMentions(comment.text)
                 )}
               </>
             )}
           </div>
-          <div className="cs-comment-footer" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
-            {[
-              { type: 'heart', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
-              { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
-              { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
-            ].map(({ type, activeColor, d }) => {
-              const active = commentReactions[comment.id]?.[type];
-              const count = comment[type + 'Count'] || 0;
-              return (
-                <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
-                  onMouseDown={() => setPressedReaction(`${comment.id}:${type}`)}
-                  onMouseUp={() => setPressedReaction(null)}
-                  onMouseLeave={() => setPressedReaction(null)}
-                  onTouchStart={() => setPressedReaction(`${comment.id}:${type}`)}
-                  onTouchEnd={() => setPressedReaction(null)}
-                  style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transform: pressedReaction === `${comment.id}:${type}` ? 'scale(0.82)' : 'scale(1)', transition: 'transform 0.1s ease, color 0.2s' }}>
-                  <svg width={depth === 1 ? "12" : "11"} height={depth === 1 ? "12" : "11"} viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-                  {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{count}</span>}
-                </button>
-              );
-            })}
-            {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
-          </div>
+          <ReactionRow
+            reactions={COMMENT_REACTIONS}
+            item={comment}
+            activeMap={commentReactions[comment.id]}
+            onToggle={(key) => toggleCommentReaction(comment.id, key, comment.authorUid)}
+            canReact={!!user}
+            iconSize={depth === 1 ? 12 : 11}
+            inactiveColor="rgba(255,255,255,0.4)"
+            countSize={depth === 1 ? '0.6rem' : '0.58rem'}
+            press
+            gap={12} buttonGap={3} marginTop={6}
+            trailing={user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
+          />
           {replyTo === comment.id && (
             <div className="cs-reply-compose">
               <div className="cs-input-wrap">

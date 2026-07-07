@@ -4,6 +4,9 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { stories as allStaticStories } from '../lib/stories';
 import { useDeletedUids } from '../lib/userVisibility';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
+import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions, BADGE_SVG_PATH, CHECK_PATH } from '../components/conversation/ConversationKit';
+
+const SQUARE_REACTIONS = buildReactions('like');
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -25,10 +28,6 @@ async function getFirebaseAuth() { const { getAuth } = await import('firebase/au
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 const MOD_UIDS = [FOUNDER_UID]; // add @calvaryscribblings UID here once known
 const CALVARY_UID = FOUNDER_UID; // system post author
-
-const BADGE_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
-const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
-const HEART_PATH = "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z";
 
 // ── Time helpers (London/BST aware) ───────────────────────────────────────────
 function getLondonTime() {
@@ -59,53 +58,15 @@ function getCountdown() {
 function isFriday() { return getLondonTime().day === 5; }
 function isMonday() { return getLondonTime().day === 1; }
 
-function getBadge(readCount, uid) {
-  if (readCount >= 1000) return { tier: 'immortal', label: 'Immortal of the Island', color: '#9b6dff' };
-  if (readCount >= 150) return { tier: 'legend', label: 'Legend of the Island', color: '#d4537e' };
-  if (readCount >= 90) return { tier: 'islander', label: 'Story Islander', color: '#d4941a' };
-  if (readCount >= 60) return { tier: 'island', label: 'Island Reader', color: '#1d9e75' };
-  if (readCount >= 25) return { tier: 'reader', label: 'Reader', color: '#b4b2a9' };
-  return null;
-}
-
 function getMaxChars(readCount, uid, isAuthor) {
   if (isAuthor || uid === FOUNDER_UID || readCount >= 150) return 500;
   return 200;
 }
 
-function BadgeIcon({ color, size = 13, isFounder = false }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-      <defs>
-        <linearGradient id="sqPlat" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#e8f0f8"/><stop offset="50%" stopColor="#c8daea"/><stop offset="100%" stopColor="#a8c0d6"/>
-        </linearGradient>
-      </defs>
-      <path fill={isFounder ? 'url(#sqPlat)' : color} d={BADGE_PATH} />
-      <path fill={color === '#b4b2a9' ? '#0a0a0a' : '#fff'} d={CHECK_PATH} />
-    </svg>
-  );
-}
-
-function WriterBadge({ size = 13 }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-        <path fill="#581c87" d={BADGE_PATH} />
-        <path fill="#e9d5ff" d={CHECK_PATH} />
-      </svg>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)', borderRadius: 6, padding: '1px 7px 1px 5px' }}>
-        <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path fill="#d4537e" d={HEART_PATH} /></svg>
-        <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap' }}>Writer</span>
-      </span>
-    </span>
-  );
-}
-
 function VerifiedBadge({ size = 11 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }} aria-label="Verified">
-      <path fill="#6b2fad" d={BADGE_PATH} />
+      <path fill="#6b2fad" d={BADGE_SVG_PATH} />
       <path fill="#e9d5ff" d={CHECK_PATH} />
     </svg>
   );
@@ -164,32 +125,6 @@ function QuotedCard({ quotedPost, onClear }) {
   );
 }
 
-// Reaction SVG icons
-function HeartIcon({ filled, size = 12 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#d4537e' : 'none'} stroke={filled ? '#d4537e' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d={HEART_PATH}/>
-    </svg>
-  );
-}
-
-function ClapIcon({ filled, size = 12 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#d4941a' : 'none'} stroke={filled ? '#d4941a' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
-      <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
-    </svg>
-  );
-}
-
-function FlameIcon({ filled, size = 12 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? '#ef4444' : 'none'} stroke={filled ? '#ef4444' : 'currentColor'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
-    </svg>
-  );
-}
-
 function PinIcon({ size = 12 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -203,53 +138,6 @@ function PollIcon({ size = 12 }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="12" width="4" height="9"/><rect x="10" y="7" width="4" height="14"/><rect x="17" y="3" width="4" height="18"/>
     </svg>
-  );
-}
-
-function timeAgo(ts) {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-}
-
-function UserBadge({ uid, readCount, isAuthor }) {
-  const badge = getBadge(readCount || 0, uid);
-  if (isAuthor) return <WriterBadge size={12} />;
-  if (!badge) return null;
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-      <BadgeIcon color={badge.color} size={12} isFounder={badge.isFounder} />
-      <span style={{ fontSize: '0.58rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: badge.color, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{badge.label}</span>
-    </span>
-  );
-}
-
-function renderText(text) {
-  const parts = text.split(/(@\w+)/g);
-  return parts.map((part, i) => {
-    if (/^@\w+$/.test(part)) {
-      return <span key={i} style={{ color: '#9b6dff', cursor: 'pointer' }} onClick={() => window.location.href = `/search?q=${part.slice(1)}`}>{part}</span>;
-    }
-    return part;
-  });
-}
-
-function Avatar({ uid, initials, size = 36, isAuthor, avatarUrl }) {
-  return (
-    <a href={`/user?id=${uid}`} style={{
-      width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      background: isAuthor ? 'rgba(88,28,135,0.25)' : 'rgba(107,47,173,0.2)',
-      border: isAuthor ? '1.5px solid rgba(88,28,135,0.5)' : '1.5px solid rgba(107,47,173,0.3)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.3, fontWeight: 500, color: '#9b6dff',
-      overflow: 'hidden', textDecoration: 'none', fontFamily: 'Cormorant Garamond, Georgia, serif',
-    }}>
-      {avatarUrl ? <img src={avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
-    </a>
   );
 }
 
@@ -1178,24 +1066,9 @@ export default function SquarePage() {
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
 
   const ReactionBar = ({ p, size = 14 }) => {
-    const postReactions = reactions[p.id] || {};
     const idleColor = 'rgba(255,255,255,0.55)';
-    return (
-      <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        {[
-          { type: 'like', Icon: HeartIcon, activeColor: '#d4537e', count: p.likeCount || 0 },
-          { type: 'clap', Icon: ClapIcon, activeColor: '#d4941a', count: p.clapCount || 0 },
-          { type: 'fire', Icon: FlameIcon, activeColor: '#ef4444', count: p.fireCount || 0 },
-        ].map(({ type, Icon, activeColor, count }) => {
-          const active = postReactions[type] || false;
-          return (
-            <button key={type} onClick={() => toggleReaction(p.id, type)}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, color: active ? activeColor : idleColor, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', transition: 'color 0.2s', letterSpacing: '0.08em' }}>
-              <Icon filled={active} size={size} />
-              {count > 0 && count}
-            </button>
-          );
-        })}
+    const trailing = (
+      <>
         {user && (
           <button onClick={() => setReplyTo(replyTo === p.id ? null : p.id)}
             style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
@@ -1215,7 +1088,21 @@ export default function SquarePage() {
           </svg>
           quote
         </button>
-      </div>
+      </>
+    );
+    return (
+      <ReactionRow
+        reactions={SQUARE_REACTIONS}
+        item={p}
+        activeMap={reactions[p.id]}
+        onToggle={(key) => toggleReaction(p.id, key)}
+        canReact={!!user}
+        iconSize={size}
+        inactiveColor={idleColor}
+        countSize="0.7rem"
+        gap={12} buttonGap={4} marginTop={8}
+        trailing={trailing}
+      />
     );
   };
 
@@ -1422,7 +1309,7 @@ export default function SquarePage() {
                           </div>
                         ) : (
                           <>
-                            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
+                            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff', lineHeight: 1.7, marginBottom: 6 }}>{renderMentions(p.text)}</div>
                             {p.attachedStory && <StoryEmbed story={p.attachedStory} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
                             {p.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === p.quotedPostId)} />}
@@ -1468,7 +1355,7 @@ export default function SquarePage() {
                                       </div>
                                     ) : (
                                       <>
-                                        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.65 }}>{renderText(r.text)}</div>
+                                        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.65 }}>{renderMentions(r.text)}</div>
                                         {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} />}
                                       </>
                                     )}
