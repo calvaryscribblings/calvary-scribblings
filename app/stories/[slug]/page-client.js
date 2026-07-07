@@ -1083,7 +1083,13 @@ export default function StoryPageClient({ params }) {
       fired = true;
       cleanup();
       getReaderId().then((readerId) => {
-        fetch('/api/hit', {
+        // slug + readerId go in the QUERY STRING (not just the body): the
+        // deployed Pages Function reads slug from the query — a body-only POST
+        // 400s ("Missing slug") and the read count never arrives, leaving the
+        // seal stuck on "—". The body is kept for forward-compat with the
+        // newer handler (which reads query first — "query wins").
+        const qs = `?slug=${encodeURIComponent(slug)}&readerId=${encodeURIComponent(readerId)}`;
+        fetch(`/api/hit${qs}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slug, readerId }),

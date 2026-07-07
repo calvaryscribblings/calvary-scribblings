@@ -18,24 +18,33 @@ const prefersReduce = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export default function ReadSeal({ count, active, ink = '#1a1a1a' }) {
-  // A read of 0 / unavailable shows "—" and skips the count-up.
+  // Loading vs. loaded: undefined/null = the count hasn't arrived yet, so hold
+  // the number slot on "—" — a late value may still land (the fetch can resolve
+  // after the ceremony fires). A real number is loaded; 0 is a valid loaded
+  // value, so "—" stays for a genuine zero and the count-up is skipped.
   const has = typeof count === 'number' && count > 0;
   const [display, setDisplay] = useState(0);
+  // The number slot reveals only once the count-up actually begins; until then
+  // it holds "—" (never a static "0" while we wait out the pre-roll delay).
+  const [revealed, setRevealed] = useState(false);
   const [on, setOn] = useState(false);
   const started = useRef(false);
   const rafRef = useRef(0);
 
   useEffect(() => {
     if (!active) return undefined;
-    setOn(true);
-    if (!has) return undefined;
-    if (prefersReduce()) { setDisplay(count); return undefined; }
-    if (started.current) return undefined;
+    setOn(true); // the ceremony (rings, caption) plays whether or not a count is in yet
+    if (!has) return undefined; // still loading, or a genuine 0 → hold on "—"
+    if (started.current) return undefined; // count-up runs once per real value arrival
     started.current = true;
-    // Count-up begins mid-ceremony, as the seal content fades in.
+    if (prefersReduce()) { setDisplay(count); setRevealed(true); return undefined; }
+    // Count-up begins mid-ceremony, as the seal content fades in. Reveal the
+    // slot at the same instant the number starts climbing from 0 — this fires
+    // on the real value's arrival (including a late fetch), not on the ceremony.
     const startDelay = 2000;
     const duration = 1100;
     const t = setTimeout(() => {
+      setRevealed(true);
       const t0 = performance.now();
       const tick = (now) => {
         const p = Math.min(1, (now - t0) / duration);
@@ -48,7 +57,7 @@ export default function ReadSeal({ count, active, ink = '#1a1a1a' }) {
     return () => { clearTimeout(t); if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [active, has, count]);
 
-  const shown = has ? display.toLocaleString() : '—';
+  const shown = has && revealed ? display.toLocaleString() : '—';
 
   return (
     <div className={`rs-wrap${on ? ' on' : ''}`}>
