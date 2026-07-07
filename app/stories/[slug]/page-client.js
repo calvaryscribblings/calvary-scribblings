@@ -995,7 +995,6 @@ export default function StoryPageClient({ params }) {
     fetchFromCMS();
   }, [slug]);
 
-  const [scrollProgress, setScrollProgress] = useState(0);
   const [readingTime, setReadingTime] = useState(0);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -1006,6 +1005,8 @@ export default function StoryPageClient({ params }) {
   const [hasPurchased, setHasPurchased] = useState(false);
   const [purchaseChecked, setPurchaseChecked] = useState(false);
   const articleRef = useRef(null);
+  const threadRef = useRef(null);
+  const articleMetrics = useRef({ top: 0, height: 0 });
 
   useEffect(() => {
     let unsub;
@@ -1052,8 +1053,6 @@ export default function StoryPageClient({ params }) {
   useEffect(() => {
     const handleScroll = () => {
       const scrollTop = window.scrollY;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      setScrollProgress(docHeight > 0 ? Math.min((scrollTop / docHeight) * 100, 100) : 0);
       setIsHeaderVisible(scrollTop < lastScrollY || scrollTop < 100);
       setShowBackToTop(scrollTop > 600);
       setLastScrollY(scrollTop);
@@ -1061,6 +1060,59 @@ export default function StoryPageClient({ params }) {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
+
+  // Reading thread — tracks scroll through the ARTICLE's bounds: 0 when the
+  // article top meets the viewport top, 100 when its bottom meets the viewport
+  // bottom. Driven imperatively on the compositor — scaleX + opacity written to
+  // the node inside rAF, no per-frame React render and no width transition, so
+  // the fill tracks the scroll directly with zero lag. Article measurements are
+  // cached and refreshed only on resize / reflow (e.g. images loading in), not
+  // read every frame.
+  useEffect(() => {
+    if (!story) return undefined;
+    let raf = 0;
+    const measure = () => {
+      const a = articleRef.current;
+      if (!a) return;
+      const rect = a.getBoundingClientRect();
+      articleMetrics.current = { top: rect.top + window.scrollY, height: rect.height };
+    };
+    const update = () => {
+      raf = 0;
+      const el = threadRef.current;
+      if (!el) return;
+      const { top, height } = articleMetrics.current;
+      const scrollY = window.scrollY;
+      const vh = window.innerHeight;
+      const range = height - vh;
+      let p = range <= 0
+        ? (scrollY + vh >= top + height ? 1 : 0)
+        : (scrollY - top) / range;
+      p = p < 0 ? 0 : p > 1 ? 1 : p;
+      // Fully passed = the article has scrolled entirely above the viewport top;
+      // the thread belongs to the story, so it fades once the story is behind us.
+      const passed = top + height <= scrollY;
+      el.style.transform = `scaleX(${p})`;
+      el.style.opacity = p > 0 && !passed ? '1' : '0';
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    const onResize = () => { measure(); update(); };
+    measure();
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onResize, { passive: true });
+    let ro;
+    if (typeof ResizeObserver !== 'undefined' && articleRef.current) {
+      ro = new ResizeObserver(() => { measure(); update(); });
+      ro.observe(articleRef.current);
+    }
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
+      if (ro) ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [story, storyReady]);
 
   useEffect(() => {
     if (articleRef.current && story) {
@@ -1186,7 +1238,7 @@ useEffect(() => {
         html { background: #0a0a0a; }
         body { background: #0a0a0a; color: #e8e0d4; font-family: Cormorant Garamond, Georgia, serif; overflow-x: hidden; }
         .story-fade-in { animation: storyFadeIn 0.7s ease forwards; }
-        .reading-progress { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, ${accentColor}, #a855f7); z-index: 1000; transition: width 0.1s linear; }
+        .reading-progress { position: fixed; top: 0; left: 0; right: 0; width: 100%; height: 2px; background: linear-gradient(90deg, #c9a84c, rgba(201,168,76,0.55)); transform: scaleX(0); transform-origin: left; opacity: 0; z-index: 1000; will-change: transform, opacity; transition: opacity 0.4s ease; pointer-events: none; }
         .story-nav { position: fixed; top: 3px; left: 0; right: 0; z-index: 999; display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; background: rgba(10,10,10,0.88); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,0.06); transition: transform 0.3s ease; }
         .story-nav.hidden { transform: translateY(-100%); }
         .nav-logo { font-family: Cormorant Garamond, Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f0ead8; text-decoration: none; letter-spacing: 0.02em; }
@@ -1319,7 +1371,7 @@ useEffect(() => {
       .prose figure { margin: 2em 0; }
 .prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
 
-      <div className="reading-progress" style={{ width: `${scrollProgress}%` }} />
+      <div ref={threadRef} className="reading-progress" aria-hidden="true" />
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
         <nav className={`story-nav${isHeaderVisible ? '' : ' hidden'}`}>
           <a href="/" className="nav-logo">Calvary <span>Scribblings</span></a>
