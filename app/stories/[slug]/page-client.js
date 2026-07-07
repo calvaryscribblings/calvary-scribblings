@@ -1140,55 +1140,75 @@ export default function StoryPageClient({ params }) {
       setTimeout(() => {
         const text = articleRef.current?.innerText || '';
         setReadingTime(Math.ceil(text.trim().split(/\s+/).length / 220));
-
-        // Drop cap targeting — the CSS ::first-letter can't tell front-matter
-        // (content notes, epigraphs, dedications) from the story proper, so a
-        // story that opens with a note would drop-cap the note. Walk the body's
-        // leading <p> children, skip the front-matter, and tag the first real
-        // paragraph with .dropcap-target for the CSS to hook. Idempotent.
-        const container = articleRef.current?.querySelector('.prose.has-dropcap');
-        if (container) {
-          const paras = Array.from(container.children).filter((el) => el.tagName === 'P');
-          // Clear any tags from a prior run so re-runs converge on the same state.
-          paras.forEach((p) => p.classList.remove('dropcap-target', 'story-frontmatter'));
-          if (paras.length) {
-            const FRONTMATTER_RE = /^(content note|content warning|cw|trigger warning|tw|author's note|note|dedication|epigraph)[:\s—–-]/i;
-            // A line that ends on sentence-ending punctuation reads as prose, not
-            // a bare label — closing quotes after the terminal mark still count.
-            const TERMINATED_RE = /[.!?…]['"”’]*$/;
-            const isEntirelyItalic = (p) => {
-              const t = (p.textContent || '').trim();
-              if (!t) return false;
-              const kids = Array.from(p.children);
-              return kids.length === 1
-                && (kids[0].tagName === 'EM' || kids[0].tagName === 'I')
-                && (kids[0].textContent || '').trim().length >= t.length * 0.9;
-            };
-            const isFrontmatter = (p, next) => {
-              const t = (p.textContent || '').trim();
-              if (!t) return false;
-              if (FRONTMATTER_RE.test(t)) return true;
-              if (isEntirelyItalic(p)) return true;
-              if (t.length < 40 && !TERMINATED_RE.test(t) && next && (next.textContent || '').trim().length > t.length) return true;
-              return false;
-            };
-            const frontmatter = [];
-            let target = null;
-            for (let i = 0; i < paras.length; i++) {
-              const t = (paras[i].textContent || '').trim();
-              if (!t) continue; // ignore blank leading paragraphs entirely
-              if (isFrontmatter(paras[i], paras[i + 1] || null)) { frontmatter.push(paras[i]); continue; }
-              target = paras[i];
-              break;
-            }
-            if (!target) target = paras[0]; // safety: everything looked like front-matter
-            frontmatter.forEach((p) => { if (p !== target) p.classList.add('story-frontmatter'); });
-            target.classList.add('dropcap-target');
-          }
-        }
       }, 100);
     }
   }, [story]);
+
+  // Drop cap targeting. The CSS ::first-letter rule can't tell front-matter
+  // (content notes, epigraphs, dedications) from the story proper, so we tag the
+  // first real paragraph with .dropcap-target and let the CSS hook that. Runs as
+  // its own effect keyed on the story so it re-fires once the body is present,
+  // selects paragraphs with querySelectorAll scoped to the prose container (so a
+  // story whose opening <p> is nested in a wrapper div is still found), and keeps
+  // a MutationObserver on the article: if React ever re-applies the body HTML
+  // (which would wipe the class) or the content arrives after the first pass, it
+  // re-tags. Idempotent — clears prior tags before each pass.
+  useEffect(() => {
+    if (!story) return undefined;
+    const article = articleRef.current;
+    if (!article) return undefined;
+
+    const FRONTMATTER_RE = /^(content note|content warning|cw|trigger warning|tw|author's note|note|dedication|epigraph)[:\s—–-]/i;
+    // A line that ends on sentence-ending punctuation reads as prose, not a bare
+    // label — closing quotes after the terminal mark still count as terminated.
+    const TERMINATED_RE = /[.!?…]['"”’]*$/;
+    const isEntirelyItalic = (p) => {
+      const t = (p.textContent || '').trim();
+      if (!t) return false;
+      const kids = Array.from(p.children);
+      return kids.length === 1
+        && (kids[0].tagName === 'EM' || kids[0].tagName === 'I')
+        && (kids[0].textContent || '').trim().length >= t.length * 0.9;
+    };
+    const isFrontmatter = (p, next) => {
+      const t = (p.textContent || '').trim();
+      if (!t) return false;
+      if (FRONTMATTER_RE.test(t)) return true;
+      if (isEntirelyItalic(p)) return true;
+      if (t.length < 40 && !TERMINATED_RE.test(t) && next && (next.textContent || '').trim().length > t.length) return true;
+      return false;
+    };
+
+    const tag = () => {
+      const container = article.querySelector('.prose.has-dropcap');
+      if (!container) return; // poetry (no has-dropcap) or body not in the DOM yet
+      const paras = Array.from(container.querySelectorAll('p'))
+        .filter((p) => (p.textContent || '').trim().length > 0);
+      if (!paras.length) return;
+      // Clear any tags from a prior pass so re-runs converge on the same state.
+      paras.forEach((p) => p.classList.remove('dropcap-target', 'story-frontmatter'));
+      const frontmatter = [];
+      let target = null;
+      for (let i = 0; i < paras.length; i++) {
+        if (isFrontmatter(paras[i], paras[i + 1] || null)) { frontmatter.push(paras[i]); continue; }
+        target = paras[i];
+        break;
+      }
+      if (!target) target = paras[0]; // safety: everything looked like front-matter
+      frontmatter.forEach((p) => { if (p !== target) p.classList.add('story-frontmatter'); });
+      target.classList.add('dropcap-target');
+    };
+
+    tag();
+    // Adding a class is an attribute mutation, not childList, so re-tagging here
+    // never retriggers the observer — no loop.
+    let obs;
+    if (typeof MutationObserver !== 'undefined') {
+      obs = new MutationObserver(() => tag());
+      obs.observe(article, { childList: true, subtree: true });
+    }
+    return () => { if (obs) obs.disconnect(); };
+  }, [story, storyReady]);
 
   useEffect(() => {
     if (!slug) return;
