@@ -12,6 +12,9 @@ import AuthModal from '../../components/AuthModal';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import { use } from 'react';
 import { useDeletedUids } from '../../lib/userVisibility';
+import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
+
+const COMMENT_REACTIONS = buildReactions('heart');
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -38,95 +41,6 @@ async function getFirebaseAuth() {
 
 const FONT_SIZES = [14, 16, 18, 20, 22];
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
-const BADGE_SVG_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
-const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
-const HEART_PATH = "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z";
-
-function getBadge(readCount, uid) {
-  if (readCount >= 1000) return { tier: 'immortal', label: 'Immortal of the Island', color: '#9b6dff' };
-  if (readCount >= 150) return { tier: 'legend', label: 'Legend of the Island', color: '#d4537e' };
-  if (readCount >= 90) return { tier: 'islander', label: 'Story Islander', color: '#d4941a' };
-  if (readCount >= 60) return { tier: 'island', label: 'Island Reader', color: '#1d9e75' };
-  if (readCount >= 25) return { tier: 'reader', label: 'Reader', color: '#b4b2a9' };
-  return null;
-}
-
-function BadgeIcon({ color, size = 14, isFounder = false }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-      <defs><linearGradient id="pg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#e8f0f8"/><stop offset="50%" stopColor="#c8daea"/><stop offset="100%" stopColor="#a8c0d6"/></linearGradient></defs>
-      <path fill={isFounder ? 'url(#pg2)' : color} d={BADGE_SVG_PATH} />
-      <path fill={color === '#b4b2a9' ? '#0a0a0a' : '#fff'} d={CHECK_PATH} />
-    </svg>
-  );
-}
-
-function WriterBadge({ size = 13 }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-        <path fill="#581c87" d={BADGE_SVG_PATH} />
-        <path fill="#e9d5ff" d={CHECK_PATH} />
-      </svg>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)', borderRadius: 6, padding: '1px 7px 1px 5px' }}>
-        <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path fill="#d4537e" d={HEART_PATH} /></svg>
-        <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap' }}>Writer</span>
-      </span>
-    </span>
-  );
-}
-
-function CommentBadge({ uid, size = 13 }) {
-  const [badge, setBadge] = useState(null);
-  const [isAuthor, setIsAuthor] = useState(false);
-  useEffect(() => {
-    if (!uid) return;
-    (async () => {
-      try {
-        const db = await getDB();
-        const { ref, get } = await import('firebase/database');
-        const snap = await get(ref(db, `users/${uid}`));
-        if (snap.exists()) {
-          const data = snap.val();
-          setIsAuthor(data.isAuthor || false);
-          setBadge(getBadge(data.readCount || 0, uid));
-        }
-      } catch (e) {}
-    })();
-  }, [uid]);
-  if (isAuthor) return <WriterBadge size={size} />;
-  if (!badge) return null;
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-      <BadgeIcon color={badge.color} size={size} isFounder={badge.tier === 'founder'} />
-      <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: badge.tier === 'founder' ? '#c8daea' : badge.color, fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap' }}>{badge.label}</span>
-    </span>
-  );
-}
-
-function CommentAvatar({ uid, initials, size = 'sm', isOwnComment }) {
-  const [photoUrl, setPhotoUrl] = useState(null);
-  const dim = size === 'xs' ? 26 : size === 'sm' ? 34 : 36;
-  const fontSize = size === 'xs' ? 9 : size === 'sm' ? 11 : 12;
-  const href = isOwnComment ? '/profile' : `/user?id=${uid}`;
-  useEffect(() => {
-    if (!uid) return;
-    (async () => {
-      try {
-        const db = await getDB();
-        const { ref, get } = await import('firebase/database');
-        const snap = await get(ref(db, `users/${uid}/avatarUrl`));
-        if (snap.exists()) setPhotoUrl(snap.val());
-      } catch (e) {}
-    })();
-  }, [uid]);
-  return (
-    <a href={href} style={{ width: dim, height: dim, borderRadius: '50%', background: 'rgba(107,47,173,0.25)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 500, color: '#9b6dff', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif', overflow: 'hidden', textDecoration: 'none' }}>
-      {photoUrl ? <img src={photoUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
-    </a>
-  );
-}
-
 function CommentUsername({ uid }) {
   const [username, setUsername] = useState(null);
   useEffect(() => {
@@ -141,7 +55,7 @@ function CommentUsername({ uid }) {
     })();
   }, [uid]);
   if (!username) return null;
-  return <span style={{ fontSize: '0.7rem', fontWeight: 500, color: 'rgba(167,139,250,0.5)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{username}</span>;
+  return <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'rgba(245,240,232,0.45)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{username}</span>;
 }
 
 function CommentName({ uid, fallback }) {
@@ -160,36 +74,6 @@ function CommentName({ uid, fallback }) {
   return <>{name || fallback}</>;
 }
 
-function timeAgo(ts) {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-}
-
-function renderCommentText(text) {
-  if (!text) return text;
-  const parts = [];
-  let last = 0;
-  const re = /(^|\s)@([a-z0-9_]{3,20})\b/gi;
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    const [, pre, handle] = m;
-    const start = m.index + pre.length;
-    const end = start + 1 + handle.length;
-    if (start > last) parts.push(text.slice(last, start));
-    parts.push(<a key={start} href={`/user?handle=${handle}`} style={{ color: '#a78bfa', textDecoration: 'none', fontWeight: 500 }}>@{handle}</a>);
-    last = end;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return parts;
-}
-
 const CommentNode = React.memo(function CommentNode({
   comment, depth, parentAuthorName,
   user, comments, commentReactions,
@@ -206,13 +90,13 @@ const CommentNode = React.memo(function CommentNode({
   return (
     <div style={{ marginLeft: indentPx }}>
       <div className={depth === 1 ? "cs-comment" : "cs-reply"}>
-        <CommentAvatar uid={comment.authorUid} initials={comment.authorInitials} size={depth === 1 ? "sm" : "xs"} isOwnComment={isOwn} />
+        <Avatar variant="comment" uid={comment.authorUid} initials={comment.authorInitials} size={depth === 1 ? "sm" : "xs"} isOwn={isOwn} />
         <div className="cs-comment-body">
           <div className="cs-comment-header" style={{ position: 'relative' }}>
             <a href={isOwn ? '/profile' : `/user?id=${comment.authorUid}`} className="cs-name cs-name-link"><CommentName uid={comment.authorUid} fallback={comment.authorName} /></a>
             <CommentUsername uid={comment.authorUid} />
-            <CommentBadge uid={comment.authorUid} size={depth === 1 ? 13 : 12} />
-            <span className="cs-time">{timeAgo(comment.createdAt)}</span>
+            <UserBadge self uid={comment.authorUid} size={depth === 1 ? 13 : 12} labelSize="0.68rem" gap="4px" />
+            <span className="cs-time" style={{ marginLeft: -2 }}>· {timeAgo(comment.createdAt)}</span>
             {comment.editedAt && <span className="cs-time"> · edited</span>}
             {isOwn && (
               <div style={{ marginLeft: 'auto', position: 'relative' }}>
@@ -241,36 +125,27 @@ const CommentNode = React.memo(function CommentNode({
             ) : (
               <>
                 {isFlattened && parentAuthorName && (
-                  <span style={{ color: '#a78bfa', fontWeight: 500, marginRight: 4 }}>@{parentAuthorName}</span>
+                  <span style={{ color: '#c9a84c', fontWeight: 500, marginRight: 4 }}>@{parentAuthorName}</span>
                 )}
-                {renderCommentText(comment.text)}
+                {renderMentions(comment.text)}
               </>
             )}
           </div>
-          <div className="cs-comment-footer" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px' }}>
-            {[
-              { type: 'heart', activeColor: '#d4537e', d: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
-              { type: 'clap', activeColor: '#d4941a', d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' },
-              { type: 'fire', activeColor: '#ef4444', d: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z' },
-            ].map(({ type, activeColor, d }) => {
-              const active = commentReactions[comment.id]?.[type];
-              const count = comment[type + 'Count'] || 0;
-              return (
-                <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
-                  style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
-                  <svg width={depth === 1 ? "12" : "11"} height={depth === 1 ? "12" : "11"} viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-                  {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{count}</span>}
-                </button>
-              );
-            })}
-            {user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
-          </div>
+          <ReactionRow
+            reactions={COMMENT_REACTIONS}
+            item={comment}
+            activeMap={commentReactions[comment.id]}
+            onToggle={(key) => toggleCommentReaction(comment.id, key, comment.authorUid)}
+            canReact={!!user}
+            iconSize={depth === 1 ? 16 : 14}
+            trailing={user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
+          />
           {replyTo === comment.id && (
             <div className="cs-reply-compose">
               <div className="cs-input-wrap">
                 <MentionTextarea value={replyText} onChange={setReplyText} placeholder={`Reply to ${comment.authorName}...`} className="cs-textarea cs-textarea-sm" rows={2} autoFocus />
                 <button className={`cs-kite-btn${replyText.trim() ? ' active' : ''}`} onClick={() => postComment(replyText, comment.id)} disabled={posting || !replyText.trim()}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#c9a84c"/></svg>
                 </button>
               </div>
             </div>
@@ -484,7 +359,7 @@ function CommentsSection({ slug, onSignIn }) {
             <div className="cs-input-wrap">
               <MentionTextarea value={text} onChange={setText} placeholder="Share your thoughts on this story..." rows={3} />
               <button className={`cs-kite-btn${text.trim() ? ' active' : ''}`} onClick={() => postComment(text)} disabled={posting || !text.trim()} title="Post comment">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#9b6dff"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#c9a84c"/></svg>
               </button>
             </div>
           </div>
@@ -501,14 +376,17 @@ function CommentsSection({ slug, onSignIn }) {
         <div className="cs-empty">No comments yet. Be the first to share your thoughts.</div>
       ) : (
         <div className="cs-comments-list">
-          {topLevel.map(comment => (
-            <CommentNode
-              key={comment.id} comment={comment} depth={1} parentAuthorName={null}
-              user={user} comments={visibleComments} commentReactions={commentReactions}
-              replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
-              setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
-              toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
-            />
+          {topLevel.map((comment, i) => (
+            <React.Fragment key={comment.id}>
+              {i > 0 && <div className="cs-divider" aria-hidden="true" />}
+              <CommentNode
+                comment={comment} depth={1} parentAuthorName={null}
+                user={user} comments={visibleComments} commentReactions={commentReactions}
+                replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
+                setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
+                toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
+              />
+            </React.Fragment>
           ))}
         </div>
       )}
@@ -752,44 +630,45 @@ export default function StoryReaderClient({ params }) {
         .betitle{font-family:Cormorant Garamond,Georgia,serif;font-size:1.35rem;font-style:italic;color:#f5efe0;margin-bottom:6px}
         .beauth{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.2em;color:rgba(201,164,76,.55);text-transform:uppercase;margin-bottom:24px}
         .bemeta{font-family:Cormorant Garamond,Georgia,serif;font-size:.85rem;font-style:italic;color:rgba(255,255,255,.3);margin-bottom:24px}
-        .bebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#9b6dff;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
-        .bebtn:hover{background:rgba(107,47,173,.12);border-color:#9b6dff}
+        .bebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#c9a84c;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
+        .bebtn:hover{background:rgba(107,47,173,.12);border-color:#c9a84c}
         .cs-section{background:#0a0a0a;max-width:680px;margin:0 auto;padding:2.5rem 1.5rem 6rem}
         .cs-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid rgba(255,255,255,0.07)}
         .cs-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.3rem;font-weight:300;color:#f5f0e8;letter-spacing:.02em}
         .cs-count{font-size:.75rem;font-weight:500;color:rgba(255,255,255,.25);letter-spacing:.12em;text-transform:uppercase;font-family:Cormorant Garamond,Georgia,serif}
         .cs-compose{margin-bottom:2rem}
         .cs-compose-row{display:flex;gap:12px;align-items:flex-start}
-        .cs-avatar-compose{width:36px;height:36px;border-radius:50%;background:rgba(107,47,173,0.25);border:1px solid rgba(107,47,173,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#9b6dff;flex-shrink:0;font-family:Cormorant Garamond,Georgia,serif;overflow:hidden;text-decoration:none}
+        .cs-avatar-compose{width:36px;height:36px;border-radius:50%;background:rgba(107,47,173,0.25);border:1px solid rgba(107,47,173,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#c9a84c;flex-shrink:0;font-family:Cormorant Garamond,Georgia,serif;overflow:hidden;text-decoration:none}
         .cs-input-wrap{flex:1;position:relative}
-        .cs-textarea{width:100%;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:.85rem 3rem .85rem 1rem;font-size:.9rem;color:#e8e0d4;font-family:'Cormorant Garamond',Georgia,serif;resize:none;outline:none;box-sizing:border-box;line-height:1.6}
+        .cs-textarea{width:100%;background:rgba(107,47,173,0.05);border:1px solid rgba(107,47,173,0.2);border-radius:12px;padding:.85rem 3rem .85rem 1rem;font-size:.9rem;color:#e8e0d4;font-family:'Cormorant Garamond',Georgia,serif;resize:none;outline:none;box-sizing:border-box;line-height:1.6}
         .cs-textarea-sm{min-height:56px;font-size:.85rem;border-radius:10px}
-        .cs-textarea::placeholder{color:rgba(255,255,255,.18);font-style:italic}
-        .cs-textarea:focus{border-color:rgba(107,47,173,.4)}
+        .cs-textarea::placeholder{color:rgba(245,240,232,.32);font-style:italic}
+        .cs-textarea:focus{border-color:rgba(201,168,76,.5);box-shadow:0 0 0 2px rgba(201,168,76,.12)}
         .cs-kite-btn{position:absolute;bottom:8px;right:8px;background:none;border:none;cursor:pointer;padding:4px;opacity:.2;transition:opacity .2s}
         .cs-kite-btn.active{opacity:1}
         .cs-kite-btn:disabled{cursor:not-allowed}
         .cs-signin-prompt{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:1.5rem;text-align:center;margin-bottom:2rem}
         .cs-signin-prompt p{font-size:.9rem;font-weight:500;color:rgba(255,255,255,.3);margin-bottom:.75rem;font-family:Cormorant Garamond,Georgia,serif}
-        .cs-signin-btn{background:none;border:1px solid rgba(107,47,173,.4);border-radius:8px;padding:.55rem 1.4rem;font-size:.75rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9b6dff;cursor:pointer;font-family:Cormorant Garamond,Georgia,serif}
+        .cs-signin-btn{background:none;border:1px solid rgba(107,47,173,.4);border-radius:8px;padding:.55rem 1.4rem;font-size:.75rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#c9a84c;cursor:pointer;font-family:Cormorant Garamond,Georgia,serif}
         .cs-loading{font-size:.88rem;font-weight:500;color:rgba(255,255,255,.2);font-family:Cormorant Garamond,Georgia,serif;padding:1rem 0}
         .cs-empty{font-size:.88rem;color:rgba(255,255,255,.2);font-family:Cormorant Garamond,Georgia,serif;font-style:italic;padding:1rem 0}
         .cs-comments-list{display:flex;flex-direction:column}
-        .cs-divider{height:1px;background:rgba(255,255,255,.05);margin:.25rem 0 1.75rem}
-        .cs-comment{display:flex;gap:12px;margin-bottom:.25rem}
+        .cs-divider{height:1px;background:rgba(245,240,232,0.06);margin:1.1rem 0}
+        .cs-comment{display:flex;gap:10px;align-items:flex-start}
+        .cs-comment>a:first-child,.cs-reply>a:first-child{margin-top:2px}
         .cs-comment-body{flex:1;min-width:0}
-        .cs-comment-header{display:flex;align-items:center;gap:6px;margin-bottom:.45rem;flex-wrap:wrap}
-        .cs-name{font-size:.88rem;font-weight:500;color:#e8e0d4;font-family:Cormorant Garamond,Georgia,serif}
+        .cs-comment-header{display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap}
+        .cs-name{font-size:.92rem;font-weight:600;color:#f5f0e8;font-family:Cormorant Garamond,Georgia,serif}
         .cs-name-link{text-decoration:none;transition:color .2s}
-        .cs-name-link:hover{color:#a78bfa}
-        .cs-time{font-size:.74rem;font-weight:500;color:rgba(255,255,255,.22);font-family:Cormorant Garamond,Georgia,serif}
-        .cs-comment-text{font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;color:#f5f0e8;line-height:1.75}
+        .cs-name-link:hover{color:#c9a84c}
+        .cs-time{font-size:.74rem;font-weight:500;color:rgba(245,240,232,.42);font-family:Cormorant Garamond,Georgia,serif}
+        .cs-comment-text{font-family:'Cormorant Garamond',Georgia,serif;font-size:.98rem;color:#f5f0e8;line-height:1.68;margin-top:0}
         .cs-comment-text-sm{font-size:.92rem}
         .cs-comment-footer{margin-top:.5rem}
-        .cs-reply-btn{background:none;border:none;font-size:.74rem;font-weight:500;color:rgba(155,109,255,.5);cursor:pointer;font-family:Cormorant Garamond,Georgia,serif;letter-spacing:.08em;padding:0;transition:color .2s}
-        .cs-reply-btn:hover{color:#9b6dff}
+        .cs-reply-btn{background:none;border:none;font-size:.74rem;font-weight:500;color:rgba(245,240,232,.42);cursor:pointer;font-family:Cormorant Garamond,Georgia,serif;letter-spacing:.08em;padding:0;transition:color .2s}
+        .cs-reply-btn:hover{color:#c9a84c}
         .cs-reply-compose{margin-top:.75rem}
-        .cs-replies{margin-top:1rem;padding-left:1rem;border-left:1px solid rgba(107,47,173,.2);display:flex;flex-direction:column;gap:.75rem}
+        .cs-replies{margin-top:.75rem;padding-left:1rem;border-left:1px solid rgba(107,47,173,.25);display:flex;flex-direction:column;gap:.75rem}
         .cs-reply{display:flex;gap:10px}
         @media(max-width:600px){.rtitle{display:none}.rbtn{font-size:.44rem;padding:3px 7px}.cs-section{padding:2rem 1rem 5rem}}
         @keyframes confirmDrop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
@@ -876,12 +755,12 @@ export default function StoryReaderClient({ params }) {
               background: '#6b2fad', border: 'none', borderRadius: '999px',
               padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '8px',
               fontFamily: "'Cinzel',serif", fontSize: '.58rem', letterSpacing: '.18em',
-              textTransform: 'uppercase', color: '#fff', cursor: 'pointer', zIndex: 300,
+              textTransform: 'uppercase', color: '#f5f0e8', cursor: 'pointer', zIndex: 300,
               boxShadow: '0 4px 24px rgba(107,47,173,0.5)',
               animation: 'fadeUp .4s ease forwards',
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#f5f0e8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
             Discuss
           </button>
         )}
