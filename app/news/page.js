@@ -11,7 +11,7 @@ const cat = 'news';
 // Typography — matches the homepage overhaul (DISPLAY title + gold LABEL kicker).
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
-const BODY = "'Cochin', Georgia, serif";
+const BODY = "Cormorant Garamond, Georgia, serif";
 const KICKER = 'THE BRIEF';
 const DESCRIPTION = "What's happening on the Island and beyond. Straight to the point.";
 
@@ -108,7 +108,7 @@ export default function NewsPage() {
       <style>{`
         .cat-hero { min-height: 220px; }
         @media (min-width: 768px) { .cat-hero { min-height: 260px; } }
-        .news-tab { background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 0.35rem 1rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.45); cursor: pointer; font-family: Cochin, Georgia, serif; transition: all 0.2s; white-space: nowrap; }
+        .news-tab { background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 0.35rem 1rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.45); cursor: pointer; font-family: Cormorant Garamond, Georgia, serif; transition: all 0.2s; white-space: nowrap; }
         .news-tab:hover { border-color: rgba(239,68,68,0.4); color: #f87171; }
         .news-tab.active { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.5); color: #f87171; }
       `}</style>

@@ -96,7 +96,7 @@ function WriterBadge({ size = 13 }) {
       </svg>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)', borderRadius: 6, padding: '1px 7px 1px 5px' }}>
         <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path fill="#d4537e" d={HEART_PATH} /></svg>
-        <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>Writer</span>
+        <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap' }}>Writer</span>
       </span>
     </span>
   );
@@ -122,14 +122,14 @@ function QuotedCard({ quotedPost, onClear }) {
   };
   const closeBtn = onClear ? (
     <button onClick={onClear} aria-label="Remove quoted post"
-      style={{ position: 'absolute', top: 4, right: 6, background: 'none', border: 'none', color: 'rgba(255,255,255,0.55)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '2px 6px', fontFamily: 'Inter, sans-serif' }}>
+      style={{ position: 'absolute', top: 4, right: 6, background: 'none', border: 'none', color: 'rgba(255,255,255,0.55)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '2px 6px', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
       ×
     </button>
   ) : null;
   if (!quotedPost) {
     return (
       <div style={cardStyle}>
-        <div style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)' }}>
+        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)' }}>
           [original post no longer available]
         </div>
         {closeBtn}
@@ -146,16 +146,16 @@ function QuotedCard({ quotedPost, onClear }) {
     <div style={cardStyle}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap', paddingRight: onClear ? 18 : 0 }}>
         <Avatar uid={quotedPost.authorUid} initials={quotedPost.authorInitials || (quotedPost.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()} size={24} isAuthor={quotedPost.isAuthor} avatarUrl={quotedPost.authorAvatarUrl} />
-        <span style={{ fontSize: '0.81rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>{quotedPost.authorName}</span>
+        <span style={{ fontSize: '0.81rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500 }}>{quotedPost.authorName}</span>
         {quotedPost.isAuthor && <VerifiedBadge size={11} />}
-        {quotedPost.authorHandle && <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif' }}>@{quotedPost.authorHandle}</span>}
+        {quotedPost.authorHandle && <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{quotedPost.authorHandle}</span>}
       </div>
-      <div style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '0.86rem', lineHeight: 1.55, color: 'rgba(255,255,255,0.65)' }}>
+      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.86rem', lineHeight: 1.55, color: 'rgba(255,255,255,0.65)' }}>
         {excerpt}
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
         <a href={`#${quotedPost.id}`} onClick={handleViewPost}
-          style={{ fontSize: '0.74rem', color: '#6b2fad', fontFamily: 'Inter, sans-serif', textDecoration: 'none', fontWeight: 500 }}>
+          style={{ fontSize: '0.74rem', color: '#6b2fad', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none', fontWeight: 500 }}>
           View post →
         </a>
       </div>
@@ -223,7 +223,7 @@ function UserBadge({ uid, readCount, isAuthor }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
       <BadgeIcon color={badge.color} size={12} isFounder={badge.isFounder} />
-      <span style={{ fontSize: '0.58rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: badge.color, fontFamily: 'Inter, sans-serif' }}>{badge.label}</span>
+      <span style={{ fontSize: '0.58rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: badge.color, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{badge.label}</span>
     </span>
   );
 }
@@ -246,7 +246,7 @@ function Avatar({ uid, initials, size = 36, isAuthor, avatarUrl }) {
       border: isAuthor ? '1.5px solid rgba(88,28,135,0.5)' : '1.5px solid rgba(107,47,173,0.3)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.3, fontWeight: 500, color: '#9b6dff',
-      overflow: 'hidden', textDecoration: 'none', fontFamily: 'Inter, sans-serif',
+      overflow: 'hidden', textDecoration: 'none', fontFamily: 'Cormorant Garamond, Georgia, serif',
     }}>
       {avatarUrl ? <img src={avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
     </a>
@@ -280,8 +280,8 @@ function MentionDropdown({ query, onSelect }) {
             {u.avatarUrl ? <img src={u.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (u.displayName || 'R')[0].toUpperCase()}
           </div>
           <div>
-            <div style={{ fontSize: '0.8rem', color: '#f5f0e8', fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>{u.displayName || u.username}</div>
-            <div style={{ fontSize: '0.68rem', color: 'rgba(167,139,250,0.55)', fontFamily: 'Inter, sans-serif' }}>@{u.username}</div>
+            <div style={{ fontSize: '0.88rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500 }}>{u.displayName || u.username}</div>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(167,139,250,0.55)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{u.username}</div>
           </div>
         </div>
       ))}
@@ -317,7 +317,7 @@ function PollDisplay({ poll, postId, user }) {
   return (
     <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
       {poll.question && (
-        <div style={{ fontSize: '0.85rem', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontWeight: 600, marginBottom: 4 }}>{poll.question}</div>
+        <div style={{ fontSize: '0.85rem', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600, marginBottom: 4 }}>{poll.question}</div>
       )}
       {poll.options.map((opt, i) => {
         const optVotes = Object.values(votes).filter(v => v === String(i)).length;
@@ -332,13 +332,13 @@ function PollDisplay({ poll, postId, user }) {
               <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: isVoted ? 'rgba(107,47,173,0.2)' : 'rgba(255,255,255,0.04)', transition: 'width 0.5s ease', borderRadius: 8 }} />
             )}
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.82rem', color: isVoted ? '#c4b5fd' : '#f5f0e8', fontFamily: 'Inter, sans-serif' }}>{opt}</span>
-              {showResults && <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>{pct}%</span>}
+              <span style={{ fontSize: '0.9rem', color: isVoted ? '#c4b5fd' : '#f5f0e8', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{opt}</span>
+              {showResults && <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600 }}>{pct}%</span>}
             </div>
           </div>
         );
       })}
-      <div style={{ fontSize: '0.65rem', color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ fontSize: '0.65rem', color: '#ffffff', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
         {totalVotes} vote{totalVotes !== 1 ? 's' : ''}{closed ? ' · Closed' : poll.closesAt ? ` · Closes ${timeAgo(poll.closesAt)}` : ''}
       </div>
     </div>
@@ -372,7 +372,7 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
       {open && (
         <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 10, minWidth: 160, zIndex: 200, overflow: 'hidden' }}>
           {isOwn && canEdit && (
-            <button onClick={() => { onEdit(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+            <button onClick={() => { onEdit(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -380,7 +380,7 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
             </button>
           )}
           {isMod && (
-            <button onClick={() => { onPin(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: isPinned ? '#fcd34d' : '#f5f0e8', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+            <button onClick={() => { onPin(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: isPinned ? '#fcd34d' : '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <PinIcon size={12} />
@@ -388,7 +388,7 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
             </button>
           )}
           {isMod && post.quotedPostId && onStripQuote && (
-            <button onClick={() => { onStripQuote(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+            <button onClick={() => { onStripQuote(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
@@ -396,21 +396,21 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
             </button>
           )}
           {(isOwn || isMod) && (
-            <button onClick={() => { onDelete(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+            <button onClick={() => { onDelete(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(220,38,38,0.08)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
               Delete post
             </button>
           )}
-          <button onClick={copyLink} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+          <button onClick={copyLink} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             Copy link
           </button>
           {!isOwn && (
-            <button onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(232,224,212,0.5)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textAlign: 'left' }}
+            <button onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(232,224,212,0.5)', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
@@ -445,29 +445,29 @@ function PollCreatorModal({ onCreate, onClose }) {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '1.5rem', maxHeight: '80vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Create Poll</div>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Create Poll</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
         <input placeholder="Question (optional)…" value={question} onChange={e => setQuestion(e.target.value)}
-          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.7rem 1rem', color: '#f5f0e8', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' }} />
+          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.7rem 1rem', color: '#f5f0e8', fontSize: '0.9rem', fontFamily: 'Cormorant Garamond, Georgia, serif', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '1rem' }}>
           {options.map((opt, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`Option ${i + 1}`}
-                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0.6rem 0.9rem', color: '#f5f0e8', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif', outline: 'none' }} />
+                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0.6rem 0.9rem', color: '#f5f0e8', fontSize: '0.88rem', fontFamily: 'Cormorant Garamond, Georgia, serif', outline: 'none' }} />
               {options.length > 2 && (
                 <button onClick={() => removeOption(i)} style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px' }}>×</button>
               )}
             </div>
           ))}
           {options.length < 6 && (
-            <button onClick={addOption} style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.5rem', color: 'rgba(255,255,255,0.95)', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>+ Add option</button>
+            <button onClick={addOption} style={{ background: 'none', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.5rem', color: 'rgba(255,255,255,0.95)', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>+ Add option</button>
           )}
         </div>
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', display: 'block', marginBottom: 6 }}>Poll duration</label>
+          <label style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', display: 'block', marginBottom: 6 }}>Poll duration</label>
           <select value={duration} onChange={e => setDuration(Number(e.target.value))}
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0.6rem 0.9rem', color: '#f5f0e8', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif', outline: 'none', width: '100%' }}>
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '0.6rem 0.9rem', color: '#f5f0e8', fontSize: '0.88rem', fontFamily: 'Cormorant Garamond, Georgia, serif', outline: 'none', width: '100%' }}>
             <option value={30}>30 minutes</option>
             <option value={60}>1 hour</option>
             <option value={90}>1.5 hours</option>
@@ -475,8 +475,8 @@ function PollCreatorModal({ onCreate, onClose }) {
           </select>
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.6rem 1.2rem', color: 'rgba(255,255,255,0.95)', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
-          <button onClick={create} style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.6rem 1.5rem', color: '#fff', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Create Poll</button>
+          <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.6rem 1.2rem', color: 'rgba(255,255,255,0.95)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Cancel</button>
+          <button onClick={create} style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.6rem 1.5rem', color: '#fff', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Create Poll</button>
         </div>
       </div>
     </div>
@@ -494,11 +494,11 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, padding: '1.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-          <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Attach a story</div>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Attach a story</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
         <input placeholder="Search stories…" value={query} onChange={e => setQuery(e.target.value)}
-          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.7rem 1rem', color: '#f5f0e8', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' }} />
+          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.7rem 1rem', color: '#f5f0e8', fontSize: '0.9rem', fontFamily: 'Cormorant Garamond, Georgia, serif', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.map(s => (
             <div key={s.id} onClick={() => onSelect(s)} style={{ display: 'flex', gap: 10, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', transition: 'all 0.15s' }}
@@ -509,7 +509,7 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '0.78rem', color: 'rgba(155,109,255,0.6)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>{s.categoryName}</div>
-                <div style={{ fontSize: '0.88rem', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{s.title}</div>
+                <div style={{ fontSize: '0.88rem', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{s.title}</div>
                 <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.95)', marginTop: 2 }}>by {s.author}</div>
               </div>
             </div>
@@ -531,7 +531,7 @@ function StoryEmbed({ story }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: '0.62rem', color: 'rgba(155,109,255,0.6)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{story.categoryName}</div>
-        <div style={{ fontSize: '0.82rem', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{story.title}</div>
+        <div style={{ fontSize: '0.82rem', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{story.title}</div>
         <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.95)', marginTop: 1 }}>by {story.author}</div>
       </div>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -655,21 +655,21 @@ function DMPanel({ user, onClose }) {
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           {activeConv ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={() => setActiveConv(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '0.7rem', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', padding: 0 }}>←</button>
+              <button onClick={() => setActiveConv(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '0.78rem', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', padding: 0 }}>←</button>
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#9b6dff', overflow: 'hidden' }}>
                 {activeConv.otherUser.avatarUrl ? <img src={activeConv.otherUser.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (activeConv.otherUser.displayName || 'R')[0]}
               </div>
               <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{activeConv.otherUser.displayName || 'Reader'}</div>
-                {activeConv.otherUser.username && <div style={{ fontSize: '0.68rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{activeConv.otherUser.username}</div>}
+                <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{activeConv.otherUser.displayName || 'Reader'}</div>
+                {activeConv.otherUser.username && <div style={{ fontSize: '0.75rem', color: 'rgba(167,139,250,0.5)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{activeConv.otherUser.username}</div>}
               </div>
             </div>
           ) : (
-            <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Messages</div>
+            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Messages</div>
           )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {!activeConv && (
-              <button onClick={() => setShowNewMsg(!showNewMsg)} style={{ background: 'rgba(107,47,173,0.12)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 7, padding: '5px 10px', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(155,109,255,0.8)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>+ New</button>
+              <button onClick={() => setShowNewMsg(!showNewMsg)} style={{ background: 'rgba(107,47,173,0.12)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 7, padding: '5px 10px', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(155,109,255,0.8)', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>+ New</button>
             )}
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
           </div>
@@ -677,7 +677,7 @@ function DMPanel({ user, onClose }) {
         {showNewMsg && !activeConv && (
           <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
             <input autoFocus placeholder="Search by name or @handle…" value={newMsgSearch} onChange={e => setNewMsgSearch(e.target.value)}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '8px 12px', color: '#f5f0e8', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+              style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '8px 12px', color: '#f5f0e8', fontSize: '0.88rem', fontFamily: 'Cormorant Garamond, Georgia, serif', outline: 'none', boxSizing: 'border-box' }} />
             {newMsgResults.length > 0 && (
               <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {newMsgResults.map(u => (
@@ -688,8 +688,8 @@ function DMPanel({ user, onClose }) {
                       {u.avatarUrl ? <img src={u.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (u.displayName || 'R')[0]}
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif' }}>{u.displayName || 'Reader'}</div>
-                      {u.username && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{u.username}</div>}
+                      <div style={{ fontSize: '0.92rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{u.displayName || 'Reader'}</div>
+                      {u.username && <div style={{ fontSize: '0.78rem', color: 'rgba(167,139,250,0.5)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{u.username}</div>}
                     </div>
                   </div>
                 ))}
@@ -700,9 +700,9 @@ function DMPanel({ user, onClose }) {
         {!activeConv ? (
           <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
             {loadingConvs ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem' }}>Loading…</div>
             ) : conversations.length === 0 ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No messages yet. Tap + New to start a conversation.</div>
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No messages yet. Tap + New to start a conversation.</div>
             ) : conversations.map(conv => (
               <div key={conv.convId} onClick={() => setActiveConv(conv)}
                 style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
@@ -712,8 +712,8 @@ function DMPanel({ user, onClose }) {
                   {conv.otherUser.avatarUrl ? <img src={conv.otherUser.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (conv.otherUser.displayName || 'R')[0]}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif', marginBottom: 2 }}>{conv.otherUser.displayName || 'Reader'}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.92)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMsg?.text || 'Image'}</div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 2 }}>{conv.otherUser.displayName || 'Reader'}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.92)', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMsg?.text || 'Image'}</div>
                 </div>
                 {conv.unread > 0 && (
                   <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#6b2fad', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 500, flexShrink: 0 }}>{conv.unread}</div>
@@ -734,7 +734,7 @@ function DMPanel({ user, onClose }) {
                     <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', gap: 4, alignItems: isMine ? 'flex-end' : 'flex-start' }}>
                       {msg.imageUrl && <img src={msg.imageUrl} alt="shared" style={{ maxWidth: 180, borderRadius: 10, display: 'block' }} />}
                       {msg.text && (
-                        <div style={{ padding: '8px 12px', borderRadius: isMine ? '12px 12px 3px 12px' : '12px 12px 12px 3px', background: isMine ? '#6b2fad' : 'rgba(255,255,255,0.06)', color: isMine ? '#fff' : 'rgba(232,224,212,0.85)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.88rem', lineHeight: 1.6 }}>
+                        <div style={{ padding: '8px 12px', borderRadius: isMine ? '12px 12px 3px 12px' : '12px 12px 12px 3px', background: isMine ? '#6b2fad' : 'rgba(255,255,255,0.06)', color: isMine ? '#fff' : 'rgba(232,224,212,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.88rem', lineHeight: 1.6 }}>
                           {msg.text}
                         </div>
                       )}
@@ -751,7 +751,7 @@ function DMPanel({ user, onClose }) {
               <input ref={dmFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => setDmImageFile(e.target.files[0])} />
               <input value={dmText} onChange={e => setDmText(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendDM()}
                 placeholder={`Message ${activeConv.otherUser.displayName || 'Reader'}…`}
-                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '8px 14px', fontSize: '0.88rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', outline: 'none' }} />
+                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '8px 14px', fontSize: '0.88rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', outline: 'none' }} />
               <button onClick={sendDM} disabled={sending || (!dmText.trim() && !dmImageFile)} style={{ width: 32, height: 32, borderRadius: '50%', background: '#6b2fad', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, opacity: (!dmText.trim() && !dmImageFile) ? 0.4 : 1 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#fff"/></svg>
               </button>
@@ -759,7 +759,7 @@ function DMPanel({ user, onClose }) {
             {dmImageFile && (
               <div style={{ padding: '0 20px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <img src={URL.createObjectURL(dmImageFile)} alt="preview" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />
-                <button onClick={() => setDmImageFile(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontSize: '0.75rem', fontFamily: 'Inter, sans-serif' }}>Remove</button>
+                <button onClick={() => setDmImageFile(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Remove</button>
               </div>
             )}
           </>
@@ -814,14 +814,14 @@ function NotificationsPanel({ user, onClose }) {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: '75vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Notifications</div>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Notifications</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {loading ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem' }}>Loading…</div>
           ) : notifs.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet.</div>
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet.</div>
           ) : notifs.map(n => {
             const href = n.type === 'follow' ? `/user?id=${n.fromUid}` : n.type === 'open_pages_reply' ? (n.postId ? `/open-pages/${n.postId}` : null) : n.postId ? `/square#${n.postId}` : null;
             const ini = (n.fromName || 'R').split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
@@ -830,16 +830,16 @@ function NotificationsPanel({ user, onClose }) {
                 style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start', background: n.read ? 'transparent' : 'rgba(107,47,173,0.05)', textDecoration: 'none', cursor: href ? 'pointer' : 'default', transition: 'background 0.15s' }}
                 onMouseEnter={e => { if (href) e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(107,47,173,0.05)'; }}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#a78bfa', overflow: 'hidden', flexShrink: 0, fontFamily: 'Cochin, Georgia, serif' }}>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#a78bfa', overflow: 'hidden', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
                   {n.fromAvatarUrl ? <img src={n.fromAvatarUrl} alt={ini} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : ini}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.8rem', color: '#f0ece6', fontFamily: 'Inter, sans-serif', lineHeight: 1.45, marginBottom: 2 }}>
+                  <div style={{ fontSize: '0.88rem', color: '#f0ece6', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.45, marginBottom: 2 }}>
                     <span style={{ fontWeight: 600, color: '#ffffff' }}>{n.fromName}</span>
                     <span style={{ color: 'rgba(255,255,255,0.48)' }}>{notifLabel(n)}</span>
                   </div>
-                  {n.fromUsername && <div style={{ fontSize: '0.62rem', color: 'rgba(167,139,250,0.45)', fontFamily: 'Inter, sans-serif', marginBottom: 2 }}>@{n.fromUsername}</div>}
-                  <div style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.22)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(n.createdAt)}</div>
+                  {n.fromUsername && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 2 }}>@{n.fromUsername}</div>}
+                  <div style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.22)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{timeAgo(n.createdAt)}</div>
                 </div>
                 {!n.read && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b2fad', flexShrink: 0, marginTop: 5 }} />}
               </a>
@@ -1190,7 +1190,7 @@ export default function SquarePage() {
           const active = postReactions[type] || false;
           return (
             <button key={type} onClick={() => toggleReaction(p.id, type)}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, color: active ? activeColor : idleColor, fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', transition: 'color 0.2s', letterSpacing: '0.08em' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, color: active ? activeColor : idleColor, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', transition: 'color 0.2s', letterSpacing: '0.08em' }}>
               <Icon filled={active} size={size} />
               {count > 0 && count}
             </button>
@@ -1198,7 +1198,7 @@ export default function SquarePage() {
         })}
         {user && (
           <button onClick={() => setReplyTo(replyTo === p.id ? null : p.id)}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = '#9b6dff'}
             onMouseLeave={e => e.currentTarget.style.color = idleColor}>
             <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -1206,7 +1206,7 @@ export default function SquarePage() {
           </button>
         )}
         <button onClick={() => handleQuote(p.id)} aria-label="Quote this post"
-          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.62rem', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
           onMouseEnter={e => e.currentTarget.style.color = '#9b6dff'}
           onMouseLeave={e => e.currentTarget.style.color = idleColor}>
           <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1224,20 +1224,20 @@ export default function SquarePage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: #0a0a0a; color: #e8e0d4; font-family: 'Inter', sans-serif; min-height: 100vh; }
+        html, body { background: #0a0a0a; color: #e8e0d4; font-family: Cormorant Garamond, Georgia, serif; min-height: 100vh; }
         @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes sq-lockglow { 0%,100%{background:rgba(107,47,173,0.08)} 50%{background:rgba(107,47,173,0.18)} }
         @keyframes sq-lockpulse { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.04)} }
-        .sq-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.95rem; color: #ffffff; font-family: Cochin, Cochin, Cormorant Garamond, Georgia, serif; resize: none; outline: none; line-height: 1.65; box-sizing: border-box; }
+        .sq-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.95rem; color: #ffffff; font-family: Cormorant Garamond, Georgia, serif; resize: none; outline: none; line-height: 1.65; box-sizing: border-box; }
         .sq-textarea:focus { border-color: rgba(107,47,173,0.4); }
         .sq-textarea::placeholder { color: rgba(255,255,255,0.45); font-style: italic; }
-        .sq-post-btn { background: #6b2fad; border: none; border-radius: 8px; padding: 7px 18px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
+        .sq-post-btn { background: #6b2fad; border: none; border-radius: 8px; padding: 7px 18px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; cursor: pointer; font-family: Cormorant Garamond, Georgia, serif; transition: background 0.2s; }
         .sq-post-btn:hover { background: #7c3aed; }
         .sq-post-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .sq-action-btn { background: none; border: none; font-size: 0.62rem; color: #ffffff; cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; display: flex; align-items: center; gap: 4px; }
+        .sq-action-btn { background: none; border: none; font-size: 0.7rem; font-weight: 500; color: #ffffff; cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: Cormorant Garamond, Georgia, serif; transition: color 0.2s; display: flex; align-items: center; gap: 4px; }
         .sq-action-btn:hover { color: #9b6dff; }
         .sq-pinned-bar { background: rgba(252,211,77,0.06); border-left: 2px solid rgba(252,211,77,0.4); padding: 3px 8px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; border-radius: 0 4px 4px 0; }
-        .sq-pinned-label { font-size: 0.58rem; color: rgba(252,211,77,0.6); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .sq-pinned-label { font-size: 0.58rem; font-weight: 500; color: rgba(252,211,77,0.6); letter-spacing: 0.12em; text-transform: uppercase; font-family: Cormorant Garamond, Georgia, serif; }
       `}</style>
 
       {/* Nav */}
@@ -1247,7 +1247,7 @@ export default function SquarePage() {
             <img src="/cs-logo-mark.png" alt="Calvary Scribblings" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 7 }} />
           </a>
           <div>
-            <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: 16, color: '#f5f0e8', lineHeight: 1 }}>The Scribblings Square</div>
+            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 16, color: '#f5f0e8', lineHeight: 1 }}>The Scribblings Square</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
               {squareOpen ? (
                 <>
@@ -1272,15 +1272,15 @@ export default function SquarePage() {
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                 {unreadNotifs > 0 && <span style={{ position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: '50%', background: '#9b6dff', border: '1.5px solid #0a0a0a' }} />}
               </button>
-              <a href="/profile" style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(107,47,173,0.3)', border: '1.5px solid rgba(107,47,173,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#c4b5fd', textDecoration: 'none', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
+              <a href="/profile" style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(107,47,173,0.3)', border: '1.5px solid rgba(107,47,173,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#c4b5fd', textDecoration: 'none', overflow: 'hidden', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
                 {userData?.avatarUrl ? <img src={userData.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : userInitials}
               </a>
             </>
           )}
           {!user && (
-            <button onClick={() => setShowAuth(true)} style={{ background: '#6b2fad', border: 'none', borderRadius: 7, padding: '6px 14px', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Sign in</button>
+            <button onClick={() => setShowAuth(true)} style={{ background: '#6b2fad', border: 'none', borderRadius: 7, padding: '6px 14px', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Sign in</button>
           )}
-          <a href="/" style={{ fontSize: '0.62rem', color: '#ffffff', letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none', fontFamily: 'Inter, sans-serif' }}>← Home</a>
+          <a href="/" style={{ fontSize: '0.7rem', color: '#ffffff', letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>← Home</a>
         </div>
       </div>
 
@@ -1295,33 +1295,33 @@ export default function SquarePage() {
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9b6dff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               </div>
             </div>
-            <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '2rem', fontWeight: 400, color: '#f5f0e8', marginBottom: 10 }}>The Square is closed.</div>
-            <div style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.95)', lineHeight: 1.7, maxWidth: 300, fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontStyle: 'italic', marginBottom: 28 }}>
+            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '2rem', fontWeight: 400, color: '#f5f0e8', marginBottom: 10 }}>The Square is closed.</div>
+            <div style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.95)', lineHeight: 1.7, maxWidth: 300, fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', marginBottom: 28 }}>
               The Scribblings Square opens every evening at 8pm London time. Come back then — the conversation continues.
             </div>
             <div style={{ display: 'flex', gap: 16, marginBottom: 28 }}>
               {['Hours', 'Minutes', 'Seconds'].map((label, i) => (
                 <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '2.5rem', fontWeight: 400, color: '#9b6dff', lineHeight: 1 }}>{countdown.split(':')[i] || '00'}</div>
-                  <div style={{ fontSize: '0.6rem', color: '#ffffff', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>{label}</div>
+                  <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '2.5rem', fontWeight: 400, color: '#9b6dff', lineHeight: 1 }}>{countdown.split(':')[i] || '00'}</div>
+                  <div style={{ fontSize: '0.68rem', color: '#ffffff', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{label}</div>
                 </div>
               ))}
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#ffffff', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
+            <div style={{ fontSize: '0.8rem', color: '#ffffff', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
               Opens at <span style={{ color: 'rgba(155,109,255,0.6)' }}>8:00pm London time</span> tonight
             </div>
           </div>
           {posts.length > 0 && (
             <div style={{ opacity: 0.35 }}>
-              <div style={{ fontSize: '0.62rem', color: '#ffffff', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif', marginBottom: 12 }}>Last night in the Square</div>
+              <div style={{ fontSize: '0.7rem', color: '#ffffff', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 12 }}>Last night in the Square</div>
               {topLevel.slice(0, 5).map(p => (
                 <div key={p.id} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#9b6dff', flexShrink: 0, overflow: 'hidden' }}>
                     {p.authorAvatarUrl ? <img src={p.authorAvatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.authorInitials}
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 500, color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif', marginBottom: 3 }}>{p.authorName}</div>
-                    <div style={{ fontSize: '0.88rem', color: 'rgba(232,224,212,0.5)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', lineHeight: 1.6 }}>{p.text}</div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 500, color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 3 }}>{p.authorName}</div>
+                    <div style={{ fontSize: '0.88rem', color: 'rgba(232,224,212,0.5)', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.6 }}>{p.text}</div>
                   </div>
                 </div>
               ))}
@@ -1347,22 +1347,22 @@ export default function SquarePage() {
                   {attachedStory && (
                     <div style={{ marginTop: 8 }}>
                       <StoryEmbed story={attachedStory} />
-                      <button onClick={() => setAttachedStory(null)} style={{ marginTop: 4, background: 'none', border: 'none', color: 'rgba(255,255,255,0.92)', fontSize: '0.68rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Remove story</button>
+                      <button onClick={() => setAttachedStory(null)} style={{ marginTop: 4, background: 'none', border: 'none', color: 'rgba(255,255,255,0.92)', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Remove story</button>
                     </div>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <button onClick={() => setShowStoryAttach(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(107,47,173,0.08)', border: '1px solid rgba(107,47,173,0.2)', borderRadius: 6, padding: '4px 10px', fontSize: '0.68rem', color: 'rgba(155,109,255,0.65)', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                      <button onClick={() => setShowStoryAttach(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(107,47,173,0.08)', border: '1px solid rgba(107,47,173,0.2)', borderRadius: 6, padding: '4px 10px', fontSize: '0.75rem', color: 'rgba(155,109,255,0.65)', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
                         Attach story
                       </button>
                       {isMod && (
-                        <button onClick={() => setShowPollCreator(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.2)', borderRadius: 6, padding: '4px 10px', fontSize: '0.68rem', color: 'rgba(29,158,117,0.65)', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                        <button onClick={() => setShowPollCreator(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.2)', borderRadius: 6, padding: '4px 10px', fontSize: '0.75rem', color: 'rgba(29,158,117,0.65)', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
                           <PollIcon size={11} />
                           Create poll
                         </button>
                       )}
-                      <span style={{ fontSize: '0.65rem', color: text.length > maxChars ? '#f87171' : 'rgba(255,255,255,0.45)', fontFamily: 'Inter, sans-serif' }}>{text.length} / {maxChars}</span>
+                      <span style={{ fontSize: '0.65rem', color: text.length > maxChars ? '#f87171' : 'rgba(255,255,255,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{text.length} / {maxChars}</span>
                     </div>
                     <button className="sq-post-btn" onClick={() => post()} disabled={posting || !text.trim() || text.length > maxChars}>{posting ? 'Posting…' : 'Post'}</button>
                   </div>
@@ -1371,16 +1371,16 @@ export default function SquarePage() {
             </div>
           ) : (
             <div style={{ marginBottom: '2rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '1.5rem', textAlign: 'center' }}>
-              <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: 'rgba(255,255,255,0.4)', marginBottom: 12, fontStyle: 'italic' }}>Sign in to join the conversation</div>
-              <button onClick={() => setShowAuth(true)} style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.6rem 1.5rem', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fff', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Sign in</button>
+              <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: 'rgba(255,255,255,0.4)', marginBottom: 12, fontStyle: 'italic' }}>Sign in to join the conversation</div>
+              <button onClick={() => setShowAuth(true)} style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.6rem 1.5rem', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fff', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Sign in</button>
             </div>
           )}
 
           {/* Feed */}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
+            <div style={{ textAlign: 'center', padding: '2rem', color: '#ffffff', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem' }}>Loading…</div>
           ) : topLevel.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', fontStyle: 'italic' }}>No posts yet. Be the first to say something.</div>
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', fontStyle: 'italic' }}>No posts yet. Be the first to say something.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               {topLevel.map((p, i) => {
@@ -1401,13 +1401,13 @@ export default function SquarePage() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <a href={isOwn ? '/profile' : `/user?id=${p.authorUid}`} style={{ fontSize: '0.82rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif', textDecoration: 'none' }}
+                            <a href={isOwn ? '/profile' : `/user?id=${p.authorUid}`} style={{ fontSize: '0.9rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none' }}
                               onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
                               onMouseLeave={e => e.currentTarget.style.color = '#ffffff'}>{p.authorName}</a>
-                            {p.authorHandle && <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif' }}>@{p.authorHandle}</span>}
+                            {p.authorHandle && <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{p.authorHandle}</span>}
                           </div>
                           <UserBadge uid={p.authorUid} readCount={p.authorReadCount} isAuthor={p.isAuthor} />
-                          <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(p.createdAt)}{p.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{timeAgo(p.createdAt)}{p.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
                           {user && <PostMenu post={p} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} isMod={isMod} />}
                         </div>
 
@@ -1416,13 +1416,13 @@ export default function SquarePage() {
                             <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={3} autoFocus style={{ marginBottom: 6 }} />
                             {mentionQueryEdit !== '' && <MentionDropdown query={mentionQueryEdit} onSelect={insertMentionEdit} />}
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                              <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 12px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                              <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 12px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Cancel</button>
                               <button className="sq-post-btn" onClick={() => saveEdit(p.id)} disabled={!editText.trim()}>Save</button>
                             </div>
                           </div>
                         ) : (
                           <>
-                            <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
+                            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: '#ffffff', lineHeight: 1.7, marginBottom: 6 }}>{renderText(p.text)}</div>
                             {p.attachedStory && <StoryEmbed story={p.attachedStory} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
                             {p.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === p.quotedPostId)} />}
@@ -1450,11 +1450,11 @@ export default function SquarePage() {
                                   <Avatar uid={r.authorUid} initials={r.authorInitials} size={26} isAuthor={r.isAuthor} avatarUrl={r.authorAvatarUrl} />
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3, flexWrap: 'wrap' }}>
-                                      <a href={rIsOwn ? '/profile' : `/user?id=${r.authorUid}`} style={{ fontSize: '0.75rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Inter, sans-serif', textDecoration: 'none' }}
+                                      <a href={rIsOwn ? '/profile' : `/user?id=${r.authorUid}`} style={{ fontSize: '0.82rem', fontWeight: 500, color: '#ffffff', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none' }}
                                         onMouseEnter={e => e.currentTarget.style.color = '#a78bfa'}
                                         onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{r.authorName}</a>
                                       <UserBadge uid={r.authorUid} readCount={r.authorReadCount} isAuthor={r.isAuthor} />
-                                      <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Inter, sans-serif' }}>{timeAgo(r.createdAt)}{r.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
+                                      <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{timeAgo(r.createdAt)}{r.edited && <span style={{ color: 'rgba(255,255,255,0.15)' }}> · edited</span>}</span>
                                       {user && <PostMenu post={r} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} isMod={isMod} />}
                                     </div>
                                     {editingPost === r.id ? (
@@ -1462,13 +1462,13 @@ export default function SquarePage() {
                                         <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem', marginBottom: 6 }} />
                                         {mentionQueryEdit !== '' && <MentionDropdown query={mentionQueryEdit} onSelect={insertMentionEdit} />}
                                         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                          <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+                                          <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Cancel</button>
                                           <button className="sq-post-btn" onClick={() => saveEdit(r.id)} disabled={!editText.trim()}>Save</button>
                                         </div>
                                       </div>
                                     ) : (
                                       <>
-                                        <div style={{ fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.65 }}>{renderText(r.text)}</div>
+                                        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.65 }}>{renderText(r.text)}</div>
                                         {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} />}
                                       </>
                                     )}

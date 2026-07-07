@@ -45,7 +45,7 @@ function StatusBadge({ sub }) {
   const st = submissionStatus(sub);
   return (
     <span style={{
-      fontFamily: 'Inter, sans-serif', fontSize: '0.68rem', fontWeight: 600,
+      fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.75rem', fontWeight: 600,
       color: st.color, background: st.bg, border: `1px solid ${st.border}`,
       borderRadius: 4, padding: '0.18em 0.55em', whiteSpace: 'nowrap',
     }}>
@@ -55,28 +55,28 @@ function StatusBadge({ sub }) {
 }
 
 const s = {
-  page:         { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
+  page:         { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "Cormorant Garamond, Georgia, serif" },
   header:       { background: '#171717', borderBottom: '1px solid #2a2a2a', padding: '1.25rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   logo:         { fontSize: '1rem', fontWeight: 700, color: '#c4b5fd', letterSpacing: '0.05em' },
   sub:          { fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.15em', marginTop: 2 },
   body:         { maxWidth: 860, margin: '0 auto', padding: '2.5rem 2rem' },
   btn:          { background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', border: 'none', padding: '0.65rem 1.5rem', borderRadius: 6, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' },
   btnGhost:     { background: 'transparent', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.4)', padding: '0.55rem 1.2rem', borderRadius: 6, fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' },
-  btnDanger:    { background: 'rgba(220,38,38,0.1)', color: '#f87171', border: '1px solid rgba(220,38,38,0.3)', padding: '0.38rem 0.85rem', borderRadius: 5, fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif' },
+  btnDanger:    { background: 'rgba(220,38,38,0.1)', color: '#f87171', border: '1px solid rgba(220,38,38,0.3)', padding: '0.38rem 0.85rem', borderRadius: 5, fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   card:         { background: '#171717', border: '1px solid #242424', borderRadius: 10, padding: '1.25rem 1.4rem', marginBottom: '0.75rem' },
   cardPurple:   { background: '#171717', border: '1px solid rgba(107,47,173,0.45)', borderRadius: 10, padding: '1.25rem 1.4rem', marginBottom: '1.25rem' },
   cardDanger:   { background: '#171717', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 10, padding: '1.25rem 1.4rem', marginBottom: '1.25rem' },
   input:        { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.6rem 0.9rem', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' },
   select:       { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.72rem 1rem', color: '#fff', fontSize: '0.9rem', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' },
-  label:        { fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#a78bfa', display: 'block', marginBottom: '0.45rem', fontFamily: 'Inter, sans-serif' },
-  labelDanger:  { fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#f87171', display: 'block', marginBottom: '0.45rem', fontFamily: 'Inter, sans-serif' },
+  label:        { fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#a78bfa', display: 'block', marginBottom: '0.45rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  labelDanger:  { fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#f87171', display: 'block', marginBottom: '0.45rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   fg:           { display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.85rem' },
-  hint:         { fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.5, fontFamily: 'Inter, sans-serif' },
-  msgGreen:     { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.25)', color: '#6ee7b7', marginBottom: '1.25rem', fontFamily: 'Inter, sans-serif' },
+  hint:         { fontSize: '0.75rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', lineHeight: 1.5, fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  msgGreen:     { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.25)', color: '#6ee7b7', marginBottom: '1.25rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   error:        { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.82rem', background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', color: '#f87171', marginBottom: '1.25rem', fontFamily: "'Courier New', monospace", whiteSpace: 'pre-wrap', wordBreak: 'break-all' },
-  gate:         { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cochin', Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
+  gate:         { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
   sectionHead:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' },
-  sectionTitle: { fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif' },
+  sectionTitle: { fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   topBar:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' },
   spinner:      { display: 'inline-block', width: 13, height: 13, border: '2px solid rgba(255,255,255,0.15)', borderTopColor: '#a78bfa', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginRight: '0.45rem', verticalAlign: 'middle' },
 };
@@ -277,7 +277,7 @@ export default function QuizResetsPage() {
         <div style={s.topBar}>
           <div>
             <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#fff', margin: '0 0 0.25rem' }}>Quiz Resets</h2>
-            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
               Clear a user's attempt so they can retake a quiz
             </div>
           </div>
@@ -288,7 +288,7 @@ export default function QuizResetsPage() {
           <div style={s.fg}>
             <label style={s.label}>Story / Quiz</label>
             {loadingData ? (
-              <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>Loading…</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Loading…</div>
             ) : (
               <select style={s.select} value={selectedSlug} onChange={e => selectSlug(e.target.value)}>
                 <option value="">Select a story…</option>
@@ -328,12 +328,12 @@ export default function QuizResetsPage() {
             {submissions !== null && (
               <div style={s.card}>
                 {submissions.length === 0 ? (
-                  <div style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
                     No submissions found for this story.
                   </div>
                 ) : (
                   <>
-                    <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif', marginBottom: '0.9rem' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.9rem' }}>
                       {submissions.length} submission{submissions.length !== 1 ? 's' : ''} — {lockedOutCount} locked out, {scoredCount} scored
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
@@ -348,11 +348,11 @@ export default function QuizResetsPage() {
                               </span>
                               <StatusBadge sub={sub} />
                               {sub.pointsAwarded > 0 && (
-                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.68rem', color: '#c9a44c' }}>
+                                <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.75rem', fontWeight: 500, color: '#c9a44c' }}>
                                   +{sub.pointsAwarded} pts
                                 </span>
                               )}
-                              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.68rem', color: 'rgba(255,255,255,0.22)', marginLeft: 'auto' }}>
+                              <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.75rem', fontWeight: 500, color: 'rgba(255,255,255,0.22)', marginLeft: 'auto' }}>
                                 {timeAgo(sub.submittedAt)}
                               </span>
                               {isConfirming ? (
@@ -434,12 +434,12 @@ export default function QuizResetsPage() {
                 return (
                   <div style={{ marginTop: '1rem', padding: '0.9rem 1rem', background: '#111', borderRadius: 6, border: '1px solid #222' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.65rem' }}>
-                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.72rem', color: '#6ee7b7', fontWeight: 600 }}>Found</span>
+                      <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.8rem', color: '#6ee7b7', fontWeight: 600 }}>Found</span>
                       <span style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>
                         {lookupResult.uid.slice(0, 16)}…
                       </span>
                       {(lookupResult.displayName ?? lookupResult.handle) && (
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)' }}>
+                        <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.85rem', fontWeight: 500, color: 'rgba(255,255,255,0.4)' }}>
                           {lookupResult.displayName ?? `@${lookupResult.handle}`}
                         </span>
                       )}
@@ -448,16 +448,16 @@ export default function QuizResetsPage() {
                       {existing ? (
                         <>
                           <StatusBadge sub={existing} />
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)' }}>
+                          <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.75rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)' }}>
                             submitted {timeAgo(existing.submittedAt)}
                           </span>
                         </>
                       ) : submissions ? (
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>
+                        <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.82rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)' }}>
                           No submission for this quiz.
                         </span>
                       ) : (
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>
+                        <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.82rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)' }}>
                           Load submissions above to see their status.
                         </span>
                       )}
@@ -506,7 +506,7 @@ export default function QuizResetsPage() {
               <span style={s.sectionTitle}>Bulk reset</span>
             </div>
             <div style={s.cardDanger}>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.65, marginBottom: '1.1rem' }}>
+              <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.65, marginBottom: '1.1rem' }}>
                 Wipes <strong style={{ color: 'rgba(255,255,255,0.65)' }}>every</strong> submission for this quiz and allows all readers to retake.
                 Each wipe is logged individually. Cannot be undone.
                 {submissions && submissions.length > 0 && (
@@ -547,7 +547,7 @@ export default function QuizResetsPage() {
         )}
 
         {!selectedSlug && !loadingData && (
-          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: '3rem 0', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif' }}>
+          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: '3rem 0', fontSize: '0.88rem', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
             Select a story to begin.
           </div>
         )}

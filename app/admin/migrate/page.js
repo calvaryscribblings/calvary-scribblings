@@ -5,7 +5,7 @@ import { useAuth } from '../../lib/AuthContext';
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
 const s = {
-  page:    { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
+  page:    { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "Cormorant Garamond, Georgia, serif" },
   header:  { background: '#171717', borderBottom: '1px solid #2a2a2a', padding: '1.25rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   logo:    { fontSize: '1rem', fontWeight: 700, color: '#c4b5fd', letterSpacing: '0.05em' },
   sub:     { fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.15em', marginTop: 2 },
@@ -14,16 +14,16 @@ const s = {
   h2:      { fontSize: '1.35rem', fontWeight: 700, color: '#fff', margin: 0 },
   h2sub:   { fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', marginTop: 3 },
   card:    { background: '#171717', border: '1px solid #242424', borderRadius: 10, padding: '1.5rem 1.75rem', marginBottom: '1.5rem' },
-  label:   { fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#a78bfa', display: 'block', marginBottom: '0.6rem', fontFamily: 'Inter, sans-serif' },
-  hint:    { fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.6, fontFamily: 'Inter, sans-serif', marginBottom: '1.25rem' },
+  label:   { fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#a78bfa', display: 'block', marginBottom: '0.6rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  hint:    { fontSize: '0.85rem', fontWeight: 500, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6, fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '1.25rem' },
   actions: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' },
   btn:     { background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', border: 'none', padding: '0.65rem 1.5rem', borderRadius: 6, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' },
   btnGhost:{ background: 'transparent', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.4)', padding: '0.55rem 1.2rem', borderRadius: 6, fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' },
   btnDis:  { opacity: 0.45, cursor: 'not-allowed' },
   pre:     { background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, padding: '1.25rem', fontFamily: "'Courier New', monospace", fontSize: '0.82rem', lineHeight: 1.65, color: '#e8e8e8', whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowWrap: 'break-word', marginTop: '1.5rem' },
-  preLabel:{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif', marginTop: '1.75rem', marginBottom: '0.4rem' },
+  preLabel:{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', marginTop: '1.75rem', marginBottom: '0.4rem' },
   error:   { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.82rem', background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', color: '#f87171', marginTop: '1.25rem', fontFamily: "'Courier New', monospace", whiteSpace: 'pre-wrap', wordBreak: 'break-all' },
-  gate:    { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cochin', Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
+  gate:    { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
 };
 
 export default function MigratePage() {

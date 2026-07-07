@@ -245,7 +245,7 @@ export default function AuthModal({ onClose }) {
           font-size: 1.1rem;
           cursor: pointer;
           line-height: 1;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
           font-weight: 300;
           transition: color 0.2s;
           z-index: 1;
@@ -278,8 +278,8 @@ export default function AuthModal({ onClose }) {
           color: rgba(255,255,255,0.28);
           margin-bottom: 1.75rem;
           letter-spacing: 0.02em;
-          font-family: 'Inter', sans-serif;
-          font-weight: 300;
+          font-family: 'Cormorant Garamond', Georgia, serif;
+          font-weight: 500;
           line-height: 1.5;
         }
 
@@ -291,7 +291,7 @@ export default function AuthModal({ onClose }) {
           font-size: 0.78rem;
           color: #fca5a5;
           margin-bottom: 1.1rem;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
         }
 
         .auth-success {
@@ -302,7 +302,7 @@ export default function AuthModal({ onClose }) {
           font-size: 0.78rem;
           color: #86efac;
           margin-bottom: 1.1rem;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
         }
 
         .auth-google {
@@ -311,7 +311,7 @@ export default function AuthModal({ onClose }) {
           border: none;
           border-radius: 1px;
           padding: 0.8rem;
-          font-size: 0.82rem;
+          font-size: 0.9rem;
           font-weight: 500;
           color: #1f1f1f;
           cursor: pointer;
@@ -319,7 +319,7 @@ export default function AuthModal({ onClose }) {
           align-items: center;
           justify-content: center;
           gap: 0.6rem;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
           letter-spacing: 0.01em;
           margin-bottom: 1rem;
           transition: opacity 0.2s;
@@ -339,11 +339,12 @@ export default function AuthModal({ onClose }) {
           background: rgba(255,255,255,0.06);
         }
         .auth-or span {
-          font-size: 0.62rem;
+          font-size: 0.7rem;
+          font-weight: 500;
           letter-spacing: 0.14em;
           text-transform: uppercase;
           color: rgba(255,255,255,0.18);
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
         }
 
         .auth-field { margin-bottom: 1rem; }
@@ -356,17 +357,18 @@ export default function AuthModal({ onClose }) {
 
         .auth-label {
           display: block;
-          font-size: 0.6rem;
+          font-size: 0.68rem;
           letter-spacing: 0.18em;
           text-transform: uppercase;
           color: rgba(255,255,255,0.32);
           margin-bottom: 0.4rem;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
           font-weight: 500;
         }
 
         .auth-dob-tag {
           font-size: 0.55rem;
+          font-weight: 500;
           letter-spacing: 0.08em;
           background: rgba(107,47,173,0.15);
           border: 1px solid rgba(107,47,173,0.25);
@@ -376,7 +378,7 @@ export default function AuthModal({ onClose }) {
           text-transform: uppercase;
           vertical-align: middle;
           margin-left: 0.4rem;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
         }
 
         .auth-input {
@@ -400,14 +402,15 @@ export default function AuthModal({ onClose }) {
           color: rgba(255,255,255,0.13);
           font-style: italic;
         }
-        .auth-input[type="date"] { color-scheme: dark; font-family: 'Inter', sans-serif; font-size: 0.82rem; }
+        .auth-input[type="date"] { color-scheme: dark; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 0.82rem; }
 
         .auth-hint {
-          font-size: 0.62rem;
+          font-size: 0.7rem;
+          font-weight: 500;
           color: rgba(255,255,255,0.18);
           margin-top: 0.3rem;
           font-style: italic;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
         }
 
         .auth-forgot {
@@ -419,10 +422,11 @@ export default function AuthModal({ onClose }) {
           background: none;
           border: none;
           color: rgba(155,109,255,0.5);
-          font-size: 0.72rem;
+          font-size: 0.8rem;
+          font-weight: 500;
           cursor: pointer;
           padding: 0;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
           transition: color 0.2s;
         }
         .auth-forgot button:hover { color: #9b6dff; }
@@ -433,13 +437,13 @@ export default function AuthModal({ onClose }) {
           border: none;
           border-radius: 1px;
           padding: 0.88rem;
-          font-size: 0.68rem;
+          font-size: 0.75rem;
           font-weight: 600;
           letter-spacing: 0.2em;
           text-transform: uppercase;
           color: #fff;
           cursor: pointer;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
           transition: background 0.2s, transform 0.1s;
         }
         .auth-btn:hover { background: #7c3aed; }
@@ -454,9 +458,10 @@ export default function AuthModal({ onClose }) {
         }
         .auth-footer p {
           font-size: 0.74rem;
+          font-weight: 500;
           color: rgba(255,255,255,0.28);
           margin: 0;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
         }
         .auth-footer button {
           background: none;
@@ -495,7 +500,7 @@ export default function AuthModal({ onClose }) {
           gap: 0.75rem;
           font-size: 0.78rem;
           color: rgba(255,255,255,0.45);
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
           line-height: 1.5;
         }
         .auth-verify-step-num {
@@ -505,14 +510,14 @@ export default function AuthModal({ onClose }) {
           background: rgba(107,47,173,0.2);
           border: 1px solid rgba(107,47,173,0.3);
           color: #9b6dff;
-          font-size: 0.6rem;
+          font-size: 0.68rem;
           font-weight: 600;
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
           margin-top: 1px;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
         }
 
         .auth-resend {
@@ -521,13 +526,13 @@ export default function AuthModal({ onClose }) {
           border-radius: 1px;
           width: 100%;
           padding: 0.78rem;
-          font-size: 0.68rem;
+          font-size: 0.75rem;
           font-weight: 500;
           letter-spacing: 0.12em;
           text-transform: uppercase;
           color: rgba(255,255,255,0.4);
           cursor: pointer;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
           transition: border-color 0.2s, color 0.2s;
           margin-top: 0.75rem;
         }

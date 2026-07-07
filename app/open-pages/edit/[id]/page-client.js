@@ -68,9 +68,9 @@ const INK = '#080610';
 const PURPLE = '#6b2fad';
 const GOLD = '#c9a84c';
 const CREAM = '#f5f0e8';
-const SERIF = "'Cormorant Garamond', 'Cochin', Georgia, serif";
-const BODY_SERIF = "'Cochin', Georgia, serif";
-const SANS = "'Helvetica Neue', Arial, sans-serif";
+const SERIF = "Cormorant Garamond, Georgia, serif";
+const BODY_SERIF = "Cormorant Garamond, Georgia, serif";
+const SANS = "Cormorant Garamond, Georgia, serif";
 const CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 
 // ---------------------------------------------------------------------------
@@ -416,7 +416,7 @@ export default function EditPageClient({ params }) {
     return (
       <Shell>
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '5rem 1.5rem', textAlign: 'center' }}>
-          <div style={{ fontFamily: SANS, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 16 }}>
+          <div style={{ fontFamily: SANS, fontSize: 12, fontWeight: 500, letterSpacing: '0.22em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 16 }}>
             Open Pages
           </div>
           <div style={{ fontFamily: SERIF, fontSize: '2.4rem', fontWeight: 500, color: CREAM, marginBottom: '0.9rem', lineHeight: 1.1 }}>
@@ -492,7 +492,7 @@ export default function EditPageClient({ params }) {
               <IconArrowLeft size={15} /> Back to the story
             </a>
           </div>
-          <div style={{ fontFamily: SANS, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 16 }}>
+          <div style={{ fontFamily: SANS, fontSize: 12, fontWeight: 500, letterSpacing: '0.22em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 16 }}>
             Open Pages
           </div>
           <h1 style={{ fontFamily: SERIF, fontSize: '2.5rem', fontWeight: 500, color: CREAM, margin: 0, lineHeight: 1.1 }}>

@@ -6,7 +6,7 @@ import { useAuth } from '../../lib/AuthContext';
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
 const s = {
-  page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
+  page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "Cormorant Garamond, Georgia, serif" },
   header: { background: '#171717', borderBottom: '1px solid #2a2a2a', padding: '1.25rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   logo: { fontSize: '1rem', fontWeight: 700, color: '#c4b5fd', letterSpacing: '0.05em' },
   body: { maxWidth: 860, margin: '0 auto', padding: '2.5rem 2rem' },
@@ -129,19 +129,19 @@ export default function SubmissionsPage() {
         {msg && <div style={{ padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1rem' }}>{msg}</div>}
 
         {loading ? (
-          <div style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem' }}>Loading…</div>
+          <div style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500, fontSize: '0.9rem' }}>Loading…</div>
         ) : submissions.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '4rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif', fontSize: '0.88rem' }}>No essay submissions pending review.</div>
+          <div style={{ textAlign: 'center', padding: '4rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.88rem' }}>No essay submissions pending review.</div>
         ) : submissions.map((sub, si) => (
           <div key={`${sub.uid}_${sub.slug}`} style={s.card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <div>
                 <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#fff', marginBottom: 3 }}>{sub.displayName}</div>
-                <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter, sans-serif' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 500, color: 'rgba(255,255,255,0.35)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
                   {sub.slug.replace(/-/g, ' ')} · Submitted {new Date(sub.submittedAt).toLocaleDateString('en-GB')}
                 </div>
               </div>
-              <div style={{ fontSize: '0.68rem', color: '#fcd34d', background: 'rgba(217,119,6,0.15)', border: '1px solid rgba(217,119,6,0.3)', borderRadius: 4, padding: '0.2rem 0.6rem', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+              <div style={{ fontSize: '0.75rem', color: '#fcd34d', background: 'rgba(217,119,6,0.15)', border: '1px solid rgba(217,119,6,0.3)', borderRadius: 4, padding: '0.2rem 0.6rem', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600 }}>
                 Pending Review
               </div>
             </div>
@@ -150,13 +150,13 @@ export default function SubmissionsPage() {
               const key = `${sub.uid}_${sub.slug}_${answer.questionIndex}`;
               return (
                 <div key={ai} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '1rem', marginBottom: '0.75rem' }}>
-                  <div style={{ fontSize: '0.78rem', color: '#a78bfa', fontFamily: 'Inter, sans-serif', fontWeight: 600, marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#a78bfa', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600, marginBottom: '0.5rem' }}>
                     Q{answer.questionIndex + 1} · Essay · Max {answer.maxPoints} pts
                   </div>
-                  <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter, sans-serif', marginBottom: '0.75rem', fontStyle: 'italic' }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'rgba(255,255,255,0.5)', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.75rem', fontStyle: 'italic' }}>
                     {answer.question}
                   </div>
-                  <div style={{ fontSize: '0.92rem', color: '#e8e0d4', fontFamily: 'Cochin, Georgia, serif', lineHeight: 1.7, marginBottom: '1rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: 6, borderLeft: '3px solid rgba(107,47,173,0.4)' }}>
+                  <div style={{ fontSize: '0.92rem', color: '#e8e0d4', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, marginBottom: '1rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: 6, borderLeft: '3px solid rgba(107,47,173,0.4)' }}>
                     {answer.response}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -166,7 +166,7 @@ export default function SubmissionsPage() {
                       value={scores[key] ?? ''}
                       onChange={e => setScores(sc => ({ ...sc, [key]: Number(e.target.value) }))}
                     />
-                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>/ {answer.maxPoints} pts</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>/ {answer.maxPoints} pts</span>
                     <button style={s.btnGreen}
                       disabled={marking[key] || scores[key] === undefined || scores[key] === ''}
                       onClick={() => markSubmission(sub.uid, sub.slug, answer.questionIndex, scores[key] || 0)}>

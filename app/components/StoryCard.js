@@ -48,7 +48,7 @@ export default function StoryCard({ story, userTier = null, scorePct, rank = nul
       <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 4, minHeight: 116 }}>
         {/* Title */}
         <h3 style={{
-          fontFamily: 'Cochin, "Cormorant Garamond", Georgia, serif',
+          fontFamily: 'Cormorant Garamond, Georgia, serif',
           fontSize: 15,
           fontWeight: 600,
           color: '#f5f0e8',
@@ -63,7 +63,7 @@ export default function StoryCard({ story, userTier = null, scorePct, rank = nul
 
         {/* Author */}
         <p style={{
-          fontFamily: 'Cochin, Georgia, serif',
+          fontFamily: 'Cormorant Garamond, Georgia, serif',
           fontStyle: 'italic',
           fontSize: 12,
           color: 'rgba(245,240,232,0.45)',

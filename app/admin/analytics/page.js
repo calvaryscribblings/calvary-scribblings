@@ -33,29 +33,29 @@ const RANGES = [
 ];
 
 const s = {
-  page:        { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
+  page:        { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "Cormorant Garamond, Georgia, serif" },
   header:      { background: '#171717', borderBottom: '1px solid #2a2a2a', padding: '1.25rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   logo:        { fontSize: '1rem', fontWeight: 700, color: '#c4b5fd', letterSpacing: '0.05em' },
   sub:         { fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.15em', marginTop: 2 },
   body:        { maxWidth: 1100, margin: '0 auto', padding: '2.5rem 2rem 4rem' },
   topBar:      { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem', gap: '1rem', flexWrap: 'wrap' },
-  h2:          { fontSize: '1.75rem', fontWeight: 700, color: '#fff', margin: 0, fontFamily: "'Cochin', Georgia, serif" },
-  h2sub:       { fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', marginTop: 4, fontFamily: 'Inter, sans-serif' },
+  h2:          { fontSize: '1.75rem', fontWeight: 700, color: '#fff', margin: 0, fontFamily: "Cormorant Garamond, Georgia, serif" },
+  h2sub:       { fontSize: '0.8rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', marginTop: 4, fontFamily: 'Cormorant Garamond, Georgia, serif' },
   rangeRow:    { display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' },
-  chip:        { background: 'transparent', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.12)', padding: '0.4rem 0.85rem', borderRadius: 999, fontWeight: 600, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '0.08em' },
+  chip:        { background: 'transparent', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.12)', padding: '0.4rem 0.85rem', borderRadius: 999, fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif', textTransform: 'uppercase', letterSpacing: '0.08em' },
   chipActive:  { background: '#7c3aed', color: '#fff', borderColor: '#7c3aed' },
-  refreshBtn:  { background: 'transparent', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.4)', padding: '0.4rem 0.95rem', borderRadius: 6, fontWeight: 600, fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'Inter, sans-serif', marginLeft: '0.5rem' },
+  refreshBtn:  { background: 'transparent', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.4)', padding: '0.4rem 0.95rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif', marginLeft: '0.5rem' },
   section:     { marginBottom: '2rem' },
-  sectionTitle:{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'rgba(255,255,255,0.45)', marginBottom: '0.85rem', fontFamily: 'Inter, sans-serif' },
+  sectionTitle:{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'rgba(255,255,255,0.45)', marginBottom: '0.85rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   grid2:       { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1rem' },
   card:        { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '1.25rem' },
-  cardTitle:   { fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.45)', marginBottom: '1rem', fontFamily: 'Inter, sans-serif' },
-  empty:       { fontSize: '0.82rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif', padding: '0.75rem 0' },
-  errBox:      { fontSize: '0.78rem', color: '#f87171', background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 6, padding: '0.65rem 0.85rem', fontFamily: 'Inter, sans-serif', lineHeight: 1.5 },
+  cardTitle:   { fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.45)', marginBottom: '1rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  empty:       { fontSize: '0.9rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', padding: '0.75rem 0' },
+  errBox:      { fontSize: '0.85rem', fontWeight: 500, color: '#f87171', background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 6, padding: '0.65rem 0.85rem', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.5 },
   errPath:     { fontFamily: 'monospace', fontSize: '0.72rem', color: '#fca5a5', background: 'rgba(220,38,38,0.1)', padding: '0.05rem 0.35rem', borderRadius: 3 },
-  bigNum:      { fontFamily: "'Cochin', Georgia, serif", fontSize: '2.5rem', color: '#a78bfa', lineHeight: 1.1 },
-  bigNumSub:   { fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', marginTop: '0.3rem', fontFamily: 'Inter, sans-serif' },
-  gate:        { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cochin', Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
+  bigNum:      { fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '2.5rem', color: '#a78bfa', lineHeight: 1.1 },
+  bigNumSub:   { fontSize: '0.78rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', marginTop: '0.3rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  gate:        { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
   loadingBar:  { height: 22, borderRadius: 4, background: 'linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.08), rgba(255,255,255,0.04))', backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', marginBottom: '0.5rem' },
 };
 
@@ -63,11 +63,11 @@ function HBar({ label, value, max, suffix }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.45rem' }}>
-      <div title={label} style={{ flex: '0 0 38%', color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem' }}>{label}</div>
+      <div title={label} style={{ flex: '0 0 38%', color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.85rem', fontWeight: 500 }}>{label}</div>
       <div style={{ flex: 1, height: 22, background: 'rgba(255,255,255,0.04)', borderRadius: 4, overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #6b2fad, #a78bfa)', borderRadius: 4, transition: 'width 0.4s ease' }} />
       </div>
-      <div style={{ flex: '0 0 60px', textAlign: 'right', fontFamily: "'Cochin', Georgia, serif", fontSize: '1.05rem', color: '#c4b5fd' }}>
+      <div style={{ flex: '0 0 60px', textAlign: 'right', fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '1.05rem', color: '#c4b5fd' }}>
         {value}{suffix || ''}
       </div>
     </div>
@@ -78,8 +78,8 @@ function StackedTierBar({ label, total, tiers }) {
   return (
     <div style={{ marginBottom: '0.85rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-        <span title={label} style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{label}</span>
-        <span style={{ color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter, sans-serif', fontSize: '0.7rem' }}>{total} attempt{total !== 1 ? 's' : ''}</span>
+        <span title={label} style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.85rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>{label}</span>
+        <span style={{ color: 'rgba(255,255,255,0.35)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.78rem', fontWeight: 500 }}>{total} attempt{total !== 1 ? 's' : ''}</span>
       </div>
       <div style={{ display: 'flex', height: 20, borderRadius: 4, overflow: 'hidden', background: '#1a1a1a' }}>
         {TIER_ORDER.map(tier => {
@@ -104,9 +104,9 @@ function PassRateRow({ label, total, rate }) {
   const color = pct >= 70 ? '#86efac' : pct >= 40 ? '#fcd34d' : '#f87171';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-      <div title={label} style={{ flex: 1, color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
-      <div style={{ flex: '0 0 50px', textAlign: 'right', fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>n={total}</div>
-      <div style={{ flex: '0 0 60px', textAlign: 'right', fontFamily: "'Cochin', Georgia, serif", fontSize: '1.2rem', color }}>{pct}%</div>
+      <div title={label} style={{ flex: 1, color: 'rgba(255,255,255,0.7)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.85rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
+      <div style={{ flex: '0 0 50px', textAlign: 'right', fontSize: '0.75rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>n={total}</div>
+      <div style={{ flex: '0 0 60px', textAlign: 'right', fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '1.2rem', color }}>{pct}%</div>
     </div>
   );
 }
@@ -129,7 +129,7 @@ function LineChart({ data, height = 130 }) {
       {points.map(([x, y], i) => (
         <circle key={i} cx={x} cy={y} r="2" fill="#c4b5fd" opacity={i === points.length - 1 ? 1 : 0.5} />
       ))}
-      <text x={P} y={14} fill="rgba(255,255,255,0.3)" fontSize="11" fontFamily="Inter, sans-serif">peak: {max}</text>
+      <text x={P} y={14} fill="rgba(255,255,255,0.3)" fontSize="12" fontWeight="500" fontFamily="Cormorant Garamond, Georgia, serif">peak: {max}</text>
     </svg>
   );
 }
@@ -163,10 +163,10 @@ function Donut({ buckets, size = 170 }) {
       </svg>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: 160 }}>
         {buckets.map(b => (
-          <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', fontSize: '0.78rem', fontFamily: 'Inter, sans-serif' }}>
+          <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', fontSize: '0.85rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
             <span style={{ width: 10, height: 10, borderRadius: 2, background: b.color, flexShrink: 0 }} />
             <span style={{ color: 'rgba(255,255,255,0.6)', flex: 1 }}>{b.label}</span>
-            <span style={{ color: '#c4b5fd', fontFamily: "'Cochin', Georgia, serif", fontSize: '1rem' }}>{b.count}</span>
+            <span style={{ color: '#c4b5fd', fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '1rem' }}>{b.count}</span>
           </div>
         ))}
       </div>
@@ -514,7 +514,7 @@ export default function AnalyticsPage() {
                        ))}
                        <div style={{ display: 'flex', gap: '0.85rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
                          {TIER_ORDER.map(t => (
-                           <span key={t} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.7rem', fontFamily: 'Inter, sans-serif', color: 'rgba(255,255,255,0.5)' }}>
+                           <span key={t} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', color: 'rgba(255,255,255,0.5)' }}>
                              <span style={{ width: 9, height: 9, borderRadius: 2, background: TIER_COLORS[t] }} />
                              {t}
                            </span>
@@ -602,7 +602,7 @@ export default function AnalyticsPage() {
                        <div><div style={s.bigNum}>{m.storiesPerUser.mean}</div><div style={s.bigNumSub}>Mean</div></div>
                        <div><div style={s.bigNum}>{m.storiesPerUser.median}</div><div style={s.bigNumSub}>Median</div></div>
                        <div><div style={s.bigNum}>{m.storiesPerUser.max}</div><div style={s.bigNumSub}>Max</div></div>
-                       <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>
+                       <div style={{ marginLeft: 'auto', alignSelf: 'flex-end', fontSize: '0.78rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
                          from {m.storiesPerUser.n} reader{m.storiesPerUser.n !== 1 ? 's' : ''}
                        </div>
                      </div>)}
@@ -646,7 +646,7 @@ export default function AnalyticsPage() {
                        {m.pendingPayouts.length > 0 && (
                          <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                            {m.pendingPayouts.slice(0, 5).map(p => (
-                             <div key={p.id} style={{ fontSize: '0.78rem', fontFamily: 'Inter, sans-serif', color: 'rgba(255,255,255,0.65)' }}>
+                             <div key={p.id} style={{ fontSize: '0.85rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', color: 'rgba(255,255,255,0.65)' }}>
                                {p.username || p.uid?.slice(0, 10) || p.id} · {p.amount || 0} Scribbles
                              </div>
                            ))}

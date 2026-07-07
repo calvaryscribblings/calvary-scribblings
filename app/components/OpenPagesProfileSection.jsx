@@ -25,7 +25,7 @@ import { normalizeGenre } from '../lib/openPages';
 const GOLD = '#c9a84c';
 const PURPLE = '#6b2fad';
 const CREAM = '#f5f0e8';
-const SERIF = "'Cormorant Garamond', 'Cochin', Georgia, serif";
+const SERIF = "Cormorant Garamond, Georgia, serif";
 const CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 
 // Pocket thresholds (all four must be met simultaneously).
@@ -145,7 +145,7 @@ export default function OpenPagesProfileSection({ profileUid, isOwner = false, p
                     <div style={{ fontFamily: SERIF, fontSize: '1.1rem', color: CREAM, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {p.title}
                     </div>
-                    <div style={{ fontSize: '0.66rem', color: 'rgba(245,240,232,0.3)', fontFamily: 'Inter, sans-serif', marginTop: 3 }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 500, color: 'rgba(245,240,232,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', marginTop: 3 }}>
                       {fmtDate(p.createdAt)}
                     </div>
                   </div>
@@ -185,7 +185,7 @@ export default function OpenPagesProfileSection({ profileUid, isOwner = false, p
             </div>
           ) : (
             <div style={{ display: 'grid', gap: '0.95rem' }}>
-              <p style={{ margin: '0 0 0.2rem', fontSize: '0.82rem', color: 'rgba(245,240,232,0.4)', fontFamily: 'Inter, sans-serif', lineHeight: 1.6 }}>
+              <p style={{ margin: '0 0 0.2rem', fontSize: '0.9rem', fontWeight: 500, color: 'rgba(245,240,232,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.6 }}>
                 Meet all four to unlock Pocket. Progress updates as you publish —
                 no rush, no deadline.
               </p>
@@ -198,7 +198,7 @@ export default function OpenPagesProfileSection({ profileUid, isOwner = false, p
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, marginBottom: 5 }}>
                       <div style={{ minWidth: 0 }}>
                         <span style={{ fontFamily: SERIF, fontSize: '1.05rem', color: met ? GOLD : CREAM }}>{m.label}</span>
-                        <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.32)', fontFamily: 'Inter, sans-serif', marginLeft: 8 }}>{m.detail}</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'rgba(245,240,232,0.32)', fontFamily: 'Cormorant Garamond, Georgia, serif', marginLeft: 8 }}>{m.detail}</span>
                       </div>
                       <span style={{ flexShrink: 0, fontFamily: CINZEL, fontSize: '0.72rem', letterSpacing: '0.04em', color: met ? GOLD : 'rgba(245,240,232,0.5)', whiteSpace: 'nowrap' }}>
                         {shown} / {m.target} {m.unit}
@@ -242,7 +242,7 @@ export default function OpenPagesProfileSection({ profileUid, isOwner = false, p
         >
           ♥ Subscribe · Support
         </button>
-        <div style={{ textAlign: 'center', fontSize: '0.74rem', color: 'rgba(245,240,232,0.32)', fontFamily: 'Inter, sans-serif', marginTop: 9 }}>
+        <div style={{ textAlign: 'center', fontSize: '0.82rem', fontWeight: 500, color: 'rgba(245,240,232,0.32)', fontFamily: 'Cormorant Garamond, Georgia, serif', marginTop: 9 }}>
           {pocketReady
             ? `${profileName} is Pocket Ready — subscriptions open when payments launch.`
             : 'Reader subscriptions are coming soon.'}
@@ -266,7 +266,8 @@ function Kicker() {
 const wrap = { marginBottom: '2.2rem' };
 
 const subhead = {
-  fontFamily: 'Inter, sans-serif',
+  fontFamily: 'Cormorant Garamond, Georgia, serif',
+  fontWeight: 500,
   fontSize: '0.56rem',
   letterSpacing: '0.15em',
   textTransform: 'uppercase',

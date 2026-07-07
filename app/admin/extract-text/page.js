@@ -7,7 +7,7 @@ import { extractEpubFromUrl } from '../../lib/epubExtract';
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
 const s = {
-  page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
+  page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "Cormorant Garamond, Georgia, serif" },
   header: { background: '#171717', borderBottom: '1px solid #2a2a2a', padding: '1.25rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   logo: { fontSize: '1rem', fontWeight: 700, color: '#c4b5fd', letterSpacing: '0.05em' },
   sub: { fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.15em', marginTop: 2 },
@@ -16,15 +16,15 @@ const s = {
   btnGhost: { background: 'transparent', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.4)', padding: '0.45rem 0.9rem', borderRadius: 6, fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit' },
   card: { background: '#171717', border: '1px solid #242424', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' },
   title: { fontSize: '0.92rem', fontWeight: 700, color: '#fff', marginBottom: 3 },
-  meta: { fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif' },
-  status: { fontSize: '0.72rem', fontFamily: 'Inter, sans-serif', minWidth: 120, textAlign: 'right' },
+  meta: { fontSize: '0.78rem', fontWeight: 500, color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  status: { fontSize: '0.8rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', minWidth: 120, textAlign: 'right' },
   statusOK: { color: '#6ee7b7' },
   statusErr: { color: '#f87171' },
   statusBusy: { color: '#a78bfa' },
-  empty: { textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: '3rem 0', fontFamily: 'Inter, sans-serif' },
-  msg: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1.25rem', fontFamily: 'Inter, sans-serif' },
+  empty: { textAlign: 'center', color: 'rgba(255,255,255,0.3)', padding: '3rem 0', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  msg: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.92rem', fontWeight: 500, background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1.25rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   topActions: { display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', alignItems: 'center', flexWrap: 'wrap' },
-  gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cochin', Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
+  gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
 };
 
 function StatusBadge({ status }) {
@@ -126,7 +126,7 @@ export default function ExtractTextPage() {
 
       <div style={s.body}>
         <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#fff', margin: '0 0 0.5rem' }}>EPUB Text Extraction</h2>
-        <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif', marginBottom: '1.5rem' }}>
+        <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '1.5rem' }}>
           Pull plain text from uploaded EPUBs into <code style={{ color: '#c4b5fd' }}>cms_stories/&lt;slug&gt;/extractedText</code>. Required before reader-mode quizzes can be generated.
         </div>
 

@@ -27,7 +27,7 @@ export default function CookieBanner() {
       background: '#111', borderTop: '1px solid #2a2a2a',
       padding: '1rem 2rem', display: 'flex', alignItems: 'center',
       justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap',
-      fontFamily: 'Cochin, Georgia, serif',
+      fontFamily: 'Cormorant Garamond, Georgia, serif',
     }}>
       <p style={{
         margin: 0, fontSize: '0.85rem', color: 'rgba(232,224,212,0.75)',

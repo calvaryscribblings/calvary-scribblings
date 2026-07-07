@@ -8,7 +8,7 @@ const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 const LS_KEY = 'cs_quiz_wip';
 
 const s = {
-  page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "'Cochin', Georgia, serif" },
+  page: { minHeight: '100vh', background: '#0f0f0f', color: '#e8e8e8', fontFamily: "Cormorant Garamond, Georgia, serif" },
   header: { background: '#171717', borderBottom: '1px solid #2a2a2a', padding: '1.25rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   logo: { fontSize: '1rem', fontWeight: 700, color: '#c4b5fd', letterSpacing: '0.05em' },
   sub: { fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.15em', marginTop: 2 },
@@ -23,21 +23,21 @@ const s = {
   inputSm: { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.5rem 0.75rem', color: '#fff', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none', width: '70px', boxSizing: 'border-box' },
   textarea: { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.6rem 0.9rem', color: '#fff', fontSize: '0.88rem', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6 },
   select: { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.72rem 1rem', color: '#fff', fontSize: '0.9rem', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' },
-  label: { fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#a78bfa', display: 'block', marginBottom: '0.45rem', fontFamily: 'Inter, sans-serif' },
-  labelDim: { fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.35)', display: 'block', marginBottom: '0.45rem', fontFamily: 'Inter, sans-serif' },
+  label: { fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#a78bfa', display: 'block', marginBottom: '0.45rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  labelDim: { fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.35)', display: 'block', marginBottom: '0.45rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   fg: { display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.85rem' },
-  hint: { fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.5, fontFamily: 'Inter, sans-serif' },
-  msg: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1.25rem', fontFamily: 'Inter, sans-serif' },
-  msgGreen: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.25)', color: '#6ee7b7', marginBottom: '1.25rem', fontFamily: 'Inter, sans-serif' },
+  hint: { fontSize: '0.75rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', lineHeight: 1.5, fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  msg: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1.25rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  msgGreen: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(29,158,117,0.08)', border: '1px solid rgba(29,158,117,0.25)', color: '#6ee7b7', marginBottom: '1.25rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   error: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.82rem', background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', color: '#f87171', marginBottom: '1.25rem', fontFamily: "'Courier New', monospace", whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowWrap: 'break-word' },
-  warn: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)', color: '#fcd34d', marginBottom: '1.25rem', fontFamily: 'Inter, sans-serif' },
-  gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "'Cochin', Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
+  warn: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.25)', color: '#fcd34d', marginBottom: '1.25rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
   sectionHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' },
-  sectionTitle: { fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif' },
-  num: { fontSize: '0.65rem', fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '0.6rem', fontFamily: 'Inter, sans-serif' },
+  sectionTitle: { fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  num: { fontSize: '0.65rem', fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '0.6rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   actionBar: { display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', borderTop: '1px solid #242424', paddingTop: '1.5rem', marginTop: '1.5rem', flexWrap: 'wrap' },
   topBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' },
-  comingSoon: { background: 'rgba(201,164,76,0.07)', border: '1px solid rgba(201,164,76,0.2)', borderRadius: 10, padding: '2.5rem', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif', fontSize: '0.88rem', marginTop: '1.5rem' },
+  comingSoon: { background: 'rgba(201,164,76,0.07)', border: '1px solid rgba(201,164,76,0.2)', borderRadius: 10, padding: '2.5rem', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.88rem', marginTop: '1.5rem' },
   spinner: { display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.15)', borderTopColor: '#a78bfa', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginRight: '0.5rem', verticalAlign: 'middle' },
 };
 
@@ -48,10 +48,10 @@ function filterBtn(active) {
     border: active ? '1px solid rgba(124,58,237,0.5)' : '1px solid rgba(255,255,255,0.12)',
     padding: '0.35rem 0.9rem',
     borderRadius: 4,
-    fontWeight: active ? 700 : 400,
-    fontSize: '0.78rem',
+    fontWeight: active ? 700 : 500,
+    fontSize: '0.85rem',
     cursor: 'pointer',
-    fontFamily: 'Inter, sans-serif',
+    fontFamily: 'Cormorant Garamond, Georgia, serif',
   };
 }
 
@@ -67,7 +67,7 @@ function TagInput({ tags, onChange, placeholder, disabled }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', padding: '0.5rem', background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, minHeight: 42, opacity: disabled ? 0.5 : 1 }}>
       {tags.map((tag, i) => (
-        <span key={i} style={{ background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.35)', borderRadius: 4, padding: '0.15rem 0.45rem', fontSize: '0.78rem', color: '#c4b5fd', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontFamily: 'Inter, sans-serif' }}>
+        <span key={i} style={{ background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.35)', borderRadius: 4, padding: '0.15rem 0.45rem', fontSize: '0.85rem', fontWeight: 500, color: '#c4b5fd', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
           {tag}
           {!disabled && (
             <button onClick={() => onChange(tags.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: 'rgba(196,181,253,0.6)', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: '0.9rem' }}>×</button>
@@ -83,7 +83,7 @@ function TagInput({ tags, onChange, placeholder, disabled }) {
           }}
           onBlur={addTag}
           placeholder={placeholder || 'Add tag, press Enter…'}
-          style={{ background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: '0.82rem', minWidth: 120, flex: 1, fontFamily: 'Inter, sans-serif', padding: '0.1rem 0.2rem' }}
+          style={{ background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: '0.82rem', minWidth: 120, flex: 1, fontFamily: 'Cormorant Garamond, Georgia, serif', padding: '0.1rem 0.2rem' }}
         />
       )}
     </div>
@@ -349,7 +349,7 @@ export default function QuizzesPage() {
         <div style={s.topBar}>
           <div>
             <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#fff', margin: '0 0 0.25rem' }}>Quiz Builder</h2>
-            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
               Generate, review and publish AI-assisted comprehension quizzes
             </div>
           </div>
@@ -371,7 +371,7 @@ export default function QuizzesPage() {
           <div style={s.fg}>
             <label style={s.label}>Story</label>
             {loadingData ? (
-              <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>Loading stories…</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Loading stories…</div>
             ) : (
               <select
                 style={s.select}
@@ -541,7 +541,7 @@ export default function QuizzesPage() {
             ))}
 
             {mcqsCollapsed && (
-              <div style={{ ...s.card, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif', fontSize: '0.82rem', cursor: 'pointer' }} onClick={() => setMcqsCollapsed(false)}>
+              <div style={{ ...s.card, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem', cursor: 'pointer' }} onClick={() => setMcqsCollapsed(false)}>
                 {quiz.mcqs?.length ?? 0} MCQs collapsed — click to expand
               </div>
             )}
@@ -603,7 +603,7 @@ export default function QuizzesPage() {
         )}
 
         {!quiz && selectedSlug && !generating && !error && (
-          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '3rem 0', fontSize: '0.88rem', fontFamily: 'Inter, sans-serif' }}>
+          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '3rem 0', fontSize: '0.88rem', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
             No quiz yet for this story. Hit 'Generate Quiz' to create one.
           </div>
         )}

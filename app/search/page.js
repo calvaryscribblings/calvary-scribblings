@@ -172,7 +172,7 @@ export default function SearchPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&family=Inter:wght@300;400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #faf9f7; font-family: 'DM Sans', sans-serif; }
+        body { background: #faf9f7; font-family: 'Cormorant Garamond', Georgia, serif; }
         .search-page { min-height: 100vh; background: #faf9f7; }
         .search-hero { background: #1a1a2e; padding: 7rem 2rem 4rem; text-align: center; position: relative; overflow: hidden; }
         .search-hero::before { content: ''; position: absolute; top: -60px; left: 50%; transform: translateX(-50%); width: 600px; height: 600px; background: radial-gradient(circle, rgba(107,70,193,0.25) 0%, transparent 70%); pointer-events: none; }
@@ -181,14 +181,14 @@ export default function SearchPage() {
         .search-hero h1 em { font-style: italic; color: #c4b5fd; }
         .search-hero p { font-size: 1rem; color: rgba(255,255,255,0.5); margin-bottom: 2.5rem; }
         .search-input-wrap { position: relative; max-width: 640px; margin: 0 auto; }
-        .search-input { width: 100%; padding: 1.1rem 3.5rem 1.1rem 1.5rem; font-family: 'DM Sans', sans-serif; font-size: 1.05rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: #fff; outline: none; transition: border-color 0.2s, background 0.2s, box-shadow 0.2s; caret-color: #8b5cf6; }
+        .search-input { width: 100%; padding: 1.1rem 3.5rem 1.1rem 1.5rem; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 1.05rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: #fff; outline: none; transition: border-color 0.2s, background 0.2s, box-shadow 0.2s; caret-color: #8b5cf6; }
         .search-input::placeholder { color: rgba(255,255,255,0.3); }
         .search-input:focus { border-color: #8b5cf6; background: rgba(255,255,255,0.09); box-shadow: 0 0 0 4px rgba(139,92,246,0.15); }
         .search-icon-wrap { position: absolute; right: 1.1rem; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.3); pointer-events: none; }
         .search-body { max-width: 860px; margin: 0 auto; padding: 3rem 2rem 5rem; }
         .results-meta { font-size: 0.85rem; color: #999; margin-bottom: 2rem; }
         .results-meta strong { color: #6b46c1; }
-        .section-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #bbb; margin: 2rem 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #ede9f7; font-family: 'Inter', sans-serif; }
+        .section-label { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #bbb; margin: 2rem 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #ede9f7; font-family: 'Cormorant Garamond', Georgia, serif; }
         .result-card { display: flex; gap: 1.25rem; align-items: center; padding: 1.25rem 1rem; border-bottom: 1px solid #ede9f7; text-decoration: none; transition: background 0.15s; border-radius: 8px; margin: 0 -1rem; animation: fadeSlideIn 0.2s ease both; }
         .result-card:hover { background: #f3f0ff; }
         .result-card:hover .result-title { color: #6b46c1; }
@@ -210,8 +210,8 @@ export default function SearchPage() {
         .user-avatar { width: 44px; height: 44px; border-radius: 50%; background: rgba(107,47,173,0.12); border: 1.5px solid rgba(107,47,173,0.2); display: flex; align-items: center; justify-content: center; font-size: 15px; color: #7c3aed; overflow: hidden; flex-shrink: 0; font-family: 'Cormorant Garamond', Georgia, serif; }
         .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .user-info { flex: 1; min-width: 0; }
-        .user-name { font-size: 0.95rem; font-weight: 500; color: #1a1a2e; font-family: 'Inter', sans-serif; }
-        .user-handle { font-size: 0.78rem; color: #8b5cf6; font-family: 'Inter', sans-serif; }
+        .user-name { font-size: 0.95rem; font-weight: 500; color: #1a1a2e; font-family: 'Cormorant Garamond', Georgia, serif; }
+        .user-handle { font-size: 0.85rem; font-weight: 500; color: #8b5cf6; font-family: 'Cormorant Garamond', Georgia, serif; }
         .state-message { text-align: center; padding: 4rem 1rem; }
         .state-icon { font-size: 3rem; margin-bottom: 1rem; display: block; opacity: 0.4; }
         .state-message p { font-size: 1rem; color: #aaa; }

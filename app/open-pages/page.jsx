@@ -27,8 +27,8 @@ const SURFACE_2 = '#1a1326';
 const PURPLE = '#6b2fad';
 const GOLD = '#c9a84c';
 const CREAM = '#f5f0e8';
-const SERIF = "'Cormorant Garamond', 'Cochin', Georgia, serif";
-const BODY_SERIF = "'Cochin', Georgia, serif";
+const SERIF = "Cormorant Garamond, Georgia, serif";
+const BODY_SERIF = "Cormorant Garamond, Georgia, serif";
 const CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 
 const FILTERS = ['All', ...OPEN_PAGE_GENRES];

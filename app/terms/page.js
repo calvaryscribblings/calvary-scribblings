@@ -2,13 +2,13 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 
 const S = {
-  page: { background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: 'Cochin, Georgia, serif' },
+  page: { background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   section: { paddingTop: '8rem', paddingBottom: '6rem', paddingLeft: '4%', paddingRight: '4%', maxWidth: 780, margin: '0 auto' },
   eyebrow: { fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#a78bfa', marginBottom: '1.5rem' },
-  h1: { fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', fontWeight: 300, lineHeight: 1.15, marginBottom: '1rem', fontFamily: 'Cormorant Garamond, Cochin, Georgia, serif' },
+  h1: { fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', fontWeight: 300, lineHeight: 1.15, marginBottom: '1rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   updated: { fontSize: '0.95rem', color: 'rgba(255,255,255,0.45)', marginBottom: '2.5rem', letterSpacing: '0.02em' },
   hr: { border: 0, borderTop: '1px solid rgba(255,255,255,0.1)', margin: '2.5rem 0' },
-  h2: { fontSize: 'clamp(1.4rem, 3vw, 1.85rem)', fontWeight: 400, lineHeight: 1.25, marginTop: '3rem', marginBottom: '1.25rem', color: '#fff', fontFamily: 'Cormorant Garamond, Cochin, Georgia, serif' },
+  h2: { fontSize: 'clamp(1.4rem, 3vw, 1.85rem)', fontWeight: 400, lineHeight: 1.25, marginTop: '3rem', marginBottom: '1.25rem', color: '#fff', fontFamily: 'Cormorant Garamond, Georgia, serif' },
   p: { fontSize: '1.08rem', lineHeight: 1.85, color: 'rgba(255,255,255,0.75)', marginBottom: '1.25rem' },
   ul: { fontSize: '1.08rem', lineHeight: 1.85, color: 'rgba(255,255,255,0.75)', margin: '0 0 1.25rem', paddingLeft: '1.4rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' },
   li: { paddingLeft: '0.35rem' },

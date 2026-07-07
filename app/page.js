@@ -15,7 +15,7 @@ import { normalizeGenre } from './lib/openPages';
 // DISPLAY for headings/titles, LABEL for kickers/badges/controls, BODY for meta.
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
-const BODY = "'Cochin', Georgia, serif";
+const BODY = "Cormorant Garamond, Georgia, serif";
 
 // ── Unified section-header styles (used by every content row) ────────────────
 const kickerStyle = { fontFamily: LABEL, fontSize: '0.6rem', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 6, display: 'block' };
@@ -320,7 +320,7 @@ function Top10Card({ s, i, userTier = null, scorePct, ...rest }) {
           preserveAspectRatio="xMaxYMax meet" overflow="visible"
           style={{ position: 'absolute', left: 0, top: 0, zIndex: 1, overflow: 'visible' }}>
           <text x={NUM_W - 2} y={VB_H} textAnchor="end" dominantBaseline="text-after-edge"
-            fontFamily="Georgia, serif" fontSize="120" fontWeight="900"
+            fontFamily="Cormorant Garamond, Georgia, serif" fontSize="120" fontWeight="900"
             fill="none" stroke={strokeColor} strokeWidth="1.5" paintOrder="stroke">
             {i + 1}
           </text>
@@ -384,7 +384,7 @@ function SquareBanner({ squareOpen, countdown }) {
             )}
           </div>
           <div>
-            <div style={{ fontFamily: 'Georgia, serif', fontSize: 15, color: squareOpen ? '#f5f0e8' : 'rgba(255,255,255,0.35)', marginBottom: 3 }}>
+            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 15, color: squareOpen ? '#f5f0e8' : 'rgba(255,255,255,0.35)', marginBottom: 3 }}>
               The Scribblings Square
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
@@ -410,7 +410,7 @@ function SquareBanner({ squareOpen, countdown }) {
             Enter the Square
           </div>
         ) : (
-          <div style={{ fontFamily: 'Georgia, serif', fontSize: 15, color: 'rgba(155,109,255,0.55)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 15, color: 'rgba(155,109,255,0.55)', flexShrink: 0, whiteSpace: 'nowrap' }}>
             {countdown}
           </div>
         )}
@@ -529,7 +529,7 @@ function TopReadersStrip() {
                   background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(167,139,250,0.22)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 12, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0,
-                  fontFamily: 'Cochin, Georgia, serif',
+                  fontFamily: 'Cormorant Garamond, Georgia, serif',
                 }}>
                   {row.avatarUrl
                     ? <img src={row.avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -699,7 +699,7 @@ function RowSkeleton({ title, kicker }) {
 // rail at the bottom of the page. Carries the Open Pages gold/Cormorant identity
 // on the homepage's dark canvas.
 const OP_GOLD = '#c9a84c';
-const OP_SERIF = "'Cormorant Garamond', 'Cochin', Georgia, serif";
+const OP_SERIF = "Cormorant Garamond, Georgia, serif";
 const OP_CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 
 // Footer avatar fallback + count row — mirror the feed's avatarDot / countRow.
@@ -1175,7 +1175,7 @@ export default function Home() {
   const badge = featured ? (badgeStyle[featured.category] || badgeStyle.news) : badgeStyle.news;
 
   return (
-    <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: "'Cochin', Georgia, serif" }}>
+    <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif" }}>
       <style>{`
         @media (max-width: 1024px) { .nav-desktop { display: none !important; } .nav-hamburger { display: flex !important; } }
         @media (min-width: 1025px) { .nav-desktop { display: flex !important; } .nav-hamburger { display: none !important; } }

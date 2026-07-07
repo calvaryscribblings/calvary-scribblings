@@ -249,17 +249,17 @@ export function AboutTheAuthor({ story, variant = 'full' }) {
         /* ── 'full' variant — byte-identical to the original story-page card ── */
         .ata-section { background: #0a0a0a; padding: 2.25rem 2rem 0; }
         .ata-card { max-width: 680px; margin: 0 auto; background: #f0ead8; border: 1px solid #e0dbd2; border-radius: 14px; padding: 1.4rem 1.6rem; box-shadow: 0 8px 30px -18px rgba(0,0,0,0.45); }
-        .ata-eyebrow { font-family: Inter, sans-serif; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #6b2fad; margin-bottom: 0.9rem; }
+        .ata-eyebrow { font-family: Cormorant Garamond, Georgia, serif; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #6b2fad; margin-bottom: 0.9rem; }
         .ata-row { display: flex; align-items: center; gap: 0.95rem; }
         .ata-avatar { width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; overflow: hidden; background: rgba(107,47,173,0.12); border: 1.5px solid rgba(107,47,173,0.25); display: flex; align-items: center; justify-content: center; }
         .ata-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .ata-avatar span { font-family: Cochin, Georgia, serif; font-size: 1.5rem; color: #6b2fad; line-height: 1; }
+        .ata-avatar span { font-family: Cormorant Garamond, Georgia, serif; font-size: 1.5rem; color: #6b2fad; line-height: 1; }
         .ata-meta { min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
-        .ata-name { font-family: Cochin, Georgia, serif; font-size: 1.3rem; color: #1a1a1a; line-height: 1.2; }
-        .ata-role { font-family: Inter, sans-serif; font-size: 0.7rem; font-weight: 500; letter-spacing: 0.04em; color: #6b2fad; }
-        .ata-handle { font-family: Inter, sans-serif; font-size: 0.74rem; color: #6b2fad; text-decoration: none; transition: color 0.2s; }
+        .ata-name { font-family: Cormorant Garamond, Georgia, serif; font-size: 1.3rem; color: #1a1a1a; line-height: 1.2; }
+        .ata-role { font-family: Cormorant Garamond, Georgia, serif; font-size: 0.78rem; font-weight: 500; letter-spacing: 0.04em; color: #6b2fad; }
+        .ata-handle { font-family: Cormorant Garamond, Georgia, serif; font-size: 0.82rem; font-weight: 500; color: #6b2fad; text-decoration: none; transition: color 0.2s; }
         .ata-handle:hover { color: #8b4fd6; text-decoration: underline; }
-        .ata-bio { margin: 0.9rem 0 0; font-family: Georgia, serif; font-size: 0.92rem; line-height: 1.6; color: #4a4640; }
+        .ata-bio { margin: 0.9rem 0 0; font-family: Cormorant Garamond, Georgia, serif; font-size: 0.92rem; line-height: 1.6; color: #4a4640; }
         .ata-socials { display: flex; align-items: center; gap: 0.7rem; margin-top: 0.9rem; }
         .ata-social { display: inline-flex; color: #6b2fad; opacity: 0.7; transition: opacity 0.2s; }
         .ata-social:hover { opacity: 1; }
@@ -278,7 +278,7 @@ export function AboutTheAuthor({ story, variant = 'full' }) {
         .is-condensed .ata-social { color: #c9a44c; }
 
         /* "More" affordance + full-card modal (condensed only) */
-        .ata-more { margin-top: 0.5rem; padding: 0; background: none; border: none; cursor: pointer; font-family: Inter, sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; color: #c9a44c; transition: color 0.2s; }
+        .ata-more { margin-top: 0.5rem; padding: 0; background: none; border: none; cursor: pointer; font-family: Cormorant Garamond, Georgia, serif; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em; color: #c9a44c; transition: color 0.2s; }
         .ata-more:hover { color: #e3c879; text-decoration: underline; }
         .ata-modal-scrim { position: fixed; inset: 0; z-index: 1000; background: rgba(6,4,14,0.74); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 20px; cursor: default; animation: ataFade 0.18s ease; }
         .ata-modal { position: relative; width: 100%; max-width: 560px; max-height: 86vh; overflow-y: auto; border-radius: 16px; background: #0a0a0a; padding-bottom: 1.25rem; box-shadow: 0 24px 70px -20px rgba(0,0,0,0.7); }

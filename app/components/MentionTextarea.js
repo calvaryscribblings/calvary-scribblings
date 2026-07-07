@@ -106,12 +106,12 @@ export default function MentionTextarea({ value, onChange, placeholder, rows = 3
                   padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
                   background: i === activeIdx ? 'rgba(107,47,173,0.18)' : 'transparent',
                 }}>
-                <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c4b5fd', fontSize: 10, overflow: 'hidden', flexShrink: 0, fontFamily: 'Georgia, serif' }}>
+                <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c4b5fd', fontSize: 10, overflow: 'hidden', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
                   {u.avatarUrl ? <img src={u.avatarUrl} alt={ini} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : ini}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.82rem', color: '#fff', fontFamily: 'Inter, sans-serif', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.displayName || u.username}</div>
-                  <div style={{ fontSize: '0.66rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{u.username}</div>
+                  <div style={{ fontSize: '0.9rem', color: '#fff', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.displayName || u.username}</div>
+                  <div style={{ fontSize: '0.74rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500 }}>@{u.username}</div>
                 </div>
               </div>
             );

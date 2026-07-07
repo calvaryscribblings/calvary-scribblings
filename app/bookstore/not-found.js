@@ -14,7 +14,7 @@ export default function BookstoreNotFound() {
         justifyContent: 'center',
         padding: '6rem 1.5rem 4rem',
         textAlign: 'center',
-        fontFamily: "'Cochin', Georgia, serif",
+        fontFamily: "Cormorant Garamond, Georgia, serif",
       }}>
         <div style={{
           fontSize: 'clamp(4rem, 12vw, 7rem)',

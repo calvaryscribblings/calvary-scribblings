@@ -88,8 +88,9 @@ function QuizReview({ submission, quizData }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
             {(hardball.keywords || []).map((kw, i) => (
               <span key={i} style={{
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '0.7rem',
+                fontFamily: 'Cormorant Garamond, Georgia, serif',
+                fontSize: '0.78rem',
+                fontWeight: 500,
                 color: '#9b6dff',
                 border: '1px solid rgba(107,47,173,0.3)',
                 borderRadius: 20,
@@ -150,8 +151,9 @@ function QuizReview({ submission, quizData }) {
                     {item.question}
                   </p>
                   <div style={{
-                    fontFamily: 'Inter, sans-serif',
-                    fontSize: '0.68rem',
+                    fontFamily: 'Cormorant Garamond, Georgia, serif',
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
                     color: 'rgba(240,234,216,0.28)',
                     lineHeight: 1.6,
                   }}>
@@ -161,8 +163,9 @@ function QuizReview({ submission, quizData }) {
                     </span>
                   </div>
                   <div style={{
-                    fontFamily: 'Inter, sans-serif',
-                    fontSize: '0.68rem',
+                    fontFamily: 'Cormorant Garamond, Georgia, serif',
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
                     color: 'rgba(155,109,255,0.65)',
                     lineHeight: 1.6,
                     marginTop: '0.2rem',
@@ -188,8 +191,9 @@ function SocialProofLine({ text }) {
   if (!text) return null;
   return (
     <p style={{
-      fontFamily: 'Inter, sans-serif',
-      fontSize: '0.72rem',
+      fontFamily: 'Cormorant Garamond, Georgia, serif',
+      fontSize: '0.8rem',
+      fontWeight: 500,
       color: 'rgba(255,255,255,0.3)',
       margin: '0 0 1.25rem',
       lineHeight: 1.5,
@@ -213,8 +217,8 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
     }}>
       <span style={{ fontSize: '1.1rem' }}>📚</span>
       <span style={{
-        fontFamily: 'Inter, sans-serif',
-        fontSize: '0.68rem',
+        fontFamily: 'Cormorant Garamond, Georgia, serif',
+        fontSize: '0.75rem',
         fontWeight: 600,
         letterSpacing: '0.14em',
         textTransform: 'uppercase',
@@ -231,8 +235,9 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
         Take the Quiz
       </span>
       <span style={{
-        fontFamily: 'Inter, sans-serif',
+        fontFamily: 'Cormorant Garamond, Georgia, serif',
         fontSize: '0.65rem',
+        fontWeight: 500,
         color: '#c9a44c',
         border: '1px solid rgba(201,164,76,0.35)',
         borderRadius: 20,
@@ -272,8 +277,8 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
             borderRadius: 8,
             padding: '0.65rem 1.5rem',
             color: '#fff',
-            fontFamily: 'Inter, sans-serif',
-            fontSize: '0.72rem',
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: '0.8rem',
             fontWeight: 600,
             letterSpacing: '0.12em',
             textTransform: 'uppercase',
@@ -347,8 +352,8 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
             borderRadius: 8,
             padding: '0.65rem 1.5rem',
             color: '#fff',
-            fontFamily: 'Inter, sans-serif',
-            fontSize: '0.72rem',
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: '0.8rem',
             fontWeight: 600,
             letterSpacing: '0.12em',
             textTransform: 'uppercase',
@@ -391,8 +396,9 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
                 {tierCfg.label}
               </span>
               <span style={{
-                fontFamily: 'Inter, sans-serif',
+                fontFamily: 'Cormorant Garamond, Georgia, serif',
                 fontSize: '0.65rem',
+                fontWeight: 500,
                 color: 'rgba(255,255,255,0.25)',
                 border: `1px solid ${tierCfg.border}`,
                 borderRadius: 20,
@@ -480,8 +486,9 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
         )}
         {submission.submittedAt && (
           <div style={{
-            fontFamily: 'Inter, sans-serif',
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
             fontSize: '0.65rem',
+            fontWeight: 500,
             color: 'rgba(255,255,255,0.2)',
             marginTop: '0.6rem',
           }}>
@@ -512,12 +519,12 @@ function BadgeToast({ badge, onDismiss }) {
     }}>
       <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>{badge.icon}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '0.58rem', fontFamily: 'Inter, sans-serif', fontWeight: 600,
+        <div style={{ fontSize: '0.58rem', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600,
           letterSpacing: '0.12em', textTransform: 'uppercase', color: '#a78bfa', marginBottom: '0.2rem' }}>
           🎉 Badge Earned
         </div>
-        <div style={{ fontSize: '0.88rem', fontFamily: 'Cochin, Georgia, serif', color: '#f5f0e8' }}>{badge.name}</div>
-        <div style={{ fontSize: '0.68rem', fontFamily: 'Inter, sans-serif', color: 'rgba(255,255,255,0.4)', marginTop: '0.15rem' }}>{badge.description}</div>
+        <div style={{ fontSize: '0.88rem', fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#f5f0e8' }}>{badge.name}</div>
+        <div style={{ fontSize: '0.75rem', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500, color: 'rgba(255,255,255,0.4)', marginTop: '0.15rem' }}>{badge.description}</div>
       </div>
       <button onClick={onDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer',
         color: 'rgba(255,255,255,0.3)', fontSize: '1.1rem', padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
@@ -975,8 +982,8 @@ export default function QuizCard({ slug, user, onSignIn, mode: expectedMode = nu
             }}>
               <span style={{ fontSize: '0.9rem' }}>📚</span>
               <span style={{
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '0.7rem',
+                fontFamily: 'Cormorant Garamond, Georgia, serif',
+                fontSize: '0.78rem',
                 fontWeight: 600,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
@@ -1055,8 +1062,8 @@ export default function QuizCard({ slug, user, onSignIn, mode: expectedMode = nu
                 borderRadius: 8,
                 padding: '0.65rem 1.5rem',
                 color: '#fff',
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '0.72rem',
+                fontFamily: 'Cormorant Garamond, Georgia, serif',
+                fontSize: '0.8rem',
                 fontWeight: 600,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',

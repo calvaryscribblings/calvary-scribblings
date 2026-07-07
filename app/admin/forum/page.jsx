@@ -24,7 +24,7 @@ const ADMIN_EMAILS = ['ikennaworksfromhome@gmail.com', 'fynbecki@gmail.com'];
 // Brand-tinted dark admin palette (matches the other admin pages' base, with
 // the Open Pages gold/purple identity).
 const s = {
-  page: { minHeight: '100vh', background: '#0b0810', color: '#e8e3da', fontFamily: "'Cochin', Georgia, serif" },
+  page: { minHeight: '100vh', background: '#0b0810', color: '#e8e3da', fontFamily: "Cormorant Garamond, Georgia, serif" },
   header: { background: '#120d1c', borderBottom: '1px solid #221934', padding: '1.25rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 },
   logo: { fontFamily: "'Cinzel', 'Cormorant Garamond', Georgia, serif", fontSize: '0.95rem', fontWeight: 600, color: '#c9a84c', letterSpacing: '0.16em', textTransform: 'uppercase' },
   body: { maxWidth: 900, margin: '0 auto', padding: '2rem 1.5rem 5rem' },
@@ -41,7 +41,7 @@ const s = {
   btnGhost: { background: 'transparent', color: 'rgba(245,240,232,0.6)', border: '1px solid rgba(245,240,232,0.2)', padding: '0.5rem 1.1rem', borderRadius: 7, fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' },
   link: { color: '#c9a84c', fontSize: '0.8rem', textDecoration: 'none' },
   reportBox: { background: 'rgba(220,90,90,0.06)', border: '1px solid rgba(220,90,90,0.2)', borderRadius: 8, padding: '0.7rem 0.9rem', marginTop: '0.9rem' },
-  gate: { minHeight: '100vh', background: '#0b0810', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f5f0e8', flexDirection: 'column', gap: '1rem', fontFamily: "'Cochin', Georgia, serif", textAlign: 'center', padding: '2rem' },
+  gate: { minHeight: '100vh', background: '#0b0810', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f5f0e8', flexDirection: 'column', gap: '1rem', fontFamily: "Cormorant Garamond, Georgia, serif", textAlign: 'center', padding: '2rem' },
   empty: { textAlign: 'center', padding: '3.5rem 1rem', color: 'rgba(245,240,232,0.4)', fontFamily: "'Cormorant Garamond', Georgia, serif", fontStyle: 'italic', fontSize: '1.3rem' },
 };
 

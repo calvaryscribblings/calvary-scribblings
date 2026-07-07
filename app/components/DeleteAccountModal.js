@@ -84,12 +84,12 @@ export default function DeleteAccountModal({ open, onClose, uid, username, email
           border-radius: 20px 20px 0 0;
           width: 100%; max-width: 480px;
           padding: 1.9rem 1.6rem 1.9rem;
-          font-family: Inter, sans-serif;
+          font-family: Cormorant Garamond, Georgia, serif;
         }
         @media (min-width: 600px) { .dam-modal { border-radius: 18px; } }
 
         .dam-title {
-          font-family: Cochin, 'Cormorant Garamond', Georgia, serif;
+          font-family: Cormorant Garamond, Georgia, serif;
           font-size: 1.5rem; color: #f5f0e8;
           margin: 0 0 0.85rem;
           line-height: 1.15;
@@ -113,7 +113,8 @@ export default function DeleteAccountModal({ open, onClose, uid, username, email
         .dam-list li { margin-bottom: 0.15rem; }
 
         .dam-recover {
-          font-size: 0.74rem;
+          font-size: 0.82rem;
+          font-weight: 500;
           color: rgba(167,139,250,0.78);
           background: rgba(107,47,173,0.07);
           border: 1px solid rgba(107,47,173,0.18);
@@ -121,7 +122,7 @@ export default function DeleteAccountModal({ open, onClose, uid, username, email
           padding: 0.65rem 0.78rem;
           margin-bottom: 1.2rem;
           line-height: 1.55;
-          font-family: Inter, sans-serif;
+          font-family: Cormorant Garamond, Georgia, serif;
         }
 
         .dam-label {
@@ -140,7 +141,7 @@ export default function DeleteAccountModal({ open, onClose, uid, username, email
           padding: 0.78rem 0.92rem;
           font-size: 0.92rem;
           color: #f5f0e8;
-          font-family: Inter, sans-serif;
+          font-family: Cormorant Garamond, Georgia, serif;
           letter-spacing: 0.01em;
           margin-bottom: 0.55rem;
           outline: none;
@@ -166,8 +167,8 @@ export default function DeleteAccountModal({ open, onClose, uid, username, email
         }
         .dam-cancel, .dam-delete {
           flex: 1;
-          font-family: Inter, sans-serif;
-          font-size: 0.62rem;
+          font-family: Cormorant Garamond, Georgia, serif;
+          font-size: 0.7rem;
           font-weight: 600;
           letter-spacing: 0.14em;
           text-transform: uppercase;
@@ -197,7 +198,7 @@ export default function DeleteAccountModal({ open, onClose, uid, username, email
         .dam-delete:disabled { opacity: 0.32; cursor: not-allowed; }
 
         .dam-signoff {
-          font-family: 'Cormorant Garamond', Cochin, Georgia, serif;
+          font-family: 'Cormorant Garamond', Georgia, serif;
           font-style: italic;
           font-weight: 400;
           font-size: 0.94rem;

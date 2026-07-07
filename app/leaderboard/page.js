@@ -87,7 +87,7 @@ function BadgeLadderTooltip({ anchorRef, currentTier, onClose }) {
               : { bottom: -6, width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid #0f0f0f' }),
           }} />
         )}
-        <div style={{ fontSize: '0.6rem', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.35)', fontFamily: 'Cinzel, Inter, sans-serif', marginBottom: '0.75rem', textTransform: 'uppercase' }}>BADGE LADDER</div>
+        <div style={{ fontSize: '0.6rem', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.35)', fontFamily: 'Cinzel, Cormorant Garamond, Georgia, serif', marginBottom: '0.75rem', textTransform: 'uppercase' }}>BADGE LADDER</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           {BADGE_LADDER.map(b => {
             const isCurrent = b.tier === currentTier;
@@ -95,10 +95,10 @@ function BadgeLadderTooltip({ anchorRef, currentTier, onClose }) {
               <div key={b.tier} style={{ paddingLeft: isCurrent ? '0.55rem' : 0, borderLeft: isCurrent ? `2px solid ${b.color}` : '2px solid transparent' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: b.color, flexShrink: 0 }} />
-                  <div style={{ fontSize: '0.85rem', color: isCurrent ? '#fff' : '#e8e0d4', fontFamily: 'Cochin, Georgia, serif' }}>{b.label}</div>
-                  <div style={{ fontSize: '0.72rem', color: isCurrent ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.45)', fontFamily: 'Inter, sans-serif', marginLeft: 'auto' }}>{b.threshold.toLocaleString()} reads</div>
+                  <div style={{ fontSize: '0.85rem', color: isCurrent ? '#fff' : '#e8e0d4', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{b.label}</div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 500, color: isCurrent ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.45)', fontFamily: 'Cormorant Garamond, Georgia, serif', marginLeft: 'auto' }}>{b.threshold.toLocaleString()} reads</div>
                 </div>
-                <div style={{ marginTop: '0.25rem', marginLeft: '1.1rem', fontSize: '0.78rem', color: isCurrent ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.6)', fontFamily: 'Georgia, serif', fontStyle: 'italic', lineHeight: 1.4 }}>{b.description}</div>
+                <div style={{ marginTop: '0.25rem', marginLeft: '1.1rem', fontSize: '0.78rem', color: isCurrent ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.6)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', lineHeight: 1.4 }}>{b.description}</div>
               </div>
             );
           })}
@@ -272,7 +272,7 @@ export default function LeaderboardPage() {
 
                     <div style={{
                       flexShrink: 0, width: 32, textAlign: 'center',
-                      fontFamily: 'Cochin, Georgia, serif',
+                      fontFamily: 'Cormorant Garamond, Georgia, serif',
                       fontSize: rank <= 3 ? '1.4rem' : '1.05rem',
                       color: rankColor(rank),
                       fontWeight: rank <= 3 ? 700 : 500,
@@ -283,7 +283,7 @@ export default function LeaderboardPage() {
                       background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.22)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 13, color: '#c4b5fd', overflow: 'hidden', flexShrink: 0,
-                      fontFamily: 'Cochin, Georgia, serif',
+                      fontFamily: 'Cormorant Garamond, Georgia, serif',
                     }}>
                       {row.avatarUrl
                         ? <img src={row.avatarUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -318,7 +318,7 @@ export default function LeaderboardPage() {
                                 }}
                               >
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: badge.color, flexShrink: 0 }} />
-                                <span style={{ fontSize: '0.65rem', fontFamily: 'Inter, sans-serif', color: 'rgba(255,255,255,0.75)' }}>{badge.label}</span>
+                                <span style={{ fontSize: '0.74rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', color: 'rgba(255,255,255,0.75)' }}>{badge.label}</span>
                               </span>
                             )}
                           </div>
@@ -339,13 +339,13 @@ export default function LeaderboardPage() {
 
                     <div style={{ flexShrink: 0, textAlign: 'right', minWidth: 60 }}>
                       <div style={{
-                        fontFamily: 'Cochin, Georgia, serif',
+                        fontFamily: 'Cormorant Garamond, Georgia, serif',
                         fontSize: '1.25rem', color: '#a78bfa', lineHeight: 1,
                       }}>{row.readerScore.toLocaleString()}</div>
                       <div style={{
                         fontSize: '0.55rem', color: 'rgba(167,139,250,0.4)',
                         letterSpacing: '0.1em', textTransform: 'uppercase',
-                        fontFamily: 'Inter, sans-serif', marginTop: 2,
+                        fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500, marginTop: 2,
                       }}>Score</div>
                     </div>
                   </a>

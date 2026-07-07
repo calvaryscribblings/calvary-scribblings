@@ -39,7 +39,7 @@ function DialCircle({ percent }) {
         {Math.round(percent)}%
       </text>
       <text x="100" y="116" textAnchor="middle" fill="rgba(240,234,216,0.35)"
-        fontSize="11" fontFamily="Inter, sans-serif" letterSpacing="2">
+        fontSize="12" fontFamily="Cormorant Garamond, Georgia, serif" fontWeight="500" letterSpacing="2">
         SCORE
       </text>
     </svg>
@@ -285,8 +285,8 @@ export default function QuizResultAnimation({ result, onDone }) {
           onClick={finish}
           style={{
             background: 'none', border: 'none',
-            color: 'rgba(255,255,255,0.2)', fontSize: '0.7rem',
-            fontFamily: 'Inter, sans-serif', letterSpacing: '0.12em',
+            color: 'rgba(255,255,255,0.2)', fontSize: '0.78rem', fontWeight: 500,
+            fontFamily: 'Cormorant Garamond, Georgia, serif', letterSpacing: '0.12em',
             textTransform: 'uppercase', cursor: 'pointer',
             transition: 'color 0.2s',
           }}
@@ -336,8 +336,9 @@ export default function QuizResultAnimation({ result, onDone }) {
                     {tierStyle.label}
                   </div>
                   <div style={{
-                    fontFamily: 'Inter, sans-serif',
-                    fontSize: '0.72rem',
+                    fontFamily: 'Cormorant Garamond, Georgia, serif',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
                     color: 'rgba(255,255,255,0.3)',
                     letterSpacing: '0.16em',
                     textTransform: 'uppercase',
@@ -371,8 +372,9 @@ export default function QuizResultAnimation({ result, onDone }) {
                 +{result.pointsAwarded} Scribbles
               </div>
               <div style={{
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '0.65rem',
+                fontFamily: 'Cormorant Garamond, Georgia, serif',
+                fontSize: '0.74rem',
+                fontWeight: 500,
                 color: 'rgba(201,164,76,0.5)',
                 letterSpacing: '0.16em',
                 textTransform: 'uppercase',

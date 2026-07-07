@@ -85,7 +85,7 @@ export default function Navbar() {
         .cs-dropdown-dot { color: #7c3aed; margin-right: 0.4em; }
         .cs-dropdown hr { border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 0.4rem 0; }
         .cs-signin-btn { background: #7c3aed; border: none; border-radius: 3px; padding: 0.4em 1em; color: #fff; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
-        .cs-nav-avatar { width: 34px; height: 34px; border-radius: 50%; background: rgba(107,47,173,0.3); border: 1.5px solid rgba(107,47,173,0.5); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #c4b5fd; text-decoration: none; flex-shrink: 0; overflow: hidden; transition: border-color 0.2s; font-family: Inter, sans-serif; }
+        .cs-nav-avatar { width: 34px; height: 34px; border-radius: 50%; background: rgba(107,47,173,0.3); border: 1.5px solid rgba(107,47,173,0.5); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #c4b5fd; text-decoration: none; flex-shrink: 0; overflow: hidden; transition: border-color 0.2s; font-family: Cormorant Garamond, Georgia, serif; }
         .cs-nav-avatar:hover { border-color: rgba(167,139,250,0.8); }
         .cs-nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
@@ -117,7 +117,7 @@ export default function Navbar() {
         .cs-drawer-dot { color: #7c3aed; }
         .cs-drawer-signin { margin-top: 1.5rem; background: #7c3aed; border: none; border-radius: 8px; padding: 1rem; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; text-align: center; }
         .cs-drawer-avatar-row { display: flex; align-items: center; gap: 0.75rem; padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); text-decoration: none; }
-        .cs-drawer-avatar { width: 40px; height: 40px; border-radius: 50%; background: rgba(107,47,173,0.3); border: 1.5px solid rgba(107,47,173,0.5); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #c4b5fd; overflow: hidden; flex-shrink: 0; font-family: Inter, sans-serif; }
+        .cs-drawer-avatar { width: 40px; height: 40px; border-radius: 50%; background: rgba(107,47,173,0.3); border: 1.5px solid rgba(107,47,173,0.5); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #c4b5fd; overflow: hidden; flex-shrink: 0; font-family: Cormorant Garamond, Georgia, serif; }
         .cs-drawer-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .cs-drawer-avatar-name { font-size: 0.95rem; font-weight: 500; color: rgba(255,255,255,0.85); }
         .cs-drawer-avatar-sub { font-size: 0.68rem; color: rgba(255,255,255,0.3); margin-top: 1px; }

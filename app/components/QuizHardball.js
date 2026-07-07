@@ -32,8 +32,8 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
         }}>
           <span style={{ color: '#1d9e75', fontSize: '1rem' }}>✓</span>
           <span style={{
-            fontFamily: 'Inter, sans-serif',
-            fontSize: '0.72rem',
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: '0.8rem',
             fontWeight: 600,
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
@@ -79,12 +79,12 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
           background: 'rgba(220,38,38,0.04)',
         }}>
           <div style={{
-            fontSize: '0.72rem',
+            fontSize: '0.8rem',
             fontWeight: 600,
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
             color: 'rgba(220,38,38,0.7)',
-            fontFamily: 'Inter, sans-serif',
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
             marginBottom: '0.75rem',
           }}>
             HARDBALL — Comprehension Check
@@ -107,8 +107,8 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
               borderRadius: 6,
               padding: '0.55rem 1.1rem',
               color: '#fca5a5',
-              fontFamily: 'Inter, sans-serif',
-              fontSize: '0.8rem',
+              fontFamily: 'Cormorant Garamond, Georgia, serif',
+              fontSize: '0.88rem',
               fontWeight: 600,
               cursor: 'pointer',
               transition: 'background 0.2s, border-color 0.2s',
@@ -140,12 +140,12 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
         paddingTop: '2rem',
       }}>
         <div style={{
-          fontSize: '0.68rem',
+          fontSize: '0.75rem',
           fontWeight: 600,
           letterSpacing: '0.18em',
           textTransform: 'uppercase',
           color: '#9b6dff',
-          fontFamily: 'Inter, sans-serif',
+          fontFamily: 'Cormorant Garamond, Georgia, serif',
           marginBottom: '1.5rem',
         }}>
           HARDBALL — Comprehension Check
@@ -226,8 +226,8 @@ export default function QuizHardball({ hardball, onPass, onFail, onCheck, passed
             borderRadius: 8,
             padding: '0.8rem 2rem',
             color: '#fff',
-            fontFamily: 'Inter, sans-serif',
-            fontSize: '0.72rem',
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: '0.8rem',
             fontWeight: 600,
             letterSpacing: '0.14em',
             textTransform: 'uppercase',

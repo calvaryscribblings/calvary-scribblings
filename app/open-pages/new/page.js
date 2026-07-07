@@ -57,8 +57,8 @@ const INK = '#080610';
 const PURPLE = '#6b2fad';
 const GOLD = '#c9a84c';
 const CREAM = '#f5f0e8';
-const SERIF = "'Cormorant Garamond', 'Cochin', Georgia, serif";
-const BODY_SERIF = "'Cochin', Georgia, serif";
+const SERIF = "Cormorant Garamond, Georgia, serif";
+const BODY_SERIF = "Cormorant Garamond, Georgia, serif";
 
 // ---------------------------------------------------------------------------
 // Tiny, escape-safe Markdown → React renderer (preview only).
@@ -369,7 +369,7 @@ export default function NewOpenPagePage() {
       <div style={{ background: INK, minHeight: '100vh', color: CREAM, fontFamily: BODY_SERIF }}>
         <Navbar />
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '5rem 1.5rem', textAlign: 'center' }}>
-          <div style={{ fontFamily: SANS, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 16 }}>
+          <div style={{ fontFamily: SANS, fontSize: 12, fontWeight: 500, letterSpacing: '0.22em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 16 }}>
             Open Pages
           </div>
           <div style={{ fontFamily: SERIF, fontSize: '2.4rem', fontWeight: 500, color: CREAM, marginBottom: '0.9rem', lineHeight: 1.1 }}>
@@ -414,7 +414,7 @@ export default function NewOpenPagePage() {
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '60px 24px 96px' }}>
         {/* Centred header */}
         <div style={{ textAlign: 'center', marginBottom: '2.75rem' }}>
-          <div style={{ fontFamily: SANS, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 16 }}>
+          <div style={{ fontFamily: SANS, fontSize: 12, fontWeight: 500, letterSpacing: '0.22em', textTransform: 'uppercase', color: GOLD, opacity: 0.75, marginBottom: 16 }}>
             Open Pages
           </div>
           <h1 style={{ fontFamily: SERIF, fontSize: '2.5rem', fontWeight: 500, color: CREAM, margin: 0, lineHeight: 1.1 }}>
@@ -738,7 +738,7 @@ export default function NewOpenPagePage() {
   );
 }
 
-const SANS = "'Helvetica Neue', Arial, sans-serif";
+const SANS = "Cormorant Garamond, Georgia, serif";
 const CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 const hintCode = { background: 'rgba(245,240,232,0.08)', padding: '0.05em 0.35em', borderRadius: 3 };
 

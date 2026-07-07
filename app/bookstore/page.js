@@ -72,8 +72,8 @@ function Cover({ color, title, author, size }) {
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '6px', background: 'rgba(0,0,0,.4)', borderRadius: '2px 0 0 2px' }} />
       {!isMini && (
         <>
-          <div style={{ fontSize: isFeatured ? '.82rem' : '.78rem', fontWeight: 600, color: 'rgba(255,255,255,.85)', lineHeight: 1.25, marginBottom: '.4rem', position: 'relative', zIndex: 1, fontFamily: "'Cormorant Garamond',serif" }}>{title}</div>
-          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '.56rem', letterSpacing: '.06em', color: 'rgba(255,255,255,.4)', fontStyle: 'italic', position: 'relative', zIndex: 1 }}>{author}</div>
+          <div style={{ fontSize: isFeatured ? '.82rem' : '.78rem', fontWeight: 600, color: 'rgba(255,255,255,.85)', lineHeight: 1.25, marginBottom: '.4rem', position: 'relative', zIndex: 1, fontFamily: "Cormorant Garamond, Georgia, serif" }}>{title}</div>
+          <div style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.56rem', fontWeight: 500, letterSpacing: '.06em', color: 'rgba(255,255,255,.4)', fontStyle: 'italic', position: 'relative', zIndex: 1 }}>{author}</div>
         </>
       )}
     </div>
@@ -85,7 +85,7 @@ function BestsellersStrip({ items, label }) {
     <div style={{ background: 'rgba(201,164,76,.04)', border: '1px solid rgba(201,164,76,.12)', padding: '1.5rem 2rem', marginBottom: '3rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
         <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.6rem', letterSpacing: '.28em', textTransform: 'uppercase', color: '#c9a44c' }}>{label}</div>
-        <a href="#" style={{ fontFamily: "'Inter',sans-serif", fontSize: '.62rem', color: 'rgba(240,234,216,.45)', textDecoration: 'none' }}>View all →</a>
+        <a href="#" style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.7rem', fontWeight: 500, color: 'rgba(240,234,216,.45)', textDecoration: 'none' }}>View all →</a>
       </div>
       <div style={{ display: 'flex', gap: '1.5rem', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '.25rem' }}>
         {items.map(b => (
@@ -94,8 +94,8 @@ function BestsellersStrip({ items, label }) {
             <Cover color={b.color} title="" author="" size="mini" />
             <div>
               <div style={{ fontSize: '.78rem', fontWeight: 600, color: '#f0ead8', lineHeight: 1.2, marginBottom: '2px' }}>{b.title}</div>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '.6rem', color: 'rgba(240,234,216,.45)' }}>{b.author}</div>
-              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '.58rem', color: '#c9a44c', marginTop: '2px' }}>{b.sales}</div>
+              <div style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.68rem', fontWeight: 500, color: 'rgba(240,234,216,.45)' }}>{b.author}</div>
+              <div style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.58rem', fontWeight: 500, color: '#c9a44c', marginTop: '2px' }}>{b.sales}</div>
             </div>
           </div>
         ))}
@@ -112,12 +112,12 @@ function Featured({ book, eyebrow }) {
       <div>
         <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.56rem', letterSpacing: '.22em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.6rem' }}>{eyebrow}</div>
         <h2 style={{ fontSize: 'clamp(1.5rem,3vw,2.2rem)', fontWeight: 300, fontStyle: 'italic', color: '#f0ead8', lineHeight: 1.15, marginBottom: '.4rem' }}>{book.title}</h2>
-        <p style={{ fontFamily: "'Inter',sans-serif", fontSize: '.75rem', color: 'rgba(240,234,216,.45)', marginBottom: '.75rem' }}>{book.author}</p>
+        <p style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.82rem', fontWeight: 500, color: 'rgba(240,234,216,.45)', marginBottom: '.75rem' }}>{book.author}</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <span style={{ color: '#c9a44c', fontSize: '.75rem' }}>{book.stars}</span>
-          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: '.62rem', color: 'rgba(240,234,216,.45)' }}>{book.rating}</span>
+          <span style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.7rem', fontWeight: 500, color: 'rgba(240,234,216,.45)' }}>{book.rating}</span>
           <span style={{ color: 'rgba(240,234,216,.2)' }}>·</span>
-          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: '.62rem', color: 'rgba(240,234,216,.45)' }}>{book.sales}</span>
+          <span style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.7rem', fontWeight: 500, color: 'rgba(240,234,216,.45)' }}>{book.sales}</span>
         </div>
         <p style={{ fontSize: '.92rem', lineHeight: 1.75, color: 'rgba(240,234,216,.6)', maxWidth: '400px', marginBottom: '1.5rem', fontStyle: 'italic' }}>{book.blurb}</p>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -135,19 +135,19 @@ function BookCard({ book }) {
       <div style={{ position: 'relative', marginBottom: '1rem' }}>
         <Cover color={book.color} title={book.title} author={book.author} size="card" />
         {book.badge && (
-          <div style={{ position: 'absolute', top: '7px', right: '7px', background: book.badge === 'Popular' ? '#6b2fad' : '#c9a44c', color: book.badge === 'Popular' ? 'white' : '#0a0a0a', fontFamily: "'Inter',sans-serif", fontSize: '.5rem', fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', padding: '.18em .5em', borderRadius: '2px' }}>{book.badge}</div>
+          <div style={{ position: 'absolute', top: '7px', right: '7px', background: book.badge === 'Popular' ? '#6b2fad' : '#c9a44c', color: book.badge === 'Popular' ? 'white' : '#0a0a0a', fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.5rem', fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', padding: '.18em .5em', borderRadius: '2px' }}>{book.badge}</div>
         )}
       </div>
-      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '.56rem', letterSpacing: '.18em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.25rem' }}>{book.genre}</div>
+      <div style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.56rem', fontWeight: 500, letterSpacing: '.18em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.25rem' }}>{book.genre}</div>
       <div style={{ fontSize: '.88rem', fontWeight: 600, color: '#f0ead8', lineHeight: 1.3, marginBottom: '.15rem' }}>{book.title}</div>
-      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '.68rem', fontStyle: 'italic', color: 'rgba(240,234,216,.45)', marginBottom: '.45rem' }}>{book.author}</div>
+      <div style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.75rem', fontWeight: 500, fontStyle: 'italic', color: 'rgba(240,234,216,.45)', marginBottom: '.45rem' }}>{book.author}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '.3rem', marginBottom: '.4rem' }}>
         <span style={{ color: '#c9a44c', fontSize: '.62rem' }}>{book.stars}</span>
-        <span style={{ fontFamily: "'Inter',sans-serif", fontSize: '.58rem', color: 'rgba(240,234,216,.45)' }}>{book.rating}</span>
+        <span style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.58rem', fontWeight: 500, color: 'rgba(240,234,216,.45)' }}>{book.rating}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '.78rem', fontWeight: 600, color: '#f0ead8' }}>{book.price}</div>
-        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '.58rem', color: 'rgba(240,234,216,.45)' }}>{book.sales}</div>
+        <div style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.85rem', fontWeight: 600, color: '#f0ead8' }}>{book.price}</div>
+        <div style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.58rem', fontWeight: 500, color: 'rgba(240,234,216,.45)' }}>{book.sales}</div>
       </div>
     </div>
   );
@@ -174,7 +174,7 @@ function PasscodeGate({ onUnlock }) {
           <input
             type="password" placeholder="Enter passcode" value={code} autoComplete="off"
             onChange={e => { setCode(e.target.value); setError(false); }}
-            style={{ width: '100%', padding: '.85rem 1.2rem', background: 'rgba(255,255,255,.04)', border: `1px solid ${error ? 'rgba(200,50,50,.6)' : 'rgba(201,164,76,.2)'}`, color: '#f0ead8', fontFamily: "'Cormorant Garamond',serif", fontSize: '1.1rem', letterSpacing: '.2em', textAlign: 'center', outline: 'none' }}
+            style={{ width: '100%', padding: '.85rem 1.2rem', background: 'rgba(255,255,255,.04)', border: `1px solid ${error ? 'rgba(200,50,50,.6)' : 'rgba(201,164,76,.2)'}`, color: '#f0ead8', fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '1.1rem', letterSpacing: '.2em', textAlign: 'center', outline: 'none' }}
           />
           {error && <div style={{ color: 'rgba(200,80,80,.8)', fontFamily: "'Cinzel',serif", fontSize: '.55rem', letterSpacing: '.15em', marginTop: '.5rem' }}>Incorrect passcode</div>}
           <button type="submit" style={{ width: '100%', padding: '.85rem', background: 'rgba(201,164,76,.12)', border: '1px solid rgba(201,164,76,.3)', color: '#c9a44c', fontFamily: "'Cinzel',serif", fontSize: '.62rem', letterSpacing: '.25em', textTransform: 'uppercase', cursor: 'pointer', marginTop: '.75rem' }}>Enter</button>
@@ -237,7 +237,7 @@ export default function BookStorePage() {
         .door:hover{border-color:rgba(201,164,76,.45)}
         .genre-tabs{display:flex;overflow-x:auto;margin-bottom:3rem;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.06)}
         .genre-tabs::-webkit-scrollbar{display:none}
-        .genre-tab{padding:.7rem 1.3rem;white-space:nowrap;font-family:'Inter',sans-serif;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(240,234,216,.45);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+        .genre-tab{padding:.7rem 1.3rem;white-space:nowrap;font-family:'Cormorant Garamond',Georgia,serif;font-size:.75rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:rgba(240,234,216,.45);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
         .genre-tab:hover{color:#f0ead8}
         .genre-tab.active{color:#c9a44c;border-bottom-color:#c9a44c}
         .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:2.5rem 1.5rem}
@@ -250,10 +250,10 @@ export default function BookStorePage() {
       `}</style>
 
       <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.1rem 2.5rem', background: 'rgba(6,6,8,.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(201,164,76,.1)' }}>
-        <a href="/" style={{ fontFamily: "'Cochin',Georgia,serif", fontSize: '1rem', fontWeight: 600, color: '#f0ead8', textDecoration: 'none' }}>Calvary <span style={{ color: '#6b2fad' }}>Scribblings</span></a>
+        <a href="/" style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '1rem', fontWeight: 600, color: '#f0ead8', textDecoration: 'none' }}>Calvary <span style={{ color: '#6b2fad' }}>Scribblings</span></a>
         <div style={{ display: 'flex', gap: '2rem' }}>
           {[['Stories', '/'],['Book Store', '/bookstore'],['The Square', '/square']].map(([label, href]) => (
-            <a key={label} href={href} style={{ fontFamily: "'Inter',sans-serif", fontSize: '.68rem', letterSpacing: '.16em', textTransform: 'uppercase', color: label === 'Book Store' ? '#c9a44c' : 'rgba(240,234,216,.45)', textDecoration: 'none' }}>{label}</a>
+            <a key={label} href={href} style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.75rem', fontWeight: 500, letterSpacing: '.16em', textTransform: 'uppercase', color: label === 'Book Store' ? '#c9a44c' : 'rgba(240,234,216,.45)', textDecoration: 'none' }}>{label}</a>
           ))}
         </div>
       </nav>
@@ -272,16 +272,16 @@ export default function BookStorePage() {
             <a href="#fiction" className="door">
               <span style={{ fontFamily: "'Cinzel',serif", fontSize: '.55rem', letterSpacing: '.25em', textTransform: 'uppercase', color: '#c9a44c', position: 'relative' }}>Explore</span>
               <span style={{ fontSize: '1.55rem', fontWeight: 300, fontStyle: 'italic', position: 'relative' }}>Fiction</span>
-              <span style={{ fontFamily: "'Inter',sans-serif", fontSize: '.65rem', color: 'rgba(240,234,216,.45)', position: 'relative' }}>6 genres · 24 titles</span>
+              <span style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.65rem', fontWeight: 500, color: 'rgba(240,234,216,.45)', position: 'relative' }}>6 genres · 24 titles</span>
             </a>
             <a href="#nonfiction" className="door">
               <span style={{ fontFamily: "'Cinzel',serif", fontSize: '.55rem', letterSpacing: '.25em', textTransform: 'uppercase', color: '#c9a44c', position: 'relative' }}>Explore</span>
               <span style={{ fontSize: '1.55rem', fontWeight: 300, fontStyle: 'italic', position: 'relative' }}>Non-Fiction</span>
-              <span style={{ fontFamily: "'Inter',sans-serif", fontSize: '.65rem', color: 'rgba(240,234,216,.45)', position: 'relative' }}>5 genres · 18 titles</span>
+              <span style={{ fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.65rem', fontWeight: 500, color: 'rgba(240,234,216,.45)', position: 'relative' }}>5 genres · 18 titles</span>
             </a>
           </div>
         </div>
-        <div style={{ position: 'absolute', bottom: '2.5rem', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.5rem', color: 'rgba(240,234,216,.45)', fontFamily: "'Inter',sans-serif", fontSize: '.58rem', letterSpacing: '.22em', textTransform: 'uppercase', animation: 'bob 2.2s ease-in-out infinite' }}>
+        <div style={{ position: 'absolute', bottom: '2.5rem', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.5rem', color: 'rgba(240,234,216,.45)', fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '.58rem', fontWeight: 500, letterSpacing: '.22em', textTransform: 'uppercase', animation: 'bob 2.2s ease-in-out infinite' }}>
           <div style={{ width: '1px', height: '30px', background: 'linear-gradient(to bottom,#c9a44c,transparent)' }} />
           Browse
         </div>

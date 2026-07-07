@@ -12,6 +12,7 @@ import AuthModal from '../../components/AuthModal';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import { use } from 'react';
 import { useDeletedUids } from '../../lib/userVisibility';
+import { Lamplight } from '../../lib/lamplight';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -70,7 +71,7 @@ function WriterBadge({ size = 13 }) {
       </svg>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)', borderRadius: 6, padding: '1px 7px 1px 5px' }}>
         <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path fill="#d4537e" d={HEART_PATH} /></svg>
-        <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>Writer</span>
+        <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap' }}>Writer</span>
       </span>
     </span>
   );
@@ -99,7 +100,7 @@ function CommentBadge({ uid, size = 13 }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
       <BadgeIcon color={badge.color} size={size} isFounder={badge.tier === 'founder'} />
-      <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: badge.tier === 'founder' ? '#c8daea' : badge.color, fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>{badge.label}</span>
+      <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: badge.tier === 'founder' ? '#c8daea' : badge.color, fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap' }}>{badge.label}</span>
     </span>
   );
 }
@@ -121,7 +122,7 @@ function CommentAvatar({ uid, initials, size = 'sm', isOwnComment }) {
     })();
   }, [uid]);
   return (
-    <a href={href} style={{ width: dim, height: dim, borderRadius: '50%', background: 'rgba(107,47,173,0.25)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 500, color: '#9b6dff', flexShrink: 0, fontFamily: 'Inter, sans-serif', overflow: 'hidden', textDecoration: 'none' }}>
+    <a href={href} style={{ width: dim, height: dim, borderRadius: '50%', background: 'rgba(107,47,173,0.25)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 500, color: '#9b6dff', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif', overflow: 'hidden', textDecoration: 'none' }}>
       {photoUrl ? <img src={photoUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
     </a>
   );
@@ -141,7 +142,7 @@ function CommentUsername({ uid }) {
     })();
   }, [uid]);
   if (!username) return null;
-  return <span style={{ fontSize: '0.62rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{username}</span>;
+  return <span style={{ fontSize: '0.7rem', fontWeight: 500, color: 'rgba(167,139,250,0.5)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{username}</span>;
 }
 
 function CommentName({ uid, fallback }) {
@@ -221,8 +222,8 @@ const CommentNode = React.memo(function CommentNode({
                   <>
                     <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuId(null)} />
                     <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, zIndex: 100, minWidth: 110, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
-                      <button onClick={() => { setEditingId(comment.id); setEditText(comment.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Edit</button>
-                      <button onClick={() => { setMenuId(null); if (window.confirm(depth === 1 ? 'Delete this comment?' : 'Delete this reply?')) deleteComment(comment.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Delete</button>
+                      <button onClick={() => { setEditingId(comment.id); setEditText(comment.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.85rem', fontWeight: 500, textAlign: 'left', cursor: 'pointer' }}>Edit</button>
+                      <button onClick={() => { setMenuId(null); if (window.confirm(depth === 1 ? 'Delete this comment?' : 'Delete this reply?')) deleteComment(comment.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.85rem', fontWeight: 500, textAlign: 'left', cursor: 'pointer' }}>Delete</button>
                     </div>
                   </>
                 )}
@@ -259,7 +260,7 @@ const CommentNode = React.memo(function CommentNode({
                 <button key={type} onClick={() => toggleCommentReaction(comment.id, type, comment.authorUid)}
                   style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transition: 'color 0.2s' }}>
                   <svg width={depth === 1 ? "12" : "11"} height={depth === 1 ? "12" : "11"} viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-                  {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
+                  {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{count}</span>}
                 </button>
               );
             })}
@@ -536,6 +537,8 @@ export default function StoryReaderClient({ params }) {
   const [progress, setProgress] = useState(0);
   const [readerUser, setReaderUser] = useState(null);
   const iframeRef = useRef(null);
+  const lampRef = useRef(null);       // Lamplight imperative handle (the Hearth)
+  const lastSpine = useRef(null);     // CFI spine index — chapter-boundary detection
   const pendingFont = useRef(1);
   const progressSaveTimer = useRef(null);
 
@@ -652,6 +655,21 @@ export default function StoryReaderClient({ params }) {
         currentFraction.current = fr;
         if (e.data.cfi) bookmarkCFI.current = e.data.cfi;
 
+        // Lamplight (The Hearth): progress deepens warmth; each page turn draws a
+        // soft brightness swell + a breath of air across the flame; crossing into
+        // a new spine item (chapter) dims and restores like a scene change.
+        if (lampRef.current) {
+          lampRef.current.setProgress(fr);
+          lampRef.current.pulse();
+          lampRef.current.bump(0.4);
+          const m = typeof e.data.cfi === 'string' && e.data.cfi.match(/^epubcfi\(\/(\d+)\/(\d+)/);
+          const spine = m ? `${m[1]}/${m[2]}` : null;
+          if (spine) {
+            if (lastSpine.current !== null && spine !== lastSpine.current) lampRef.current.chapter();
+            lastSpine.current = spine;
+          }
+        }
+
         setProgress(fr * 100);
         if (fr > 0 && e.data.step > 0) {
           const total = Math.max(1, Math.round(1 / e.data.step));
@@ -715,6 +733,9 @@ export default function StoryReaderClient({ params }) {
 
   return (
     <>
+      {/* The Hearth — ambient night reading light. Page/chapter turns are wired
+          through the relocate handler above via lampRef. Off by day. */}
+      <Lamplight ref={lampRef} reader />
       <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
         html,body{height:100%;background:#1a0f0a}
@@ -725,7 +746,7 @@ export default function StoryReaderClient({ params }) {
         .rtop{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:linear-gradient(to bottom,rgba(26,15,10,.96) 60%,transparent);gap:8px}
         .rlogo{font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.2em;color:rgba(201,164,76,.45);text-decoration:none;text-transform:uppercase;white-space:nowrap}
         .rlogo:hover{color:rgba(201,164,76,.85)}
-        .rtitle{font-family:Georgia,serif;font-size:.72rem;font-style:italic;color:rgba(240,234,216,.28);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center}
+        .rtitle{font-family:Cormorant Garamond,Georgia,serif;font-size:.72rem;font-style:italic;color:rgba(240,234,216,.28);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center}
         .rtop-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
         .rbtn{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.5);text-transform:uppercase;background:none;border:1px solid rgba(201,164,76,.25);border-radius:3px;padding:4px 9px;cursor:pointer;transition:all .2s;white-space:nowrap}
         .rbtn:hover{color:rgba(201,164,76,.9);border-color:rgba(201,164,76,.6)}
@@ -735,7 +756,7 @@ export default function StoryReaderClient({ params }) {
         .bcover::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 65% at 50% 38%,rgba(107,47,173,.28) 0%,transparent 68%)}
         .bcimg{width:auto;height:auto;max-width:min(320px,75vw);max-height:65vh;object-fit:contain;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2);margin-bottom:14px}
         .bcorn{font-size:.55rem;letter-spacing:.4em;color:rgba(201,164,76,.3);margin-bottom:10px;position:relative;z-index:1}
-        .bctitle{font-family:Georgia,serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
+        .bctitle{font-family:Cormorant Garamond,Georgia,serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
         .bcauthor{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.24em;color:rgba(201,164,76,.65);text-transform:uppercase;position:relative;z-index:1}
         .bcabout{position:relative;z-index:1;margin-top:16px;width:100%;max-width:440px;display:flex;justify-content:center}
         .bccta{position:absolute;bottom:22px;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;color:rgba(201,164,76,.4);text-transform:uppercase;animation:blink 2.2s ease-in-out infinite}
@@ -744,23 +765,23 @@ export default function StoryReaderClient({ params }) {
         .rprog{position:absolute;top:0;left:0;right:0;height:2px;background:rgba(201,164,76,0.07)}
         .rprogf{height:100%;background:linear-gradient(90deg,#6b2fad,#c9a44c);transition:width 0.45s ease}
         .rpageinfo{font-family:'Cinzel',serif;font-size:.45rem;letter-spacing:.2em;color:rgba(201,164,76,0.6);text-transform:uppercase;white-space:nowrap;pointer-events:none}
-        .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-style:italic;color:#888;font-size:1rem}
+        .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:Cormorant Garamond,Georgia,serif;font-style:italic;color:#888;font-size:1rem}
         .bend-wrap{position:fixed;inset:0;top:48px;overflow-y:auto;background:#0a0a0a;animation:fadeOpacity .5s ease forwards;z-index:10}
         .bend{display:flex;flex-direction:column;align-items:center;padding:48px 24px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.06)}
         .beorn{font-size:.9rem;color:#c9a44c;letter-spacing:.5em;margin-bottom:18px}
         .berule{width:60px;height:1px;background:rgba(201,164,76,.3);margin:0 auto 18px}
-        .betitle{font-family:Georgia,serif;font-size:1.35rem;font-style:italic;color:#f5efe0;margin-bottom:6px}
+        .betitle{font-family:Cormorant Garamond,Georgia,serif;font-size:1.35rem;font-style:italic;color:#f5efe0;margin-bottom:6px}
         .beauth{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.2em;color:rgba(201,164,76,.55);text-transform:uppercase;margin-bottom:24px}
-        .bemeta{font-family:Georgia,serif;font-size:.85rem;font-style:italic;color:rgba(255,255,255,.3);margin-bottom:24px}
+        .bemeta{font-family:Cormorant Garamond,Georgia,serif;font-size:.85rem;font-style:italic;color:rgba(255,255,255,.3);margin-bottom:24px}
         .bebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#9b6dff;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
         .bebtn:hover{background:rgba(107,47,173,.12);border-color:#9b6dff}
         .cs-section{background:#0a0a0a;max-width:680px;margin:0 auto;padding:2.5rem 1.5rem 6rem}
         .cs-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid rgba(255,255,255,0.07)}
         .cs-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.3rem;font-weight:300;color:#f5f0e8;letter-spacing:.02em}
-        .cs-count{font-size:.68rem;color:rgba(255,255,255,.25);letter-spacing:.12em;text-transform:uppercase;font-family:'Inter',sans-serif}
+        .cs-count{font-size:.75rem;font-weight:500;color:rgba(255,255,255,.25);letter-spacing:.12em;text-transform:uppercase;font-family:Cormorant Garamond,Georgia,serif}
         .cs-compose{margin-bottom:2rem}
         .cs-compose-row{display:flex;gap:12px;align-items:flex-start}
-        .cs-avatar-compose{width:36px;height:36px;border-radius:50%;background:rgba(107,47,173,0.25);border:1px solid rgba(107,47,173,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#9b6dff;flex-shrink:0;font-family:'Inter',sans-serif;overflow:hidden;text-decoration:none}
+        .cs-avatar-compose{width:36px;height:36px;border-radius:50%;background:rgba(107,47,173,0.25);border:1px solid rgba(107,47,173,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#9b6dff;flex-shrink:0;font-family:Cormorant Garamond,Georgia,serif;overflow:hidden;text-decoration:none}
         .cs-input-wrap{flex:1;position:relative}
         .cs-textarea{width:100%;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:.85rem 3rem .85rem 1rem;font-size:.9rem;color:#e8e0d4;font-family:'Cormorant Garamond',Georgia,serif;resize:none;outline:none;box-sizing:border-box;line-height:1.6}
         .cs-textarea-sm{min-height:56px;font-size:.85rem;border-radius:10px}
@@ -770,33 +791,33 @@ export default function StoryReaderClient({ params }) {
         .cs-kite-btn.active{opacity:1}
         .cs-kite-btn:disabled{cursor:not-allowed}
         .cs-signin-prompt{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:1.5rem;text-align:center;margin-bottom:2rem}
-        .cs-signin-prompt p{font-size:.82rem;color:rgba(255,255,255,.3);margin-bottom:.75rem;font-family:'Inter',sans-serif}
-        .cs-signin-btn{background:none;border:1px solid rgba(107,47,173,.4);border-radius:8px;padding:.55rem 1.4rem;font-size:.68rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9b6dff;cursor:pointer;font-family:'Inter',sans-serif}
-        .cs-loading{font-size:.8rem;color:rgba(255,255,255,.2);font-family:'Inter',sans-serif;padding:1rem 0}
-        .cs-empty{font-size:.88rem;color:rgba(255,255,255,.2);font-family:Georgia,serif;font-style:italic;padding:1rem 0}
+        .cs-signin-prompt p{font-size:.9rem;font-weight:500;color:rgba(255,255,255,.3);margin-bottom:.75rem;font-family:Cormorant Garamond,Georgia,serif}
+        .cs-signin-btn{background:none;border:1px solid rgba(107,47,173,.4);border-radius:8px;padding:.55rem 1.4rem;font-size:.75rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#9b6dff;cursor:pointer;font-family:Cormorant Garamond,Georgia,serif}
+        .cs-loading{font-size:.88rem;font-weight:500;color:rgba(255,255,255,.2);font-family:Cormorant Garamond,Georgia,serif;padding:1rem 0}
+        .cs-empty{font-size:.88rem;color:rgba(255,255,255,.2);font-family:Cormorant Garamond,Georgia,serif;font-style:italic;padding:1rem 0}
         .cs-comments-list{display:flex;flex-direction:column}
         .cs-divider{height:1px;background:rgba(255,255,255,.05);margin:.25rem 0 1.75rem}
         .cs-comment{display:flex;gap:12px;margin-bottom:.25rem}
         .cs-comment-body{flex:1;min-width:0}
         .cs-comment-header{display:flex;align-items:center;gap:6px;margin-bottom:.45rem;flex-wrap:wrap}
-        .cs-name{font-size:.8rem;font-weight:500;color:#e8e0d4;font-family:'Inter',sans-serif}
+        .cs-name{font-size:.88rem;font-weight:500;color:#e8e0d4;font-family:Cormorant Garamond,Georgia,serif}
         .cs-name-link{text-decoration:none;transition:color .2s}
         .cs-name-link:hover{color:#a78bfa}
-        .cs-time{font-size:.65rem;color:rgba(255,255,255,.22);font-family:'Inter',sans-serif}
+        .cs-time{font-size:.74rem;font-weight:500;color:rgba(255,255,255,.22);font-family:Cormorant Garamond,Georgia,serif}
         .cs-comment-text{font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;color:#f5f0e8;line-height:1.75}
         .cs-comment-text-sm{font-size:.92rem}
         .cs-comment-footer{margin-top:.5rem}
-        .cs-reply-btn{background:none;border:none;font-size:.65rem;color:rgba(155,109,255,.5);cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:.08em;padding:0;transition:color .2s}
+        .cs-reply-btn{background:none;border:none;font-size:.74rem;font-weight:500;color:rgba(155,109,255,.5);cursor:pointer;font-family:Cormorant Garamond,Georgia,serif;letter-spacing:.08em;padding:0;transition:color .2s}
         .cs-reply-btn:hover{color:#9b6dff}
         .cs-reply-compose{margin-top:.75rem}
         .cs-replies{margin-top:1rem;padding-left:1rem;border-left:1px solid rgba(107,47,173,.2);display:flex;flex-direction:column;gap:.75rem}
         .cs-reply{display:flex;gap:10px}
         @media(max-width:600px){.rtitle{display:none}.rbtn{font-size:.44rem;padding:3px 7px}.cs-section{padding:2rem 1rem 5rem}}
         @keyframes confirmDrop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-        .bookmark-confirm{position:absolute;top:44px;right:0;background:#1a0f0a;border:1px solid rgba(201,164,76,0.3);border-radius:8px;padding:8px 14px;font-family:Georgia,serif;font-size:.78rem;font-style:italic;color:rgba(240,234,216,0.7);white-space:nowrap;z-index:300;animation:confirmDrop .3s ease forwards;pointer-events:none;}
+        .bookmark-confirm{position:absolute;top:44px;right:0;background:#1a0f0a;border:1px solid rgba(201,164,76,0.3);border-radius:8px;padding:8px 14px;font-family:Cormorant Garamond,Georgia,serif;font-size:.78rem;font-style:italic;color:rgba(240,234,216,0.7);white-space:nowrap;z-index:300;animation:confirmDrop .3s ease forwards;pointer-events:none;}
         @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
         @keyframes toastOut{from{opacity:1;transform:translateX(-50%) translateY(0)}to{opacity:0;transform:translateX(-50%) translateY(-8px)}}
-        .bookmark-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:Georgia,serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:300;pointer-events:none;}
+        .bookmark-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:Cormorant Garamond,Georgia,serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:300;pointer-events:none;}
         .bookmark-toast.in{animation:toastIn .4s ease forwards}
         .bookmark-toast.out{animation:toastOut .4s ease forwards}
         @media(max-width:600px){.cs-textarea,.cs-textarea-sm{font-size:16px !important}}

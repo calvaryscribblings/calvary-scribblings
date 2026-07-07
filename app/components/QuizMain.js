@@ -72,12 +72,12 @@ export default function QuizMain({ quizData, onSubmit }) {
       {/* MCQ section */}
       <div style={{ borderTop: '1px solid rgba(107,47,173,0.2)', paddingTop: '2rem', marginBottom: '2.5rem' }}>
         <div style={{
-          fontSize: '0.68rem',
+          fontSize: '0.75rem',
           fontWeight: 600,
           letterSpacing: '0.18em',
           textTransform: 'uppercase',
           color: '#9b6dff',
-          fontFamily: 'Inter, sans-serif',
+          fontFamily: 'Cormorant Garamond, Georgia, serif',
           marginBottom: '1.75rem',
         }}>
           10 Multiple Choice
@@ -98,9 +98,10 @@ export default function QuizMain({ quizData, onSubmit }) {
               }}
             >
               <div style={{
-                fontSize: '0.65rem',
+                fontSize: '0.74rem',
+                fontWeight: 500,
                 color: 'rgba(255,255,255,0.25)',
-                fontFamily: 'Inter, sans-serif',
+                fontFamily: 'Cormorant Garamond, Georgia, serif',
                 letterSpacing: '0.1em',
                 marginBottom: '0.75rem',
               }}>
@@ -148,12 +149,12 @@ export default function QuizMain({ quizData, onSubmit }) {
       {/* Essay section */}
       <div>
         <div style={{
-          fontSize: '0.68rem',
+          fontSize: '0.75rem',
           fontWeight: 600,
           letterSpacing: '0.18em',
           textTransform: 'uppercase',
           color: '#9b6dff',
-          fontFamily: 'Inter, sans-serif',
+          fontFamily: 'Cormorant Garamond, Georgia, serif',
           marginBottom: '1.75rem',
         }}>
           {essays.length} {essays.length === 1 ? 'Essay' : 'Essays'}
@@ -174,9 +175,10 @@ export default function QuizMain({ quizData, onSubmit }) {
               }}
             >
               <div style={{
-                fontSize: '0.65rem',
+                fontSize: '0.74rem',
+                fontWeight: 500,
                 color: 'rgba(255,255,255,0.25)',
-                fontFamily: 'Inter, sans-serif',
+                fontFamily: 'Cormorant Garamond, Georgia, serif',
                 letterSpacing: '0.1em',
                 marginBottom: '0.75rem',
               }}>
@@ -228,9 +230,10 @@ export default function QuizMain({ quizData, onSubmit }) {
               />
               {errors[`essay-${ei}`] && (
                 <div style={{
-                  fontSize: '0.7rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 500,
                   color: 'rgba(220,38,38,0.7)',
-                  fontFamily: 'Inter, sans-serif',
+                  fontFamily: 'Cormorant Garamond, Georgia, serif',
                   marginTop: '0.4rem',
                 }}>
                   Please write at least 30 characters.
@@ -252,8 +255,8 @@ export default function QuizMain({ quizData, onSubmit }) {
           borderRadius: 10,
           padding: '1rem',
           color: '#fff',
-          fontFamily: 'Inter, sans-serif',
-          fontSize: '0.78rem',
+          fontFamily: 'Cormorant Garamond, Georgia, serif',
+          fontSize: '0.85rem',
           fontWeight: 600,
           letterSpacing: '0.14em',
           textTransform: 'uppercase',

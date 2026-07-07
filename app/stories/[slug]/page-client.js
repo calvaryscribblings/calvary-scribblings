@@ -14,6 +14,7 @@ import { notifyMentions } from '../../lib/mentions';
 import QuizCard from '../../components/QuizCard';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
+import { Lamplight } from '../../lib/lamplight';
 
 
 const FB = {
@@ -79,11 +80,11 @@ function PaywallGate({ user, onSignIn }) {
           <rect x="3" y="11" width="18" height="11" rx="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
-        <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: 20, color: '#f5f0e8', lineHeight: 1.3 }}>
+        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 20, color: '#f5f0e8', lineHeight: 1.3 }}>
           Dead End is a collector's read
         </div>
         <p style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 14,
+          fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 15, fontWeight: 500,
           color: 'rgba(245,240,232,0.6)', maxWidth: 320,
           lineHeight: 1.55, margin: 0,
         }}>
@@ -93,7 +94,7 @@ function PaywallGate({ user, onSignIn }) {
           onClick={handleUnlock}
           style={{
             background: '#c9a84c', color: '#06040e',
-            fontFamily: 'Cochin, Georgia, serif', fontSize: 16,
+            fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 16,
             border: 'none', borderRadius: 999,
             height: 48, width: 240, cursor: 'pointer',
             marginTop: '0.4rem', fontWeight: 500, letterSpacing: '0.01em',
@@ -102,7 +103,7 @@ function PaywallGate({ user, onSignIn }) {
           Unlock for £1.50
         </button>
         <div style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 12,
+          fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 13, fontWeight: 500,
           color: 'rgba(245,240,232,0.45)', marginTop: '0.4rem',
           maxWidth: 320, lineHeight: 1.55,
         }}>
@@ -153,7 +154,7 @@ function BadgeDisplay({ tier, label, color, size = 13 }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
       <BadgeIcon color={color} size={size} isFounder={tier === 'founder'} />
-      <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: tier === 'founder' ? '#c8daea' : color, fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: tier === 'founder' ? '#c8daea' : color, fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap' }}>{label}</span>
     </span>
   );
 }
@@ -167,7 +168,7 @@ function WriterBadge({ size = 13 }) {
       </svg>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(212,83,126,0.12)', border: '1px solid rgba(212,83,126,0.35)', borderRadius: 6, padding: '1px 7px 1px 5px' }}>
         <svg width="10" height="10" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path fill="#d4537e" d={HEART_PATH} /></svg>
-        <span style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>Writer</span>
+        <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#d4537e', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap' }}>Writer</span>
       </span>
     </span>
   );
@@ -220,7 +221,7 @@ function CommentAvatar({ uid, initials, size = 'sm', isOwnComment }) {
       background: 'rgba(107,47,173,0.25)', border: '1px solid rgba(107,47,173,0.3)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize, fontWeight: 500, color: '#9b6dff', flexShrink: 0,
-      fontFamily: 'Inter, sans-serif', overflow: 'hidden', textDecoration: 'none',
+      fontFamily: 'Cormorant Garamond, Georgia, serif', overflow: 'hidden', textDecoration: 'none',
     }}>
       {photoUrl ? <img src={photoUrl} alt={initials} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
     </a>
@@ -241,7 +242,7 @@ function CommentUsername({ uid }) {
     })();
   }, [uid]);
   if (!username) return null;
-  return <span style={{ fontSize: '0.62rem', color: 'rgba(167,139,250,0.5)', fontFamily: 'Inter, sans-serif' }}>@{username}</span>;
+  return <span style={{ fontSize: '0.7rem', fontWeight: 500, color: 'rgba(167,139,250,0.5)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{username}</span>;
 }
 
 function CommentName({ uid, fallback }) {
@@ -391,11 +392,11 @@ function ExerciseSection({ slug }) {
       <div style={{ borderTop: '1px solid #e0dbd2', paddingTop: '2rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <div>
-            <div style={{ fontFamily: 'Cochin, Georgia, serif', fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>Story Exercise</div>
-            <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif' }}>{exercise.length} question{exercise.length !== 1 ? 's' : ''} · Up to {exercise.reduce((s, q) => s + q.points, 0)} Scribbles</div>
+            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>Story Exercise</div>
+            <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{exercise.length} question{exercise.length !== 1 ? 's' : ''} · Up to {exercise.reduce((s, q) => s + q.points, 0)} Scribbles</div>
           </div>
           {submitted && (
-            <div style={{ background: 'rgba(107,47,173,0.1)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 8, padding: '0.4rem 0.9rem', fontSize: '0.72rem', color: '#6b2fad', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+            <div style={{ background: 'rgba(107,47,173,0.1)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 8, padding: '0.4rem 0.9rem', fontSize: '0.8rem', color: '#6b2fad', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 600 }}>
               {submission.status === 'pending_review' ? '⏳ Essay pending review' : `✓ ${submission.totalScore} Scribbles earned`}
             </div>
           )}
@@ -405,14 +406,14 @@ function ExerciseSection({ slug }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {submission.answers.map((a, i) => (
               <div key={i} style={{ background: '#fff', border: `1px solid ${a.type === 'mcq' ? (a.correct ? 'rgba(29,158,117,0.3)' : 'rgba(220,38,38,0.3)') : 'rgba(107,47,173,0.2)'}`, borderRadius: 10, padding: '1rem' }}>
-                <div style={{ fontSize: '0.78rem', color: '#888', fontFamily: 'Inter, sans-serif', marginBottom: '0.4rem' }}>Q{i + 1} · {a.type === 'mcq' ? 'Multiple Choice' : 'Essay'}</div>
-                <div style={{ fontSize: '0.92rem', color: '#1a1a1a', fontFamily: 'Cochin, Georgia, serif', marginBottom: '0.5rem' }}>{a.question}</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.4rem' }}>Q{i + 1} · {a.type === 'mcq' ? 'Multiple Choice' : 'Essay'}</div>
+                <div style={{ fontSize: '0.92rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.5rem' }}>{a.question}</div>
                 {a.type === 'mcq' ? (
-                  <div style={{ fontSize: '0.82rem', fontFamily: 'Inter, sans-serif', color: a.correct ? '#1d9e75' : '#dc2626', fontWeight: 600 }}>
+                  <div style={{ fontSize: '0.9rem', fontFamily: 'Cormorant Garamond, Georgia, serif', color: a.correct ? '#1d9e75' : '#dc2626', fontWeight: 600 }}>
                     {a.correct ? `✓ Correct — +${a.awardedPoints} Scribbles` : '✗ Incorrect — 0 Scribbles'}
                   </div>
                 ) : (
-                  <div style={{ fontSize: '0.82rem', fontFamily: 'Inter, sans-serif', color: a.marked ? '#1d9e75' : '#d97706' }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', color: a.marked ? '#1d9e75' : '#d97706' }}>
                     {a.marked ? `✓ Marked — ${a.awardedPoints} Scribbles` : '⏳ Awaiting review'}
                   </div>
                 )}
@@ -423,14 +424,14 @@ function ExerciseSection({ slug }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {exercise.map((q, i) => (
               <div key={i} style={{ background: '#fff', border: '1px solid #e0dbd2', borderRadius: 10, padding: '1.25rem' }}>
-                <div style={{ fontSize: '0.72rem', color: '#888', fontFamily: 'Inter, sans-serif', marginBottom: '0.4rem' }}>Q{i + 1} · {q.type === 'mcq' ? 'Multiple Choice' : 'Essay'} · {q.points} Scribbles</div>
-                <div style={{ fontSize: '1rem', color: '#1a1a1a', fontFamily: 'Cochin, Georgia, serif', marginBottom: '1rem', lineHeight: 1.6 }}>{q.question}</div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#888', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.4rem' }}>Q{i + 1} · {q.type === 'mcq' ? 'Multiple Choice' : 'Essay'} · {q.points} Scribbles</div>
+                <div style={{ fontSize: '1rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '1rem', lineHeight: 1.6 }}>{q.question}</div>
                 {q.type === 'mcq' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {q.options.filter(o => o.trim()).map((opt, oi) => (
                       <label key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', padding: '0.6rem 0.75rem', borderRadius: 8, border: `1px solid ${answers[i] === oi ? 'rgba(107,47,173,0.4)' : '#e0dbd2'}`, background: answers[i] === oi ? 'rgba(107,47,173,0.06)' : 'transparent', transition: 'all 0.15s' }}>
                         <input type="radio" name={`q${i}`} checked={answers[i] === oi} onChange={() => setAnswers(a => a.map((v, idx) => idx === i ? oi : v))} style={{ accentColor: '#6b2fad' }} />
-                        <span style={{ fontSize: '0.9rem', color: '#1a1a1a', fontFamily: 'Cochin, Georgia, serif' }}>{opt}</span>
+                        <span style={{ fontSize: '0.9rem', color: '#1a1a1a', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{opt}</span>
                       </label>
                     ))}
                   </div>
@@ -440,20 +441,20 @@ function ExerciseSection({ slug }) {
                     onChange={e => setAnswers(a => a.map((v, idx) => idx === i ? e.target.value : v))}
                     placeholder="Write your response here…"
                     rows={5}
-                    style={{ width: '100%', border: '1px solid #e0dbd2', borderRadius: 8, padding: '0.75rem', fontSize: '0.92rem', fontFamily: 'Cochin, Georgia, serif', color: '#1a1a1a', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.7 }}
+                    style={{ width: '100%', border: '1px solid #e0dbd2', borderRadius: 8, padding: '0.75rem', fontSize: '0.92rem', fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#1a1a1a', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.7 }}
                   />
                 )}
               </div>
             ))}
-            {msg && <div style={{ fontSize: '0.82rem', color: '#dc2626', fontFamily: 'Inter, sans-serif' }}>{msg}</div>}
+            {msg && <div style={{ fontSize: '0.9rem', fontWeight: 500, color: '#dc2626', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{msg}</div>}
             <button onClick={submit} disabled={submitting}
-              style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.85rem 2rem', color: '#fff', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Inter, sans-serif', opacity: submitting ? 0.6 : 1 }}>
+              style={{ background: '#6b2fad', border: 'none', borderRadius: 8, padding: '0.85rem 2rem', color: '#fff', fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif', opacity: submitting ? 0.6 : 1 }}>
               {submitting ? 'Submitting…' : 'Submit Exercise'}
             </button>
           </div>
         ) : (
           <div style={{ background: 'rgba(107,47,173,0.06)', border: '1px solid rgba(107,47,173,0.15)', borderRadius: 10, padding: '1.5rem', textAlign: 'center' }}>
-            <div style={{ fontFamily: 'Cochin, Georgia, serif', color: '#555', marginBottom: '0.5rem' }}>Sign in to attempt this exercise and earn Scribbles.</div>
+            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#555', marginBottom: '0.5rem' }}>Sign in to attempt this exercise and earn Scribbles.</div>
           </div>
         )}
       </div>
@@ -542,8 +543,8 @@ const CommentNode = React.memo(function CommentNode({
                   <>
                     <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuId(null)} />
                     <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, zIndex: 100, minWidth: 110, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
-                      <button onClick={() => { setEditingId(comment.id); setEditText(comment.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Edit</button>
-                      <button onClick={() => { setMenuId(null); if (window.confirm(depth === 1 ? 'Delete this comment?' : 'Delete this reply?')) deleteComment(comment.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.78rem', textAlign: 'left', cursor: 'pointer' }}>Delete</button>
+                      <button onClick={() => { setEditingId(comment.id); setEditText(comment.text); setMenuId(null); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.75)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.85rem', fontWeight: 500, textAlign: 'left', cursor: 'pointer' }}>Edit</button>
+                      <button onClick={() => { setMenuId(null); if (window.confirm(depth === 1 ? 'Delete this comment?' : 'Delete this reply?')) deleteComment(comment.id); }} style={{ display: 'block', width: '100%', padding: '0.6rem 1rem', background: 'none', border: 'none', color: 'rgba(248,113,113,0.7)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.85rem', fontWeight: 500, textAlign: 'left', cursor: 'pointer' }}>Delete</button>
                     </div>
                   </>
                 )}
@@ -569,7 +570,7 @@ const CommentNode = React.memo(function CommentNode({
                     {renderCommentText(comment.text.slice(0, 100))}…
                     <button
                       onClick={() => setExpandedComment({ text: comment.text, authorName: comment.authorName })}
-                      style={{ color: 'rgba(107,47,173,0.8)', fontSize: '0.75rem', fontFamily: 'Inter, sans-serif', cursor: 'pointer', marginLeft: 4, background: 'none', border: 'none', padding: 0 }}
+                      style={{ color: 'rgba(107,47,173,0.8)', fontSize: '0.82rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', cursor: 'pointer', marginLeft: 4, background: 'none', border: 'none', padding: 0 }}
                     >more</button>
                   </>
                 ) : (
@@ -595,7 +596,7 @@ const CommentNode = React.memo(function CommentNode({
                   onTouchEnd={() => setPressedReaction(null)}
                   style={{ background: 'none', border: 'none', cursor: user ? 'pointer' : 'default', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', color: active ? activeColor : 'rgba(255,255,255,0.4)', transform: pressedReaction === `${comment.id}:${type}` ? 'scale(0.82)' : 'scale(1)', transition: 'transform 0.1s ease, color 0.2s' }}>
                   <svg width={depth === 1 ? "12" : "11"} height={depth === 1 ? "12" : "11"} viewBox="0 0 24 24" fill={active ? activeColor : 'none'} stroke={active ? activeColor : 'rgba(255,255,255,0.4)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>
-                  {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Inter,sans-serif' }}>{count}</span>}
+                  {count > 0 && <span style={{ fontSize: depth === 1 ? '0.6rem' : '0.58rem', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{count}</span>}
                 </button>
               );
             })}
@@ -936,8 +937,8 @@ function CommentsSection({ slug, onSignIn }) {
       {expandedComment !== null && (
         <div onClick={() => setExpandedComment(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '1.5rem', maxWidth: 480, width: '100%', maxHeight: '80vh', overflowY: 'auto', position: 'relative' }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff', fontFamily: 'Inter, sans-serif', marginBottom: '0.75rem' }}>{expandedComment.authorName}</div>
-            <div style={{ fontSize: '0.9rem', color: '#e8e0d4', fontFamily: 'Georgia, serif', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{expandedComment.text}</div>
+            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.75rem' }}>{expandedComment.authorName}</div>
+            <div style={{ fontSize: '0.9rem', color: '#e8e0d4', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{expandedComment.text}</div>
             <button onClick={() => setExpandedComment(null)} style={{ position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 16 }}>×</button>
           </div>
         </div>
@@ -1163,7 +1164,7 @@ useEffect(() => {
   );
   if (authorDeleted) return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Cochin, Cormorant Garamond, Georgia, serif', fontSize: '1.05rem', fontStyle: 'italic', textAlign: 'center' }}>
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.05rem', fontStyle: 'italic', textAlign: 'center' }}>
         This story is no longer available.
       </p>
     </div>
@@ -1178,18 +1179,21 @@ useEffect(() => {
   const isVerse = isPoetry && !story.prosePoetry;
 
   return (
-    
+
     <>
+      {/* Ambient night reading light — self-manages (off by day); scroll prop
+          wires flame-physics disturbance + reading-progress warmth. */}
+      <Lamplight scroll />
       <style>{`
         @keyframes storyFadeIn { from { opacity: 0; } to { opacity: 1; } }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { background: #0a0a0a; }
-        body { background: #0a0a0a; color: #e8e0d4; font-family: Cochin, Georgia, serif; overflow-x: hidden; }
+        body { background: #0a0a0a; color: #e8e0d4; font-family: Cormorant Garamond, Georgia, serif; overflow-x: hidden; }
         .story-fade-in { animation: storyFadeIn 0.7s ease forwards; }
         .reading-progress { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, ${accentColor}, #a855f7); z-index: 1000; transition: width 0.1s linear; }
         .story-nav { position: fixed; top: 3px; left: 0; right: 0; z-index: 999; display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; background: rgba(10,10,10,0.88); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,0.06); transition: transform 0.3s ease; }
         .story-nav.hidden { transform: translateY(-100%); }
-        .nav-logo { font-family: Cochin, Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f0ead8; text-decoration: none; letter-spacing: 0.02em; }
+        .nav-logo { font-family: Cormorant Garamond, Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f0ead8; text-decoration: none; letter-spacing: 0.02em; }
         .nav-logo span { color: ${accentColor}; }
         .nav-meta { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: #f5f0e8; }
         .story-hero { position: relative; height: 88vh; min-height: 520px; display: flex; align-items: flex-end; overflow: hidden; background: #0a0a0a; }
@@ -1201,104 +1205,104 @@ useEffect(() => {
         .hero-mobile-overlay { display: none; position: absolute; inset: 0; background: linear-gradient(to top, rgba(10,10,10,1) 0%, rgba(10,10,10,0.5) 50%, transparent 100%); }
         .hero-content { position: relative; z-index: 2; padding: 3rem 2rem 3.5rem; max-width: 680px; animation: heroUp 1s cubic-bezier(0.22,1,0.36,1) 0.3s both; }
         @keyframes heroUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
-        .story-badge-hero { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; padding: 0.3em 0.9em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; margin-bottom: 1.1rem; font-family: Cochin, Georgia, serif; }
-        .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 400; line-height: 1.1; color: #f0ead8; margin-bottom: 1.1rem; font-family: Cochin, 'Cormorant Garamond', Cochin, Georgia, serif; }
+        .story-badge-hero { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; padding: 0.3em 0.9em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; margin-bottom: 1.1rem; font-family: Cormorant Garamond, Georgia, serif; }
+        .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 400; line-height: 1.1; color: #f0ead8; margin-bottom: 1.1rem; font-family: Cormorant Garamond, Georgia, serif; }
         .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: #f5f0e8; flex-wrap: wrap; }
         .byline-dot { width: 3px; height: 3px; border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
-        .byline-by { font-style: italic; font-family: Georgia, serif; margin-right: -0.8rem; }
+        .byline-by { font-style: italic; font-family: Cormorant Garamond, Georgia, serif; margin-right: -0.8rem; }
         .story-body-wrap { background: #f0ead8; }
         .story-body { max-width: 680px; margin: 0 auto; padding: 3rem 2rem 5rem; }
         .back-link-row { margin-bottom: 2.2rem; padding-bottom: 1.2rem; border-bottom: 1px solid #e0dbd2; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
-        .back-link { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: ${accentColor}; text-decoration: none; font-family: Cochin, Georgia, serif; }
+        .back-link { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: ${accentColor}; text-decoration: none; font-family: Cormorant Garamond, Georgia, serif; }
         .back-link:hover { text-decoration: underline; }
-        .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cochin, Georgia, serif; font-weight: 400; }
-        .prose em, .prose i { font-family: Georgia, serif; font-style: italic; }
+        .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cormorant Garamond, Georgia, serif; font-weight: 400; }
+        .prose em, .prose i { font-family: Cormorant Garamond, Georgia, serif; font-style: italic; }
         .prose p { margin-bottom: 0; } .prose:not(.is-verse) p + p { text-indent: 1.5em; }
-        .prose.has-dropcap > p:first-of-type::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: Cochin, 'Cormorant Garamond', Cochin, Georgia, serif; }
-        .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cochin, Georgia, serif; line-height: 1.3; }
-        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: Georgia, serif; }
-        .prose p[style*='text-align:center'], .prose p[style*='text-align: center'] { text-align: center; font-family: Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
-        .prose h4 { font-size: 1rem; font-weight: 700; color: #1a1a1a; margin: 1.5em 0 0.4em; font-family: Cochin, Georgia, serif; }
+        .prose.has-dropcap > p:first-of-type::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: ${accentColor}; font-family: Cormorant Garamond, Georgia, serif; }
+        .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cormorant Garamond, Georgia, serif; line-height: 1.3; }
+        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: Cormorant Garamond, Georgia, serif; }
+        .prose p[style*='text-align:center'], .prose p[style*='text-align: center'] { text-align: center; font-family: Cormorant Garamond, Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
+        .prose h4 { font-size: 1rem; font-weight: 700; color: #1a1a1a; margin: 1.5em 0 0.4em; font-family: Cormorant Garamond, Georgia, serif; }
         .prose img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; margin: 2em 0 0.5em; min-height: 200px; background: #e8e0d4; }
 .prose img.loaded { min-height: unset; background: none; }
         .prose .article-image { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 8px; margin: 2em 0 0.5em; }
         .prose figure { margin: 2em 0; }
-        .prose figcaption { font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; font-family: Georgia, serif; }
-        .prose img + em { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: -1em; margin-bottom: 2em; font-family: Georgia, serif; }
-        .prose .image-caption { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; margin-bottom: 2em; font-family: Georgia, serif; }
-        .prose .inline-image-caption { display: block; font-size: 0.82rem; color: #888; font-style: italic; text-align: right; margin-top: 0.4em; margin-bottom: 2em; font-family: Georgia, serif; }
+        .prose figcaption { font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; font-family: Cormorant Garamond, Georgia, serif; }
+        .prose img + em { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: -1em; margin-bottom: 2em; font-family: Cormorant Garamond, Georgia, serif; }
+        .prose .image-caption { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; margin-bottom: 2em; font-family: Cormorant Garamond, Georgia, serif; }
+        .prose .inline-image-caption { display: block; font-size: 0.82rem; color: #888; font-style: italic; text-align: right; margin-top: 0.4em; margin-bottom: 2em; font-family: Cormorant Garamond, Georgia, serif; }
         .prose .features-list { background: #e8e0f5; border-left: 4px solid ${accentColor}; border-radius: 0 8px 8px 0; padding: 1.25rem 1.5rem; margin: 1.5em 0 2em; }
         .prose .features-list ul { background: transparent; border: none; padding: 0; margin: 0; list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
         .prose .features-list ul li { padding-left: 1.2rem; position: relative; font-size: 1.05rem; line-height: 1.6; color: #1a1a1a; }
         .prose .features-list ul li::before { content: '•'; position: absolute; left: 0; color: ${accentColor}; font-weight: 700; }
-        .prose blockquote { margin: 2.2em 0; padding: 1.2em 1.6em; border-left: 4px solid ${accentColor}; background: rgba(107,70,193,0.07); font-size: 1.1rem; font-style: italic; color: ${accentColor}; line-height: 1.7; border-radius: 0 4px 4px 0; font-family: Georgia, serif; }
-        .prose blockquote p { margin-bottom: 0; color: ${accentColor}; font-family: Georgia, serif; }
+        .prose blockquote { margin: 2.2em 0; padding: 1.2em 1.6em; border-left: 4px solid ${accentColor}; background: rgba(107,70,193,0.07); font-size: 1.1rem; font-style: italic; color: ${accentColor}; line-height: 1.7; border-radius: 0 4px 4px 0; font-family: Cormorant Garamond, Georgia, serif; }
+        .prose blockquote p { margin-bottom: 0; color: ${accentColor}; font-family: Cormorant Garamond, Georgia, serif; }
         .prose ul { margin: 1.8em 0; padding: 1.2em 1.5em 1.2em 2em; background: #ede6f5; border-left: 4px solid ${accentColor}; border-radius: 0 4px 4px 0; list-style: disc; }
         .prose ul li { margin-bottom: 0.55em; color: #1a1a1a; font-size: 1.05rem; line-height: 1.75; }
         .prose ul li::marker { color: ${accentColor}; }
         .prose ol { margin: 1.5em 0; padding-left: 1.8em; }
         .prose ol li { margin-bottom: 0.5em; color: #1a1a1a; }
         .prose hr { border: none; height: 2px; background: linear-gradient(90deg, transparent, ${accentColor}, transparent); width: 100px; margin: 3em auto; display: block; }
-        .prose em { font-style: italic; color: inherit; font-family: Georgia, serif; }
-        .prose i { font-style: italic; color: inherit; font-family: Georgia, serif; }
+        .prose em { font-style: italic; color: inherit; font-family: Cormorant Garamond, Georgia, serif; }
+        .prose i { font-style: italic; color: inherit; font-family: Cormorant Garamond, Georgia, serif; }
         .prose strong { font-weight: 700; color: #1a1a1a; }
-        .prose .poem-collection-intro { font-style: italic; font-family: Georgia, serif; color: #555; margin-bottom: 1.5em; display: block; font-size: 1.1rem; }
-        .prose .section-break { text-align: center; font-family: Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
-        .prose .poem-numeral { text-align: center; font-family: Georgia, serif; letter-spacing: 0.3em; color: ${accentColor}; margin: 2.5em auto 1em; font-size: 1.05rem; }
-        .prose .intro-note { font-style: italic; font-family: Georgia, serif; color: ${accentColor}; display: block; font-size: 1.1rem; margin-bottom: 1.5em; }
+        .prose .poem-collection-intro { font-style: italic; font-family: Cormorant Garamond, Georgia, serif; color: #555; margin-bottom: 1.5em; display: block; font-size: 1.1rem; }
+        .prose .section-break { text-align: center; font-family: Cormorant Garamond, Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
+        .prose .poem-numeral { text-align: center; font-family: Cormorant Garamond, Georgia, serif; letter-spacing: 0.3em; color: ${accentColor}; margin: 2.5em auto 1em; font-size: 1.05rem; }
+        .prose .intro-note { font-style: italic; font-family: Cormorant Garamond, Georgia, serif; color: ${accentColor}; display: block; font-size: 1.1rem; margin-bottom: 1.5em; }
         .prose .poem-contents { border-left: 4px solid ${accentColor}; padding: 0.8em 1.2em; margin: 1.5em 0; background: #ede6f5; border-radius: 0 4px 4px 0; }
         .prose .poem-contents p { margin-bottom: 0.5em; font-weight: 600; color: #1a1a1a; }
         .prose .poem-contents ol, .prose .poem-contents ul { background: transparent; border: none; padding: 0 0 0 1.2em; margin: 0; }
-        .prose .poem-contents li { font-style: italic; color: #444; font-family: Georgia, serif; font-size: 1.1rem; }
+        .prose .poem-contents li { font-style: italic; color: #444; font-family: Cormorant Garamond, Georgia, serif; font-size: 1.1rem; }
         .prose .poem-block { margin-bottom: 3.5em; display: block; }
-        .prose .poem-title { font-size: 1.5rem; font-style: normal; color: ${accentColor}; margin-bottom: 1.2em; display: block; font-family: Cochin, Georgia, serif; font-weight: 700; }
-        .prose .poem-stanza { font-family: Cochin, Georgia, serif; margin-bottom: 1.8em; display: block; white-space: pre-line; line-height: 1.75; color: #1a1a1a; font-size: 1.15rem; }
+        .prose .poem-title { font-size: 1.5rem; font-style: normal; color: ${accentColor}; margin-bottom: 1.2em; display: block; font-family: Cormorant Garamond, Georgia, serif; font-weight: 700; }
+        .prose .poem-stanza { font-family: Cormorant Garamond, Georgia, serif; margin-bottom: 1.8em; display: block; white-space: pre-line; line-height: 1.75; color: #1a1a1a; font-size: 1.15rem; }
         .prose .poem-stanza p { margin-bottom: 0.25em; line-height: 1.75; color: #1a1a1a; white-space: pre-line; }
         .prose .poem-stanza p::first-letter { all: unset; }
         .prose .poem-stanza br { display: block; }
-        .hit-counter-row { text-align: center; padding: 1.8rem 2rem 1.5rem; color: #888; font-size: 0.9rem; font-family: Cochin, Georgia, serif; border-top: 1px solid #e0dbd2; max-width: 680px; margin: 0 auto; background: #f0ead8; }
-        .story-footer { background: #f0ead8; max-width: 680px; margin: 0 auto; padding: 1rem 2rem 2rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: #888; gap: 1rem; flex-wrap: wrap; font-family: Cochin, Georgia, serif; border-top: 1px solid #e0dbd2; }
+        .hit-counter-row { text-align: center; padding: 1.8rem 2rem 1.5rem; color: #888; font-size: 0.9rem; font-family: Cormorant Garamond, Georgia, serif; border-top: 1px solid #e0dbd2; max-width: 680px; margin: 0 auto; background: #f0ead8; }
+        .story-footer { background: #f0ead8; max-width: 680px; margin: 0 auto; padding: 1rem 2rem 2rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: #888; gap: 1rem; flex-wrap: wrap; font-family: Cormorant Garamond, Georgia, serif; border-top: 1px solid #e0dbd2; }
         .story-badge-footer { display: inline-block; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25em 0.8em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; }
         .back-to-top { position: fixed; bottom: 2rem; right: 2rem; width: 44px; height: 44px; border-radius: 50%; background: rgba(124,58,237,0.85); border: 1px solid rgba(168,85,247,0.4); color: #fff; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: opacity 0.3s ease, transform 0.3s ease; z-index: 998; box-shadow: 0 4px 20px rgba(124,58,237,0.4); }
         .back-to-top:hover { background: rgba(124,58,237,1); transform: translateY(-2px); }
         .back-to-top.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
         .cs-section { background: #0a0a0a; max-width: 680px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
         .cs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
-        .cs-title { font-family: Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; letter-spacing: 0.02em; }
-        .cs-count { font-size: 0.68rem; color: rgba(255,255,255,0.92); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'Inter', sans-serif; }
+        .cs-title { font-family: Cormorant Garamond, Georgia, serif; font-size: 1.3rem; font-weight: 400; color: #f5f0e8; letter-spacing: 0.02em; }
+        .cs-count { font-size: 0.75rem; font-weight: 500; color: rgba(255,255,255,0.92); letter-spacing: 0.12em; text-transform: uppercase; font-family: Cormorant Garamond, Georgia, serif; }
         .cs-compose { margin-bottom: 2rem; }
         .cs-compose-row { display: flex; gap: 12px; align-items: flex-start; }
-        .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: 'Inter', sans-serif; overflow: hidden; text-decoration: none; }
+        .cs-avatar-compose { width: 36px; height: 36px; border-radius: 50%; background: rgba(107,47,173,0.25); border: 1px solid rgba(107,47,173,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: #9b6dff; flex-shrink: 0; font-family: Cormorant Garamond, Georgia, serif; overflow: hidden; text-decoration: none; }
         .cs-input-wrap { flex: 1; position: relative; }
-        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+        .cs-textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 0.85rem 3rem 0.85rem 1rem; font-size: 0.9rem; color: #e8e0d4; font-family: Cormorant Garamond, Georgia, serif; resize: none; outline: none; box-sizing: border-box; line-height: 1.6; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
         .cs-textarea-sm { min-height: 56px; font-size: 0.85rem; border-radius: 10px; }
-        .cs-textarea::placeholder { color: rgba(255,255,255,0.32); font-style: italic; font-family: Georgia, serif; }
+        .cs-textarea::placeholder { color: rgba(255,255,255,0.32); font-style: italic; font-family: Cormorant Garamond, Georgia, serif; }
         .cs-textarea:focus { border-color: rgba(107,47,173,0.4); box-shadow: 0 0 0 2px rgba(107,47,173,0.2); }
         .cs-kite-btn { position: absolute; bottom: 8px; right: 8px; background: none; border: none; cursor: pointer; padding: 4px; opacity: 0.2; transition: opacity 0.2s; }
         .cs-kite-btn.active { opacity: 1; }
         .cs-kite-btn:disabled { cursor: not-allowed; }
         .cs-signin-prompt { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 1.5rem; text-align: center; margin-bottom: 2rem; }
-        .cs-signin-prompt p { font-size: 0.82rem; color: rgba(255,255,255,0.95); margin-bottom: 0.75rem; font-family: 'Inter', sans-serif; }
-        .cs-signin-btn { background: none; border: 1px solid rgba(107,47,173,0.4); border-radius: 8px; padding: 0.55rem 1.4rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9b6dff; cursor: pointer; font-family: 'Inter', sans-serif; }
-        .cs-loading { font-size: 0.8rem; color: #ffffff; font-family: 'Inter', sans-serif; padding: 1rem 0; }
-        .cs-empty { font-size: 0.88rem; color: #ffffff; font-family: Georgia, serif; font-style: italic; padding: 1rem 0; }
+        .cs-signin-prompt p { font-size: 0.9rem; font-weight: 500; color: rgba(255,255,255,0.95); margin-bottom: 0.75rem; font-family: Cormorant Garamond, Georgia, serif; }
+        .cs-signin-btn { background: none; border: 1px solid rgba(107,47,173,0.4); border-radius: 8px; padding: 0.55rem 1.4rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #9b6dff; cursor: pointer; font-family: Cormorant Garamond, Georgia, serif; }
+        .cs-loading { font-size: 0.88rem; font-weight: 500; color: #ffffff; font-family: Cormorant Garamond, Georgia, serif; padding: 1rem 0; }
+        .cs-empty { font-size: 0.88rem; color: #ffffff; font-family: Cormorant Garamond, Georgia, serif; font-style: italic; padding: 1rem 0; }
         .cs-comments-list { display: flex; flex-direction: column; }
         .cs-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 0.25rem 0 1.75rem; }
         .cs-comment { display: flex; gap: 12px; margin-bottom: 1.25rem; }
         .cs-comment-body { flex: 1; min-width: 0; padding-bottom: 0.5rem; }
         .cs-comment-header { display: flex; align-items: center; gap: 6px; margin-bottom: 0.45rem; flex-wrap: wrap; }
-        .cs-name { font-size: 0.8rem; font-weight: 500; color: #ffffff; font-family: 'Inter', sans-serif; }
+        .cs-name { font-size: 0.88rem; font-weight: 500; color: #ffffff; font-family: Cormorant Garamond, Georgia, serif; }
         .cs-name-link { text-decoration: none; transition: color 0.2s; }
         .cs-name-link:hover { color: #a78bfa; }
-        .cs-time { font-size: 0.65rem; color: rgba(255,255,255,0.4); font-family: 'Inter', sans-serif; }
-        .cs-comment-text { font-family: Georgia, serif; font-size: 1rem; color: #ffffff; line-height: 1.75; }
+        .cs-time { font-size: 0.74rem; font-weight: 500; color: rgba(255,255,255,0.4); font-family: Cormorant Garamond, Georgia, serif; }
+        .cs-comment-text { font-family: Cormorant Garamond, Georgia, serif; font-size: 1rem; color: #ffffff; line-height: 1.75; }
         .cs-comment-text-sm { font-size: 0.92rem; }
         .cs-comment-footer { margin-top: 0.5rem; }
-        .cs-save-btn { background: #6b2fad; border: none; color: #f0ead8; font-family: Inter, sans-serif; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        .cs-save-btn { background: #6b2fad; border: none; color: #f0ead8; font-family: Cormorant Garamond, Georgia, serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
         .cs-save-btn:hover { background: #7c3aed; }
-        .cs-cancel-btn { background: transparent; border: 1px solid rgba(166,61,76,0.5); color: #a63d4c; font-family: Inter, sans-serif; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .cs-cancel-btn { background: transparent; border: 1px solid rgba(166,61,76,0.5); color: #a63d4c; font-family: Cormorant Garamond, Georgia, serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
         .cs-cancel-btn:hover { background: rgba(166,61,76,0.12); border-color: #a63d4c; }
-        .cs-reply-btn { background: none; border: none; font-size: 0.62rem; color: rgba(255,255,255,0.4); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Inter', sans-serif; transition: color 0.2s; }
+        .cs-reply-btn { background: none; border: none; font-size: 0.7rem; font-weight: 500; color: rgba(255,255,255,0.4); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: Cormorant Garamond, Georgia, serif; transition: color 0.2s; }
         .cs-reply-btn:hover { color: #9b6dff; }
         .cs-reply-compose { background: rgba(107,47,173,0.06); border: 1px solid rgba(107,47,173,0.18); border-radius: 10px; padding: 0.75rem; margin-top: 0.75rem; margin-bottom: 0.5rem; }
         .cs-replies { margin-top: 1rem; padding-left: 1rem; border-left: 1px solid rgba(107,47,173,0.2); display: flex; flex-direction: column; gap: 1rem; }
@@ -1342,7 +1346,7 @@ useEffect(() => {
                 <span>{story.author}</span>
                 {story.authorHandle && story.authorHandle !== story.authorUid && (
                   <AuthorHandleLink handle={story.authorHandle}
-                    style={{ fontSize: '0.72rem', color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Inter, sans-serif' }} />
+                    style={{ fontSize: '0.8rem', fontWeight: 500, color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Cormorant Garamond, Georgia, serif' }} />
                 )}
               </span>
               <div className="byline-dot" />
@@ -1353,7 +1357,7 @@ useEffect(() => {
               <a
                 onClick={() => document.getElementById('quiz-card')?.scrollIntoView({ behavior: 'smooth' })}
                 style={{
-                  cursor: 'pointer', fontFamily: '"Cormorant Garamond", serif',
+                  cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif',
                   fontStyle: 'italic', fontSize: '0.85rem', color: '#a78bfa',
                   textDecoration: 'none', marginTop: '0.4rem', display: 'block',
                 }}
@@ -1374,7 +1378,7 @@ useEffect(() => {
     <a href={`/reader/${slug}`} style={{
       display: 'inline-flex', alignItems: 'center', gap: '0.4em',
       fontSize: '0.78rem', letterSpacing: '0.1em', textTransform: 'uppercase',
-      color: '#c9a44c', textDecoration: 'none', fontFamily: 'Cochin, Georgia, serif',
+      color: '#c9a44c', textDecoration: 'none', fontFamily: 'Cormorant Garamond, Georgia, serif',
       border: '1px solid rgba(201,164,76,0.4)', padding: '0.3em 0.8em', borderRadius: '2px',
       transition: 'all 0.2s',
     }}
@@ -1405,7 +1409,7 @@ useEffect(() => {
                 By {story.author}
                 {story.authorHandle && story.authorHandle !== story.authorUid && (
                   <AuthorHandleLink handle={story.authorHandle}
-                    style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.72rem', fontFamily: 'Inter, sans-serif' }} />
+                    style={{ color: 'rgba(167,139,250,0.55)', textDecoration: 'none', marginLeft: 4, fontSize: '0.8rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }} />
                 )} · {story.date}
               </span>
               <span className="story-badge-footer">

@@ -8,7 +8,7 @@ import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthor
 // Typography — matches the homepage overhaul (DISPLAY title + gold LABEL kicker).
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
-const BODY = "'Cochin', Georgia, serif";
+const BODY = "Cormorant Garamond, Georgia, serif";
 
 const cat = 'flash';
 const meta = categoryMeta[cat];
@@ -97,7 +97,7 @@ export default function FlashPage() {
       <style>{`
         .cat-hero { min-height: 220px; }
         @media (min-width: 768px) { .cat-hero { min-height: 260px; } }
-        .cat-tab { background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 0.35rem 1rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.45); cursor: pointer; font-family: Cochin, Georgia, serif; transition: all 0.2s; white-space: nowrap; }
+        .cat-tab { background: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 0.35rem 1rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.45); cursor: pointer; font-family: Cormorant Garamond, Georgia, serif; transition: all 0.2s; white-space: nowrap; }
         .cat-tab:hover { border-color: rgba(107,47,173,0.5); color: #c4b5fd; }
         .cat-tab.active { background: #6b2fad; border-color: #6b2fad; color: #f5f0e8; }
       `}</style>

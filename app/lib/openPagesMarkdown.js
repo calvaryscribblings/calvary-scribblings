@@ -19,7 +19,7 @@
 const PURPLE = '#6b2fad';
 const GOLD = '#c9a84c';
 const CREAM = '#f5f0e8';
-const SERIF = "'Cormorant Garamond', 'Cochin', Georgia, serif";
+const SERIF = "Cormorant Garamond, Georgia, serif";
 
 function safeHref(url) {
   const u = (url || '').trim();

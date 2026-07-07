@@ -46,7 +46,7 @@ export default function HeaderAdjuster({ file, onDone, onCancel }) {
 
   if (!imgSrc || !imgDims) {
     return (
-      <div style={{ position: 'fixed', inset: 0, background: '#0a0a0a', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter, sans-serif', fontSize: '0.85rem' }}>
+      <div style={{ position: 'fixed', inset: 0, background: '#0a0a0a', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', fontWeight: 500 }}>
         Loading image…
       </div>
     );
@@ -142,14 +142,14 @@ export default function HeaderAdjuster({ file, onDone, onCancel }) {
     <div style={{ position: 'fixed', inset: 0, background: '#0a0a0a', zIndex: 3000, display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <button onClick={onCancel} style={{ background: 'transparent', border: 'none', color: '#a63d4c', fontFamily: 'Inter, sans-serif', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '0.5rem 0.75rem' }}>Cancel</button>
-        <div style={{ fontFamily: 'Georgia, serif', color: '#f0ead8', fontSize: '0.95rem' }}>Position your header</div>
-        <button onClick={handleDone} style={{ background: '#6b2fad', color: '#f0ead8', border: 'none', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '0.55rem 1rem' }}>Done</button>
+        <button onClick={onCancel} style={{ background: 'transparent', border: 'none', color: '#a63d4c', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '0.5rem 0.75rem' }}>Cancel</button>
+        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#f0ead8', fontSize: '0.95rem' }}>Position your header</div>
+        <button onClick={handleDone} style={{ background: '#6b2fad', color: '#f0ead8', border: 'none', borderRadius: 6, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '0.55rem 1rem' }}>Done</button>
       </div>
 
       {/* Instructions */}
       <div style={{ padding: '1rem 1.25rem 0', textAlign: 'center' }}>
-        <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '0.88rem', color: 'rgba(240,234,216,0.55)' }}>Drag the image to reposition</p>
+        <p style={{ margin: 0, fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.88rem', color: 'rgba(240,234,216,0.55)' }}>Drag the image to reposition</p>
       </div>
 
       {/* Crop area — matches banner aspect ratio */}
