@@ -197,6 +197,17 @@ function HeroTrailer({ story, dissolving }) {
       )}
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,6,16,0.35)' }} />
       <div style={{ position: 'absolute', left: '4%', right: '4%', bottom: '22%', maxWidth: 640, zIndex: 1 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          gap: 10, marginBottom: 26,
+        }}>
+          <span aria-hidden="true" style={{ width: 34, height: 1, background: 'rgba(201,168,76,0.55)' }} />
+          <span style={{
+            fontFamily: LABEL, fontSize: '0.7rem', letterSpacing: '0.32em',
+            color: '#c9a84c', whiteSpace: 'nowrap',
+          }}>STORY TRAILER</span>
+          <span aria-hidden="true" style={{ width: 34, height: 1, background: 'rgba(201,168,76,0.55)' }} />
+        </div>
         <p style={{
           fontFamily: DISPLAY, fontWeight: 500,
           fontSize: 'clamp(1.5rem, 3.5vw, 2.4rem)',
