@@ -25,6 +25,10 @@ export default function StoryCard({ story, userTier = null, scorePct, rank = nul
         <img
           src={story.cover}
           alt={story.title}
+          loading="lazy"
+          decoding="async"
+          width={300}
+          height={400}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
         {isNew(story) && (

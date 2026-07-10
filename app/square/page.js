@@ -444,10 +444,13 @@ function DMPanel({ user, onClose }) {
 
   useEffect(() => {
     if (!user) return;
+    let unsub = null;
+    let cancelled = false;
     (async () => {
       const db = await getDB();
       const { ref, onValue } = await import('firebase/database');
-      onValue(ref(db, `dm_conversations/${user.uid}`), async (snap) => {
+      if (cancelled) return;
+      unsub = onValue(ref(db, `dm_conversations/${user.uid}`), async (snap) => {
         if (!snap.exists()) { setConversations([]); setLoadingConvs(false); return; }
         const convData = snap.val();
         const convIds = Object.keys(convData);
@@ -470,20 +473,25 @@ function DMPanel({ user, onClose }) {
         setLoadingConvs(false);
       });
     })();
+    return () => { cancelled = true; if (unsub) unsub(); };
   }, [user]);
 
   useEffect(() => {
     if (!activeConv) return;
+    let unsub = null;
+    let cancelled = false;
     (async () => {
       const db = await getDB();
       const { ref, onValue, update } = await import('firebase/database');
-      onValue(ref(db, `dm_messages/${activeConv.convId}`), (snap) => {
+      if (cancelled) return;
+      unsub = onValue(ref(db, `dm_messages/${activeConv.convId}`), (snap) => {
         if (!snap.exists()) { setMessages([]); return; }
         setMessages(Object.entries(snap.val()).map(([id, m]) => ({ id, ...m })).sort((a, b) => a.createdAt - b.createdAt));
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       });
       await update(ref(db, `dm_conversations/${user.uid}/${activeConv.convId}`), { unread: 0 });
     })();
+    return () => { cancelled = true; if (unsub) unsub(); };
   }, [activeConv]);
 
   useEffect(() => {
@@ -664,10 +672,13 @@ function NotificationsPanel({ user, onClose }) {
 
   useEffect(() => {
     if (!user) return;
+    let unsub = null;
+    let cancelled = false;
     (async () => {
       const db = await getDB();
       const { ref, onValue, update } = await import('firebase/database');
-      onValue(ref(db, `notifications/${user.uid}`), (snap) => {
+      if (cancelled) return;
+      unsub = onValue(ref(db, `notifications/${user.uid}`), (snap) => {
         if (!snap.exists()) { setNotifs([]); setLoading(false); return; }
         const list = Object.entries(snap.val()).map(([id, n]) => ({ id, ...n })).sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
         setNotifs(list);
@@ -677,6 +688,7 @@ function NotificationsPanel({ user, onClose }) {
         if (Object.keys(updates).length) update(ref(db, `notifications/${user.uid}`), updates);
       });
     })();
+    return () => { cancelled = true; if (unsub) unsub(); };
   }, [user]);
 
   const notifLabel = (n) => {
@@ -781,21 +793,29 @@ export default function SquarePage() {
   }, []);
 
   useEffect(() => {
+    let authUnsub = null;
+    let cancelled = false;
+    const childUnsubs = [];
+    const detachChildren = () => { while (childUnsubs.length) { const fn = childUnsubs.pop(); try { fn(); } catch {} } };
     (async () => {
       const auth = await getFirebaseAuth();
       const { onAuthStateChanged } = await import('firebase/auth');
-      onAuthStateChanged(auth, async (u) => {
+      if (cancelled) return;
+      authUnsub = onAuthStateChanged(auth, async (u) => {
         setUser(u);
+        // Auth can re-fire (sign out / in); tear down any prior per-user listeners first.
+        detachChildren();
         if (u) {
           const db = await getDB();
           const { ref, get, onValue, set, onDisconnect } = await import('firebase/database');
+          if (cancelled) return;
           const snap = await get(ref(db, `users/${u.uid}`));
           if (snap.exists()) setUserData(snap.val());
-          onValue(ref(db, `notifications/${u.uid}`), (snap) => {
+          childUnsubs.push(onValue(ref(db, `notifications/${u.uid}`), (snap) => {
             setUnreadNotifs(snap.exists() ? Object.values(snap.val()).filter(n => !n.read).length : 0);
-          });
+          }));
           // Load reactions for all posts
-          onValue(ref(db, `square_reactions`), (snap) => {
+          childUnsubs.push(onValue(ref(db, `square_reactions`), (snap) => {
             if (!snap.exists()) return;
             const r = {};
             Object.entries(snap.val()).forEach(([postId, reactionData]) => {
@@ -805,30 +825,38 @@ export default function SquarePage() {
               });
             });
             setReactions(r);
-          });
+          }));
           const presRef = ref(db, `square_presence/${u.uid}`);
           await set(presRef, true);
           onDisconnect(presRef).remove();
         }
       });
     })();
+    return () => { cancelled = true; if (authUnsub) authUnsub(); detachChildren(); };
   }, []);
 
   useEffect(() => {
+    let unsub = null;
+    let cancelled = false;
     (async () => {
       const db = await getDB();
       const { ref, onValue } = await import('firebase/database');
-      onValue(ref(db, 'square_presence'), (snap) => {
+      if (cancelled) return;
+      unsub = onValue(ref(db, 'square_presence'), (snap) => {
         setPresenceCount(snap.exists() ? Object.keys(snap.val()).length : 0);
       });
     })();
+    return () => { cancelled = true; if (unsub) unsub(); };
   }, []);
 
   useEffect(() => {
+    let unsub = null;
+    let cancelled = false;
     (async () => {
       const db = await getDB();
       const { ref, onValue } = await import('firebase/database');
-      onValue(ref(db, 'square_posts'), (snap) => {
+      if (cancelled) return;
+      unsub = onValue(ref(db, 'square_posts'), (snap) => {
         if (!snap.exists()) { setPosts([]); setLoading(false); return; }
         const list = Object.entries(snap.val()).map(([id, p]) => ({ id, ...p }));
         // Pinned posts first, then by date
@@ -841,6 +869,7 @@ export default function SquarePage() {
         setLoading(false);
       });
     })();
+    return () => { cancelled = true; if (unsub) unsub(); };
   }, []);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
-/* Story-page fonts — loaded globally so the story route doesn't re-import them
-   inside a component <style> tag (which caused FOUT on every load). */
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap');
+/* Story-page fonts are loaded once via the render-blocking <link> in app/layout.js
+   (Cormorant Garamond + Cinzel, all weights). The duplicate @import that lived
+   here has been removed to avoid a second, serialized font request. */
 @import "tailwindcss";
 
 *, *::before, *::after {

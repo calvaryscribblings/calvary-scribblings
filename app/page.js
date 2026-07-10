@@ -243,7 +243,7 @@ function StoryCard({ story, userTier = null, scorePct, ...rest }) {
         transition: 'border-color 0.2s',
         boxShadow: '0 4px 20px rgba(107,47,173,0.15)',
       }}>
-      <img src={story.cover} alt={story.title}
+      <img src={story.cover} alt={story.title} loading="lazy" decoding="async" width={120} height={160}
         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, background: 'linear-gradient(to top, rgba(8,6,16,0.95), transparent)' }} />
       {isNew(story) && (
@@ -270,7 +270,7 @@ function JustAddedCard({ story, userTier = null, scorePct, ...rest }) {
         border: `1px solid ${hovered ? 'rgba(107,47,173,0.6)' : 'rgba(107,47,173,0.25)'}`,
         boxShadow: '0 4px 20px rgba(107,47,173,0.2)', transition: 'border-color 0.2s',
       }}>
-        <img src={story.cover} alt={story.title}
+        <img src={story.cover} alt={story.title} loading="lazy" decoding="async" width={160} height={220}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         {isNew(story) && (
           <span style={{ ...newBadgeStyle, top: 10, left: 10 }}>New</span>
@@ -298,7 +298,7 @@ function Row({ title, kicker, stories, seeAll, userTiersMap = {} }) {
         </a>
       </div>
       <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
-        {stories.map((s, i) => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} data-reveal="up" data-reveal-delay={(i % 6) + 1} />)}
+        {stories.slice(0, 12).map((s, i) => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} data-reveal="up" data-reveal-delay={(i % 6) + 1} />)}
       </div>
     </section>
   );
@@ -343,7 +343,7 @@ function Top10Card({ s, i, userTier = null, scorePct, ...rest }) {
           boxShadow: active ? '0 20px 50px rgba(0,0,0,0.9), 0 0 0 1px rgba(107,47,173,0.3)' : '0 4px 20px rgba(0,0,0,0.6)',
           transition: 'box-shadow 0.3s',
         }}>
-          <img src={s.cover} alt={s.title} style={{
+          <img src={s.cover} alt={s.title} loading="lazy" decoding="async" width={CARD_WIDTH} height={CARD_HEIGHT} style={{
             width: '100%', height: '100%', objectFit: 'cover', display: 'block',
             filter: active ? 'brightness(0.85)' : 'brightness(1)',
             transition: 'filter 0.3s',
@@ -1210,6 +1210,7 @@ export default function Home() {
       <section style={{ position: 'relative', height: '88vh', minHeight: 600, overflow: 'hidden' }}>
         {carousel.map((s, i) => (
           <img key={s.id} src={s.cover} alt={s.title}
+            fetchPriority={i === heroIndex ? 'high' : 'low'} decoding="async"
             style={{
               position: 'absolute', inset: 0, width: '100%', height: '100%',
               objectFit: 'cover', objectPosition: 'center top',
