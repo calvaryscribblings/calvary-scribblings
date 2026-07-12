@@ -236,7 +236,6 @@ function PublisherList({ publishers, loading, onNew, onEdit, onToggleStatus }) {
         <tr>
           <th style={s.th}>Name</th>
           <th style={s.th}>Slug</th>
-          <th style={s.th}>Contact</th>
           <th style={s.th}>Status</th>
           <th style={{ ...s.th, textAlign: 'right' }}>Titles</th>
           <th style={{ ...s.th, textAlign: 'right' }}>Split</th>
@@ -248,7 +247,6 @@ function PublisherList({ publishers, loading, onNew, onEdit, onToggleStatus }) {
           <tr key={p.id}>
             <td style={s.td}><strong>{p.name}</strong></td>
             <td style={{ ...s.td, ...s.tdMuted, fontFamily: 'monospace', fontSize: '0.8rem' }}>{p.slug}</td>
-            <td style={{ ...s.td, ...s.tdMuted, fontSize: '0.82rem' }}>{p.contactEmail}</td>
             <td style={s.td}><span style={statusPill(p.status)}>{p.status}</span></td>
             <td style={{ ...s.td, textAlign: 'right' }}>{p.titlesCount ?? 0}</td>
             <td style={{ ...s.td, textAlign: 'right' }}>{typeof p.salesSplit === 'number' ? `${Math.round(p.salesSplit * 100)}%` : '—'}</td>
@@ -475,8 +473,7 @@ export default function AdminPublishersPage() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginBottom: 4 }}>{p.name}</div>
-                          <div style={{ ...s.tdMuted, fontSize: '0.78rem', fontFamily: 'monospace', marginBottom: 4 }}>{p.slug}</div>
-                          <div style={{ ...s.tdMuted, fontSize: '0.8rem', marginBottom: 8 }}>{p.contactEmail}</div>
+                          <div style={{ ...s.tdMuted, fontSize: '0.78rem', fontFamily: 'monospace', marginBottom: 8 }}>{p.slug}</div>
                           <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', fontSize: '0.78rem', color: 'rgba(255,255,255,0.55)' }}>
                             <span style={statusPill(p.status)}>{p.status}</span>
                             <span>{p.titlesCount ?? 0} titles</span>
