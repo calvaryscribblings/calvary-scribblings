@@ -172,6 +172,7 @@ export default function Navbar() {
           </a>
           <a href="/quizzes">Quizzes</a>
           <a href="/leaderboard">Leaderboard</a>
+          {user && <a href="/library">Library</a>}
           {user ? (
             <a href="/profile" className="cs-nav-avatar" title={user.displayName || 'Profile'}>
               {avatarUrl ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} /> : initials}
@@ -212,6 +213,7 @@ export default function Navbar() {
           </a>
           <a href="/quizzes" onClick={() => setMenuOpen(false)}>Quizzes</a>
           <a href="/leaderboard" onClick={() => setMenuOpen(false)}>Leaderboard</a>
+          {user && <a href="/library" onClick={() => setMenuOpen(false)}>Library</a>}
           <button className={'cs-drawer-stories-btn' + (storiesOpen ? ' open' : '')} onClick={() => setStoriesOpen(!storiesOpen)}>
             Stories <span className="cs-arrow">▾</span>
           </button>

@@ -222,6 +222,9 @@ export async function createTitle(input) {
     // v2: assets may be null for drafts/unpublished. Validator gates on status === 'published'.
     coverUrl: typeof input.coverUrl === 'string' && input.coverUrl.trim() ? input.coverUrl.trim() : null,
     epubPath: typeof input.epubPath === 'string' && input.epubPath.trim() ? input.epubPath.trim() : null,
+    // samplePath is optional and lives OUTSIDE schema.js's TITLE_SCHEMA (schema.js is locked).
+    // validateTitle ignores it, so we type-check it inline below. null when no sample is uploaded.
+    samplePath: typeof input.samplePath === 'string' && input.samplePath.trim() ? input.samplePath.trim() : null,
     prices: input.prices || {},
     genre: input.genre,
     publishedDate: input.publishedDate,
@@ -244,6 +247,10 @@ export async function createTitle(input) {
 
   const result = validateTitle(doc);
   if (!result.valid) return { ok: false, errors: result.errors };
+  // Inline check for the schema-external samplePath (see note above).
+  if (doc.samplePath !== null && (typeof doc.samplePath !== 'string' || doc.samplePath.length === 0)) {
+    return { ok: false, errors: ['samplePath must be a non-empty string or null'] };
+  }
 
   try {
     const existing = await get(ref(db, `${TITLES_PATH}/${slug}`));
@@ -290,6 +297,13 @@ export async function updateTitle(titleId, partial) {
       ratingCount: existing.ratingCount ?? 0,
       updatedAt: Date.now(),
     };
+
+    // samplePath rides through the spread above. It's schema-external (schema.js is locked),
+    // so normalise empty string → null and type-check it inline rather than in validateTitle.
+    if (merged.samplePath === '' || merged.samplePath === undefined) merged.samplePath = null;
+    if (merged.samplePath !== null && typeof merged.samplePath !== 'string') {
+      return { ok: false, errors: ['samplePath must be a string or null'] };
+    }
 
     const result = validateTitle(merged);
     if (!result.valid) return { ok: false, errors: result.errors };
@@ -340,6 +354,7 @@ function extOf(file) {
 
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
 const MAX_EPUB_BYTES = 50 * 1024 * 1024;
+const MAX_SAMPLE_BYTES = 10 * 1024 * 1024;
 
 export async function uploadCover(titleId, file, onProgress) {
   if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
@@ -406,5 +421,42 @@ export async function uploadEpub(titleId, file, onProgress) {
   } catch (err) {
     console.error('[bookstore.admin-writes] uploadEpub failed', err);
     return { ok: false, errors: [`EPUB upload failed: ${err.message || 'unknown error'}`] };
+  }
+}
+
+// Sample EPUB — the free "first chapter or two" that powers the Read Sample button on the
+// detail page. Unlike the master EPUB, this file is PUBLIC-READ (see the storage rules
+// fragment) so the reader can stream it without a purchase. Path: bookstore_epubs/{titleId}/sample.epub.
+export async function uploadSampleEpub(titleId, file, onProgress) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!titleId) return { ok: false, errors: ['titleId is required'] };
+  if (!file) return { ok: false, errors: ['No file selected'] };
+  if (file.size > MAX_SAMPLE_BYTES) return { ok: false, errors: [`Sample EPUB must be under 10 MB (got ${(file.size / 1024 / 1024).toFixed(1)} MB)`] };
+  const isEpub = (file.type === 'application/epub+zip') || /\.epub$/i.test(file.name || '');
+  if (!isEpub) return { ok: false, errors: ['Sample must be an EPUB (.epub / application/epub+zip)'] };
+
+  try {
+    const { ref: sref, uploadBytesResumable } = await import('firebase/storage');
+    const path = `bookstore_epubs/${titleId}/sample.epub`;
+    const storageRef = sref(storage, path);
+    const task = uploadBytesResumable(storageRef, file, { contentType: 'application/epub+zip' });
+
+    await new Promise((resolve, reject) => {
+      task.on(
+        'state_changed',
+        (snap) => {
+          if (typeof onProgress === 'function' && snap.totalBytes) {
+            onProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
+          }
+        },
+        (err) => reject(err),
+        () => resolve()
+      );
+    });
+
+    return { ok: true, path };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] uploadSampleEpub failed', err);
+    return { ok: false, errors: [`Sample EPUB upload failed: ${err.message || 'unknown error'}`] };
   }
 }

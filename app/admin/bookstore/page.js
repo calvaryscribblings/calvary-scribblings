@@ -8,6 +8,7 @@ import {
   setTitleStatus,
   uploadCover,
   uploadEpub,
+  uploadSampleEpub,
 } from '../../lib/bookstore/admin-writes';
 import { GENRES, TITLE_STATUSES } from '../../lib/bookstore/schema';
 
@@ -128,6 +129,8 @@ const emptyForm = {
   coverUrl: '',          // existing URL when editing
   epubFile: null,
   epubPath: '',          // existing path when editing
+  sampleFile: null,
+  samplePath: '',        // existing sample path when editing
   status: 'draft',
   featured: false,
   bestseller: false,
@@ -146,6 +149,7 @@ export default function AdminBookstorePage() {
   const [editingTitleId, setEditingTitleId] = useState(null);
   const [coverProgress, setCoverProgress] = useState(null);
   const [epubProgress, setEpubProgress] = useState(null);
+  const [sampleProgress, setSampleProgress] = useState(null);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState('all');
@@ -198,6 +202,7 @@ export default function AdminBookstorePage() {
     setErrors([]);
     setCoverProgress(null);
     setEpubProgress(null);
+    setSampleProgress(null);
     setView('new');
   }
 
@@ -223,6 +228,8 @@ export default function AdminBookstorePage() {
       coverUrl: title.coverUrl || '',
       epubFile: null,
       epubPath: title.epubPath || '',
+      sampleFile: null,
+      samplePath: title.samplePath || '',
       status: title.status || 'draft',
       featured: !!title.featured,
       bestseller: !!title.bestseller,
@@ -231,6 +238,7 @@ export default function AdminBookstorePage() {
     setErrors([]);
     setCoverProgress(null);
     setEpubProgress(null);
+    setSampleProgress(null);
     setView('edit');
   }
 
@@ -284,6 +292,7 @@ export default function AdminBookstorePage() {
     if (form.pageCount && Number.isInteger(Number(form.pageCount))) payload.pageCount = Number(form.pageCount);
     if (form.coverUrl) payload.coverUrl = form.coverUrl;
     if (form.epubPath) payload.epubPath = form.epubPath;
+    if (form.samplePath) payload.samplePath = form.samplePath;
 
     return payload;
   }
@@ -326,6 +335,7 @@ export default function AdminBookstorePage() {
 
     let nextCoverUrl = form.coverUrl;
     let nextEpubPath = form.epubPath;
+    let nextSamplePath = form.samplePath;
 
     // Upload cover first (cheaper to retry, public-readable). If it fails, abort before EPUB upload
     // and before the title doc write — no orphaned title rows pointing at missing storage.
@@ -357,9 +367,25 @@ export default function AdminBookstorePage() {
       setEpubProgress(100);
     }
 
+    // Sample EPUB is optional. If provided, upload after the master; a failure here doesn't
+    // block the title save — but we surface it so the admin knows the sample didn't take.
+    if (form.sampleFile) {
+      setSampleProgress(0);
+      const sp = await uploadSampleEpub(titleId, form.sampleFile, (p) => setSampleProgress(p));
+      if (!sp.ok) {
+        setErrors(sp.errors);
+        setSaving(false);
+        setSampleProgress(null);
+        return;
+      }
+      nextSamplePath = sp.path;
+      setSampleProgress(100);
+    }
+
     const payload = buildPayload();
     if (nextCoverUrl) payload.coverUrl = nextCoverUrl;
     if (nextEpubPath) payload.epubPath = nextEpubPath;
+    if (nextSamplePath) payload.samplePath = nextSamplePath;
 
     const result = editingTitleId
       ? await updateTitle(editingTitleId, payload)
@@ -368,6 +394,7 @@ export default function AdminBookstorePage() {
     setSaving(false);
     setCoverProgress(null);
     setEpubProgress(null);
+    setSampleProgress(null);
 
     if (!result.ok) {
       setErrors(result.errors || ['Save failed']);
@@ -445,6 +472,7 @@ export default function AdminBookstorePage() {
             publishers={activePublishers}
             coverProgress={coverProgress}
             epubProgress={epubProgress}
+            sampleProgress={sampleProgress}
             onSave={handleSave}
             onCancel={handleCancel}
             onTitleBlur={handleTitleBlur}
@@ -561,7 +589,7 @@ export default function AdminBookstorePage() {
   );
 }
 
-function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, coverProgress, epubProgress, onSave, onCancel, onTitleBlur }) {
+function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, coverProgress, epubProgress, sampleProgress, onSave, onCancel, onTitleBlur }) {
   const slugInvalid = form.slug && !SLUG_RE.test(form.slug);
 
   function handleAddTerritory(code) {
@@ -805,6 +833,29 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
             )}
             <div style={s.hint}>Master EPUB is admin-only — there's no preview link. Buyer access happens through a Worker (Phase B).</div>
           </div>
+        </div>
+
+        <div style={{ ...s.fileBlock, marginTop: '1.25rem' }}>
+          <label style={s.label}>Sample EPUB <span style={s.labelSoft}>(.epub, &lt; 10 MB, optional)</span></label>
+          <input
+            type="file"
+            accept=".epub,application/epub+zip"
+            onChange={(e) => setForm((f) => ({ ...f, sampleFile: e.target.files?.[0] || null }))}
+            style={{ color: '#fff', fontSize: '0.85rem' }}
+          />
+          {form.sampleFile && (
+            <div style={s.fileMeta}>{form.sampleFile.name} · {(form.sampleFile.size / 1024 / 1024).toFixed(1)} MB</div>
+          )}
+          {sampleProgress !== null && (
+            <div>
+              <div style={s.progressBar}><div style={{ ...s.progressFill, width: `${sampleProgress}%` }} /></div>
+              <div style={s.fileMeta}>{sampleProgress < 100 ? `Uploading… ${sampleProgress}%` : 'Done ✓'}</div>
+            </div>
+          )}
+          {!form.sampleFile && form.samplePath && (
+            <div style={s.hintGreen}>✓ Sample EPUB on file. Pick a new file to replace.</div>
+          )}
+          <div style={s.hint}>First chapter or two. Powers the Read Sample button. Optional but strongly recommended for published titles. This file is public — do not include the full book.</div>
         </div>
       </div>
 
