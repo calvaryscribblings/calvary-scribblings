@@ -56,6 +56,26 @@ function isAdmin() {
   return !!uid && ADMIN_UIDS.includes(uid);
 }
 
+// The Bookseller's Fields (R4b) — schema-external optional metadata (schema.js is locked,
+// following the samplePath precedent). validateTitle ignores them, so we type/length-check
+// them inline. Returns an array of error strings (empty === ok). Expects already-normalised
+// values (empty string → null).
+const BOOKSELLER_CAPS = { backCoverBlurb: 280, shelfCard: 160 };
+function validateBooksellerFields(doc) {
+  const errors = [];
+  for (const k of ['backCoverBlurb', 'openingLine', 'shelfCard']) {
+    const v = doc[k];
+    if (v === null || v === undefined) continue;
+    if (typeof v !== 'string' || v.length === 0) { errors.push(`${k} must be a non-empty string or null`); continue; }
+    if (BOOKSELLER_CAPS[k] && v.length > BOOKSELLER_CAPS[k]) errors.push(`${k} must be ${BOOKSELLER_CAPS[k]} characters or fewer`);
+  }
+  const cn = doc.catalogueNumber;
+  if (cn !== null && cn !== undefined && (!Number.isInteger(cn) || cn <= 0)) {
+    errors.push('catalogueNumber must be a positive integer or null');
+  }
+  return errors;
+}
+
 function slugify(input) {
   return String(input || '')
     .toLowerCase()
@@ -225,6 +245,11 @@ export async function createTitle(input) {
     // samplePath is optional and lives OUTSIDE schema.js's TITLE_SCHEMA (schema.js is locked).
     // validateTitle ignores it, so we type-check it inline below. null when no sample is uploaded.
     samplePath: typeof input.samplePath === 'string' && input.samplePath.trim() ? input.samplePath.trim() : null,
+    // The Bookseller's Fields (R4b) — schema-external; normalised here, checked below.
+    backCoverBlurb: typeof input.backCoverBlurb === 'string' && input.backCoverBlurb.trim() ? input.backCoverBlurb.trim() : null,
+    openingLine: typeof input.openingLine === 'string' && input.openingLine.trim() ? input.openingLine.trim() : null,
+    shelfCard: typeof input.shelfCard === 'string' && input.shelfCard.trim() ? input.shelfCard.trim() : null,
+    catalogueNumber: Number.isInteger(input.catalogueNumber) && input.catalogueNumber > 0 ? input.catalogueNumber : null,
     prices: input.prices || {},
     genre: input.genre,
     publishedDate: input.publishedDate,
@@ -251,6 +276,8 @@ export async function createTitle(input) {
   if (doc.samplePath !== null && (typeof doc.samplePath !== 'string' || doc.samplePath.length === 0)) {
     return { ok: false, errors: ['samplePath must be a non-empty string or null'] };
   }
+  const bfErrors = validateBooksellerFields(doc);
+  if (bfErrors.length) return { ok: false, errors: bfErrors };
 
   try {
     const existing = await get(ref(db, `${TITLES_PATH}/${slug}`));
@@ -304,6 +331,18 @@ export async function updateTitle(titleId, partial) {
     if (merged.samplePath !== null && typeof merged.samplePath !== 'string') {
       return { ok: false, errors: ['samplePath must be a string or null'] };
     }
+
+    // The Bookseller's Fields (R4b) — normalise empty/undefined → null, coerce a stray float
+    // catalogueNumber to an integer, then validate inline (schema.js is locked).
+    for (const k of ['backCoverBlurb', 'openingLine', 'shelfCard']) {
+      if (merged[k] === '' || merged[k] === undefined) merged[k] = null;
+    }
+    if (merged.catalogueNumber === '' || merged.catalogueNumber === undefined) merged.catalogueNumber = null;
+    if (typeof merged.catalogueNumber === 'number' && Number.isFinite(merged.catalogueNumber) && !Number.isInteger(merged.catalogueNumber)) {
+      merged.catalogueNumber = Math.trunc(merged.catalogueNumber);
+    }
+    const bfErrors = validateBooksellerFields(merged);
+    if (bfErrors.length) return { ok: false, errors: bfErrors };
 
     const result = validateTitle(merged);
     if (!result.valid) return { ok: false, errors: result.errors };

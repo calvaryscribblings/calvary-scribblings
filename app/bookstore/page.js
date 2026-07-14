@@ -1,16 +1,18 @@
 'use client';
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
+import { useState, useEffect, useRef } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '../lib/firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 import { getAllPublishedTitles } from '../lib/bookstore/loader';
 import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
+import BoundBook, { BOUND_BOOK_CSS } from './components/BoundBook';
+import QuickLookModal from './components/QuickLookModal';
+import { useBookGesture } from './components/useBookGesture';
+import { formatGbp, resolveOpeningLine } from './components/fields';
 
-// Fiction/non-fiction split, derived from genre. Exported so R3 (the detail page)
-// can reuse the exact same mapping without re-deriving it. Every slug here is a
-// member of GENRES in app/lib/bookstore/schema.js — keep the two in step.
+// Fiction/non-fiction split, derived from genre. Exported so the detail page (R3) can reuse
+// the exact same mapping without re-deriving it. Every slug here is a member of GENRES in
+// app/lib/bookstore/schema.js — keep the two in step.
 export const FICTION_GENRES = ['literary-fiction', 'romance', 'thriller-suspense', 'sci-fi-fantasy', 'historical', 'short-story-collection', 'poetry'];
 export const NONFICTION_GENRES = ['memoir-biography', 'essays', 'self-development', 'business-finance', 'politics-society'];
 
@@ -20,7 +22,6 @@ export function sectionForGenre(genre) {
   return null;
 }
 
-// Display labels for the genre slugs. Presentation-only — the stored value stays kebab-case.
 const GENRE_LABELS = {
   'literary-fiction': 'Literary Fiction',
   'romance': 'Romance',
@@ -37,185 +38,156 @@ const GENRE_LABELS = {
 };
 const genreLabel = (g) => GENRE_LABELS[g] || g;
 
-// GBP only for now — a currency toggle (NGN/USD) is a later round. Prices are stored
-// as integer minor units (pence): 499 → '£4.99'.
-function formatGbp(minor) {
-  if (typeof minor !== 'number' || !Number.isFinite(minor)) return null;
-  return `£${(minor / 100).toFixed(2)}`;
+// ── Small ornaments ──────────────────────────────────────────────────────────
+function Fleuron({ style }) {
+  return <span style={{ color: 'rgba(201,164,76,.5)', ...style }}>&#10086;</span>;
 }
 
-// Deterministic gradient for the typographic fallback cover, keyed off the slug so a
-// given title always draws the same colour. Fallback only fires if coverUrl is somehow
-// null — published titles always carry a real cover.
-const COLORS = {
-  c1: 'linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%)',
-  c2: 'linear-gradient(148deg,#0e1a2e 0%,#060e1a 100%)',
-  c3: 'linear-gradient(148deg,#1a120a 0%,#0e0806 100%)',
-  c4: 'linear-gradient(148deg,#0a1a12 0%,#060e08 100%)',
-  c5: 'linear-gradient(148deg,#1a0a14 0%,#0e0608 100%)',
-  c6: 'linear-gradient(148deg,#141418 0%,#08080e 100%)',
-  c7: 'linear-gradient(148deg,#1a1a08 0%,#0e0e06 100%)',
-  c8: 'linear-gradient(148deg,#0e0a1a 0%,#08060e 100%)',
-};
-function gradientFor(seed) {
-  const keys = Object.keys(COLORS);
-  let h = 0;
-  const s = String(seed || '');
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return COLORS[keys[h % keys.length]];
+// ── One shelf book: the gesture lives here, the modal is opened page-level ─────
+function ShelfBook({ title, width, onOpen }) {
+  const { flipped, bind, bookRef, reset } = useBookGesture({ onOpen: (rect) => onOpen(title, rect, reset) });
+  return <BoundBook title={title} variant="shelf" width={width} flipped={flipped} bind={bind} bookRef={bookRef} />;
 }
 
-function countLabel(titles, genres) {
-  return `${titles} ${titles === 1 ? 'title' : 'titles'} · ${genres} ${genres === 1 ? 'genre' : 'genres'}`;
-}
-
-function Divider({ label }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '2.5rem' }}>
-      <div style={{ flex: 1, height: '1px', background: 'rgba(201,164,76,.12)' }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem' }}>
-        <span style={{ color: 'rgba(201,164,76,.5)', fontSize: '.7rem' }}>&#10086;</span>
-        <span style={{ fontFamily: "'Cinzel',serif", fontSize: '.58rem', letterSpacing: '.3em', textTransform: 'uppercase', color: '#c9a44c' }}>{label}</span>
-      </div>
-      <div style={{ flex: 1, height: '1px', background: 'rgba(201,164,76,.12)' }} />
-    </div>
-  );
-}
-
-// Real cover via next/image (unoptimized — output:'export' ships no image optimiser),
-// 2:3 aspect, with a typographic gradient fallback if coverUrl is null.
-function BookCover({ title, size = 'card' }) {
-  const dims = size === 'featured'
-    ? { width: 150, height: 225 }
-    : size === 'mini'
-      ? { width: 36, height: 54 }
-      : { width: '100%', aspectRatio: '2/3' };
-  const shadow = size === 'featured'
-    ? '8px 12px 40px rgba(0,0,0,.85),0 0 0 1px rgba(201,164,76,.12),inset -4px 0 10px rgba(0,0,0,.4)'
-    : size === 'mini'
-      ? '2px 3px 10px rgba(0,0,0,.6)'
-      : '4px 6px 24px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.03),inset -3px 0 6px rgba(0,0,0,.35)';
-  const wrap = {
-    position: 'relative', ...dims, borderRadius: '2px 4px 4px 2px', overflow: 'hidden',
-    boxShadow: shadow, flexShrink: 0, background: gradientFor(title.slug || title.title),
-  };
-
-  if (title.coverUrl) {
-    return (
-      <div style={wrap}>
-        <Image
-          src={title.coverUrl} alt={title.title} fill unoptimized
-          sizes={size === 'card' ? '(max-width:640px) 45vw, 180px' : `${dims.width}px`}
-          style={{ objectFit: 'cover' }}
-        />
-      </div>
-    );
-  }
-
-  // Typographic fallback — belt-and-braces; a published title should always have a cover.
-  if (size === 'mini') return <div style={wrap} />;
-  return (
-    <div style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.25rem .9rem', textAlign: 'center' }}>
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '6px', background: 'rgba(0,0,0,.4)' }} />
-      <div style={{ fontSize: size === 'featured' ? '.82rem' : '.78rem', fontWeight: 600, color: 'rgba(255,255,255,.85)', lineHeight: 1.25, marginBottom: '.4rem', position: 'relative', zIndex: 1, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{title.title}</div>
-      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.56rem', fontWeight: 500, letterSpacing: '.06em', color: 'rgba(255,255,255,.4)', fontStyle: 'italic', position: 'relative', zIndex: 1 }}>{title.author}</div>
-    </div>
-  );
-}
-
-function BookCard({ title }) {
+function ShelfEntry({ title, index, onOpen }) {
   const price = formatGbp(title.prices?.gbp);
-  // Whole card links to the R3 detail route — which does not exist yet, so clicks will
-  // 404 until R3 lands. Intentional plumbing-ahead.
+  const hasNo = Number.isInteger(title.catalogueNumber);
+  const tilt = index % 2 === 0 ? -0.7 : 0.7;
   return (
-    <a href={`/bookstore/${title.slug}`} className="book-card" style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit' }}>
-      <div style={{ marginBottom: '1rem' }}>
-        <BookCover title={title} size="card" />
+    <div className="shelf-entry">
+      {hasNo && (
+        <div className="no-divider"><span className="no-line" /><span className="no-label">No. {title.catalogueNumber}</span><span className="no-line" /></div>
+      )}
+      <div className="shelf-book-wrap">
+        <ShelfBook title={title} width={150} onOpen={onOpen} />
       </div>
-      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.56rem', fontWeight: 500, letterSpacing: '.18em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.25rem' }}>{genreLabel(title.genre)}</div>
-      <div style={{ fontSize: '.88rem', fontWeight: 600, color: '#f0ead8', lineHeight: 1.3, marginBottom: '.15rem' }}>{title.title}</div>
-      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.75rem', fontWeight: 500, fontStyle: 'italic', color: 'rgba(240,234,216,.45)', marginBottom: '.45rem' }}>{title.author}</div>
-      {price && <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.85rem', fontWeight: 600, color: '#f0ead8' }}>{price}</div>}
-    </a>
-  );
-}
-
-function FeaturedCard({ title }) {
-  const price = formatGbp(title.prices?.gbp);
-  return (
-    <a href={`/bookstore/${title.slug}`} className="featured-inner" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3rem', alignItems: 'center', padding: '2.5rem', marginBottom: '3.5rem', background: 'rgba(201,164,76,.03)', border: '1px solid rgba(201,164,76,.1)', position: 'relative', textDecoration: 'none', color: 'inherit' }}>
-      <div style={{ position: 'absolute', top: '1.2rem', right: '1.5rem', fontFamily: "'Cinzel',serif", fontSize: '.52rem', letterSpacing: '.28em', color: 'rgba(201,164,76,.4)' }}>FEATURED</div>
-      <BookCover title={title} size="featured" />
-      <div>
-        <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.56rem', letterSpacing: '.22em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.6rem' }}>{genreLabel(title.genre)} &middot; Editor&rsquo;s Pick</div>
-        <h2 style={{ fontSize: 'clamp(1.5rem,3vw,2.2rem)', fontWeight: 300, fontStyle: 'italic', color: '#f0ead8', lineHeight: 1.15, marginBottom: '.4rem' }}>{title.title}</h2>
-        <p style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.82rem', fontWeight: 500, color: 'rgba(240,234,216,.45)', marginBottom: '1rem' }}>{title.author}</p>
-        {title.synopsis && <p style={{ fontSize: '.92rem', lineHeight: 1.75, color: 'rgba(240,234,216,.6)', maxWidth: '440px', marginBottom: '1.5rem', fontStyle: 'italic' }}>{title.synopsis}</p>}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-          {price && <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.05rem', fontWeight: 600, color: '#f0ead8' }}>{price}</span>}
-          <span style={{ fontFamily: "'Cinzel',serif", fontSize: '.6rem', letterSpacing: '.22em', textTransform: 'uppercase', color: '#c9a44c' }}>Read more &rarr;</span>
+      <div className="entry-genre">{genreLabel(title.genre)}</div>
+      <div className="entry-title">{title.title}</div>
+      <div className="entry-author">{title.author}</div>
+      {price && <div className="entry-price">{price}</div>}
+      {title.shelfCard && (
+        <div className="shelf-card" style={{ transform: `rotate(${tilt}deg)` }}>
+          <span className="shelf-card-body">{title.shelfCard}</span>
+          <span className="shelf-card-sign">&mdash; Calvary</span>
         </div>
-      </div>
-    </a>
-  );
-}
-
-function BestsellersStrip({ items }) {
-  return (
-    <div style={{ background: 'rgba(201,164,76,.04)', border: '1px solid rgba(201,164,76,.12)', padding: '1.5rem 2rem', marginBottom: '3rem' }}>
-      <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.6rem', letterSpacing: '.28em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '1.25rem' }}>Bestsellers</div>
-      <div style={{ display: 'flex', gap: '1.5rem', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '.25rem' }}>
-        {items.map((t, i) => (
-          <a key={t.id} href={`/bookstore/${t.slug}`} style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexShrink: 0, minWidth: '200px', textDecoration: 'none', color: 'inherit' }}>
-            <div style={{ fontFamily: "'Cinzel',serif", fontSize: '1.1rem', color: 'rgba(201,164,76,.35)', fontWeight: 600, width: '24px', textAlign: 'right' }}>{i + 1}</div>
-            <BookCover title={t} size="mini" />
-            <div>
-              <div style={{ fontSize: '.78rem', fontWeight: 600, color: '#f0ead8', lineHeight: 1.2, marginBottom: '2px' }}>{t.title}</div>
-              <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.68rem', fontWeight: 500, color: 'rgba(240,234,216,.45)' }}>{t.author}</div>
-              {t.salesCount > 0 && <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.58rem', fontWeight: 500, color: '#c9a44c', marginTop: '2px' }}>{t.salesCount.toLocaleString()} sold</div>}
-            </div>
-          </a>
-        ))}
-      </div>
+      )}
     </div>
   );
 }
 
-function CatalogueSection({ id, sectionLabel, allLabel, topPad, titles, genresPresent, active, setActive }) {
-  const featured = titles.find((t) => t.featured);
-  const showFeatured = featured && (active === 'all' || active === featured.genre);
-  const grid = titles.filter((t) => (active === 'all' || t.genre === active) && !(showFeatured && t.id === featured.id));
+// ── Genre-tabbed catalogue section (R2 logic preserved: tabs, filter, hide rules) ──
+function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPresent, active, setActive, onOpen }) {
+  const grid = titles.filter((t) => active === 'all' || t.genre === active);
   const tabs = [{ key: 'all', label: allLabel }, ...genresPresent.map((g) => ({ key: g, label: genreLabel(g) }))];
-
   return (
-    <section id={id} style={{ padding: topPad }}>
-      <Divider label={sectionLabel} />
+    <section id={id} className="catalogue-section">
+      <div className="section-head">
+        <span className="section-rule" />
+        <span className="section-mark"><Fleuron /></span>
+        <h2 className="section-title">{sectionLabel}</h2>
+        <span className="section-mark"><Fleuron /></span>
+        <span className="section-rule" />
+      </div>
       <div className="genre-tabs">
         {tabs.map((t) => (
           <button key={t.key} className={`genre-tab${active === t.key ? ' active' : ''}`} onClick={() => setActive(t.key)}>{t.label}</button>
         ))}
       </div>
-      {showFeatured && <FeaturedCard title={featured} />}
       {grid.length > 0
-        ? <div className="shelf">{grid.map((t) => <BookCard key={t.id} title={t} />)}</div>
-        : !showFeatured && (
-          <p style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '1.05rem', color: 'rgba(240,234,216,.4)', textAlign: 'center', padding: '2rem 0' }}>Nothing on this shelf yet.</p>
-        )}
+        ? <div className="shelf">{grid.map((t, i) => <ShelfEntry key={t.id} title={t} index={i} onOpen={onOpen} />)}</div>
+        : <p className="shelf-empty">Nothing on this shelf yet.</p>}
+    </section>
+  );
+}
+
+// ── The Window: the featured title in the display case ────────────────────────
+function TheWindow({ title }) {
+  const price = formatGbp(title.prices?.gbp);
+  const pull = resolveOpeningLine(title);
+  const hasNo = Number.isInteger(title.catalogueNumber);
+  return (
+    <section className="the-window">
+      <div className="window-plate"><Fleuron /> In the Window <Fleuron /></div>
+      <div className="window-case">
+        <span className="fleuron-corner tl">&#10086;</span>
+        <span className="fleuron-corner tr">&#10086;</span>
+        <span className="fleuron-corner bl">&#10086;</span>
+        <span className="fleuron-corner br">&#10086;</span>
+        <div className="window-lamp" />
+        <div className="window-inner">
+          <div className="window-book">
+            <BoundBook title={title} variant="window" width={190} ribbon />
+          </div>
+          <div className="window-copy">
+            <div className="window-kicker">{hasNo ? `No. ${title.catalogueNumber} · ` : ''}{genreLabel(title.genre)}</div>
+            <h3 className="window-title">{title.title}</h3>
+            <p className="window-author">by {title.author}</p>
+            {pull && <p className="window-pull">&ldquo;{pull}&rdquo;</p>}
+            {title.shelfCard && <p className="window-shelfcard">{title.shelfCard} <span>&mdash; Calvary</span></p>}
+            <div className="window-actions">
+              <button type="button" className="btn-buy" disabled title="Purchasing opens at launch">{price ? `Buy · ${price}` : 'Buy'}</button>
+              {title.samplePath && <a className="btn-sample" href={`/reader/${title.slug}?sample=1`}>Read sample</a>}
+              <a className="btn-details" href={`/bookstore/${title.slug}`}>Full details &rarr;</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── Opening Lines rail: rotating quote → reveal → next ────────────────────────
+function OpeningLinesRail({ pool }) {
+  const [i, setI] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const entry = pool[i % pool.length];
+  const line = resolveOpeningLine(entry);
+  const advance = () => { setRevealed(false); setI((n) => (n + 1) % pool.length); };
+  return (
+    <section className="rail">
+      <div className="rail-eyebrow"><Fleuron /> Opening Lines <Fleuron /></div>
+      <blockquote className="rail-quote">&ldquo;{line}&rdquo;</blockquote>
+      {revealed ? (
+        <div className="rail-reveal">
+          <a href={`/bookstore/${entry.slug}`} className="rail-answer">
+            <span className="rail-answer-title">{entry.title}</span>
+            <span className="rail-answer-author">{entry.author}</span>
+          </a>
+          <button className="rail-btn" onClick={advance}>Another line <Fleuron /></button>
+        </div>
+      ) : (
+        <button className="rail-btn" onClick={() => setRevealed(true)}>Whose line is this?</button>
+      )}
+    </section>
+  );
+}
+
+// ── Hero: the title-page treatment ────────────────────────────────────────────
+function Hero({ count }) {
+  return (
+    <section className="hero">
+      <div className="hero-lamp" />
+      <div className="hero-inner">
+        <div className="hero-eyebrow">&#10086; Calvary Scribblings &#10086;</div>
+        <h1 className="hero-title"><span className="hero-the">The</span><em className="hero-store">Book Store</em></h1>
+        <p className="hero-colophon">A shop, not a warehouse. Every title on these shelves was chosen by hand.</p>
+        <div className="hero-edition">Catalogue &middot; {count} {count === 1 ? 'Title' : 'Titles'} &middot; Est. 2026</div>
+      </div>
     </section>
   );
 }
 
 function SkeletonShelf() {
   return (
-    <section style={{ padding: '5rem 2.5rem 6rem' }}>
-      <Divider label="The Shelves" />
+    <section className="catalogue-section">
+      <div className="section-head"><span className="section-rule" /><span className="section-mark"><Fleuron /></span><h2 className="section-title">The Shelves</h2><span className="section-mark"><Fleuron /></span><span className="section-rule" /></div>
       <div className="shelf">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <div key={i}>
-            <div className="skeleton" style={{ width: '100%', aspectRatio: '2/3', borderRadius: '2px 4px 4px 2px', marginBottom: '1rem' }} />
-            <div className="skeleton" style={{ height: '.55rem', width: '40%', marginBottom: '.5rem' }} />
-            <div className="skeleton" style={{ height: '.8rem', width: '82%', marginBottom: '.45rem' }} />
-            <div className="skeleton" style={{ height: '.7rem', width: '55%' }} />
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="shelf-entry">
+            <div className="skeleton" style={{ width: 150, height: 225, borderRadius: '2px 5px 5px 2px', margin: '0 auto 1rem' }} />
+            <div className="skeleton" style={{ height: '.55rem', width: '40%', margin: '0 auto .5rem' }} />
+            <div className="skeleton" style={{ height: '.8rem', width: '70%', margin: '0 auto .4rem' }} />
+            <div className="skeleton" style={{ height: '.7rem', width: '50%', margin: '0 auto' }} />
           </div>
         ))}
       </div>
@@ -223,44 +195,19 @@ function SkeletonShelf() {
   );
 }
 
-function Hero({ loading, fictionCount, fictionGenreCount, nonfictionCount, nonfictionGenreCount }) {
-  const showFiction = fictionCount > 0;
-  const showNonfiction = nonfictionCount > 0;
+function Colophon({ count }) {
   return (
-    <section style={{ height: '100vh', minHeight: '620px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', textAlign: 'center' }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 55% at 50% 38%,rgba(107,47,173,.2) 0%,transparent 68%),linear-gradient(180deg,#060608 0%,#0d0810 50%,#060608 100%)' }} />
-      <div style={{ position: 'relative', zIndex: 2, padding: '2rem', maxWidth: '680px', animation: 'fadeUp .8s ease forwards' }}>
-        <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.6rem', letterSpacing: '.35em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center' }}>
-          <span style={{ height: '1px', width: '36px', background: 'linear-gradient(90deg,transparent,#c9a44c)', display: 'block' }} />
-          Calvary Scribblings
-          <span style={{ height: '1px', width: '36px', background: 'linear-gradient(90deg,#c9a44c,transparent)', display: 'block' }} />
-        </div>
-        <h1 style={{ fontSize: 'clamp(3.8rem,9vw,7.5rem)', fontWeight: 300, lineHeight: .92, color: '#f0ead8', marginBottom: '1.5rem' }}>The<br /><em style={{ fontStyle: 'italic', color: '#c9a44c' }}>Book Store</em></h1>
-        <p style={{ fontSize: '1.05rem', fontStyle: 'italic', color: 'rgba(240,234,216,.45)', margin: '0 auto 3rem', lineHeight: 1.7 }}>Worlds waiting to be entered. Stories that stay with you long after the last page.</p>
-        {!loading && (showFiction || showNonfiction) && (
-          <div className="hero-doors" style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            {showFiction && (
-              <a href="#fiction" className="door">
-                <span style={{ fontFamily: "'Cinzel',serif", fontSize: '.55rem', letterSpacing: '.25em', textTransform: 'uppercase', color: '#c9a44c', position: 'relative' }}>Explore</span>
-                <span style={{ fontSize: '1.55rem', fontWeight: 300, fontStyle: 'italic', position: 'relative' }}>Fiction</span>
-                <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.65rem', fontWeight: 500, color: 'rgba(240,234,216,.45)', position: 'relative' }}>{countLabel(fictionCount, fictionGenreCount)}</span>
-              </a>
-            )}
-            {showNonfiction && (
-              <a href="#nonfiction" className="door">
-                <span style={{ fontFamily: "'Cinzel',serif", fontSize: '.55rem', letterSpacing: '.25em', textTransform: 'uppercase', color: '#c9a44c', position: 'relative' }}>Explore</span>
-                <span style={{ fontSize: '1.55rem', fontWeight: 300, fontStyle: 'italic', position: 'relative' }}>Non-Fiction</span>
-                <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.65rem', fontWeight: 500, color: 'rgba(240,234,216,.45)', position: 'relative' }}>{countLabel(nonfictionCount, nonfictionGenreCount)}</span>
-              </a>
-            )}
-          </div>
-        )}
-      </div>
-      <div style={{ position: 'absolute', bottom: '2.5rem', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.5rem', color: 'rgba(240,234,216,.45)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.58rem', fontWeight: 500, letterSpacing: '.22em', textTransform: 'uppercase', animation: 'bob 2.2s ease-in-out infinite' }}>
-        <div style={{ width: '1px', height: '30px', background: 'linear-gradient(to bottom,#c9a44c,transparent)' }} />
-        Browse
-      </div>
-    </section>
+    <>
+      <section className="curation-band">
+        <Fleuron style={{ fontSize: '1rem' }} />
+        <p>{count} {count === 1 ? 'title' : 'titles'}. Each one chosen. When everything is stocked, nothing is recommended.</p>
+      </section>
+      <footer className="colophon">
+        <div className="colophon-rule" />
+        <p className="colophon-text">This catalogue is set in Cormorant Garamond &amp; Cinzel upon a ground of near-black, with ornaments in the printer&rsquo;s tradition. Published on the web by Calvary Media UK. Curated by hand in London &amp; Lagos.</p>
+        <div className="colophon-mark">&#10086;</div>
+      </footer>
+    </>
   );
 }
 
@@ -269,9 +216,11 @@ export default function BookStorePage() {
   const [titles, setTitles] = useState(null); // null until the catalogue load resolves
   const [activeFiction, setActiveFiction] = useState('all');
   const [activeNonfiction, setActiveNonfiction] = useState('all');
+  const [modal, setModal] = useState(null); // { title, rect }
+  const modalReset = useRef(null);
 
-  // A0 runtime gate — unchanged. The route stays invisible (404) until at least one
-  // title is published; once one is, the storefront is public (the old passcode is retired).
+  // A0 runtime gate — UNCHANGED. Route stays invisible (404) until at least one title is
+  // published; once one is, the storefront is public (the old passcode is retired).
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -286,9 +235,8 @@ export default function BookStorePage() {
     return () => { cancelled = true; };
   }, []);
 
-  // Once the gate is open, fetch the full published catalogue exactly once and derive
-  // every view (genre filter, fiction/non-fiction split, featured, bestsellers) from
-  // that single array client-side — no per-genre round trips.
+  // Single-fetch data flow — UNCHANGED. Fetch the full published catalogue exactly once and
+  // derive every view (genre filter, split, featured/window, opening lines) client-side.
   useEffect(() => {
     if (gateState !== 'open') return;
     let cancelled = false;
@@ -299,6 +247,9 @@ export default function BookStorePage() {
     return () => { cancelled = true; };
   }, [gateState]);
 
+  const openModal = (title, rect, reset) => { modalReset.current = reset; setModal({ title, rect }); };
+  const closeModal = () => { if (modalReset.current) modalReset.current(); modalReset.current = null; setModal(null); };
+
   if (gateState === 'checking') return null;
   if (gateState === 'empty') notFound();
 
@@ -307,7 +258,12 @@ export default function BookStorePage() {
   const nonfictionTitles = loading ? [] : titles.filter((t) => NONFICTION_GENRES.includes(t.genre));
   const fictionGenresPresent = FICTION_GENRES.filter((g) => fictionTitles.some((t) => t.genre === g));
   const nonfictionGenresPresent = NONFICTION_GENRES.filter((g) => nonfictionTitles.some((t) => t.genre === g));
-  const bestsellers = loading ? [] : titles.filter((t) => t.bestseller).sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0));
+  // The Window = the featured title, derived from the single fetch (equivalent to
+  // getFeaturedTitles()[0] over the published set — no extra round trip).
+  const windowTitle = loading ? null : titles.find((t) => t.featured) || null;
+  // Opening Lines pool: published titles with a resolvable opening line (field or excerpt).
+  const linesPool = loading ? [] : titles.filter((t) => resolveOpeningLine(t));
+  const totalCount = loading ? 0 : titles.length;
 
   return (
     <>
@@ -315,70 +271,135 @@ export default function BookStorePage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Cinzel:wght@400;600&family=Inter:wght@300;400;500;600&display=swap');
         html{scroll-behavior:smooth}
-        body{background:#0a0a0a;color:#f0ead8;font-family:'Cormorant Garamond',Georgia,serif;overflow-x:hidden}
-        @keyframes bob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(7px)}}
+        body{background:#070707;color:#f0ead8;font-family:'Cormorant Garamond',Georgia,serif;overflow-x:hidden}
+        ${BOUND_BOOK_CSS}
         @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.75}}
+        @keyframes lampPulse{0%,100%{opacity:.5}50%{opacity:.9}}
+        @keyframes grainShift{0%{transform:translate(0,0)}10%{transform:translate(-3%,-2%)}20%{transform:translate(-8%,4%)}30%{transform:translate(3%,-8%)}40%{transform:translate(-2%,9%)}50%{transform:translate(-8%,3%)}60%{transform:translate(4%,-2%)}70%{transform:translate(-4%,6%)}80%{transform:translate(6%,3%)}90%{transform:translate(-2%,-4%)}}
         .skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
-        .door{display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:1.25rem 2.75rem;border:1px solid rgba(201,164,76,.22);background:rgba(201,164,76,.03);text-decoration:none;color:#f0ead8;transition:all .3s;cursor:pointer;position:relative;overflow:hidden}
-        .door::before{content:'';position:absolute;inset:0;background:rgba(201,164,76,.06);transform:translateY(101%);transition:transform .3s}
-        .door:hover::before{transform:translateY(0)}
-        .door:hover{border-color:rgba(201,164,76,.45)}
+        .bookstore-grain{position:fixed;inset:-50%;z-index:1;pointer-events:none;opacity:.05;
+          background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0,rgba(0,0,0,.6) 1px,transparent 1px,transparent 2px),repeating-linear-gradient(90deg,rgba(255,255,255,.5) 0,rgba(0,0,0,.5) 1px,transparent 1px,transparent 3px);
+          animation:grainShift 8s steps(10) infinite}
+
+        .hero{min-height:88vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;text-align:center;padding:2rem}
+        .hero-lamp{position:absolute;inset:0;background:radial-gradient(ellipse 60% 44% at 50% 40%,rgba(201,164,76,.16) 0%,transparent 66%);animation:lampPulse 5.5s ease-in-out infinite}
+        .hero-inner{position:relative;z-index:2;max-width:720px;animation:fadeUp .9s ease forwards}
+        .hero-eyebrow{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;color:#c9a44c;margin-bottom:2rem}
+        .hero-title{line-height:.9;margin-bottom:1.8rem}
+        .hero-the{display:block;font-family:'Cinzel',serif;font-weight:400;font-size:clamp(1.6rem,4vw,2.6rem);letter-spacing:.06em;color:rgba(240,234,216,.72)}
+        .hero-store{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:300;font-size:clamp(3.6rem,10vw,7.6rem);color:#c9a44c}
+        .hero-colophon{font-size:1.05rem;font-style:italic;color:rgba(240,234,216,.5);line-height:1.7;max-width:520px;margin:0 auto 2.2rem}
+        .hero-edition{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.28em;text-transform:uppercase;color:rgba(201,164,76,.6)}
+
+        .the-window{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:4rem 2rem 3rem}
+        .window-plate{text-align:center;font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.6rem}
+        .window-case{position:relative;border:1px solid rgba(201,164,76,.2);background:radial-gradient(ellipse 70% 60% at 50% 0%,rgba(201,164,76,.06),transparent 70%),rgba(255,255,255,.015);padding:3.5rem 3rem}
+        .window-lamp{position:absolute;top:-1px;left:20%;right:20%;height:120px;background:radial-gradient(ellipse 60% 100% at 50% 0%,rgba(201,164,76,.18),transparent 72%);pointer-events:none}
+        .fleuron-corner{position:absolute;color:rgba(201,164,76,.4);font-size:.9rem}
+        .fleuron-corner.tl{top:.7rem;left:.9rem}.fleuron-corner.tr{top:.7rem;right:.9rem}
+        .fleuron-corner.bl{bottom:.7rem;left:.9rem}.fleuron-corner.br{bottom:.7rem;right:.9rem}
+        .window-inner{position:relative;display:grid;grid-template-columns:auto 1fr;gap:3.5rem;align-items:center}
+        .window-book{display:flex;justify-content:center;padding:1rem 1.4rem}
+        .window-kicker{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.22em;text-transform:uppercase;color:#c9a44c;margin-bottom:.8rem}
+        .window-title{font-family:'Cinzel',serif;font-size:clamp(1.5rem,3vw,2.2rem);font-weight:600;color:#f0ead8;line-height:1.12;margin-bottom:.35rem}
+        .window-author{font-size:1.05rem;font-style:italic;color:rgba(240,234,216,.5);margin-bottom:1.3rem}
+        .window-pull{font-size:1.05rem;font-style:italic;line-height:1.6;color:rgba(240,234,216,.78);border-left:2px solid rgba(201,164,76,.35);padding-left:1.1rem;margin-bottom:1.2rem}
+        .window-shelfcard{font-size:.92rem;line-height:1.6;color:rgba(240,234,216,.6);background:rgba(236,228,207,.06);border:1px solid rgba(201,164,76,.15);padding:.85rem 1.1rem;margin-bottom:1.5rem}
+        .window-shelfcard span{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:#c9a44c}
+        .window-actions{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center}
+
+        .btn-buy{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:not-allowed;opacity:.55}
+        .btn-sample{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:1px solid rgba(201,164,76,.4);border-radius:3px;background:rgba(201,164,76,.04);color:#c9a44c;font-weight:600;text-decoration:none}
+        .btn-sample:hover{background:rgba(201,164,76,.1)}
+        .btn-details{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.55);text-decoration:none;border-bottom:1px solid rgba(201,164,76,.25);padding-bottom:2px}
+
+        .rail{position:relative;z-index:2;max-width:760px;margin:0 auto;padding:3.5rem 2rem;text-align:center}
+        .rail-eyebrow{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.5rem}
+        .rail-quote{font-size:clamp(1.3rem,3vw,1.9rem);font-style:italic;font-weight:300;line-height:1.5;color:#f0ead8;margin-bottom:1.8rem}
+        .rail-reveal{display:flex;flex-direction:column;align-items:center;gap:1rem}
+        .rail-answer{text-decoration:none;color:inherit}
+        .rail-answer-title{display:block;font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.1em;color:#c9a44c}
+        .rail-answer-author{display:block;font-size:.9rem;font-style:italic;color:rgba(240,234,216,.5);margin-top:.2rem}
+        .rail-btn{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:#c9a44c;background:none;border:1px solid rgba(201,164,76,.3);border-radius:3px;padding:.7rem 1.6rem;cursor:pointer;transition:all .2s}
+        .rail-btn:hover{background:rgba(201,164,76,.08);border-color:rgba(201,164,76,.55)}
+
+        .catalogue-section{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:4rem 2.5rem}
+        .section-head{display:flex;align-items:center;gap:1.2rem;margin-bottom:2.5rem}
+        .section-rule{flex:1;height:1px;background:rgba(201,164,76,.12)}
+        .section-mark{font-size:.7rem}
+        .section-title{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;font-weight:600}
         .genre-tabs{display:flex;overflow-x:auto;margin-bottom:3rem;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.06)}
         .genre-tabs::-webkit-scrollbar{display:none}
         .genre-tab{padding:.7rem 1.3rem;white-space:nowrap;font-family:'Cormorant Garamond',Georgia,serif;font-size:.75rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:rgba(240,234,216,.45);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
         .genre-tab:hover{color:#f0ead8}
         .genre-tab.active{color:#c9a44c;border-bottom-color:#c9a44c}
-        .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:2.5rem 1.5rem}
-        .book-card{transition:transform .25s ease}
-        .book-card:hover{transform:translateY(-5px)}
+        .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:3.5rem 1.5rem;justify-items:center}
+        .shelf-entry{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:200px;animation:fadeUp .5s ease forwards}
+        .shelf-book-wrap{margin-bottom:1.1rem}
+        .no-divider{display:flex;align-items:center;gap:.6rem;width:100%;margin-bottom:1rem}
+        .no-line{flex:1;height:1px;background:rgba(201,164,76,.14)}
+        .no-label{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(201,164,76,.6)}
+        .entry-genre{font-family:'Cormorant Garamond',Georgia,serif;font-size:.55rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#c9a44c;margin-bottom:.3rem}
+        .entry-title{font-size:.92rem;font-weight:600;color:#f0ead8;line-height:1.28;margin-bottom:.15rem}
+        .entry-author{font-family:'Cormorant Garamond',Georgia,serif;font-size:.76rem;font-style:italic;color:rgba(240,234,216,.45);margin-bottom:.4rem}
+        .entry-price{font-family:'Cormorant Garamond',Georgia,serif;font-size:.85rem;font-weight:600;color:#f0ead8}
+        .shelf-card{margin-top:1rem;background:#ece4cf;color:#2a2318;padding:.75rem .9rem;border-radius:1px;box-shadow:0 6px 18px rgba(0,0,0,.4);font-size:.72rem;line-height:1.5;max-width:190px}
+        .shelf-card-body{display:block;font-style:italic}
+        .shelf-card-sign{display:block;margin-top:.4rem;font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.12em;color:#7a5f24}
+        .shelf-empty{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.05rem;color:rgba(240,234,216,.4);text-align:center;padding:2rem 0}
+
+        .curation-band{position:relative;z-index:2;max-width:640px;margin:2rem auto;padding:2.5rem 2rem;text-align:center;display:flex;flex-direction:column;align-items:center;gap:1rem}
+        .curation-band p{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.15rem;line-height:1.6;color:rgba(240,234,216,.6)}
+        .colophon{position:relative;z-index:2;max-width:640px;margin:0 auto;padding:3rem 2rem 5rem;text-align:center}
+        .colophon-rule{width:80px;height:1px;background:rgba(201,164,76,.3);margin:0 auto 2rem}
+        .colophon-text{font-size:.85rem;line-height:1.9;color:rgba(240,234,216,.4);font-style:italic}
+        .colophon-mark{margin-top:1.5rem;color:rgba(201,164,76,.5)}
+
         @media(max-width:640px){
-          .shelf{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:2rem 1rem}
-          .hero-doors{flex-direction:column;align-items:center}
-          .door{width:100%;max-width:260px}
-          .featured-inner{grid-template-columns:1fr !important;gap:1.5rem !important}
+          .shelf{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2.75rem 1rem}
+          .window-inner{grid-template-columns:1fr;gap:2rem;text-align:center}
+          .window-book{padding:0}
+          .window-pull{border-left:none;padding-left:0}
+          .window-actions{justify-content:center}
+          .catalogue-section{padding:3rem 1.25rem}
         }
       `}</style>
 
-      <main style={{ background: '#0a0a0a', color: '#f0ead8' }}>
-        <Hero
-          loading={loading}
-          fictionCount={fictionTitles.length}
-          fictionGenreCount={fictionGenresPresent.length}
-          nonfictionCount={nonfictionTitles.length}
-          nonfictionGenreCount={nonfictionGenresPresent.length}
-        />
+      <div className="bookstore-grain" aria-hidden="true" />
+
+      <main style={{ background: '#070707', color: '#f0ead8', position: 'relative' }}>
+        <Hero count={totalCount} />
 
         {loading ? (
           <SkeletonShelf />
         ) : (
           <>
-            {bestsellers.length >= 3 && (
-              <section style={{ padding: '4.5rem 2.5rem 0' }}>
-                <BestsellersStrip items={bestsellers.slice(0, 10)} />
-              </section>
-            )}
+            {windowTitle && <TheWindow title={windowTitle} />}
+            {linesPool.length >= 2 && <OpeningLinesRail pool={linesPool} />}
 
             {fictionTitles.length > 0 && (
               <CatalogueSection
-                id="fiction" sectionLabel="Fiction" allLabel="All Fiction" topPad="5rem 2.5rem 4rem"
+                id="fiction" sectionLabel="Fiction" allLabel="All Fiction"
                 titles={fictionTitles} genresPresent={fictionGenresPresent}
-                active={activeFiction} setActive={setActiveFiction}
+                active={activeFiction} setActive={setActiveFiction} onOpen={openModal}
               />
             )}
 
             {nonfictionTitles.length > 0 && (
               <CatalogueSection
-                id="nonfiction" sectionLabel="Non-Fiction" allLabel="All Non-Fiction" topPad="2rem 2.5rem 6rem"
+                id="nonfiction" sectionLabel="Non-Fiction" allLabel="All Non-Fiction"
                 titles={nonfictionTitles} genresPresent={nonfictionGenresPresent}
-                active={activeNonfiction} setActive={setActiveNonfiction}
+                active={activeNonfiction} setActive={setActiveNonfiction} onOpen={openModal}
               />
             )}
+
+            <Colophon count={totalCount} />
           </>
         )}
       </main>
 
-      <Footer />
+      {modal && <QuickLookModal title={modal.title} originRect={modal.rect} onClose={closeModal} />}
     </>
   );
 }

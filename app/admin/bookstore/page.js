@@ -120,6 +120,11 @@ const emptyForm = {
   publishedDate: '',
   synopsis: '',
   excerpt: '',
+  // The Bookseller's Fields (R4b)
+  backCoverBlurb: '',
+  openingLine: '',
+  shelfCard: '',
+  catalogueNumber: '',
   priceGbp: '',
   priceNgn: '',
   priceUsd: '',
@@ -163,6 +168,12 @@ export default function AdminBookstorePage() {
     publishers.forEach((p) => { m[p.slug] = p; });
     return m;
   }, [publishers]);
+  // Catalogue-number → title, for the non-blocking duplicate warning in the form.
+  const catalogueInUse = useMemo(() => {
+    const m = new Map();
+    titles.forEach((t) => { if (Number.isInteger(t.catalogueNumber)) m.set(t.catalogueNumber, t); });
+    return m;
+  }, [titles]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -219,6 +230,10 @@ export default function AdminBookstorePage() {
       publishedDate: title.publishedDate || '',
       synopsis: title.synopsis || '',
       excerpt: title.excerpt || '',
+      backCoverBlurb: title.backCoverBlurb || '',
+      openingLine: title.openingLine || '',
+      shelfCard: title.shelfCard || '',
+      catalogueNumber: Number.isInteger(title.catalogueNumber) ? String(title.catalogueNumber) : '',
       priceGbp: minorToMajor(title.prices?.gbp),
       priceNgn: minorToMajor(title.prices?.ngn),
       priceUsd: minorToMajor(title.prices?.usd),
@@ -294,6 +309,14 @@ export default function AdminBookstorePage() {
     if (form.epubPath) payload.epubPath = form.epubPath;
     if (form.samplePath) payload.samplePath = form.samplePath;
 
+    // The Bookseller's Fields (R4b) — always included (null when empty) so an edit can CLEAR a
+    // field. The write path spreads existing values, so an omitted key would keep the old one.
+    payload.backCoverBlurb = form.backCoverBlurb.trim() || null;
+    payload.openingLine = form.openingLine.trim() || null;
+    payload.shelfCard = form.shelfCard.trim() || null;
+    const catNum = form.catalogueNumber.trim() === '' ? null : Number(form.catalogueNumber);
+    payload.catalogueNumber = Number.isInteger(catNum) && catNum > 0 ? catNum : null;
+
     return payload;
   }
 
@@ -311,6 +334,13 @@ export default function AdminBookstorePage() {
     if (!form.priceGbp && !form.priceNgn && !form.priceUsd) local.push('Enter at least one price (GBP, NGN, or USD)');
     if (form.territoriesMode === 'specific' && form.territoriesList.length === 0) {
       local.push('Add at least one territory, or switch to Worldwide');
+    }
+    // The Bookseller's Fields (R4b) — caps + positive-integer catalogue number.
+    if (form.backCoverBlurb.length > 280) local.push('Back cover blurb must be 280 characters or fewer');
+    if (form.shelfCard.length > 160) local.push('Shelf card must be 160 characters or fewer');
+    if (form.catalogueNumber.trim() !== '') {
+      const n = Number(form.catalogueNumber);
+      if (!Number.isInteger(n) || n <= 0) local.push('Catalogue number must be a positive whole number');
     }
     // Schema v2: cover + EPUB required only for status === 'published'. Drafts and unpublished
     // titles may save with null assets.
@@ -473,6 +503,7 @@ export default function AdminBookstorePage() {
             coverProgress={coverProgress}
             epubProgress={epubProgress}
             sampleProgress={sampleProgress}
+            catalogueInUse={catalogueInUse}
             onSave={handleSave}
             onCancel={handleCancel}
             onTitleBlur={handleTitleBlur}
@@ -589,8 +620,15 @@ export default function AdminBookstorePage() {
   );
 }
 
-function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, coverProgress, epubProgress, sampleProgress, onSave, onCancel, onTitleBlur }) {
+function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, coverProgress, epubProgress, sampleProgress, catalogueInUse, onSave, onCancel, onTitleBlur }) {
   const slugInvalid = form.slug && !SLUG_RE.test(form.slug);
+
+  // Non-blocking duplicate-catalogue-number warning: flag when another title already uses it.
+  const catNumParsed = form.catalogueNumber.trim() === '' ? null : Number(form.catalogueNumber);
+  const catDupTitle = (catNumParsed !== null && Number.isInteger(catNumParsed) && catalogueInUse)
+    ? catalogueInUse.get(catNumParsed)
+    : null;
+  const catDup = catDupTitle && catDupTitle.id !== editingTitleId ? catDupTitle : null;
 
   function handleAddTerritory(code) {
     const v = (code || '').trim().toUpperCase();
@@ -715,6 +753,34 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
           <label style={s.label}>Excerpt <span style={s.labelSoft}>(optional)</span></label>
           <textarea style={{ ...s.textarea, ...s.textareaTall }} value={form.excerpt} onChange={(e) => setForm((f) => ({ ...f, excerpt: e.target.value }))} placeholder="First chapter or sample passage." />
           <div style={s.hint}>First chapter or sample passage. Optional. Shown to non-purchasers.</div>
+        </div>
+      </div>
+
+      {/* b2. THE BOOKSELLER'S FIELDS (R4b) */}
+      <div style={s.section}>
+        <div style={s.sectionTitle}>The Bookseller&rsquo;s Fields</div>
+        <div style={s.fg}>
+          <label style={s.label}>Back cover blurb <span style={s.labelSoft}>(optional, ≤ 280)</span></label>
+          <textarea style={{ ...s.textarea, minHeight: 90 }} maxLength={280} value={form.backCoverBlurb} onChange={(e) => setForm((f) => ({ ...f, backCoverBlurb: e.target.value }))} placeholder="Two punchy sentences." />
+          <div style={s.hint}>Printed on the book&rsquo;s back. Two punchy sentences, not a summary. Falls back to a truncated synopsis if empty. <span style={{ color: form.backCoverBlurb.length > 280 ? '#fcd34d' : 'rgba(255,255,255,0.35)' }}>{form.backCoverBlurb.length}/280</span></div>
+        </div>
+        <div style={{ ...s.fg, marginTop: '1.1rem' }}>
+          <label style={s.label}>Opening line <span style={s.labelSoft}>(optional)</span></label>
+          <input style={s.input} value={form.openingLine} onChange={(e) => setForm((f) => ({ ...f, openingLine: e.target.value }))} placeholder="The book's first sentence." />
+          <div style={s.hint}>The book&rsquo;s first sentence — or its best early line. Powers the back cover and the Opening Lines rail. Falls back to the first sentence of the excerpt.</div>
+        </div>
+        <div style={{ ...s.fg, marginTop: '1.1rem' }}>
+          <label style={s.label}>Shelf card <span style={s.labelSoft}>(optional, ≤ 160)</span></label>
+          <textarea style={{ ...s.textarea, minHeight: 70 }} maxLength={160} value={form.shelfCard} onChange={(e) => setForm((f) => ({ ...f, shelfCard: e.target.value }))} placeholder="The curator's note, in your voice." />
+          <div style={s.hint}>The curator&rsquo;s note, in your voice, signed &mdash; Calvary. NO fallback: leave empty and the book gets no card. Never invent one. <span style={{ color: form.shelfCard.length > 160 ? '#fcd34d' : 'rgba(255,255,255,0.35)' }}>{form.shelfCard.length}/160</span></div>
+        </div>
+        <div style={{ ...s.fg, marginTop: '1.1rem', maxWidth: 240 }}>
+          <label style={s.label}>Catalogue number <span style={s.labelSoft}>(optional)</span></label>
+          <input style={s.input} type="number" min={1} step={1} value={form.catalogueNumber} onChange={(e) => setForm((f) => ({ ...f, catalogueNumber: e.target.value }))} placeholder="e.g. 7" />
+          <div style={catDup ? s.hintWarn : s.hint}>
+            The No. on everything. Admin-controlled, not auto-assigned.
+            {catDup && <> &mdash; ⚠ No. {catNumParsed} is already used by &ldquo;{catDup.title}&rdquo;.</>}
+          </div>
         </div>
       </div>
 
