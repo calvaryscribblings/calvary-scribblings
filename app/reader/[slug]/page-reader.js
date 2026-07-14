@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import React from 'react';
 import { stories } from '../../lib/stories';
 import { resolveAuthorNames, currentAuthorName } from '../../lib/resolveAuthorNames';
@@ -396,6 +396,176 @@ function CommentsSection({ slug, onSignIn }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THE READING ROOM (R4a) — chrome, Typesetter, CFI progress, ribbons, search.
+// The iframe host is public/reading-room.html (Calvary-owned; imports foliate-js
+// read-only from /vendor/…). This component owns the shell and the postMessage bridge.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Paper themes REPLACE-RENAME the four legacy themes; mapped onto the host's setStyles.
+const PAPERS = {
+  vellum: { label: 'Vellum', bg: '#f2ecd9', fg: '#2b2418' },
+  ivory: { label: 'Ivory', bg: '#faf7f0', fg: '#1f1c16' },
+  dusk: { label: 'Dusk', bg: '#211d16', fg: '#ddd2b8' },
+  ink: { label: 'Ink', bg: '#0a0a0a', fg: '#d9d2bf' },
+};
+const PAPER_ORDER = ['vellum', 'ivory', 'dusk', 'ink'];
+const FACES = {
+  cormorant: { label: 'Cormorant', css: "'Cormorant Garamond', Georgia, serif" },
+  literata: { label: 'Literata', css: "'Literata', Georgia, serif" },
+  inter: { label: 'Inter', css: "'Inter', system-ui, sans-serif" },
+};
+const FACE_ORDER = ['cormorant', 'literata', 'inter'];
+const SIZE_MIN = 70, SIZE_MAX = 180, SIZE_STEP = 10;
+const LEAD_MIN = 1.3, LEAD_MAX = 2.2, LEAD_STEP = 0.08;
+const DEFAULT_PREFS = { paper: 'vellum', face: 'cormorant', sizePct: 100, leading: 1.6, flow: 'paginated' };
+const PREFS_KEY = 'readingRoom.prefs';
+const CHROME_IDLE_MS = 3500;
+
+function loadPrefs() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(PREFS_KEY) : null;
+    if (!raw) return { ...DEFAULT_PREFS };
+    return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+  } catch { return { ...DEFAULT_PREFS }; }
+}
+function savePrefs(p) { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch {} }
+function clampLeading(v) { return Math.min(LEAD_MAX, Math.max(LEAD_MIN, Math.round(v * 100) / 100)); }
+function stylesMsg(p) {
+  const paper = PAPERS[p.paper] || PAPERS.vellum;
+  return { type: 'applyStyles', bg: paper.bg, fg: paper.fg, face: p.face, sizePct: p.sizePct, leading: p.leading, justify: true };
+}
+function readingRoomSrc(epubUrl, p) {
+  const paper = PAPERS[p.paper] || PAPERS.vellum;
+  const qs = new URLSearchParams({
+    url: epubUrl, bg: paper.bg, fg: paper.fg, face: p.face,
+    size: String(p.sizePct), leading: String(p.leading), flow: p.flow,
+  });
+  return '/reading-room.html?' + qs.toString();
+}
+
+// ── Typesetter (Part 3) ────────────────────────────────────────────────────────
+function TypesetterPanel({ prefs, onPaper, onFace, onSize, onLeading, onFlow, onClose }) {
+  return (
+    <div className="rr-sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="rr-sheet" role="dialog" aria-label="The Typesetter">
+        <div className="rr-grab" />
+        <div className="rr-sheet-title">&#10086; The Typesetter</div>
+
+        <div className="rr-row-label">Paper</div>
+        <div className="rr-swatches">
+          {PAPER_ORDER.map((k) => (
+            <button key={k} className={'rr-swatch' + (prefs.paper === k ? ' active' : '')} onClick={() => onPaper(k)} aria-label={PAPERS[k].label}>
+              <span className="rr-swatch-page" style={{ background: PAPERS[k].bg, color: PAPERS[k].fg }}>Aa</span>
+              <span className="rr-swatch-name">{PAPERS[k].label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="rr-row-label">Typeface</div>
+        <div className="rr-faces">
+          {FACE_ORDER.map((k) => (
+            <button key={k} className={'rr-face' + (prefs.face === k ? ' active' : '')} onClick={() => onFace(k)} style={{ fontFamily: FACES[k].css }}>{FACES[k].label}</button>
+          ))}
+        </div>
+
+        <div className="rr-stepper-row">
+          <span className="rr-row-label">Size</span>
+          <div className="rr-stepper">
+            <button className="rr-step" onClick={() => onSize(-SIZE_STEP)} disabled={prefs.sizePct <= SIZE_MIN} aria-label="Smaller">&minus;</button>
+            <span className="rr-step-val">{prefs.sizePct}%</span>
+            <button className="rr-step" onClick={() => onSize(SIZE_STEP)} disabled={prefs.sizePct >= SIZE_MAX} aria-label="Larger">+</button>
+          </div>
+        </div>
+
+        <div className="rr-stepper-row">
+          <span className="rr-row-label">Leading</span>
+          <div className="rr-stepper">
+            <button className="rr-step" onClick={() => onLeading(-LEAD_STEP)} disabled={prefs.leading <= LEAD_MIN} aria-label="Tighter">&minus;</button>
+            <span className="rr-step-val">{prefs.leading.toFixed(2)}</span>
+            <button className="rr-step" onClick={() => onLeading(LEAD_STEP)} disabled={prefs.leading >= LEAD_MAX} aria-label="Looser">+</button>
+          </div>
+        </div>
+
+        <div className="rr-stepper-row">
+          <span className="rr-row-label">Flow</span>
+          <div className="rr-toggle">
+            <button className={'rr-toggle-opt' + (prefs.flow === 'paginated' ? ' active' : '')} onClick={() => onFlow('paginated')}>Pages</button>
+            <button className={'rr-toggle-opt' + (prefs.flow === 'scrolled' ? ' active' : '')} onClick={() => onFlow('scrolled')}>Scroll</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Contents + Ribbons (Parts 4 & 5) ─────────────────────────────────────────────
+function ContentsPanel({ toc, chapterHref, ribbons, onJump, onRemoveRibbon, onClose }) {
+  return (
+    <div className="rr-sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="rr-sheet rr-sheet-tall" role="dialog" aria-label="Contents">
+        <div className="rr-grab" />
+        <div className="rr-sheet-title">&#10086; Contents</div>
+        <div className="rr-scroll">
+          {toc.length === 0
+            ? <div className="rr-empty">No chapters listed for this book.</div>
+            : toc.map((c, i) => (
+              <button key={i} className={'rr-toc-item' + (c.href && c.href === chapterHref ? ' current' : '')} style={{ paddingInlineStart: `${1 + c.level * 1.1}rem` }} onClick={() => c.href && onJump(c.href)} disabled={!c.href}>{c.label}</button>
+            ))}
+
+          {ribbons.length > 0 && (
+            <>
+              <div className="rr-section-label">Ribbons</div>
+              {ribbons.map((r) => (
+                <div key={r.id} className="rr-ribbon-row">
+                  <button className="rr-ribbon-jump" onClick={() => onJump(r.cfi)}>
+                    <span className="rr-ribbon-dot" />
+                    <span>
+                      <span className="rr-ribbon-label">{r.label || 'Bookmarked passage'}</span>
+                      <span className="rr-ribbon-time">{timeAgo(r.createdAt)}</span>
+                    </span>
+                  </button>
+                  <button className="rr-ribbon-x" onClick={() => onRemoveRibbon(r)} aria-label="Remove ribbon">&times;</button>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Search (Part 5) ───────────────────────────────────────────────────────────
+function SearchPanel({ query, setQuery, results, truncated, searching, onPick, onClose }) {
+  return (
+    <div className="rr-sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="rr-sheet rr-sheet-tall" role="dialog" aria-label="Search">
+        <div className="rr-grab" />
+        <div className="rr-search-head">
+          <input
+            className="rr-search-input" autoFocus value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search this book…" enterKeyHint="search"
+          />
+          <button className="rr-search-close" onClick={onClose} aria-label="Close search">&times;</button>
+        </div>
+        <div className="rr-scroll">
+          {searching && <div className="rr-empty">Searching…</div>}
+          {!searching && query.trim() && results.length === 0 && <div className="rr-empty">No matches.</div>}
+          {results.map((r, i) => (
+            <button key={i} className="rr-result" onClick={() => onPick(r)}>
+              {r.chapterLabel && <span className="rr-result-chapter">{r.chapterLabel}</span>}
+              <span className="rr-result-excerpt">{r.pre}<mark>{r.match}</mark>{r.post}</span>
+            </button>
+          ))}
+          {truncated && <div className="rr-empty">Showing the first 50 matches — refine your search.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function StoryReaderClient({ params }) {
   const { slug } = use(params);
   const [story, setStory] = useState(stories.find(s => s.id === slug) || null);
@@ -403,47 +573,72 @@ export default function StoryReaderClient({ params }) {
   const [showEnd, setShowEnd] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [hitCount, setHitCount] = useState(null);
-  const [fontIndex, setFontIndex] = useState(1);
-  const [pageInfo, setPageInfo] = useState('');
-  const [bookmark, setBookmark] = useState(null);
-  const bookmarkCFI = useRef(null);
-  const currentFraction = useRef(0);
-  const [bookmarkLoaded, setBookmarkLoaded] = useState(false);
-  const [showBookmarkToast, setShowBookmarkToast] = useState(false);
-  const [toastFading, setToastFading] = useState(false);
-  const [bookmarkSaved, setBookmarkSaved] = useState(false);
-  const [bookmarkConfirm, setBookmarkConfirm] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [readerUser, setReaderUser] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const [readerReady, setReaderReady] = useState(false);
+  const [resumeToast, setResumeToast] = useState(false);
+  const [toastFading, setToastFading] = useState(false);
+
+  // Reading Room chrome state
+  const [chromeVisible, setChromeVisible] = useState(true);
+  const [panel, setPanel] = useState('none'); // 'none' | 'type' | 'toc' | 'search'
+  const [reduced, setReduced] = useState(false);
+
+  // Typesetter prefs (device-level, localStorage). Captured once so the iframe src is stable.
+  const prefsInit = useRef(null);
+  if (!prefsInit.current) prefsInit.current = loadPrefs();
+  const [prefs, setPrefs] = useState(prefsInit.current);
+  const prefsRef = useRef(prefs);
+  useEffect(() => { prefsRef.current = prefs; }, [prefs]);
+
+  // Location / progress
+  const [fraction, setFraction] = useState(0);
+  const [chapterLabel, setChapterLabel] = useState('');
+  const [chapterHref, setChapterHref] = useState('');
+  const [botInfo, setBotInfo] = useState({ cur: null, total: null, pct: 0, minLeft: null });
+  const [toc, setToc] = useState([]);
+  const [ribbons, setRibbons] = useState([]);
+  const [ribbonDropping, setRibbonDropping] = useState(false);
+
+  // Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchTruncated, setSearchTruncated] = useState(false);
+  const [searching, setSearching] = useState(false);
+
   const iframeRef = useRef(null);
-  const pendingFont = useRef(1);
   const progressSaveTimer = useRef(null);
   const hitFired = useRef(false);
+  const currentCFI = useRef('');
+  const currentFraction = useRef(0);
+  const restoreTargetRef = useRef(null);     // CFI to restore on ready
+  const restoreFractionRef = useRef(null);   // fraction fallback (old shape)
+  const idleTimer = useRef(null);
+  const panelRef = useRef('none');
+  useEffect(() => { panelRef.current = panel; }, [panel]);
+  const searchIdRef = useRef(0);
+  const searchDebounce = useRef(null);
 
-  // Read counter — engagement-gated, fired once per load. slug is stable for a
-  // mounted reader, so this closure is safe to call from the message handler.
-  // readerId lets the server de-dupe to one read per reader.
+  useEffect(() => { setReduced(!!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)); }, []);
+
+  const postToFrame = useCallback((msg) => {
+    try { iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin); } catch {}
+  }, []);
+
+  // Read counter — engagement-gated, fired once per load (PRESERVED from the previous reader).
   const fireReadHit = useCallback(() => {
     if (hitFired.current) return;
     hitFired.current = true;
     getReaderId().then((readerId) => {
-      // slug + readerId go in the QUERY STRING (not just the body): the deployed
-      // Pages Function reads slug from the query — a body-only POST 400s
-      // ("Missing slug") and the read count never arrives, leaving the end-card
-      // seal stuck on "—". Body kept for forward-compat (newer handler: query wins).
       const qs = `?slug=${encodeURIComponent(slug)}&readerId=${encodeURIComponent(readerId)}`;
-      fetch(`/api/hit${qs}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, readerId }),
-      })
+      fetch(`/api/hit${qs}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug, readerId }) })
         .then((r) => r.json())
         .then((d) => { if (typeof d.count === 'number') setHitCount(d.count); })
         .catch(() => {});
     });
   }, [slug]);
 
-  // Lightweight auth observer for QuizCard / progress writes
+  // Auth observer for QuizCard / progress / ribbons (PRESERVED).
   useEffect(() => {
     let unsub;
     (async () => {
@@ -456,25 +651,8 @@ export default function StoryReaderClient({ params }) {
     return () => { if (unsub) unsub(); };
   }, []);
 
-  // Auto-save reading progress (debounced ~2s) — feeds the reader-mode quiz read gate
-  useEffect(() => {
-    if (!readerUser) return;
-    if (!progress || progress < 1) return;
-    if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
-    const fr = currentFraction.current || progress / 100;
-    progressSaveTimer.current = setTimeout(async () => {
-      try {
-        const db = await getDB();
-        const { ref, set } = await import('firebase/database');
-        await set(ref(db, `users/${readerUser.uid}/readerProgress/${slug}`), {
-          fraction: fr,
-          updatedAt: Date.now(),
-        });
-      } catch (e) { console.warn('[reader] readerProgress save failed:', e); }
-    }, 2000);
-    return () => { if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current); };
-  }, [progress, readerUser?.uid, slug]);
-
+  // cms_stories fallback load (PRESERVED — the free-story regression guard: hardcoded stories are
+  // already in `story` state from the first render; this only runs for non-hardcoded slugs).
   useEffect(() => {
     if (story) return;
     (async () => {
@@ -484,7 +662,6 @@ export default function StoryReaderClient({ params }) {
         const snap = await get(ref(db, 'cms_stories/' + slug));
         if (snap.exists()) {
           const data = { id: slug, ...snap.val() };
-          // Show the author's CURRENT display name (live), not the frozen copy.
           const nameMap = await resolveAuthorNames([data]);
           data.author = currentAuthorName(data, nameMap);
           setStory(data);
@@ -493,38 +670,86 @@ export default function StoryReaderClient({ params }) {
     })();
   }, [slug]);
 
+  // No EPUB → send to the story page (PRESERVED).
   useEffect(() => {
-    if (story && !story.epubUrl) {
-      window.location.replace(`/stories/${slug}`);
-    }
+    if (story && !story.epubUrl) window.location.replace(`/stories/${slug}`);
   }, [story, slug]);
 
+  // Restore lookup: read the CFI progress once, queue the restore target for the ready event.
+  // Fallback chain: {cfi} → goTo(cfi); {fraction} (old shape) or bare number → goToFraction once
+  // (the next relocate re-saves in the new shape). Ready-gated in the host (no restore race).
   useEffect(() => {
     if (!slug) return;
-    const bookmarkTimeout = setTimeout(() => setBookmarkLoaded(true), 3000);
+    const timeout = setTimeout(() => setReaderReady(true), 3000);
     (async () => {
       try {
         const auth = await getFirebaseAuth();
         const { onAuthStateChanged } = await import('firebase/auth');
         const unsub = onAuthStateChanged(auth, async (user) => {
-          clearTimeout(bookmarkTimeout);
-          if (!user) { setBookmarkLoaded(true); return; } unsub();
+          clearTimeout(timeout);
+          if (!user) { setReaderReady(true); return; } unsub();
           try {
             const db = await getDB();
             const { ref, get } = await import('firebase/database');
-            const snap = await get(ref(db, 'bookmarks/' + user.uid + '/' + slug));
-            if (snap.exists()) { const bm = snap.val(); const fraction = typeof bm === 'object' ? bm.fraction : bm; const cfi = typeof bm === 'object' ? bm.cfi : ''; bookmarkCFI.current = cfi; setBookmark(fraction); setShowBookmarkToast(true); setTimeout(() => setToastFading(true), 3500); setTimeout(() => setShowBookmarkToast(false), 4000); }
+            const snap = await get(ref(db, `users/${user.uid}/readerProgress/${slug}`));
+            if (snap.exists()) {
+              const v = snap.val();
+              if (typeof v === 'number') { restoreFractionRef.current = v; }
+              else if (v && typeof v.cfi === 'string' && v.cfi) { restoreTargetRef.current = v.cfi; }
+              else if (v && typeof v.fraction === 'number') { restoreFractionRef.current = v.fraction; }
+              if (restoreTargetRef.current || restoreFractionRef.current) {
+                setResumeToast(true);
+                setTimeout(() => setToastFading(true), 3200);
+                setTimeout(() => setResumeToast(false), 3800);
+              }
+            }
           } catch (e) {}
-          setBookmarkLoaded(true);
+          setReaderReady(true);
         });
-      } catch (e) { setBookmarkLoaded(true); }
+      } catch (e) { setReaderReady(true); }
     })();
+    return () => clearTimeout(timeout);
   }, [slug]);
 
-  // Read counter — engagement-gated. Fire on the first of: the reader's first
-  // page turn (relocate, wired in the message handler), or 12s of *foreground*
-  // dwell. The dwell timer only advances while the tab is visible, so a
-  // backgrounded tab never counts.
+  // Ribbons: live subscription per user per book (PRESERVED persistence surface, mirrored).
+  useEffect(() => {
+    if (!readerUser || !slug) { setRibbons([]); return; }
+    let unsub;
+    (async () => {
+      try {
+        const db = await getDB();
+        const { ref, onValue } = await import('firebase/database');
+        unsub = onValue(ref(db, `readerBookmarks/${readerUser.uid}/${slug}`), (snap) => {
+          const out = [];
+          if (snap.exists()) snap.forEach((c) => { out.push({ id: c.key, ...(c.val() || {}) }); return false; });
+          out.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          setRibbons(out);
+        });
+      } catch (e) {}
+    })();
+    return () => { if (unsub) unsub(); };
+  }, [readerUser?.uid, slug]);
+
+  // Auto-save CFI progress (debounced ~2s). New shape: { cfi, fraction, updatedAt }.
+  useEffect(() => {
+    if (!readerUser) return;
+    if (!progress || progress < 1) return;
+    if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
+    progressSaveTimer.current = setTimeout(async () => {
+      try {
+        const db = await getDB();
+        const { ref, set } = await import('firebase/database');
+        await set(ref(db, `users/${readerUser.uid}/readerProgress/${slug}`), {
+          cfi: currentCFI.current || null,
+          fraction: currentFraction.current || progress / 100,
+          updatedAt: Date.now(),
+        });
+      } catch (e) { console.warn('[reader] readerProgress save failed:', e); }
+    }, 2000);
+    return () => { if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current); };
+  }, [progress, readerUser?.uid, slug]);
+
+  // Read counter — 12s foreground-dwell fallback (PRESERVED).
   useEffect(() => {
     if (!slug) return undefined;
     let dwellMs = 0;
@@ -537,14 +762,13 @@ export default function StoryReaderClient({ params }) {
       lastTick = now;
       if (dwellMs >= 12000) fireReadHit();
     };
-    const onVis = () => {
-      lastTick = document.visibilityState === 'visible' ? Date.now() : null;
-    };
+    const onVis = () => { lastTick = document.visibilityState === 'visible' ? Date.now() : null; };
     const interval = setInterval(tick, 1000);
     document.addEventListener('visibilitychange', onVis);
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVis); };
   }, [slug, fireReadHit]);
 
+  // Streak / badges / read tracking (PRESERVED).
   useEffect(() => {
     if (!slug) return;
     (async () => {
@@ -569,119 +793,287 @@ export default function StoryReaderClient({ params }) {
     })();
   }, [slug]);
 
-  useEffect(() => {
-    const handler = async e => {
-      if (e.data.type === 'debugDetail') { setDebugMsg('keys:' + e.data.keys + ' cfi:' + e.data.cfi); }
-      if (e.data.type === 'ended') setShowEnd(true);
-      if (e.data.type === 'relocate') {
-        // First page turn = engagement. Counts the read (once; guarded internally).
-        fireReadHit();
-        const fr = e.data.fraction;
-        currentFraction.current = fr;
-        if (e.data.cfi) bookmarkCFI.current = e.data.cfi;
+  // ── Chrome vanishing behaviour ────────────────────────────────────────────────
+  const bumpIdle = useCallback(() => {
+    setChromeVisible(true);
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    if (panelRef.current !== 'none') return; // never auto-hide with a panel open
+    idleTimer.current = setTimeout(() => { if (panelRef.current === 'none') setChromeVisible(false); }, CHROME_IDLE_MS);
+  }, []);
+  const toggleChrome = useCallback(() => {
+    if (panelRef.current !== 'none') return;
+    setChromeVisible((v) => {
+      const nv = !v;
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+      if (nv) idleTimer.current = setTimeout(() => { if (panelRef.current === 'none') setChromeVisible(false); }, CHROME_IDLE_MS);
+      return nv;
+    });
+  }, []);
+  const openPanel = useCallback((name) => {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    setChromeVisible(true);
+    setPanel(name);
+  }, []);
+  const closePanel = useCallback(() => {
+    setPanel('none');
+    postToFrame({ type: 'clearSearch' });
+    bumpIdle();
+  }, [postToFrame, bumpIdle]);
 
-        setProgress(fr * 100);
-        if (fr > 0 && e.data.step > 0) {
-          const total = Math.max(1, Math.round(1 / e.data.step));
-          const current = Math.min(total, Math.max(1, Math.round(fr / e.data.step)));
-          setPageInfo('Page ' + current + ' of ' + total);
-        } else if (fr > 0) {
-          setPageInfo('');
-        }
-      }
-      if (e.data.type === 'bookmarkSaved') {
-        const fr = currentFraction.current || e.data.fraction;
-        setBookmarkSaved(true);
-        setBookmarkConfirm(true);
-        setTimeout(() => setBookmarkSaved(false), 2000);
-        setTimeout(() => setBookmarkConfirm(false), 4000);
-        try {
-          const auth = await getFirebaseAuth();
-          const { onAuthStateChanged } = await import('firebase/auth');
-          const unsub = onAuthStateChanged(auth, async (user) => {
-            if (!user) return; unsub();
-            const db = await getDB();
-            const { ref, set } = await import('firebase/database');
-            await set(ref(db, 'bookmarks/' + user.uid + '/' + slug), { fraction: fr, cfi: bookmarkCFI.current || '' });
-          });
-        } catch (e) {}
-      }
-      if (e.data.type === 'ready') {
-        iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: pendingFont.current }, '*');
-        if (bookmark) {
-          setTimeout(() => {
-            setDebugMsg('Restoring to: ' + bookmark);
-            const restoreCFI = bookmarkCFI.current || '';
-            const restoreFraction = bookmark;
-            setDebugMsg('Sending restore CFI:' + (restoreCFI ? restoreCFI.slice(0,25) : 'NONE') + ' fr:' + (restoreFraction||0).toFixed(3));
-            iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: restoreFraction, cfi: restoreCFI }, '*');
-          }, 1500);
-        }
+  // Kick off the idle countdown once reading begins.
+  useEffect(() => {
+    if (!showCover && !showEnd) bumpIdle();
+    return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
+  }, [showCover, showEnd, bumpIdle]);
+
+  // ── The postMessage bridge (origin-locked) ───────────────────────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.origin !== window.location.origin) return; // HYGIENE: origin lock (was '*')
+      const d = e.data || {};
+      if (d.type === 'ready') {
+        setToc(Array.isArray(d.toc) ? d.toc : []);
+        postToFrame(stylesMsg(prefsRef.current));
+        postToFrame({ type: 'setFlow', flow: prefsRef.current.flow });
+        if (restoreTargetRef.current) postToFrame({ type: 'goTo', cfi: restoreTargetRef.current });
+        else if (restoreFractionRef.current != null) postToFrame({ type: 'goToFraction', fraction: restoreFractionRef.current });
+      } else if (d.type === 'relocate') {
+        fireReadHit();
+        currentCFI.current = d.cfi || currentCFI.current;
+        currentFraction.current = typeof d.fraction === 'number' ? d.fraction : currentFraction.current;
+        setFraction(currentFraction.current);
+        setProgress(currentFraction.current * 100);
+        setChapterLabel(d.chapterLabel || '');
+        if (d.chapterHref) setChapterHref(d.chapterHref);
+        setBotInfo({ cur: d.pageCurrent, total: d.pageTotal, pct: d.pct, minLeft: d.minLeft });
+      } else if (d.type === 'ended') {
+        setShowEnd(true);
+      } else if (d.type === 'toggleChrome') {
+        toggleChrome();
+      } else if (d.type === 'searchResults' && d.id === searchIdRef.current) {
+        setSearchResults(Array.isArray(d.results) ? d.results : []);
+        setSearchTruncated(!!d.truncated);
+        setSearching(false);
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, []);
+  }, [postToFrame, fireReadHit, toggleChrome]);
 
-  const cycleFont = () => {
-    const next = (fontIndex + 1) % FONT_SIZES.length;
-    setFontIndex(next);
-    pendingFont.current = next;
-    iframeRef.current?.contentWindow?.postMessage({ type: 'setFontSize', index: next }, '*');
-  };
+  // ── Typesetter handlers ───────────────────────────────────────────────────────
+  const applyPrefs = useCallback((patch, kind) => {
+    setPrefs((p) => {
+      const np = { ...p, ...patch };
+      savePrefs(np);
+      if (kind === 'flow') postToFrame({ type: 'setFlow', flow: np.flow });
+      else postToFrame(stylesMsg(np));
+      return np;
+    });
+  }, [postToFrame]);
+  const onPaper = (k) => applyPrefs({ paper: k });
+  const onFace = (k) => applyPrefs({ face: k });
+  const onSize = (delta) => applyPrefs({ sizePct: Math.min(SIZE_MAX, Math.max(SIZE_MIN, prefsRef.current.sizePct + delta)) });
+  const onLeading = (delta) => applyPrefs({ leading: clampLeading(prefsRef.current.leading + delta) });
+  const onFlow = (flow) => applyPrefs({ flow }, 'flow');
+
+  // ── Ribbon drop / remove ──────────────────────────────────────────────────────
+  const dropRibbon = useCallback(async () => {
+    if (!readerUser) { setShowAuthModal(true); return; }
+    const cfi = currentCFI.current;
+    if (!cfi) return;
+    if (!reduced) { setRibbonDropping(true); setTimeout(() => setRibbonDropping(false), 650); }
+    try {
+      const db = await getDB();
+      const { ref, push } = await import('firebase/database');
+      await push(ref(db, `readerBookmarks/${readerUser.uid}/${slug}`), {
+        cfi, label: chapterLabel || null, createdAt: Date.now(),
+      });
+    } catch (e) { console.warn('[reader] ribbon save failed', e); }
+  }, [readerUser, slug, chapterLabel, reduced]);
+
+  const removeRibbon = useCallback(async (r) => {
+    if (!readerUser) return;
+    if (!window.confirm('Remove this ribbon?')) return;
+    try {
+      const db = await getDB();
+      const { ref, remove } = await import('firebase/database');
+      await remove(ref(db, `readerBookmarks/${readerUser.uid}/${slug}/${r.id}`));
+    } catch (e) {}
+  }, [readerUser, slug]);
+
+  const jumpTo = useCallback((cfiOrHref) => {
+    postToFrame({ type: 'goTo', cfi: cfiOrHref });
+    closePanel();
+  }, [postToFrame, closePanel]);
+
+  // ── Search (debounced) ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (panel !== 'search') return;
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    const q = searchQuery.trim();
+    if (!q) { setSearchResults([]); setSearchTruncated(false); setSearching(false); return; }
+    setSearching(true);
+    searchDebounce.current = setTimeout(() => {
+      const id = ++searchIdRef.current;
+      postToFrame({ type: 'search', id, query: q });
+    }, 320);
+    return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); };
+  }, [searchQuery, panel, postToFrame]);
+
+  const pickResult = useCallback((r) => {
+    postToFrame({ type: 'goTo', cfi: r.cfi });
+    closePanel();
+  }, [postToFrame, closePanel]);
 
   if (!story) return (
-    <div style={{ minHeight: '100vh', background: '#1a0f0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+    <div style={{ minHeight: '100dvh', background: '#1a0f0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <style>{'@keyframes spin{to{transform:rotate(360deg)}}'}</style>
       <div style={{ width: 36, height: 36, border: '2px solid rgba(201,164,76,0.2)', borderTopColor: '#c9a44c', borderRadius: '50%', animation: 'spin 0.9s linear infinite' }} />
     </div>
   );
 
-  const iframeSrc = story.epubUrl
-    ? '/vendor/foliate-js-main/calvary-reader.html?url=' + encodeURIComponent(story.epubUrl) + '&fs=' + FONT_SIZES[fontIndex]
-    : null;
+  const iframeSrc = story.epubUrl ? readingRoomSrc(story.epubUrl, prefsInit.current) : null;
+  const backHref = `/stories/${slug}`;
+  const paper = PAPERS[prefs.paper] || PAPERS.vellum;
+
+  const botText = (() => {
+    const parts = [];
+    if (botInfo.cur && botInfo.total) parts.push(`Page ${botInfo.cur} of ${botInfo.total}`);
+    parts.push(`${botInfo.pct || 0}%`);
+    if (typeof botInfo.minLeft === 'number') parts.push(`${botInfo.minLeft} min left in chapter`);
+    return parts.join(' · ');
+  })();
 
   return (
     <>
       <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html,body{height:100%;background:#1a0f0a}
+        html,body{height:100%}
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeOpacity{from{opacity:0}to{opacity:1}}
         @keyframes blink{0%,100%{opacity:0.35}50%{opacity:0.9}}
         @keyframes spin{to{transform:rotate(360deg)}}
-        .rtop{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:linear-gradient(to bottom,rgba(26,15,10,.96) 60%,transparent);gap:8px}
-        .rlogo{font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.2em;color:rgba(201,164,76,.45);text-decoration:none;text-transform:uppercase;white-space:nowrap}
-        .rlogo:hover{color:rgba(201,164,76,.85)}
-        .rtitle{font-family:Cormorant Garamond,Georgia,serif;font-size:.72rem;font-style:italic;color:rgba(240,234,216,.28);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center}
-        .rtop-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
-        .rbtn{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.5);text-transform:uppercase;background:none;border:1px solid rgba(201,164,76,.25);border-radius:3px;padding:4px 9px;cursor:pointer;transition:all .2s;white-space:nowrap}
-        .rbtn:hover{color:rgba(201,164,76,.9);border-color:rgba(201,164,76,.6)}
-        .rclose{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.4);text-decoration:none;text-transform:uppercase;white-space:nowrap}
-        .rclose:hover{color:rgba(201,164,76,.85)}
-        .bcover{position:fixed;inset:0;background:linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;text-align:center;z-index:150;cursor:pointer;animation:fadeUp .7s ease forwards}
-        .bcover::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 65% at 50% 38%,rgba(107,47,173,.28) 0%,transparent 68%)}
-        .bcimg{width:auto;height:auto;max-width:min(320px,75vw);max-height:65vh;object-fit:contain;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2);margin-bottom:14px}
-        .bcorn{font-size:.55rem;letter-spacing:.4em;color:rgba(201,164,76,.3);margin-bottom:10px;position:relative;z-index:1}
-        .bctitle{font-family:Cormorant Garamond,Georgia,serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
-        .bcauthor{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.24em;color:rgba(201,164,76,.65);text-transform:uppercase;position:relative;z-index:1}
-        .bcabout{position:relative;z-index:1;margin-top:16px;width:100%;max-width:440px;display:flex;justify-content:center}
-        .bccta{position:absolute;bottom:22px;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;color:rgba(201,164,76,.4);text-transform:uppercase;animation:blink 2.2s ease-in-out infinite}
-        .reader-frame{position:fixed;top:48px;left:0;right:0;bottom:32px;border:none;width:100%;height:calc(100dvh - 96px)}
-        .rbot{position:fixed;bottom:0;left:0;right:0;height:32px;background:rgba(26,15,10,0.92);display:flex;align-items:center;justify-content:center;z-index:200}
-        .rprog{position:absolute;top:0;left:0;right:0;height:2px;background:rgba(201,164,76,0.07)}
-        .rprogf{height:100%;background:linear-gradient(90deg,#6b2fad,#c9a44c);transition:width 0.45s ease}
-        .rpageinfo{font-family:'Cinzel',serif;font-size:.45rem;letter-spacing:.2em;color:rgba(201,164,76,0.6);text-transform:uppercase;white-space:nowrap;pointer-events:none}
-        .no-epub{position:fixed;inset:0;top:48px;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:Cormorant Garamond,Georgia,serif;font-style:italic;color:#888;font-size:1rem}
-        .bend-wrap{position:fixed;inset:0;top:48px;overflow-y:auto;background:#0a0a0a;animation:fadeOpacity .5s ease forwards;z-index:10}
-        .bend{display:flex;flex-direction:column;align-items:center;padding:48px 24px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.06)}
-        .beorn{font-size:.9rem;color:#c9a44c;letter-spacing:.5em;margin-bottom:18px}
-        .berule{width:60px;height:1px;background:rgba(201,164,76,.3);margin:0 auto 18px}
-        .betitle{font-family:Cormorant Garamond,Georgia,serif;font-size:1.35rem;font-style:italic;color:#f5efe0;margin-bottom:6px}
-        .beauth{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.2em;color:rgba(201,164,76,.55);text-transform:uppercase;margin-bottom:24px}
-        .bemeta{font-family:Cormorant Garamond,Georgia,serif;font-size:.85rem;font-style:italic;color:rgba(255,255,255,.3);margin-bottom:24px}
-        .bebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#c9a84c;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
-        .bebtn:hover{background:rgba(107,47,173,.12);border-color:#c9a84c}
+        @keyframes ribbonDrop{0%{transform:translateY(-40px)}60%{transform:translateY(6px)}100%{transform:translateY(0)}}
+        @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+        @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+        @keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateX(-50%) translateY(-8px)}}
+
+        .rr-root{--rr-accent:#c9a44c;position:fixed;inset:0;width:100vw;height:100dvh;overflow:hidden;background:var(--rr-bg);color:var(--rr-fg)}
+        .rr-root[data-theme="vellum"]{--rr-bg:#f2ecd9;--rr-fg:#2b2418;--rr-chrome:rgba(242,236,217,.9);--rr-line:rgba(43,36,24,.14);--rr-soft:rgba(43,36,24,.55)}
+        .rr-root[data-theme="ivory"]{--rr-bg:#faf7f0;--rr-fg:#1f1c16;--rr-chrome:rgba(250,247,240,.9);--rr-line:rgba(31,28,22,.13);--rr-soft:rgba(31,28,22,.55)}
+        .rr-root[data-theme="dusk"]{--rr-bg:#211d16;--rr-fg:#ddd2b8;--rr-chrome:rgba(33,29,22,.9);--rr-line:rgba(221,210,184,.16);--rr-soft:rgba(221,210,184,.55)}
+        .rr-root[data-theme="ink"]{--rr-bg:#0a0a0a;--rr-fg:#d9d2bf;--rr-chrome:rgba(10,10,10,.92);--rr-line:rgba(217,210,191,.14);--rr-soft:rgba(217,210,191,.5)}
+
+        .rr-frame{position:fixed;inset:0;border:none;width:100%;height:100dvh;background:var(--rr-bg)}
+
+        .rr-top{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;gap:8px;padding:8px 12px;
+          padding-top:max(8px,env(safe-area-inset-top));background:var(--rr-chrome);backdrop-filter:blur(10px);
+          border-bottom:1px solid var(--rr-line);transition:transform .35s cubic-bezier(.2,.7,.2,1)}
+        .rr-top.hidden{transform:translateY(-110%)}
+        .rr-back{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;font-family:'Cinzel',serif;font-size:.6rem;
+          letter-spacing:.14em;text-transform:uppercase;color:var(--rr-soft);text-decoration:none;white-space:nowrap}
+        .rr-back:hover{color:var(--rr-accent)}
+        .rr-titleblock{flex:1;text-align:center;min-width:0}
+        .rr-book-title{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--rr-fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .rr-chapter{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:.72rem;color:var(--rr-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+        .rr-tools{display:flex;align-items:center;gap:2px;flex-shrink:0}
+        .rr-tool{min-width:44px;min-height:44px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;
+          background:none;border:none;cursor:pointer;font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.1em;
+          text-transform:uppercase;color:var(--rr-soft)}
+        .rr-tool:hover{color:var(--rr-accent)}
+
+        .rr-bot{position:fixed;bottom:0;left:0;right:0;z-index:40;display:flex;align-items:center;justify-content:center;
+          min-height:44px;padding-bottom:max(0px,env(safe-area-inset-bottom));background:var(--rr-chrome);backdrop-filter:blur(10px);
+          border-top:1px solid var(--rr-line);transition:transform .35s cubic-bezier(.2,.7,.2,1)}
+        .rr-bot.hidden{transform:translateY(110%)}
+        .rr-botinfo{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.16em;text-transform:uppercase;color:var(--rr-soft);white-space:nowrap;pointer-events:none;padding:0 12px}
+
+        .rr-thread{position:fixed;bottom:0;left:0;right:0;height:3px;z-index:50;background:rgba(201,164,76,.1);pointer-events:none}
+        .rr-thread-fill{height:100%;background:var(--rr-accent);box-shadow:0 0 8px rgba(201,164,76,.7);transition:width .45s ease}
+
+        .rr-ribbon-tab{position:fixed;top:0;right:22px;z-index:38;width:26px;min-height:44px;border:none;cursor:pointer;padding:0;
+          background:linear-gradient(180deg,#e8c877,#a8842f);box-shadow:0 3px 8px rgba(0,0,0,.4);
+          display:flex;align-items:flex-start;justify-content:center;padding-top:8px;color:#3a2c0a}
+        .rr-ribbon-tab::after{content:'';position:absolute;left:0;right:0;bottom:-8px;height:9px;background:linear-gradient(180deg,#c9a44c,#a8842f);clip-path:polygon(0 0,100% 0,100% 100%,50% 55%,0 100%)}
+        .rr-ribbon-tab.dropping{animation:ribbonDrop .65s cubic-bezier(.2,.8,.2,1)}
+        .rr-ribbon-count{font-family:'Cinzel',serif;font-size:.5rem;font-weight:600}
+
+        .rr-sheet-backdrop{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+        .rr-sheet{width:100%;max-width:560px;max-height:82dvh;background:var(--rr-bg);color:var(--rr-fg);border:1px solid var(--rr-line);
+          border-radius:18px 18px 0 0;padding:10px 20px calc(24px + env(safe-area-inset-bottom));animation:sheetUp .32s cubic-bezier(.2,.7,.2,1);display:flex;flex-direction:column}
+        .rr-sheet-tall{height:78dvh}
+        .rr-grab{width:38px;height:4px;border-radius:999px;background:var(--rr-soft);opacity:.5;margin:2px auto 14px}
+        .rr-sheet-title{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:var(--rr-accent);text-align:center;margin-bottom:1.4rem}
+        .rr-row-label{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.2em;text-transform:uppercase;color:var(--rr-soft);margin:0 0 .7rem}
+        .rr-swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1.4rem}
+        .rr-swatch{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:0}
+        .rr-swatch-page{width:100%;aspect-ratio:3/4;min-height:44px;border-radius:4px;display:flex;align-items:center;justify-content:center;
+          font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;box-shadow:0 4px 12px rgba(0,0,0,.3);border:2px solid transparent}
+        .rr-swatch.active .rr-swatch-page{border-color:var(--rr-accent)}
+        .rr-swatch-name{font-family:'Cinzel',serif;font-size:.48rem;letter-spacing:.1em;text-transform:uppercase;color:var(--rr-soft)}
+        .rr-faces{display:flex;gap:.6rem;margin-bottom:1.4rem;flex-wrap:wrap}
+        .rr-face{flex:1;min-height:44px;min-width:90px;border:1px solid var(--rr-line);border-radius:8px;background:none;color:var(--rr-fg);cursor:pointer;font-size:1rem;padding:.4rem}
+        .rr-face.active{border-color:var(--rr-accent);color:var(--rr-accent)}
+        .rr-stepper-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;gap:1rem}
+        .rr-stepper,.rr-toggle{display:flex;align-items:center;gap:2px;border:1px solid var(--rr-line);border-radius:10px;overflow:hidden}
+        .rr-step{min-width:44px;min-height:44px;background:none;border:none;color:var(--rr-fg);font-size:1.2rem;cursor:pointer}
+        .rr-step:disabled{opacity:.3;cursor:not-allowed}
+        .rr-step-val{min-width:56px;text-align:center;font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.06em;color:var(--rr-fg)}
+        .rr-toggle-opt{min-height:44px;padding:0 1.1rem;background:none;border:none;cursor:pointer;font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.14em;text-transform:uppercase;color:var(--rr-soft)}
+        .rr-toggle-opt.active{background:var(--rr-accent);color:var(--rr-bg)}
+
+        .rr-scroll{overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}
+        .rr-toc-item{display:block;width:100%;text-align:start;min-height:44px;background:none;border:none;border-bottom:1px solid var(--rr-line);
+          cursor:pointer;color:var(--rr-fg);font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;padding:.6rem 1rem}
+        .rr-toc-item.current{color:var(--rr-accent)}
+        .rr-toc-item:disabled{opacity:.5;cursor:default}
+        .rr-section-label{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.2em;text-transform:uppercase;color:var(--rr-accent);margin:1.4rem 0 .5rem}
+        .rr-ribbon-row{display:flex;align-items:center;gap:.5rem;border-bottom:1px solid var(--rr-line)}
+        .rr-ribbon-jump{flex:1;display:flex;align-items:center;gap:.7rem;min-height:44px;background:none;border:none;cursor:pointer;text-align:start;color:var(--rr-fg);padding:.5rem 0}
+        .rr-ribbon-dot{width:8px;height:16px;background:var(--rr-accent);border-radius:1px;flex-shrink:0}
+        .rr-ribbon-label{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-size:.95rem}
+        .rr-ribbon-time{display:block;font-size:.7rem;color:var(--rr-soft)}
+        .rr-ribbon-x{min-width:44px;min-height:44px;background:none;border:none;color:var(--rr-soft);font-size:1.2rem;cursor:pointer}
+        .rr-empty{padding:2rem 1rem;text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;color:var(--rr-soft)}
+
+        .rr-search-head{display:flex;align-items:center;gap:.5rem;margin-bottom:1rem}
+        .rr-search-input{flex:1;min-height:44px;background:none;border:1px solid var(--rr-line);border-radius:10px;padding:0 1rem;color:var(--rr-fg);font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;outline:none}
+        .rr-search-close{min-width:44px;min-height:44px;background:none;border:none;color:var(--rr-soft);font-size:1.4rem;cursor:pointer}
+        .rr-result{display:block;width:100%;text-align:start;background:none;border:none;border-bottom:1px solid var(--rr-line);cursor:pointer;padding:.75rem 1rem}
+        .rr-result-chapter{display:block;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.16em;text-transform:uppercase;color:var(--rr-soft);margin-bottom:.3rem}
+        .rr-result-excerpt{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-size:.92rem;line-height:1.5;color:var(--rr-fg)}
+        .rr-result-excerpt mark{background:none;color:var(--rr-accent);font-weight:600}
+
+        .rr-cover{position:fixed;inset:0;background:linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;text-align:center;z-index:80;cursor:pointer;animation:fadeUp .7s ease forwards}
+        .rr-cover::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 65% at 50% 38%,rgba(107,47,173,.28) 0%,transparent 68%)}
+        .rr-cimg{width:auto;height:auto;max-width:min(320px,75vw);max-height:60dvh;object-fit:contain;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2);margin-bottom:14px}
+        .rr-corn{font-size:.55rem;letter-spacing:.4em;color:rgba(201,164,76,.3);margin-bottom:10px;position:relative;z-index:1}
+        .rr-ctitle{font-family:Cormorant Garamond,Georgia,serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
+        .rr-cauthor{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.24em;color:rgba(201,164,76,.65);text-transform:uppercase;position:relative;z-index:1}
+        .rr-cabout{position:relative;z-index:1;margin-top:16px;width:100%;max-width:440px;display:flex;justify-content:center}
+        .rr-ccta{position:absolute;bottom:calc(22px + env(safe-area-inset-bottom));font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;color:rgba(201,164,76,.4);text-transform:uppercase;animation:blink 2.2s ease-in-out infinite}
+
+        .rr-end-wrap{position:fixed;inset:0;overflow-y:auto;background:#0a0a0a;animation:fadeOpacity .5s ease forwards;z-index:70}
+        .rr-end{display:flex;flex-direction:column;align-items:center;padding:calc(48px + env(safe-area-inset-top)) 24px 32px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.06)}
+        .rr-eorn{font-size:.9rem;color:#c9a44c;letter-spacing:.5em;margin-bottom:18px}
+        .rr-erule{width:60px;height:1px;background:rgba(201,164,76,.3);margin:0 auto 18px}
+        .rr-etitle{font-family:Cormorant Garamond,Georgia,serif;font-size:1.35rem;font-style:italic;color:#f5efe0;margin-bottom:6px}
+        .rr-eauth{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.2em;color:rgba(201,164,76,.55);text-transform:uppercase;margin-bottom:24px}
+        .rr-ebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#c9a84c;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
+        .rr-ebtn:hover{background:rgba(107,47,173,.12);border-color:#c9a84c}
+
+        .rr-resume-toast{position:fixed;bottom:calc(52px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:Cormorant Garamond,Georgia,serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:55;pointer-events:none}
+        .rr-resume-toast.in{animation:toastIn .4s ease forwards}
+        .rr-resume-toast.out{animation:toastOut .4s ease forwards}
+
+        .rr-noepub{position:fixed;inset:0;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:Cormorant Garamond,Georgia,serif;font-style:italic;color:#888;font-size:1rem}
+
+        @media (prefers-reduced-motion: reduce){
+          .rr-top,.rr-bot,.rr-thread-fill,.rr-sheet,.rr-cover,.rr-end-wrap{transition:none !important;animation:none !important}
+          .rr-ribbon-tab.dropping{animation:none}
+        }
+
+        /* Comments / end-card styles (PRESERVED from the previous reader) */
         .cs-section{background:#0a0a0a;max-width:680px;margin:0 auto;padding:2.5rem 1.5rem 6rem}
         .cs-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid rgba(255,255,255,0.07)}
         .cs-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.3rem;font-weight:300;color:#f5f0e8;letter-spacing:.02em}
@@ -720,122 +1112,111 @@ export default function StoryReaderClient({ params }) {
         .cs-reply-compose{margin-top:.75rem}
         .cs-replies{margin-top:.75rem;padding-left:1rem;border-left:1px solid rgba(107,47,173,.25);display:flex;flex-direction:column;gap:.75rem}
         .cs-reply{display:flex;gap:10px}
-        @media(max-width:600px){.rtitle{display:none}.rbtn{font-size:.44rem;padding:3px 7px}.cs-section{padding:2rem 1rem 5rem}}
-        @keyframes confirmDrop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-        .bookmark-confirm{position:absolute;top:44px;right:0;background:#1a0f0a;border:1px solid rgba(201,164,76,0.3);border-radius:8px;padding:8px 14px;font-family:Cormorant Garamond,Georgia,serif;font-size:.78rem;font-style:italic;color:rgba(240,234,216,0.7);white-space:nowrap;z-index:300;animation:confirmDrop .3s ease forwards;pointer-events:none;}
-        @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-        @keyframes toastOut{from{opacity:1;transform:translateX(-50%) translateY(0)}to{opacity:0;transform:translateX(-50%) translateY(-8px)}}
-        .bookmark-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:Cormorant Garamond,Georgia,serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:300;pointer-events:none;}
-        .bookmark-toast.in{animation:toastIn .4s ease forwards}
-        .bookmark-toast.out{animation:toastOut .4s ease forwards}
-        @media(max-width:600px){.cs-textarea,.cs-textarea-sm{font-size:16px !important}}
+        .cs-save-btn,.cs-cancel-btn{font-family:Cormorant Garamond,Georgia,serif;font-size:.78rem;font-weight:600;padding:.35rem .9rem;border-radius:6px;cursor:pointer}
+        .cs-save-btn{background:#6b2fad;color:#fff;border:none}
+        .cs-cancel-btn{background:none;color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.15)}
+        @media(max-width:600px){.cs-section{padding:2rem 1rem 5rem}.cs-textarea,.cs-textarea-sm{font-size:16px !important}}
       `}</style>
 
-      <div style={{ width: '100vw', height: '100vh', background: '#1a0f0a', overflow: 'hidden' }}>
-        <div className="rtop">
-          <a href="/" className="rlogo">Calvary Scribblings</a>
-          <span className="rtitle">{story.title}</span>
-          <div className="rtop-right">
-            <div style={{ position: 'relative' }}>
-              <button className="rbtn" onClick={() => iframeRef.current?.contentWindow?.postMessage({ type: 'saveBookmark' }, '*')} title="Bookmark" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill={bookmarkSaved ? '#c9a44c' : 'none'} stroke="rgba(201,164,76,0.7)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-                {bookmarkSaved ? 'Saved' : 'Mark'}
-              </button>
-              {bookmarkConfirm && <div className="bookmark-confirm">Page marked. Jump back in when you return!</div>}
-            </div>
-<button className="rbtn" onClick={cycleFont}>Aa {FONT_SIZES[fontIndex]}px</button>
-            <a href={'/stories/' + slug} className="rclose">← View</a>
-          </div>
-        </div>
+      <div className="rr-root" data-theme={prefs.paper}>
+        {/* Reading surface + chrome (only while actually reading) */}
+        {!showCover && !showEnd && readerReady && (iframeSrc
+          ? <iframe ref={iframeRef} className="rr-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" />
+          : <div className="rr-noepub">No EPUB file available for this book.</div>
+        )}
 
+        {!showCover && !showEnd && (
+          <>
+            <header className={'rr-top' + (chromeVisible ? '' : ' hidden')}>
+              <a href={backHref} className="rr-back">&larr; Stories</a>
+              <div className="rr-titleblock">
+                <div className="rr-book-title">{story.title}</div>
+                {chapterLabel && <div className="rr-chapter">{chapterLabel}</div>}
+              </div>
+              <div className="rr-tools">
+                <button className="rr-tool" onClick={() => openPanel('toc')}>Contents</button>
+                <button className="rr-tool" onClick={() => openPanel('search')}>Search</button>
+                <button className="rr-tool" onClick={() => openPanel('type')} aria-label="Typesetter">Aa</button>
+              </div>
+            </header>
+
+            <button className={'rr-ribbon-tab' + (ribbonDropping ? ' dropping' : '')} onClick={dropRibbon} aria-label="Drop a ribbon" style={{ height: 48 }}>
+              {ribbons.length > 0 && <span className="rr-ribbon-count">{ribbons.length}</span>}
+            </button>
+
+            <footer className={'rr-bot' + (chromeVisible ? '' : ' hidden')}>
+              <div className="rr-botinfo">{botText}</div>
+            </footer>
+
+            <div className="rr-thread"><div className="rr-thread-fill" style={{ width: (fraction * 100) + '%' }} /></div>
+
+            {panel === 'type' && (
+              <TypesetterPanel prefs={prefs} onPaper={onPaper} onFace={onFace} onSize={onSize} onLeading={onLeading} onFlow={onFlow} onClose={closePanel} />
+            )}
+            {panel === 'toc' && (
+              <ContentsPanel toc={toc} chapterHref={chapterHref} ribbons={ribbons} onJump={jumpTo} onRemoveRibbon={removeRibbon} onClose={closePanel} />
+            )}
+            {panel === 'search' && (
+              <SearchPanel query={searchQuery} setQuery={setSearchQuery} results={searchResults} truncated={searchTruncated} searching={searching} onPick={pickResult} onClose={closePanel} />
+            )}
+
+            {resumeToast && (
+              <div className={'rr-resume-toast ' + (toastFading ? 'out' : 'in')}>Continue where you left off 🏝️</div>
+            )}
+          </>
+        )}
+
+        {/* Cover splash */}
         {showCover && (
-          <div className="bcover" onClick={() => {
-            const snapFraction = bookmark;
-            const snapCFI = bookmarkCFI.current || '';
-            setShowCover(false);
-            if (snapFraction) {
-              setTimeout(() => {
-                iframeRef.current?.contentWindow?.postMessage({ type: 'restoreBookmark', fraction: snapFraction, cfi: snapCFI }, '*');
-              }, 1500);
-            }
-          }}>
-            <div className="bcorn">✦ ✦ ✦</div>
-            <img src={story.cover} alt={story.title} className="bcimg" />
-            <div className="bctitle">{story.title}</div>
-            <div className="bcauthor">by {story.author}</div>
-            <div className="bcabout" onClick={e => e.stopPropagation()}>
+          <div className="rr-cover" onClick={() => setShowCover(false)}>
+            <div className="rr-corn">✦ ✦ ✦</div>
+            <img src={story.cover} alt={story.title} className="rr-cimg" />
+            <div className="rr-ctitle">{story.title}</div>
+            <div className="rr-cauthor">by {story.author}</div>
+            <div className="rr-cabout" onClick={e => e.stopPropagation()}>
               <AboutTheAuthor story={story} variant="condensed" />
             </div>
-            <div className="bccta">Open to begin reading</div>
+            <div className="rr-ccta">Open to begin reading</div>
           </div>
         )}
 
+        {/* End card */}
         {!showCover && showEnd && (
-          <div className="bend-wrap">
-            <div className="bend">
-              <div className="beorn">✦</div>
-              <div className="berule" />
-              <div className="betitle">{story.title}</div>
-              <div className="beauth">by {story.author}</div>
+          <div className="rr-end-wrap">
+            <div className="rr-end">
+              <div className="rr-eorn">✦</div>
+              <div className="rr-erule" />
+              <div className="rr-etitle">{story.title}</div>
+              <div className="rr-eauth">by {story.author}</div>
               <div style={{ margin: '4px 0 24px' }}>
                 <ReadSeal count={hitCount} active ink="#f5efe0" />
               </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                <button className="bebtn" onClick={() => setShowEnd(false)}>← Back to book</button>
-                <a href={'/' + (story.category || '')} className="bebtn">More stories</a>
+                <button className="rr-ebtn" onClick={() => setShowEnd(false)}>← Back to book</button>
+                <a href={'/' + (story.category || '')} className="rr-ebtn">More stories</a>
               </div>
-
             </div>
             <div style={{ maxWidth: 680, margin: '2rem auto 0', padding: '0 1.5rem' }}>
-              <QuizCard
-                slug={slug}
-                user={readerUser}
-                mode="reader"
-                readPercent={progress}
-                onSignIn={() => setShowAuthModal(true)}
-              />
+              <QuizCard slug={slug} user={readerUser} mode="reader" readPercent={progress} onSignIn={() => setShowAuthModal(true)} />
             </div>
             <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
           </div>
         )}
 
+        {/* Discuss shortcut near the end */}
         {!showCover && !showEnd && progress > 90 && (
           <button
             onClick={() => setShowEnd(true)}
-            style={{
-              position: 'fixed', bottom: '52px', left: '50%', transform: 'translateX(-50%)',
-              background: '#6b2fad', border: 'none', borderRadius: '999px',
-              padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '8px',
-              fontFamily: "'Cinzel',serif", fontSize: '.58rem', letterSpacing: '.18em',
-              textTransform: 'uppercase', color: '#f5f0e8', cursor: 'pointer', zIndex: 300,
-              boxShadow: '0 4px 24px rgba(107,47,173,0.5)',
-              animation: 'fadeUp .4s ease forwards',
-            }}
+            style={{ position: 'fixed', bottom: 'calc(52px + env(safe-area-inset-bottom))', left: '50%', transform: 'translateX(-50%)', background: '#6b2fad', border: 'none', borderRadius: '999px', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Cinzel',serif", fontSize: '.58rem', letterSpacing: '.18em', textTransform: 'uppercase', color: '#f5f0e8', cursor: 'pointer', zIndex: 45, boxShadow: '0 4px 24px rgba(107,47,173,0.5)' }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#f5f0e8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#f5f0e8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             Discuss
           </button>
-        )}
-        {!showCover && !showEnd && bookmarkLoaded && (iframeSrc
-          ? <iframe ref={iframeRef} className="reader-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" />
-          : <div className="no-epub">No EPUB file available for this book.</div>
-        )}
-
-        {!showCover && !showEnd && (
-          <div className="rbot">
-            <div className="rprog"><div className="rprogf" style={{ width: progress + '%' }} /></div>
-            {pageInfo && <span className="rpageinfo">{pageInfo}</span>}
-          </div>
         )}
 
         {showAuthModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>
             <AuthModal onClose={() => setShowAuthModal(false)} />
-          </div>
-        )}
-        {showBookmarkToast && (
-          <div className={'bookmark-toast ' + (toastFading ? 'out' : 'in')}>
-            Continue where you left off on the Island 🏝️
           </div>
         )}
       </div>

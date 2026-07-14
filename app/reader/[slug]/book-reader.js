@@ -18,6 +18,26 @@ function readSampleFlag() {
   return new URLSearchParams(window.location.search).get('sample') === '1';
 }
 
+// R4a: samples stream through the shared Reading Room host (public/reading-room.html), NOT the
+// retired vendored calvary-reader.html. sample=1 keeps ribbons/progress off (this component wires
+// neither). We honour the reader's saved paper/typeface prefs so a sample matches their settings.
+const SAMPLE_PAPERS = { vellum: ['#f2ecd9', '#2b2418'], ivory: ['#faf7f0', '#1f1c16'], dusk: ['#211d16', '#ddd2b8'], ink: ['#0a0a0a', '#d9d2bf'] };
+function sampleRoomSrc(url) {
+  let p = { paper: 'vellum', face: 'cormorant', sizePct: 100, leading: 1.6, flow: 'paginated' };
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('readingRoom.prefs');
+      if (raw) p = { ...p, ...JSON.parse(raw) };
+    }
+  } catch {}
+  const [bg, fg] = SAMPLE_PAPERS[p.paper] || SAMPLE_PAPERS.vellum;
+  const qs = new URLSearchParams({
+    url, bg, fg, face: p.face || 'cormorant', size: String(p.sizePct || 100),
+    leading: String(p.leading || 1.6), flow: p.flow || 'paginated', sample: '1',
+  });
+  return '/reading-room.html?' + qs.toString();
+}
+
 export default function BookstoreReaderClient({ slug, title }) {
   const isSample = readSampleFlag() && !!title.samplePath;
   const [epubUrl, setEpubUrl] = useState(null);
@@ -104,7 +124,7 @@ export default function BookstoreReaderClient({ slug, title }) {
       ) : epubUrl ? (
         <iframe
           className="br-frame"
-          src={`/vendor/foliate-js-main/calvary-reader.html?url=${encodeURIComponent(epubUrl)}&fs=16`}
+          src={sampleRoomSrc(epubUrl)}
           title={`${title.title} (sample)`}
           sandbox="allow-scripts allow-same-origin"
         />

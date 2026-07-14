@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Reading Room</title>
+<!--
+  The Reading Room — Calvary-owned reader host (R4a). This file is OURS; it lives at the public
+  root (NOT inside public/vendor/foliate-js-main/, which stays pristine). It imports the vendored
+  foliate-js modules read-only via absolute /vendor/… paths and does the iframe-side R4a work:
+  CFI relocate/goTo, setStyles (paper/face/size/leading/justification), flow toggle, built-in
+  search, a ready-gated goTo queue, and an origin-locked postMessage bridge to the React chrome
+  in app/reader/[slug]/page-reader.js.
+
+  It supersedes public/vendor/foliate-js-main/calvary-reader.html, which is now dead (see the R4a
+  report). We do not edit or delete that file because it sits in the forbidden vendored tree.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Cinzel:wght@400;600&family=Inter:wght@300;400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
+<style>
+  html,body{height:100%;margin:0;overflow:hidden}
+  foliate-view{display:block;width:100%;height:100dvh}
+  #loading{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:100;transition:opacity .4s ease}
+  #loading.hidden{opacity:0;pointer-events:none}
+  #spinner{width:32px;height:32px;border:2px solid rgba(201,164,76,.2);border-top-color:#c9a44c;border-radius:50%;animation:spin .9s linear infinite}
+  #loading-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1rem;opacity:.55}
+  #error{display:none;position:fixed;inset:0;align-items:center;justify-content:center;padding:32px;text-align:center;z-index:100}
+  #error.show{display:flex}
+  #error-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1rem;color:#c0392b}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+<div id="loading"><div id="spinner"></div><div id="loading-text">Opening book…</div></div>
+<div id="error"><div id="error-text">Could not open this book. Please try again.</div></div>
+
+<script type="module">
+import '/vendor/foliate-js-main/view.js'
+import { Overlayer } from '/vendor/foliate-js-main/overlayer.js'
+
+// ── Origin-locked bridge (HYGIENE: replaces the old wildcard '*') ──────────────
+const PARENT_ORIGIN = (() => {
+  try { return document.referrer ? new URL(document.referrer).origin : location.origin } catch { return location.origin }
+})()
+const post = (msg) => { try { parent.postMessage(msg, PARENT_ORIGIN) } catch (e) { /* noop */ } }
+
+const params = new URLSearchParams(location.search)
+const url = params.get('url')
+const isSample = params.get('sample') === '1'
+
+// Initial typesetter state from the query (prevents a flash before the parent's first message).
+const initial = {
+  bg: params.get('bg') || '#f2ecd9',
+  fg: params.get('fg') || '#2b2418',
+  face: params.get('face') || 'cormorant',
+  sizePct: parseInt(params.get('size') || '100', 10),
+  leading: parseFloat(params.get('leading') || '1.6'),
+  flow: params.get('flow') === 'scrolled' ? 'scrolled' : 'paginated',
+  justify: params.get('justify') !== '0',
+}
+document.documentElement.style.background = initial.bg
+document.body && (document.body.style.background = initial.bg)
+
+const FACE_STACK = {
+  cormorant: "'Cormorant Garamond', Georgia, serif",
+  literata: "'Literata', Georgia, serif",
+  inter: "'Inter', system-ui, sans-serif",
+}
+
+function buildCSS(st) {
+  const face = FACE_STACK[st.face] || FACE_STACK.cormorant
+  const px = Math.round(18 * (st.sizePct / 100))
+  return `
+    body{ font-family:${face} !important; color:${st.fg} !important; background:${st.bg} !important; font-size:${px}px !important; }
+    p, li, blockquote, dd { font-family:${face} !important; font-size:${px}px !important; line-height:${st.leading} !important;
+      text-align:${st.justify ? 'justify' : 'start'} !important; hyphens:auto !important; -webkit-hyphens:auto !important; }
+    p + p { text-indent:1.4em; }
+    h1, h2, h3 { font-family:${face} !important; color:${st.fg} !important; }
+    blockquote { border-inline-start:2px solid #c9a44c; padding-inline-start:1em; font-style:italic; }
+    a { color:#a8842f !important; }
+    pre { white-space:pre-wrap !important; }
+    /* Kill decorative drop-cap images some EPUBs ship — harmless where absent. */
+    span[style*="background-image"] { display:none !important; float:none !important; width:0 !important; height:0 !important; }
+  `
+}
+
+const state = { ...initial }
+let view = null
+let ready = false
+let pendingGoTo = null
+let pendingFraction = null
+let lastCFI = ''
+let lastChapter = ''
+let lastFraction = 0
+let minStep = 0
+const sectionWords = new Map()
+let currentIndex = -1
+let endedFired = false
+let searchToken = 0
+
+function countWords(doc) {
+  try { return (doc.body.innerText || '').trim().split(/\s+/).filter(Boolean).length } catch { return 0 }
+}
+
+function computeMinLeft() {
+  const w = sectionWords.get(currentIndex)
+  const pages = view?.renderer?.pages
+  const page = view?.renderer?.page
+  if (!w || !(pages > 2) || !(page >= 1)) return null
+  const frac = Math.min(1, Math.max(0, (page - 1) / (pages - 2)))
+  return Math.max(0, Math.round((w * (1 - frac)) / 220))
+}
+
+function computePages(fraction) {
+  // Whole-book Page X of Y estimate from the smallest observed fraction step. Universal —
+  // works for EPUBs without a page-list. Omitted (null) until a step is known.
+  if (!(minStep > 0)) return { cur: null, total: null }
+  const total = Math.max(1, Math.round(1 / minStep))
+  const cur = Math.min(total, Math.max(1, Math.round(fraction / minStep) + 1))
+  return { cur, total }
+}
+
+function applyStyles(patch) {
+  Object.assign(state, patch)
+  document.documentElement.style.background = state.bg
+  view?.renderer?.setStyles?.(buildCSS(state))
+}
+
+function setFlow(flow) {
+  state.flow = flow === 'scrolled' ? 'scrolled' : 'paginated'
+  view?.renderer?.setAttribute('flow', state.flow)
+  view?.renderer?.setStyles?.(buildCSS(state))
+}
+
+function flattenTOC(items, level = 0, out = []) {
+  if (!Array.isArray(items)) return out
+  for (const it of items) {
+    if (it && it.label) out.push({ label: String(it.label).trim(), href: it.href || null, level })
+    if (it && it.subitems) flattenTOC(it.subitems, level + 1, out)
+  }
+  return out
+}
+
+// ── Tap zones: left/right thirds = page turn, centre = toggle the parent's chrome. Links still
+// work (foliate handles link clicks; we skip page-turn when the tap lands on an anchor). ──
+function onTap(clientX, target) {
+  if (target && target.closest && target.closest('a[href]')) return // let links through
+  const w = window.innerWidth
+  if (clientX < w / 3) view?.goLeft()
+  else if (clientX > (w * 2) / 3) view?.goRight()
+  else post({ type: 'toggleChrome' })
+}
+
+if (!url) {
+  document.getElementById('loading').classList.add('hidden')
+  const err = document.getElementById('error'); err.classList.add('show')
+  document.getElementById('error-text').textContent = 'No book URL provided.'
+} else {
+  view = document.createElement('foliate-view')
+  document.body.append(view)
+
+  view.addEventListener('relocate', ({ detail }) => {
+    const fraction = detail.fraction ?? 0
+    lastCFI = detail.cfi || view.lastLocation?.cfi || lastCFI
+    lastChapter = detail.tocItem?.label || lastChapter
+    if (fraction > lastFraction) {
+      const step = fraction - lastFraction
+      if (step > 0 && step < 0.5 && (minStep === 0 || step < minStep)) minStep = step
+    }
+    lastFraction = fraction
+    const { cur, total } = computePages(fraction)
+    post({
+      type: 'relocate', cfi: lastCFI, fraction,
+      chapterLabel: lastChapter || null,
+      pageCurrent: cur, pageTotal: total,
+      pct: Math.round(fraction * 100),
+      minLeft: computeMinLeft(),
+    })
+    if (!endedFired && fraction >= 0.999) { endedFired = true; post({ type: 'ended' }) }
+  })
+
+  view.addEventListener('load', ({ detail }) => {
+    currentIndex = detail.index
+    if (!sectionWords.has(currentIndex)) sectionWords.set(currentIndex, countWords(detail.doc))
+    // Tap + swipe on the section document.
+    let tx = null
+    detail.doc.addEventListener('touchstart', (e) => { tx = e.touches[0]?.clientX ?? null }, { passive: true })
+    detail.doc.addEventListener('touchend', (e) => {
+      if (tx === null) return
+      const dx = tx - (e.changedTouches[0]?.clientX ?? tx); const startX = tx; tx = null
+      if (Math.abs(dx) > 50) { dx > 0 ? view.goRight() : view.goLeft() }
+      else onTap(startX, e.target)
+    })
+    detail.doc.addEventListener('click', (e) => onTap(e.clientX, e.target))
+    detail.doc.addEventListener('keydown', handleKey)
+  })
+
+  function handleKey(e) {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'h') view.goLeft()
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'l') view.goRight()
+  }
+  document.addEventListener('keydown', handleKey)
+  // Host-frame taps (margins outside the section doc) also route through the zone logic.
+  document.addEventListener('click', (e) => { if (e.target === document.body || e.target === view) onTap(e.clientX, e.target) })
+
+  view.open(url).then(() => {
+    view.renderer?.setStyles?.(buildCSS(state))
+    view.renderer?.setAttribute?.('flow', state.flow)
+    view.renderer?.next()
+    document.getElementById('loading').classList.add('hidden')
+    ready = true
+    const toc = flattenTOC(view.book?.toc || [])
+    const title = (() => { const t = view.book?.metadata?.title; return typeof t === 'string' ? t : (t && Object.values(t)[0]) || '' })()
+    post({ type: 'ready', toc, title })
+    // Ready-gated restore (PART 1 race hardening): apply the queued target now. CFI wins over
+    // the coarse fraction fallback.
+    if (pendingGoTo) { const t = pendingGoTo; pendingGoTo = null; try { view.goTo(t) } catch (e) {} }
+    else if (pendingFraction != null) { const f = pendingFraction; pendingFraction = null; try { view.goToFraction(f) } catch (e) {} }
+  }).catch((err) => {
+    console.error('[reading-room] open failed', err)
+    document.getElementById('loading').classList.add('hidden')
+    document.getElementById('error').classList.add('show')
+    post({ type: 'error', message: String(err?.message || err) })
+  })
+}
+
+// ── Parent → host bridge (origin-checked) ──────────────────────────────────────
+window.addEventListener('message', async (e) => {
+  if (e.origin !== PARENT_ORIGIN) return
+  const d = e.data || {}
+  switch (d.type) {
+    case 'applyStyles': applyStyles(d); break
+    case 'setFlow': setFlow(d.flow); break
+    case 'prev': view?.goLeft(); break
+    case 'next': view?.goRight(); break
+    case 'goTo':
+      if (!d.cfi) break
+      if (!ready) { pendingGoTo = d.cfi; break }
+      try { view.goTo(d.cfi) } catch (err) {}
+      break
+    case 'goToFraction':
+      if (typeof d.fraction !== 'number') break
+      if (!ready) { pendingFraction = d.fraction; break }
+      try { view.goToFraction(d.fraction) } catch (err) {}
+      break
+    case 'requestBookmark':
+      post({ type: 'bookmarkCFI', cfi: lastCFI, chapterLabel: lastChapter || null })
+      break
+    case 'clearSearch':
+      try { view?.clearSearch?.() } catch (err) {}
+      break
+    case 'search': {
+      const token = ++searchToken
+      const query = (d.query || '').trim()
+      if (!query) { post({ type: 'searchResults', id: d.id, results: [], done: true, truncated: false }); break }
+      const results = []
+      const CAP = 50
+      try {
+        try { view?.clearSearch?.() } catch (err) {}
+        for await (const r of view.search({ query, draw: Overlayer.highlight, drawOptions: { color: '#c9a44c' } })) {
+          if (token !== searchToken) return // superseded by a newer search
+          if (r === 'done') break
+          if (r && r.subitems) {
+            for (const s of r.subitems) {
+              if (!s?.cfi) continue
+              const ex = s.excerpt || {}
+              results.push({ cfi: s.cfi, pre: ex.pre || '', match: ex.match || query, post: ex.post || '', chapterLabel: r.label || null })
+              if (results.length >= CAP) break
+            }
+          } else if (r && r.cfi) {
+            const ex = r.excerpt || {}
+            results.push({ cfi: r.cfi, pre: ex.pre || '', match: ex.match || query, post: ex.post || '', chapterLabel: null })
+          }
+          if (results.length >= CAP) break
+        }
+        post({ type: 'searchResults', id: d.id, results, done: true, truncated: results.length >= CAP })
+      } catch (err) {
+        console.error('[reading-room] search failed', err)
+        post({ type: 'searchResults', id: d.id, results, done: true, truncated: false })
+      }
+      break
+    }
+  }
+})
+</script>
