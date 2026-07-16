@@ -10,6 +10,7 @@ import { db } from '../lib/firebase';
 import { ref, get, onValue } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { normalizeGenre } from '../lib/openPages';
+import { useArrivalReady } from '../components/ArrivalVeil';
 
 // ── Typography system ───────────────────────────────────────────────────────
 // DISPLAY for headings/titles, LABEL for kickers/badges/controls, BODY for meta.
@@ -945,6 +946,11 @@ export default function Home() {
   const [countdown, setCountdown] = useState('');
   const [allStories, setAllStories] = useState([]);
   const [carousel, setCarousel] = useState([]);
+
+  // When arriving from the gateway, its veil holds at black until this flips — the same
+  // first-data condition the skeletons below key off, so the reveal lands on real content
+  // rather than on a skeleton. Inert on a direct visit: there's no veil to lift.
+  useArrivalReady(allStories.length > 0);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
