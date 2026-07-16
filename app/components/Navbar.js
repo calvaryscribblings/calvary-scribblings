@@ -143,7 +143,7 @@ export default function Navbar() {
       <nav className={`cs-nav ${scrolled ? 'scrolled' : 'top'}`}>
         <a href="/public-library" className="cs-logo">
           {/* Transparent artwork with its own rounded corners — no border-radius needed. */}
-          <img src="/cs-logo-512.png" alt="Calvary Scribblings" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+          <img src="/cs-logo-512-v3.png" alt="Calvary Scribblings" style={{ width: 36, height: 36, objectFit: 'contain' }} />
           <div>
             <div className="cs-logo-title">Calvary Scribblings</div>
             <div className="cs-logo-sub">A Calvary Media UK Publication</div>

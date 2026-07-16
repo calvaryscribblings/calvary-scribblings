@@ -6,7 +6,7 @@ import Gateway from './components/Gateway';
 
 const BASE_URL = 'https://calvaryscribblings.co.uk';
 // The social card and schema logo stay on favicon.png: it carries an opaque background, so
-// it composites predictably where transparency would not. cs-logo-512.png is the in-page mark.
+// it composites predictably where transparency would not. cs-logo-512-v3.png is the in-page mark.
 const OG_IMAGE = `${BASE_URL}/favicon.png`;
 
 export const metadata = {

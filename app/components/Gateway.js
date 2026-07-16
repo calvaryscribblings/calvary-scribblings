@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { VEIL_AT, PUSH_AT, VEIL_FADE } from '../lib/gatewayTransition';
 
 // The dial. When true, a returning visitor who last chose the Library is sent straight there
 // and never sees the gateway again. Currently false: the gateway is the front door on every
@@ -21,11 +22,6 @@ const CHOICE_KEY = 'cs_gateway_choice';
 // sessionStorage, not local: it must not survive the tab, and a refresh must load plainly.
 const ARRIVING_KEY = 'cs_arriving';
 const LIBRARY = '/public-library';
-
-// Exit choreography, in ms. Navigation fires at PUSH_AT; the arrival veil on the far side
-// runs 450ms, so the whole door-to-library sequence lands a touch inside 1.1s.
-const VEIL_AT = 100;
-const PUSH_AT = 650;
 
 // Ambient drifting glyphs. Negative delays stagger them so the loop is already mid-flight
 // on first paint rather than all ten rising together.
@@ -275,7 +271,7 @@ export default function Gateway() {
              stays crisp while the room falls away, and the exit reads as a bug. */
           position:fixed; inset:0; background:var(--gw-veil); z-index:10000; opacity:0;
           display:flex; align-items:center; justify-content:center;
-          animation:cs-gw-veil-in 500ms ease ${VEIL_AT}ms forwards;
+          animation:cs-gw-veil-in ${VEIL_FADE}ms ease ${VEIL_AT}ms forwards;
         }
         @keyframes cs-gw-veil-in { to { opacity:1; } }
         /* The light under the door. */
@@ -388,7 +384,7 @@ export default function Gateway() {
 
       <div className="cs-gw-panel">
         <div className="cs-gw-content">
-          <img className="cs-gw-logo cs-gw-fade" src="/cs-logo-512.png" alt="" width="512" height="532" />
+          <img className="cs-gw-logo cs-gw-fade" src="/cs-logo-512-v3.png" alt="" width="512" height="548" />
           <div className="cs-gw-wordmark cs-gw-fade">CALVARY SCRIBBLINGS</div>
           <h1 className="cs-gw-tagline cs-gw-fade">Welcome to the Story Island</h1>
 
