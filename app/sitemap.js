@@ -5,14 +5,16 @@ const BASE_URL = 'https://calvaryscribblings.co.uk';
 
 export default async function sitemap() {
   // Static routes
+  // '' is the gateway; '/public-library' is the reading platform (the old homepage) and
+  // carries the content, so both sit at the top of the priority list.
   const staticRoutes = [
-    '', '/about', '/contact', '/flash', '/short', '/poetry',
-    '/news', '/inspiring', '/serial', '/square', '/search', '/rewards',
+    '', '/public-library', '/ai-policy', '/voices', '/about', '/contact', '/flash', '/short',
+    '/poetry', '/news', '/inspiring', '/serial', '/square', '/search', '/rewards',
   ].map(route => ({
     url: `${BASE_URL}${route}`,
     lastModified: new Date(),
-    changeFrequency: route === '' ? 'daily' : 'weekly',
-    priority: route === '' ? 1 : 0.7,
+    changeFrequency: route === '' || route === '/public-library' ? 'daily' : 'weekly',
+    priority: route === '' || route === '/public-library' ? 1 : 0.7,
   }));
 
   // Hardcoded stories

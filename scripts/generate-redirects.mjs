@@ -26,8 +26,9 @@ const STATIC_LEGACY_REDIRECTS = [
   // Legacy "Creative Writing" category — folded into /inspiring at migration.
   ['/creative',       '/inspiring'],
   ['/creative.html',  '/inspiring'],
-  // Legacy PWA offline page — no longer ships.
-  ['/offline.html',   '/'],
+  // Legacy PWA offline page — no longer ships. Points at the reading platform rather
+  // than the gateway at /, since it's readers landing here, not new arrivals.
+  ['/offline.html',   '/public-library'],
   // Author profile shorthand — Open Pages cards/detail link to /u/<handle>;
   // the live profile page is /user?handle=<handle>. Cloudflare placeholder
   // syntax (:handle) forwards the captured segment into the query string.

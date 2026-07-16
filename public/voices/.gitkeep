@@ -1,0 +1,2 @@
+Card images for /voices — 1080×1350, named voices-<surname>-<firstname>.png.
+Register each one in the VOICES array in app/voices/page.js.

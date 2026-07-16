@@ -68,11 +68,15 @@ export default function Navbar() {
         .cs-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 0 4%; height: 68px; display: flex; align-items: center; justify-content: space-between; transition: background 0.3s, backdrop-filter 0.3s; }
         .cs-nav.scrolled { background: rgba(10,10,10,0.96); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .cs-nav.top { background: linear-gradient(to bottom, rgba(0,0,0,0.85), transparent); }
-        .cs-logo { text-decoration: none; display: flex; align-items: center; gap: 0.6rem; }
-        .cs-logo-title { color: #a78bfa; font-weight: 700; font-size: 1rem; line-height: 1.1; }
-        .cs-logo-sub { color: rgba(255,255,255,0.4); font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; }
+        .cs-logo { text-decoration: none; display: flex; align-items: center; gap: 0.6rem; flex: none; }
+        .cs-logo-title { color: #a78bfa; font-weight: 700; font-size: 1rem; line-height: 1.1; white-space: nowrap; }
+        .cs-logo-sub { color: rgba(255,255,255,0.4); font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap; }
         .cs-desktop-links { display: flex; align-items: center; gap: 1.2rem; }
-        .cs-desktop-links a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 0.82rem; font-weight: 500; }
+        .cs-desktop-links a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 0.82rem; font-weight: 500; white-space: nowrap; }
+        /* The nav is dense between the mobile drawer (<=768) and full width. Tighten the
+           gaps rather than let the wordmark wrap onto two lines. */
+        @media (max-width: 1200px) { .cs-desktop-links { gap: 0.85rem; } }
+        @media (max-width: 1040px) { .cs-desktop-links { gap: 0.6rem; } .cs-desktop-links a { font-size: 0.78rem; } }
         .cs-desktop-links a:hover { color: #fff; }
         .cs-stories-wrap { position: relative; }
         .cs-stories-btn { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.75); font-size: 0.82rem; font-weight: 500; display: flex; align-items: center; gap: 0.3em; padding: 0; }
@@ -137,7 +141,7 @@ export default function Navbar() {
       `}</style>
 
       <nav className={`cs-nav ${scrolled ? 'scrolled' : 'top'}`}>
-        <a href="/" className="cs-logo">
+        <a href="/public-library" className="cs-logo">
           <img src="/favicon.png" alt="Calvary Scribblings" style={{ width: 36, height: 36, borderRadius: 8 }} />
           <div>
             <div className="cs-logo-title">Calvary Scribblings</div>
@@ -145,7 +149,9 @@ export default function Navbar() {
           </div>
         </a>
         <div className="cs-desktop-links">
-          <a href="/">Home</a>
+          {/* Home is the reading platform; the gateway at / is reachable as "The Island". */}
+          <a href="/public-library">Home</a>
+          <a href="/">The Island</a>
           <div className="cs-stories-wrap" onMouseEnter={() => setDropdownOpen(true)} onMouseLeave={() => setDropdownOpen(false)}>
             <button className="cs-stories-btn">Stories <span>▾</span></button>
             {dropdownOpen && (
@@ -201,7 +207,8 @@ export default function Navbar() {
               </div>
             </a>
           )}
-          <a href="/" onClick={() => setMenuOpen(false)}>Home</a>
+          <a href="/public-library" onClick={() => setMenuOpen(false)}>Home</a>
+          <a href="/" onClick={() => setMenuOpen(false)}>The Island</a>
           <a href="/square" className="cs-drawer-square" onClick={() => setMenuOpen(false)}>
             <div className="cs-drawer-square-left">
               <div className={`cs-drawer-square-dot ${squareOpen ? 'open' : 'closed'}`} />

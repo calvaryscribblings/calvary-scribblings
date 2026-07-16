@@ -15,7 +15,7 @@ export default function Footer() {
         </div>
         {[
           { title: 'Explore', links: [['Flash Fiction', '/flash'], ['Short Stories', '/short'], ['Poetry', '/poetry'], ['News & Updates', '/news'], ['Inspiring Stories', '/inspiring'], ['Serial Stories', '/serial'], ['Open Pages', '/open-pages']] },
-          { title: 'Connect', links: [['Newsletter', 'https://calvaryscribblings.co.uk/#subscribe'], ['Contact Us', '/contact'], ['About Us', '/about']] },
+          { title: 'Connect', links: [['Newsletter', '/public-library#subscribe'], ['Contact Us', '/contact'], ['About Us', '/about']] },
           { title: 'Legal', links: [['Privacy Policy', '/privacy'], ['Terms of Service', '/terms'], ['Delete Account', '/delete-account']] },
         ].map(({ title, links }) => (
           <div key={title}>

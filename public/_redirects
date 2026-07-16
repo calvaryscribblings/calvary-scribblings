@@ -6,10 +6,10 @@
 # ── Non-story legacy routes ───────────────────────────────────────
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
-/offline.html                                                /                                                            301
+/offline.html                                                /public-library                                              301
 /u/:handle                                                   /user?handle=:handle                                         301
 
-# ── Pre-migration story URLs (117 stories × 2 forms) ──
+# ── Pre-migration story URLs (128 stories × 2 forms) ──
 /1967                                                        /stories/1967                                                301
 /1967.html                                                   /stories/1967                                                301
 /47-sessions                                                 /stories/47-sessions                                         301
@@ -38,6 +38,8 @@
 /amvca-an-opinion-feature.html                               /stories/amvca-an-opinion-feature                            301
 /an-appetite-for-love                                        /stories/an-appetite-for-love                                301
 /an-appetite-for-love.html                                   /stories/an-appetite-for-love                                301
+/at-the-table                                                /stories/at-the-table                                        301
+/at-the-table.html                                           /stories/at-the-table                                        301
 /become-a-content-creator-the-step-by-step-guide             /stories/become-a-content-creator-the-step-by-step-guide     301
 /become-a-content-creator-the-step-by-step-guide.html        /stories/become-a-content-creator-the-step-by-step-guide     301
 /beta-princess                                               /stories/beta-princess                                       301
@@ -46,6 +48,10 @@
 /brenda.html                                                 /stories/brenda                                              301
 /brown-skinned-girl                                          /stories/brown-skinned-girl                                  301
 /brown-skinned-girl.html                                     /stories/brown-skinned-girl                                  301
+/bruno                                                       /stories/bruno                                               301
+/bruno.html                                                  /stories/bruno                                               301
+/can-a-movie-be-over-marketed                                /stories/can-a-movie-be-over-marketed                        301
+/can-a-movie-be-over-marketed.html                           /stories/can-a-movie-be-over-marketed                        301
 /chernobyl                                                   /stories/chernobyl                                           301
 /chernobyl.html                                              /stories/chernobyl                                           301
 /cinema-vs-tv-the-difference                                 /stories/cinema-vs-tv-the-difference                         301
@@ -58,6 +64,8 @@
 /diary-of-a-lagos-9-5er-1.html                               /stories/diary-of-a-lagos-9-5er-1                            301
 /dinner-at-my-family-table                                   /stories/dinner-at-my-family-table                           301
 /dinner-at-my-family-table.html                              /stories/dinner-at-my-family-table                           301
+/disillusionment                                             /stories/disillusionment                                     301
+/disillusionment.html                                        /stories/disillusionment                                     301
 /dont-worry                                                  /stories/dont-worry                                          301
 /dont-worry.html                                             /stories/dont-worry                                          301
 /drip-drip-drip                                              /stories/drip-drip-drip                                      301
@@ -98,6 +106,10 @@
 /london-tube-strike.html                                     /stories/london-tube-strike                                  301
 /love-it-enough                                              /stories/love-it-enough                                      301
 /love-it-enough.html                                         /stories/love-it-enough                                      301
+/lust-is-a-symphony-of-colours                               /stories/lust-is-a-symphony-of-colours                       301
+/lust-is-a-symphony-of-colours.html                          /stories/lust-is-a-symphony-of-colours                       301
+/mango-season                                                /stories/mango-season                                        301
+/mango-season.html                                           /stories/mango-season                                        301
 /mask-with-no-memory                                         /stories/mask-with-no-memory                                 301
 /mask-with-no-memory.html                                    /stories/mask-with-no-memory                                 301
 /may-nigeria-never-happen-to-you                             /stories/may-nigeria-never-happen-to-you                     301
@@ -144,6 +156,8 @@
 /proof-of-life.html                                          /stories/proof-of-life                                       301
 /public-wi-fi-is-a-trap                                      /stories/public-wi-fi-is-a-trap                              301
 /public-wi-fi-is-a-trap.html                                 /stories/public-wi-fi-is-a-trap                              301
+/puppy-love                                                  /stories/puppy-love                                          301
+/puppy-love.html                                             /stories/puppy-love                                          301
 /purple                                                      /stories/purple                                              301
 /purple.html                                                 /stories/purple                                              301
 /purple-rain                                                 /stories/purple-rain                                         301
@@ -182,6 +196,8 @@
 /sweet-16.html                                               /stories/sweet-16                                            301
 /terms-and-conditions                                        /stories/terms-and-conditions                                301
 /terms-and-conditions.html                                   /stories/terms-and-conditions                                301
+/the-2026-emmy-nominations                                   /stories/the-2026-emmy-nominations                           301
+/the-2026-emmy-nominations.html                              /stories/the-2026-emmy-nominations                           301
 /the-ad-tug-of-war                                           /stories/the-ad-tug-of-war                                   301
 /the-ad-tug-of-war.html                                      /stories/the-ad-tug-of-war                                   301
 /the-age-of-agentic-ai-when-machines-start-hacking-without-permission-or-a-human /stories/the-age-of-agentic-ai-when-machines-start-hacking-without-permission-or-a-human 301
@@ -208,12 +224,16 @@
 /the-last-shared-second.html                                 /stories/the-last-shared-second                              301
 /the-man-i-met-at-nineteen                                   /stories/the-man-i-met-at-nineteen                           301
 /the-man-i-met-at-nineteen.html                              /stories/the-man-i-met-at-nineteen                           301
+/the-most-dangerous-job-in-nigeria                           /stories/the-most-dangerous-job-in-nigeria                   301
+/the-most-dangerous-job-in-nigeria.html                      /stories/the-most-dangerous-job-in-nigeria                   301
 /the-number-thirteen                                         /stories/the-number-thirteen                                 301
 /the-number-thirteen.html                                    /stories/the-number-thirteen                                 301
 /the-outrage-is-never-equal                                  /stories/the-outrage-is-never-equal                          301
 /the-outrage-is-never-equal.html                             /stories/the-outrage-is-never-equal                          301
 /the-pill                                                    /stories/the-pill                                            301
 /the-pill.html                                               /stories/the-pill                                            301
+/the-songbird-s-birdsong                                     /stories/the-songbird-s-birdsong                             301
+/the-songbird-s-birdsong.html                                /stories/the-songbird-s-birdsong                             301
 /therapist-s-note-on-love                                    /stories/therapist-s-note-on-love                            301
 /therapist-s-note-on-love.html                               /stories/therapist-s-note-on-love                            301
 /this-is-nigeria                                             /stories/this-is-nigeria                                     301
@@ -226,6 +246,8 @@
 /what-are-cookies-and-should-you-accept-them.html            /stories/what-are-cookies-and-should-you-accept-them         301
 /whatsapp-hides-your-number                                  /stories/whatsapp-hides-your-number                          301
 /whatsapp-hides-your-number.html                             /stories/whatsapp-hides-your-number                          301
+/when-the-basket-bleeds                                      /stories/when-the-basket-bleeds                              301
+/when-the-basket-bleeds.html                                 /stories/when-the-basket-bleeds                              301
 /where-we-begin-the-story                                    /stories/where-we-begin-the-story                            301
 /where-we-begin-the-story.html                               /stories/where-we-begin-the-story                            301
 /why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it /stories/why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it 301
