@@ -5,13 +5,17 @@
 import Gateway from './components/Gateway';
 
 const BASE_URL = 'https://calvaryscribblings.co.uk';
+// The social card and schema logo stay on favicon.png: it carries an opaque background, so
+// it composites predictably where transparency would not. cs-logo-512.png is the in-page mark.
 const OG_IMAGE = `${BASE_URL}/favicon.png`;
 
 export const metadata = {
   metadataBase: new URL(BASE_URL),
-  title: 'Calvary Scribblings — The Story Island | African Fiction, Poetry & Stories',
+  // Heritage is named alongside global scope, never as a boundary: the platform publishes
+  // writers everywhere, and the title must not read as an African-only shelf.
+  title: 'Calvary Scribblings — The Story Island | Fiction, Poetry & Short Stories',
   description:
-    'Original short stories, flash fiction, poetry and essays from a new generation of Nigerian and African writers. The Public Library is free to read, and Open Pages is open to your own writing. The Book Store opens 30 September.',
+    'Original short stories, flash fiction, poetry and essays from a new generation of writers — with roots in Nigeria and writers everywhere. The Public Library is free to read, and Open Pages is open to your own writing. The Book Store opens 30 September.',
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
@@ -19,14 +23,14 @@ export const metadata = {
     siteName: 'Calvary Scribblings',
     title: 'Calvary Scribblings — The Story Island',
     description:
-      'Original short stories, flash fiction, poetry and essays from a new generation of Nigerian and African writers. Free to read. The Book Store opens 30 September.',
+      'Original short stories, flash fiction, poetry and essays from a new generation of writers — with roots in Nigeria and writers everywhere. Free to read. The Book Store opens 30 September.',
     images: [{ url: OG_IMAGE, width: 1206, height: 1168, alt: 'Calvary Scribblings' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Calvary Scribblings — The Story Island',
     description:
-      'Original short stories, flash fiction, poetry and essays from a new generation of Nigerian and African writers. Free to read.',
+      'Original short stories, flash fiction, poetry and essays from a new generation of writers — with roots in Nigeria and writers everywhere. Free to read.',
     images: [OG_IMAGE],
   },
 };
@@ -46,7 +50,7 @@ const JSON_LD = {
       publisher: { '@type': 'Organization', name: 'Calvary Media UK Ltd' },
       email: 'contact@calvaryscribblings.co.uk',
       description:
-        'A literary publication platform for original fiction, poetry and essays from a new generation of African writers.',
+        'A literary publication platform for original fiction, poetry and essays from a new generation of writers — with roots in Nigeria and writers everywhere.',
     },
     {
       '@type': 'WebSite',

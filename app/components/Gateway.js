@@ -6,15 +6,26 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-// Returning visitors who chose the Library are sent straight there on their next visit.
-// Flip to false to always show the gateway.
+// The dial. When true, a returning visitor who last chose the Library is sent straight there
+// and never sees the gateway again. Currently false: the gateway is the front door on every
+// visit. The ?gateway=1 escape hatch and the localStorage write below stay in place but are
+// inert while this is false — flipping this one const restores the old behaviour, and any
+// visitor who has tapped the Library door since is already tagged.
 //
 // This is deliberately client-only and localStorage-gated: crawlers carry no localStorage,
 // so bots always render the full gateway. Never make this a server or <meta> redirect.
-const AUTO_ROUTE = true;
+const AUTO_ROUTE = false;
 
 const CHOICE_KEY = 'cs_gateway_choice';
+// Handed to /public-library so it knows to fade up from the veil rather than just appear.
+// sessionStorage, not local: it must not survive the tab, and a refresh must load plainly.
+const ARRIVING_KEY = 'cs_arriving';
 const LIBRARY = '/public-library';
+
+// Exit choreography, in ms. Navigation fires at PUSH_AT; the arrival veil on the far side
+// runs 450ms, so the whole door-to-library sequence lands a touch inside 1.1s.
+const VEIL_AT = 100;
+const PUSH_AT = 650;
 
 // Ambient drifting glyphs. Negative delays stagger them so the loop is already mid-flight
 // on first paint rather than all ten rising together.
@@ -32,6 +43,14 @@ const LETTERS = [
 ];
 
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+const prefersReducedMotion = () => {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+};
 
 function Modal({ id, titleId, title, onClose, closeLabel = 'RETURN TO THE ISLAND', children }) {
   const panelRef = useRef(null);
@@ -99,6 +118,10 @@ function Modal({ id, titleId, title, onClose, closeLabel = 'RETURN TO THE ISLAND
 export default function Gateway() {
   const router = useRouter();
   const [modal, setModal] = useState(null); // 'store' | 'universe' | null
+  const [exiting, setExiting] = useState(false);
+  const timer = useRef(null);
+
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   useEffect(() => {
     if (!AUTO_ROUTE) return;
@@ -122,25 +145,49 @@ export default function Gateway() {
     try { localStorage.setItem(CHOICE_KEY, 'library'); } catch {}
   }, []);
 
+  // Walking into the door: the tapped door swells and brightens while everything else
+  // falls away, a veil closes over the room, and a hairline of light appears under it.
+  // The Book Store door should call this too once it becomes real navigation at launch —
+  // pass its own href and it inherits the whole exit.
+  const walkThrough = useCallback((e, href) => {
+    rememberLibrary();
+    // Reduced motion: no choreography, and no arrival flag, so the far side loads plainly.
+    if (prefersReducedMotion()) return;
+    e.preventDefault();
+    if (exiting) return;
+    setExiting(true);
+    timer.current = setTimeout(() => {
+      try { sessionStorage.setItem(ARRIVING_KEY, '1'); } catch {}
+      router.push(href);
+    }, PUSH_AT);
+  }, [exiting, rememberLibrary, router]);
+
   const closeModal = useCallback(() => setModal(null), []);
 
   return (
-    <div className="cs-gw">
+    <div className={`cs-gw${exiting ? ' is-exiting' : ''}`}>
       <style>{`
         .cs-gw {
           --gw-night:#0b0716; --gw-deep:#080610; --gw-gold:#c9a84c;
-          --gw-gold-bright:#e2c876; --gw-cream:#f5f0e8;
+          --gw-gold-bright:#e2c876; --gw-cream:#f5f0e8; --gw-veil:#050309;
           --gw-serif:'Cormorant Garamond',Georgia,serif;
           --gw-display:'Cinzel',Georgia,serif;
-          background:#000; display:flex; justify-content:center; min-height:100vh;
-          font-family:var(--gw-serif);
+          /* Sized in vmin so the glow scales with the viewport instead of hugging a
+             phone-width column. */
+          background:radial-gradient(120vmin 80vmin at 50% -6vmin,
+            #1c0f38 0%, var(--gw-night) 55%, var(--gw-deep) 100%);
+          min-height:100vh; position:relative; overflow:hidden;
+          display:flex; justify-content:center; font-family:var(--gw-serif);
         }
         .cs-gw *,.cs-gw *::before,.cs-gw *::after { box-sizing:border-box; margin:0; padding:0; }
+        .cs-gw.is-exiting { pointer-events:none; }
+
+        /* Letters drift across the whole viewport at every size, not just the column. */
+        .cs-gw-letters { position:fixed; inset:0; overflow:hidden; pointer-events:none; z-index:1; }
         .cs-gw-panel {
-          width:100%; max-width:420px; min-height:100vh;
-          background:radial-gradient(120% 60% at 50% -10%, #1c0f38 0%, var(--gw-night) 55%, var(--gw-deep) 100%);
-          position:relative; overflow:hidden; display:flex; flex-direction:column;
-          justify-content:center; padding:56px 22px 34px; text-align:center;
+          width:100%; max-width:420px; min-height:100vh; position:relative; z-index:2;
+          display:flex; flex-direction:column; justify-content:center;
+          padding:56px 22px 34px; text-align:center;
         }
         .cs-gw-fl {
           position:absolute; font-family:var(--gw-serif); color:var(--gw-gold);
@@ -160,8 +207,9 @@ export default function Gateway() {
         }
         .cs-gw-content { position:relative; z-index:2; }
         .cs-gw-logo {
-          width:58px; height:58px; margin:0 auto 16px; display:block;
-          border-radius:14px; object-fit:cover; box-shadow:0 6px 24px rgba(0,0,0,.5);
+          width:58px; height:auto; margin:0 auto 16px; display:block;
+          /* drop-shadow follows the artwork's alpha; box-shadow would draw a rectangle. */
+          filter:drop-shadow(0 6px 18px rgba(0,0,0,0.5));
         }
         .cs-gw-wordmark {
           font-family:var(--gw-display); font-size:14px; letter-spacing:.32em;
@@ -178,7 +226,7 @@ export default function Gateway() {
         .cs-gw-door:hover,.cs-gw-door:focus-visible { border-color:var(--gw-gold); transform:translateY(-2px); }
         .cs-gw-door:focus-visible,.cs-gw-pill:focus-visible,.cs-gw-small a:focus-visible,
         .cs-gw-small button:focus-visible,.cs-gw-modal-close:focus-visible,
-        .cs-gw-seo a:focus-visible,.cs-gw-arm-link:focus-visible {
+        .cs-gw-arm-link:focus-visible {
           outline:2px solid var(--gw-gold-bright); outline-offset:3px;
         }
         .cs-gw-door .cs-gw-glyph { font-size:24px; line-height:1; margin-bottom:11px; color:var(--gw-gold); }
@@ -213,12 +261,31 @@ export default function Gateway() {
           font-family:var(--gw-serif); font-size:13px; line-height:1.65;
           color:rgba(245,240,232,.5); margin-bottom:12px;
         }
-        .cs-gw-seo-links {
-          display:flex; flex-wrap:wrap; gap:6px 10px; justify-content:center;
-          font-size:12.5px; color:rgba(245,240,232,.32);
+        /* Clear the cookie banner on phones so the first impression isn't obscured. */
+        @media (max-width:480px) { .cs-gw-seo { padding-bottom:72px; } }
+
+        /* ── Exit choreography ─────────────────────────────────────────────── */
+        .is-exiting .cs-gw-fade { opacity:0; transition:opacity 350ms ease; }
+        .cs-gw-door.is-entering {
+          border-color:var(--gw-gold-bright); transform:scale(1.05); transform-origin:center;
+          transition:transform 500ms ease-out, border-color 500ms ease-out;
         }
-        .cs-gw-seo-links a { color:rgba(245,240,232,.5); text-decoration:none; border-bottom:1px solid rgba(201,168,76,.28); }
-        .cs-gw-seo-links a:hover { color:var(--gw-cream); border-color:var(--gw-gold); }
+        .cs-gw-veil {
+          /* Above everything, including the cookie banner (z 9999) — otherwise the banner
+             stays crisp while the room falls away, and the exit reads as a bug. */
+          position:fixed; inset:0; background:var(--gw-veil); z-index:10000; opacity:0;
+          display:flex; align-items:center; justify-content:center;
+          animation:cs-gw-veil-in 500ms ease ${VEIL_AT}ms forwards;
+        }
+        @keyframes cs-gw-veil-in { to { opacity:1; } }
+        /* The light under the door. */
+        .cs-gw-hairline {
+          width:0; height:1px; background:var(--gw-gold);
+          animation:cs-gw-hairline-in 400ms ease ${VEIL_AT}ms forwards;
+        }
+        @keyframes cs-gw-hairline-in { to { width:120px; } }
+
+        /* ── Modals ────────────────────────────────────────────────────────── */
         .cs-gw-backdrop {
           position:fixed; inset:0; background:rgba(4,3,9,.78); backdrop-filter:blur(3px);
           display:flex; align-items:center; justify-content:center; z-index:10; padding:24px;
@@ -262,14 +329,49 @@ export default function Gateway() {
           font-family:var(--gw-serif); cursor:pointer;
         }
         .cs-gw-arm-btn:focus-visible { outline:2px solid var(--gw-gold-bright); outline-offset:-2px; }
+
+        /* ── The foyer ─────────────────────────────────────────────────────────
+           Tablet takes the desktop composition, tighter; ≥900px opens up fully. */
+        @media (min-width:768px) {
+          .cs-gw-panel { max-width:600px; padding:64px 32px 44px; }
+          .cs-gw-logo { width:72px; margin-bottom:20px; }
+          .cs-gw-wordmark { font-size:15.5px; letter-spacing:.33em; }
+          .cs-gw-tagline { font-size:20px; margin-bottom:40px; }
+          .cs-gw-doors { gap:16px; margin-bottom:18px; }
+          .cs-gw-door { padding:36px 18px 30px; border-radius:17px; }
+          .cs-gw-door .cs-gw-glyph { font-size:29px; margin-bottom:14px; }
+          .cs-gw-door h2 { font-size:14px; }
+          .cs-gw-door p { font-size:15.5px; }
+          .cs-gw-pill { padding:15px; margin-bottom:28px; }
+          .cs-gw-pill span { font-size:13px; }
+          .cs-gw-small { gap:32px; font-size:17px; margin-bottom:34px; }
+          .cs-gw-seo { max-width:560px; margin-left:auto; margin-right:auto; }
+          .cs-gw-modal { max-width:400px; }
+        }
+        @media (min-width:900px) {
+          .cs-gw-panel { max-width:720px; padding:72px 40px 52px; }
+          .cs-gw-logo { width:84px; margin-bottom:22px; }
+          .cs-gw-wordmark { font-size:17px; letter-spacing:.34em; margin-bottom:9px; }
+          .cs-gw-tagline { font-size:22px; margin-bottom:46px; }
+          .cs-gw-doors { gap:20px; margin-bottom:20px; }
+          .cs-gw-door { padding:48px 22px; border-radius:18px; }
+          .cs-gw-door .cs-gw-glyph { font-size:34px; margin-bottom:16px; }
+          .cs-gw-door h2 { font-size:15px; margin-bottom:8px; }
+          .cs-gw-door p { font-size:16.5px; }
+          .cs-gw-pill { padding:16px; margin-bottom:30px; }
+          .cs-gw-pill span { font-size:13.5px; letter-spacing:.26em; }
+          .cs-gw-small { gap:38px; font-size:18px; margin-bottom:38px; }
+          .cs-gw-foot { font-size:10.5px; }
+          .cs-gw-seo { margin-top:32px; }
+          .cs-gw-seo p { font-size:14px; }
+        }
       `}</style>
 
-      <div className="cs-gw-panel">
+      <div className="cs-gw-letters cs-gw-fade" aria-hidden="true">
         {LETTERS.map((l, i) => (
           <span
             key={i}
             className="cs-gw-fl"
-            aria-hidden="true"
             style={{
               left: l.left,
               fontSize: l.size,
@@ -282,53 +384,60 @@ export default function Gateway() {
             {l.ch}
           </span>
         ))}
+      </div>
 
+      <div className="cs-gw-panel">
         <div className="cs-gw-content">
-          <img className="cs-gw-logo" src="/favicon.png" alt="" width="58" height="58" />
-          <div className="cs-gw-wordmark">CALVARY SCRIBBLINGS</div>
-          <h1 className="cs-gw-tagline">Welcome to the Story Island</h1>
+          <img className="cs-gw-logo cs-gw-fade" src="/cs-logo-512.png" alt="" width="512" height="532" />
+          <div className="cs-gw-wordmark cs-gw-fade">CALVARY SCRIBBLINGS</div>
+          <h1 className="cs-gw-tagline cs-gw-fade">Welcome to the Story Island</h1>
 
           <div className="cs-gw-doors">
-            <Link className="cs-gw-door" href={LIBRARY} onClick={rememberLibrary}>
+            <Link
+              className={`cs-gw-door${exiting ? ' is-entering' : ''}`}
+              href={LIBRARY}
+              onClick={(e) => walkThrough(e, LIBRARY)}
+            >
               <div className="cs-gw-glyph" aria-hidden="true">⁂</div>
               <h2>PUBLIC LIBRARY<br />&amp; OPEN PAGES</h2>
               <p>Stories, poetry &amp; your own pages</p>
             </Link>
-            <button className="cs-gw-door" type="button" onClick={() => setModal('store')}>
+            <button className="cs-gw-door cs-gw-fade" type="button" onClick={() => setModal('store')}>
               <div className="cs-gw-glyph" aria-hidden="true">❦</div>
               <h2>THE<br />BOOK STORE</h2>
               <p className="cs-gw-opens">Opens 30 September</p>
             </button>
           </div>
 
-          <Link className="cs-gw-pill" href="/ai-policy">
+          <Link className="cs-gw-pill cs-gw-fade" href="/ai-policy">
             <span>✦&nbsp;&nbsp;OUR AI POLICY&nbsp;&nbsp;✦</span>
           </Link>
 
-          <div className="cs-gw-small">
+          <div className="cs-gw-small cs-gw-fade">
             <Link href="/voices">Voices of the Island</Link>
             <button type="button" onClick={() => setModal('universe')}>The Calvary Universe</button>
           </div>
 
-          <div className="cs-gw-foot">A CALVARY MEDIA UK PUBLICATION</div>
+          <div className="cs-gw-foot cs-gw-fade">A CALVARY MEDIA UK PUBLICATION</div>
 
-          <div className="cs-gw-seo">
+          {/* Real, visible, crawlable prose. The doors and the pill are the navigation —
+              deliberately no category link row here. */}
+          <div className="cs-gw-seo cs-gw-fade">
             <p>
               Calvary Scribblings publishes original fiction, poetry and essays from a new
-              generation of African writers. The Public Library is open to everyone — flash
-              fiction, short stories, poetry and news, free to read. The Book Store opens on
+              generation of writers. The Public Library is open to everyone — flash fiction,
+              short stories, poetry and news, free to read. The Book Store opens on
               30 September.
             </p>
-            <div className="cs-gw-seo-links">
-              <Link href="/flash">Flash Fiction</Link><span aria-hidden="true">·</span>
-              <Link href="/short">Short Stories</Link><span aria-hidden="true">·</span>
-              <Link href="/poetry">Poetry</Link><span aria-hidden="true">·</span>
-              <Link href="/news">News</Link><span aria-hidden="true">·</span>
-              <Link href="/ai-policy">Our AI Policy</Link>
-            </div>
           </div>
         </div>
       </div>
+
+      {exiting && (
+        <div className="cs-gw-veil" aria-hidden="true">
+          <div className="cs-gw-hairline" />
+        </div>
+      )}
 
       {modal === 'store' && (
         <Modal id="cs-gw-store" titleId="cs-gw-store-title" title="THE BOOK STORE" onClose={closeModal}>
