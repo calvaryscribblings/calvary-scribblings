@@ -41,6 +41,12 @@ async function getFirebaseAuth() { const { getAuth } = await import('firebase/au
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 
 const PAYWALL_SLUG = 'dead-end-a-halfway-around-the-moon-story';
+
+// Prose entrance. The body waits for the story data AND the webfonts before it moves:
+// a Cormorant swap landing mid-entrance is what made the old reveal read as dumped.
+const PROSE_ENTER_MS = 650;
+// ...but a slow font CDN never holds the prose hostage. Measured from storyReady.
+const PROSE_FONT_CAP_MS = 800;
 const PAYWALL_STRIPE_URL = 'https://buy.stripe.com/7sYfZ9alE2KSdsSfvTenS07';
 
 function extractFirstParagraph(html) {
@@ -852,6 +858,40 @@ export default function StoryPageClient({ params }) {
     fetchFromCMS();
   }, [slug]);
 
+  // 'hidden' → 'entering' → 'settled'. Fires exactly once per mount: the ref guard means
+  // no later state change can replay it, and the class lands on the wrapper element, never
+  // on anything keyed to data — a skeleton→content swap inside cannot retrigger it.
+  const [proseEntrance, setProseEntrance] = useState('hidden');
+  const proseStarted = useRef(false);
+  const proseTimers = useRef([]);
+  useEffect(() => () => proseTimers.current.forEach(clearTimeout), []);
+
+  useEffect(() => {
+    if (!story || !storyReady || proseStarted.current) return;
+    proseStarted.current = true;
+
+    let reduced = false;
+    try { reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch {}
+    if (reduced) { setProseEntrance('settled'); return; }
+
+    let fired = false;
+    const enter = () => {
+      if (fired) return;
+      fired = true;
+      setProseEntrance('entering');
+      proseTimers.current.push(setTimeout(() => setProseEntrance('settled'), PROSE_ENTER_MS));
+    };
+    // Whichever comes first: the fonts landing, or the cap giving up on them.
+    proseTimers.current.push(setTimeout(enter, PROSE_FONT_CAP_MS));
+    if (typeof document !== 'undefined' && document.fonts?.ready) {
+      document.fonts.ready.then(enter).catch(enter);
+    } else {
+      enter();
+    }
+    // Deliberately not cleaning up here: the timers are cleared on unmount above. A cleanup
+    // keyed to these deps would cancel the settle timer the moment the entrance began.
+  }, [story, storyReady]);
+
   const [readingTime, setReadingTime] = useState(0);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -1264,7 +1304,20 @@ useEffect(() => {
         .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: #f5f0e8; flex-wrap: wrap; }
         .byline-dot { width: 3px; height: 3px; border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
         .byline-by { font-style: italic; font-family: Cormorant Garamond, Georgia, serif; margin-right: -0.8rem; }
-        .story-body-wrap { background: #f0ead8; }
+        .story-body-wrap { background: #f0ead8; opacity: 0; }
+        /* Prose entrance. Deliberately NOT part of the [data-reveal] scroll system: this is
+           keyed to readiness, not scroll position, so the body is already in place by the
+           time the reader reaches it. Only opacity/transform, and only on this wrapper —
+           the drop-cap observer works on <p> elements inside .prose and never sees this.
+           'settled' drops the transform once the move is over: leaving one on a container
+           this tall would keep it composited for the whole read. */
+        .story-body-wrap.prose-entering { animation: proseEnter ${PROSE_ENTER_MS}ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .story-body-wrap.prose-settled { opacity: 1; }
+        @keyframes proseEnter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @media (prefers-reduced-motion: reduce) {
+          .story-body-wrap { opacity: 1; }
+          .story-body-wrap.prose-entering { animation: none; }
+        }
         .story-body { max-width: 680px; margin: 0 auto; padding: 3rem 2rem 5rem; }
         .back-link-row { margin-bottom: 2.2rem; padding-bottom: 1.2rem; border-bottom: 1px solid #e0dbd2; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
         .back-link { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: ${accentColor}; text-decoration: none; font-family: Cormorant Garamond, Georgia, serif; }
@@ -1402,7 +1455,8 @@ useEffect(() => {
       <div ref={threadRef} className="reading-progress" aria-hidden="true" />
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
         <nav className={`story-nav${isHeaderVisible ? '' : ' hidden'}`}>
-          <a href="/" className="nav-logo">Calvary <span>Scribblings</span></a>
+          {/* The library, not the gateway: a reader mid-story is returning to the shelves. */}
+          <a href="/public-library" className="nav-logo">Calvary <span>Scribblings</span></a>
           <span className="nav-meta">{displayCategory}</span>
         </nav>
         <header className="story-hero">
@@ -1443,7 +1497,9 @@ useEffect(() => {
             )}
           </div>
         </header>
-        <div className="story-body-wrap" data-reveal="fade">
+        {/* No data-reveal: the body is governed by readiness, not scroll position. Every
+            other [data-reveal] on the page keeps its scroll behaviour. */}
+        <div className={`story-body-wrap${proseEntrance === 'entering' ? ' prose-entering' : proseEntrance === 'settled' ? ' prose-settled' : ''}`}>
           <main className={endReached ? 'story-closed' : ''}>
             <article className="story-body" ref={articleRef}>
               <div className="back-link-row">
