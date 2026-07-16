@@ -825,6 +825,7 @@ export default function AdminPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)' }}>{user.email}</span>
           <a href="/admin/authors" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Authors →</a>
+          <a href="/admin/voices" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Voices →</a>
           <a href="/admin/bookstore" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Bookstore →</a>
           <a href="/admin/publishers" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Publishers →</a>
           <a href="/admin/quizzes" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Quizzes →</a>
