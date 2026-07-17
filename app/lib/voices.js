@@ -25,6 +25,29 @@ export function firstNameOf(displayName) {
   return (displayName || '').trim().split(/\s+/)[0] || '';
 }
 
+// The morph pair. The card image on the grid and the portrait on the author page carry
+// this same name, which is what lets the browser tween one into the other across the
+// document boundary. Slugs are slugify()'d to [a-z0-9-] (app/admin/voices/page.js), and
+// the 'voice-' prefix guarantees a leading letter, so this is always a valid custom-ident.
+export function voiceTransitionName(slug) {
+  return `voice-${slug}`;
+}
+
+// Return intent, handed across the document boundary. A history traverse announces itself
+// through navigationActivation, but clicking the back link is a push and looks identical
+// to the browser — this is how the far side learns that a push was still a return, so both
+// run at the short duration. Read and cleared by the pagereveal listener in
+// app/voices/layout.js.
+export const VT_RETURN_KEY = 'cs_vt_return';
+
+export function prefersReducedMotion() {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
 // cms_stories.date is a display string ("Jan 15, 2026"), not a timestamp, so RTDB
 // cannot sort on it — newest-first has to happen here, after the query. Every one of
 // the 148 rows parses cleanly today; an unparseable one sorts last rather than NaN-ing

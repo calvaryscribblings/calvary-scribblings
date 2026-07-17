@@ -10,56 +10,25 @@
 // reserved slug. It contains underscores, which slugify() strips, so it can never
 // collide with a real slug — and the client resolves it, like any unknown slug, to the
 // not-found state.
+import { fetchVoicesNode, fetchVoice } from '../../lib/voices-build';
 import VoicePageClient from './page-client';
-
-const FB = {
-  apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-  authDomain: 'calvary-scribblings.firebaseapp.com',
-  databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-  projectId: 'calvary-scribblings',
-  storageBucket: 'calvary-scribblings.firebasestorage.app',
-  messagingSenderId: '1052137412283',
-  appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-};
 
 const SENTINEL = '__no-voices-yet__';
 const BASE_URL = 'https://calvaryscribblings.co.uk';
-
-async function getFirebaseDB() {
-  const { initializeApp, getApps } = await import('firebase/app');
-  const { getDatabase } = await import('firebase/database');
-  const app = getApps().length ? getApps()[0] : initializeApp(FB);
-  return getDatabase(app);
-}
 
 // Every slug is built, published or not — the same way cms_stories builds all 148
 // including the 20 unpublished. Building only published voices would return an empty
 // array whenever the roster is all drafts and fail the build outright. The client gates
 // on `published`, so a draft's page exists but resolves to not-found.
 export async function generateStaticParams() {
-  try {
-    const { ref, get } = await import('firebase/database');
-    const db = await getFirebaseDB();
-    const snap = await get(ref(db, 'cms_voices'));
-    if (snap.exists()) {
-      const slugs = Object.keys(snap.val() || {});
-      if (slugs.length) return slugs.map((slug) => ({ slug }));
-    }
-  } catch (e) {
-    console.error('voices generateStaticParams: Firebase fetch failed', e);
-  }
+  const slugs = Object.keys(await fetchVoicesNode());
+  if (slugs.length) return slugs.map((slug) => ({ slug }));
   return [{ slug: SENTINEL }];
 }
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  let voice = null;
-  try {
-    const { ref, get } = await import('firebase/database');
-    const db = await getFirebaseDB();
-    const snap = await get(ref(db, `cms_voices/${slug}`));
-    if (snap.exists()) voice = snap.val();
-  } catch (e) {}
+  const voice = await fetchVoice(slug);
 
   // A draft gets no metadata and no indexing — its page exists only because the build
   // enumerates every slug.
@@ -97,6 +66,15 @@ export async function generateMetadata({ params }) {
   };
 }
 
-export default function VoicePage({ params }) {
-  return <VoicePageClient params={params} />;
+// The seed. The portrait must be painted at this document's first frame or the morph has
+// nothing to land on — the incoming page would carry no matching view-transition-name and
+// the browser would cut instead of tween. It also fixes the hero's layout shift and gives
+// anyone arriving from a share link a composed page rather than a wait. The client re-reads
+// cms_voices on mount, so this is the opening frame, not the source of record.
+//
+// The sentinel has no record, and a draft is seeded as-is — page-client gates on
+// published===true either way.
+export default async function VoicePage({ params }) {
+  const { slug } = await params;
+  return <VoicePageClient slug={slug} initialVoice={await fetchVoice(slug)} />;
 }
