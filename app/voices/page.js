@@ -1,44 +1,60 @@
-// Voices of the Island — v1 card gallery. Static server component, so metadata lives here.
-// This is deliberately simple and contained: a fully designed page replaces it later.
+'use client';
+// Voices of the Island — the card gallery, now read live from cms_voices.
+// Metadata lives in ./layout.js, since this is a client component.
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { db } from '../lib/firebase';
+import { publishedVoices } from '../lib/voices';
 
-const BASE_URL = 'https://calvaryscribblings.co.uk';
-const OG_IMAGE = `${BASE_URL}/favicon.png`;
-
-export const metadata = {
-  metadataBase: new URL(BASE_URL),
-  title: 'Voices of the Island — Calvary Scribblings',
-  description:
-    'Meet the writers and voices of Calvary Scribblings — the contributors behind the short stories, flash fiction, poetry and essays published on the island.',
-  alternates: { canonical: '/voices' },
-  openGraph: {
-    type: 'website',
-    url: `${BASE_URL}/voices`,
-    siteName: 'Calvary Scribblings',
-    title: 'Voices of the Island — Calvary Scribblings',
-    description: 'The writers and voices of Calvary Scribblings.',
-    images: [{ url: OG_IMAGE, width: 1206, height: 1168, alt: 'Calvary Scribblings' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Voices of the Island — Calvary Scribblings',
-    description: 'The writers and voices of Calvary Scribblings.',
-    images: [OG_IMAGE],
-  },
-};
-
-// Card images live in /public/voices/ and are 1080×1350. Adding a voice is one entry:
-//
-//   { file: 'voices-kalu-rebecca.png', name: 'Kalu Rebecca' },
-//
-// `name` builds the alt text ("{Name} — Voices of the Island"); `file` is the filename
-// inside /public/voices/. Order here is the order on the page.
-const VOICES = [];
-
+// The cards are 1080×1350 social assets. Both dimensions are passed to every <img> so
+// the grid reserves the right aspect ratio before any image lands.
 const CARD_W = 1080;
 const CARD_H = 1350;
 
+// Entrance, mirroring the story page: content enters on readiness, once, on the
+// wrapper only. Deliberately not a scroll reveal — the grid is above the fold.
+const GRID_ENTER_MS = 650;
+
 export default function VoicesPage() {
+  const [voices, setVoices] = useState(null); // null = still resolving
+  const [entrance, setEntrance] = useState('hidden');
+  const started = useRef(false);
+  const timers = useRef([]);
+
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, 'cms_voices'));
+        if (!cancelled) setVoices(publishedVoices(snap.exists() ? snap.val() : {}));
+      } catch (e) {
+        // A failed read shows the empty state rather than a broken grid.
+        if (!cancelled) setVoices([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Fires once, when the roster has resolved. The ref guard means no later state
+  // change can replay it, and the class lands on the wrapper — never on anything
+  // keyed to data, so the empty→cards swap inside cannot retrigger it.
+  useEffect(() => {
+    if (voices === null || started.current) return;
+    started.current = true;
+
+    let reduced = false;
+    try { reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch {}
+    if (reduced) { setEntrance('settled'); return; }
+
+    setEntrance('entering');
+    timers.current.push(setTimeout(() => setEntrance('settled'), GRID_ENTER_MS));
+  }, [voices]);
+
+  const wrapClass = entrance === 'entering' ? ' cs-vo-entering' : entrance === 'settled' ? ' cs-vo-settled' : '';
+
   return (
     <div className="cs-vo">
       <style>{`
@@ -60,12 +76,27 @@ export default function VoicesPage() {
           text-align:center; margin:0 0 38px;
         }
         .cs-vo-grid { display:grid; grid-template-columns:1fr; gap:26px; }
+        .cs-vo-cardlink {
+          display:block; border-radius:14px; text-decoration:none;
+          transition:transform .45s cubic-bezier(0.22,1,0.36,1), box-shadow .45s cubic-bezier(0.22,1,0.36,1);
+        }
         .cs-vo-card {
           width:100%; height:auto; display:block; border-radius:14px;
           border:1px solid rgba(201,168,76,.28);
           box-shadow:0 10px 34px rgba(0,0,0,.5);
           background:rgba(8,6,16,.5);
         }
+        @media (hover:hover) {
+          .cs-vo-cardlink:hover { transform:translateY(-3px); }
+          .cs-vo-cardlink:hover .cs-vo-card {
+            border-color:rgba(201,168,76,.6); box-shadow:0 16px 44px rgba(0,0,0,.6);
+          }
+        }
+        .cs-vo-name {
+          font-family:var(--vo-display); font-size:12px; letter-spacing:.14em;
+          color:rgba(245,240,232,.72); text-align:center; margin-top:12px;
+        }
+        .cs-vo-cardlink:hover .cs-vo-name { color:var(--vo-cream); }
         .cs-vo-empty {
           text-align:center; font-style:italic; font-size:16px;
           color:rgba(245,240,232,.45); padding:36px 0;
@@ -77,6 +108,20 @@ export default function VoicesPage() {
         }
         .cs-vo-back:hover { color:var(--vo-cream); border-color:var(--vo-gold); }
         .cs-vo a:focus-visible { outline:2px solid #e2c876; outline-offset:3px; }
+
+        /* Entrance: readiness-keyed, wrapper-only. 'settled' drops the transform so the
+           grid is not left composited for the whole visit. */
+        .cs-vo-body { opacity:0; }
+        .cs-vo-body.cs-vo-entering { animation:csVoEnter ${GRID_ENTER_MS}ms cubic-bezier(0.22,1,0.36,1) both; }
+        .cs-vo-body.cs-vo-settled { opacity:1; }
+        @keyframes csVoEnter { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+        @media (prefers-reduced-motion: reduce) {
+          .cs-vo-body { opacity:1; }
+          .cs-vo-body.cs-vo-entering { animation:none; }
+          .cs-vo-cardlink { transition:none; }
+          .cs-vo-cardlink:hover { transform:none; }
+        }
+
         @media (min-width:768px) {
           .cs-vo-inner { max-width:920px; }
           .cs-vo-grid { grid-template-columns:1fr 1fr; gap:32px; }
@@ -87,23 +132,29 @@ export default function VoicesPage() {
         <div className="cs-vo-rule" />
         <p className="cs-vo-intro">The writers and voices of Calvary Scribblings.</p>
 
-        {VOICES.length > 0 ? (
-          <div className="cs-vo-grid">
-            {VOICES.map((v) => (
-              <img
-                key={v.file}
-                className="cs-vo-card"
-                src={`/voices/${v.file}`}
-                alt={`${v.name} — Voices of the Island`}
-                width={CARD_W}
-                height={CARD_H}
-                loading="lazy"
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="cs-vo-empty">The voices are being gathered. Come back soon.</p>
-        )}
+        {/* Nothing renders until the roster resolves, so the empty state never flashes
+            in front of a reader who is about to get cards. */}
+        <div className={`cs-vo-body${wrapClass}`}>
+          {voices && voices.length > 0 ? (
+            <div className="cs-vo-grid">
+              {voices.map((v) => (
+                <Link key={v.slug} className="cs-vo-cardlink" href={`/voices/${v.slug}`}>
+                  <img
+                    className="cs-vo-card"
+                    src={v.cardImage}
+                    alt={`${v.displayName} — Voices of the Island`}
+                    width={CARD_W}
+                    height={CARD_H}
+                    loading="lazy"
+                  />
+                  <div className="cs-vo-name">{v.displayName}</div>
+                </Link>
+              ))}
+            </div>
+          ) : voices ? (
+            <p className="cs-vo-empty">The voices are being gathered. Come back soon.</p>
+          ) : null}
+        </div>
 
         <Link className="cs-vo-back" href="/">Return to the Island</Link>
       </div>

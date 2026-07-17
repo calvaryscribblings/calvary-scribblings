@@ -1,0 +1,15 @@
+{
+  "_comment": "Fragment to merge into the Firebase RTDB security rules (console-managed; there is no full rules file in the repo). Two things are recorded here. (1) cms_voices — the curated roster behind /voices, keyed by slug, world-readable because the grid and every author page read it unauthenticated at runtime, and writable only by admin. Drafts (published:false) are readable to anyone who asks for the node directly; the roster carries no secrets, and both the grid and the author page gate on published===true, so a draft never renders. (2) The cms_stories .indexOn that app/lib/voices.js:loadWorks depends on — without it the equalTo() falls back to a client-side filter over all 149 rows (1.18 MB), which is exactly the wholesale fetch the uid query exists to avoid. authorUid is the identity match; author backs the matchNames fallback for rows saved with no uid. See app/lib/voices.js and app/admin/voices/page.js.",
+  "rules": {
+    "cms_voices": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$slug": {
+        ".validate": "newData.hasChildren(['slug', 'displayName', 'cardImage', 'order', 'published'])"
+      }
+    },
+    "cms_stories": {
+      ".indexOn": ["authorUid", "author"]
+    }
+  }
+}

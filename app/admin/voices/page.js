@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { readMatchNames } from '../../lib/voices';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -111,14 +112,6 @@ function Thumb({ src, name }) {
 // join for the handful of stories with a blank authorUid (guest / collaboration rows).
 function parseMatchNames(str) {
   return (str || '').split(',').map((v) => v.trim()).filter(Boolean);
-}
-
-// RTDB hands back a plain object rather than an array whenever the stored indices
-// are not contiguous from 0, so never assume Array here.
-function readMatchNames(value) {
-  if (Array.isArray(value)) return value.filter(Boolean);
-  if (value && typeof value === 'object') return Object.values(value).filter(Boolean);
-  return [];
 }
 
 export default function VoicesAdmin() {
