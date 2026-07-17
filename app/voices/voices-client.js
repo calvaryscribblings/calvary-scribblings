@@ -7,12 +7,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { db } from '../lib/firebase';
-import { publishedVoices, voiceTransitionName, prefersReducedMotion } from '../lib/voices';
-
-// The cards are 1080×1350 social assets. Both dimensions are passed to every <img> so
-// the grid reserves the right aspect ratio before any image lands.
-const CARD_W = 1080;
-const CARD_H = 1350;
+import {
+  publishedVoices, voiceTransitionName, prefersReducedMotion,
+  cardSrcSet, CARD_SIZES_ATTR, CARD_W, CARD_H,
+} from '../lib/voices';
 
 // Entrance, mirroring the story page: content enters on readiness, once, on the
 // wrapper only. Deliberately not a scroll reveal — the grid is above the fold.
@@ -236,8 +234,15 @@ export default function VoicesClient({ initialNode }) {
                   >
                     <img
                       className="cs-vo-card"
+                      // src stays the 1080 original: it is the fallback for a record with
+                      // no derivatives yet, and for any browser that ignores srcset.
                       src={v.cardImage}
+                      srcSet={cardSrcSet(v)}
+                      sizes={CARD_SIZES_ATTR}
                       alt=""
+                      // The intrinsic ratio of every rung, not of whichever one is chosen —
+                      // the derivatives are the same 4:5 crop, so the reserved box is right
+                      // before the browser has even picked one.
                       width={CARD_W}
                       height={CARD_H}
                       loading="lazy"

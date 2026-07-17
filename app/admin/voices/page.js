@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
-import { readMatchNames } from '../../lib/voices';
+import { readMatchNames, CARD_DERIVATIVE_WIDTHS, cardSizeKey } from '../../lib/voices';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -39,6 +39,116 @@ async function uploadVoiceImage(file, slug, kind) {
   const storageRef = ref(storage, `voices/${slug}/${kind}.${extOf(file)}`);
   await uploadBytes(storageRef, file, { contentType: file.type });
   return await getDownloadURL(storageRef);
+}
+
+// ── The door does the sizing ──────────────────────────────────────────────────
+//
+// The CMS is the only way a card reaches the island, so it is the only place that can
+// guarantee a card arrives already sized. The 1080 original still uploads untouched — it
+// is the author page's hero and the morph's target — and these are cut from the same file
+// in the browser before it leaves.
+//
+// A one-shot 1080→360 drawImage aliases badly on detailed art, and these cards are mostly
+// small type over a photograph, which is exactly what aliasing ruins. Halving repeatedly
+// until the next step would overshoot lets each pass average whole pixels.
+const DERIVATIVE_QUALITY = 0.82;
+
+function drawScaled(bitmap, targetW) {
+  const srcW = bitmap.width || bitmap.naturalWidth;
+  const srcH = bitmap.height || bitmap.naturalHeight;
+  if (!srcW || !srcH) throw new Error('Could not read the image dimensions.');
+
+  let cur = document.createElement('canvas');
+  cur.width = srcW;
+  cur.height = srcH;
+  cur.getContext('2d').drawImage(bitmap, 0, 0);
+
+  let w = srcW;
+  while (w > targetW * 2) {
+    const next = document.createElement('canvas');
+    next.width = Math.max(targetW, Math.round(w / 2));
+    next.height = Math.round(next.width * srcH / srcW);
+    const cx = next.getContext('2d');
+    cx.imageSmoothingEnabled = true;
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(cur, 0, 0, next.width, next.height);
+    cur = next;
+    w = next.width;
+  }
+
+  const out = document.createElement('canvas');
+  out.width = targetW;
+  out.height = Math.round(targetW * srcH / srcW);
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(cur, 0, 0, out.width, out.height);
+  return out;
+}
+
+const encode = (canvas, type) =>
+  new Promise((resolve) => canvas.toBlob(resolve, type, DERIVATIVE_QUALITY));
+
+// toBlob does NOT reject an unsupported type — per spec it silently falls back to PNG, and
+// a PNG derivative would be heavier than the original we are trying to shrink. So the blob
+// is trusted only when it comes back as the type actually asked for.
+async function encodeBest(canvas) {
+  const webp = await encode(canvas, 'image/webp');
+  if (webp && webp.type === 'image/webp') return { blob: webp, ext: 'webp', type: 'image/webp' };
+  const jpeg = await encode(canvas, 'image/jpeg');
+  if (jpeg && jpeg.type === 'image/jpeg') return { blob: jpeg, ext: 'jpg', type: 'image/jpeg' };
+  return null;
+}
+
+async function loadBitmap(file) {
+  if (typeof createImageBitmap === 'function') {
+    const bmp = await createImageBitmap(file);
+    return { bitmap: bmp, release: () => bmp.close && bmp.close() };
+  }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  await new Promise((res, rej) => {
+    img.onload = res;
+    img.onerror = () => rej(new Error('Could not decode that image.'));
+    img.src = url;
+  });
+  return { bitmap: img, release: () => URL.revokeObjectURL(url) };
+}
+
+// Returns { w360: url, w540: url }, or {} if this browser can encode neither WebP nor
+// JPEG. Deliberately never throws: a card that uploads without derivatives is heavy, and
+// the grid falls back to the original for it, but a card that fails to upload at all is a
+// voice that cannot be published. Weight is not worth that.
+async function buildCardDerivatives(file, slug, onProgress) {
+  const out = {};
+  let handle;
+  try {
+    handle = await loadBitmap(file);
+  } catch (e) {
+    console.warn('voices admin: could not decode the card for resizing', e);
+    return out;
+  }
+  try {
+    const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+    for (const w of CARD_DERIVATIVE_WIDTHS) {
+      try {
+        if (onProgress) onProgress(w);
+        const encoded = await encodeBest(drawScaled(handle.bitmap, w));
+        if (!encoded) {
+          console.warn(`voices admin: no WebP or JPEG encoder for the ${w}w derivative`);
+          continue;
+        }
+        const dRef = ref(storage, `voices/${slug}/card-${w}.${encoded.ext}`);
+        await uploadBytes(dRef, encoded.blob, { contentType: encoded.type });
+        out[cardSizeKey(w)] = await getDownloadURL(dRef);
+      } catch (e) {
+        console.warn(`voices admin: ${w}w derivative failed`, e);
+      }
+    }
+  } finally {
+    handle.release();
+  }
+  return out;
 }
 
 // Style object copied from app/admin/authors/page.js for visual parity.
@@ -93,7 +203,7 @@ const optionalTagInline = <span style={{ color: 'rgba(255,255,255,0.3)', fontWei
 
 const emptyForm = {
   slug: '', displayName: '', matchUid: '', matchNames: '', genreTag: '',
-  message: '', bio: '', cardImage: '', portrait: '', order: '', published: false,
+  message: '', bio: '', cardImage: '', cardSizes: {}, portrait: '', order: '', published: false,
 };
 
 function initialOf(name) {
@@ -204,6 +314,9 @@ export default function VoicesAdmin() {
       message: v.message || '',
       bio: v.bio || '',
       cardImage: v.cardImage || '',
+      // Carried through the form untouched unless a new card is uploaded, so editing a
+      // bio does not quietly strip a record's derivatives.
+      cardSizes: v.cardSizes || {},
       portrait: v.portrait || '',
       order: String(v.order ?? 0),
       published: v.published === true,
@@ -248,8 +361,20 @@ export default function VoicesAdmin() {
     setSaving(true); setMsg(`Uploading ${kind === 'card' ? 'card' : 'portrait'}…`);
     try {
       const url = await uploadVoiceImage(file, slug, kind);
-      setForm((f) => ({ ...f, [kind === 'card' ? 'cardImage' : 'portrait']: url }));
-      setMsg(`${kind === 'card' ? 'Card' : 'Portrait'} uploaded — save to apply.`);
+      if (kind !== 'card') {
+        // The portrait is only ever the author page's hero, rendered at full width. It has
+        // no grid to be a thumbnail in, so there is nothing to size it down for.
+        setForm((f) => ({ ...f, portrait: url }));
+        setMsg('Portrait uploaded — save to apply.');
+      } else {
+        setMsg('Card uploaded — sizing…');
+        const cardSizes = await buildCardDerivatives(file, slug, (w) => setMsg(`Card uploaded — sizing ${w}w…`));
+        setForm((f) => ({ ...f, cardImage: url, cardSizes }));
+        const made = Object.keys(cardSizes).length;
+        setMsg(made
+          ? `Card uploaded with ${made} sized copy${made === 1 ? '' : 'ies'} (${CARD_DERIVATIVE_WIDTHS.slice(0, made).join('w, ')}w) — save to apply.`
+          : 'Card uploaded, but this browser could not produce sized copies — the grid will serve the full-size card. Save to apply.');
+      }
     } catch (err) {
       setMsg('Upload failed: ' + err.message);
     }
@@ -285,6 +410,9 @@ export default function VoicesAdmin() {
         message: form.message.trim(),
         bio: form.bio.trim(),
         cardImage: form.cardImage,
+        // An empty map removes the key, which is the honest state for a card with no
+        // derivatives — cardSrcSet() then returns undefined and the grid serves the original.
+        cardSizes: form.cardSizes || {},
         portrait: form.portrait || '',
         order,
         published: form.published === true,
@@ -551,6 +679,11 @@ export default function VoicesAdmin() {
                     <input type="file" accept="image/*" onChange={(e) => handleImage(e, 'card')} style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem' }} />
                     <div style={{ ...s.hint, marginTop: 6 }}>
                       The social card, and what the /voices grid renders. Stored at voices/{form.slug || '{slug}'}/card.*, max 5 MB.
+                      Upload the full-size 1080×1350 — sized copies ({CARD_DERIVATIVE_WIDTHS.join('w and ')}w WebP) are cut here in the
+                      browser and uploaded alongside it, so the grid never ships the full-size card.
+                      {Object.keys(form.cardSizes || {}).length > 0 && (
+                        <> <strong style={{ color: 'rgba(196,181,253,0.75)' }}>Sized copies ready.</strong></>
+                      )}
                     </div>
                   </div>
                 </div>
