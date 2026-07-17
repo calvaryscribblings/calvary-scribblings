@@ -53,3 +53,8 @@ serviceAccountKey.json
 .next/
 out/
 *.zip
+
+# Gateway cover wall — regenerated from cms_stories on every build by
+# scripts/generate-gateway-wall.mjs (WebP tiles + manifest.json). Build output,
+# not source; never commit. Cloudflare Pages regenerates it fresh each deploy.
+/public/gateway-wall/

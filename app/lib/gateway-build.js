@@ -10,6 +10,8 @@
 // baked into the static export at build time. The existing deploy-on-publish hook rebuilds
 // the site on every CMS mutation, so the baked numbers self-update and are never stale for
 // long. This is the same seed-at-build pattern the Voices pages use.
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { initializeApp, getApps } from 'firebase/app';
 import { getDatabase, ref, get } from 'firebase/database';
 
@@ -36,18 +38,38 @@ function isPublished(s, now) {
 const MAX_WHISPERS = 12;
 const WHISPER_MAX_CHARS = 140;
 
-// Returns { storyCount, whispers } baked for the gateway:
+// The cover wall (the hero under-layer). The WebP tiles and this manifest are cut at build
+// time by scripts/generate-gateway-wall.mjs, which runs before `next build`. We read ONLY
+// the manifest here — plain fs, no sharp — so the native module stays out of the Next app
+// graph. A missing/broken manifest degrades to an empty wall (the gateway shows its
+// radial-gradient background through instead), never a throw.
+async function readWallManifest() {
+  try {
+    const raw = await readFile(resolve(process.cwd(), 'public', 'gateway-wall', 'manifest.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.images) ? parsed.images : [];
+  } catch {
+    return [];
+  }
+}
+
+// Returns { storyCount, whispers, wall } baked for the gateway:
 //   storyCount — count of published cms_stories (item 7, "the honest number").
 //   whispers   — up to 12 published stories that carry a trailerQuote, preferring the
-//                shortest (under ~140 chars) so the door's whisper stays to three lines.
+//                shortest (under ~140 chars) so the epigraph stays to three lines.
 //                Shape: { quote, title }. No author, no cover — the gateway needs nothing
 //                more, and the smaller the baked payload the better.
-// A failed read degrades to zeroes/empty rather than throwing: a Firebase blip should
-// leave the gateway standing (count line hidden, no whispers), not fail the deploy.
+//   wall       — the cover-wall tiles ({ src, w, h }) read from the manifest the pre-build
+//                script cut. Independent of the Firebase read: the wall stands (or falls to
+//                empty) on its own manifest, so a Firebase blip that zeroes the count still
+//                leaves the wall, and a missing wall still leaves the count.
+// A failed Firebase read degrades to zeroes/empty rather than throwing: a blip should leave
+// the gateway standing (count line hidden, no whispers), not fail the deploy.
 export async function fetchGatewayData() {
+  const wall = await readWallManifest();
   try {
     const snap = await get(ref(buildDB(), 'cms_stories'));
-    if (!snap.exists()) return { storyCount: 0, whispers: [] };
+    if (!snap.exists()) return { storyCount: 0, whispers: [], wall };
     const data = snap.val() || {};
     const now = new Date();
     const published = Object.values(data).filter((s) => isPublished(s, now));
@@ -67,9 +89,9 @@ export async function fetchGatewayData() {
       return a.quote.length - b.quote.length;
     });
 
-    return { storyCount: published.length, whispers: withQuote.slice(0, MAX_WHISPERS) };
+    return { storyCount: published.length, whispers: withQuote.slice(0, MAX_WHISPERS), wall };
   } catch (e) {
     console.error('gateway build read: cms_stories fetch failed', e);
-    return { storyCount: 0, whispers: [] };
+    return { storyCount: 0, whispers: [], wall };
   }
 }

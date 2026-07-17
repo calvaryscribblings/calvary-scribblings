@@ -81,6 +81,14 @@ const DESKTOP_LETTERS = [
 
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// The cover wall (the hero, item 1). The build-time script cuts up to 12 darkened WebP tiles;
+// here we lay a mosaic that must fill the tallest viewport we support (portrait tablet, 6
+// columns) with room to drift, so we cycle those tiles across a fixed cell count. 48 = 6
+// columns × 8 rows covers portrait tablet and overflows every phone/desktop, all clipped by
+// the wall's overflow:hidden. Reused src ⇒ the browser fetches each unique tile once and
+// paints the rest from cache; the DOM cost of the extra <img> nodes is negligible.
+const WALL_TILES = 48;
+
 const prefersReducedMotion = () => {
   try {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -193,7 +201,7 @@ function Modal({ id, titleId, title, onClose, closeLabel = 'RETURN TO THE ISLAND
   );
 }
 
-export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0 }) {
+export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0, wall = [] }) {
   const router = useRouter();
   const [modal, setModal] = useState(null); // 'store' | 'universe' | null
   const [exiting, setExiting] = useState(false);
@@ -318,6 +326,13 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
   const whisperA = len ? whispers[aIdx] : null;
   const whisperB = len ? whispers[bIdx] : null;
 
+  // The mosaic cells: cycle the baked tiles across the fixed cell count so the wall fills the
+  // viewport regardless of how few covers the build produced. Empty when there are no tiles —
+  // the radial-gradient background then shows through, exactly as before the wall existed.
+  const wallCells = wall.length
+    ? Array.from({ length: WALL_TILES }, (_, i) => wall[i % wall.length])
+    : [];
+
   return (
     <div className={`cs-gw${exiting ? ' is-exiting' : ''}`} style={glow ? { '--gw-glow': glow } : undefined}>
       <style>{`
@@ -360,24 +375,73 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
           .cs-gw-glass { background:rgba(11,7,22,.88); }
         }
 
+        /* ── The cover wall (item 1) ─────────────────────────────────────────────
+           The hero: a mosaic of build-baked cover tiles, the lowest layer, glimpsed in the
+           dark beneath the scrim. Fixed and clipped; sized taller than the viewport (and
+           anchored above its top) so the slow drift never bares an edge. */
+        .cs-gw-wall {
+          position:fixed; inset:-60px 0 auto 0; height:calc(100vh + 200px);
+          overflow:hidden; z-index:0; pointer-events:none;
+        }
+        .cs-gw-wall-grid {
+          display:grid; grid-template-columns:repeat(4, 1fr); width:100%;
+          /* Felt, not seen: a few dozen px over ~70s, easing at each end. */
+          animation:cs-gw-wall-drift 70s ease-in-out infinite alternate;
+          will-change:transform;
+        }
+        @media (min-width:768px) { .cs-gw-wall-grid { grid-template-columns:repeat(6, 1fr); } }
+        .cs-gw-wall-tile {
+          display:block; width:100%; aspect-ratio:2 / 3; object-fit:cover;
+          /* Shelves in the dark, not a gallery. */
+          filter:brightness(0.35) saturate(0.85);
+        }
+        @keyframes cs-gw-wall-drift { from { transform:translateY(0); } to { transform:translateY(-44px); } }
+        @media (prefers-reduced-motion: reduce) { .cs-gw-wall-grid { animation:none; } }
+
+        /* The scrim: radial glow (hour-tinted via --gw-glow) over a vertical floor of the
+           existing bg colours, darkest at top around the header, so every text layer keeps at
+           least its former contrast over the wall. Sits above the wall, below the letters. */
+        .cs-gw-scrim {
+          position:fixed; inset:0; z-index:1; pointer-events:none;
+          background:
+            radial-gradient(120vmin 82vmin at 50% -6vmin,
+              color-mix(in srgb, var(--gw-glow) 78%, transparent) 0%, transparent 60%),
+            linear-gradient(180deg,
+              rgba(8,6,16,.92) 0%, rgba(8,6,16,.7) 22%, rgba(11,7,22,.58) 48%,
+              rgba(8,6,16,.7) 76%, rgba(5,3,9,.9) 100%);
+          transition:--gw-glow 3000ms linear;
+        }
+        /* Where color-mix is unsupported, fall back to a plain dark floor (no glimpsed glow,
+           but full contrast) rather than an unparsed — and therefore ignored — background. */
+        @supports not (background: color-mix(in srgb, red 50%, transparent)) {
+          .cs-gw-scrim {
+            background:
+              radial-gradient(120vmin 82vmin at 50% -6vmin, var(--gw-glow) 0%, transparent 60%),
+              linear-gradient(180deg,
+                rgba(8,6,16,.94) 0%, rgba(8,6,16,.72) 22%, rgba(11,7,22,.6) 48%,
+                rgba(8,6,16,.72) 76%, rgba(5,3,9,.92) 100%);
+          }
+        }
+
         /* The dusk amber cast (item 6): a faint warm wash over the glow, behind everything
-           else, that fades in only in the 17–21 window. */
+           else, that fades in only in the 17–21 window. Above the scrim so the warmth reads. */
         .cs-gw-dusk {
-          position:fixed; inset:0; z-index:0; pointer-events:none; opacity:0;
+          position:fixed; inset:0; z-index:1; pointer-events:none; opacity:0;
           background:radial-gradient(120vmin 80vmin at 50% -6vmin,
             rgba(201,120,60,.10) 0%, transparent 60%);
           transition:opacity 3000ms linear;
         }
         .cs-gw-dusk.is-on { opacity:1; }
 
-        /* Letters drift across the whole viewport at every size, not just the column. The
-           doors (z-index 2, via the panel) sit above the letters (z-index 1), so their glass
-           blur visibly catches glyphs drifting behind them. */
-        .cs-gw-letters { position:fixed; inset:0; overflow:hidden; pointer-events:none; z-index:1; }
+        /* Letters drift across the whole viewport at every size, not just the column. Layer
+           order bottom→top: wall (0) → scrim/dusk (1) → letters (2) → panel/doors (3). The
+           doors' glass (in the panel) therefore refracts BOTH the drifting glyphs AND the
+           cover wall behind them through its backdrop-blur. */
+        .cs-gw-letters { position:fixed; inset:0; overflow:hidden; pointer-events:none; z-index:2; }
         .cs-gw-panel {
-          width:100%; max-width:420px; min-height:100vh; position:relative; z-index:2;
+          width:100%; max-width:420px; min-height:100vh; position:relative; z-index:3;
           display:flex; flex-direction:column; justify-content:center;
-          padding:56px 22px 34px; text-align:center;
+          padding:44px 22px 30px; text-align:center;
         }
         .cs-gw-fl {
           position:absolute; font-family:var(--gw-serif); color:var(--gw-gold);
@@ -414,11 +478,35 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
           font-family:var(--gw-display); font-size:14px; letter-spacing:.32em;
           color:var(--gw-cream); margin-bottom:7px;
         }
-        .cs-gw-tagline { font-style:italic; font-size:18px; color:var(--gw-gold); margin-bottom:34px; }
-        .cs-gw-doors { display:flex; gap:11px; margin-bottom:15px; align-items:stretch; }
+        .cs-gw-tagline { font-style:italic; font-size:18px; color:var(--gw-gold); margin-bottom:13px; }
+
+        /* Item 2 — the epigraph. The rotating whisper, moved out of the Library door to sit
+           beneath the tagline as the foyer's inscription: italic Cormorant, centred, capped
+           at three lines with a gold attribution. Two crossfading layers share one box whose
+           height is reserved for three lines + attribution, so rotation never shifts layout. */
+        .cs-gw-epigraph { position:relative; min-height:98px; max-width:360px; margin:0 auto 28px; }
+        .cs-gw-epigraph-layer { position:absolute; inset:0; opacity:0; transition:opacity 600ms ease; }
+        .cs-gw-epigraph-layer.is-lit { opacity:1; }
+        .cs-gw-epigraph-quote {
+          font-family:var(--gw-serif); font-style:italic; font-size:17px; line-height:1.5;
+          color:rgba(245,240,232,.82);
+          display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+        }
+        .cs-gw-epigraph-attr {
+          display:block; margin-top:6px; font-family:var(--gw-serif); font-style:italic;
+          font-size:13.5px; color:var(--gw-gold);
+        }
+
+        /* ── The doors (item 3): compressed to essence, buttons again ───────────────
+           Mobile: two full-width horizontal bands, stacked — glyph left, text right, one
+           meta line each. Desktop (≥768px, below): side-by-side cards, height-capped,
+           centred. No subtitle (it lives in the SEO prose) and no watermark. */
+        .cs-gw-doors { display:flex; flex-direction:column; gap:11px; margin-bottom:15px; }
         .cs-gw-door {
-          flex:1; border-radius:15px; padding:22px 12px 19px; color:inherit; text-decoration:none;
-          cursor:pointer; font-family:inherit; display:block; position:relative; overflow:hidden;
+          border-radius:15px; color:inherit; text-decoration:none; cursor:pointer;
+          font-family:inherit; position:relative; overflow:hidden;
+          display:flex; align-items:center; gap:16px; text-align:left;
+          min-height:148px; padding:18px 20px;
           transition:border-color .2s, transform .2s;
         }
         .cs-gw-door:hover,.cs-gw-door:focus-visible { border-color:var(--gw-gold); transform:translateY(-2px); }
@@ -427,51 +515,21 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
         .cs-gw-arm-link:focus-visible {
           outline:2px solid var(--gw-gold-bright); outline-offset:3px;
         }
-        /* Door content sits above the ghost watermark (item 5). */
-        .cs-gw-door-body { position:relative; z-index:1; display:block; }
-        .cs-gw-door-mark {
-          position:absolute; right:-14px; bottom:-32px; z-index:0;
-          font-family:var(--gw-serif); font-size:180px; line-height:1;
-          color:var(--gw-gold); opacity:.05; pointer-events:none; user-select:none;
-        }
-        .cs-gw-door .cs-gw-glyph { display:block; font-size:24px; line-height:1; margin-bottom:11px; color:var(--gw-gold); }
-        .cs-gw-door h2 {
+        .cs-gw-door-glyph { flex:none; font-size:32px; line-height:1; color:var(--gw-gold); }
+        .cs-gw-door-text { display:flex; flex-direction:column; gap:5px; min-width:0; }
+        .cs-gw-door-title {
           font-family:var(--gw-display); font-weight:600; font-size:13px; letter-spacing:.12em;
-          color:var(--gw-cream); line-height:1.5; margin-bottom:6px;
+          color:var(--gw-cream); line-height:1.5;
         }
-        .cs-gw-door p { font-style:italic; font-size:14.5px; color:rgba(245,240,232,.7); }
-        .cs-gw-door p.cs-gw-opens { color:var(--gw-gold-bright); }
-
-        /* Item 7 — the honest number, above the subtitle. */
-        .cs-gw-count {
-          font-family:var(--gw-display); font-size:10px; letter-spacing:.2em; text-transform:uppercase;
-          color:rgba(245,240,232,.55); margin:2px 0 7px;
-        }
-        /* Item 3 — the whisper, beneath the subtitle. Two crossfading layers share one box
-           whose height is reserved for up to three lines + attribution, so rotation never
-           shifts the layout. */
-        .cs-gw-whisper { position:relative; min-height:88px; margin-top:11px; }
-        .cs-gw-whisper-layer {
-          position:absolute; inset:0; opacity:0; transition:opacity 600ms ease;
-        }
-        .cs-gw-whisper-layer.is-lit { opacity:1; }
-        .cs-gw-whisper-quote {
-          font-family:var(--gw-serif); font-style:italic; font-size:15px; line-height:1.45;
-          color:rgba(245,240,232,.75);
-          display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
-        }
-        .cs-gw-whisper-attr {
-          display:block; margin-top:4px; font-family:var(--gw-serif); font-style:italic;
-          font-size:12.5px; color:rgba(201,168,76,.6);
-        }
-        /* Item 6 — the "open tonight" line, under the whisper. Slow opacity pulse. */
-        .cs-gw-square {
-          margin-top:9px; font-family:var(--gw-display); font-size:10px; letter-spacing:.2em;
-          text-transform:uppercase; color:var(--gw-gold);
-          animation:cs-gw-square-pulse 2.5s ease-in-out infinite;
+        .cs-gw-door-meta { font-style:italic; font-size:14.5px; color:rgba(245,240,232,.72); }
+        .cs-gw-door-meta.cs-gw-opens { color:var(--gw-gold-bright); }
+        /* Item 6 — the Square's evening pulse, inside the Library band beneath its meta line. */
+        .cs-gw-door-square {
+          font-family:var(--gw-display); font-size:9.5px; letter-spacing:.2em; text-transform:uppercase;
+          color:var(--gw-gold); animation:cs-gw-square-pulse 2.5s ease-in-out infinite;
         }
         @keyframes cs-gw-square-pulse { 0%,100% { opacity:.7; } 50% { opacity:1; } }
-        @media (prefers-reduced-motion: reduce) { .cs-gw-square { animation:none; opacity:1; } }
+        @media (prefers-reduced-motion: reduce) { .cs-gw-door-square { animation:none; opacity:1; } }
 
         .cs-gw-pill {
           display:block; width:100%; border-radius:999px; padding:13px; cursor:pointer;
@@ -570,19 +628,23 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
         /* ── The foyer ─────────────────────────────────────────────────────────
            Tablet takes the desktop composition, tighter; ≥900px opens up fully. */
         @media (min-width:768px) {
-          .cs-gw-panel { max-width:600px; padding:64px 32px 44px; }
-          .cs-gw-logo { width:72px; margin-bottom:20px; }
+          .cs-gw-panel { max-width:600px; padding:56px 32px 40px; }
+          .cs-gw-logo { width:72px; margin-bottom:18px; }
           .cs-gw-wordmark { font-size:15.5px; letter-spacing:.33em; }
-          .cs-gw-tagline { font-size:20px; margin-bottom:40px; }
-          .cs-gw-doors { gap:16px; margin-bottom:18px; }
-          .cs-gw-door { padding:36px 18px 30px; border-radius:17px; }
-          .cs-gw-door .cs-gw-glyph { font-size:29px; margin-bottom:14px; }
-          .cs-gw-door h2 { font-size:14px; }
-          .cs-gw-door p { font-size:15.5px; }
-          .cs-gw-count { font-size:10.5px; margin:3px 0 8px; }
-          .cs-gw-whisper { min-height:94px; margin-top:13px; }
-          .cs-gw-whisper-quote { font-size:15.5px; }
-          .cs-gw-door-mark { font-size:210px; }
+          .cs-gw-tagline { font-size:20px; margin-bottom:14px; }
+          .cs-gw-epigraph { min-height:100px; max-width:460px; margin-bottom:32px; }
+          .cs-gw-epigraph-quote { font-size:18px; }
+          .cs-gw-epigraph-attr { font-size:14px; }
+          /* Doors turn from stacked bands into side-by-side cards, height-capped, centred. */
+          .cs-gw-doors { flex-direction:row; gap:16px; margin-bottom:18px; }
+          .cs-gw-door {
+            flex:1; flex-direction:column; text-align:center; align-items:center; justify-content:center;
+            gap:10px; min-height:0; max-height:200px; padding:30px 20px; border-radius:17px;
+          }
+          .cs-gw-door-text { align-items:center; gap:6px; }
+          .cs-gw-door-glyph { font-size:34px; }
+          .cs-gw-door-title { font-size:14px; }
+          .cs-gw-door-meta { font-size:15.5px; }
           .cs-gw-pill { padding:15px; margin-bottom:28px; }
           .cs-gw-pill span { font-size:13px; }
           .cs-gw-small { gap:32px; font-size:17px; margin-bottom:34px; }
@@ -590,19 +652,17 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
           .cs-gw-modal { max-width:400px; }
         }
         @media (min-width:900px) {
-          .cs-gw-panel { max-width:720px; padding:72px 40px 52px; }
-          .cs-gw-logo { width:84px; margin-bottom:22px; }
+          .cs-gw-panel { max-width:720px; padding:60px 40px 46px; }
+          .cs-gw-logo { width:84px; margin-bottom:20px; }
           .cs-gw-wordmark { font-size:17px; letter-spacing:.34em; margin-bottom:9px; }
-          .cs-gw-tagline { font-size:22px; margin-bottom:46px; }
+          .cs-gw-tagline { font-size:22px; margin-bottom:16px; }
+          .cs-gw-epigraph { min-height:104px; max-width:520px; margin-bottom:36px; }
+          .cs-gw-epigraph-quote { font-size:19px; }
           .cs-gw-doors { gap:20px; margin-bottom:20px; }
-          .cs-gw-door { padding:44px 22px 40px; border-radius:18px; }
-          .cs-gw-door .cs-gw-glyph { font-size:34px; margin-bottom:16px; }
-          .cs-gw-door h2 { font-size:15px; margin-bottom:8px; }
-          .cs-gw-door p { font-size:16.5px; }
-          .cs-gw-count { font-size:11px; letter-spacing:.22em; margin:4px 0 9px; }
-          .cs-gw-whisper { min-height:100px; margin-top:15px; }
-          .cs-gw-whisper-quote { font-size:16px; }
-          .cs-gw-whisper-attr { font-size:13px; }
+          .cs-gw-door { max-height:200px; padding:34px 24px; border-radius:18px; gap:12px; }
+          .cs-gw-door-glyph { font-size:38px; }
+          .cs-gw-door-title { font-size:15px; }
+          .cs-gw-door-meta { font-size:16.5px; }
           .cs-gw-pill { padding:16px; margin-bottom:30px; }
           .cs-gw-pill span { font-size:13.5px; letter-spacing:.26em; }
           .cs-gw-small { gap:38px; font-size:18px; margin-bottom:38px; }
@@ -611,6 +671,33 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
           .cs-gw-seo p { font-size:14px; }
         }
       `}</style>
+
+      {/* Item 1 — the cover wall + its scrim. The lowest layers; rendered only when the build
+          produced tiles, so an empty wall falls back to the plain radial-gradient background
+          (and the scrim, which would otherwise just dim it, is skipped with it). The tiles are
+          lazy + low-priority so text and glass paint first on Fast 3G. */}
+      {wallCells.length > 0 && (
+        <>
+          <div className="cs-gw-wall" aria-hidden="true">
+            <div className="cs-gw-wall-grid">
+              {wallCells.map((t, i) => (
+                <img
+                  key={i}
+                  className="cs-gw-wall-tile"
+                  src={t.src}
+                  alt=""
+                  width={t.w}
+                  height={t.h}
+                  loading="lazy"
+                  decoding="async"
+                  fetchPriority="low"
+                />
+              ))}
+            </div>
+          </div>
+          <div className="cs-gw-scrim" aria-hidden="true" />
+        </>
+      )}
 
       <div className={`cs-gw-dusk${amber ? ' is-on' : ''}`} aria-hidden="true" />
 
@@ -655,47 +742,46 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
           <div className="cs-gw-wordmark cs-gw-fade">CALVARY SCRIBBLINGS</div>
           <h1 className="cs-gw-tagline cs-gw-fade">Welcome to the Story Island</h1>
 
+          {/* Item 2 — the epigraph: the rotating whisper, now the foyer's inscription. */}
+          {len > 0 && (
+            <div className="cs-gw-epigraph cs-gw-fade">
+              <div className={`cs-gw-epigraph-layer${active === 'a' ? ' is-lit' : ''}`} aria-hidden={active !== 'a'}>
+                <span className="cs-gw-epigraph-quote">{whisperA.quote}</span>
+                <span className="cs-gw-epigraph-attr">— {whisperA.title}</span>
+              </div>
+              <div className={`cs-gw-epigraph-layer${active === 'b' ? ' is-lit' : ''}`} aria-hidden={active !== 'b'}>
+                <span className="cs-gw-epigraph-quote">{whisperB.quote}</span>
+                <span className="cs-gw-epigraph-attr">— {whisperB.title}</span>
+              </div>
+            </div>
+          )}
+
           <div className="cs-gw-doors">
             <Link
               className={`cs-gw-door cs-gw-glass${pressed ? ' is-pressed' : ''}${exiting ? ' is-entering' : ''}`}
               href={LIBRARY}
               onClick={(e) => walkThrough(e, LIBRARY)}
             >
-              <div className="cs-gw-door-mark" aria-hidden="true">⁂</div>
-              <div className="cs-gw-door-body">
-                <div className="cs-gw-glyph" aria-hidden="true">⁂</div>
-                <h2>PUBLIC LIBRARY<br />&amp; OPEN PAGES</h2>
-                {storyCount > 0 && (
-                  <div className="cs-gw-count">{storyCount} stories · always open</div>
-                )}
-                <p>Stories, poetry &amp; your own pages</p>
-
-                {len > 0 && (
-                  <div className="cs-gw-whisper">
-                    <div className={`cs-gw-whisper-layer${active === 'a' ? ' is-lit' : ''}`} aria-hidden={active !== 'a'}>
-                      <span className="cs-gw-whisper-quote">{whisperA.quote}</span>
-                      <span className="cs-gw-whisper-attr">— {whisperA.title}</span>
-                    </div>
-                    <div className={`cs-gw-whisper-layer${active === 'b' ? ' is-lit' : ''}`} aria-hidden={active !== 'b'}>
-                      <span className="cs-gw-whisper-quote">{whisperB.quote}</span>
-                      <span className="cs-gw-whisper-attr">— {whisperB.title}</span>
-                    </div>
-                  </div>
-                )}
-
+              {/* ⁂ renders as stacked asterisks on iOS — retired from the gateway for ✦; it stays
+                  in the Voices works list where it renders in context. */}
+              <span className="cs-gw-door-glyph" aria-hidden="true">✦</span>
+              <span className="cs-gw-door-text">
+                <span className="cs-gw-door-title">PUBLIC LIBRARY &amp; OPEN PAGES</span>
+                <span className="cs-gw-door-meta">
+                  {storyCount > 0 ? `${storyCount} stories · always open` : 'Always open'}
+                </span>
                 {squareOpen && (
-                  <div className="cs-gw-square">The Square is open tonight ✦</div>
+                  <span className="cs-gw-door-square">The Square is open tonight ✦</span>
                 )}
-              </div>
+              </span>
             </Link>
 
             <button className="cs-gw-door cs-gw-glass cs-gw-fade" type="button" onClick={() => setModal('store')}>
-              <div className="cs-gw-door-mark" aria-hidden="true">❦</div>
-              <div className="cs-gw-door-body">
-                <div className="cs-gw-glyph" aria-hidden="true">❦</div>
-                <h2>THE<br />BOOK STORE</h2>
-                <p className="cs-gw-opens">{opensLabel}</p>
-              </div>
+              <span className="cs-gw-door-glyph" aria-hidden="true">❦</span>
+              <span className="cs-gw-door-text">
+                <span className="cs-gw-door-title">THE BOOK STORE</span>
+                <span className="cs-gw-door-meta cs-gw-opens">{opensLabel}</span>
+              </span>
             </button>
           </div>
 
