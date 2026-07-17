@@ -22,11 +22,22 @@ const PORTRAIT_H = 1350;
 // loaded. The portrait is deliberately OUTSIDE the staged set: it is the morph's target
 // and must be visible throughout.
 //
-//   t=0     eyebrow + displayName rise
-//   t=250   the 88px gold rule draws
-//   t=950   the ✦ seal lands at the rule's end
-//   t=1050  the genre chip frosts in, and the message
-//   t=1200  the bio, and the works cascade
+// THE TWO MODES. A voice with a distinct portrait gets the signature — the name, the rule,
+// the seal, laid over a photograph that carries no writing of its own. A voice falling back
+// to its card image does not: the card is self-labelled artwork with the name already baked
+// into it, and printing the name again on top both doubles it and covers the message the
+// card was made to say. So the whole overlay is suppressed and the card speaks for itself.
+//
+//   NAMED (distinct portrait)        BARE (card image as hero)
+//   t=0     eyebrow + name rise      t=0     eyebrow rises
+//   t=250   the 88px gold rule draws   —     no rule
+//   t=950   the ✦ seal lands           —     no seal
+//   t=1050  chip frosts in, message   t=250   chip frosts in, message
+//   t=1200  bio, works cascade        t=400   bio, works cascade
+//
+// The bare column is not the named column with holes in it. Its beats close up, because a
+// stagger that idles through a signature nobody is watching for reads as a page that has
+// stalled, not a page composing itself.
 //
 // THE SIGNATURE BEAT — the rule is the story's own closing mark, lifted verbatim from the
 // last-page ceremony (app/stories/[slug]/page-client.js): 88px, 1px, #c9a84c, scaleX(0)→
@@ -38,16 +49,31 @@ const RULE_AT = 250;
 const RULE_MS = 700;
 const SEAL_AT = RULE_AT + RULE_MS; // the seal waits for the rule to finish drawing
 const SEAL_MS = 300;
-const CHIP_AT = 1050;
-const BIO_AT = 1200;
-const WORKS_AT = 1200;
 const WORKS_STAGGER = 40;
 // Rows past the eighth arrive with the eighth. A cascade is a flourish, not a queue.
 const WORKS_CAP = 8;
 const HOUSE_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
-// Everything is composed by here, at which point the animations come off so the page is
-// not left composited for the rest of the visit.
-const SETTLE_MS = WORKS_AT + (WORKS_CAP - 1) * WORKS_STAGGER + RISE_MS;
+
+// The hero is the portrait when there is one, and the card image otherwise — but ONLY a
+// portrait that is genuinely its own image earns the overlay. A record whose portrait field
+// merely repeats cardImage is a fallback wearing a portrait's name, and is treated as one.
+// All seven voices on the roster today are bare.
+function hasDistinctPortrait(v) {
+  return !!(v && v.portrait && v.portrait !== v.cardImage);
+}
+
+// The two columns above, resolved. chip/bio are handed to CSS as custom properties on the
+// wrapper, so the stylesheet stays one constant string and only the delays vary.
+function beatsFor(named) {
+  return named ? { chip: 1050, bio: 1200 } : { chip: 250, bio: 400 };
+}
+
+// The works cascade starts with the bio and runs the stagger out from there. Everything is
+// composed by the end of it, at which point the animations come off so the page is not left
+// composited for the rest of the visit.
+function settleFor(beats) {
+  return beats.bio + (WORKS_CAP - 1) * WORKS_STAGGER + RISE_MS;
+}
 // The body waits for the webfonts before it moves — a Cormorant swap landing mid-ceremony
 // is what makes a reveal read as dumped — but a slow font CDN never holds it hostage.
 const FONT_CAP_MS = 800;
@@ -61,7 +87,7 @@ export default function VoicePageClient({ slug, initialVoice }) {
   const [state, setState] = useState(seeded ? 'ready' : 'loading');
   const [voice, setVoice] = useState(seeded);
   const [works, setWorks] = useState([]);
-  const [worksDelay, setWorksDelay] = useState(WORKS_AT);
+  const [worksDelay, setWorksDelay] = useState(() => beatsFor(hasDistinctPortrait(seeded)).bio);
 
   const [entrance, setEntrance] = useState('hidden');
   const started = useRef(false);
@@ -114,8 +140,9 @@ export default function VoicePageClient({ slug, initialVoice }) {
       if (unmounted.current) return;
       // If the rows lost the race with the ceremony, they cascade from wherever it has
       // got to rather than waiting out a delay that has already elapsed.
+      const worksAt = beatsFor(hasDistinctPortrait(voice)).bio;
       const t0 = arriveAt.current;
-      setWorksDelay(t0 == null ? WORKS_AT : Math.max(0, WORKS_AT - (performance.now() - t0)));
+      setWorksDelay(t0 == null ? worksAt : Math.max(0, worksAt - (performance.now() - t0)));
       setWorks(rows);
     })();
   }, [voice]);
@@ -133,7 +160,9 @@ export default function VoicePageClient({ slug, initialVoice }) {
       fired = true;
       arriveAt.current = performance.now();
       setEntrance('entering');
-      timers.current.push(setTimeout(() => setEntrance('settled'), SETTLE_MS));
+      // The bare mode composes sooner, so it settles sooner — the timer follows the beats
+      // rather than holding the page composited through a signature that never ran.
+      timers.current.push(setTimeout(() => setEntrance('settled'), settleFor(beatsFor(hasDistinctPortrait(voice)))));
     };
 
     // Whichever comes first: the fonts landing, or the cap giving up on them.
@@ -154,7 +183,7 @@ export default function VoicePageClient({ slug, initialVoice }) {
 
     // Deliberately not cleaning up here: the timers are cleared on unmount above. A
     // cleanup keyed to these deps would cancel the settle timer the moment it began.
-  }, [state]);
+  }, [state, voice]);
 
   // Any return to the grid runs at the short duration, not just a history traverse: the
   // motion reads the same either way, so it should not have two speeds depending on
@@ -167,6 +196,9 @@ export default function VoicePageClient({ slug, initialVoice }) {
   const wrapClass = entrance === 'entering' ? ' cs-vp-arrive' : entrance === 'settled' ? ' cs-vp-arrive-settled' : '';
   const hero = voice ? (voice.portrait || voice.cardImage) : '';
   const firstName = firstNameOf(voice?.displayName);
+  // Which of the two modes this record is in — see hasDistinctPortrait() and the beat table.
+  const named = hasDistinctPortrait(voice);
+  const beats = beatsFor(named);
 
   return (
     <div className="cs-vp">
@@ -191,7 +223,11 @@ export default function VoicePageClient({ slug, initialVoice }) {
         .cs-vp-hero { position:relative; margin:34px 0 30px; border-radius:14px; overflow:hidden;
           border:1px solid rgba(201,168,76,.28); box-shadow:0 10px 34px rgba(0,0,0,.5);
           background:rgba(8,6,16,.5); }
-        .cs-vp-portrait { width:100%; height:auto; display:block; }
+        .cs-vp-portrait { width:100%; height:auto; aspect-ratio:${PORTRAIT_W} / ${PORTRAIT_H}; object-fit:cover; display:block; }
+        .cs-vp-sr {
+          position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+          overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;
+        }
         .cs-vp-scrim {
           position:absolute; left:0; right:0; bottom:0; height:58%; pointer-events:none;
           background:linear-gradient(to bottom, rgba(11,7,22,0) 0%, rgba(11,7,22,.85) 100%);
@@ -292,12 +328,15 @@ export default function VoicePageClient({ slug, initialVoice }) {
         .cs-vp-arrive .cs-vp-name { animation:csVpRise ${RISE_MS}ms ${HOUSE_EASE} both; }
         .cs-vp-arrive .cs-vp-rule { animation:csVpDraw ${RULE_MS}ms ease ${RULE_AT}ms both; }
         .cs-vp-arrive .cs-vp-seal { animation:csVpFade ${SEAL_MS}ms ease ${SEAL_AT}ms both; }
+        /* The two beat columns arrive as custom properties off the wrapper — see beatsFor().
+           The fallbacks are the named set, so a body that somehow renders without them keeps
+           the full ceremony rather than snapping. */
         .cs-vp-arrive .cs-vp-chip,
-        .cs-vp-arrive .cs-vp-message { animation:csVpRise ${RISE_MS}ms ${HOUSE_EASE} ${CHIP_AT}ms both; }
+        .cs-vp-arrive .cs-vp-message { animation:csVpRise ${RISE_MS}ms ${HOUSE_EASE} var(--vp-chip-at, 1050ms) both; }
         .cs-vp-arrive .cs-vp-bio,
         .cs-vp-arrive .cs-vp-divider,
         .cs-vp-arrive .cs-vp-pen,
-        .cs-vp-arrive .cs-vp-works-empty { animation:csVpRise ${RISE_MS}ms ${HOUSE_EASE} ${BIO_AT}ms both; }
+        .cs-vp-arrive .cs-vp-works-empty { animation:csVpRise ${RISE_MS}ms ${HOUSE_EASE} var(--vp-bio-at, 1200ms) both; }
         /* The rows carry their own delay inline — the cascade, and its cap. */
         .cs-vp-arrive .cs-vp-work { animation:csVpRise ${RISE_MS}ms ${HOUSE_EASE} both; }
 
@@ -322,7 +361,10 @@ export default function VoicePageClient({ slug, initialVoice }) {
       `}</style>
 
       <div className="cs-vp-inner">
-        <div className={`cs-vp-body${wrapClass}`}>
+        <div
+          className={`cs-vp-body${wrapClass}`}
+          style={{ '--vp-chip-at': `${beats.chip}ms`, '--vp-bio-at': `${beats.bio}ms` }}
+        >
           {state === 'missing' ? (
             <>
               <p className="cs-vp-missing">This voice has not been gathered yet.</p>
@@ -351,14 +393,27 @@ export default function VoicePageClient({ slug, initialVoice }) {
                     style={{ viewTransitionName: voiceTransitionName(slug) }}
                   />
                 )}
-                <div className="cs-vp-scrim" aria-hidden="true" />
-                <div className="cs-vp-herotext">
-                  <h1 className="cs-vp-name cs-vp-stage">{voice.displayName}</h1>
-                  <div className="cs-vp-sig" aria-hidden="true">
-                    <span className="cs-vp-rule" />
-                    <span className="cs-vp-seal cs-vp-stage">✦</span>
-                  </div>
-                </div>
+                {/* The overlay — scrim, name, rule, seal — belongs to a photograph, and
+                    only a photograph. Over a self-labelled card it would darken and then
+                    overprint the very message the card was made to carry, so the whole of
+                    it goes and the artwork is left alone. */}
+                {named ? (
+                  <>
+                    <div className="cs-vp-scrim" aria-hidden="true" />
+                    <div className="cs-vp-herotext">
+                      <h1 className="cs-vp-name cs-vp-stage">{voice.displayName}</h1>
+                      <div className="cs-vp-sig" aria-hidden="true">
+                        <span className="cs-vp-rule" />
+                        <span className="cs-vp-seal cs-vp-stage">✦</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  // The name is drawn in the card, which no screen reader can read. The
+                  // document keeps its one h1 either way; here it is simply not printed
+                  // twice over art that already says it.
+                  <h1 className="cs-vp-sr">{voice.displayName}</h1>
+                )}
               </div>
 
               {voice.genreTag && <div className="cs-vp-chip cs-vp-stage">{voice.genreTag}</div>}

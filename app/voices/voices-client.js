@@ -112,25 +112,35 @@ export default function VoicesClient({ initialNode }) {
           --vo-serif:'Cormorant Garamond',Georgia,serif;
           --vo-display:'Cinzel',Georgia,serif;
           background:radial-gradient(120% 40% at 50% -5%, #1c0f38 0%, #0b0716 55%, #080610 100%);
-          min-height:100vh; font-family:var(--vo-serif); padding:64px 22px 72px;
+          min-height:100vh; font-family:var(--vo-serif); padding:40px 16px 56px;
         }
         .cs-vo-inner { max-width:440px; margin:0 auto; }
+        /* The masthead is trimmed, not shrunk: every size below is the house size it always
+           was, and only the vertical air around them gives, so a 390×844 screen opens on
+           the header plus a full 2×2 of cards. */
         .cs-vo-eyebrow {
           font-family:var(--vo-display); font-size:11.5px; letter-spacing:.28em;
           color:var(--vo-gold); text-align:center;
         }
-        .cs-vo-rule { width:44px; height:1px; background:var(--vo-gold); margin:14px auto 16px; }
+        .cs-vo-rule { width:44px; height:1px; background:var(--vo-gold); margin:10px auto 12px; }
         .cs-vo-intro {
           font-style:italic; font-size:18px; color:rgba(245,240,232,.75);
-          text-align:center; margin:0 0 38px;
+          text-align:center; margin:0 0 20px;
         }
-        .cs-vo-grid { display:grid; grid-template-columns:1fr; gap:26px; }
+        /* The dense grid. Single column only on the narrowest phones; two from 360px, and
+           the card is the whole unit — the name is baked into the art, so nothing below it
+           has to be paid for in height. */
+        .cs-vo-grid { display:grid; grid-template-columns:1fr; gap:12px; }
+        @media (min-width:360px) { .cs-vo-grid { grid-template-columns:repeat(2, 1fr); } }
         .cs-vo-cardlink {
           display:block; border-radius:14px; text-decoration:none;
           transition:transform .45s ${HOUSE_EASE}, box-shadow .45s ${HOUSE_EASE};
         }
+        /* aspect-ratio, not height:auto — the 4:5 frame is reserved from the first frame at
+           every column count, so a lazy card landing late never shifts the row. */
         .cs-vo-card {
-          width:100%; height:auto; display:block; border-radius:14px;
+          width:100%; height:auto; aspect-ratio:${CARD_W} / ${CARD_H}; object-fit:cover;
+          display:block; border-radius:14px;
           border:1px solid rgba(201,168,76,.28);
           box-shadow:0 10px 34px rgba(0,0,0,.5);
           background:rgba(8,6,16,.5);
@@ -141,11 +151,6 @@ export default function VoicesClient({ initialNode }) {
             border-color:rgba(201,168,76,.6); box-shadow:0 16px 44px rgba(0,0,0,.6);
           }
         }
-        .cs-vo-name {
-          font-family:var(--vo-display); font-size:12px; letter-spacing:.14em;
-          color:rgba(245,240,232,.72); text-align:center; margin-top:12px;
-        }
-        .cs-vo-cardlink:hover .cs-vo-name { color:var(--vo-cream); }
         .cs-vo-empty {
           text-align:center; font-style:italic; font-size:16px;
           color:rgba(245,240,232,.45); padding:36px 0;
@@ -194,8 +199,15 @@ export default function VoicesClient({ initialNode }) {
         }
 
         @media (min-width:768px) {
+          .cs-vo { padding:56px 22px 72px; }
           .cs-vo-inner { max-width:920px; }
-          .cs-vo-grid { grid-template-columns:1fr 1fr; gap:32px; }
+          .cs-vo-rule { margin:14px auto 16px; }
+          .cs-vo-intro { margin:0 0 30px; }
+          .cs-vo-grid { grid-template-columns:repeat(3, 1fr); gap:16px; }
+        }
+        @media (min-width:1100px) {
+          .cs-vo-inner { max-width:1120px; }
+          .cs-vo-grid { grid-template-columns:repeat(4, 1fr); }
         }
       `}</style>
       <div className="cs-vo-inner">
@@ -216,12 +228,16 @@ export default function VoicesClient({ initialNode }) {
                     key={v.slug}
                     className={`cs-vo-cardlink${pressed === v.slug ? ' is-pressed' : ''}${chosen ? ' is-chosen' : ''}`}
                     href={href}
+                    // The card is self-labelled artwork — the name is baked into the image,
+                    // so there is no caption to read it out. The name lives here instead:
+                    // the link's accessible name, which overrides the decorative alt below.
+                    aria-label={`${v.displayName} — Voices of the Island`}
                     onClick={(e) => depart(e, v.slug, href)}
                   >
                     <img
                       className="cs-vo-card"
                       src={v.cardImage}
-                      alt={`${v.displayName} — Voices of the Island`}
+                      alt=""
                       width={CARD_W}
                       height={CARD_H}
                       loading="lazy"
@@ -231,7 +247,6 @@ export default function VoicesClient({ initialNode }) {
                       // receded, so they simply see themselves out.
                       style={{ viewTransitionName: voiceTransitionName(v.slug) }}
                     />
-                    <div className="cs-vo-name">{v.displayName}</div>
                   </a>
                 );
               })}
