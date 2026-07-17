@@ -3,6 +3,7 @@
 //
 // The root layout is 'use client', so this page is where root-level metadata has to live.
 import Gateway from './components/Gateway';
+import { fetchGatewayData } from './lib/gateway-build';
 
 const BASE_URL = 'https://calvaryscribblings.co.uk';
 // The social card and schema logo stay on favicon.png: it carries an opaque background, so
@@ -64,14 +65,22 @@ const JSON_LD = {
   ],
 };
 
-export default function GatewayPage() {
+// Server component: the story count and door whispers are read from cms_stories at BUILD
+// TIME and baked into the client Gateway as props. The gateway itself stays zero-Firebase
+// at runtime — see app/lib/gateway-build.js. The deploy-on-publish hook keeps them fresh.
+export default async function GatewayPage() {
+  const { storyCount, whispers } = await fetchGatewayData();
+  // Build-time random pick (item 3): the index a reduced-motion visitor sees, and where
+  // the rotation opens. Frozen into the static export, so it's stable per deploy and the
+  // first painted frame (crawlable) matches hydration.
+  const whisperSeed = whispers.length ? Math.floor(Math.random() * whispers.length) : 0;
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
-      <Gateway />
+      <Gateway storyCount={storyCount} whispers={whispers} whisperSeed={whisperSeed} />
     </>
   );
 }
