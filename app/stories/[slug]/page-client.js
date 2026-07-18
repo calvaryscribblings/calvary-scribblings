@@ -5,7 +5,6 @@ import React from 'react';
 import { stories } from '../../lib/stories';
 import { resolveAuthorNames, currentAuthorName } from '../../lib/resolveAuthorNames';
 import { use } from 'react';
-import { storyContent } from '../../lib/storyContent';
 import AuthModal from '../../components/AuthModal';
 import { updateStreak } from '../../lib/streakEngine';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
@@ -809,10 +808,12 @@ function CommentsSection({ slug, onSignIn }) {
   );
 }
 
-export default function StoryPageClient({ params }) {
+export default function StoryPageClient({ params, initialStory = null }) {
   const { slug } = use(params);
-  const [story, setStory] = useState(stories.find(s => s.id === slug) || null);
-  const [storyReady, setStoryReady] = useState(!!stories.find(s => s.id === slug));
+  // First paint from the build-inlined record (prose ships in the static HTML),
+  // falling back to the legacy hardcoded story, then to the live fetch below.
+  const [story, setStory] = useState(initialStory || stories.find(s => s.id === slug) || null);
+  const [storyReady, setStoryReady] = useState(!!initialStory || !!stories.find(s => s.id === slug));
   const [authorDeleted, setAuthorDeleted] = useState(false);
 
   // CMS-published stories may have an authorUid; if that user is soft-deleted
@@ -828,14 +829,15 @@ export default function StoryPageClient({ params }) {
   }, [story?.authorUid]);
 
   useEffect(() => {
-    if (story && storyReady) return;
-    if (story) {
-      setStoryReady(true);
-      if ((story.category === 'poetry' && story.epubUrl) || story.category === 'novel' || story.readerMode) {
-  window.location.replace(`/reader/${slug}`);
-  return;
-}
+    // Reader-mode stories live at /reader — redirect immediately off the build-time
+    // record so there's no flash of the wrong shell while the refresh confirms it.
+    if (story && ((story.category === 'poetry' && story.epubUrl) || story.category === 'novel' || story.readerMode)) {
+      window.location.replace(`/reader/${slug}`);
+      return;
     }
+    // Always refresh from the live single record. First paint already carries the
+    // build-inlined prose (initialStory); this hydrate step keeps the author's
+    // current display name, reads, and reactions fresh — exactly as before.
     async function fetchFromCMS() {
       try {
         const db = await getDB();
@@ -1529,14 +1531,14 @@ useEffect(() => {
                   <div
                     className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`}
                     id="story-content"
-                    dangerouslySetInnerHTML={{ __html: extractFirstParagraph(storyContent[slug] || story.content || '') }}
+                    dangerouslySetInnerHTML={{ __html: extractFirstParagraph(story.content || '') }}
                   />
                   {purchaseChecked && (
                     <PaywallGate user={storyUser} onSignIn={() => setShowAuthModal(true)} />
                   )}
                 </>
               ) : (
-                <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: storyContent[slug] || story.content || '<p>Content coming soon.</p>' }} />
+                <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: story.content || '<p>Content coming soon.</p>' }} />
               )}
             </article>
             <div ref={endSentinelRef} className="last-page" aria-hidden="true">

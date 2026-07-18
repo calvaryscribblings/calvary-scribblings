@@ -5,7 +5,7 @@ import { stories } from '../lib/stories';
 import Navbar from '../components/Navbar';
 import QuizPill from '../components/QuizPill';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
-import { db } from '../lib/firebase';
+import { db } from '../lib/firebaseCore';
 import { ref, get } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 

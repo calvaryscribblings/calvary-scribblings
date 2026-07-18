@@ -7,7 +7,7 @@
 // Cinzel/Cormorant, gold.
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { db } from '../../lib/firebase';
+import { db } from '../../lib/firebaseCore';
 import { loadWorks, firstNameOf, voiceTransitionName, prefersReducedMotion, VT_RETURN_KEY } from '../../lib/voices';
 
 const PORTRAIT_W = 1080;

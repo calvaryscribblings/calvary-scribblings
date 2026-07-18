@@ -6,7 +6,7 @@
 // paint; it is not the source of record.
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { db } from '../lib/firebase';
+import { db } from '../lib/firebaseCore';
 import {
   publishedVoices, voiceTransitionName, prefersReducedMotion,
   cardSrcSet, CARD_SIZES_ATTR, CARD_W, CARD_H,

@@ -11,7 +11,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import { getDatabase, ref, set, get } from 'firebase/database';
-import { auth } from '../lib/firebase';
+import { auth } from '../lib/firebaseCore';
 import { SUSPENDED_MESSAGE } from '../lib/AuthContext';
 
 // Returns true if the just-signed-in account is soft-deleted; signs them

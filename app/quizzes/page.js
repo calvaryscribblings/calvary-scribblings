@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { ref, get } from 'firebase/database';
-import { db } from '../lib/firebase';
+import { db } from '../lib/firebaseCore';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { useAuth } from '../lib/AuthContext';
 import Navbar from '../components/Navbar';

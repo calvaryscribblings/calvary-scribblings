@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { ref, get } from 'firebase/database';
-import { db } from '../lib/firebase';
+import { db } from '../lib/firebaseCore';
 import Navbar from '../components/Navbar';
 import { RARITY_STYLES, pickHighestBadge } from '../lib/badges';
 import { getDeletedUidSet } from '../lib/userVisibility';

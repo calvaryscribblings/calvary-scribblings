@@ -6,7 +6,7 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import QuizPill from '../components/QuizPill';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
-import { db } from '../lib/firebase';
+import { db } from '../lib/firebaseCore';
 import CoverImage from '../components/CoverImage';
 import { ref, get, onValue } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
