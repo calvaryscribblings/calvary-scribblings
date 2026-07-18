@@ -1,4 +1,5 @@
 {
+  "_historical": "SUPERSEDED — historical documentation only. Canonical rules now live in database.rules.json (RTDB) / storage.rules (Storage); see RULES.md. Do not deploy or edit this fragment.",
   "rules": {
     "bookstore_titles": {
       ".read": true,

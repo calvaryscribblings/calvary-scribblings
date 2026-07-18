@@ -1,0 +1,445 @@
+{
+  "rules": {
+    "cms_stories_index": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": ["authorUid", "author"]
+    },
+    "stories": {
+      ".read": true,
+      ".write": true
+    },
+    "top_stories": {
+      ".read": true,
+      ".write": true
+    },
+    "cms_authors": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+    },
+    "user_search": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && (auth.uid == $uid || auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+      }
+    },
+    "cms_stories": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": [
+        "authorUid",
+        "author"
+      ],
+      "$slug": {
+        "reads": {
+          ".write": "auth != null"
+        }
+      }
+    },
+    "cms_films": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": [
+        "status",
+        "type",
+        "featured",
+        "year"
+      ]
+    },
+    "film_submissions": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$id": {
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['type', 'name', 'email', 'createdAt'])"
+      }
+    },
+    "cms_quizzes": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+    },
+    "cms_voices": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+    },
+    "quiz_submissions": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$uid": {
+        ".read": "$uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "userStoryTiers": {
+      "$uid": {
+        ".read": "$uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "quizAttemptCounted": {
+      ".read": false,
+      ".write": false
+    },
+    "readerBookmarks": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "userBadges": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$uid": {
+        ".read": true,
+        ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+      }
+    },
+    "userStreaks": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$uid": {
+        ".read": true,
+        ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+      }
+    },
+    "leaderboard": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+      }
+    },
+    "story_authors": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+    },
+    "subscribers": {
+      ".read": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".write": true
+    },
+    "users": {
+      ".read": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$uid": {
+        ".read": true,
+        ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+      }
+    },
+    "usernames": {
+      ".read": true,
+      "$handle": {
+        ".write": "auth != null && (!data.exists() || data.val() === auth.uid || !newData.exists() || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+      }
+    },
+    "comments": {
+      ".read": true,
+      "$slug": {
+        ".read": true,
+        "$commentId": {
+          ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || data.child('authorUid').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['text','authorName','authorUid','createdAt'])",
+          "heartCount": {
+            ".write": "auth != null"
+          },
+          "fireCount": {
+            ".write": "auth != null"
+          },
+          "replies": {
+            ".write": "auth != null"
+          }
+        }
+      }
+    },
+    "followers": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "following": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "square_posts": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "square_likes": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "square_reactions": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "square_presence": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "user_square_posts": {
+      "$uid": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    },
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null"
+      }
+    },
+    "library_notifications": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null"
+      }
+    },
+    "dm_conversations": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null"
+      }
+    },
+    "dm_messages": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "points": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "auth != null"
+      }
+    },
+    "wallet": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "auth != null"
+      }
+    },
+    "payout_requests": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$uid": {
+        ".read": "$uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'",
+        ".write": "auth != null"
+      }
+    },
+    "story_exercises": {
+      ".read": "auth != null",
+      ".write": "auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'"
+    },
+    "exercise_submissions": {
+      "$uid": {
+        ".read": "$uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "bookmarks": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "comment_reactions": {
+      "$slug": {
+        "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    },
+    "storyReactions": {
+      "$slug": {
+        ".read": true,
+        "$type": {
+          ".write": "auth != null"
+        }
+      }
+    },
+    "storyReactionUsers": {
+      "$slug": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    },
+    "commentReactions": {
+      "$slug": {
+        "$commentId": {
+          "$uid": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
+      }
+    },
+    "userProgress": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "userBookmarks": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "purchases": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+        ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+      }
+    },
+    "reports": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$postId": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    },
+    "open_pages": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || auth.token.email === 'ikennaworksfromhome@gmail.com' || auth.token.email === 'fynbecki@gmail.com')",
+      ".indexOn": [
+        "createdAt"
+      ],
+      "$postId": {
+        ".write": "auth != null && data.exists() && data.child('authorUid').val() === auth.uid",
+        ".validate": "!newData.exists() || newData.child('authorUid').val() === data.child('authorUid').val()",
+        "readCount": {
+          ".write": "auth != null && newData.isNumber()"
+        }
+      }
+    },
+    "open_pages_pending": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$postId": {
+        ".read": "auth != null && (data.child('authorUid').val() === auth.uid || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82')",
+        ".write": "auth != null && (auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || (!data.exists() && newData.child('authorUid').val() === auth.uid) || (data.exists() && data.child('authorUid').val() === auth.uid))",
+        ".validate": "newData.hasChildren(['authorUid', 'title', 'body', 'status', 'createdAt'])",
+        "authorUid": {
+          ".validate": "newData.isString() && newData.val() === auth.uid"
+        },
+        "title": {
+          ".validate": "newData.isString() && newData.val().length <= 200"
+        },
+        "body": {
+          ".validate": "newData.isString() && newData.val().length <= 50000"
+        },
+        "status": {
+          ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'live' || newData.val() === 'flagged' || newData.val() === 'removed')"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "$other": {
+          ".validate": true
+        }
+      }
+    },
+    "open_pages_reports": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || auth.token.email === 'ikennaworksfromhome@gmail.com' || auth.token.email === 'fynbecki@gmail.com')",
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || auth.token.email === 'ikennaworksfromhome@gmail.com' || auth.token.email === 'fynbecki@gmail.com')",
+      "$postId": {
+        "$reporterUid": {
+          ".write": "auth != null && auth.uid === $reporterUid",
+          ".validate": "newData.hasChildren(['reason','reporterUid','createdAt']) && newData.child('reporterUid').val() === $reporterUid && newData.child('reason').isString() && newData.child('createdAt').isNumber()"
+        }
+      }
+    },
+    "open_pages_reactions": {
+      ".read": true,
+      "$postId": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    },
+    "comment_likes": {
+      "$postId": {
+        ".read": true,
+        "$commentId": {
+          ".read": true,
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.isBoolean()"
+          },
+          "replies": {
+            "$replyId": {
+              "$uid": {
+                ".write": "auth != null && auth.uid === $uid",
+                ".validate": "newData.isBoolean()"
+              },
+              "replies": {
+                "$reply2Id": {
+                  "$uid": {
+                    ".write": "auth != null && auth.uid === $uid",
+                    ".validate": "newData.isBoolean()"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "user_open_pages": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && ($uid === auth.uid || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82')"
+      }
+    },
+    "blocked_users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "storyReads": {
+      "$slug": {
+        ".read": true,
+        "$uid": {
+          ".write": "auth != null && auth.uid == $uid && !data.exists()",
+          ".validate": "newData.hasChildren(['at']) && newData.child('at').val() <= now"
+        }
+      }
+    },
+    "bookstore_titles": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": [
+        "status",
+        "publishedDate",
+        "genre",
+        "publisherId",
+        "featured",
+        "bestseller",
+        "salesCount"
+      ],
+      "$titleId": {
+        ".validate": "newData.hasChildren(['schemaVersion', 'slug', 'title', 'author', 'publisherId', 'synopsis', 'prices', 'genre', 'publishedDate', 'addedAt', 'updatedAt', 'status', 'territoriesAllowed']) && (newData.child('territoriesAllowed').isString() || newData.child('territoriesAllowed').hasChildren())"
+      }
+    },
+    "bookstore_publishers": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": [
+        "status",
+        "slug"
+      ]
+    },
+    "bookstore_publishers_private": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+    },
+    "bookstore_purchases": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+        ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+        ".indexOn": [
+          "purchaseDate",
+          "titleId"
+        ]
+      }
+    },
+    "bookstore_waitlist": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".write": true
+    }
+  }
+}

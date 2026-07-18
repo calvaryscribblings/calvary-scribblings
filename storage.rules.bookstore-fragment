@@ -1,3 +1,4 @@
+// HISTORICAL — superseded by storage.rules (see RULES.md); do not deploy or edit.
 // Bookstore Storage rules fragment.
 // IMPORTANT: master EPUBs are admin-write / no-public-read. Purchased-copy delivery happens
 // via a Cloudflare Worker that verifies the buyer's purchase in Realtime DB, then issues a
