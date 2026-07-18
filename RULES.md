@@ -43,3 +43,7 @@ The `database.rules.*-fragment.json` and `storage.rules.bookstore-fragment` file
 are **historical documentation** — the console blocks that were hand-pasted before
 this workflow existed. They are superseded by the canonical files above and are
 kept only for provenance. Do not deploy or edit them.
+
+## Shared project
+
+This Firebase project is shared with the Story Island app (`calvary-app` repo) — rules changes needed for app features are made HERE; the app repo never carries rules files.

@@ -1,0 +1,5 @@
+{
+  "name": "calvary-scribblings",
+  "//": "No image/build key: keep the Codespaces default universal image (unchanged from before this file existed). This config exists only to restore deploy credentials after a rebuild — the FIREBASE_SA_KEY Codespaces secret (base64 of serviceAccountKey.json) is decoded back to the gitignored key file so `npm run rules:deploy` and the rules:pull/check scripts keep working. See RULES.md.",
+  "postCreateCommand": "if [ -n \"$FIREBASE_SA_KEY\" ]; then echo \"$FIREBASE_SA_KEY\" | base64 -d > serviceAccountKey.json; fi"
+}
