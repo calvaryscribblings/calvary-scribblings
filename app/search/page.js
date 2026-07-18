@@ -86,7 +86,7 @@ export default function SearchPage() {
   useEffect(() => {
     async function fetchCMS() {
       try {
-        const snap = await get(ref(db, 'cms_stories'));
+        const snap = await get(ref(db, 'cms_stories_index'));
         if (snap.exists()) {
           const now = new Date();
           const data = Object.entries(snap.val())
@@ -314,7 +314,7 @@ export default function SearchPage() {
                     <a key={s.id} href={'/stories/' + s.id} className="result-card" style={{ animationDelay: (i * 0.02) + 's' }}>
                       <div className="result-thumb-wrap">
                         <img src={s.cover} alt={s.title} className="result-thumb" />
-                        <QuizPill hasQuiz={s.quizMeta?.hasQuiz || false} userTier={userTiersMap[s.id]?.tier ?? null} scribblesReward={s.quizMeta?.scribblesReward || 50} scorePct={userTiersMap[s.id]?.scorePct} />
+                        <QuizPill hasQuiz={(s.quiz || s.quizMeta)?.hasQuiz || false} userTier={userTiersMap[s.id]?.tier ?? null} scribblesReward={(s.quiz || s.quizMeta)?.scribblesReward || 50} scorePct={userTiersMap[s.id]?.scorePct} />
                       </div>
                       <div className="result-body">
                         <div className="result-title" dangerouslySetInnerHTML={{ __html: highlight(s.title, query) }} />

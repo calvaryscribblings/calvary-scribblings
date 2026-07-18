@@ -32,8 +32,10 @@ const seeAllChevron = (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', marginLeft: 4 }}><polyline points="9 18 15 12 9 6"/></svg>
 );
 
-// Stories source of truth: cms_stories/ in Firebase RTDB.
-// This component fetches on mount via the useEffect below.
+// Stories source of truth: cms_stories/ in Firebase RTDB. This list reads the
+// SLIM cms_stories_index/ read-model (Phase A) — the ~85 KB projection of the
+// published set — not the 1.2 MB full node; the reader page fetches the full
+// single record. This component fetches on mount via the useEffect below.
 // The hardcoded `stories` array below is intentionally empty —
 // it was migrated to CMS as of 2026-05-18. Do not reintroduce.
 
@@ -250,7 +252,7 @@ function StoryCard({ story, userTier = null, scorePct, ...rest }) {
       {isNew(story) && (
         <span style={{ ...newBadgeStyle, top: 8, left: 8 }}>New</span>
       )}
-      <QuizPill hasQuiz={story.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={story.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
+      <QuizPill hasQuiz={(story.quiz || story.quizMeta)?.hasQuiz || false} userTier={userTier} scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 8px 8px' }}>
         <div style={{ fontFamily: DISPLAY, fontSize: '0.75rem', fontWeight: 600, color: '#f5f0e8', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{story.title}</div>
         <div style={{ ...cardAuthorStyle, fontSize: '0.6rem', marginTop: 2 }}>{story.author}</div>
@@ -276,7 +278,7 @@ function JustAddedCard({ story, userTier = null, scorePct, ...rest }) {
         {isNew(story) && (
           <span style={{ ...newBadgeStyle, top: 10, left: 10 }}>New</span>
         )}
-        <QuizPill hasQuiz={story.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={story.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
+        <QuizPill hasQuiz={(story.quiz || story.quizMeta)?.hasQuiz || false} userTier={userTier} scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
       </div>
       <div style={{ marginTop: 10, padding: '0 2px' }}>
         <div style={{ fontFamily: DISPLAY, fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.3, color: '#f5f0e8', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{story.title}</div>
@@ -350,7 +352,7 @@ function Top10Card({ s, i, userTier = null, scorePct, ...rest }) {
             transition: 'filter 0.3s',
           }} />
         </div>
-        <QuizPill hasQuiz={s.quizMeta?.hasQuiz || false} userTier={userTier} scribblesReward={s.quizMeta?.scribblesReward || 50} scorePct={scorePct} />
+        <QuizPill hasQuiz={(s.quiz || s.quizMeta)?.hasQuiz || false} userTier={userTier} scribblesReward={(s.quiz || s.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
       </div>
       <div style={{ marginTop: 10, marginLeft: NUM_W, width: CARD_WIDTH }}>
         <div style={{ fontFamily: DISPLAY, fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: '#f5f0e8', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{s.title}</div>
@@ -987,7 +989,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const storiesRef = ref(db, 'cms_stories');
+    const storiesRef = ref(db, 'cms_stories_index');
     const unsubscribe = onValue(storiesRef, async (snap) => {
       try {
         if (snap.exists()) {

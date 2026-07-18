@@ -41,9 +41,9 @@ export default function StoryCard({ story, userTier = null, scorePct, rank = nul
           }}>New</span>
         )}
         <QuizPill
-          hasQuiz={story.quizMeta?.hasQuiz || false}
+          hasQuiz={(story.quiz || story.quizMeta)?.hasQuiz || false}
           userTier={userTier}
-          scribblesReward={story.quizMeta?.scribblesReward || 50}
+          scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50}
           scorePct={scorePct}
         />
       </div>

@@ -109,13 +109,15 @@ function dateValue(d) {
 
 // A voice's published works, newest first.
 //
-// Server-filtered: one indexed equalTo per identity, never a wholesale cms_stories
-// fetch (1.18 MB today). Identity is authorUid because three writers publish under two
-// name spellings each — matching on the display string would silently drop half of
-// each catalogue. matchNames is the fallback for the handful of rows saved with no uid
-// (guest and collaboration pieces), which the uid match cannot reach.
+// Server-filtered against cms_stories_index (the slim ~85 KB read-model), never a
+// wholesale cms_stories fetch (1.2 MB). Identity is authorUid because three writers
+// publish under two name spellings each — matching on the display string would
+// silently drop half of each catalogue. matchNames is the fallback for the handful
+// of rows saved with no uid (guest and collaboration pieces), which the uid match
+// cannot reach. The index carries only published rows, so the published===true
+// check below is now belt-and-braces.
 //
-// Requires "cms_stories": { ".indexOn": ["authorUid", "author"] }.
+// Requires "cms_stories_index": { ".indexOn": ["authorUid", "author"] }.
 export async function loadWorks(db, voice) {
   const { ref, query, orderByChild, equalTo, get } = await import('firebase/database');
   const seen = new Map();
@@ -138,10 +140,10 @@ export async function loadWorks(db, voice) {
 
   const uid = (voice?.matchUid || '').trim();
   if (uid) {
-    collect(await get(query(ref(db, 'cms_stories'), orderByChild('authorUid'), equalTo(uid))));
+    collect(await get(query(ref(db, 'cms_stories_index'), orderByChild('authorUid'), equalTo(uid))));
   }
   for (const name of readMatchNames(voice?.matchNames)) {
-    collect(await get(query(ref(db, 'cms_stories'), orderByChild('author'), equalTo(name))));
+    collect(await get(query(ref(db, 'cms_stories_index'), orderByChild('author'), equalTo(name))));
   }
 
   return [...seen.values()].sort((a, b) => dateValue(b.date) - dateValue(a.date));

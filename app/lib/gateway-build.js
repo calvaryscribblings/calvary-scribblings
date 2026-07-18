@@ -29,6 +29,11 @@ function buildDB() {
   return getDatabase(getApps().length ? getApps()[0] : initializeApp(FB));
 }
 
+// Read source is cms_stories_index (the slim ~85 KB public read-model), not the
+// full 1.2 MB cms_stories node — the count and whispers need only published/
+// publishAt/trailerQuote/title, all of which the index carries. The index already
+// excludes hidden rows, so isPublished() below only re-applies the publishAt gate.
+//
 // "Published" here matches the public-library gate exactly (page.js line ~998):
 // published !== false, and any publishAt has already passed as of the build.
 function isPublished(s, now) {
@@ -68,7 +73,7 @@ async function readWallManifest() {
 export async function fetchGatewayData() {
   const wall = await readWallManifest();
   try {
-    const snap = await get(ref(buildDB(), 'cms_stories'));
+    const snap = await get(ref(buildDB(), 'cms_stories_index'));
     if (!snap.exists()) return { storyCount: 0, whispers: [], wall };
     const data = snap.val() || {};
     const now = new Date();

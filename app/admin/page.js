@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { extractEpubText } from '../lib/epubExtract';
+import { indexUpdatePaths } from '../lib/storyIndex';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -658,7 +659,7 @@ export default function AdminPage() {
 
     setSaving(true); setMsg('');
     try {
-      const { ref, set } = await import('firebase/database');
+      const { ref, update } = await import('firebase/database');
       const slug = editingId || slugify(form.title);
       const categoryObj = CATEGORIES.find(c => c.value === form.category);
       const coverFilename = form.coverFilename.trim();
@@ -691,7 +692,14 @@ export default function AdminPage() {
       // upload, preserved from the loaded story otherwise, absent on stories never uploaded.
       if (form.epubUpdatedAt) storyData.epubUpdatedAt = form.epubUpdatedAt;
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
-      await set(ref(db, `cms_stories/${slug}`), storyData);
+      // Atomic dual-write: the full record and its slim index entry land in ONE
+      // multi-path update so the pair can never half-write. A path→object value
+      // replaces that node wholesale (nested nulls delete), exactly as set() did.
+      // A hidden next-state removes the index entry (see indexUpdatePaths).
+      await update(ref(db), {
+        [`cms_stories/${slug}`]: storyData,
+        ...indexUpdatePaths(slug, storyData),
+      });
       // Notify followers of this author if publishing now (not scheduled)
       if (!form.publishAt || new Date(form.publishAt) <= new Date()) {
         // Notify followers of the selected uid only — guest selections have no uid.
@@ -728,8 +736,9 @@ export default function AdminPage() {
   async function deleteStory(id) {
     if (!confirm('Delete this story? This cannot be undone.')) return;
     try {
-      const { ref, remove } = await import('firebase/database');
-      await remove(ref(db, `cms_stories/${id}`));
+      const { ref, update } = await import('firebase/database');
+      // Atomic: drop the full record and its index entry together.
+      await update(ref(db), { [`cms_stories/${id}`]: null, [`cms_stories_index/${id}`]: null });
       setMsg('Story deleted.'); loadStories();
     } catch (e) { setMsg('Error: ' + e.message); }
   }
@@ -739,15 +748,24 @@ export default function AdminPage() {
     if (!confirm('Hide this story? It disappears from the platform immediately but keeps all data (reads, comments, quotes). Unhide anytime.')) return;
     try {
       const { ref, update } = await import('firebase/database');
-      await update(ref(db, `cms_stories/${id}`), { published: false });
+      // Flip published on the full record AND remove the (now-ineligible) index
+      // entry in one atomic update — the index only carries published rows.
+      await update(ref(db), { [`cms_stories/${id}/published`]: false, [`cms_stories_index/${id}`]: null });
       setMsg('Story hidden.'); loadStories();
     } catch (e) { setMsg('Error: ' + e.message); }
   }
 
   async function unhideStory(id) {
     try {
-      const { ref, update } = await import('firebase/database');
-      await update(ref(db, `cms_stories/${id}`), { published: true });
+      const { ref, update, get } = await import('firebase/database');
+      // Unhide needs the full record to rebuild the index entry, so read it,
+      // then flip published + re-project the index entry in one atomic update.
+      const snap = await get(ref(db, `cms_stories/${id}`));
+      const full = { ...(snap.val() || {}), published: true };
+      await update(ref(db), {
+        [`cms_stories/${id}/published`]: true,
+        ...indexUpdatePaths(id, full),
+      });
       setMsg('Story unhidden.'); loadStories();
     } catch (e) { setMsg('Error: ' + e.message); }
   }

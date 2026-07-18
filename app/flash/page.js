@@ -57,7 +57,7 @@ export default function FlashPage() {
         };
         const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        const snap = await get(ref(db, 'cms_stories'));
+        const snap = await get(ref(db, 'cms_stories_index'));
         if (snap.exists()) {
           const now = Date.now();
           const cms = Object.entries(snap.val())
