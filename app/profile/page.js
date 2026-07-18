@@ -469,7 +469,9 @@ export default function ProfilePage() {
     (async () => {
       const db = await getDB();
       const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, 'cms_stories'));
+      // Slim index (Phase A) — this list needs only id/title/cover/category/
+      // author/authorUid, all of which the index carries. ~85 KB vs 1.2 MB.
+      const snap = await get(ref(db, 'cms_stories_index'));
       if (snap.exists()) {
         // Read stories can be by many authors — keep authorUid + frozen author
         // and resolve each distinct author's CURRENT display name (batched).

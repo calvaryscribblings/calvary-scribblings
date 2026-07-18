@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { buildQuizSummary } from '../../lib/storyIndex';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
@@ -143,6 +144,9 @@ export default function QuizzesPage() {
               author: st.author || '',
               hasEpub: !!st.epubUrl,
               hasExtractedText: !!(st.extractedText && st.extractedText.length >= 500),
+              // Whether this story has a cms_stories_index entry to keep in sync
+              // (the index only carries published rows — see R1 guard below).
+              indexed: st.published !== false,
             }))
             .sort((a, b) => a.title.localeCompare(b.title))
         );
@@ -235,8 +239,15 @@ export default function QuizzesPage() {
     try {
       const { ref, set, update } = await import('firebase/database');
       await set(ref(db, `cms_quizzes/${selectedSlug}`), { ...quiz, approvedAt: null, approvedBy: null });
-      // Mark quiz unavailable on the story card without losing counters or naming state
-      await update(ref(db, `cms_stories/${selectedSlug}/quizMeta`), { hasQuiz: false });
+      // Mark quiz unavailable on the story card without losing counters or naming
+      // state, and drop the index's quiz badge in the SAME atomic update (R1). The
+      // index entry only exists for published stories, so guard on `indexed` — a
+      // hidden story has no entry to patch (unhide rebuilds it from quizMeta).
+      const indexed = cmsStories.find(st => st.slug === selectedSlug)?.indexed;
+      await update(ref(db), {
+        [`cms_stories/${selectedSlug}/quizMeta/hasQuiz`]: false,
+        ...(indexed ? { [`cms_stories_index/${selectedSlug}/quiz`]: null } : {}),
+      });
       try { localStorage.removeItem(LS_KEY); } catch {}
       setQuizStatuses(prev => ({ ...prev, [selectedSlug]: 'draft' }));
       showMsg('Draft saved.', 'green');
@@ -255,7 +266,11 @@ export default function QuizzesPage() {
       const metaSnap = await get(ref(db, `cms_stories/${selectedSlug}/quizMeta`));
       const existing = metaSnap.exists() ? metaSnap.val() : null;
 
-      // Atomic multi-location write: quiz node + story quizMeta cache
+      // Atomic multi-location write: quiz node + story quizMeta cache + the index's
+      // slim quiz badge (R1). buildQuizSummary keeps the index sub-object in lockstep
+      // with the stories-admin projection. Guard on `indexed`: only published stories
+      // have an index entry to patch (a hidden story's is rebuilt on unhide).
+      const indexed = cmsStories.find(st => st.slug === selectedSlug)?.indexed;
       await update(ref(db), {
         [`cms_quizzes/${selectedSlug}`]: { ...quiz, approvedAt, approvedBy: user.uid },
         [`cms_stories/${selectedSlug}/quizMeta`]: {
@@ -266,6 +281,7 @@ export default function QuizzesPage() {
           namingClaimedBy: existing?.namingClaimedBy ?? null,
           namingClaimedAt: existing?.namingClaimedAt ?? null,
         },
+        ...(indexed ? { [`cms_stories_index/${selectedSlug}/quiz`]: buildQuizSummary({ hasQuiz: true, scribblesReward: quiz.maxPoints ?? 50 }) } : {}),
       });
       try { localStorage.removeItem(LS_KEY); } catch {}
       setQuizStatuses(prev => ({ ...prev, [selectedSlug]: 'live' }));

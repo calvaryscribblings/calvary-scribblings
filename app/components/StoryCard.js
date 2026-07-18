@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { isNew } from '../lib/stories';
 import QuizPill from './QuizPill';
+import CoverImage from './CoverImage';
 
 export default function StoryCard({ story, userTier = null, scorePct, rank = null, ...rest }) {
   const [hovered, setHovered] = useState(false);
@@ -22,14 +23,13 @@ export default function StoryCard({ story, userTier = null, scorePct, rank = nul
       }}>
       {/* Cover */}
       <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', overflow: 'hidden', background: '#1a1030' }}>
-        <img
-          src={story.cover}
+        <CoverImage
+          fill
+          cover={story.cover}
+          coverSizes={story.coverSizes}
+          coverHash={story.coverHash}
           alt={story.title}
-          loading="lazy"
-          decoding="async"
-          width={300}
-          height={400}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          sizes="(max-width: 640px) 45vw, 220px"
         />
         {isNew(story) && (
           <span style={{

@@ -46,9 +46,19 @@ export function buildIndexRecord(slug, story) {
   };
   if (s.publishAt) rec.publishAt = s.publishAt;
   if (s.coverSizes) rec.coverSizes = s.coverSizes;
-  const q = s.quizMeta || {};
-  if (q.hasQuiz) rec.quiz = { hasQuiz: true, scribblesReward: q.scribblesReward ?? 50 };
+  const quiz = buildQuizSummary(s.quizMeta);
+  if (quiz) rec.quiz = quiz;
   return rec;
+}
+
+// The quiz sub-object the index carries — { hasQuiz, scribblesReward } — or null
+// when there is no quiz (callers write null to remove the key). attemptCount is
+// deliberately absent: it mutates on reader actions, and the index is admin-write
+// only. Both writers (the stories admin's full projection above and the quiz
+// admin's targeted dual-write) go through THIS function so they cannot diverge.
+export function buildQuizSummary(quizMeta) {
+  const q = quizMeta || {};
+  return q.hasQuiz ? { hasQuiz: true, scribblesReward: q.scribblesReward ?? 50 } : null;
 }
 
 // The multi-path fragment that keeps one slug's index entry in lockstep with its

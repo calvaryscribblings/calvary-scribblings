@@ -7,6 +7,7 @@ import Footer from '../components/Footer';
 import QuizPill from '../components/QuizPill';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { db } from '../lib/firebase';
+import CoverImage from '../components/CoverImage';
 import { ref, get, onValue } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { normalizeGenre } from '../lib/openPages';
@@ -185,7 +186,7 @@ function HeroTrailer({ story, dissolving }) {
     >
       {story.cover ? (
         <img
-          src={story.cover}
+          src={story.coverSizes?.w720 || story.cover}
           alt=""
           aria-hidden="true"
           style={{
@@ -246,8 +247,7 @@ function StoryCard({ story, userTier = null, scorePct, ...rest }) {
         transition: 'border-color 0.2s',
         boxShadow: '0 4px 20px rgba(107,47,173,0.15)',
       }}>
-      <img src={story.cover} alt={story.title} loading="lazy" decoding="async" width={120} height={160}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      <CoverImage fill cover={story.cover} coverSizes={story.coverSizes} coverHash={story.coverHash} alt={story.title} sizes="120px" />
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, background: 'linear-gradient(to top, rgba(8,6,16,0.95), transparent)' }} />
       {isNew(story) && (
         <span style={{ ...newBadgeStyle, top: 8, left: 8 }}>New</span>
@@ -273,8 +273,7 @@ function JustAddedCard({ story, userTier = null, scorePct, ...rest }) {
         border: `1px solid ${hovered ? 'rgba(107,47,173,0.6)' : 'rgba(107,47,173,0.25)'}`,
         boxShadow: '0 4px 20px rgba(107,47,173,0.2)', transition: 'border-color 0.2s',
       }}>
-        <img src={story.cover} alt={story.title} loading="lazy" decoding="async" width={160} height={220}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        <CoverImage fill cover={story.cover} coverSizes={story.coverSizes} coverHash={story.coverHash} alt={story.title} sizes="160px" />
         {isNew(story) && (
           <span style={{ ...newBadgeStyle, top: 10, left: 10 }}>New</span>
         )}
@@ -346,11 +345,8 @@ function Top10Card({ s, i, userTier = null, scorePct, ...rest }) {
           boxShadow: active ? '0 20px 50px rgba(0,0,0,0.9), 0 0 0 1px rgba(107,47,173,0.3)' : '0 4px 20px rgba(0,0,0,0.6)',
           transition: 'box-shadow 0.3s',
         }}>
-          <img src={s.cover} alt={s.title} loading="lazy" decoding="async" width={CARD_WIDTH} height={CARD_HEIGHT} style={{
-            width: '100%', height: '100%', objectFit: 'cover', display: 'block',
-            filter: active ? 'brightness(0.85)' : 'brightness(1)',
-            transition: 'filter 0.3s',
-          }} />
+          <CoverImage fill cover={s.cover} coverSizes={s.coverSizes} coverHash={s.coverHash} alt={s.title} sizes="120px"
+            imgStyle={{ filter: active ? 'brightness(0.85)' : 'brightness(1)', transition: 'filter 0.3s' }} />
         </div>
         <QuizPill hasQuiz={(s.quiz || s.quizMeta)?.hasQuiz || false} userTier={userTier} scribblesReward={(s.quiz || s.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
       </div>

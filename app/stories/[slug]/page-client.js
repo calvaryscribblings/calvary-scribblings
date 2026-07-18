@@ -1460,11 +1460,15 @@ useEffect(() => {
           <span className="nav-meta">{displayCategory}</span>
         </nav>
         <header className="story-hero">
-          <img className="hero-bg" src={story.cover} alt="" aria-hidden="true" loading="eager" fetchPriority="high" />
+          <img className="hero-bg" src={story.coverSizes?.w720 || story.cover} alt="" aria-hidden="true" loading="eager" fetchPriority="high" />
           <div className="hero-overlay" />
-          <img className="hero-mobile-cover" src={story.cover} alt={story.title} />
+          <img className="hero-mobile-cover" src={story.cover} alt={story.title}
+            srcSet={story.coverSizes?.w720 ? `${story.coverSizes.w720} 720w, ${story.cover} 1600w` : undefined}
+            sizes={story.coverSizes?.w720 ? '100vw' : undefined} />
           <div className="hero-mobile-overlay" />
-          <img className="hero-cover-panel" src={story.cover} alt={story.title} />
+          <img className="hero-cover-panel" src={story.cover} alt={story.title}
+            srcSet={story.coverSizes?.w720 ? `${story.coverSizes.w720} 720w, ${story.cover} 1600w` : undefined}
+            sizes={story.coverSizes?.w720 ? '(min-width: 900px) 42vw, 100vw' : undefined} />
           <div className="hero-content" data-reveal="up">
             <div className="story-badge-hero">
               {displaySubcategory || displayCategory}

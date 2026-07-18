@@ -4,6 +4,7 @@ import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { extractEpubText } from '../lib/epubExtract';
 import { indexUpdatePaths } from '../lib/storyIndex';
+import { buildCoverDerivatives, COVER_CACHE_CONTROL } from '../lib/coverDerivatives';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -70,7 +71,9 @@ async function uploadToStorage(file) {
   const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
   const filename = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
   const storageRef = ref(storage, 'covers/' + filename);
-  await uploadBytes(storageRef, file);
+  // Long-cache every upload from now on (covers + inline content images are
+  // content-addressed by a unique filename, so immutable is safe).
+  await uploadBytes(storageRef, file, { contentType: file.type, cacheControl: COVER_CACHE_CONTROL });
   return await getDownloadURL(storageRef);
 }
 
@@ -100,7 +103,7 @@ async function uploadEPUBToStorage(file) {
   const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
   const filename = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
   const storageRef = ref(storage, 'epubs/' + filename);
-  await uploadBytes(storageRef, file);
+  await uploadBytes(storageRef, file, { contentType: file.type, cacheControl: COVER_CACHE_CONTROL });
   return await getDownloadURL(storageRef);
 }
 
@@ -260,7 +263,12 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
       // Compute the blurhash placeholder from the same file (both first upload
       // and replace-on-edit go through here). Non-blocking: '' if it fails.
       const coverHash = await computeBlurhash(file);
-      setForm(f => ({ ...f, coverFilename: url, coverPreview: url, coverHash }));
+      // The door does the sizing: cut w360 + w720 WebP from the same file so this
+      // cover ships sized + long-cached from birth. Best-effort — {} on failure,
+      // in which case srcset falls back to the original. slug matches the save.
+      const slug = editingId || slugify(form.title) || `pending-${Date.now()}`;
+      const coverSizes = await buildCoverDerivatives(storage, file, slug);
+      setForm(f => ({ ...f, coverFilename: url, coverPreview: url, coverHash, coverSizes: Object.keys(coverSizes).length ? coverSizes : null }));
     } catch (err) { alert('Cover upload failed: ' + err.message); }
     setCoverUploading(false);
   }
@@ -406,7 +414,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
               <div style={{ flex: 1 }}>
                 <input style={s.input} value={form.coverFilename} placeholder="my-story-cover.jpeg or upload →"
-                  onChange={e => setForm(f => ({ ...f, coverFilename: e.target.value, coverPreview: null, coverHash: '' }))} />
+                  onChange={e => setForm(f => ({ ...f, coverFilename: e.target.value, coverPreview: null, coverHash: '', coverSizes: null }))} />
               </div>
               <button style={{ ...s.btnImg, flexShrink: 0 }}
                 onClick={() => coverInputRef.current.click()} disabled={coverUploading}>
@@ -559,7 +567,7 @@ export default function AdminPage() {
 
   const emptyForm = {
     title: '', selectedAuthor: '', category: 'flash', subcategory: '',
-    date: formatDate(new Date()), coverFilename: '', coverPreview: null, coverHash: '',
+    date: formatDate(new Date()), coverFilename: '', coverPreview: null, coverHash: '', coverSizes: null,
     content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, prosePoetry: false, featuredPin: false,
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
@@ -677,6 +685,7 @@ export default function AdminPage() {
         content: convertToHTML(form.content.trim()),
         cover: coverPath,
         coverHash: form.coverHash || '',
+        coverSizes: form.coverSizes || null, // sibling of cover; null → removed by the overwrite
         url: `/stories/${slug}`,
         // New/scheduled stories derive published from publishAt (unchanged). Edits
         // preserve the existing flag so saving never hides or unhides a story.
@@ -786,6 +795,9 @@ export default function AdminPage() {
       title: story.title, author: story.author || '', category: story.category,
       subcategory: story.subcategory || '', date: story.date,
       coverFilename: story.cover, coverPreview: story.cover, coverHash: story.coverHash || '',
+      // Preserve existing derivatives across an edit — a full-node overwrite that
+      // dropped coverSizes would strip the srcset until the next cover re-upload.
+      coverSizes: story.coverSizes || null,
       content: story.content, publishAt: story.publishAt ? toDatetimeLocal(new Date(story.publishAt)) : '',
       epubUrl: story.epubUrl || '',
       epubUpdatedAt: story.epubUpdatedAt || null,
