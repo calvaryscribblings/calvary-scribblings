@@ -42,6 +42,31 @@ export default function BookstoreReaderClient({ slug, title }) {
   const isSample = readSampleFlag() && !!title.samplePath;
   const [epubUrl, setEpubUrl] = useState(null);
   const [loadError, setLoadError] = useState(false);
+  // R4a.1: the escape affordance belongs to the pre-reading frame only. The first relocate from
+  // the Reading Room means the book has painted — reading has begun — so it retires for the
+  // session and never returns. One-way latch: nothing sets this back to false.
+  const [readingBegun, setReadingBegun] = useState(false);
+
+  useEffect(() => {
+    if (!isSample) return undefined;
+    const onMessage = (e) => {
+      if (e.origin !== window.location.origin) return; // origin lock, per §4.4
+      if (e.data && e.data.type === 'relocate') setReadingBegun(true);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [isSample]);
+
+  // Prefer in-app history so the reader lands back where they came from; a shared sample link has
+  // no same-origin referrer, so it falls through to the title's detail page, then the store index.
+  const leaveReader = () => {
+    let sameOriginReferrer = false;
+    try {
+      sameOriginReferrer = !!document.referrer && new URL(document.referrer).origin === window.location.origin;
+    } catch { sameOriginReferrer = false; }
+    if (sameOriginReferrer && window.history.length > 1) { window.history.back(); return; }
+    window.location.href = slug ? `/bookstore/${slug}` : '/bookstore';
+  };
 
   useEffect(() => {
     if (!isSample) return undefined;
@@ -79,6 +104,8 @@ export default function BookstoreReaderClient({ slug, title }) {
       .br-frame{position:fixed;top:82px;left:0;right:0;bottom:0;border:none;width:100%;height:calc(100dvh - 82px)}
       .br-center{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center;background:radial-gradient(ellipse 80% 60% at 50% 40%,rgba(107,47,173,.18) 0%,transparent 68%),#1a0f0a}
       .br-spin{width:34px;height:34px;border:2px solid rgba(201,164,76,.2);border-top-color:#c9a44c;border-radius:50%;animation:spin .9s linear infinite}
+      .br-escape{position:fixed;top:88px;left:8px;z-index:195;display:inline-flex;align-items:center;min-height:44px;padding:0 12px;background:none;border:none;cursor:pointer;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.7);white-space:nowrap}
+      .br-escape:hover{color:rgba(240,234,216,.95)}
     `}</style>
   );
 
@@ -116,6 +143,9 @@ export default function BookstoreReaderClient({ slug, title }) {
         <span className="br-banner-label">Sample · {title.title}</span>
         <a href={`/bookstore/${slug}`} className="br-banner-cta">Get the full book →</a>
       </div>
+      {!readingBegun && (
+        <button type="button" className="br-escape" onClick={leaveReader}>&larr; The Book Store</button>
+      )}
       {loadError ? (
         <div className="br-center">
           <p style={{ fontSize: '1rem', color: 'rgba(240,234,216,.5)', fontStyle: 'italic', maxWidth: '420px', lineHeight: 1.7, marginBottom: '1.6rem' }}>We couldn&rsquo;t load this sample just now.</p>
