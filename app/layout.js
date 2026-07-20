@@ -41,7 +41,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* R4a.3: viewport-fit=cover MUST be declared statically. R4a.2 appended it at runtime from
+            a reader-scoped effect; iOS Safari switched the page to edge-to-edge but the stylesheet's
+            env(safe-area-inset-*) values had already resolved to 0 and were never recomputed — so
+            the reader drew full-bleed with zero inset compensation and put the first line of every
+            page under the status bar. Declared here, the layout mode and the insets agree from the
+            first paint. */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

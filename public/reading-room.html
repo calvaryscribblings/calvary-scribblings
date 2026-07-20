@@ -90,8 +90,15 @@ function buildCSS(st) {
     html{ background:${st.bg} !important; }
     body{ font-family:${face} !important; color:${st.fg} !important; background:${st.bg} !important; font-size:${px}px !important; }
     p, li, blockquote, dd { font-family:${face} !important; font-size:${px}px !important; line-height:${st.leading} !important;
-      text-align:${effectiveJustify(st) ? 'justify' : 'start'} !important; hyphens:auto !important; -webkit-hyphens:auto !important; }
-    p + p { text-indent:1.4em; }
+      hyphens:auto !important; -webkit-hyphens:auto !important; }
+    /* R4a.3 fault 2: ALIGNMENT IS A DEFAULT, NOT A DECREE. These used to carry !important, which
+       outranked the publisher's own stylesheet and flattened centred title pages, epigraphs and
+       imprints to the left. :where() has zero specificity, so any author rule — even a bare
+       element selector like p{text-align:center} — wins, while books that say nothing still get
+       our reading default. Typeface/size/leading stay !important: those are the reader's choice.
+       Indent sits in the same layer, otherwise it shifts centred lines off-centre. */
+    :where(p, li, blockquote, dd) { text-align:${effectiveJustify(st) ? 'justify' : 'start'}; }
+    :where(p + p) { text-indent:1.4em; }
     h1, h2, h3 { font-family:${face} !important; color:${st.fg} !important; }
     blockquote { border-inline-start:2px solid #c9a44c; padding-inline-start:1em; font-style:italic; }
     a { color:#a8842f !important; }
@@ -99,6 +106,23 @@ function buildCSS(st) {
     /* Kill decorative drop-cap images some EPUBs ship — harmless where absent. */
     span[style*="background-image"] { display:none !important; float:none !important; width:0 !important; height:0 !important; }
   `
+}
+
+// R4a.3 fault 2, second half. Our first-line indent is a reading DEFAULT, but text-indent shifts a
+// centred line off-centre — so a centred title page still read as misaligned even once the
+// text-align decree was lifted. CSS cannot condition a rule on the cascaded alignment of an
+// element, so neutralise the indent wherever the publisher has actually chosen an alignment. Only
+// paragraphs carrying OUR indent are touched; a publisher who sets their own keeps it.
+function respectAuthorAlignment(doc) {
+  try {
+    const win = doc.defaultView
+    for (const el of doc.body.querySelectorAll('p')) {
+      const { textAlign, textIndent } = win.getComputedStyle(el)
+      if ((textAlign === 'center' || textAlign === 'right' || textAlign === 'end') && parseFloat(textIndent) > 0) {
+        el.style.setProperty('text-indent', '0', 'important')
+      }
+    }
+  } catch (e) { /* non-fatal: alignment is cosmetic */ }
 }
 
 const state = { ...initial }
@@ -205,6 +229,7 @@ if (!url) {
     // background and painted the margin gutters white — the white L-shape around the page.
     // Re-asserting our CSS here lands it in the document before that sample is taken.
     view.renderer?.setStyles?.(buildCSS(state))
+    respectAuthorAlignment(detail.doc)
     currentIndex = detail.index
     if (!sectionWords.has(currentIndex)) sectionWords.set(currentIndex, countWords(detail.doc))
     // Tap + swipe on the section document.

@@ -12,7 +12,6 @@
 // purchased-book progress lands in Phase B it should key off `sample:{slug}` vs the real slug so
 // the two never collide.
 import { useEffect, useState } from 'react';
-import { useViewportFitCover } from '../../lib/viewportFit';
 
 function readSampleFlag() {
   if (typeof window === 'undefined') return false;
@@ -40,7 +39,6 @@ function sampleRoomSrc(url) {
 }
 
 export default function BookstoreReaderClient({ slug, title }) {
-  useViewportFitCover();
   const isSample = readSampleFlag() && !!title.samplePath;
   const [epubUrl, setEpubUrl] = useState(null);
   const [loadError, setLoadError] = useState(false);
@@ -91,28 +89,34 @@ export default function BookstoreReaderClient({ slug, title }) {
     <style>{`
       *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
       html,body{height:100%;background:#1a0f0a}
+      /* R4a.3: same named insets as the story reader, so the sample chrome is testable and the
+         two paths cannot drift apart. */
+      .br-root{--br-sat:env(safe-area-inset-top);--br-sab:env(safe-area-inset-bottom);
+        --br-sal:env(safe-area-inset-left);--br-sar:env(safe-area-inset-right)}
       @keyframes spin{to{transform:rotate(360deg)}}
       @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
       /* R4a.2: the sample chrome stacks top-down (48px bar, 34px banner, then the frame). Every
          offset now carries the notch inset so the bar — and the page beneath it — clear the clock. */
-      .br-top{position:fixed;top:0;left:0;right:0;height:calc(48px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);z-index:200;display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:8px;background:linear-gradient(to bottom,rgba(26,15,10,.96) 60%,transparent)}
+      /* R4a.3: padding-top MUST follow the padding shorthand — declared before it, the shorthand
+         reset it to 0 and the bar grew taller without moving its content clear of the notch. */
+      .br-top{position:fixed;top:0;left:0;right:0;height:calc(48px + var(--br-sat));z-index:200;display:flex;align-items:center;justify-content:space-between;padding:0 20px;padding-top:var(--br-sat);gap:8px;background:linear-gradient(to bottom,rgba(26,15,10,.96) 60%,transparent)}
       .br-logo{font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.2em;color:rgba(201,164,76,.45);text-decoration:none;text-transform:uppercase;white-space:nowrap}
       .br-logo:hover{color:rgba(201,164,76,.85)}
       .br-title{font-family:Cormorant Garamond,Georgia,serif;font-size:.72rem;font-style:italic;color:rgba(240,234,216,.28);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center}
       .br-close{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.12em;color:rgba(201,164,76,.5);text-decoration:none;text-transform:uppercase;white-space:nowrap;border:1px solid rgba(201,164,76,.25);border-radius:3px;padding:4px 9px}
       .br-close:hover{color:rgba(201,164,76,.9);border-color:rgba(201,164,76,.6)}
-      .br-banner{position:fixed;top:calc(48px + env(safe-area-inset-top));left:0;right:0;height:34px;z-index:190;display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:12px;background:rgba(201,164,76,.08);border-bottom:1px solid rgba(201,164,76,.18)}
+      .br-banner{position:fixed;top:calc(48px + var(--br-sat));left:0;right:0;height:34px;z-index:190;display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:12px;background:rgba(201,164,76,.08);border-bottom:1px solid rgba(201,164,76,.18)}
       .br-banner-label{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.22em;text-transform:uppercase;color:#c9a44c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .br-banner-cta{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.14em;text-transform:uppercase;color:#c9a44c;text-decoration:none;white-space:nowrap;font-weight:600}
       .br-banner-cta:hover{color:#f0ead8}
       /* Explicit width, not left+right: an abspos iframe with width:auto collapses to its
          intrinsic 300px rather than stretching between the insets. */
-      .br-frame{position:fixed;top:calc(82px + env(safe-area-inset-top));left:env(safe-area-inset-left);border:none;display:block;
-        width:calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right));
-        height:calc(100dvh - 82px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+      .br-frame{position:fixed;top:calc(82px + var(--br-sat));left:var(--br-sal);border:none;display:block;
+        width:calc(100vw - var(--br-sal) - var(--br-sar));
+        height:calc(100dvh - 82px - var(--br-sat) - var(--br-sab))}
       .br-center{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center;background:radial-gradient(ellipse 80% 60% at 50% 40%,rgba(107,47,173,.18) 0%,transparent 68%),#1a0f0a}
       .br-spin{width:34px;height:34px;border:2px solid rgba(201,164,76,.2);border-top-color:#c9a44c;border-radius:50%;animation:spin .9s linear infinite}
-      .br-escape{position:fixed;top:calc(88px + env(safe-area-inset-top));left:8px;z-index:195;display:inline-flex;align-items:center;min-height:44px;padding:0 12px;background:none;border:none;cursor:pointer;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.7);white-space:nowrap}
+      .br-escape{position:fixed;top:calc(88px + var(--br-sat));left:8px;z-index:195;display:inline-flex;align-items:center;min-height:44px;padding:0 12px;background:none;border:none;cursor:pointer;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.7);white-space:nowrap}
       .br-escape:hover{color:rgba(240,234,216,.95)}
     `}</style>
   );
@@ -128,7 +132,7 @@ export default function BookstoreReaderClient({ slug, title }) {
   // Interstitial — no sample requested, or requested with nothing on file.
   if (!isSample) {
     return (
-      <div style={{ width: '100vw', height: '100vh', background: '#1a0f0a', overflow: 'hidden', fontFamily: "Cormorant Garamond, Georgia, serif" }}>
+      <div className="br-root" style={{ width: '100vw', height: '100vh', background: '#1a0f0a', overflow: 'hidden', fontFamily: "Cormorant Garamond, Georgia, serif" }}>
         {styles}
         {TopBar}
         <div className="br-center" style={{ animation: 'fadeUp .6s ease forwards' }}>
@@ -144,7 +148,7 @@ export default function BookstoreReaderClient({ slug, title }) {
 
   // Sample mode.
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#1a0f0a', overflow: 'hidden', fontFamily: "Cormorant Garamond, Georgia, serif" }}>
+    <div className="br-root" style={{ width: '100vw', height: '100vh', background: '#1a0f0a', overflow: 'hidden', fontFamily: "Cormorant Garamond, Georgia, serif" }}>
       {styles}
       {TopBar}
       <div className="br-banner">

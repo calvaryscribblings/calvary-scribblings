@@ -14,7 +14,6 @@ import ReadSeal from '../../components/ReadSeal';
 import { use } from 'react';
 import { useDeletedUids } from '../../lib/userVisibility';
 import { getReaderId } from '../../lib/readerId';
-import { useViewportFitCover } from '../../lib/viewportFit';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
 
 const COMMENT_REACTIONS = buildReactions('heart');
@@ -620,8 +619,6 @@ export default function StoryReaderClient({ params }) {
   const searchIdRef = useRef(0);
   const searchDebounce = useRef(null);
 
-  useViewportFitCover();
-
   useEffect(() => { setReduced(!!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)); }, []);
 
   const postToFrame = useCallback((msg) => {
@@ -965,7 +962,14 @@ export default function StoryReaderClient({ params }) {
            overflowed the visual viewport and shifted the surface. inset-based sizing tracks the
            real box. --rr-lane reserves the ribbon's gutter (fault C) — it is painted with
            --rr-bg, so the surface still reads as full-bleed paper. */
-        .rr-root{--rr-accent:#c9a44c;--rr-lane:30px;position:fixed;top:0;left:0;right:0;height:100dvh;overflow:hidden;background:var(--rr-bg);color:var(--rr-fg)}
+        /* R4a.3: the safe-area insets are named ONCE here and referenced everywhere else. Previously
+           each rule inlined env(...) directly, which made the geometry impossible to test (Chromium
+           cannot emulate iOS insets) and easy to apply inconsistently. Overriding these four vars
+           simulates a notched device in any browser. */
+        .rr-root{--rr-accent:#c9a44c;--rr-lane:30px;
+          --rr-sat:env(safe-area-inset-top);--rr-sab:env(safe-area-inset-bottom);
+          --rr-sal:env(safe-area-inset-left);--rr-sar:env(safe-area-inset-right);--rr-thread-h:3px;
+          position:fixed;top:0;left:0;right:0;height:100dvh;overflow:hidden;background:var(--rr-bg);color:var(--rr-fg)}
         .rr-root[data-theme="vellum"]{--rr-bg:#f2ecd9;--rr-fg:#2b2418;--rr-chrome:rgba(242,236,217,.9);--rr-line:rgba(43,36,24,.14);--rr-soft:rgba(43,36,24,.55)}
         .rr-root[data-theme="ivory"]{--rr-bg:#faf7f0;--rr-fg:#1f1c16;--rr-chrome:rgba(250,247,240,.9);--rr-line:rgba(31,28,22,.13);--rr-soft:rgba(31,28,22,.55)}
         .rr-root[data-theme="dusk"]{--rr-bg:#211d16;--rr-fg:#ddd2b8;--rr-chrome:rgba(33,29,22,.9);--rr-line:rgba(221,210,184,.16);--rr-soft:rgba(221,210,184,.55)}
@@ -973,19 +977,19 @@ export default function StoryReaderClient({ params }) {
 
         /* R4a.2 fault B: env() resolves to 0 inside a nested browsing context, so the iframe can
            never protect itself from the notch — the PARENT must inset it. These insets apply in
-           BOTH chrome states; the strips they expose are --rr-bg (paper), never white. */
-        /* R4a.2 fault B: env() resolves to 0 inside a nested browsing context, so the iframe can
-           never protect itself from the notch — the PARENT must inset it. These insets apply in
            BOTH chrome states; the strips they expose are --rr-bg (paper), never white.
            The inset lives on a WRAPPER, not the iframe: an absolutely-positioned replaced element
-           with width:auto falls back to its intrinsic 300px instead of stretching to left/right. */
+           with width:auto falls back to its intrinsic 300px instead of stretching to left/right.
+           R4a.3: the wrapper's box IS the paginator's layout box — foliate sizes its columns from
+           the iframe it lives in, so nothing may overlay or inset it further, or page extremities
+           land in hidden pixels. The gold thread's 3px is reserved here, not painted over the page. */
         .rr-frame-wrap{position:fixed;background:var(--rr-bg);
-          top:env(safe-area-inset-top);left:env(safe-area-inset-left);right:calc(var(--rr-lane) + env(safe-area-inset-right));
-          height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+          top:var(--rr-sat);left:var(--rr-sal);right:calc(var(--rr-lane) + var(--rr-sar));
+          height:calc(100dvh - var(--rr-sat) - var(--rr-sab) - var(--rr-thread-h))}
         .rr-frame{display:block;border:none;width:100%;height:100%;background:var(--rr-bg)}
 
         .rr-top{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;gap:8px;padding:8px 12px;
-          padding-top:max(8px,env(safe-area-inset-top));background:var(--rr-chrome);backdrop-filter:blur(10px);
+          padding-top:max(8px,var(--rr-sat));background:var(--rr-chrome);backdrop-filter:blur(10px);
           border-bottom:1px solid var(--rr-line);transition:transform .35s cubic-bezier(.2,.7,.2,1)}
         .rr-top.hidden{transform:translateY(-110%)}
         .rr-back{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;font-family:'Cinzel',serif;font-size:.6rem;
@@ -1001,19 +1005,19 @@ export default function StoryReaderClient({ params }) {
         .rr-tool:hover{color:var(--rr-accent)}
 
         .rr-bot{position:fixed;bottom:0;left:0;right:0;z-index:40;display:flex;align-items:center;justify-content:center;
-          min-height:44px;padding-bottom:max(0px,env(safe-area-inset-bottom));background:var(--rr-chrome);backdrop-filter:blur(10px);
+          min-height:44px;padding-bottom:max(0px,var(--rr-sab));background:var(--rr-chrome);backdrop-filter:blur(10px);
           border-top:1px solid var(--rr-line);transition:transform .35s cubic-bezier(.2,.7,.2,1)}
         .rr-bot.hidden{transform:translateY(110%)}
         .rr-botinfo{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.16em;text-transform:uppercase;color:var(--rr-soft);white-space:nowrap;pointer-events:none;padding:0 12px}
 
         /* R4a.2 fault B (bottom): lift the thread clear of the home indicator. */
-        .rr-thread{position:fixed;bottom:env(safe-area-inset-bottom);left:0;right:0;height:3px;z-index:50;background:rgba(201,164,76,.1);pointer-events:none}
+        .rr-thread{position:fixed;bottom:var(--rr-sab);left:0;right:0;height:var(--rr-thread-h);z-index:50;background:rgba(201,164,76,.1);pointer-events:none}
         .rr-thread-fill{height:100%;background:var(--rr-accent);box-shadow:0 0 8px rgba(201,164,76,.7);transition:width .45s ease}
 
         /* R4a.2 fault C: was top:0 (under the notch) and right:22px (inside the text measure).
            Now anchored into the reserved --rr-lane gutter and below the safe area. 24px tab in a
            30px lane with a 3px edge gap => it can never reach the text column at any width. */
-        .rr-ribbon-tab{position:fixed;top:calc(env(safe-area-inset-top) + 6px);right:max(3px,env(safe-area-inset-right));z-index:38;width:24px;min-height:44px;border:none;cursor:pointer;padding:0;
+        .rr-ribbon-tab{position:fixed;top:calc(var(--rr-sat) + 6px);right:max(3px,var(--rr-sar));z-index:38;width:24px;min-height:44px;border:none;cursor:pointer;padding:0;
           background:linear-gradient(180deg,#e8c877,#a8842f);box-shadow:0 3px 8px rgba(0,0,0,.4);
           display:flex;align-items:flex-start;justify-content:center;padding-top:8px;color:#3a2c0a}
         .rr-ribbon-tab::after{content:'';position:absolute;left:0;right:0;bottom:-8px;height:9px;background:linear-gradient(180deg,#c9a44c,#a8842f);clip-path:polygon(0 0,100% 0,100% 100%,50% 55%,0 100%)}
