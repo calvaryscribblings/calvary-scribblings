@@ -1,3 +1,25 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTRACT SHARED WITH THE STORY ISLAND APP (calvary-app repo).
+//
+// cms_stories_index is not private to this repo. The app reads the same RTDB node
+// and routes on fields this repo may not consume: storyHref/isReaderCollection
+// there resolve `bookReader === true || readerMode === true`. So:
+//
+//   1. DO NOT DROP A FIELD from this projection because nothing in this repo reads
+//      it. `bookReader` has no consumer here and is load-bearing there. Removing a
+//      field is a breaking change to another codebase and will not show up in this
+//      repo's build, tests, or pages — it shows up as stories misrouting in the app.
+//   2. ANYTHING WRITING TO THE INDEX MUST WRITE A COMPLETE PROJECTED RECORD —
+//      buildIndexRecord() via indexUpdatePaths(), never a partial path. A deep-path
+//      write (`cms_stories_index/<slug>/<field>`) CREATES the parent when the slug
+//      has no entry, leaving a record that holds only that one field: it still
+//      counts as a member, so membership checks pass, while carrying no authorUid,
+//      title or date. That is precisely how a story silently vanished from an
+//      author's Voices page (see the R4a index-integrity commit); the repair is
+//      scripts/backfill-stories-index.mjs, the standing check is
+//      scripts/audit-stories-index.mjs.
+// ─────────────────────────────────────────────────────────────────────────────
+//
 // Slim public index projection for cms_stories — the single source of truth for
 // the fields the hot list/build surfaces actually render. See
 // database.rules.storiesIndex-fragment.json and the Phase A performance work.
