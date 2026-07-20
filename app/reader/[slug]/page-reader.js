@@ -933,7 +933,10 @@ export default function StoryReaderClient({ params }) {
   );
 
   const iframeSrc = story.epubUrl ? readingRoomSrc(story.epubUrl, prefsInit.current) : null;
-  const backHref = `/stories/${slug}`;
+  // R4a.4: one door, one destination. The top-bar control used to return to this story's own
+  // detail page (/stories/<slug>); it now routes home to the Library, matching the Story Island
+  // app's LIBRARY control. Plain navigation — no history.back(), no referrer sniffing.
+  const backHref = '/public-library';
   const paper = PAPERS[prefs.paper] || PAPERS.vellum;
 
   const botText = (() => {
@@ -1072,7 +1075,28 @@ export default function StoryReaderClient({ params }) {
 
         .rr-cover{position:fixed;inset:0;background:linear-gradient(148deg,#1a0a2e 0%,#0e0618 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px;text-align:center;z-index:80;cursor:pointer;animation:fadeUp .7s ease forwards}
         .rr-cover::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 65% at 50% 38%,rgba(107,47,173,.28) 0%,transparent 68%)}
-        .rr-cimg{width:auto;height:auto;max-width:min(320px,75vw);max-height:60dvh;object-fit:contain;border-radius:2px 4px 4px 2px;position:relative;z-index:1;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2);margin-bottom:14px}
+        /* R4a.4 — bound-book treatment for the splash cover. This deliberately does NOT reuse
+           BoundBook: that component is fixed-geometry (height = width * 1.5) and crops with
+           object-fit:cover, whereas story covers come from the CMS at arbitrary ratios and the
+           splash sizes them with contain + max-height:60dvh. Matching it would mean adding an
+           aspect/fit prop to BoundBook's API. So this is a local, binding-only treatment that
+           borrows BoundBook's visual language — the spine gradient stops and the fore-edge stripe
+           below are copied verbatim from BOUND_BOOK_CSS so the two read as the same object.
+           No gesture, no flip, no obi, no ribbon. The wrapper shrink-wraps the image, so the
+           binding tracks whatever size the cover actually resolves to. */
+        .rr-cbind{position:relative;display:inline-block;z-index:1;margin-bottom:14px;
+          transform:rotate(-1.4deg);transform-origin:50% 60%}
+        .rr-cimg{display:block;width:auto;height:auto;max-width:min(320px,75vw);max-height:60dvh;object-fit:contain;
+          border-radius:2px 5px 5px 2px;box-shadow:0 12px 48px rgba(0,0,0,.75),0 0 0 1px rgba(201,164,76,.2)}
+        /* spine hinge, left edge */
+        .rr-cbind::before{content:'';position:absolute;top:0;bottom:0;left:0;width:11px;z-index:2;pointer-events:none;
+          border-radius:2px 0 0 2px;
+          background:linear-gradient(90deg,rgba(0,0,0,.62) 0%,rgba(0,0,0,.2) 34%,rgba(255,255,255,.09) 50%,rgba(0,0,0,.22) 66%,rgba(0,0,0,.34) 100%)}
+        /* fore-edge page block, right edge */
+        .rr-cbind::after{content:'';position:absolute;top:2.5%;bottom:2.5%;right:-9px;width:10px;pointer-events:none;
+          border-radius:0 2px 2px 0;
+          background:repeating-linear-gradient(90deg,#e6dfc8 0,#e6dfc8 1px,#d3caae 1px,#d3caae 2px);
+          box-shadow:1px 2px 6px rgba(0,0,0,.5)}
         .rr-corn{font-size:.55rem;letter-spacing:.4em;color:rgba(201,164,76,.3);margin-bottom:10px;position:relative;z-index:1}
         .rr-ctitle{font-family:Cormorant Garamond,Georgia,serif;font-size:clamp(1rem,2.5vw,1.5rem);font-weight:300;color:#f5efe0;line-height:1.2;margin-bottom:6px;position:relative;z-index:1;font-style:italic}
         .rr-cauthor{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.24em;color:rgba(201,164,76,.65);text-transform:uppercase;position:relative;z-index:1}
@@ -1097,6 +1121,8 @@ export default function StoryReaderClient({ params }) {
         @media (prefers-reduced-motion: reduce){
           .rr-top,.rr-bot,.rr-thread-fill,.rr-sheet,.rr-cover,.rr-end-wrap{transition:none !important;animation:none !important}
           .rr-ribbon-tab.dropping{animation:none}
+          /* BOUND_BOOK_CSS drops the resting angle under reduced motion; match it. */
+          .rr-cbind{transform:none}
         }
 
         /* Comments / end-card styles (PRESERVED from the previous reader) */
@@ -1154,7 +1180,7 @@ export default function StoryReaderClient({ params }) {
         {!showCover && !showEnd && (
           <>
             <header className={'rr-top' + (chromeVisible ? '' : ' hidden')}>
-              <a href={backHref} className="rr-back">&larr; Stories</a>
+              <a href={backHref} className="rr-back">&larr; Library</a>
               <div className="rr-titleblock">
                 <div className="rr-book-title">{story.title}</div>
                 {chapterLabel && <div className="rr-chapter">{chapterLabel}</div>}
@@ -1196,7 +1222,7 @@ export default function StoryReaderClient({ params }) {
         {showCover && (
           <div className="rr-cover" onClick={() => setShowCover(false)}>
             <div className="rr-corn">✦ ✦ ✦</div>
-            <img src={story.cover} alt={story.title} className="rr-cimg" />
+            <div className="rr-cbind"><img src={story.cover} alt={story.title} className="rr-cimg" /></div>
             <div className="rr-ctitle">{story.title}</div>
             <div className="rr-cauthor">by {story.author}</div>
             <div className="rr-cabout" onClick={e => e.stopPropagation()}>
