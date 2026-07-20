@@ -568,7 +568,7 @@ export default function AdminPage() {
   const emptyForm = {
     title: '', selectedAuthor: '', category: 'flash', subcategory: '',
     date: formatDate(new Date()), coverFilename: '', coverPreview: null, coverHash: '', coverSizes: null,
-    content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, prosePoetry: false, featuredPin: false,
+    content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, bookReader: false, prosePoetry: false, featuredPin: false,
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
     trailerQuote: '', published: true,
@@ -700,6 +700,9 @@ export default function AdminPage() {
       // Carry the EPUB version signal through the full-node overwrite: fresh on a new
       // upload, preserved from the loaded story otherwise, absent on stories never uploaded.
       if (form.epubUpdatedAt) storyData.epubUpdatedAt = form.epubUpdatedAt;
+      // Written only when true, so the 153 stories that are not book-reader titles stay
+      // exactly as they are (no schema churn from a blanket false).
+      if (form.bookReader) storyData.bookReader = true;
       if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
       // Atomic dual-write: the full record and its slim index entry land in ONE
       // multi-path update so the pair can never half-write. A path→object value
@@ -802,6 +805,11 @@ export default function AdminPage() {
       epubUrl: story.epubUrl || '',
       epubUpdatedAt: story.epubUpdatedAt || null,
       readerMode: story.readerMode || false,
+      // bookReader is authored app-side, not by this form, but the save is a full-node
+      // overwrite — without carrying it through, editing a bookReader story here would
+      // silently delete the flag from cms_stories AND its index entry. Same hazard the
+      // coverSizes line above guards against.
+      bookReader: story.bookReader || false,
       prosePoetry: story.prosePoetry || false,
       featuredPin: story.featuredPin || false,
       extractedText: story.extractedText || '',

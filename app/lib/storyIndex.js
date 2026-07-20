@@ -42,6 +42,11 @@ export function buildIndexRecord(slug, story) {
     published: s.published !== false,
     featuredPin: s.featuredPin === true,
     readerMode: s.readerMode === true,
+    // bookReader rides alongside readerMode: the app's storyHref/isReaderCollection route on
+    // `bookReader === true || readerMode === true`, so an index that carries only one of the two
+    // can misroute a reader-collection story. No live record is bookReader-only today
+    // (filtered-reality sets both), so nothing misroutes yet — this closes it before one does.
+    bookReader: s.bookReader === true,
     url: s.url || `/stories/${slug}`,
   };
   if (s.publishAt) rec.publishAt = s.publishAt;
