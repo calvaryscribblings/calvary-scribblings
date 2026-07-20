@@ -18,6 +18,19 @@
 //      author's Voices page (see the R4a index-integrity commit); the repair is
 //      scripts/backfill-stories-index.mjs, the standing check is
 //      scripts/audit-stories-index.mjs.
+//   3. ANY PATH THAT FLIPS published:false → true MUST WRITE THE INDEX ENTRY in the
+//      same atomic update — flipping `cms_stories/<slug>/published` alone (with no
+//      index write) leaves a published story with NO index record, invisible on
+//      every index-fed surface (homepage, category pages, search, gateway-build,
+//      Voices) since the Phase A cut-over. The admin's unhideStory() does this
+//      correctly (`cms_stories/<slug>/published: true` + indexUpdatePaths). The
+//      scheduled-publish CRON — the external `calvary-newsletter` Cloudflare Worker,
+//      which flips scheduled stories to published:true when publishAt arrives — is
+//      the SAME kind of writer and is bound by the SAME rule: it must project a
+//      complete record with buildIndexRecord() (mirrored, since it cannot import
+//      this module), never a bare `published: true` deep-path write. The
+//      scheduled-publish integrity section of scripts/audit-stories-index.mjs
+//      guards this specific failure mode.
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // Slim public index projection for cms_stories — the single source of truth for

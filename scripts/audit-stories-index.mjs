@@ -54,3 +54,38 @@ const noUidSrc = eligible.filter(s => !src[s].authorUid);
 const noUidIdx = eligible.filter(s => idx[s] && !idx[s].authorUid);
 console.log(`\nauthorUid — missing/empty in SOURCE: ${noUidSrc.length}${noUidSrc.length ? ' → ' + noUidSrc.join(', ') : ''}`);
 console.log(`authorUid — missing/empty in INDEX : ${noUidIdx.length}${noUidIdx.length ? ' → ' + noUidIdx.join(', ') : ''}`);
+
+// SCHEDULED-PUBLISH INTEGRITY — the specific failure mode of the external
+// calvary-newsletter cron flipping a scheduled story to published:true when its
+// publishAt arrives WITHOUT writing the index entry (a bare published deep-path
+// write). Such a story is eligible but absent-or-partial in the index, so it goes
+// live invisible on every index-fed surface. The generic orphan check above catches
+// the absent case; this section names it explicitly and also flags PARTIAL index
+// records (present but missing the load-bearing scalars buildIndexRecord emits), so
+// a cron regression is obvious rather than buried. See app/lib/storyIndex.js note 3.
+const now = Date.now();
+const scheduled = Object.keys(src).filter(s => src[s] && src[s].publishAt);
+const due = scheduled.filter(s => new Date(src[s].publishAt).getTime() <= now);
+const future = scheduled.filter(s => new Date(src[s].publishAt).getTime() > now);
+// A "due, published" story MUST have a complete index record. Report anything that
+// is live (published !== false, publishAt passed) yet absent or partial in the index.
+const dueLive = due.filter(s => src[s].published !== false);
+const dueBad = dueLive.filter(s => {
+  const rec = idx[s];
+  if (!rec) return true; // absent — the classic bare-flip symptom
+  const want = buildIndexRecord(s, src[s]);
+  // partial: any field the projection emits is missing from the stored record
+  return Object.keys(want).some(k => !(k in rec)) || !rec.authorUid || !rec.title;
+});
+console.log(`\nSCHEDULED-PUBLISH INTEGRITY`);
+console.log(`  stories carrying publishAt: ${scheduled.length} (${due.length} due / ${future.length} future)`);
+console.log(`  due & live (published, publishAt passed): ${dueLive.length}`);
+if (dueBad.length) {
+  console.log(`  ⚠ DUE+LIVE BUT ABSENT/PARTIAL IN INDEX: ${dueBad.length} → ${dueBad.join(', ')}`);
+  console.log(`    → the scheduled-publish cron flipped published without a full index write. Run scripts/backfill-stories-index.mjs.`);
+} else {
+  console.log(`  ✓ every due, live scheduled story has a complete index record`);
+}
+// Future-scheduled stories are correctly held out of the index (published:false); flag any that leaked in.
+const futureLeaked = future.filter(s => idx[s]);
+if (futureLeaked.length) console.log(`  ⚠ FUTURE-SCHEDULED but present in index (should be held out until publishAt): ${futureLeaked.join(', ')}`);
