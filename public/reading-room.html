@@ -17,8 +17,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Cinzel:wght@400;600&family=Inter:wght@300;400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
 <style>
+  /* R4a.2 (fault A): the host document must be paper-coloured at every layer. `height:100%`
+     (not 100dvh) makes foliate-view fill the iframe box exactly — the parent already sizes the
+     iframe, and a dvh/lvh mismatch inside a nested browsing context left a strip of untinted
+     document showing below the page on iOS. */
   html,body{height:100%;margin:0;overflow:hidden}
-  foliate-view{display:block;width:100%;height:100dvh}
+  foliate-view{display:block;width:100%;height:100%}
   #loading{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:100;transition:opacity .4s ease}
   #loading.hidden{opacity:0;pointer-events:none}
   #spinner{width:32px;height:32px;border:2px solid rgba(201,164,76,.2);border-top-color:#c9a44c;border-radius:50%;animation:spin .9s linear infinite}
@@ -55,8 +59,13 @@ const initial = {
   flow: params.get('flow') === 'scrolled' ? 'scrolled' : 'paginated',
   justify: params.get('justify') !== '0',
 }
-document.documentElement.style.background = initial.bg
-document.body && (document.body.style.background = initial.bg)
+// Paint BOTH html and body: the paginator's own grid margins sit above the document canvas, so
+// any surface we leave untinted shows through as white on iOS (R4a.2 fault A).
+function paintHost(bg) {
+  document.documentElement.style.background = bg
+  if (document.body) document.body.style.background = bg
+}
+paintHost(initial.bg)
 
 const FACE_STACK = {
   cormorant: "'Cormorant Garamond', Georgia, serif",
@@ -64,13 +73,24 @@ const FACE_STACK = {
   inter: "'Inter', system-ui, sans-serif",
 }
 
+// R4a.2 fault D: justified text goes gappy at phone measures. Below 640px we fall back to
+// start-aligned (ragged-right), matching the approved mockup rule. innerWidth here is the reading
+// surface's own width, so this reads correctly at any column count — a media query inside the
+// injected styles would key off the COLUMN width instead and mis-fire on multi-column desktop.
+const JUSTIFY_MIN_WIDTH = 640
+const effectiveJustify = (st) => st.justify && window.innerWidth >= JUSTIFY_MIN_WIDTH
+
 function buildCSS(st) {
   const face = FACE_STACK[st.face] || FACE_STACK.cormorant
   const px = Math.round(18 * (st.sizePct / 100))
   return `
+    /* html AND body: foliate samples the section document's background (body, falling back to
+       documentElement) once per section load and paints its grid margins with it. Tinting both
+       guarantees the margin gutters are paper, never the EPUB's own white. */
+    html{ background:${st.bg} !important; }
     body{ font-family:${face} !important; color:${st.fg} !important; background:${st.bg} !important; font-size:${px}px !important; }
     p, li, blockquote, dd { font-family:${face} !important; font-size:${px}px !important; line-height:${st.leading} !important;
-      text-align:${st.justify ? 'justify' : 'start'} !important; hyphens:auto !important; -webkit-hyphens:auto !important; }
+      text-align:${effectiveJustify(st) ? 'justify' : 'start'} !important; hyphens:auto !important; -webkit-hyphens:auto !important; }
     p + p { text-indent:1.4em; }
     h1, h2, h3 { font-family:${face} !important; color:${st.fg} !important; }
     blockquote { border-inline-start:2px solid #c9a44c; padding-inline-start:1em; font-style:italic; }
@@ -119,7 +139,7 @@ function computePages(fraction) {
 
 function applyStyles(patch) {
   Object.assign(state, patch)
-  document.documentElement.style.background = state.bg
+  paintHost(state.bg)
   view?.renderer?.setStyles?.(buildCSS(state))
 }
 
@@ -177,6 +197,14 @@ if (!url) {
   })
 
   view.addEventListener('load', ({ detail }) => {
+    // R4a.2 fault A — ROOT CAUSE FIX. foliate's load pipeline is:
+    //   afterLoad(doc) → paginator.setStyles(its own stored styles) → dispatch 'load' (this
+    //   handler, synchronously) → getBackground(doc) → paint the grid margins with it.
+    // On the FIRST section the paginator's stored styles are still undefined (we only called
+    // setStyles in open().then(), which resolves later), so it sampled the EPUB's own white
+    // background and painted the margin gutters white — the white L-shape around the page.
+    // Re-asserting our CSS here lands it in the document before that sample is taken.
+    view.renderer?.setStyles?.(buildCSS(state))
     currentIndex = detail.index
     if (!sectionWords.has(currentIndex)) sectionWords.set(currentIndex, countWords(detail.doc))
     // Tap + swipe on the section document.
@@ -220,6 +248,16 @@ if (!url) {
     post({ type: 'error', message: String(err?.message || err) })
   })
 }
+
+// Re-apply typesetting only when the justification decision actually flips (rotation, iPad split
+// view, desktop resize) — foliate re-paginates on setStyles, so we must not do it on every tick.
+let lastJustify = effectiveJustify(state)
+window.addEventListener('resize', () => {
+  const now = effectiveJustify(state)
+  if (now === lastJustify) return
+  lastJustify = now
+  view?.renderer?.setStyles?.(buildCSS(state))
+})
 
 // ── Parent → host bridge (origin-checked) ──────────────────────────────────────
 window.addEventListener('message', async (e) => {

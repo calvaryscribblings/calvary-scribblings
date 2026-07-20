@@ -14,6 +14,7 @@ import ReadSeal from '../../components/ReadSeal';
 import { use } from 'react';
 import { useDeletedUids } from '../../lib/userVisibility';
 import { getReaderId } from '../../lib/readerId';
+import { useViewportFitCover } from '../../lib/viewportFit';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
 
 const COMMENT_REACTIONS = buildReactions('heart');
@@ -619,6 +620,8 @@ export default function StoryReaderClient({ params }) {
   const searchIdRef = useRef(0);
   const searchDebounce = useRef(null);
 
+  useViewportFitCover();
+
   useEffect(() => { setReduced(!!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)); }, []);
 
   const postToFrame = useCallback((msg) => {
@@ -958,13 +961,28 @@ export default function StoryReaderClient({ params }) {
         @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
         @keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateX(-50%) translateY(-8px)}}
 
-        .rr-root{--rr-accent:#c9a44c;position:fixed;inset:0;width:100vw;height:100dvh;overflow:hidden;background:var(--rr-bg);color:var(--rr-fg)}
+        /* R4a.2 fault A: 100vw is the LAYOUT viewport on iOS and ignores the safe area, so it
+           overflowed the visual viewport and shifted the surface. inset-based sizing tracks the
+           real box. --rr-lane reserves the ribbon's gutter (fault C) — it is painted with
+           --rr-bg, so the surface still reads as full-bleed paper. */
+        .rr-root{--rr-accent:#c9a44c;--rr-lane:30px;position:fixed;top:0;left:0;right:0;height:100dvh;overflow:hidden;background:var(--rr-bg);color:var(--rr-fg)}
         .rr-root[data-theme="vellum"]{--rr-bg:#f2ecd9;--rr-fg:#2b2418;--rr-chrome:rgba(242,236,217,.9);--rr-line:rgba(43,36,24,.14);--rr-soft:rgba(43,36,24,.55)}
         .rr-root[data-theme="ivory"]{--rr-bg:#faf7f0;--rr-fg:#1f1c16;--rr-chrome:rgba(250,247,240,.9);--rr-line:rgba(31,28,22,.13);--rr-soft:rgba(31,28,22,.55)}
         .rr-root[data-theme="dusk"]{--rr-bg:#211d16;--rr-fg:#ddd2b8;--rr-chrome:rgba(33,29,22,.9);--rr-line:rgba(221,210,184,.16);--rr-soft:rgba(221,210,184,.55)}
         .rr-root[data-theme="ink"]{--rr-bg:#0a0a0a;--rr-fg:#d9d2bf;--rr-chrome:rgba(10,10,10,.92);--rr-line:rgba(217,210,191,.14);--rr-soft:rgba(217,210,191,.5)}
 
-        .rr-frame{position:fixed;inset:0;border:none;width:100%;height:100dvh;background:var(--rr-bg)}
+        /* R4a.2 fault B: env() resolves to 0 inside a nested browsing context, so the iframe can
+           never protect itself from the notch — the PARENT must inset it. These insets apply in
+           BOTH chrome states; the strips they expose are --rr-bg (paper), never white. */
+        /* R4a.2 fault B: env() resolves to 0 inside a nested browsing context, so the iframe can
+           never protect itself from the notch — the PARENT must inset it. These insets apply in
+           BOTH chrome states; the strips they expose are --rr-bg (paper), never white.
+           The inset lives on a WRAPPER, not the iframe: an absolutely-positioned replaced element
+           with width:auto falls back to its intrinsic 300px instead of stretching to left/right. */
+        .rr-frame-wrap{position:fixed;background:var(--rr-bg);
+          top:env(safe-area-inset-top);left:env(safe-area-inset-left);right:calc(var(--rr-lane) + env(safe-area-inset-right));
+          height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+        .rr-frame{display:block;border:none;width:100%;height:100%;background:var(--rr-bg)}
 
         .rr-top{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;gap:8px;padding:8px 12px;
           padding-top:max(8px,env(safe-area-inset-top));background:var(--rr-chrome);backdrop-filter:blur(10px);
@@ -988,10 +1006,14 @@ export default function StoryReaderClient({ params }) {
         .rr-bot.hidden{transform:translateY(110%)}
         .rr-botinfo{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.16em;text-transform:uppercase;color:var(--rr-soft);white-space:nowrap;pointer-events:none;padding:0 12px}
 
-        .rr-thread{position:fixed;bottom:0;left:0;right:0;height:3px;z-index:50;background:rgba(201,164,76,.1);pointer-events:none}
+        /* R4a.2 fault B (bottom): lift the thread clear of the home indicator. */
+        .rr-thread{position:fixed;bottom:env(safe-area-inset-bottom);left:0;right:0;height:3px;z-index:50;background:rgba(201,164,76,.1);pointer-events:none}
         .rr-thread-fill{height:100%;background:var(--rr-accent);box-shadow:0 0 8px rgba(201,164,76,.7);transition:width .45s ease}
 
-        .rr-ribbon-tab{position:fixed;top:0;right:22px;z-index:38;width:26px;min-height:44px;border:none;cursor:pointer;padding:0;
+        /* R4a.2 fault C: was top:0 (under the notch) and right:22px (inside the text measure).
+           Now anchored into the reserved --rr-lane gutter and below the safe area. 24px tab in a
+           30px lane with a 3px edge gap => it can never reach the text column at any width. */
+        .rr-ribbon-tab{position:fixed;top:calc(env(safe-area-inset-top) + 6px);right:max(3px,env(safe-area-inset-right));z-index:38;width:24px;min-height:44px;border:none;cursor:pointer;padding:0;
           background:linear-gradient(180deg,#e8c877,#a8842f);box-shadow:0 3px 8px rgba(0,0,0,.4);
           display:flex;align-items:flex-start;justify-content:center;padding-top:8px;color:#3a2c0a}
         .rr-ribbon-tab::after{content:'';position:absolute;left:0;right:0;bottom:-8px;height:9px;background:linear-gradient(180deg,#c9a44c,#a8842f);clip-path:polygon(0 0,100% 0,100% 100%,50% 55%,0 100%)}
@@ -1121,7 +1143,7 @@ export default function StoryReaderClient({ params }) {
       <div className="rr-root" data-theme={prefs.paper}>
         {/* Reading surface + chrome (only while actually reading) */}
         {!showCover && !showEnd && readerReady && (iframeSrc
-          ? <iframe ref={iframeRef} className="rr-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" />
+          ? <div className="rr-frame-wrap"><iframe ref={iframeRef} className="rr-frame" src={iframeSrc} title={story.title} sandbox="allow-scripts allow-same-origin" /></div>
           : <div className="rr-noepub">No EPUB file available for this book.</div>
         )}
 
