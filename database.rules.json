@@ -294,13 +294,13 @@
     },
     "open_pages": {
       ".read": true,
-      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || auth.token.email === 'ikennaworksfromhome@gmail.com' || auth.token.email === 'fynbecki@gmail.com')",
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
       ".indexOn": [
         "createdAt"
       ],
       "$postId": {
         ".write": "auth != null && data.exists() && data.child('authorUid').val() === auth.uid",
-        ".validate": "!newData.exists() || newData.child('authorUid').val() === data.child('authorUid').val()",
+        ".validate": "!newData.exists() || !data.exists() || newData.child('authorUid').val() === data.child('authorUid').val()",
         "readCount": {
           ".write": "auth != null && newData.isNumber()"
         }
@@ -333,8 +333,8 @@
       }
     },
     "open_pages_reports": {
-      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || auth.token.email === 'ikennaworksfromhome@gmail.com' || auth.token.email === 'fynbecki@gmail.com')",
-      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || auth.token.email === 'ikennaworksfromhome@gmail.com' || auth.token.email === 'fynbecki@gmail.com')",
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
       "$postId": {
         "$reporterUid": {
           ".write": "auth != null && auth.uid === $reporterUid",

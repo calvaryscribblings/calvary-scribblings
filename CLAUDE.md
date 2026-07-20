@@ -19,12 +19,14 @@ Cloudflare Pages runs `npm install && npm run build` from the repo root. The `bu
 ## Rules for editing
 
 1. Before creating or editing any `.js` / `.jsx` / `.ts` / `.tsx` file, verify the path starts at the repo root (e.g. `app/admin/<feature>/page.js`). Do **not** create or edit anything inside a nested `calvary-scribblings-next/` directory.
-2. For new server-side endpoints, use Next.js Route Handlers: `app/api/<endpoint>/route.js`. Existing examples: `app/api/points-reset/route.js`, `app/api/square-cleanup/route.js`.
+2. For new server-side endpoints, use Cloudflare Pages Functions: `functions/api/<endpoint>.js`, exporting `onRequestPost` / `onRequestGet`. That is where every live endpoint actually runs — `next.config.mjs` sets `output: 'export'`, so Next.js Route Handlers are not built into the deployed output. Two stale handlers remain at `app/api/points-reset/` and `app/api/square-cleanup/`; do not copy that pattern.
 3. Never use `cd` and rely on the working directory persisting between Bash calls — each call starts fresh. Use absolute paths or `cd … && …` chains within one call.
 
 ## History note
 
-The repo was previously laid out with the Next.js app under `calvary-scribblings-next/` and Cloudflare Pages Functions at a root-level `functions/` directory. Commit `e2d6f59` "Newsletter block composer" (force push) restructured everything to the root and deleted the `functions/` tree. Endpoints that used to live under `functions/api/*` (`generate-quiz`, `evaluate-quiz`, `record-attempt`, `admin/*`) currently have no handler on the deployed branch.
+The repo was previously laid out with the Next.js app under `calvary-scribblings-next/`. Commit `e2d6f59` "Newsletter block composer" (force push) restructured everything to the root.
+
+**The `functions/` tree was not deleted.** An earlier version of this file claimed it was, and that the endpoints under `functions/api/*` had no handler on the deployed branch. Both claims were wrong. The tree is present, git-tracked, and actively maintained — `functions/api/` currently holds `generate-quiz.js`, `evaluate-quiz.js`, `record-attempt.js`, `hit.js`, `og-image.js`, `admin/*`, `newsletter/*`, and `open-pages/moderate.js`.
 
 ## Vestigial directories you may see locally
 

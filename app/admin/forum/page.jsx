@@ -7,10 +7,16 @@
 //   • Reported — live posts (open_pages) that readers flagged via open_pages_reports.
 //
 // Admin actions are direct client-side RTDB writes (the convention every other
-// admin page here uses), gated by the RTDB rules that grant these four admins
+// admin page here uses), gated by the RTDB rules that grant the two admin UIDs
 // write access to open_pages / open_pages_pending / open_pages_reports. All
 // state-changing actions use root-level multi-path updates so a move/remove is
 // atomic.
+//
+// The gate below is UID-only and must stay in lockstep with database.rules.json.
+// It previously also accepted two literal emails, but the pending/mirror nodes
+// were never granted to those emails in the rules — so an email-only admin saw
+// an Approve button that always failed with permission-denied. Both the client
+// list and the rules are now UID-only.
 
 import { useEffect, useState, useCallback } from 'react';
 import { db } from '../../lib/firebase';
@@ -19,7 +25,26 @@ import { normalizeGenre } from '../../lib/openPages';
 import { stripMarkdown } from '../../lib/openPagesMarkdown';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
-const ADMIN_EMAILS = ['ikennaworksfromhome@gmail.com', 'fynbecki@gmail.com'];
+
+// Cloudflare Pages deploy hook for the Open Pages rebuild — the same hook the AI
+// gate fires when it auto-publishes (functions/api/open-pages/moderate.js). An
+// approved post is live in RTDB immediately, but /open-pages/[id] is enumerated
+// at build time (next.config.mjs → output: 'export'), so without this the post's
+// detail page 404s until some unrelated deploy happens.
+const DEPLOY_HOOK = 'https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/6667c809-d3bf-4c93-bab0-065323c09d76';
+
+// Never throws: a rebuild failure must not make a successful approve report as
+// failed. Returns whether the hook was accepted, so the caller can say so.
+async function fireDeployHook() {
+  try {
+    const res = await fetch(DEPLOY_HOOK, { method: 'POST', body: '' });
+    if (!res.ok) console.error('[admin/forum] deploy hook rejected:', res.status);
+    return res.ok;
+  } catch (e) {
+    console.error('[admin/forum] deploy hook failed:', e);
+    return false;
+  }
+}
 
 // Brand-tinted dark admin palette (matches the other admin pages' base, with
 // the Open Pages gold/purple identity).
@@ -60,7 +85,7 @@ function authorLine(p) {
 
 export default function AdminForumPage() {
   const { user, loading } = useAuth();
-  const isAdmin = !!user && (ADMIN_UIDS.includes(user.uid) || (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())));
+  const isAdmin = !!user && ADMIN_UIDS.includes(user.uid);
 
   const [tab, setTab] = useState('flagged');
   const [flagged, setFlagged] = useState([]);
@@ -119,14 +144,29 @@ export default function AdminForumPage() {
       const { ref, update } = await import('firebase/database');
       const { id, ...record } = item;
       record.status = 'live';
+      record.approvedBy = user.uid;
+      record.approvedAt = Date.now();
       const updates = {
         [`open_pages/${id}`]: record,
         [`open_pages_pending/${id}`]: null,
+        // Approving settles any reader reports on the post too — leaving them
+        // would re-surface the post in the Reported tab we just cleared.
+        [`open_pages_reports/${id}`]: null,
       };
       if (record.authorUid) updates[`user_open_pages/${record.authorUid}/${id}`] = record;
       await update(ref(db), updates);
       setFlagged((list) => list.filter((p) => p.id !== id));
-      setMsg('Approved — the post is now live.');
+      setReported((list) => list.filter((r) => r.id !== id));
+
+      // The post is live but /open-pages/[id] is only pre-rendered at build time
+      // (output: 'export'), so without a rebuild the detail page 404s. Same hook
+      // the auto-publish path fires — see functions/api/open-pages/moderate.js.
+      const rebuilt = await fireDeployHook();
+      setMsg(
+        rebuilt
+          ? 'Approved — the post is live. A rebuild is running; its page URL works in a few minutes.'
+          : 'Approved — the post is live, but the rebuild could not be triggered. Its /open-pages page will 404 until the next deploy.'
+      );
     } catch (e) {
       console.error('[admin/forum] approve failed:', e);
       setMsg('Approve failed: ' + e.message);

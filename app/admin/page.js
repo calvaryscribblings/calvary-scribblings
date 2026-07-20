@@ -575,8 +575,25 @@ export default function AdminPage() {
   };
   const [form, setForm] = useState(emptyForm);
   const [filter, setFilter] = useState('all'); // all · published · hidden
+  const [pendingCount, setPendingCount] = useState(0); // Open Pages awaiting moderation
 
   const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
+
+  // Open Pages moderation queue depth, for the header badge. Rules allow the
+  // pending node only to the two admin UIDs, so an email-only admin just gets
+  // no badge rather than an error — the link itself still works.
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      try {
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, 'open_pages_pending'));
+        setPendingCount(snap.exists() ? Object.keys(snap.val() || {}).length : 0);
+      } catch (e) {
+        console.error('[admin] pending count unavailable:', e);
+      }
+    })();
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -868,6 +885,15 @@ export default function AdminPage() {
           <a href="/admin/publishers" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Publishers →</a>
           <a href="/admin/quizzes" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Quizzes →</a>
           <a href="/admin/analytics" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Analytics →</a>
+          <a href="/admin/forum" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            Moderation
+            {pendingCount > 0 ? (
+              <span style={{ background: '#b4442f', color: '#fff', borderRadius: 999, padding: '0.05rem 0.42rem', fontSize: '0.68rem', fontWeight: 700, lineHeight: 1.5 }}>
+                {pendingCount}
+              </span>
+            ) : null}
+            <span>→</span>
+          </a>
           <a href="/" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>← Site</a>
         </div>
       </header>
