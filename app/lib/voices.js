@@ -128,7 +128,11 @@ export async function loadWorks(db, voice) {
   const collect = (snap) => {
     if (!snap.exists()) return;
     Object.entries(snap.val() || {}).forEach(([slug, s]) => {
-      if (!s || s.published !== true || seen.has(slug)) return;
+      // publishAt future-gate: a scheduled-but-not-yet-live row (published:true with a
+      // future publishAt) must not appear in a voice's catalogue. The index carries
+      // publishAt exactly so this stays a client concern; an unparseable value (NaN)
+      // fails the > check and is treated as live.
+      if (!s || s.published !== true || (s.publishAt && Date.parse(s.publishAt) > Date.now()) || seen.has(slug)) return;
       seen.set(slug, {
         slug,
         title: s.title || '(untitled)',

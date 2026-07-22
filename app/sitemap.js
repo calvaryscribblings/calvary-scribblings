@@ -43,8 +43,14 @@ export default async function sitemap() {
     const db = getDatabase(app);
     const snap = await get(ref(db, 'cms_stories'));
     if (snap.exists()) {
+      // publishAt future-gate: a story that is published:true but whose publishAt is
+      // still in the future is scheduled-but-not-yet-live — keep it out of the sitemap.
+      // Index membership is published !== false; the publishAt future-gate is a client
+      // concern (the record carries publishAt exactly so surfaces can enforce it). An
+      // unparseable publishAt (NaN) fails the > check, so it is treated as live.
+      const now = Date.now();
       cmsStories = Object.entries(snap.val())
-        .filter(([, s]) => s.published !== false)
+        .filter(([, s]) => s.published !== false && !(s.publishAt && Date.parse(s.publishAt) > now))
         .map(([slug]) => ({
           url: `${BASE_URL}/stories/${slug}`,
           lastModified: new Date(),
