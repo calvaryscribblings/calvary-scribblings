@@ -5,6 +5,7 @@ import { db } from '../lib/firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 import { getAllPublishedTitles } from '../lib/bookstore/loader';
 import Navbar from '../components/Navbar';
+import TabBar from '../components/TabBar';
 import BoundBook, { BOUND_BOOK_CSS } from './components/BoundBook';
 import QuickLookModal from './components/QuickLookModal';
 import { useBookGesture } from './components/useBookGesture';
@@ -398,6 +399,11 @@ export default function BookStorePage() {
           </>
         )}
       </main>
+
+      {/* The storefront already renders the platform Navbar, which carries the desktop tab row.
+          Without this the mobile visitor lost the tabs the desktop one kept. No tab is lit here —
+          /bookstore is none of the four. The bookstore's own surfaces are untouched. */}
+      <TabBar />
 
       {modal && <QuickLookModal title={modal.title} originRect={modal.rect} onClose={closeModal} />}
     </>

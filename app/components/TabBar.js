@@ -86,6 +86,12 @@ export const TAB_CSS = `
   @supports not ((backdrop-filter: blur(14px)) or (-webkit-backdrop-filter: blur(14px))) {
     .cs-tabbar { background: rgba(11,7,22,.88); }
   }
+  /* surface="light" — for the rare page on a light canvas (the bookstore's pre-launch 404 is
+     the only one today). The canonical glass is a translucent fill designed for the night
+     canvas; over #faf6ee the cream glyphs and labels wash out entirely. A dark base under the
+     same gradient restores contrast without forking the grammar — over a dark page it would be
+     indistinguishable. Two classes, so it beats the shorthand above on specificity. */
+  .cs-tabbar.cs-tabbar-onlight { background-color: rgba(11,7,22,.94); }
   /* The hairline: a gold gradient rule along the top edge, fading at both ends. */
   .cs-tabbar::before {
     content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px;
@@ -180,8 +186,11 @@ export function TabLinks({ active }) {
   );
 }
 
-/** Mobile (<768px) fixed bottom bar, plus the in-flow spacer that reserves its height. */
-export default function TabBar({ active }) {
+/**
+ * Mobile (<768px) fixed bottom bar, plus the in-flow spacer that reserves its height.
+ * `surface="light"` opts into the dark base needed on a light-canvas page.
+ */
+export default function TabBar({ active, surface }) {
   const pathname = usePathname();
   const current = active ?? activeTabFor(pathname);
   const squareOpen = useSquareOpen();
@@ -189,7 +198,7 @@ export default function TabBar({ active }) {
     <>
       <TabStyles />
       <div className="cs-tabbar-spacer" aria-hidden="true" />
-      <nav className="cs-tabbar" aria-label="Primary">
+      <nav className={`cs-tabbar${surface === 'light' ? ' cs-tabbar-onlight' : ''}`} aria-label="Primary">
         {TABS.map((t) => (
           <a
             key={t.key}

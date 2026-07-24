@@ -1,5 +1,6 @@
 'use client';
 import Navbar from '../components/Navbar';
+import TabBar from '../components/TabBar';
 
 export default function BookstoreNotFound() {
   return (
@@ -46,6 +47,12 @@ export default function BookstoreNotFound() {
           boxShadow: '0 4px 16px rgba(124,58,237,0.25)',
         }}>Back to home</a>
       </main>
+
+      {/* This, not the storefront, is what /bookstore serves until the launch gate opens
+          (page.js calls notFound() while gateState === 'empty'). It renders the platform
+          Navbar and so carried the desktop tab row; the bar gives the mobile visitor the
+          same four. */}
+      <TabBar surface="light" />
     </>
   );
 }
