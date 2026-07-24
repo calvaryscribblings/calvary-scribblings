@@ -1,5 +1,6 @@
 'use client';
 import { categoryMeta } from '../lib/stories';
+import TabBar, { TabLinks } from '../components/TabBar';
 
 const meta = categoryMeta['serial'];
 
@@ -11,7 +12,7 @@ export default function SerialPage() {
           <img src="/logo-header.jpg" alt="CS" style={{ width: 38, height: 38, borderRadius: 7, objectFit: 'cover' }} />
           <span style={{ fontSize: '1rem', fontWeight: 700, color: '#c4b5fd' }}>Calvary Scribblings</span>
         </a>
-        <a href="/public-library" style={{ color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontSize: '0.85rem' }} onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.5)'}>← Back to Home</a>
+        <TabLinks />
       </nav>
       <section style={{ padding: '4rem 4% 3rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>{meta.emoji}</div>
@@ -27,6 +28,7 @@ export default function SerialPage() {
           Subscribe for Updates
         </a>
       </section>
+      <TabBar />
     </div>
   );
 }

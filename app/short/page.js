@@ -4,6 +4,7 @@ import { categoryMeta } from '../lib/stories';
 import StoryCard from '../components/StoryCard';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
+import TabBar, { TabLinks } from '../components/TabBar';
 
 // Typography — matches the homepage overhaul (DISPLAY title + gold LABEL kicker).
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
@@ -110,7 +111,7 @@ export default function ShortPage() {
           <img src="/logo-header.jpg" alt="CS" style={{ width: 38, height: 38, borderRadius: 7, objectFit: 'cover' }} />
           <span style={{ fontSize: '1rem', fontWeight: 700, color: '#c4b5fd' }}>Calvary Scribblings</span>
         </a>
-        <a href="/public-library" style={{ color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontSize: '0.85rem' }} onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.5)'}>← Back to Home</a>
+        <TabLinks />
       </nav>
 
       {/* Hero — ruled-page motif (THE SHELF). */}
@@ -164,6 +165,7 @@ export default function ShortPage() {
           />
         ))}
       </section>
+      <TabBar />
     </div>
   );
 }

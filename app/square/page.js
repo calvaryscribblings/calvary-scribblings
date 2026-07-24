@@ -5,6 +5,7 @@ import { stories as allStaticStories } from '../lib/stories';
 import { useDeletedUids } from '../lib/userVisibility';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions, BADGE_SVG_PATH, CHECK_PATH } from '../components/conversation/ConversationKit';
+import TabBar, { TabLinks } from '../components/TabBar';
 
 const SQUARE_REACTIONS = buildReactions('like');
 
@@ -1175,6 +1176,7 @@ export default function SquarePage() {
             </div>
           </div>
         </div>
+        <TabLinks active="square" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {user && (
             <>
@@ -1411,6 +1413,8 @@ export default function SquarePage() {
           {(() => { const AuthModal = require('../components/AuthModal').default; return <AuthModal onClose={() => setShowAuth(false)} />; })()}
         </div>
       )}
+
+      <TabBar active="square" />
     </>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import TabBar from '../components/TabBar';
 import { stories } from '../lib/stories';
 import StoryCard from '../components/StoryCard';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
@@ -172,6 +173,7 @@ export default function NewsPage() {
           ))}
         </section>
       )}
+      <TabBar />
     </div>
   );
 }

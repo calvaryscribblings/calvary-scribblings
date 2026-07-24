@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import AuthModal from './AuthModal';
+import { TabLinks, isSquareOpenLondon } from './TabBar';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -20,11 +21,10 @@ async function getDB() {
   return getDatabase(app);
 }
 
-function isSquareOpen() {
-  const now = new Date();
-  const gmtHour = now.getUTCHours();
-  return gmtHour >= 20 && gmtHour < 24;
-}
+// Was UTC hours, which drifts an hour off the Square itself for half the year (BST). The
+// Square (app/square/page.js) and the gateway both read Europe/London; the drawer now reads
+// the same clock as the SQUARE tab beside it. Shared helper lives in TabBar.js.
+const isSquareOpen = isSquareOpenLondon;
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -71,12 +71,26 @@ export default function Navbar() {
         .cs-logo { text-decoration: none; display: flex; align-items: center; gap: 0.6rem; flex: none; }
         .cs-logo-title { color: #a78bfa; font-weight: 700; font-size: 1rem; line-height: 1.1; white-space: nowrap; }
         .cs-logo-sub { color: rgba(255,255,255,0.4); font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap; }
+        /* The publication line is the widest thing in the logo block. In the tablet band the
+           tab row needs that width more than the strapline does. */
+        @media (min-width: 768px) and (max-width: 940px) { .cs-logo-sub { display: none; } }
         .cs-desktop-links { display: flex; align-items: center; gap: 1.2rem; }
         .cs-desktop-links a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 0.82rem; font-weight: 500; white-space: nowrap; }
+        /* The eight secondary destinations. Grouped so they can fold into the drawer as one. */
+        .cs-secondary { display: flex; align-items: center; gap: inherit; }
         /* The nav is dense between the mobile drawer (<=768) and full width. Tighten the
            gaps rather than let the wordmark wrap onto two lines. */
         @media (max-width: 1200px) { .cs-desktop-links { gap: 0.85rem; } }
         @media (max-width: 1040px) { .cs-desktop-links { gap: 0.6rem; } .cs-desktop-links a { font-size: 0.78rem; } }
+        /* The four tabs are 167px wider than the Home/Search/Square/Library links they replaced,
+           and the full row already needed ~1400px of nav to fit. Rather than clip the Sign In
+           button off the right edge (which it did, silently, down to 1440), the secondary set
+           folds into the hamburger drawer below 1400 — the drawer already carries every one of
+           them. The four primary destinations stay visible at every width. */
+        @media (max-width: 1399.98px) {
+          .cs-secondary { display: none !important; }
+          .cs-hamburger { display: flex !important; }
+        }
         .cs-desktop-links a:hover { color: #fff; }
         .cs-stories-wrap { position: relative; }
         .cs-stories-btn { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.75); font-size: 0.82rem; font-weight: 500; display: flex; align-items: center; gap: 0.3em; padding: 0; }
@@ -93,17 +107,8 @@ export default function Navbar() {
         .cs-nav-avatar:hover { border-color: rgba(167,139,250,0.8); }
         .cs-nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-        /* Square button */
-        .cs-square-btn { display: inline-flex; align-items: center; gap: 5px; border-radius: 7px; padding: 5px 11px; text-decoration: none; transition: background 0.2s, border-color 0.2s; cursor: pointer; border: 1px solid; white-space: nowrap; }
-        .cs-square-btn.open { background: rgba(107,47,173,0.15); border-color: rgba(107,47,173,0.4); }
-        .cs-square-btn.open:hover { background: rgba(107,47,173,0.25); }
-        .cs-square-btn.closed { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08); }
-        .cs-square-btn-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-        .cs-square-btn-dot.open { background: #1d9e75; animation: sq-pulse 2s infinite; }
-        .cs-square-btn-dot.closed { background: rgba(255,255,255,0.2); }
-        .cs-square-btn-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
-        .cs-square-btn-label.open { color: #a78bfa; }
-        .cs-square-btn-label.closed { color: rgba(255,255,255,0.22); }
+        /* The desktop Square button retired into the SQUARE tab (components/TabBar.js), which
+           carries the same live dot. The pulse stays — the mobile drawer's Square row uses it. */
         @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
         .cs-hamburger { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 4px; z-index: 1001; }
@@ -137,7 +142,10 @@ export default function Navbar() {
         .cs-drawer-square-dot.open { background: #1d9e75; animation: sq-pulse 2s infinite; }
         .cs-drawer-square-dot.closed { background: rgba(255,255,255,0.2); }
 
-        @media (max-width: 768px) { .cs-desktop-links { display: none !important; } .cs-hamburger { display: flex !important; } }
+        /* 767.98, not 768. The tab bar's breakpoint is "desktop at >=768px" (components/TabBar.js),
+           so a plain max-width:768 rule matched at exactly 768 too and left that one width with
+           neither the bottom bar nor the desktop tabs — only the hamburger. */
+        @media (max-width: 767.98px) { .cs-desktop-links { display: none !important; } .cs-hamburger { display: flex !important; } }
       `}</style>
 
       <nav className={`cs-nav ${scrolled ? 'scrolled' : 'top'}`}>
@@ -150,8 +158,12 @@ export default function Navbar() {
           </div>
         </a>
         <div className="cs-desktop-links">
-          {/* Home is the reading platform; the gateway at / is reachable as "The Island". */}
-          <a href="/public-library">Home</a>
+          {/* The four primary destinations, folded in as the tab row (see components/TabBar.js).
+              They REPLACE the old Home / Search / The Square / Library links rather than sitting
+              beside them — the same four are the bottom bar on mobile. "Home" is the reading
+              platform; the gateway at / stays reachable as "The Island". */}
+          <TabLinks />
+          <span className="cs-secondary">
           <a href="/">The Island</a>
           <div className="cs-stories-wrap" onMouseEnter={() => setDropdownOpen(true)} onMouseLeave={() => setDropdownOpen(false)}>
             <button className="cs-stories-btn">Stories <span>▾</span></button>
@@ -172,14 +184,9 @@ export default function Navbar() {
           <a href="/about">About</a>
           <a href="https://calvaryscribblings.co.uk/#subscribe">Subscribe</a>
           <a href="/contact">Contact</a>
-          <a href="/search">Search</a>
-          <a href="/square" className={`cs-square-btn ${squareOpen ? 'open' : 'closed'}`}>
-            <div className={`cs-square-btn-dot ${squareOpen ? 'open' : 'closed'}`} />
-            <span className={`cs-square-btn-label ${squareOpen ? 'open' : 'closed'}`}>The Square</span>
-          </a>
           <a href="/quizzes">Quizzes</a>
           <a href="/leaderboard">Leaderboard</a>
-          {user && <a href="/library">Library</a>}
+          </span>
           {user ? (
             <a href="/profile" className="cs-nav-avatar" title={user.displayName || 'Profile'}>
               {avatarUrl ? <img src={avatarUrl} alt={user.displayName || 'Avatar'} /> : initials}
@@ -221,7 +228,9 @@ export default function Navbar() {
           </a>
           <a href="/quizzes" onClick={() => setMenuOpen(false)}>Quizzes</a>
           <a href="/leaderboard" onClick={() => setMenuOpen(false)}>Leaderboard</a>
-          {user && <a href="/library" onClick={() => setMenuOpen(false)}>Library</a>}
+          {/* Always visible, signed in or not — the shelf is a reason to sign up, not something
+              to hide. /library is retired into this page. */}
+          <a href="/my-library" onClick={() => setMenuOpen(false)}>My Library</a>
           <button className={'cs-drawer-stories-btn' + (storiesOpen ? ' open' : '')} onClick={() => setStoriesOpen(!storiesOpen)}>
             Stories <span className="cs-arrow">▾</span>
           </button>

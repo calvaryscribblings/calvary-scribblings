@@ -29,6 +29,11 @@ const STATIC_LEGACY_REDIRECTS = [
   // Legacy PWA offline page — no longer ships. Points at the reading platform rather
   // than the gateway at /, since it's readers landing here, not new arrivals.
   ['/offline.html',   '/public-library'],
+  // The reader's purchased-books shelf, absorbed into /my-library (STORIES + BOOKS behind one
+  // switch). /library was platform territory, not bookstore retail — it WAS the BOOKS half.
+  // The route no longer builds, so this rule has no static asset shadowing it.
+  ['/library',        '/my-library'],
+  ['/library.html',   '/my-library'],
   // Author profile shorthand — Open Pages cards/detail link to /u/<handle>;
   // the live profile page is /user?handle=<handle>. Cloudflare placeholder
   // syntax (:handle) forwards the captured segment into the query string.

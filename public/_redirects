@@ -7,9 +7,11 @@
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
 /offline.html                                                /public-library                                              301
+/library                                                     /my-library                                                  301
+/library.html                                                /my-library                                                  301
 /u/:handle                                                   /user?handle=:handle                                         301
 
-# ── Pre-migration story URLs (128 stories × 2 forms) ──
+# ── Pre-migration story URLs (148 stories × 2 forms) ──
 /1967                                                        /stories/1967                                                301
 /1967.html                                                   /stories/1967                                                301
 /47-sessions                                                 /stories/47-sessions                                         301
@@ -26,6 +28,8 @@
 /a-heart-trained-for-battle.html                             /stories/a-heart-trained-for-battle                          301
 /a-legacy-through-time                                       /stories/a-legacy-through-time                               301
 /a-legacy-through-time.html                                  /stories/a-legacy-through-time                               301
+/a-media-giant-takes-shapes                                  /stories/a-media-giant-takes-shapes                          301
+/a-media-giant-takes-shapes.html                             /stories/a-media-giant-takes-shapes                          301
 /adadiorama                                                  /stories/adadiorama                                          301
 /adadiorama.html                                             /stories/adadiorama                                          301
 /afterglow                                                   /stories/afterglow                                           301
@@ -34,10 +38,16 @@
 /almost-like-her.html                                        /stories/almost-like-her                                     301
 /almost-together                                             /stories/almost-together                                     301
 /almost-together.html                                        /stories/almost-together                                     301
+/amor-s-cage                                                 /stories/amor-s-cage                                         301
+/amor-s-cage.html                                            /stories/amor-s-cage                                         301
 /amvca-an-opinion-feature                                    /stories/amvca-an-opinion-feature                            301
 /amvca-an-opinion-feature.html                               /stories/amvca-an-opinion-feature                            301
 /an-appetite-for-love                                        /stories/an-appetite-for-love                                301
 /an-appetite-for-love.html                                   /stories/an-appetite-for-love                                301
+/arrival-again                                               /stories/arrival-again                                       301
+/arrival-again.html                                          /stories/arrival-again                                       301
+/asake-m-ney-album-review                                    /stories/asake-m-ney-album-review                            301
+/asake-m-ney-album-review.html                               /stories/asake-m-ney-album-review                            301
 /at-the-table                                                /stories/at-the-table                                        301
 /at-the-table.html                                           /stories/at-the-table                                        301
 /become-a-content-creator-the-step-by-step-guide             /stories/become-a-content-creator-the-step-by-step-guide     301
@@ -56,6 +66,10 @@
 /chernobyl.html                                              /stories/chernobyl                                           301
 /cinema-vs-tv-the-difference                                 /stories/cinema-vs-tv-the-difference                         301
 /cinema-vs-tv-the-difference.html                            /stories/cinema-vs-tv-the-difference                         301
+/clarity-of-mind-omah-lay-s-introspective-return-album-review /stories/clarity-of-mind-omah-lay-s-introspective-return-album-review 301
+/clarity-of-mind-omah-lay-s-introspective-return-album-review.html /stories/clarity-of-mind-omah-lay-s-introspective-return-album-review 301
+/creativity-is-an-unfortunate-blessing                       /stories/creativity-is-an-unfortunate-blessing               301
+/creativity-is-an-unfortunate-blessing.html                  /stories/creativity-is-an-unfortunate-blessing               301
 /cybercrime-has-a-calendar                                   /stories/cybercrime-has-a-calendar                           301
 /cybercrime-has-a-calendar.html                              /stories/cybercrime-has-a-calendar                           301
 /death-by-a-thousand-apps                                    /stories/death-by-a-thousand-apps                            301
@@ -70,6 +84,8 @@
 /dont-worry.html                                             /stories/dont-worry                                          301
 /drip-drip-drip                                              /stories/drip-drip-drip                                      301
 /drip-drip-drip.html                                         /stories/drip-drip-drip                                      301
+/each-time-i-disappear                                       /stories/each-time-i-disappear                               301
+/each-time-i-disappear.html                                  /stories/each-time-i-disappear                               301
 /early                                                       /stories/early                                               301
 /early.html                                                  /stories/early                                               301
 /encore                                                      /stories/encore                                              301
@@ -86,6 +102,8 @@
 /halfway-around-the-moon-part-i-dawn.html                    /stories/halfway-around-the-moon-part-i-dawn                 301
 /halfway-around-the-moon-prologue                            /stories/halfway-around-the-moon-prologue                    301
 /halfway-around-the-moon-prologue.html                       /stories/halfway-around-the-moon-prologue                    301
+/him-vs-her                                                  /stories/him-vs-her                                          301
+/him-vs-her.html                                             /stories/him-vs-her                                          301
 /hold-your-breath-and-count-to-ten                           /stories/hold-your-breath-and-count-to-ten                   301
 /hold-your-breath-and-count-to-ten.html                      /stories/hold-your-breath-and-count-to-ten                   301
 /how-to-make-peppersoup                                      /stories/how-to-make-peppersoup                              301
@@ -100,8 +118,12 @@
 /in-your-20-s.html                                           /stories/in-your-20-s                                        301
 /it-can-never-be-me                                          /stories/it-can-never-be-me                                  301
 /it-can-never-be-me.html                                     /stories/it-can-never-be-me                                  301
+/knicks-in-5                                                 /stories/knicks-in-5                                         301
+/knicks-in-5.html                                            /stories/knicks-in-5                                         301
 /lagos-friendship                                            /stories/lagos-friendship                                    301
 /lagos-friendship.html                                       /stories/lagos-friendship                                    301
+/life-will-be-hard                                           /stories/life-will-be-hard                                   301
+/life-will-be-hard.html                                      /stories/life-will-be-hard                                   301
 /london-tube-strike                                          /stories/london-tube-strike                                  301
 /london-tube-strike.html                                     /stories/london-tube-strike                                  301
 /love-it-enough                                              /stories/love-it-enough                                      301
@@ -142,14 +164,20 @@
 /notting-hill-carnival-a-new-spin.html                       /stories/notting-hill-carnival-a-new-spin                    301
 /odds-and-ends                                               /stories/odds-and-ends                                       301
 /odds-and-ends.html                                          /stories/odds-and-ends                                       301
+/odeluwa                                                     /stories/odeluwa                                             301
+/odeluwa.html                                                /stories/odeluwa                                             301
 /one-day-for-the-thief                                       /stories/one-day-for-the-thief                               301
 /one-day-for-the-thief.html                                  /stories/one-day-for-the-thief                               301
 /one-photo                                                   /stories/one-photo                                           301
 /one-photo.html                                              /stories/one-photo                                           301
+/one-scan-can-cost-you-everything                            /stories/one-scan-can-cost-you-everything                    301
+/one-scan-can-cost-you-everything.html                       /stories/one-scan-can-cost-you-everything                    301
 /otu-obi                                                     /stories/otu-obi                                             301
 /otu-obi.html                                                /stories/otu-obi                                             301
 /peekaboo                                                    /stories/peekaboo                                            301
 /peekaboo.html                                               /stories/peekaboo                                            301
+/peer-pressure-from-the-dead                                 /stories/peer-pressure-from-the-dead                         301
+/peer-pressure-from-the-dead.html                            /stories/peer-pressure-from-the-dead                         301
 /pigment                                                     /stories/pigment                                             301
 /pigment.html                                                /stories/pigment                                             301
 /proof-of-life                                               /stories/proof-of-life                                       301
@@ -170,6 +198,8 @@
 /red-nails-theory.html                                       /stories/red-nails-theory                                    301
 /red-white-red                                               /stories/red-white-red                                       301
 /red-white-red.html                                          /stories/red-white-red                                       301
+/release-the-footage-how-the-henry-nowak-case-became-an-international-debate /stories/release-the-footage-how-the-henry-nowak-case-became-an-international-debate 301
+/release-the-footage-how-the-henry-nowak-case-became-an-international-debate.html /stories/release-the-footage-how-the-henry-nowak-case-became-an-international-debate 301
 /rise-and-shine                                              /stories/rise-and-shine                                      301
 /rise-and-shine.html                                         /stories/rise-and-shine                                      301
 /sapiosexual                                                 /stories/sapiosexual                                         301
@@ -198,6 +228,8 @@
 /terms-and-conditions.html                                   /stories/terms-and-conditions                                301
 /the-2026-emmy-nominations                                   /stories/the-2026-emmy-nominations                           301
 /the-2026-emmy-nominations.html                              /stories/the-2026-emmy-nominations                           301
+/the-48-team-gamble-paid-off                                 /stories/the-48-team-gamble-paid-off                         301
+/the-48-team-gamble-paid-off.html                            /stories/the-48-team-gamble-paid-off                         301
 /the-ad-tug-of-war                                           /stories/the-ad-tug-of-war                                   301
 /the-ad-tug-of-war.html                                      /stories/the-ad-tug-of-war                                   301
 /the-age-of-agentic-ai-when-machines-start-hacking-without-permission-or-a-human /stories/the-age-of-agentic-ai-when-machines-start-hacking-without-permission-or-a-human 301
@@ -224,10 +256,16 @@
 /the-last-shared-second.html                                 /stories/the-last-shared-second                              301
 /the-man-i-met-at-nineteen                                   /stories/the-man-i-met-at-nineteen                           301
 /the-man-i-met-at-nineteen.html                              /stories/the-man-i-met-at-nineteen                           301
+/the-man-who-was-two-men                                     /stories/the-man-who-was-two-men                             301
+/the-man-who-was-two-men.html                                /stories/the-man-who-was-two-men                             301
+/the-monday-i-grew-up                                        /stories/the-monday-i-grew-up                                301
+/the-monday-i-grew-up.html                                   /stories/the-monday-i-grew-up                                301
 /the-most-dangerous-job-in-nigeria                           /stories/the-most-dangerous-job-in-nigeria                   301
 /the-most-dangerous-job-in-nigeria.html                      /stories/the-most-dangerous-job-in-nigeria                   301
 /the-number-thirteen                                         /stories/the-number-thirteen                                 301
 /the-number-thirteen.html                                    /stories/the-number-thirteen                                 301
+/the-odyssey                                                 /stories/the-odyssey                                         301
+/the-odyssey.html                                            /stories/the-odyssey                                         301
 /the-outrage-is-never-equal                                  /stories/the-outrage-is-never-equal                          301
 /the-outrage-is-never-equal.html                             /stories/the-outrage-is-never-equal                          301
 /the-pill                                                    /stories/the-pill                                            301
@@ -258,11 +296,15 @@
 /you-clicked-remember-password-now-what.html                 /stories/you-clicked-remember-password-now-what              301
 /you-didnt-ask                                               /stories/you-didnt-ask                                       301
 /you-didnt-ask.html                                          /stories/you-didnt-ask                                       301
+/you-ve-been-using-ai-wrong                                  /stories/you-ve-been-using-ai-wrong                          301
+/you-ve-been-using-ai-wrong.html                             /stories/you-ve-been-using-ai-wrong                          301
 /you-will-love-it                                            /stories/you-will-love-it                                    301
 /you-will-love-it.html                                       /stories/you-will-love-it                                    301
 /your-camera-is-on                                           /stories/your-camera-is-on                                   301
 /your-camera-is-on.html                                      /stories/your-camera-is-on                                   301
 /your-device-has-an-addrrss                                  /stories/your-device-has-an-addrrss                          301
 /your-device-has-an-addrrss.html                             /stories/your-device-has-an-addrrss                          301
+/your-money-cannot-save-you                                  /stories/your-money-cannot-save-you                          301
+/your-money-cannot-save-you.html                             /stories/your-money-cannot-save-you                          301
 /zee-a-love-letters-story                                    /stories/zee-a-love-letters-story                            301
 /zee-a-love-letters-story.html                               /stories/zee-a-love-letters-story                            301

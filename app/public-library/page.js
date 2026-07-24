@@ -4,6 +4,7 @@ import { useAuth } from '../lib/AuthContext';
 import AuthModal from '../components/AuthModal';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import TabBar from '../components/TabBar';
 import QuizPill from '../components/QuizPill';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { db } from '../lib/firebaseCore';
@@ -1202,6 +1203,8 @@ export default function Home() {
           .sq-banner-desktop { display: none !important; }
           .sq-fab-mobile { display: flex !important; }
         }
+        /* Retired below the tab-bar breakpoint — see the FAB comment at the render site. */
+        @media (max-width: 767px) { .sq-fab-mobile { display: none !important; } }
         @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes sq-lockglow { 0%,100%{background:rgba(107,47,173,0.1)} 50%{background:rgba(107,47,173,0.22)} }
         @keyframes sq-lockglow-icon { 0%,100%{opacity:0.6} 50%{opacity:1} }
@@ -1463,10 +1466,13 @@ export default function Home() {
       {/* Footer */}
       <Footer />
 
-      {/* FAB — mobile only */}
+      {/* FAB — the tablet band only. Below 768px the SQUARE tab in the bottom bar carries
+          this, and the FAB would sit on top of it (same corner, same z-index). */}
       <div className="sq-fab-mobile">
         <SquareFAB squareOpen={squareOpen} countdown={countdown} />
       </div>
+
+      <TabBar />
     </div>
   );
 }

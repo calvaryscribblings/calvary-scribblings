@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { stories } from '../lib/stories';
 import Navbar from '../components/Navbar';
+import TabBar from '../components/TabBar';
 import QuizPill from '../components/QuizPill';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { db } from '../lib/firebaseCore';
@@ -332,6 +333,7 @@ export default function SearchPage() {
           )}
         </div>
       </div>
+      <TabBar />
     </>
   );
 }
