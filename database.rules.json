@@ -409,7 +409,8 @@
         "publisherId",
         "featured",
         "bestseller",
-        "salesCount"
+        "salesCount",
+        "slug"
       ],
       "$titleId": {
         ".validate": "newData.hasChildren(['schemaVersion', 'slug', 'title', 'author', 'publisherId', 'synopsis', 'prices', 'genre', 'publishedDate', 'addedAt', 'updatedAt', 'status', 'territoriesAllowed']) && (newData.child('territoriesAllowed').isString() || newData.child('territoriesAllowed').hasChildren())"
