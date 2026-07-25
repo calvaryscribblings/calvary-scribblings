@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/generate-redirects.mjs && node scripts/generate-gateway-wall.mjs && next build",
+    "build": "node scripts/generate-redirects.mjs && node scripts/generate-gateway-wall.mjs && next build && node scripts/stamp-sw.mjs",
     "start": "next start",
     "lint": "eslint",
     "rules:deploy": "GOOGLE_APPLICATION_CREDENTIALS=serviceAccountKey.json firebase deploy --only database,storage --project calvary-scribblings --non-interactive",

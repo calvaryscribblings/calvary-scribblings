@@ -20,11 +20,18 @@
 // over at London midnight, and server-rendered as the static LAUNCH_TEXT with the day count
 // hydrated in — exactly as app/components/Gateway.js does it, so the no-JS and crawler render
 // is a true sentence rather than a blank.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { db } from '../lib/firebaseCore';
 import AuthModal from '../components/AuthModal';
 import TabBar, { TabLinks } from '../components/TabBar';
+import CoverImage from '../components/CoverImage';
+import {
+  listSaved, removeSaved, getCoverURL, capFor, savedAgo,
+  isIOSSafariBrowser, getMeta, setMeta,
+} from '../lib/shelf';
+import { registerShelfWorker, sealShelf } from '../lib/shelfWorker';
+import { useOffline } from '../lib/useOffline';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
@@ -79,12 +86,123 @@ function BookCard({ book }) {
   );
 }
 
+// A saved story on the shelf.
+//
+// A LEAN LOCAL CARD, not app/components/StoryCard. That component is built for the public
+// library grid: it renders a QuizPill, an isNew() badge, a live read count and an optional
+// rank, inside the purple platform chrome. None of that belongs on a night-canvas shelf,
+// and the read count is live data a saved story deliberately does not carry. This card
+// reuses the page's own .ml-cover/.ml-meta-* grid — already built for BOOKS — so STORIES
+// and BOOKS are visibly the same shelf.
+//
+// CoverImage IS reused, because it earns its keep here more than anywhere: it decodes the
+// blurhash from coverHash with zero network, so a cover whose blob went missing degrades to
+// the story's own colour rather than a hole in the grid.
+function ShelfStoryCard({ record, onRemove, busy }) {
+  const [coverURL, setCoverURL] = useState(null);
+
+  useEffect(() => {
+    let url = null;
+    let cancelled = false;
+    getCoverURL(record).then((u) => {
+      if (cancelled) { if (u) URL.revokeObjectURL(u); return; }
+      url = u;
+      setCoverURL(u);
+    });
+    // Object URLs are held by the document until revoked; a shelf that mounts and unmounts
+    // without this leaks a blob per visit.
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [record.id, record.coverBlobKey]);
+
+  return (
+    <div className="ml-card">
+      <a className="ml-cover-link" href={`/my-library/read?slug=${encodeURIComponent(record.slug)}`}>
+        <div className="ml-cover">
+          {/* No `cover` fallback URL on purpose: offline that remote URL cannot load, and
+              CoverImage holds the <img> at opacity 0 until it decodes — so a missing blob
+              leaves the blurhash showing rather than a broken-image glyph over it. */}
+          <CoverImage
+            fill
+            coverSizes={coverURL ? { w360: coverURL } : null}
+            coverHash={record.coverHash}
+            alt={record.title}
+          />
+        </div>
+      </a>
+      <div className="ml-meta-t">{record.title}</div>
+      {record.author && <div className="ml-meta-a">{record.author}</div>}
+      <div className="ml-saved">{savedAgo(record.savedAt)}</div>
+      <div className="ml-card-row">
+        <a className="ml-read" href={`/my-library/read?slug=${encodeURIComponent(record.slug)}`}>READ</a>
+        <button className="ml-remove" type="button" disabled={busy} onClick={() => onRemove(record.slug)}>REMOVE</button>
+      </div>
+    </div>
+  );
+}
+
 export default function MyLibraryPage() {
   const { user, loading } = useAuth();
   const [section, setSection] = useState('stories');
   const [showAuth, setShowAuth] = useState(false);
   const [opensLabel, setOpensLabel] = useState(LAUNCH_TEXT);
   const [books, setBooks] = useState(null); // null = not loaded, [] = none owned
+
+  // ── STORIES — the offline shelf ────────────────────────────────────────────────────────
+  const offline = useOffline();
+  const [saved, setSaved] = useState(null); // null = not loaded, [] = nothing saved
+  const [removing, setRemoving] = useState(false);
+  const [showNudge, setShowNudge] = useState(false);
+  const cap = capFor('story');
+
+  const loadShelf = useCallback(async () => {
+    if (!user) { setSaved(null); return; }
+    setSaved(await listSaved(user.uid, 'story'));
+  }, [user]);
+
+  useEffect(() => { if (!loading) loadShelf(); }, [loadShelf, loading]);
+
+  // Register here as well as on the story page: a reader can arrive at the shelf first
+  // (it is the manifest's start_url, so an installed launch lands here), and the shell
+  // must be sealed against the CURRENT deploy before they next lose signal.
+  useEffect(() => {
+    registerShelfWorker().then((reg) => { if (reg) sealShelf(); });
+  }, []);
+
+  const doRemove = useCallback(async (slug) => {
+    if (!user) return;
+    setRemoving(true);
+    try {
+      await removeSaved(user.uid, slug);
+      await loadShelf();
+    } finally {
+      setRemoving(false);
+    }
+  }, [user, loadShelf]);
+
+  // The iOS nudge, EARNED rather than pre-emptive. Safari clears all script-writable
+  // storage after ~7 days without a visit, and the only exemption is a site on the Home
+  // Screen — so a reader with a filled shelf on an iPhone is about to lose it silently.
+  // Conditions, all required: iOS, in Safari's browser UI (not already installed), and at
+  // least one story actually saved. Asking someone to install an app before they have used
+  // it is an interstitial; asking after they have saved something is a warning.
+  useEffect(() => {
+    if (!Array.isArray(saved) || saved.length === 0) { setShowNudge(false); return; }
+    if (!isIOSSafariBrowser()) { setShowNudge(false); return; }
+    let cancelled = false;
+    getMeta('iosNudgeDismissedAt', 0).then((ts) => {
+      if (cancelled) return;
+      // Re-offer after 30 days: still on iOS, still not installed, still holding a shelf
+      // that Safari will bin. Once is polite; never again would be negligent.
+      const RE_OFFER_MS = 30 * 24 * 60 * 60 * 1000;
+      setShowNudge(!ts || Date.now() - ts > RE_OFFER_MS);
+    });
+    return () => { cancelled = true; };
+  }, [saved]);
+
+  const dismissNudge = async () => {
+    setShowNudge(false);
+    await setMeta('iosNudgeDismissedAt', Date.now());
+  };
 
   // Countdown: static wording on the server, day count hydrated on the client. Re-ticks each
   // minute so a page left open across London midnight doesn't go stale.
@@ -236,6 +354,45 @@ export default function MyLibraryPage() {
         }
         .ml-read:hover { color: #e2c876; border-bottom-color: rgba(201,168,76,.7); }
 
+        .ml-cover-link { display: block; text-decoration: none; }
+        .ml-saved { font-family: ${LABEL}; font-size: 7px; letter-spacing: .14em; color: rgba(245,240,232,.32); margin-top: 5px; }
+        .ml-card-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+        .ml-remove {
+          background: none; border: none; padding: 0; cursor: pointer;
+          font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .14em;
+          color: rgba(245,240,232,.32); transition: color .2s ease;
+        }
+        .ml-remove:hover { color: rgba(245,240,232,.6); }
+        .ml-remove:focus-visible { outline: 1px solid rgba(226,200,118,.9); outline-offset: 3px; }
+
+        /* OFFLINE — the banner. Shelf surfaces only. */
+        .ml-offline {
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+          margin: 14px auto 0; max-width: 380px; padding: 9px 14px; border-radius: 9px;
+          font-family: ${LABEL}; font-size: 8.5px; letter-spacing: .2em; color: #e2c876; text-align: center;
+        }
+
+        /* The device line — stated every time the shelf is looked at, not once at save time. */
+        .ml-section-head {
+          display: flex; align-items: baseline; justify-content: center; gap: 10px;
+          margin-top: 20px; font-family: ${LABEL}; font-size: 8px; letter-spacing: .2em;
+          color: rgba(245,240,232,.38); text-align: center; flex-wrap: wrap;
+        }
+        .ml-section-head b { font-weight: 400; color: rgba(226,200,118,.7); }
+
+        .ml-nudge {
+          max-width: 420px; margin: 18px auto 0; border-radius: 12px; padding: 15px 16px 13px;
+          display: flex; gap: 12px; align-items: flex-start; text-align: left;
+        }
+        .ml-nudge-g { font-size: 15px; color: rgba(201,168,76,.65); line-height: 1.2; flex-shrink: 0; }
+        .ml-nudge-t { font-size: 14px; color: #f5f0e8; line-height: 1.35; }
+        .ml-nudge-p { font-size: 12.5px; line-height: 1.5; color: rgba(245,240,232,.6); margin: 4px 0 0; }
+        .ml-nudge-x {
+          background: none; border: none; padding: 2px 4px; cursor: pointer; flex-shrink: 0;
+          font-family: ${LABEL}; font-size: 12px; color: rgba(245,240,232,.35); line-height: 1;
+        }
+        .ml-nudge-x:hover { color: rgba(245,240,232,.7); }
+
         .ml-skel { border-radius: 8px; background: rgba(245,240,232,.04); animation: ml-pulse 1.4s ease-in-out infinite; }
         @keyframes ml-pulse { 0%,100% { opacity: .45 } 50% { opacity: .8 } }
 
@@ -273,6 +430,11 @@ export default function MyLibraryPage() {
             <div className="ml-gate-g" aria-hidden="true">✦</div>
             <div className="ml-gate-h">Save stories to read offline</div>
             <p className="ml-gate-p">Your shelf keeps them for the tube, the bus, anywhere with no signal. Sign in to start one.</p>
+            {/* Said at the gate, before anyone invests in a shelf: this one does not follow
+                you between devices. IndexedDB has no sync, and the copy must not imply it does. */}
+            <p className="ml-gate-p" style={{ marginTop: 8, fontSize: 13, opacity: .72 }}>
+              Your shelf lives on the device you save from.
+            </p>
             <button className="ml-btn ml-glass" type="button" onClick={() => setShowAuth(true)}>SIGN IN</button>
           </div>
         )}
@@ -288,7 +450,9 @@ export default function MyLibraryPage() {
               >
                 <span className="ml-sw-g" aria-hidden="true">✦</span>
                 <span className="ml-sw-t">STORIES</span>
-                <span className="ml-sw-n">none saved</span>
+                <span className="ml-sw-n">
+                  {saved === null ? '—' : saved.length === 0 ? 'none saved' : `${saved.length} of ${cap} saved`}
+                </span>
               </button>
               <button
                 type="button"
@@ -302,16 +466,73 @@ export default function MyLibraryPage() {
               </button>
             </div>
 
-            {/* ── STORIES — shell only this round ─────────────────────── */}
+            {/* ── STORIES — the offline shelf ─────────────────────────── */}
             {section === 'stories' && (
-              <div className="ml-empty">
-                <div className="ml-empty-g" aria-hidden="true">✦</div>
-                <div className="ml-empty-h">Nothing on your shelf yet</div>
-                <p className="ml-empty-p">
-                  Open any story and tap <i>⤓ Save for offline</i>. It stays readable with no signal — on the tube, on the bus, anywhere.
-                </p>
-                <a className="ml-btn ml-glass" href="/public-library">BROWSE THE LIBRARY</a>
-              </div>
+              <>
+                {offline && (
+                  <div className="ml-offline ml-glass" role="status">
+                    <span aria-hidden="true">✦</span> OFFLINE — YOUR SHELF IS HERE
+                  </div>
+                )}
+
+                {saved === null && (
+                  <div className="ml-grid" aria-hidden="true">
+                    {Array.from({ length: cap }).map((_, i) => (
+                      <div key={i}>
+                        <div className="ml-skel" style={{ width: '100%', aspectRatio: '2/3' }} />
+                        <div className="ml-skel" style={{ height: 11, width: '80%', marginTop: 9 }} />
+                        <div className="ml-skel" style={{ height: 9, width: '55%', marginTop: 5 }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {saved !== null && saved.length > 0 && (
+                  <>
+                    <div className="ml-section-head">
+                      <span>ON THIS DEVICE</span>
+                      <span aria-hidden="true">·</span>
+                      <span><b>{saved.length}</b> OF {cap}</span>
+                    </div>
+
+                    {showNudge && (
+                      <div className="ml-nudge ml-glass">
+                        <span className="ml-nudge-g" aria-hidden="true">⇧</span>
+                        <div style={{ flex: 1 }}>
+                          <div className="ml-nudge-t">Keep your shelf longer</div>
+                          <p className="ml-nudge-p">
+                            iPhone clears saved stories after about a week away — unless Calvary
+                            Scribblings is on your Home Screen. Tap <b>Share</b>, then <b>Add to Home Screen</b>.
+                          </p>
+                        </div>
+                        <button className="ml-nudge-x" type="button" onClick={dismissNudge} aria-label="Dismiss">✕</button>
+                      </div>
+                    )}
+
+                    <div className="ml-grid">
+                      {saved.map((r) => (
+                        <ShelfStoryCard key={r.id} record={r} onRemove={doRemove} busy={removing} />
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {saved !== null && saved.length === 0 && (
+                  <div className="ml-empty">
+                    <div className="ml-empty-g" aria-hidden="true">✦</div>
+                    <div className="ml-empty-h">Nothing on your shelf yet</div>
+                    <p className="ml-empty-p">
+                      Open any story and tap <i>⤓ Save for offline</i>. It stays readable with no signal — on the tube, on the bus, anywhere.
+                    </p>
+                    {/* The honesty line, in the empty state as well as the full one: the
+                        constraint should be known BEFORE the first save, not discovered after. */}
+                    <p className="ml-empty-p" style={{ marginTop: 10, fontSize: 13, opacity: .75 }}>
+                      Saved stories live on this device only, and your shelf holds {cap}.
+                    </p>
+                    <a className="ml-btn ml-glass" href="/public-library">BROWSE THE LIBRARY</a>
+                  </div>
+                )}
+              </>
             )}
 
             {/* ── BOOKS — purchases when they exist, countdown when they don't ── */}

@@ -15,6 +15,9 @@ import AboutTheAuthor from '../../components/AboutTheAuthor';
 import ReadSeal from '../../components/ReadSeal';
 import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
 import { getReaderId } from '../../lib/readerId';
+import { attachDropcap } from '../../lib/dropcap';
+import { proseCSS } from '../../lib/proseCSS';
+import SaveForOffline from '../../components/SaveForOffline';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
 
 const COMMENT_REACTIONS = buildReactions('heart');
@@ -1043,70 +1046,16 @@ export default function StoryPageClient({ params, initialStory = null }) {
     }
   }, [story]);
 
-  // Drop cap targeting. The CSS ::first-letter rule can't tell front-matter
-  // (content notes, epigraphs, dedications) from the story proper, so we tag the
-  // first real paragraph with .dropcap-target and let the CSS hook that. Runs as
-  // its own effect keyed on the story so it re-fires once the body is present,
-  // selects paragraphs with querySelectorAll scoped to the prose container (so a
-  // story whose opening <p> is nested in a wrapper div is still found), and keeps
-  // a MutationObserver on the article: if React ever re-applies the body HTML
-  // (which would wipe the class) or the content arrives after the first pass, it
-  // re-tags. Idempotent — clears prior tags before each pass.
+  // Drop cap targeting. The implementation moved VERBATIM to app/lib/dropcap.js so the
+  // offline shelf reader — which renders the same prose HTML into the same
+  // .prose.has-dropcap container — runs the identical tagger instead of a copy that can
+  // drift. Behaviour here is unchanged: same effect, same deps, same cleanup contract;
+  // attachDropcap does the first pass and returns the MutationObserver disconnect.
   useEffect(() => {
     if (!story) return undefined;
     const article = articleRef.current;
     if (!article) return undefined;
-
-    const FRONTMATTER_RE = /^(content note|content warning|cw|trigger warning|tw|author's note|note|dedication|epigraph)[:\s—–-]/i;
-    // A line that ends on sentence-ending punctuation reads as prose, not a bare
-    // label — closing quotes after the terminal mark still count as terminated.
-    const TERMINATED_RE = /[.!?…]['"”’]*$/;
-    const isEntirelyItalic = (p) => {
-      const t = (p.textContent || '').trim();
-      if (!t) return false;
-      const kids = Array.from(p.children);
-      return kids.length === 1
-        && (kids[0].tagName === 'EM' || kids[0].tagName === 'I')
-        && (kids[0].textContent || '').trim().length >= t.length * 0.9;
-    };
-    const isFrontmatter = (p, next) => {
-      const t = (p.textContent || '').trim();
-      if (!t) return false;
-      if (FRONTMATTER_RE.test(t)) return true;
-      if (isEntirelyItalic(p)) return true;
-      if (t.length < 40 && !TERMINATED_RE.test(t) && next && (next.textContent || '').trim().length > t.length) return true;
-      return false;
-    };
-
-    const tag = () => {
-      const container = article.querySelector('.prose.has-dropcap');
-      if (!container) return; // poetry (no has-dropcap) or body not in the DOM yet
-      const paras = Array.from(container.querySelectorAll('p'))
-        .filter((p) => (p.textContent || '').trim().length > 0);
-      if (!paras.length) return;
-      // Clear any tags from a prior pass so re-runs converge on the same state.
-      paras.forEach((p) => p.classList.remove('dropcap-target', 'story-frontmatter'));
-      const frontmatter = [];
-      let target = null;
-      for (let i = 0; i < paras.length; i++) {
-        if (isFrontmatter(paras[i], paras[i + 1] || null)) { frontmatter.push(paras[i]); continue; }
-        target = paras[i];
-        break;
-      }
-      if (!target) target = paras[0]; // safety: everything looked like front-matter
-      frontmatter.forEach((p) => { if (p !== target) p.classList.add('story-frontmatter'); });
-      target.classList.add('dropcap-target');
-    };
-
-    tag();
-    // Adding a class is an attribute mutation, not childList, so re-tagging here
-    // never retriggers the observer — no loop.
-    let obs;
-    if (typeof MutationObserver !== 'undefined') {
-      obs = new MutationObserver(() => tag());
-      obs.observe(article, { childList: true, subtree: true });
-    }
-    return () => { if (obs) obs.disconnect(); };
+    return attachDropcap(article);
   }, [story, storyReady]);
 
   // Read counter — engagement-gated. Fire the hit once per page load on the
@@ -1324,53 +1273,12 @@ useEffect(() => {
         .back-link-row { margin-bottom: 2.2rem; padding-bottom: 1.2rem; border-bottom: 1px solid #e0dbd2; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
         .back-link { display: inline-flex; align-items: center; gap: 0.4em; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: ${accentColor}; text-decoration: none; font-family: Cormorant Garamond, Georgia, serif; }
         .back-link:hover { text-decoration: underline; }
-        .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cormorant Garamond, Georgia, serif; font-weight: 400; }
-        .prose em, .prose i { font-family: Cormorant Garamond, Georgia, serif; font-style: italic; }
-        .prose p { margin-bottom: 0; } .prose:not(.is-verse) p + p { text-indent: 1.5em; }
-        .prose.has-dropcap p.dropcap-target::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: #c9a84c; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose.has-dropcap p.dropcap-target { text-indent: 0; }
-        .prose.has-dropcap p.story-frontmatter { font-style: italic; font-size: 0.85em; color: rgba(26,26,26,0.55); margin-bottom: 1.5em; }
-        .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cormorant Garamond, Georgia, serif; line-height: 1.3; }
-        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose p[style*='text-align:center'], .prose p[style*='text-align: center'] { text-align: center; font-family: Cormorant Garamond, Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
-        .prose h4 { font-size: 1rem; font-weight: 700; color: #1a1a1a; margin: 1.5em 0 0.4em; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; margin: 2em 0 0.5em; min-height: 200px; background: #e8e0d4; }
-.prose img.loaded { min-height: unset; background: none; }
-        .prose .article-image { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 8px; margin: 2em 0 0.5em; }
-        .prose figure { margin: 2em 0; }
-        .prose figcaption { font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose img + em { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: -1em; margin-bottom: 2em; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose .image-caption { display: block; font-size: 0.85rem; color: #888; font-style: italic; text-align: center; margin-top: 0.5em; margin-bottom: 2em; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose .inline-image-caption { display: block; font-size: 0.82rem; color: #888; font-style: italic; text-align: right; margin-top: 0.4em; margin-bottom: 2em; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose .features-list { background: #e8e0f5; border-left: 4px solid ${accentColor}; border-radius: 0 8px 8px 0; padding: 1.25rem 1.5rem; margin: 1.5em 0 2em; }
-        .prose .features-list ul { background: transparent; border: none; padding: 0; margin: 0; list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
-        .prose .features-list ul li { padding-left: 1.2rem; position: relative; font-size: 1.05rem; line-height: 1.6; color: #1a1a1a; }
-        .prose .features-list ul li::before { content: '•'; position: absolute; left: 0; color: ${accentColor}; font-weight: 700; }
-        .prose blockquote { margin: 2.2em 0; padding: 1.2em 1.6em; border-left: 4px solid ${accentColor}; background: rgba(107,70,193,0.07); font-size: 1.1rem; font-style: italic; color: ${accentColor}; line-height: 1.7; border-radius: 0 4px 4px 0; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose blockquote p { margin-bottom: 0; color: ${accentColor}; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose ul { margin: 1.8em 0; padding: 1.2em 1.5em 1.2em 2em; background: #ede6f5; border-left: 4px solid ${accentColor}; border-radius: 0 4px 4px 0; list-style: disc; }
-        .prose ul li { margin-bottom: 0.55em; color: #1a1a1a; font-size: 1.05rem; line-height: 1.75; }
-        .prose ul li::marker { color: ${accentColor}; }
-        .prose ol { margin: 1.5em 0; padding-left: 1.8em; }
-        .prose ol li { margin-bottom: 0.5em; color: #1a1a1a; }
-        .prose hr { border: none; height: 2px; background: linear-gradient(90deg, transparent, ${accentColor}, transparent); width: 100px; margin: 3em auto; display: block; }
-        .prose em { font-style: italic; color: inherit; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose i { font-style: italic; color: inherit; font-family: Cormorant Garamond, Georgia, serif; }
-        .prose strong { font-weight: 700; color: #1a1a1a; }
-        .prose .poem-collection-intro { font-style: italic; font-family: Cormorant Garamond, Georgia, serif; color: #555; margin-bottom: 1.5em; display: block; font-size: 1.1rem; }
-        .prose .section-break { text-align: center; font-family: Cormorant Garamond, Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
-        .prose .poem-numeral { text-align: center; font-family: Cormorant Garamond, Georgia, serif; letter-spacing: 0.3em; color: ${accentColor}; margin: 2.5em auto 1em; font-size: 1.05rem; }
-        .prose .intro-note { font-style: italic; font-family: Cormorant Garamond, Georgia, serif; color: ${accentColor}; display: block; font-size: 1.1rem; margin-bottom: 1.5em; }
-        .prose .poem-contents { border-left: 4px solid ${accentColor}; padding: 0.8em 1.2em; margin: 1.5em 0; background: #ede6f5; border-radius: 0 4px 4px 0; }
-        .prose .poem-contents p { margin-bottom: 0.5em; font-weight: 600; color: #1a1a1a; }
-        .prose .poem-contents ol, .prose .poem-contents ul { background: transparent; border: none; padding: 0 0 0 1.2em; margin: 0; }
-        .prose .poem-contents li { font-style: italic; color: #444; font-family: Cormorant Garamond, Georgia, serif; font-size: 1.1rem; }
-        .prose .poem-block { margin-bottom: 3.5em; display: block; }
-        .prose .poem-title { font-size: 1.5rem; font-style: normal; color: ${accentColor}; margin-bottom: 1.2em; display: block; font-family: Cormorant Garamond, Georgia, serif; font-weight: 700; }
-        .prose .poem-stanza { font-family: Cormorant Garamond, Georgia, serif; margin-bottom: 1.8em; display: block; white-space: pre-line; line-height: 1.75; color: #1a1a1a; font-size: 1.15rem; }
-        .prose .poem-stanza p { margin-bottom: 0.25em; line-height: 1.75; color: #1a1a1a; white-space: pre-line; }
-        .prose .poem-stanza p::first-letter { all: unset; }
-        .prose .poem-stanza br { display: block; }
+        /* The prose typography lives in app/lib/proseCSS.js so the offline shelf reader
+           renders the identical stylesheet instead of a copy that can drift. Extracted
+           verbatim; it lands in the same position in this block, so the cascade is
+           unchanged. Page furniture (.story-body-wrap, .story-body, .back-link-row, the
+           hero and nav rules) deliberately stays here — only the words are shared. */
+        ${proseCSS(accentColor)}
         .hit-counter-row { text-align: center; padding: 1.8rem 2rem 1.5rem; color: #888; font-size: 0.9rem; font-family: Cormorant Garamond, Georgia, serif; border-top: 1px solid #e0dbd2; max-width: 680px; margin: 0 auto; background: #f0ead8; }
         .story-footer { background: #f0ead8; max-width: 680px; margin: 0 auto; padding: 1rem 2rem 2rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: #888; gap: 1rem; flex-wrap: wrap; font-family: Cormorant Garamond, Georgia, serif; border-top: 1px solid #e0dbd2; }
         /* The last page — a quiet closing mark that draws itself once, the first
@@ -1525,6 +1433,15 @@ useEffect(() => {
       📖 Read in Book Reader
     </a>
   )}
+  {/* The shelf gesture — a sibling of the Book Reader pill, in the row the page already
+      uses for affordances. Outside .prose, so the drop-cap tagger cannot see it. */}
+  <SaveForOffline
+    slug={slug}
+    story={story}
+    user={storyUser}
+    readingTime={readingTime}
+    onSignIn={() => setShowAuthModal(true)}
+  />
 </div>
               {slug === PAYWALL_SLUG && !hasPurchased ? (
                 <>

@@ -32,3 +32,31 @@
 # revalidation after that bounds how long a replaced tile can be served stale.
 /gateway-wall/*
   Cache-Control: public, max-age=3600, must-revalidate
+
+# THE SERVICE WORKER. This is the single most safety-critical caching decision on the site,
+# so it is declared rather than inherited.
+#
+# It already resolved correctly by accident: with no rule, /sw.js fell through to the Pages
+# default (public, max-age=0, must-revalidate), which is exactly right. Stating it means a
+# future change to the default cannot silently extend how long a broken worker — or a
+# superseded one — survives in the wild.
+#
+# The kill switch depends on this line. scripts/sw-kill.js works by being deployed OVER
+# public/sw.js; the browser byte-compares the script on every navigation, so a worker that
+# is never edge-cached is a worker that can be replaced within one navigation for every
+# reader. Cache this file and the kill switch becomes as slow as whatever TTL you set.
+#
+# Safe to declare despite the concatenation hazard documented at the top of this file:
+# /* declares no Cache-Control, so nothing joins onto this rule.
+/sw.js
+  Cache-Control: no-cache, must-revalidate
+  Service-Worker-Allowed: /
+
+# The manifest is emitted by app/manifest.js (Next's file convention) as
+# /manifest.webmanifest. Cloudflare Pages generally types .webmanifest correctly; saying it
+# outright removes a silent-failure mode, since a manifest served as the wrong type is
+# ignored by the installability check with no error anywhere a developer would look — and
+# on iOS an uninstallable site is a shelf that Safari evicts after seven days.
+/manifest.webmanifest
+  Content-Type: application/manifest+json; charset=utf-8
+  Cache-Control: public, max-age=3600, must-revalidate
