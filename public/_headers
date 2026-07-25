@@ -1,4 +1,23 @@
+# Ordering matters. Cloudflare Pages applies EVERY rule whose path matches, and
+# where two matching rules set the same header the later rule in this file wins.
+# /* is therefore declared first, so the path-scoped rules below override it for
+# the asset classes that can safely be cached. Do not move /* to the bottom.
+
+# HTML and everything not matched below: always revalidate. no-cache (not
+# no-store) so the edge and the browser may keep a copy and revalidate it with a
+# conditional request — a 304 is far cheaper than a re-download, and no-store
+# forbids even that.
 /*
-  Cache-Control: no-cache, no-store, must-revalidate
-  Pragma: no-cache
-  Expires: 0
+  Cache-Control: no-cache, must-revalidate
+
+# Build output is content-hashed (e.g. /_next/static/chunks/0d4d8j3tgmov7.js). The
+# filename changes whenever the bytes change, so a stale copy is unreachable by
+# definition and the response can be frozen for a year.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Gateway wall tiles are stable but NOT content-hashed (wall-0.webp … wall-11.webp),
+# so they are rewritten in place by the build. One hour of edge caching plus a forced
+# revalidation after that bounds how long a replaced tile can be served stale.
+/gateway-wall/*
+  Cache-Control: public, max-age=3600, must-revalidate
