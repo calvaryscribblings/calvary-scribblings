@@ -1,8 +1,8 @@
 'use client';
-// The four-tab spine of the web platform: HOME · SEARCH · SQUARE · MY LIBRARY.
+// The four-tab spine of the web platform: Home · Search · The Square · My Library.
 //
 // Two renderings of the same four destinations:
-//   <TabBar />   — mobile (<768px) fixed bottom bar, the round's centerpiece.
+//   <TabBar />   — mobile (<768px) fixed bottom bar.
 //   <TabLinks /> — desktop (≥768px) inline row, folded into whatever top chrome a page
 //                  already has (Navbar, or a page's own slim sticky nav).
 // Both are inert at the other breakpoint, so a surface renders BOTH and each shows up at
@@ -10,78 +10,48 @@
 // root layout renders no chrome), so the gateway, the reader and /bookstore/** are excluded
 // BY CONSTRUCTION rather than by a pathname denylist that could rot.
 //
-// ── Two things the first shipped bar got wrong, and what replaced them ──────────────────
+// ── v3: this bar is a REPLICA, not an interpretation ────────────────────────────────────
 //
-// 1. IT BORROWED ITS GROUND FROM THE PAGE. The canonical glass (Gateway.js ".cs-gw-glass")
-//    is a translucent CREAM-over-VIOLET fill that only reads as an object when a night
-//    canvas sits behind it. Over /search's light canvas the bar dissolved. A `surface="light"`
-//    prop patched the one page we knew about, which is the wrong shape of fix — it makes
-//    every future light surface a bug waiting to be filed.
-//    The bar is now SELF-GROUNDED: it carries its own opaque-enough night gradient and owes
-//    the page behind it nothing. The blur stays live underneath (it still refracts what
-//    scrolls past, which is the point of glass), but legibility no longer depends on it.
-//    This is a deliberate DEPARTURE from the canonical block, not a drift from it — the
-//    canonical values still govern enclosed glass (doors, chips, the /my-library pills).
+// Two earlier passes dressed the bar in the site's ornamental register — gold hairlines,
+// Cinzel micro-caps, a lantern that carried the Square's opening hours, a gold status dot.
+// Both were rejected. The direction is now literal: the web bar copies the Story Island
+// app's tab bar, so a reader crossing between the two meets the same object.
 //
-// 2. IT DREW ITS ICONS WITH UNICODE. ✦ ⌕ ❖ ❦ are typographic ornaments on a desktop font
-//    stack, but iOS Safari has no thin glyph for several of them and substitutes from Apple
-//    Color Emoji — the bar came out wearing chunky dingbats at emoji weight, nothing like
-//    the Cormorant hairline register the rest of the site is set in. Every icon is now an
-//    inline stroke SVG (22×22 viewBox, stroke-width 1.4, round caps, currentColor), so the
-//    weight is OURS and font substitution is structurally impossible.
-//    Three of the four keep their character (star, magnifier, and the ❖ Square promoted into
-//    a lantern that carries the opening hours). The fourth, ❦, could not be redrawn at 22px
-//    without reading as a heart — see BookIcon for why, and for what replaced it.
-//
-// The bar's top edge is a hairline gold GRADIENT rule, not the canonical solid
-// 1px rgba(201,168,76,.35) border — that border belongs to enclosed glass and reads as a
-// hard seam on a full-bleed bar.
+// What that means concretely, and what NOT to reintroduce:
+//   · NO GOLD anywhere in this bar. Ground is a near-solid dark neutral (rgba(10,9,14,.97))
+//     with a 1px rgba(255,255,255,.06) top border. The self-grounding principle from v2 is
+//     kept — the bar owes the page behind it nothing, which is what lets it hold over
+//     /search's light canvas — but the night-violet gradient and gold rule are gone.
+//   · NO CINZEL. Labels are the system-ui sans stack, sentence case, 11px/500.
+//   · NO STATUS INDICATOR on The Square. The app carries none, so neither does this. The
+//     hours helpers stay exported below because the navbar's drawer still reads them.
+//   · Active state is the app's pill, not a dot: a rounded rect behind the icon, violet
+//     fill and border, icon and label going #a78bfa.
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 /* ── the icon set ─────────────────────────────────────────────────────────────────────────
-   All four share one register: 22×22 box, stroke 1.4, round caps and joins, no fill unless
-   a state asks for one, and enough interior air that they stay open at 22px. The paths are
-   hand-plotted rather than lifted from an icon library on purpose — Material/Feather/Lucide
-   all sit at a heavier optical weight than the site's type, and the mismatch shows when an
-   icon sits 4px above a Cinzel label.
+   One register across all four, matching the app's: 24×24 box, stroke 1.5, round caps and
+   joins, no fill, currentColor throughout — so active/inactive is a single `color` change on
+   the anchor and nothing needs a prop.
 
-   Colour comes from `currentColor` in every case, so active/inactive is one `color` change
-   on the anchor. The two exceptions — HOME's active fill and the lit lantern flame — pull
-   the shared gold gradient below, and are switched by CSS, not by props. */
+   The v2 set is retired except for the magnifier, which was the one glyph both rejections
+   left standing; it is restroked from 1.4 to 1.5 and rescaled into the 24 box for set
+   consistency, but its geometry is unchanged. */
 
-// Referenced by <TabIconDefs />, which every mounting component renders. A page carrying
-// both the bar and the desktop row emits it twice; duplicate IDs resolve to the first and
-// the two are byte-identical, so this is inert duplication rather than a conflict (same
-// bargain as the duplicated <style> block below).
-const GOLD_GRADIENT_ID = 'cs-tab-gold';
-
-function TabIconDefs() {
-  return (
-    <svg width="0" height="0" aria-hidden="true" focusable="false" style={{ position: 'absolute' }}>
-      <defs>
-        <linearGradient id={GOLD_GRADIENT_ID} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#f2e0ae" stopOpacity="0.62" />
-          <stop offset="1" stopColor="#c9a84c" stopOpacity="0.9" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
-}
-
-// Shared <svg> chrome. `size` is the only thing that differs between the bar (22) and the
-// desktop row (14); the stroke stays 1.4 in USER units, so the 14px rendering thins in
+// Shared <svg> chrome. `size` is the only thing that differs between the bar (24) and the
+// desktop row (16); the stroke stays 1.5 in USER units, so the 16px rendering thins in
 // proportion — which is what keeps the small one from looking like a bolder weight.
 function Icon({ size, className, children }) {
   return (
     <svg
-      viewBox="0 0 22 22"
+      viewBox="0 0 24 24"
       width={size}
       height={size}
       className={className}
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.4"
+      strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -92,107 +62,88 @@ function Icon({ size, className, children }) {
   );
 }
 
-/* HOME — the house's ✦ drawn properly: a four-point star with the vertical points carried
-   longer than the horizontal ones (19.4 units tall, 15.6 wide) and the waists between points
-   pulled hard in toward the centre so the arms taper to needles.
-   That concavity is the whole difference between a star and a rhombus, and it is the one
-   number here worth understanding: each quadrant is a quadratic whose control point sits at
-   (11 ± 0.8, 11 ∓ 0.8) — 1.1 units off centre. A first pass used ±1.4/2.6 and the result read
-   as a bevelled diamond, because a control point that far out barely bends the chord. */
-function StarIcon({ size, className }) {
+/* HOME — the app's icon: a 2×2 grid of four rounded squares. 8×8 each, radius 2, 2px gutter,
+   which totals 18 and centres at x/y = 3. */
+function GridIcon({ size, className }) {
   return (
     <Icon size={size} className={className}>
-      <path
-        className="cs-ico-star"
-        d="M11 1.3 Q11.8 10.2 18.8 11 Q11.8 11.8 11 20.7 Q10.2 11.8 3.2 11 Q10.2 10.2 11 1.3 Z"
-      />
+      <rect x="3" y="3" width="8" height="8" rx="2" />
+      <rect x="13" y="3" width="8" height="8" rx="2" />
+      <rect x="3" y="13" width="8" height="8" rx="2" />
+      <rect x="13" y="13" width="8" height="8" rx="2" />
     </Icon>
   );
 }
 
-/* SEARCH — the one glyph that was already right (⌕ has a thin stroke on every stack we hit),
-   so this keeps its character exactly: a light circle and a short handle held at 45°, the
-   handle springing from the circle's edge rather than overlapping it. */
+/* SEARCH — carried over from v2 unchanged in character: a light circle and a short handle at
+   45°, the handle springing from the circle's edge rather than overlapping it. The spring
+   point is exact — 10.5 + 6.5/√2 = 15.1 on both axes. */
 function SearchIcon({ size, className }) {
   return (
     <Icon size={size} className={className}>
-      <circle cx="9.5" cy="9.5" r="6.1" />
-      <path d="M13.9 13.9 L18.6 18.6" />
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M15.1 15.1 L20.2 20.2" />
     </Icon>
   );
 }
 
-/* SQUARE — a lantern, and the lantern IS the status.
-   Between 20:00 and 24:00 London the flame fills gold and gains a soft 2px glow; the rest of
-   the day it is stroke-only and unlit. The old detached green pulse dot is gone — green is
-   off-palette, and a 4px circle floating clear of the glyph read as a rendering fault rather
-   than an affordance.
-   Built as FIVE separate strokes — bail, top plate, two flaring housing sides, base plate —
-   rather than one closed body outline. That matters: the first pass drew a single
-   rounded-shoulder body and it read as a BOTTLE, with the flame inside it as a drop of
-   liquid. What makes a lantern legible at 22px is the two horizontal plates being visibly
-   WIDER (9.2 units) than the glass between them (8.0), so the silhouette steps in and back
-   out. The housing sides are left open at both ends; the plates close them. */
-function LanternIcon({ size, className, lit }) {
-  return (
-    <Icon size={size} className={`${className}${lit ? ' is-lit' : ''}`}>
-      {/* bail */}
-      <path d="M9.1 4.2 Q9.1 1.8 11 1.8 Q12.9 1.8 12.9 4.2" />
-      {/* top plate */}
-      <path d="M6.4 5.4 H15.6" />
-      {/* housing — left side, then right */}
-      <path d="M8.2 5.4 C7.3 7.3 7 8.7 7 10.4 V16.6" />
-      <path d="M15 16.6 V10.4 C15 8.7 14.7 7.3 13.8 5.4" />
-      {/* base plate */}
-      <path d="M6.4 16.6 H15.6" />
-      {/* Flame, at 1.15 rather than the set's 1.4. It is only 3.4 units across — at 1.4 the
-          two sides of the outline meet and the unlit state fills in solid, which reads as
-          permanently lit and destroys the whole status signal. */}
-      <path
-        className="cs-ico-flame"
-        strokeWidth="1.15"
-        d="M11 9.4 C12.3 10.9 12.7 11.7 12.7 12.6 C12.7 13.8 12 14.6 11 14.6 C10 14.6 9.3 13.8 9.3 12.6 C9.3 11.7 9.7 10.9 11 9.4 Z"
-      />
-    </Icon>
-  );
-}
-
-/* MY LIBRARY — an open book with a ribbon marker. THIS IS THE FALLBACK, not the ❦ fleuron
-   the brief asked for first, and the reason is worth recording so nobody re-litigates it.
-   The fleuron WAS drawn as a path (Aldus-leaf heart, midrib, curling stem) and photographed
-   at 22px alongside three variants. It failed, in two ways that no amount of nudging fixed:
-     · The two marks that make an Aldus leaf an Aldus leaf rather than a heart — the midrib
-       and the stem curl — are collinear at the bottom of the shape. At 22px with a 1.4
-       stroke they merge into one vertical bar through the middle, and the glyph reads as a
-       lowercase phi. Dropping the midrib fixes the merge and leaves a plain heart.
-     · A plain heart in a MY LIBRARY tab is not neutral — it reads "favourites", and the site
-       already spends the heart on liking a story. Wrong word, in the one place a tab bar
-       cannot afford one.
-   The book is the same stroke language (1.4, round caps, currentColor), reads instantly at
-   both 22px and the desktop row's 14px, and says "library" without borrowing another
-   affordance's meaning. The ❦ survives everywhere it was already working — the gateway's
-   Library door and its arm still carry it at 32px and 20px, where it is glorious. */
-function BookIcon({ size, className }) {
+/* THE SQUARE — the app's icon: a single thin diamond, i.e. a square rotated 45°, with the
+   four points softened to ~1.5 radius.
+   Drawn as an explicit path rather than <rect transform="rotate(45)"> because a rotated rect
+   with rx renders its corner arcs in the ROTATED frame, and the resulting glyph reads a hair
+   heavier on the two horizontal points than the vertical ones at 24px. Here each vertex backs
+   off 1.06 units along both incident edges (= 1.5 × cos45) and closes with one quadratic, so
+   all four points are identical.
+   No lantern, no lit state, no status dot — see the header note. */
+function DiamondIcon({ size, className }) {
   return (
     <Icon size={size} className={className}>
-      {/* two facing pages */}
-      <path d="M11 6.6 C9.3 5.3 7.3 4.7 4.6 4.7 V15.7 C7.3 15.7 9.3 16.3 11 17.6 C12.7 16.3 14.7 15.7 17.4 15.7 V4.7 C14.7 4.7 12.7 5.3 11 6.6 Z" />
-      {/* spine */}
-      <path d="M11 6.6 V17.6" />
-      {/* ribbon marker, notched at the tail */}
-      <path d="M14.3 5 V10.4 L15.6 9.2 L16.9 10.4 V4.8" />
+      <path d="M13.06 4.56 L19.44 10.94 Q20.5 12 19.44 13.06 L13.06 19.44 Q12 20.5 10.94 19.44 L4.56 13.06 Q3.5 12 4.56 10.94 L10.94 4.56 Q12 3.5 13.06 4.56 Z" />
+    </Icon>
+  );
+}
+
+/* MY LIBRARY — the 📚 arrangement redrawn in the set's stroke language: three slim upright
+   spines and a fourth leaning against the group at 15°.
+   The lean is what makes this read as BOOKS rather than as bars. Three equal uprights on a
+   common baseline is a bar chart; a volume tipped against them is a shelf, and nothing else.
+   Two supporting decisions, both load-bearing at 24px:
+     · The spines carry different widths (3.5 / 3.3 / 3.5) and staggered tops on one shared
+       baseline at y=20.4. Varied width is a book cue and is NOT a bar-chart cue — bars are
+       uniform in width and vary only in height, so varying width breaks the read that
+       varying height alone would reinforce.
+     · The gutters are 2.0 units. This number was measured, not chosen: at stroke 1.5 the
+       strokes claim 0.75 either side, so a gutter leaves (g − 1.5) of daylight. A first pass
+       used 1.6 and photographing it at TRUE 1x (not zoomed) showed 0.1 of a pixel at each
+       seam — the three spines fused into a picket block. 2.0 leaves 0.5 and they separate.
+       Verify this icon at 1x specifically; every problem it has is invisible at 3x.
+   The leaner's top-left corner sits 0.75 to the RIGHT of the third spine's right edge, which
+   is half a stroke — so the two strokes overlap by 0.75 and read as firm contact. The same
+   first pass had them 0.09 apart, i.e. overlapping by 1.4, and the leaner drove a visible X
+   through the third spine instead of resting on it. Contact at the top, ~2.4 of clear floor
+   at the foot: that pair IS the lean. Without the floor gap it is a fourth upright drawn
+   crooked; without the contact it is a separate object falling over on its own. */
+function BooksIcon({ size, className }) {
+  return (
+    <Icon size={size} className={className}>
+      <rect x="1.7" y="6.2" width="3.5" height="14.2" rx="1" />
+      <rect x="7.2" y="5.4" width="3.3" height="15" rx="1" />
+      <rect x="12.5" y="6.6" width="3.5" height="13.8" rx="1" />
+      {/* rotated about its own foot (19.75, 20.4) so the bottom-left corner stays on the
+          baseline the three uprights share — a leaning book pivots on that corner */}
+      <rect x="19.75" y="8.8" width="2.9" height="11.6" rx="1" transform="rotate(-15 19.75 20.4)" />
     </Icon>
   );
 }
 
 export const TABS = [
-  { key: 'home',    href: '/public-library', Icon: StarIcon,    label: 'HOME' },
-  { key: 'search',  href: '/search',         Icon: SearchIcon,  label: 'SEARCH' },
-  { key: 'square',  href: '/square',         Icon: LanternIcon, label: 'SQUARE' },
-  { key: 'library', href: '/my-library',     Icon: BookIcon,    label: 'MY LIBRARY' },
+  { key: 'home',    href: '/public-library', Icon: GridIcon,    label: 'Home' },
+  { key: 'search',  href: '/search',         Icon: SearchIcon,  label: 'Search' },
+  { key: 'square',  href: '/square',         Icon: DiamondIcon, label: 'The Square' },
+  { key: 'library', href: '/my-library',     Icon: BooksIcon,   label: 'My Library' },
 ];
 
-// The category pages are children of HOME — landing on /flash should still light HOME, not
+// The category pages are children of HOME — landing on /flash should still light Home, not
 // leave the bar with nothing active.
 const HOME_ROUTES = ['/public-library', '/flash', '/short', '/serial', '/poetry', '/news', '/inspiring'];
 
@@ -207,8 +158,10 @@ export function activeTabFor(pathname) {
 }
 
 // The Square's doors open 20:00–24:00 LONDON, which is what the Square itself and the gateway
-// both read (app/square/page.js:35, app/components/Gateway.js londonHour). Exported so the
-// navbar's drawer reads the same clock as the tab beside it.
+// both read (app/square/page.js, app/components/Gateway.js londonHour). The TAB no longer
+// shows this — the app's bar carries no status on that tab, so neither does ours — but the
+// navbar's drawer still renders an open/closed row and imports from here so both readings of
+// the clock stay in one place.
 export function isSquareOpenLondon() {
   try {
     const h = Number(
@@ -222,8 +175,7 @@ export function isSquareOpenLondon() {
 
 export function useSquareOpen() {
   // Server render is always "closed" so the markup matches on hydration; the first effect
-  // tick corrects it. A lantern that lights a frame late is cheaper than a hydration
-  // mismatch — and unlike the dot it replaced, nothing moves when it does.
+  // tick corrects it.
   const [open, setOpen] = useState(false);
   useEffect(() => {
     const tick = () => setOpen(isSquareOpenLondon());
@@ -234,103 +186,89 @@ export function useSquareOpen() {
   return open;
 }
 
-const CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
-const GOLD = '#e2c876';
+const SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+const VIOLET = '#a78bfa';
+const PILL_FILL = 'rgba(91,43,160,.35)';
+const PILL_EDGE = 'rgba(139,92,246,.45)';
+const DIM = 'rgba(245,240,232,.55)';
 
 export const TAB_CSS = `
   /* ── mobile bottom bar ───────────────────────────────────────────────── */
-  /* Self-grounded: the gradient is opaque enough to carry the bar over ANY canvas, and the
-     blur underneath is now enrichment rather than load-bearing. Verified over
-     /public-library (night) and /search (light) — the same object on both. */
+  /* Self-grounded, but NEUTRAL: near-solid dark, no gradient, no gold. At .97 alpha the fill
+     carries the bar over any canvas on its own — verified over /public-library (night) and
+     /search (light). The blur is enrichment only; nothing about legibility depends on it. */
   .cs-tabbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 900; display: flex;
     height: calc(64px + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
-    background: linear-gradient(180deg, rgba(16,10,32,.90), rgba(11,7,22,.96));
-    -webkit-backdrop-filter: blur(14px) saturate(1.35);
-    backdrop-filter: blur(14px) saturate(1.35);
+    background: rgba(10,9,14,.97);
+    border-top: 1px solid rgba(255,255,255,.06);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    backdrop-filter: blur(14px) saturate(1.2);
   }
   @supports not ((backdrop-filter: blur(14px)) or (-webkit-backdrop-filter: blur(14px))) {
-    /* No blur to darken what's behind, so the fill takes the last of the way to solid. */
-    .cs-tabbar { background: rgba(11,7,22,.97); }
+    .cs-tabbar { background: rgba(10,9,14,.99); }
   }
-  /* Top edge, in two 1px rows: the gold hairline, then the highlight that gives the glass
-     its thickness. Two pseudo-elements rather than one rule plus an inset box-shadow —
-     an inset shadow paints the same row the ::before covers, so it would be invisible. */
-  .cs-tabbar::before, .cs-tabbar::after {
-    content: ""; position: absolute; left: 0; right: 0; height: 1px; pointer-events: none;
-  }
-  .cs-tabbar::before {
-    top: 0; background: linear-gradient(90deg, transparent, rgba(201,168,76,.55), transparent);
-  }
-  .cs-tabbar::after { top: 1px; background: rgba(245,240,232,.06); }
   /* Reserves the bar's height in flow so a page footer is never sat on. Static, so it
-     costs no layout shift — it is present from first paint. */
-  .cs-tabbar-spacer { height: calc(64px + env(safe-area-inset-bottom)); }
+     costs no layout shift — it is present from first paint. The extra 1px matches the
+     border-top, which sits outside the 64px box. */
+  .cs-tabbar-spacer { height: calc(65px + env(safe-area-inset-bottom)); }
 
-  /* The vertical gaps are set as margins, NOT as a flex gap shorthand. A gap applies between
-     every pair of children, so it would stack with the dot's own offset and the dot would sit
-     4+3=7px under the label instead of the 3 it wants. Margins keep each gap independent.
-     (Careful with backticks anywhere in this block — it is a JS template literal.) */
   .cs-tab {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     text-decoration: none; -webkit-tap-highlight-color: transparent;
-    color: rgba(245,240,232,.5);
-    transition: color .18s ease, transform .09s ease;
+    color: ${DIM};
+    transition: color .18s ease;
   }
-  .cs-tab:active { transform: scale(.985); }
+  /* The pill is ALWAYS in the layout at full size with a transparent 1px border, and only its
+     paint changes on activation. Sizing or bordering it only when active would shift the icon
+     and the label by a pixel every time the route changes. */
+  .cs-tab-pill {
+    display: flex; align-items: center; justify-content: center;
+    width: 44px; height: 30px; border-radius: 10px;
+    background: transparent; border: 1px solid transparent;
+    transition: background .18s ease, border-color .18s ease, transform .09s ease;
+  }
+  .cs-tab:active .cs-tab-pill { transform: scale(.97); }
   .cs-tab-ico { display: block; }
-  /* Letter-spacing hangs a trailing gap off the last character, which drags centred text
-     visually left by half of it. Half an em back the other way squares it up. */
   .cs-tab-l {
-    font-family: ${CINZEL}; font-size: 7px; letter-spacing: .18em; line-height: 1;
-    margin: 4px 0 0 .18em; color: inherit;
+    font-family: ${SANS}; font-size: 11px; font-weight: 500; letter-spacing: .01em;
+    line-height: 1; margin-top: 3px; color: inherit;
   }
-  /* Always in the layout, transparent until active — the dot appearing must not shift the
-     label. 3px beneath it, docked to the label rather than floating off the bar's floor. */
-  .cs-tab-dot {
-    width: 3px; height: 3px; margin-top: 3px; border-radius: 50%;
-    background: transparent; transition: background .18s ease;
-  }
-  .cs-tab.is-active { color: ${GOLD}; }
-  .cs-tab.is-active .cs-tab-dot { background: ${GOLD}; }
-  .cs-tab:focus-visible { outline: 1px solid rgba(226,200,118,.9); outline-offset: -4px; border-radius: 8px; }
-
-  /* ── the two icon states that aren't just a colour ───────────────────── */
-  /* HOME fills when active. The gradient runs under the stroke, so the star keeps its drawn
-     edge and gains a body rather than turning into a solid blob.
-     fill-opacity trims it to ~64% of the gradient's own alpha, which is what "subtle" costs:
-     at full strength the star reads as a solid gold lozenge and the drawn edge disappears
-     into it. One gradient serves both this and the lit flame, which wants full strength —
-     the difference is here, not in a second def. */
-  .cs-tab.is-active .cs-ico-star, .cs-dtab.is-active .cs-ico-star {
-    fill: url(#${GOLD_GRADIENT_ID}); fill-opacity: .64;
-  }
-  /* The lantern's flame carries the Square's hours. Independent of active state — the Square
-     is open at 8pm whether or not you are standing in it. */
-  .cs-ico-flame { transition: fill .3s ease, stroke .3s ease; }
-  .is-lit .cs-ico-flame {
-    fill: url(#${GOLD_GRADIENT_ID}); stroke: ${GOLD};
-    filter: drop-shadow(0 0 2px rgba(226,200,118,.75));
-  }
+  .cs-tab.is-active { color: ${VIOLET}; }
+  .cs-tab.is-active .cs-tab-pill { background: ${PILL_FILL}; border-color: ${PILL_EDGE}; }
+  .cs-tab:focus-visible { outline: 1px solid ${PILL_EDGE}; outline-offset: -4px; border-radius: 8px; }
 
   /* ── desktop inline row ──────────────────────────────────────────────── */
-  .cs-dtabs { display: none; align-items: center; gap: 24px; }
-  .cs-dtab {
+  /* Same icons, same labels, same pill — laid out horizontally and shrunk to sit inside the
+     navbar's 68px band. The pill wraps icon AND label here rather than the icon alone, because
+     a 44×30 icon-only pill with the label beside it would read as a badge stuck to the text;
+     wrapping both is what the row's horizontal arrangement asks for and lands at ~28px tall,
+     which the navbar clears comfortably. (A 2px violet underline was the alternative — it fits
+     too, but it re-imports the "tab underline" idiom the app's bar doesn't use.) */
+  /* NOTE: no backticks anywhere in this block — it is a JS template literal.
+     Every desktop rule is scoped ".cs-dtabs a.cs-dtab" rather than the bare ".cs-dtab".
+     This is not tidiness — the row is dropped into chrome it does not own, and the Navbar
+     styles its own contents with ".cs-desktop-links a { font-size: .82rem; color: … }"
+     (Navbar.js). That descendant selector outranks a lone class, so an unscoped ".cs-dtab"
+     silently lost its size and its inactive colour while ".cs-dtab.is-active" won — the row
+     came out at 13.12px with white-75 inactive labels and only the active one obeying spec.
+     Scoping puts the row above any single-class-plus-element host rule, so it renders the
+     same in the Navbar, in a page's own sticky nav, and anywhere it lands next. */
+  .cs-dtabs { display: none; align-items: center; gap: 6px; }
+  .cs-dtabs a.cs-dtab {
     display: flex; align-items: center; gap: 7px; white-space: nowrap; text-decoration: none;
-    font-family: ${CINZEL}; font-size: 9.5px; letter-spacing: .2em;
-    color: rgba(245,240,232,.45); padding-bottom: 5px;
-    border-bottom: 1px solid transparent;
-    transition: color .2s ease, border-color .2s ease;
+    font-family: ${SANS}; font-size: 12px; font-weight: 500; letter-spacing: .01em; line-height: 1;
+    color: ${DIM}; padding: 5px 10px; border-radius: 8px;
+    background: transparent; border: 1px solid transparent;
+    transition: color .2s ease, background .2s ease, border-color .2s ease;
   }
-  .cs-dtab:hover { color: rgba(245,240,232,.78); }
-  /* The icon runs gold-at-half rather than inheriting the label's cream, which is the
-     relationship the row had when it was Unicode. It does NOT inherit the label's color —
-     the label lightening on hover shouldn't drag the icon with it. */
-  .cs-dtab-ico { flex: none; color: rgba(201,168,76,.55); transition: color .2s ease; }
-  .cs-dtab.is-active { color: #f5f0e8; border-bottom-color: #c9a84c; }
-  .cs-dtab.is-active .cs-dtab-ico { color: ${GOLD}; }
-  .cs-dtab:focus-visible { outline: 1px solid rgba(226,200,118,.9); outline-offset: 4px; border-radius: 3px; }
+  .cs-dtabs a.cs-dtab:hover { color: rgba(245,240,232,.85); }
+  /* The icon inherits the label's colour here — one violet, one dim, no second relationship
+     to keep in sync. */
+  .cs-dtabs .cs-dtab-ico { flex: none; }
+  .cs-dtabs a.cs-dtab.is-active { color: ${VIOLET}; background: ${PILL_FILL}; border-color: ${PILL_EDGE}; }
+  .cs-dtabs a.cs-dtab:focus-visible { outline: 1px solid ${PILL_EDGE}; outline-offset: 2px; }
 
   @media (min-width: 768px) {
     .cs-tabbar, .cs-tabbar-spacer { display: none; }
@@ -338,36 +276,28 @@ export const TAB_CSS = `
   }
   /* The row has to share a 768px-wide bar with a wordmark, an avatar and a hamburger in the
      tablet band, so it tightens twice on the way down rather than pushing anything off-edge. */
-  @media (max-width: 1100px) { .cs-dtabs { gap: 15px; } }
+  @media (max-width: 1100px) { .cs-dtabs { gap: 2px; } .cs-dtabs a.cs-dtab { padding: 5px 8px; gap: 6px; } }
   @media (max-width: 940px) {
-    .cs-dtabs { gap: 11px; }
-    .cs-dtab { font-size: 8.5px; letter-spacing: .13em; gap: 5px; }
-    .cs-dtab-ico { width: 13px; height: 13px; }
+    .cs-dtabs { gap: 0; }
+    .cs-dtabs a.cs-dtab { font-size: 11px; padding: 5px 6px; gap: 5px; }
+    .cs-dtabs .cs-dtab-ico { width: 14px; height: 14px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .cs-tab, .cs-tab-dot, .cs-dtab, .cs-dtab-ico, .cs-ico-flame { transition: none; }
-    .cs-tab:active { transform: none; }
-    /* The glow is a static filter, never animated — so the lit lantern is unchanged here,
-       it simply stops crossfading into lit. */
+    .cs-tab, .cs-tab-pill, .cs-dtabs a.cs-dtab { transition: none; }
+    .cs-tab:active .cs-tab-pill { transform: none; }
   }
 `;
 
-// Rendered once per mounting component. Two identical <style> blocks (and two identical
-// gradient defs) on a page that carries both renderings is inert duplication.
+// Rendered once per mounting component. Two identical <style> blocks on a page that carries
+// both renderings is inert duplication.
 function TabStyles() {
-  return (
-    <>
-      <style>{TAB_CSS}</style>
-      <TabIconDefs />
-    </>
-  );
+  return <style>{TAB_CSS}</style>;
 }
 
 /** Desktop (≥768px) inline tab row — drops into a page's existing top chrome. */
 export function TabLinks({ active }) {
   const pathname = usePathname();
   const current = active ?? activeTabFor(pathname);
-  const squareOpen = useSquareOpen();
   return (
     <>
       <TabStyles />
@@ -379,7 +309,7 @@ export function TabLinks({ active }) {
             className={`cs-dtab${current === t.key ? ' is-active' : ''}`}
             aria-current={current === t.key ? 'page' : undefined}
           >
-            <t.Icon size={14} className="cs-dtab-ico" lit={t.key === 'square' && squareOpen} />
+            <t.Icon size={16} className="cs-dtab-ico" />
             {t.label}
           </a>
         ))}
@@ -392,7 +322,6 @@ export function TabLinks({ active }) {
 export default function TabBar({ active }) {
   const pathname = usePathname();
   const current = active ?? activeTabFor(pathname);
-  const squareOpen = useSquareOpen();
   return (
     <>
       <TabStyles />
@@ -405,9 +334,10 @@ export default function TabBar({ active }) {
             className={`cs-tab${current === t.key ? ' is-active' : ''}`}
             aria-current={current === t.key ? 'page' : undefined}
           >
-            <t.Icon size={22} className="cs-tab-ico" lit={t.key === 'square' && squareOpen} />
+            <span className="cs-tab-pill">
+              <t.Icon size={24} className="cs-tab-ico" />
+            </span>
             <span className="cs-tab-l">{t.label}</span>
-            <span className="cs-tab-dot" aria-hidden="true" />
           </a>
         ))}
       </nav>
