@@ -9,6 +9,12 @@
 //      it. `bookReader` has no consumer here and is load-bearing there. Removing a
 //      field is a breaking change to another codebase and will not show up in this
 //      repo's build, tests, or pages — it shows up as stories misrouting in the app.
+//      Three fields are app-only in exactly this way: `bookReader` (routing, above)
+//      plus `authorHandle` and `readTime`, which the app's SEARCH results, PROFILE
+//      → myStories list and USER AUTHOR-LIST surfaces render off the index alone.
+//      Nothing in this repo reads authorHandle or readTime FROM the index either —
+//      dropping them looks free here and blanks the handle and the "N min read" on
+//      three app screens.
 //   2. ANYTHING WRITING TO THE INDEX MUST WRITE A COMPLETE PROJECTED RECORD —
 //      buildIndexRecord() via indexUpdatePaths(), never a partial path. A deep-path
 //      write (`cms_stories_index/<slug>/<field>`) CREATES the parent when the slug
@@ -38,7 +44,7 @@
 // database.rules.storiesIndex-fragment.json and the Phase A performance work.
 //
 // The full record is 1.22 MB wholesale; content (846 KB) + extractedText (258 KB)
-// are 89% of that and never appear on a list card. This index keeps only the ~17
+// are 89% of that and never appear on a list card. This index keeps only the ~19
 // scalars a card/hero/whisper needs, so /public-library and the category pages
 // fetch ~85 KB instead of the whole node. content/extractedText/epubUrl and the
 // mutable quizMeta.attemptCount are DELIBERATELY excluded (attemptCount mutates on
@@ -61,12 +67,20 @@ export function isIndexed(story) {
 // along only when present (Phase B populates it) — never invented here. The quiz
 // summary carries just { hasQuiz, scribblesReward } (never attemptCount) and only
 // when a quiz exists, so the common no-quiz row costs nothing.
+//
+// authorHandle and readTime were added so the app can read the index alone on its
+// search, profile myStories and user author-list surfaces — those three render a
+// handle and a "N min read" and previously had to fall back to the full record for
+// them. authorHandle is the source scalar verbatim; readTime is precomputed here
+// (see indexReadTime below) because the index deliberately excludes `content`, so
+// the app cannot derive it downstream.
 export function buildIndexRecord(slug, story) {
   const s = story || {};
   const rec = {
     title: s.title || '',
     author: s.author || '',
     authorUid: s.authorUid || '',
+    authorHandle: s.authorHandle || '',
     category: s.category || '',
     categoryName: s.categoryName || '',
     subcategory: s.subcategory || '',
@@ -82,6 +96,7 @@ export function buildIndexRecord(slug, story) {
     // can misroute a reader-collection story. No live record is bookReader-only today
     // (filtered-reality sets both), so nothing misroutes yet — this closes it before one does.
     bookReader: s.bookReader === true,
+    readTime: indexReadTime(s.content),
     url: s.url || `/stories/${slug}`,
   };
   if (s.publishAt) rec.publishAt = s.publishAt;
@@ -89,6 +104,23 @@ export function buildIndexRecord(slug, story) {
   const quiz = buildQuizSummary(s.quizMeta);
   if (quiz) rec.quiz = quiz;
   return rec;
+}
+
+// Reading time in whole minutes, at 220 wpm — a BYTE-FOR-BYTE reimplementation of
+// the app's lib/storyDerived.ts:37. Empty/missing content → 0.
+//
+//   ⚠ PRESERVE THE QUIRK: this counts RAW HTML TOKENS. There is no stripHtml call,
+//   so markup counts as words — `<p>` is one token, `<a href="…">` is two, and a
+//   heavily-tagged story reads longer than it is. That is NOT a bug to fix here.
+//   The app renders this exact number on the story page today; the index exists to
+//   let its search/profile/author-list surfaces show THE SAME number without
+//   fetching content. Silently "correcting" it would make the index disagree with
+//   the story page for every story — cross-platform parity outranks correctness.
+//   If the count is ever fixed, it must be fixed in lib/storyDerived.ts and HERE in
+//   the same change (and in the Worker mirror), never in one place alone.
+export function indexReadTime(content) {
+  if (!content || typeof content !== 'string') return 0;
+  return Math.ceil(content.split(/\s+/).filter(Boolean).length / 220);
 }
 
 // The quiz sub-object the index carries — { hasQuiz, scribblesReward } — or null

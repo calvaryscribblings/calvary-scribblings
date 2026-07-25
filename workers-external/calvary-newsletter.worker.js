@@ -194,12 +194,33 @@ function buildQuizSummaryMirror(quizMeta) {
   return q.hasQuiz ? { hasQuiz: true, scribblesReward: q.scribblesReward ?? 50 } : null;
 }
 
+// indexReadTimeMirror — mirrors app/lib/storyIndex.js:indexReadTime, itself a
+// byte-for-byte reimplementation of the app's lib/storyDerived.ts:37. 220 wpm,
+// empty/missing content → 0.
+//
+//   ⚠ PRESERVE THE QUIRK: this counts RAW HTML TOKENS — there is no stripHtml, so
+//   markup counts as words (`<p>` is one token, `<a href="…">` is two). That is NOT
+//   a bug to fix here. The app renders this exact number on the story page today,
+//   and the index exists so its search/profile/author-list surfaces can show THE
+//   SAME number without fetching content. A scheduled publish that "corrected" the
+//   count would ship a story whose index readTime disagrees with its own story
+//   page — cross-platform parity outranks correctness. If it is ever fixed, it is
+//   fixed in lib/storyDerived.ts, app/lib/storyIndex.js AND here, in one change.
+function indexReadTimeMirror(content) {
+  if (!content || typeof content !== "string") return 0;
+  return Math.ceil(content.split(/\s+/).filter(Boolean).length / 220);
+}
+
 function buildIndexRecordMirror(slug, story) {
   const s = story || {};
   const rec = {
     title: s.title || "",
     author: s.author || "",
     authorUid: s.authorUid || "",
+    // authorHandle + readTime feed the app's search / profile myStories / user
+    // author-list surfaces, which read the index alone. Nothing in the Worker or
+    // the main repo reads them back — they are still load-bearing.
+    authorHandle: s.authorHandle || "",
     category: s.category || "",
     categoryName: s.categoryName || "",
     subcategory: s.subcategory || "",
@@ -211,6 +232,7 @@ function buildIndexRecordMirror(slug, story) {
     featuredPin: s.featuredPin === true,
     readerMode: s.readerMode === true,
     bookReader: s.bookReader === true,
+    readTime: indexReadTimeMirror(s.content),
     url: s.url || `/stories/${slug}`,
   };
   if (s.publishAt) rec.publishAt = s.publishAt;

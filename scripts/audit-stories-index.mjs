@@ -55,6 +55,30 @@ const noUidIdx = eligible.filter(s => idx[s] && !idx[s].authorUid);
 console.log(`\nauthorUid — missing/empty in SOURCE: ${noUidSrc.length}${noUidSrc.length ? ' → ' + noUidSrc.join(', ') : ''}`);
 console.log(`authorUid — missing/empty in INDEX : ${noUidIdx.length}${noUidIdx.length ? ' → ' + noUidIdx.join(', ') : ''}`);
 
+// authorHandle / readTime — the two fields the app's search, profile myStories and
+// user author-list surfaces read off the index alone. The field-by-field diff above
+// already flags value drift; these lines make COVERAGE visible, which is the failure
+// that matters here. An index record predating the widening simply has no key at all
+// (so the app renders a blank handle / no "N min read"), and that reads as "absent"
+// rather than "wrong". authorHandle absence is only a fault where the SOURCE has one
+// — 7 legacy/guest-authored stories genuinely carry none. readTime must be present
+// on EVERY record: the projection always emits it (0 for contentless stories, which
+// is a real value, not a gap), so a missing key means a stale record.
+const handleInSrc = eligible.filter(s => src[s].authorHandle);
+const handleMissingIdx = handleInSrc.filter(s => idx[s] && !idx[s].authorHandle);
+const noHandleSrc = eligible.filter(s => !src[s].authorHandle);
+console.log(`\nauthorHandle — present in SOURCE: ${handleInSrc.length}/${eligible.length} (${noHandleSrc.length} source-side blank${noHandleSrc.length ? ': ' + noHandleSrc.join(', ') : ''})`);
+if (handleMissingIdx.length) console.log(`  ⚠ SOURCE HAS A HANDLE, INDEX DOES NOT: ${handleMissingIdx.length} → ${handleMissingIdx.join(', ')}`);
+else console.log(`  ✓ every source handle is mirrored in the index`);
+
+const readTimeMissingIdx = eligible.filter(s => idx[s] && !('readTime' in idx[s]));
+const readTimeWrong = eligible.filter(s => idx[s] && 'readTime' in idx[s] && idx[s].readTime !== buildIndexRecord(s, src[s]).readTime);
+const noContent = eligible.filter(s => !src[s].content);
+console.log(`readTime — present in INDEX: ${eligible.filter(s => idx[s] && 'readTime' in idx[s]).length}/${eligible.length} (${noContent.length} contentless → readTime 0${noContent.length ? ': ' + noContent.join(', ') : ''})`);
+if (readTimeMissingIdx.length) console.log(`  ⚠ KEY ABSENT (stale pre-widening record): ${readTimeMissingIdx.length} → ${readTimeMissingIdx.join(', ')}`);
+if (readTimeWrong.length) console.log(`  ⚠ VALUE DRIFT vs recomputed: ${readTimeWrong.length} → ${readTimeWrong.join(', ')}`);
+if (!readTimeMissingIdx.length && !readTimeWrong.length) console.log(`  ✓ every index record carries a readTime matching the projection`);
+
 // SCHEDULED-PUBLISH INTEGRITY — the specific failure mode of the external
 // calvary-newsletter cron flipping a scheduled story to published:true when its
 // publishAt arrives WITHOUT writing the index entry (a bare published deep-path
