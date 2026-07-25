@@ -1,7 +1,10 @@
 // Server component so the gateway can carry real metadata + JSON-LD. The interactive layer
 // (doors, modals, localStorage auto-route) lives in the client component below.
 //
-// The root layout is 'use client', so this page is where root-level metadata has to live.
+// The metadata below is the gateway's own — title, canonical '/', its social card. Site-wide
+// defaults (metadataBase, viewport) live in app/layout.js, which is a server component; the
+// metadataBase repeated here is the same value and is kept only so this block reads
+// standalone.
 import Gateway from './components/Gateway';
 import { fetchGatewayData } from './lib/gateway-build';
 
