@@ -51,8 +51,9 @@ export default function BookstoreNotFound() {
       {/* This, not the storefront, is what /bookstore serves until the launch gate opens
           (page.js calls notFound() while gateState === 'empty'). It renders the platform
           Navbar and so carried the desktop tab row; the bar gives the mobile visitor the
-          same four. */}
-      <TabBar surface="light" />
+          same four. No surface variant needed — the bar carries its own ground now, which is
+          why it holds on this page's light canvas as well as it does on the night ones. */}
+      <TabBar />
     </>
   );
 }

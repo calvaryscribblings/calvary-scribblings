@@ -107,8 +107,10 @@ export default function Navbar() {
         .cs-nav-avatar:hover { border-color: rgba(167,139,250,0.8); }
         .cs-nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-        /* The desktop Square button retired into the SQUARE tab (components/TabBar.js), which
-           carries the same live dot. The pulse stays — the mobile drawer's Square row uses it. */
+        /* The desktop Square button retired into the SQUARE tab (components/TabBar.js). That tab
+           no longer carries a dot at all — it signals the open hours by lighting its lantern's
+           flame instead, and the green went with the dot as off-palette. This pulse is now used
+           by exactly one thing: the mobile drawer's Square row, below. Don't wire it to the tabs. */
         @keyframes sq-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
         .cs-hamburger { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 4px; z-index: 1001; }
