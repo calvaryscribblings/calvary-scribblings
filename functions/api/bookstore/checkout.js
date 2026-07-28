@@ -27,7 +27,10 @@
 // is form-encoded and stable. Same reasoning as the hand-rolled signature check in
 // stripe-webhook.js.
 
-const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
+// R5b: json() and the token verifier moved to ./_lib.js when stream.js became the third
+// caller. Behaviour is unchanged — the move exists so the three endpoints cannot drift.
+import { json, dbBase, verifyIdToken } from './_lib.js';
+
 const TITLES_PATH = 'bookstore_titles';
 const PUBLISHERS_PATH = 'bookstore_publishers';
 
@@ -43,31 +46,10 @@ const DEFAULT_ORIGIN = 'https://calvaryscribblings.co.uk';
 // Paystack instead (hence the payout-provider field already on the publisher record).
 const ALLOWED_CURRENCIES = new Set(['gbp', 'usd']);
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-async function verifyToken(token, apiKey) {
-  const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken: token }),
-    }
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data?.users?.[0]?.localId ?? null;
-}
-
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  const fbDb = (env.FIREBASE_DATABASE_URL ?? FB_DB).replace(/\/$/, '');
+  const fbDb = dbBase(env);
   const origin = (env.SITE_ORIGIN || DEFAULT_ORIGIN).replace(/\/$/, '');
 
   if (!env.STRIPE_SECRET_KEY) {
@@ -94,7 +76,7 @@ export async function onRequestPost(context) {
   }
 
   // ── identity ───────────────────────────────────────────────────────────────
-  const uid = await verifyToken(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  const uid = await verifyIdToken(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
   if (!uid) return json({ error: 'Your session has expired. Please sign in again.' }, 401);
 
   // ── the title, and its price ───────────────────────────────────────────────

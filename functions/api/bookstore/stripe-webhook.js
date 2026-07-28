@@ -33,16 +33,15 @@
 // not the browser — is what records a purchase. Do not relax those rules to make anything
 // here easier.
 
+// R5b: json(), b64url(), pemToArrayBuffer(), mintAccessToken() and dbBase() moved to
+// ./_lib.js when stream.js became the third caller — a move, not a rewrite. The Stripe
+// signature machinery below stays here: nothing else needs it.
+import { json, dbBase, bytesToHex, mintAccessToken } from './_lib.js';
+
 const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 300;
 
-const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const PURCHASES_PATH = 'bookstore_purchases';
 const TITLES_PATH = 'bookstore_titles';
-
-const SCOPES = [
-  'https://www.googleapis.com/auth/firebase.database',
-  'https://www.googleapis.com/auth/userinfo.email',
-].join(' ');
 
 // Events that grant access, and events that take it away. Anything not listed is
 // acknowledged and ignored, so the Stripe dashboard can be configured broadly without
@@ -53,13 +52,6 @@ const REVOKE_EVENTS = new Map([
   ['charge.dispute.created', 'disputed'],
   ['checkout.session.async_payment_failed', 'payment-failed'],
 ]);
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 // ──────────────────────────────────────────────────────────────────────────
 // Stripe signature verification — manual HMAC-SHA256 since the Workers
@@ -92,15 +84,6 @@ function hexToBytes(hex) {
     out[i] = byte;
   }
   return out;
-}
-
-function bytesToHex(bytes) {
-  const arr = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes;
-  let hex = '';
-  for (let i = 0; i < arr.length; i++) {
-    hex += arr[i].toString(16).padStart(2, '0');
-  }
-  return hex;
 }
 
 // Constant-time comparison over two equal-length Uint8Arrays. Returns false
@@ -156,86 +139,11 @@ async function verifyStripeSignature(rawBody, header, secret) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Firebase service-account OAuth token minting (RS256 via Web Crypto).
-// ──────────────────────────────────────────────────────────────────────────
-
-function b64url(input) {
-  let str;
-  if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) {
-    const bytes = new Uint8Array(input instanceof ArrayBuffer ? input : input.buffer);
-    let bin = '';
-    for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
-    str = btoa(bin);
-  } else {
-    str = btoa(input);
-  }
-  return str.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
-}
-
-function pemToArrayBuffer(pem) {
-  const body = pem
-    .replace('-----BEGIN PRIVATE KEY-----', '')
-    .replace('-----END PRIVATE KEY-----', '')
-    .replace(/\s+/g, '');
-  const bin = atob(body);
-  const buf = new ArrayBuffer(bin.length);
-  const view = new Uint8Array(buf);
-  for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
-  return buf;
-}
-
-async function mintAccessToken(clientEmail, privateKeyPem) {
-  // Secrets paste in with literal `\n` rather than newlines if the value was copied from
-  // the JSON-escaped service-account file — normalise so the PEM parser is happy.
-  const privateKey = privateKeyPem.includes('\\n')
-    ? privateKeyPem.replace(/\\n/g, '\n')
-    : privateKeyPem;
-
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const claim = {
-    iss: clientEmail,
-    scope: SCOPES,
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  };
-
-  const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(claim))}`;
-  const key = await crypto.subtle.importKey(
-    'pkcs8',
-    pemToArrayBuffer(privateKey),
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const sig = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    key,
-    new TextEncoder().encode(signingInput),
-  );
-  const jwt = `${signingInput}.${b64url(sig)}`;
-
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(jwt)}`,
-  });
-  if (!res.ok) {
-    throw new Error(`Token exchange failed: ${res.status} ${await res.text()}`);
-  }
-  const { access_token } = await res.json();
-  return access_token;
-}
-
-// ──────────────────────────────────────────────────────────────────────────
 // RTDB access. The rescued worker passed the token as an ?access_token= query
 // param; the sibling Pages Functions (record-attempt, open-pages/moderate) use an
 // Authorization header instead. Following the siblings keeps a bearer token out of
 // URLs, which is where tokens end up in logs.
 // ──────────────────────────────────────────────────────────────────────────
-
-const dbBase = (env) => (env.FIREBASE_DATABASE_URL ?? FB_DB).replace(/\/$/, '');
 
 const purchaseUrl = (env, uid, titleId) =>
   `${dbBase(env)}/${PURCHASES_PATH}/${encodeURIComponent(uid)}/${encodeURIComponent(titleId)}.json`;
