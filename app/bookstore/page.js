@@ -7,6 +7,7 @@ import { getAllPublishedTitles } from '../lib/bookstore/loader';
 import Navbar from '../components/Navbar';
 import TabBar from '../components/TabBar';
 import BoundBook, { BOUND_BOOK_CSS } from './components/BoundBook';
+import BuyButton from './components/BuyButton';
 import QuickLookModal from './components/QuickLookModal';
 import { useBookGesture } from './components/useBookGesture';
 import { formatGbp, resolveOpeningLine } from './components/fields';
@@ -103,7 +104,8 @@ function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPresent, a
 
 // ── The Window: the featured title in the display case ────────────────────────
 function TheWindow({ title }) {
-  const price = formatGbp(title.prices?.gbp);
+  // The price label moved into BuyButton, so the button's face and the currency it charges
+  // in can never drift apart.
   const pull = resolveOpeningLine(title);
   const hasNo = Number.isInteger(title.catalogueNumber);
   return (
@@ -126,7 +128,7 @@ function TheWindow({ title }) {
             {pull && <p className="window-pull">&ldquo;{pull}&rdquo;</p>}
             {title.shelfCard && <p className="window-shelfcard">{title.shelfCard} <span>&mdash; Calvary</span></p>}
             <div className="window-actions">
-              <button type="button" className="btn-buy" disabled title="Purchasing opens at launch">{price ? `Buy · ${price}` : 'Buy'}</button>
+              <BuyButton title={title} className="btn-buy" />
               {title.samplePath && <a className="btn-sample" href={`/reader/${title.slug}?sample=1`}>Read sample</a>}
               <a className="btn-details" href={`/bookstore/${title.slug}`}>Full details &rarr;</a>
             </div>
@@ -310,7 +312,9 @@ export default function BookStorePage() {
         .window-shelfcard span{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:#c9a44c}
         .window-actions{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center}
 
-        .btn-buy{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:not-allowed;opacity:.55}
+        .btn-buy{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:pointer;transition:filter .25s,opacity .25s}
+        .btn-buy:hover{filter:brightness(1.08)}
+        .btn-buy:disabled{cursor:progress;opacity:.6;filter:none}
         .btn-sample{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:1px solid rgba(201,164,76,.4);border-radius:3px;background:rgba(201,164,76,.04);color:#c9a44c;font-weight:600;text-decoration:none}
         .btn-sample:hover{background:rgba(201,164,76,.1)}
         .btn-details{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.55);text-decoration:none;border-bottom:1px solid rgba(201,164,76,.25);padding-bottom:2px}

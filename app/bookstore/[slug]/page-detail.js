@@ -5,7 +5,8 @@ import { getTitleBySlug, getPublisher } from '../../lib/bookstore/loader';
 import { sectionForGenre } from '../page';
 import Navbar from '../../components/Navbar';
 import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
-import { formatGbp, truncate } from '../components/fields';
+import BuyButton from '../components/BuyButton';
+import { truncate } from '../components/fields';
 
 // Presentation labels for genre slugs — kept local (the storefront's map isn't exported).
 // Every slug here is a member of GENRES in schema.js.
@@ -52,6 +53,18 @@ export default function BookDetailClient({ params }) {
   const [title, setTitle] = useState(null);
   const [publisherName, setPublisherName] = useState(null);
 
+  // Stripe sends the reader back here with ?purchase=success|cancelled. Read once, lazily,
+  // at first client render — the same pattern as app/my-library/read/page.js, and for the
+  // same reason: useSearchParams() needs a Suspense boundary and can push the route into a
+  // client-side bailout under output:'export'. The server prerender has no location, hence
+  // the guard. Reading it here rather than in an effect keeps the decision to a single
+  // evaluation and avoids a cascading render.
+  const [purchased] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try { return new URLSearchParams(window.location.search).get('purchase') === 'success'; }
+    catch { return false; }
+  });
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -70,9 +83,24 @@ export default function BookDetailClient({ params }) {
     return () => { cancelled = true; };
   }, [slug]);
 
+  // Strip the marker from the URL once it has been read, so a refresh or a shared link never
+  // re-announces a purchase that already happened. Pure side effect on an external system —
+  // it sets no state, because `purchased` above has already decided what to show.
+  // 'cancelled' is stripped just as silently: the reader changed their mind, which is not an
+  // error and does not deserve a notice.
+  useEffect(() => {
+    let params;
+    try { params = new URLSearchParams(window.location.search); } catch { return; }
+    const purchase = params.get('purchase');
+    if (purchase !== 'success' && purchase !== 'cancelled') return;
+    params.delete('purchase');
+    params.delete('session_id');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
+  }, []);
+
   if (state === 'missing') notFound();
 
-  const price = title ? formatGbp(title.prices?.gbp) : null;
   const section = title ? sectionLabel(title.genre) : '';
   const cat = title && Number.isInteger(title.catalogueNumber) ? title.catalogueNumber : null;
 
@@ -94,7 +122,9 @@ export default function BookDetailClient({ params }) {
         .bd-synopsis::first-letter{float:left;font-family:'Cinzel',serif;font-size:3.4rem;line-height:.82;font-weight:600;color:#c9a44c;padding:.1rem .6rem .1rem 0;margin-top:.1rem}
         .bd-shelfcard{margin-top:1.6rem;background:#ece4cf;color:#2a2318;padding:1rem 1.2rem;border-radius:1px;box-shadow:0 8px 22px rgba(0,0,0,.4);font-size:.9rem;line-height:1.6;font-style:italic;max-width:440px}
         .bd-shelfcard span{display:block;margin-top:.5rem;font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.14em;font-style:normal;color:#7a5f24}
-        .bd-buy{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;padding:.95rem 2.2rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:not-allowed;opacity:.55}
+        .bd-buy{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;padding:.95rem 2.2rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:pointer;transition:filter .25s,opacity .25s}
+        .bd-buy:hover{filter:brightness(1.08)}
+        .bd-buy:disabled{cursor:progress;opacity:.6;filter:none}
         .bd-sample{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;padding:.95rem 2.2rem;border:1px solid rgba(201,164,76,.4);border-radius:3px;background:rgba(201,164,76,.04);color:#c9a44c;font-weight:600;cursor:pointer;text-decoration:none;transition:all .25s;display:inline-flex;align-items:center}
         .bd-sample:hover{background:rgba(201,164,76,.1);border-color:rgba(201,164,76,.7)}
         .colophon{max-width:640px;margin:0 auto;padding:3rem 2rem 5rem;text-align:center;position:relative;z-index:2}
@@ -119,6 +149,39 @@ export default function BookDetailClient({ params }) {
                 <div className="bd-skeleton" style={{ height: '.9rem', width: '92%', marginBottom: '.6rem' }} />
                 <div className="bd-skeleton" style={{ height: '.9rem', width: '96%' }} />
               </div>
+            </div>
+          )}
+
+          {/* Returned from a completed Stripe checkout. Modest on purpose — the shelf, not a
+              receipt. The webhook is what actually grants the book, and it may land a moment
+              after the redirect, so this points at the Library rather than claiming the
+              record is already written.
+
+              Gated on state === 'ready' as well as `purchased`: this page is a static export,
+              and `purchased` is true on the very first client render when the query is
+              present. Rendering it any earlier would put a banner in the hydrated tree that
+              the prerendered HTML does not have. `state` is 'loading' until an effect
+              resolves, so this branch is reliably closed at hydration. */}
+          {purchased && state === 'ready' && (
+            <div
+              role="status"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '.9rem', flexWrap: 'wrap',
+                margin: '0 0 2.5rem', padding: '1rem 1.3rem',
+                border: '1px solid rgba(201,164,76,.28)', borderRadius: '3px',
+                background: 'rgba(201,164,76,.06)',
+              }}
+            >
+              <span aria-hidden="true" style={{ color: 'rgba(201,164,76,.75)' }}>&#10086;</span>
+              <span style={{ fontSize: '.98rem', fontStyle: 'italic', color: 'rgba(240,234,216,.8)' }}>
+                Thank you. This title is now in your Library.
+              </span>
+              <a
+                href="/my-library"
+                style={{ fontFamily: "'Cinzel',serif", fontSize: '.58rem', letterSpacing: '.18em', textTransform: 'uppercase', color: '#c9a44c', textDecoration: 'none', borderBottom: '1px solid rgba(201,164,76,.35)', paddingBottom: '2px' }}
+              >
+                Go to My Library &rarr;
+              </a>
             </div>
           )}
 
@@ -155,7 +218,7 @@ export default function BookDetailClient({ params }) {
                   {/* Action row */}
                   <div className="bd-actions" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginTop: '2.2rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem', alignItems: 'flex-start' }}>
-                      <button className="bd-buy" type="button" disabled title="Purchasing opens at launch">{price ? `Buy · ${price}` : 'Buy'}</button>
+                      <BuyButton title={title} className="bd-buy" />
                       <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.72rem', fontStyle: 'italic', color: 'rgba(201,164,76,.6)', letterSpacing: '.04em' }}>Available September 2026</span>
                     </div>
                     {title.samplePath && (
