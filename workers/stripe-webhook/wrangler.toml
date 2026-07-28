@@ -1,0 +1,22 @@
+name = "calvary-stripe-webhook"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Receives Stripe checkout.session.completed events for the Dead End paywall
+# and writes purchase records to Firebase RTDB at purchases/{uid}/{slug}.
+#
+# Required secrets (set via `wrangler secret put`):
+#   STRIPE_SECRET_KEY       — Stripe API secret key (sk_live_… / sk_test_…).
+#                             Not strictly required for signature verification,
+#                             but kept available for any future REST calls back
+#                             into Stripe (e.g. retrieving expanded session).
+#   STRIPE_WEBHOOK_SECRET   — whsec_… signing secret for this endpoint, taken
+#                             from the Stripe dashboard webhook configuration.
+#                             Used to verify the Stripe-Signature header.
+#   FIREBASE_CLIENT_EMAIL   — service account email for OAuth token minting.
+#   FIREBASE_PRIVATE_KEY    — PEM-encoded RS256 private key (use `\n` escapes
+#                             if pasting via the CLI; the worker normalises).
+
+[vars]
+FIREBASE_DATABASE_URL = "https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app"
+FIREBASE_PROJECT_ID = "calvary-scribblings"

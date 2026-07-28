@@ -30,8 +30,25 @@ The repo was previously laid out with the Next.js app under `calvary-scribblings
 
 ## Vestigial directories you may see locally
 
-A repo checkout that pre-dates the restructure can leave untracked `calvary-scribblings-next/` and `calvary-app/` directories on disk, containing stale `node_modules/` and `out/`. They are not tracked in git and the live tree ignores them. If you see them, do not edit files inside them — `rm -rf calvary-scribblings-next calvary-app` is safe.
+A repo checkout that pre-dates the restructure can leave `calvary-scribblings-next/` and `calvary-app/` directories on disk, containing stale `node_modules/` and `out/`. Do not edit files inside them — `rm -rf calvary-scribblings-next calvary-app` is safe.
+
+**Correction — `calvary-scribblings-next/` was not fully untracked.** An earlier version of this file said the directory was untracked in its entirety. That was wrong. Eight bookstore files were git-tracked in `HEAD`, added by `db4f05d` ("recover A0-A2.4 build from codespace branch") and left behind by the `e2d6f59` restructure:
+
+```
+calvary-scribblings-next/app/admin/bookstore/page.js
+calvary-scribblings-next/app/admin/publishers/page.js
+calvary-scribblings-next/app/bookstore/layout.js
+calvary-scribblings-next/app/bookstore/not-found.js
+calvary-scribblings-next/app/bookstore/page.js
+calvary-scribblings-next/app/lib/bookstore/admin-writes.js
+calvary-scribblings-next/app/lib/bookstore/loader.js
+calvary-scribblings-next/app/lib/bookstore/schema.js
+```
+
+They were frozen A2.4-era snapshots, and five of the eight had diverged from their root counterparts by 100+ lines. They were never built (Next builds from the root), so an edit landing in one was silently lost — a real trap for greps and fuzzy file-opens. **R5.0 removed all eight from git.** Whatever remains in that directory on disk is untracked build residue.
+
+Never edit anything under `calvary-scribblings-next/`, and never re-add it to git. The bookstore surface lives at `app/bookstore/`, `app/admin/bookstore/`, `app/admin/publishers/`, and `app/lib/bookstore/` — root paths only.
 
 ## Verification
 
-Before committing any new file, run `git status` and confirm the path is at the repo root (`app/…`, `emails/…`, `scripts/…`, `public/…`). If you see a path starting with `calvary-scribblings-next/` or `calvary-app/`, stop — that is a vestigial untracked location.
+Before committing any new file, run `git status` and confirm the path is at the repo root (`app/…`, `emails/…`, `scripts/…`, `public/…`). If you see a path starting with `calvary-scribblings-next/` or `calvary-app/`, stop — that is a vestigial location, and nothing under it may be staged or committed.
