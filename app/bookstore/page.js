@@ -10,7 +10,7 @@ import BoundBook, { BOUND_BOOK_CSS } from './components/BoundBook';
 import BuyButton from './components/BuyButton';
 import QuickLookModal from './components/QuickLookModal';
 import { useBookGesture } from './components/useBookGesture';
-import { formatGbp, resolveOpeningLine } from './components/fields';
+import { formatGbp, resolveOpeningLine, formatCatalogueNumber } from './components/fields';
 
 // Fiction/non-fiction split, derived from genre. Exported so the detail page (R3) can reuse
 // the exact same mapping without re-deriving it. Every slug here is a member of GENRES in
@@ -53,12 +53,12 @@ function ShelfBook({ title, width, onOpen }) {
 
 function ShelfEntry({ title, index, onOpen }) {
   const price = formatGbp(title.prices?.gbp);
-  const hasNo = Number.isInteger(title.catalogueNumber);
+  const mark = formatCatalogueNumber(title.catalogueNumber);
   const tilt = index % 2 === 0 ? -0.7 : 0.7;
   return (
     <div className="shelf-entry">
-      {hasNo && (
-        <div className="no-divider"><span className="no-line" /><span className="no-label">No. {title.catalogueNumber}</span><span className="no-line" /></div>
+      {mark && (
+        <div className="no-divider"><span className="no-line" /><span className="no-label">{mark}</span><span className="no-line" /></div>
       )}
       <div className="shelf-book-wrap">
         <ShelfBook title={title} width={150} onOpen={onOpen} />
@@ -107,7 +107,7 @@ function TheWindow({ title }) {
   // The price label moved into BuyButton, so the button's face and the currency it charges
   // in can never drift apart.
   const pull = resolveOpeningLine(title);
-  const hasNo = Number.isInteger(title.catalogueNumber);
+  const mark = formatCatalogueNumber(title.catalogueNumber);
   return (
     <section className="the-window">
       <div className="window-plate"><Fleuron /> In the Window <Fleuron /></div>
@@ -122,7 +122,7 @@ function TheWindow({ title }) {
             <BoundBook title={title} variant="window" width={190} ribbon />
           </div>
           <div className="window-copy">
-            <div className="window-kicker">{hasNo ? `No. ${title.catalogueNumber} · ` : ''}{genreLabel(title.genre)}</div>
+            <div className="window-kicker">{mark ? `${mark} · ` : ''}{genreLabel(title.genre)}</div>
             <h3 className="window-title">{title.title}</h3>
             <p className="window-author">by {title.author}</p>
             {pull && <p className="window-pull">&ldquo;{pull}&rdquo;</p>}

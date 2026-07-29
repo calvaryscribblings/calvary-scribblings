@@ -8,7 +8,7 @@
 // exposes a `bind` spread + a `bookRef` for rect measurement. Reduced motion is handled
 // entirely in CSS via prefers-reduced-motion (no resting angle, no transitions).
 import Image from 'next/image';
-import { formatGbp, resolveOpeningLine, resolveBackBlurb, gradientFor, obiLabel } from './fields';
+import { formatGbp, resolveOpeningLine, resolveBackBlurb, gradientFor, obiLabel, formatCatalogueNumber } from './fields';
 
 // Injected once per page (storefront, detail, modal). Keyed classes only — no dynamic values.
 export const BOUND_BOOK_CSS = `
@@ -88,7 +88,7 @@ function BackFace({ title }) {
   const opening = resolveOpeningLine(title);
   const blurb = resolveBackBlurb(title);
   const price = formatGbp(title.prices?.gbp);
-  const cat = Number.isInteger(title.catalogueNumber) ? title.catalogueNumber : null;
+  const cat = formatCatalogueNumber(title.catalogueNumber);
   return (
     <div className="bb-face bb-back">
       <div className="bb-spine" />
@@ -106,7 +106,7 @@ function BackFace({ title }) {
               <div className="bb-barcode" aria-hidden="true">
                 {BAR_WIDTHS.map((w, i) => <i key={i} style={{ width: `${w}px`, height: `${16 + ((i * 7) % 10)}px` }} />)}
               </div>
-              <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.5rem', letterSpacing: '.1em', color: '#2a2318', marginTop: '2px' }}>CS&middot;No.{cat}</div>
+              <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.5rem', letterSpacing: '.1em', color: '#2a2318', marginTop: '2px' }}>{cat}</div>
             </div>
           ) : <span />}
           {price && (

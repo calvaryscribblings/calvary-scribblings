@@ -6,7 +6,7 @@ import { sectionForGenre } from '../page';
 import Navbar from '../../components/Navbar';
 import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
 import BuyButton from '../components/BuyButton';
-import { truncate } from '../components/fields';
+import { truncate, formatCatalogueNumber } from '../components/fields';
 
 // Presentation labels for genre slugs — kept local (the storefront's map isn't exported).
 // Every slug here is a member of GENRES in schema.js.
@@ -102,7 +102,7 @@ export default function BookDetailClient({ params }) {
   if (state === 'missing') notFound();
 
   const section = title ? sectionLabel(title.genre) : '';
-  const cat = title && Number.isInteger(title.catalogueNumber) ? title.catalogueNumber : null;
+  const cat = title ? formatCatalogueNumber(title.catalogueNumber) : null;
 
   return (
     <>
@@ -203,7 +203,7 @@ export default function BookDetailClient({ params }) {
                 </div>
                 <div>
                   {cat !== null && (
-                    <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.6rem', letterSpacing: '.26em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.6rem' }}>No. {cat}</div>
+                    <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.6rem', letterSpacing: '.26em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.6rem' }}>{cat}</div>
                   )}
                   <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.62rem', fontWeight: 500, letterSpacing: '.22em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.9rem' }}>{genreLabel(title.genre)}</div>
                   <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 600, color: '#f0ead8', lineHeight: 1.1, marginBottom: '.7rem' }}>{title.title}</h1>

@@ -518,6 +518,14 @@ export default function StoryReaderClient({ params }) {
   // The engagement gate the read counter has always used: the first relocate means the
   // book has actually painted. fireReadHit is self-latching, so calling it on every
   // relocate is the behaviour that shipped.
+  // The story register stays on users/{uid}/readerProgress/{slug} this round — the private
+  // bookstore node is the book register's, and moving a live story surface onto it would be
+  // a migration, not a unification.
+  const storyProgress = useMemo(
+    () => ({ path: (uid) => `users/${uid}/readerProgress/${slug}` }),
+    [slug],
+  );
+
   const onRelocate = useCallback((info) => {
     fireReadHit();
     setProgress((info.fraction || 0) * 100);
@@ -624,7 +632,7 @@ export default function StoryReaderClient({ params }) {
         escape={{ href: '/public-library', label: '← Library' }}
         user={readerUser}
         ribbons
-        progress
+        progress={storyProgress}
         coverSplash={coverSplash}
         earlyEnding={<>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#f5f0e8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>

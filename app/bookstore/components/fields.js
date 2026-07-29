@@ -71,6 +71,17 @@ export function gradientFor(seed) {
   return COVER_GRADIENTS[h % COVER_GRADIENTS.length];
 }
 
+// THE CATALOGUE MARK (R7.2). catalogueNumber is a schema-external positive integer set by
+// the curator in /admin/bookstore; every surface that shows it now renders the same mark —
+// 'CS' and a zero-padded three-digit number — so a title reads identically on the shelf,
+// in the window, on its back cover, in Quick Look, on its detail page and in the colophon
+// at the end of the book. Returns null when the curator has not assigned one, which is the
+// signal to omit the line entirely rather than print a placeholder.
+export function formatCatalogueNumber(n) {
+  if (!Number.isInteger(n) || n <= 0) return null;
+  return `CS ${String(n).padStart(3, '0')}`;
+}
+
 // Obi band label: featured wins over bestseller when both are set.
 export function obiLabel(title) {
   if (title?.featured) return 'Editor’s Choice';

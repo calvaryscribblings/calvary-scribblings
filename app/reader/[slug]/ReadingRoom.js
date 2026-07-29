@@ -114,6 +114,41 @@ export function readingRoomSrc(epubUrl, p) {
   return '/reading-room.html?' + qs.toString();
 }
 
+// ── THE RIBBON PRINCIPLE (R7.2) ───────────────────────────────────────────────
+// The tab is not a button that adds things — it IS the current page's bookmark state.
+// Deciding whether a stored ribbon belongs to the page in front of the reader is a
+// fraction-proximity test, because a CFI cannot be compared for "same page": pagination
+// depends on the reader's type size, leading, flow and screen, so the same CFI lands on a
+// different page for a different reader — and for the same reader after a Typesetter tap.
+//
+// THE RULE. pageSpan is the host's minStep: the smallest forward fraction step it has
+// observed, i.e. one page as a fraction of the whole book. A ribbon is on the current page
+// when |ribbon.fraction − currentFraction| < pageSpan / 2. Half a page either side of the
+// reader's position is exactly the span the current page occupies, so the neighbouring
+// pages — a full pageSpan away — can never match, and no page can match two ribbons.
+// Before the first forward turn pageSpan is 0, so a floor of 0.2% of the book stands in;
+// on a 300-page book that is well under one page, which errs toward "no ribbon here" —
+// the safe direction, since the cost is a duplicate the dedupe still catches on write.
+//
+// Legacy records (R4a-era, cfi + label only) carry no fraction and therefore never match.
+// They render in the Contents list and jump correctly; they simply cannot light the tab.
+const RIBBON_MIN_SPAN = 0.002;
+export function ribbonEpsilonFor(pageSpan) {
+  return Math.max(typeof pageSpan === 'number' ? pageSpan : 0, RIBBON_MIN_SPAN) / 2;
+}
+export function findRibbonOnPage(list, fraction, pageSpan) {
+  if (!Array.isArray(list) || typeof fraction !== 'number') return null;
+  const eps = ribbonEpsilonFor(pageSpan);
+  let best = null;
+  let bestD = Infinity;
+  for (const r of list) {
+    if (!r || typeof r.fraction !== 'number') continue;
+    const d = Math.abs(r.fraction - fraction);
+    if (d < eps && d < bestD) { best = r; bestD = d; }
+  }
+  return best;
+}
+
 // ── Typesetter ────────────────────────────────────────────────────────────────
 function TypesetterPanel({ prefs, onPaper, onFace, onSize, onLeading, onFlow, onClose }) {
   return (
@@ -170,7 +205,7 @@ function TypesetterPanel({ prefs, onPaper, onFace, onSize, onLeading, onFlow, on
 }
 
 // ── Contents + Ribbons ────────────────────────────────────────────────────────
-function ContentsPanel({ toc, chapterHref, ribbons, showRibbons, onJump, onRemoveRibbon, onClose }) {
+function ContentsPanel({ toc, chapterHref, ribbons, showRibbons, currentRibbonId, pageOf, onJump, onRemoveRibbon, onClose }) {
   return (
     <div className="rr-sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="rr-sheet rr-sheet-tall" role="dialog" aria-label="Contents">
@@ -186,18 +221,29 @@ function ContentsPanel({ toc, chapterHref, ribbons, showRibbons, onJump, onRemov
           {showRibbons && ribbons.length > 0 && (
             <>
               <div className="rr-section-label">Ribbons</div>
-              {ribbons.map((r) => (
-                <div key={r.id} className="rr-ribbon-row">
-                  <button className="rr-ribbon-jump" onClick={() => onJump(r.cfi)}>
-                    <span className="rr-ribbon-dot" />
-                    <span>
-                      <span className="rr-ribbon-label">{r.label || 'Bookmarked passage'}</span>
-                      <span className="rr-ribbon-time">{timeAgo(r.createdAt)}</span>
-                    </span>
-                  </button>
-                  <button className="rr-ribbon-x" onClick={() => onRemoveRibbon(r)} aria-label="Remove ribbon">&times;</button>
-                </div>
-              ))}
+              {ribbons.map((r) => {
+                const page = pageOf ? pageOf(r.fraction) : null;
+                // Chapter · page, falling back to a percentage when the book has not yet
+                // told us its page span, and to neither when it is a legacy record.
+                const where = [
+                  r.label || null,
+                  page ? `Page ${page}` : (typeof r.fraction === 'number' ? `${Math.round(r.fraction * 100)}%` : null),
+                ].filter(Boolean).join(' · ');
+                return (
+                  <div key={r.id} className={'rr-ribbon-row' + (r.id === currentRibbonId ? ' current' : '')}>
+                    <button className="rr-ribbon-jump" onClick={() => onJump(r.cfi)}>
+                      <span className="rr-ribbon-dot" />
+                      <span className="rr-ribbon-copy">
+                        {r.excerpt
+                          ? <span className="rr-ribbon-excerpt">&ldquo;{r.excerpt}&rdquo;</span>
+                          : <span className="rr-ribbon-excerpt rr-ribbon-excerpt-bare">{r.label || 'A marked page'}</span>}
+                        <span className="rr-ribbon-where">{where}{where ? ' · ' : ''}{timeAgo(r.createdAt)}</span>
+                      </span>
+                    </button>
+                    <button className="rr-ribbon-x" onClick={() => onRemoveRibbon(r)} aria-label="Remove ribbon">&times;</button>
+                  </div>
+                );
+              })}
             </>
           )}
         </div>
@@ -324,6 +370,15 @@ const ROOM_CSS = `
   .rr-ribbon-tab::after{content:'';position:absolute;left:0;right:0;bottom:-8px;height:9px;background:linear-gradient(180deg,#c9a44c,#a8842f);clip-path:polygon(0 0,100% 0,100% 100%,50% 55%,0 100%)}
   .rr-ribbon-tab.dropping{animation:ribbonDrop .65s cubic-bezier(.2,.8,.2,1)}
   .rr-ribbon-count{font-family:'Cinzel',serif;font-size:.5rem;font-weight:600}
+  /* R7.2 — the tab carries the page's state. FILLED (solid silk) means a ribbon sits on
+     this page and tapping lifts it; EMPTY (a ghost of the same shape) means tapping drops
+     one. Same silhouette in both states, so it reads as one object changing, not two
+     controls swapping places. */
+  .rr-ribbon-tab.empty{background:linear-gradient(180deg,rgba(232,200,119,.26),rgba(168,132,47,.26));
+    box-shadow:0 2px 6px rgba(0,0,0,.28);color:rgba(58,44,10,.55)}
+  .rr-ribbon-tab.empty::after{background:linear-gradient(180deg,rgba(201,164,76,.26),rgba(168,132,47,.26))}
+  .rr-ribbon-tab.filled{box-shadow:0 3px 10px rgba(0,0,0,.45),0 0 0 1px rgba(255,244,208,.35)}
+  .rr-ribbon-tab:active{transform:translateY(1px)}
 
   .rr-sheet-backdrop{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
   .rr-sheet{width:100%;max-width:560px;max-height:82dvh;background:var(--rr-bg);color:var(--rr-fg);border:1px solid var(--rr-line);
@@ -356,10 +411,13 @@ const ROOM_CSS = `
   .rr-toc-item:disabled{opacity:.5;cursor:default}
   .rr-section-label{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.2em;text-transform:uppercase;color:var(--rr-accent);margin:1.4rem 0 .5rem}
   .rr-ribbon-row{display:flex;align-items:center;gap:.5rem;border-bottom:1px solid var(--rr-line)}
-  .rr-ribbon-jump{flex:1;display:flex;align-items:center;gap:.7rem;min-height:44px;background:none;border:none;cursor:pointer;text-align:start;color:var(--rr-fg);padding:.5rem 0}
-  .rr-ribbon-dot{width:8px;height:16px;background:var(--rr-accent);border-radius:1px;flex-shrink:0}
-  .rr-ribbon-label{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-size:.95rem}
-  .rr-ribbon-time{display:block;font-size:.7rem;color:var(--rr-soft)}
+  .rr-ribbon-row.current .rr-ribbon-dot{box-shadow:0 0 0 3px rgba(201,164,76,.22)}
+  .rr-ribbon-jump{flex:1;display:flex;align-items:flex-start;gap:.7rem;min-height:44px;background:none;border:none;cursor:pointer;text-align:start;color:var(--rr-fg);padding:.7rem 0}
+  .rr-ribbon-dot{width:8px;height:16px;background:var(--rr-accent);border-radius:1px;flex-shrink:0;margin-top:3px}
+  .rr-ribbon-copy{min-width:0}
+  .rr-ribbon-excerpt{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:.95rem;line-height:1.45;color:var(--rr-fg)}
+  .rr-ribbon-excerpt-bare{font-style:normal;color:var(--rr-soft)}
+  .rr-ribbon-where{display:block;margin-top:3px;font-family:'Cinzel',serif;font-size:.48rem;letter-spacing:.16em;text-transform:uppercase;color:var(--rr-soft)}
   .rr-ribbon-x{min-width:44px;min-height:44px;background:none;border:none;color:var(--rr-soft);font-size:1.2rem;cursor:pointer}
   .rr-empty{padding:2rem 1rem;text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;color:var(--rr-soft)}
 
@@ -447,7 +505,8 @@ const ROOM_CSS = `
  * @param {object}   p.escape          { href, label } — the top-bar back control.
  * @param {object|null} p.user         Firebase user, for ribbons and progress.
  * @param {boolean}  p.ribbons         Enable the ribbon tab + the Contents ribbon list.
- * @param {boolean}  p.progress        Enable users/{uid}/readerProgress save + restore.
+ * @param {{path:(uid:string)=>string}|null} p.progress  Where this register's reading
+ *                                     position lives. Absent ⇒ no read and no write.
  * @param {React.ReactNode} p.coverSplash   Splash contents; also gates the first paint.
  * @param {React.ReactNode} p.banner        Pinned under the bar, rides with the chrome.
  * @param {React.ReactNode} p.earlyEnding   Contents of the pre-end pill (shown past 90%).
@@ -465,7 +524,7 @@ export default function ReadingRoom({
   escape,
   user = null,
   ribbons: ribbonsEnabled = false,
-  progress: progressEnabled = false,
+  progress = null,
   coverSplash = null,
   banner = null,
   earlyEnding = null,
@@ -482,6 +541,15 @@ export default function ReadingRoom({
   // discipline — it gates the subscription as well as the tab, so a sample never so much
   // as reads the owned copy's ribbons. Namespacing lands in R7.2.
   const ribbonsOn = ribbonsEnabled && !sample;
+
+  // R7.2 — progress is a NODE, not a flag: { path: (uid) => string }. One mechanism, two
+  // destinations. The story register keeps users/{uid}/readerProgress/{slug}; a purchased
+  // book goes to bookstore_reading_progress/{uid}/{titleId}, which is owner-only. Samples
+  // pass nothing and neither read nor write. Held in a ref because an adapter's object
+  // literal is a new identity on every render and must not churn the effects.
+  const progressEnabled = typeof progress?.path === 'function';
+  const progressRef = useRef(progress);
+  useEffect(() => { progressRef.current = progress; }, [progress]);
 
   // Chrome state
   const [chromeVisible, setChromeVisible] = useState(true);
@@ -505,6 +573,9 @@ export default function ReadingRoom({
   const [ribbons, setRibbons] = useState([]);
   const [ribbonDropping, setRibbonDropping] = useState(false);
   const [pct, setPct] = useState(0);
+  // One page as a fraction of the whole book, learned by the host from the smallest
+  // observed forward step. 0 until the first forward turn.
+  const [pageSpan, setPageSpan] = useState(0);
 
   // Gates and overlays
   const [coverPending, setCoverPending] = useState(!!coverSplash);
@@ -528,6 +599,10 @@ export default function ReadingRoom({
   const idleTimer = useRef(null);
   const panelRef = useRef('none');
   useEffect(() => { panelRef.current = panel; }, [panel]);
+  // Read by the relocate handler, which must not re-bind on every visibility change.
+  const chromeVisibleRef = useRef(true);
+  useEffect(() => { chromeVisibleRef.current = chromeVisible; }, [chromeVisible]);
+  const saveRibbonRef = useRef(null);
   const searchIdRef = useRef(0);
   const searchDebounce = useRef(null);
 
@@ -565,17 +640,15 @@ export default function ReadingRoom({
           try {
             const db = await getDB();
             const { ref, get } = await import('firebase/database');
-            const snap = await get(ref(db, `users/${u.uid}/readerProgress/${slug}`));
+            const path = progressRef.current?.path?.(u.uid);
+            if (!path) { setReaderReady(true); return; }
+            const snap = await get(ref(db, path));
             if (snap.exists()) {
               const v = snap.val();
               if (typeof v === 'number') { restoreFractionRef.current = v; }
               else if (v && typeof v.cfi === 'string' && v.cfi) { restoreTargetRef.current = v.cfi; }
               else if (v && typeof v.fraction === 'number') { restoreFractionRef.current = v.fraction; }
-              if (restoreTargetRef.current || restoreFractionRef.current) {
-                setResumeToast(true);
-                setTimeout(() => setToastFading(true), 3200);
-                setTimeout(() => setResumeToast(false), 3800);
-              }
+              if (restoreTargetRef.current || restoreFractionRef.current) setResumeToast(true);
             }
           } catch (e) {}
           setReaderReady(true);
@@ -584,6 +657,16 @@ export default function ReadingRoom({
     })();
     return () => clearTimeout(timeout);
   }, [slug, progressEnabled]);
+
+  // The toast's life starts when the reader can actually SEE it. The lookup resolves while
+  // the cover splash is still up, so timing it from there spent the whole 3.8s behind the
+  // cover and a returning reader was never told their place had been kept.
+  useEffect(() => {
+    if (!resumeToast || coverPending) return undefined;
+    const fade = setTimeout(() => setToastFading(true), 3200);
+    const gone = setTimeout(() => setResumeToast(false), 3800);
+    return () => { clearTimeout(fade); clearTimeout(gone); };
+  }, [resumeToast, coverPending]);
 
   // ── Ribbons: live subscription per user per book ─────────────────────────────
   useEffect(() => {
@@ -604,10 +687,10 @@ export default function ReadingRoom({
     return () => { if (unsub) unsub(); };
   }, [ribbonsOn, user?.uid, slug]);
 
-  // ── Auto-save CFI progress (debounced ~2s). Shape: { cfi, fraction, updatedAt }. ──
-  // Gated on progressEnabled: the bookstore registers write NOTHING until R7.2 gives
-  // them a private node. readerProgress lives under users/{uid}, which is world-readable
-  // (database.rules.json:117-119), so a purchased reading position does not go there.
+  // ── Auto-save the position (debounced ~2s). Shape: { cfi?, fraction, updatedAt }. ──
+  // The destination is the register's own node: stories keep users/{uid}/readerProgress,
+  // purchased books go to the owner-only bookstore_reading_progress. Samples pass no node
+  // and this effect never runs for them.
   useEffect(() => {
     if (!progressEnabled || !user) return undefined;
     if (!pct || pct < 1) return undefined;
@@ -616,12 +699,14 @@ export default function ReadingRoom({
       try {
         const db = await getDB();
         const { ref, set } = await import('firebase/database');
-        await set(ref(db, `users/${user.uid}/readerProgress/${slug}`), {
-          cfi: currentCFI.current || null,
-          fraction: currentFraction.current || pct / 100,
-          updatedAt: Date.now(),
-        });
-      } catch (e) { console.warn('[reader] readerProgress save failed:', e); }
+        const path = progressRef.current?.path?.(user.uid);
+        if (!path) return;
+        // The bookstore node is shape-validated (fraction + updatedAt required, $other
+        // closed), so cfi is omitted rather than written as null when there isn't one.
+        const record = { fraction: currentFraction.current || pct / 100, updatedAt: Date.now() };
+        if (currentCFI.current) record.cfi = currentCFI.current;
+        await set(ref(db, path), record);
+      } catch (e) { console.warn('[reader] progress save failed:', e); }
     }, 2000);
     return () => { if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current); };
   }, [pct, progressEnabled, user?.uid, slug]);
@@ -653,6 +738,21 @@ export default function ReadingRoom({
     bumpIdle();
   }, [postToFrame, bumpIdle]);
 
+  // Escape closes whatever sheet is open. R7.0 §4 recorded that the panels could only be
+  // dismissed by their backdrop; a keyboard reader had no way out. Focus is in the parent
+  // document whenever a sheet is up (the reader just used a chrome control), so a
+  // parent-level listener is sufficient — the iframe cannot be reached behind a backdrop.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (panelRef.current === 'none') return;
+      e.preventDefault();
+      closePanel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [closePanel]);
+
   // Kick off the idle countdown once reading begins.
   useEffect(() => {
     if (!coverPending && !ended) bumpIdle();
@@ -679,6 +779,12 @@ export default function ReadingRoom({
         setChapterLabel(d.chapterLabel || '');
         if (d.chapterHref) setChapterHref(d.chapterHref);
         setBotInfo({ cur: d.pageCurrent, total: d.pageTotal, pct: d.pct, minLeft: d.minLeft });
+        if (typeof d.pageSpan === 'number' && d.pageSpan > 0) setPageSpan(d.pageSpan);
+        // R7.2 (recon §8.5): turning pages IS activity. The 3.5s countdown restarts on
+        // every relocate while the chrome is up, so chrome stays for as long as the reader
+        // is moving and hides only on true idleness. When the chrome is already hidden a
+        // page turn must NOT summon it — hence the guard rather than an unconditional bump.
+        if (chromeVisibleRef.current) bumpIdle();
         cbRef.current.onRelocate?.({
           cfi: d.cfi, fraction: currentFraction.current, pct: d.pct,
           pageCurrent: d.pageCurrent, pageTotal: d.pageTotal,
@@ -689,6 +795,8 @@ export default function ReadingRoom({
         cbRef.current.onEnded?.();
       } else if (d.type === 'toggleChrome') {
         toggleChrome();
+      } else if (d.type === 'bookmarkCFI') {
+        saveRibbonRef.current?.(d);
       } else if (d.type === 'error') {
         cbRef.current.onError?.(d.message || null);
       } else if (d.type === 'searchResults' && d.id === searchIdRef.current) {
@@ -699,7 +807,7 @@ export default function ReadingRoom({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [postToFrame, toggleChrome]);
+  }, [postToFrame, toggleChrome, bumpIdle]);
 
   // ── Typesetter handlers ───────────────────────────────────────────────────────
   // WALL §7.10 — every change travels by message. Nothing here touches the src.
@@ -718,30 +826,61 @@ export default function ReadingRoom({
   const onLeading = (delta) => applyPrefs({ leading: clampLeading(prefsRef.current.leading + delta) });
   const onFlow = (flow) => applyPrefs({ flow }, 'flow');
 
-  // ── Ribbon drop / remove ──────────────────────────────────────────────────────
-  const dropRibbon = useCallback(async () => {
+  // ── Ribbons: the tab IS the current page's state ─────────────────────────────
+  const currentRibbon = useMemo(
+    () => findRibbonOnPage(ribbons, fraction, pageSpan),
+    [ribbons, fraction, pageSpan],
+  );
+
+  const removeRibbonById = useCallback(async (id) => {
+    if (!user || !id) return;
+    try {
+      const db = await getDB();
+      const { ref, remove } = await import('firebase/database');
+      await remove(ref(db, `readerBookmarks/${user.uid}/${slug}/${id}`));
+    } catch (e) { console.warn('[reader] ribbon remove failed', e); }
+  }, [user, slug]);
+
+  // The host's answer to requestBookmark. It, not the parent, is the authority on where
+  // the reader actually is and what the page says, so the dedupe re-runs against the
+  // fraction that comes back rather than the one in state.
+  const saveRibbon = useCallback(async (payload) => {
     if (!user) { cbRef.current.onRequireAuth?.(); return; }
-    const cfi = currentCFI.current;
+    const cfi = payload?.cfi || currentCFI.current;
     if (!cfi) return;
+    const f = typeof payload?.fraction === 'number' ? payload.fraction : currentFraction.current;
+    const already = findRibbonOnPage(ribbons, f, pageSpan);
+    if (already) { await removeRibbonById(already.id); return; } // never two on one page
     if (!reduced) { setRibbonDropping(true); setTimeout(() => setRibbonDropping(false), 650); }
     try {
       const db = await getDB();
       const { ref, push } = await import('firebase/database');
       await push(ref(db, `readerBookmarks/${user.uid}/${slug}`), {
-        cfi, label: chapterLabel || null, createdAt: Date.now(),
+        cfi,
+        fraction: f,
+        label: payload?.chapterLabel || chapterLabel || null,
+        excerpt: payload?.excerpt || '',
+        createdAt: Date.now(),
       });
     } catch (e) { console.warn('[reader] ribbon save failed', e); }
-  }, [user, slug, chapterLabel, reduced]);
+  }, [user, slug, chapterLabel, reduced, ribbons, pageSpan, removeRibbonById]);
+  useEffect(() => { saveRibbonRef.current = saveRibbon; }, [saveRibbon]);
 
-  const removeRibbon = useCallback(async (r) => {
+  // One tap, two meanings, no dialog either way — the mock's contract. Dropping asks the
+  // host for the page's CFI, fraction and opening words; the write lands in saveRibbon.
+  const onRibbonTap = useCallback(() => {
+    if (!user) { cbRef.current.onRequireAuth?.(); return; }
+    if (currentRibbon) { removeRibbonById(currentRibbon.id); return; }
+    postToFrame({ type: 'requestBookmark' });
+  }, [user, currentRibbon, removeRibbonById, postToFrame]);
+
+  // The Contents list keeps its confirm: removing from a list is a different act from
+  // un-marking the page you are looking at.
+  const removeRibbonFromList = useCallback(async (r) => {
     if (!user) return;
     if (!window.confirm('Remove this ribbon?')) return;
-    try {
-      const db = await getDB();
-      const { ref, remove } = await import('firebase/database');
-      await remove(ref(db, `readerBookmarks/${user.uid}/${slug}/${r.id}`));
-    } catch (e) {}
-  }, [user, slug]);
+    await removeRibbonById(r.id);
+  }, [user, removeRibbonById]);
 
   const jumpTo = useCallback((cfiOrHref) => {
     postToFrame({ type: 'goTo', cfi: cfiOrHref });
@@ -779,6 +918,14 @@ export default function ReadingRoom({
   const chromeOff = coverPending || ended || !chromeVisible;
   const showFurniture = !coverPending && !ended;
   const mountFrame = !coverPending && readerReady && !!iframeSrc;
+
+  // Page number for a stored fraction, by the same arithmetic the host uses for the footer
+  // (reading-room.html computePages), so a ribbon's page and the footer's page agree.
+  const pageOf = (f) => {
+    if (!(pageSpan > 0) || typeof f !== 'number') return null;
+    const total = botInfo.total || Math.max(1, Math.round(1 / pageSpan));
+    return Math.min(total, Math.max(1, Math.round(f / pageSpan) + 1));
+  };
 
   const botText = (() => {
     const parts = [];
@@ -829,7 +976,14 @@ export default function ReadingRoom({
         </header>
 
         {showFurniture && ribbonsOn && (
-          <button className={'rr-ribbon-tab' + (ribbonDropping ? ' dropping' : '')} onClick={dropRibbon} aria-label="Drop a ribbon" style={{ height: 48 }}>
+          <button
+            className={'rr-ribbon-tab' + (currentRibbon ? ' filled' : ' empty') + (ribbonDropping ? ' dropping' : '')}
+            onClick={onRibbonTap}
+            aria-pressed={!!currentRibbon}
+            aria-label={currentRibbon ? 'Remove the ribbon on this page' : 'Drop a ribbon on this page'}
+            title={currentRibbon ? 'Remove this ribbon' : 'Drop a ribbon'}
+            style={{ height: 48 }}
+          >
             {ribbons.length > 0 && <span className="rr-ribbon-count">{ribbons.length}</span>}
           </button>
         )}
@@ -846,7 +1000,11 @@ export default function ReadingRoom({
           <TypesetterPanel prefs={prefs} onPaper={onPaper} onFace={onFace} onSize={onSize} onLeading={onLeading} onFlow={onFlow} onClose={closePanel} />
         )}
         {panel === 'toc' && (
-          <ContentsPanel toc={toc} chapterHref={chapterHref} ribbons={ribbons} showRibbons={ribbonsOn} onJump={jumpTo} onRemoveRibbon={removeRibbon} onClose={closePanel} />
+          <ContentsPanel
+            toc={toc} chapterHref={chapterHref} ribbons={ribbons} showRibbons={ribbonsOn}
+            currentRibbonId={currentRibbon?.id || null} pageOf={pageOf}
+            onJump={jumpTo} onRemoveRibbon={removeRibbonFromList} onClose={closePanel}
+          />
         )}
         {panel === 'search' && (
           <SearchPanel query={searchQuery} setQuery={setSearchQuery} results={searchResults} truncated={searchTruncated} searching={searching} onPick={pickResult} onClose={closePanel} />

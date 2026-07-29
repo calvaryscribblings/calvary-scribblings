@@ -138,6 +138,24 @@ const sectionWords = new Map()
 let currentIndex = -1
 let endedFired = false
 let searchToken = 0
+// The visible range of the current page, captured on every relocate. foliate's paginator
+// computes it as part of #afterScroll and hands it to us in the relocate detail, so the
+// page's own text is available without walking the column geometry ourselves.
+let lastRange = null
+
+// R7.2: the first ~80 visible characters of the current page, for the ribbon's excerpt.
+// Graceful '' on any failure — a ribbon with no excerpt is still a working ribbon.
+function pageExcerpt() {
+  try {
+    const raw = lastRange ? String(lastRange) : ''
+    const clean = raw.replace(/\s+/g, ' ').trim()
+    if (!clean) return ''
+    if (clean.length <= 80) return clean
+    const cut = clean.slice(0, 80)
+    const sp = cut.lastIndexOf(' ')
+    return (sp > 48 ? cut.slice(0, sp) : cut).trimEnd() + '…'
+  } catch (e) { return '' }
+}
 
 function countWords(doc) {
   try { return (doc.body.innerText || '').trim().split(/\s+/).filter(Boolean).length } catch { return 0 }
@@ -182,10 +200,42 @@ function flattenTOC(items, level = 0, out = []) {
   return out
 }
 
-// ── Tap zones: left/right thirds = page turn, centre = toggle the parent's chrome. Links still
-// work (foliate handles link clicks; we skip page-turn when the tap lands on an anchor). ──
-function onTap(clientX, target) {
+// ── Tap zones: left/right thirds = page turn, centre = toggle the parent's chrome. ────
+//
+// R7.2 — ONE OWNER PER FLOW (recon §8.3). foliate's paginator binds its own touch handlers
+// to this same section document (paginator.js:568-574) and, in PAGINATED flow, drags the
+// columns and snaps to a page on release. Our old handler then turned the page a SECOND
+// time on any |dx| > 50. So:
+//   • paginated  → the paginator owns drags; we handle taps only and bail on any travel.
+//   • scrolled   → the paginator early-returns on touch (paginator.js:842, :855), so the
+//                  swipe is genuinely unhandled and ours to act on.
+// `renderer.scrolled` reads the live `flow` attribute, so a mid-session Typesetter switch
+// moves ownership with it.
+//
+// And the reason a centre tap used to do nothing on a phone: a tap fires touchend AND a
+// synthesised click, so onTap ran twice and the chrome toggled straight back. The
+// timestamp latch below swallows the compatibility click.
+const TAP_SLOP = 12              // px of travel still read as a tap, not a drag
+const CLICK_AFTER_TOUCH_MS = 700 // window in which a click is a touch's synthetic echo
+let lastTouchTapAt = 0
+
+function isScrolledFlow() {
+  const r = view && view.renderer
+  if (r && typeof r.scrolled === 'boolean') return r.scrolled
+  return state.flow === 'scrolled'
+}
+
+// A release that ends a selection is not a tap (recon §8.4): no turn, no chrome.
+function hasLiveSelection(doc) {
+  try {
+    const sel = (doc || document).getSelection()
+    return !!sel && !sel.isCollapsed && String(sel).trim().length > 0
+  } catch (e) { return false }
+}
+
+function onTap(clientX, target, doc) {
   if (target && target.closest && target.closest('a[href]')) return // let links through
+  if (hasLiveSelection(doc)) return
   const w = window.innerWidth
   if (clientX < w / 3) view?.goLeft()
   else if (clientX > (w * 2) / 3) view?.goRight()
@@ -204,6 +254,7 @@ if (!url) {
     const fraction = detail.fraction ?? 0
     lastCFI = detail.cfi || view.lastLocation?.cfi || lastCFI
     lastChapter = detail.tocItem?.label || lastChapter
+    lastRange = detail.range || lastRange
     if (fraction > lastFraction) {
       const step = fraction - lastFraction
       if (step > 0 && step < 0.5 && (minStep === 0 || step < minStep)) minStep = step
@@ -216,6 +267,10 @@ if (!url) {
       pageCurrent: cur, pageTotal: total,
       pct: Math.round(fraction * 100),
       minLeft: computeMinLeft(),
+      // R7.2, additive: the smallest observed forward step — one page as a fraction of the
+      // whole book. The parent derives its "is a ribbon on THIS page" epsilon from it.
+      // 0 until the first forward turn; the parent falls back until then.
+      pageSpan: minStep,
     })
     if (!endedFired && fraction >= 0.999) { endedFired = true; post({ type: 'ended' }) }
   })
@@ -232,16 +287,38 @@ if (!url) {
     respectAuthorAlignment(detail.doc)
     currentIndex = detail.index
     if (!sectionWords.has(currentIndex)) sectionWords.set(currentIndex, countWords(detail.doc))
-    // Tap + swipe on the section document.
-    let tx = null
-    detail.doc.addEventListener('touchstart', (e) => { tx = e.touches[0]?.clientX ?? null }, { passive: true })
+    // Tap + swipe on the section document. See the ownership note above onTap.
+    let tx = null, ty = null
+    detail.doc.addEventListener('touchstart', (e) => {
+      const t = e.touches[0]
+      tx = t ? t.clientX : null
+      ty = t ? t.clientY : null
+    }, { passive: true })
     detail.doc.addEventListener('touchend', (e) => {
       if (tx === null) return
-      const dx = tx - (e.changedTouches[0]?.clientX ?? tx); const startX = tx; tx = null
-      if (Math.abs(dx) > 50) { dx > 0 ? view.goRight() : view.goLeft() }
-      else onTap(startX, e.target)
+      const startX = tx, startY = ty
+      tx = null; ty = null
+      const t = e.changedTouches[0]
+      const dx = startX - (t ? t.clientX : startX)
+      const dy = startY - (t ? t.clientY : startY)
+      if (hasLiveSelection(detail.doc)) return
+      if (isScrolledFlow()) {
+        // Ours: the paginator did not act on this gesture.
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+          lastTouchTapAt = Date.now()
+          dx > 0 ? view.goRight() : view.goLeft()
+          return
+        }
+      } else if (Math.abs(dx) > TAP_SLOP || Math.abs(dy) > TAP_SLOP) {
+        return // the paginator already snapped this drag — do not turn again
+      }
+      lastTouchTapAt = Date.now()
+      onTap(startX, e.target, detail.doc)
     })
-    detail.doc.addEventListener('click', (e) => onTap(e.clientX, e.target))
+    detail.doc.addEventListener('click', (e) => {
+      if (Date.now() - lastTouchTapAt < CLICK_AFTER_TOUCH_MS) return
+      onTap(e.clientX, e.target, detail.doc)
+    })
     detail.doc.addEventListener('keydown', handleKey)
   })
 
@@ -251,7 +328,10 @@ if (!url) {
   }
   document.addEventListener('keydown', handleKey)
   // Host-frame taps (margins outside the section doc) also route through the zone logic.
-  document.addEventListener('click', (e) => { if (e.target === document.body || e.target === view) onTap(e.clientX, e.target) })
+  document.addEventListener('click', (e) => {
+    if (Date.now() - lastTouchTapAt < CLICK_AFTER_TOUCH_MS) return
+    if (e.target === document.body || e.target === view) onTap(e.clientX, e.target, document)
+  })
 
   view.open(url).then(() => {
     view.renderer?.setStyles?.(buildCSS(state))
@@ -303,8 +383,17 @@ window.addEventListener('message', async (e) => {
       if (!ready) { pendingFraction = d.fraction; break }
       try { view.goToFraction(d.fraction) } catch (err) {}
       break
+    // R7.2: the round trip that shipped orphaned in R4a now carries everything a ribbon
+    // record needs. `excerpt` is the current page's own opening words, so a ribbon reads
+    // as the passage it marks rather than as 'Bookmarked passage'.
     case 'requestBookmark':
-      post({ type: 'bookmarkCFI', cfi: lastCFI, chapterLabel: lastChapter || null })
+      post({
+        type: 'bookmarkCFI',
+        cfi: lastCFI,
+        chapterLabel: lastChapter || null,
+        fraction: lastFraction,
+        excerpt: pageExcerpt(),
+      })
       break
     case 'clearSearch':
       try { view?.clearSearch?.() } catch (err) {}

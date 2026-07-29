@@ -33,11 +33,12 @@
 //     node (database.rules.json:117-119); a purchased reading position waits for R7.2's
 //     private node and its rules change. Writing nothing beats writing it there.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import AuthModal from '../../components/AuthModal';
 import BuyButton from '../../bookstore/components/BuyButton';
 import { requestStreamUrl } from '../../lib/bookstore/stream';
+import { formatCatalogueNumber } from '../../bookstore/components/fields';
 import ReadingRoom from './ReadingRoom';
 
 function readSampleFlag() {
@@ -172,14 +173,17 @@ export default function BookstoreReaderClient({ slug, title }) {
   // Purchased: the colophon. A printer's last page — the book closing on itself, not a
   // shop window. Rendered as an OVERLAY by the Reading Room, so the frame underneath keeps
   // its place and 'Back to book' is never a reload.
-  const catalogueMark = title.isbn || title.id || null;
+  // R7.2: the mark the whole catalogue now shows — 'CS 007'. No isbn/id fallback: an ISBN
+  // is a different number for a different purpose, and a push key is not a catalogue mark.
+  // Absent catalogueNumber ⇒ the line is simply not printed.
+  const catalogueMark = formatCatalogueNumber(title.catalogueNumber);
   const colophon = () => (
     <div className="rr-colo">
       <div className="rr-colo-fleuron">&#10086;</div>
       <div className="rr-colo-title">{title.title}</div>
       <div className="rr-colo-rule" />
       <div className="rr-colo-cat">
-        {catalogueMark && <>№ {catalogueMark}<br /></>}
+        {catalogueMark && <>{catalogueMark}<br /></>}
         Calvary Scribblings
       </div>
       <p className="rr-colo-note">Set in the Reading Room.<br />Thank you for reading.</p>
@@ -212,6 +216,32 @@ export default function BookstoreReaderClient({ slug, title }) {
     </div>
   );
 
+  // ── The cover splash ────────────────────────────────────────────────────────
+  // The same bound-book opening a story gets: fleuron, the bound cover at its own ratio,
+  // title, author, and a one-way tap to begin. The binding treatment is the Reading Room's
+  // (.rr-cbind / .rr-cimg), so a book and a story open with the same gesture and the same
+  // object. coverUrl is required on published titles; the guard is for drafts previewed by
+  // an admin, where the splash degrades to type alone rather than a broken image.
+  const coverSplash = (
+    <>
+      <div className="rr-corn">&#10022; &#10022; &#10022;</div>
+      {title.coverUrl && (
+        <div className="rr-cbind"><img src={title.coverUrl} alt={title.title} className="rr-cimg" /></div>
+      )}
+      <div className="rr-ctitle">{title.title}</div>
+      <div className="rr-cauthor">by {title.author}</div>
+      <div className="rr-ccta">{isSample ? 'Open the sample' : 'Open to begin reading'}</div>
+    </>
+  );
+
+  // PRIVATE reading position. bookstore_reading_progress/{uid}/{titleId} is owner-only and
+  // shape-validated (R7.2 rules). Keyed by titleId — the bookstore_titles push key — not by
+  // slug: a slug can be re-pointed by an editor, a purchase never can. Samples pass nothing.
+  const bookProgress = useMemo(
+    () => ({ path: (uid) => `bookstore_reading_progress/${uid}/${title.id}` }),
+    [title.id],
+  );
+
   // ── Sample mode ─────────────────────────────────────────────────────────────
   if (isSample) {
     if (loadError) {
@@ -234,6 +264,7 @@ export default function BookstoreReaderClient({ slug, title }) {
           meta={{ slug, title: title.title, author: title.author }}
           escape={{ href: `/bookstore/${slug}`, label: '← Store' }}
           user={user}
+          coverSplash={coverSplash}
           banner={(
             <div className="rr-banner">
               <span className="rr-banner-label">Sample · {title.title}</span>
@@ -258,6 +289,8 @@ export default function BookstoreReaderClient({ slug, title }) {
           escape={{ href: '/my-library', label: '← Library' }}
           user={user}
           ribbons
+          progress={bookProgress}
+          coverSplash={coverSplash}
           renderEnding={colophon}
           onError={handleHostError}
           onRequireAuth={() => setShowAuth(true)}

@@ -6,7 +6,7 @@
 //   Mobile (<640px):  a bottom sheet with a grab handle, slides up (no morph).
 // Escape / veil / × = put back: the modal recedes and the caller un-flips the book.
 import { useEffect, useRef, useState } from 'react';
-import { formatGbp, resolveOpeningLine, resolveBackBlurb } from './fields';
+import { formatGbp, resolveOpeningLine, resolveBackBlurb, formatCatalogueNumber } from './fields';
 
 const CARD_W = 440;
 
@@ -45,7 +45,7 @@ export default function QuickLookModal({ title, originRect, onClose }) {
   const opening = resolveOpeningLine(title);
   const blurb = resolveBackBlurb(title);
   const price = formatGbp(title.prices?.gbp);
-  const cat = Number.isInteger(title.catalogueNumber) ? title.catalogueNumber : null;
+  const cat = formatCatalogueNumber(title.catalogueNumber);
 
   // Desktop morph transform for the enter/closing phases.
   let cardTransform = 'translate(0,0) scale(1)';
@@ -101,7 +101,7 @@ export default function QuickLookModal({ title, originRect, onClose }) {
         >&times;</button>
 
         {cat !== null && (
-          <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.56rem', letterSpacing: '.26em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.7rem' }}>No. {cat}</div>
+          <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.56rem', letterSpacing: '.26em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.7rem' }}>{cat}</div>
         )}
         <h2 style={{ fontFamily: "'Cinzel',serif", fontSize: '1.5rem', fontWeight: 600, lineHeight: 1.15, color: '#f0ead8', marginBottom: '.35rem' }}>{title.title}</h2>
         <p style={{ fontSize: '1rem', fontStyle: 'italic', color: 'rgba(240,234,216,.5)', marginBottom: '1.3rem' }}>by {title.author}</p>
