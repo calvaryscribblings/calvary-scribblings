@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reading Room harness</title>
+<!--
+  The parent stub. It stands in for app/reader/[slug]/ReadingRoom.js and does exactly one
+  thing the component does: hold the iframe and listen on the origin-locked bridge. Every
+  message the host posts is appended to window.__msgs in arrival order, so a test can
+  assert on COUNTS and ORDER rather than on the absence of an error.
+
+  The iframe carries the same sandbox attributes the component uses, and fills the viewport
+  exactly, so a tap at page coordinate (x, y) is a tap at (x, y) inside the reader.
+-->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #f2ecd9; }
+  #room { display: block; border: 0; width: 100vw; height: 100vh; }
+</style>
+<div id="mount"></div>
+<script>
+  window.__msgs = [];
+  window.__clearMsgs = () => { window.__msgs.length = 0; };
+
+  const params = new URLSearchParams(location.search);
+  const query = params.get('q') || '';
+
+  const frame = document.createElement('iframe');
+  frame.id = 'room';
+  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  frame.src = '/reading-room.html?' + query;
+  document.getElementById('mount').append(frame);
+
+  window.addEventListener('message', (e) => {
+    if (e.source !== frame.contentWindow) return;
+    if (!e.data || typeof e.data !== 'object') return;
+    window.__msgs.push(e.data);
+  });
+
+  // The component's postToFrame, verbatim in behaviour: origin-locked, targeted.
+  window.__post = (msg) => frame.contentWindow.postMessage(msg, location.origin);
+  window.__room = () => frame.contentWindow;
+</script>

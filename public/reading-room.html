@@ -217,7 +217,36 @@ function flattenTOC(items, level = 0, out = []) {
 // timestamp latch below swallows the compatibility click.
 const TAP_SLOP = 12              // px of travel still read as a tap, not a drag
 const CLICK_AFTER_TOUCH_MS = 700 // window in which a click is a touch's synthetic echo
-let lastTouchTapAt = 0
+let lastTouchEndAt = 0
+
+// R7.2.1 — THE COORDINATE FIX, measured in tests/reader/tap-zones.spec.mjs.
+//
+// foliate expands the SECTION IFRAME to the whole column strip (paginator.js:377 —
+// iframe.style.width = pageCount * size) and scrolls the container over it. So inside a
+// section document, window.innerWidth is the width of the entire chapter, not of one page,
+// and clientX is a position along that strip. Measured on the harness book at a 400px
+// viewport, tapping dead centre (x=200):
+//
+//   page 1 | section innerWidth 1860 | frameLeft   +14 | clientX 186 → LEFT third
+//   page 3 | section innerWidth 1860 | frameLeft  -730 | clientX 930 → CENTRE third
+//   page 7 | section innerWidth 1860 | frameLeft  -358 | clientX 558 → LEFT third
+//
+// Same tap, three different zones. The relation is exact: clientX = tapX - frameLeft. So
+// adding frameLeft back maps the coordinate into the READER's own viewport, where the
+// thirds actually mean what they say. frameElement is the primitive rather than
+// renderer.start/size because it carries the paginator's margins and gutters too, needs no
+// knowledge of foliate's internals, and is correct in scrolled flow and RTL alike.
+function toHostX(clientX, doc) {
+  // The host document's own coordinates are already the reader's; only a nested section
+  // document needs mapping, and mapping the host would wrongly add the reader iframe's
+  // offset within the app page.
+  if (!doc || doc === document) return clientX
+  try {
+    const frameEl = doc.defaultView && doc.defaultView.frameElement
+    if (frameEl) return clientX + frameEl.getBoundingClientRect().left
+  } catch (e) { /* cross-origin can't happen here; fall through */ }
+  return clientX
+}
 
 function isScrolledFlow() {
   const r = view && view.renderer
@@ -236,9 +265,10 @@ function hasLiveSelection(doc) {
 function onTap(clientX, target, doc) {
   if (target && target.closest && target.closest('a[href]')) return // let links through
   if (hasLiveSelection(doc)) return
-  const w = window.innerWidth
-  if (clientX < w / 3) view?.goLeft()
-  else if (clientX > (w * 2) / 3) view?.goRight()
+  const x = toHostX(clientX, doc)
+  const w = window.innerWidth   // the READER's width — the surface the reader is touching
+  if (x < w / 3) view?.goLeft()
+  else if (x > (w * 2) / 3) view?.goRight()
   else post({ type: 'toggleChrome' })
 }
 
@@ -301,22 +331,25 @@ if (!url) {
       const t = e.changedTouches[0]
       const dx = startX - (t ? t.clientX : startX)
       const dy = startY - (t ? t.clientY : startY)
+      // R7.2.1: latch on EVERY touch end, before any early return. Measured: a drag that
+      // our handler correctly declines still produced a compatibility click, which fell
+      // through to onTap and turned a second page — the other half of the double-turn.
+      // What must be suppressed is the echo of a touch sequence, not of a handled tap.
+      lastTouchEndAt = Date.now()
       if (hasLiveSelection(detail.doc)) return
       if (isScrolledFlow()) {
         // Ours: the paginator did not act on this gesture.
         if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
-          lastTouchTapAt = Date.now()
           dx > 0 ? view.goRight() : view.goLeft()
           return
         }
       } else if (Math.abs(dx) > TAP_SLOP || Math.abs(dy) > TAP_SLOP) {
         return // the paginator already snapped this drag — do not turn again
       }
-      lastTouchTapAt = Date.now()
       onTap(startX, e.target, detail.doc)
     })
     detail.doc.addEventListener('click', (e) => {
-      if (Date.now() - lastTouchTapAt < CLICK_AFTER_TOUCH_MS) return
+      if (Date.now() - lastTouchEndAt < CLICK_AFTER_TOUCH_MS) return
       onTap(e.clientX, e.target, detail.doc)
     })
     detail.doc.addEventListener('keydown', handleKey)
@@ -329,7 +362,7 @@ if (!url) {
   document.addEventListener('keydown', handleKey)
   // Host-frame taps (margins outside the section doc) also route through the zone logic.
   document.addEventListener('click', (e) => {
-    if (Date.now() - lastTouchTapAt < CLICK_AFTER_TOUCH_MS) return
+    if (Date.now() - lastTouchEndAt < CLICK_AFTER_TOUCH_MS) return
     if (e.target === document.body || e.target === view) onTap(e.clientX, e.target, document)
   })
 

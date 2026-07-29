@@ -11,7 +11,8 @@
     "rules:deploy:db": "GOOGLE_APPLICATION_CREDENTIALS=serviceAccountKey.json firebase deploy --only database --project calvary-scribblings --non-interactive",
     "rules:deploy:storage": "GOOGLE_APPLICATION_CREDENTIALS=serviceAccountKey.json firebase deploy --only storage --project calvary-scribblings --non-interactive",
     "rules:pull": "node scripts/rules-pull.mjs",
-    "rules:check": "node scripts/rules-check.mjs"
+    "rules:check": "node scripts/rules-check.mjs",
+    "test:reader": "node tests/fixtures/make-epub.mjs && playwright test -c tests/reader/playwright.config.mjs"
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
@@ -25,6 +26,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
