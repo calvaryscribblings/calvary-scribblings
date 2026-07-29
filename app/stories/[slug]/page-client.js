@@ -12,6 +12,7 @@ import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
 import QuizCard from '../../components/QuizCard';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
+import NewsletterInvite from '../../components/NewsletterInvite';
 import ReadSeal from '../../components/ReadSeal';
 import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
 import { getReaderId } from '../../lib/readerId';
@@ -1484,6 +1485,12 @@ useEffect(() => {
           <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
         </div>
         <AboutTheAuthor story={story} />
+        {/* The invitation sits here and nowhere earlier: the closing ceremony
+            (.last-page → ReadSeal → .story-footer) finishes untouched inside
+            <main> on cream, three sections above. Story pages only — the
+            immersive reader at /reader/[slug] renders ReaderGate, not this
+            tree, so it cannot appear there. */}
+        <NewsletterInvite user={storyUser} />
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
         {showAuthModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={e => { if (e.target === e.currentTarget) setShowAuthModal(false); }}>
