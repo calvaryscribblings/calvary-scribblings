@@ -86,6 +86,10 @@ const LEAD_MIN = 1.3, LEAD_MAX = 2.2, LEAD_STEP = 0.08;
 const DEFAULT_PREFS = { paper: 'vellum', face: 'cormorant', sizePct: 100, leading: 1.6, flow: 'paginated' };
 const PREFS_KEY = 'readingRoom.prefs';
 const CHROME_IDLE_MS = 3500;
+// How long a cfi jump has to actually move the reader before the fraction takes over.
+// Long enough for a section load on a slow connection, short enough to feel like the tap
+// simply worked.
+const JUMP_WATCHDOG_MS = 1200;
 
 export function loadPrefs() {
   try {
@@ -229,15 +233,22 @@ function ContentsPanel({ toc, chapterHref, ribbons, showRibbons, currentRibbonId
                   r.label || null,
                   page ? `Page ${page}` : (typeof r.fraction === 'number' ? `${Math.round(r.fraction * 100)}%` : null),
                 ].filter(Boolean).join(' · ');
+                // A record is jumpable on either coordinate. Neither is the only dead case,
+                // and it is stated rather than left as a button that does nothing.
+                const jumpable = !!(typeof r.cfi === 'string' && r.cfi) || typeof r.fraction === 'number';
                 return (
                   <div key={r.id} className={'rr-ribbon-row' + (r.id === currentRibbonId ? ' current' : '')}>
-                    <button className="rr-ribbon-jump" onClick={() => onJump(r.cfi)}>
+                    <button className="rr-ribbon-jump" onClick={() => onJump(r)} disabled={!jumpable}>
                       <span className="rr-ribbon-dot" />
                       <span className="rr-ribbon-copy">
                         {r.excerpt
                           ? <span className="rr-ribbon-excerpt">&ldquo;{r.excerpt}&rdquo;</span>
                           : <span className="rr-ribbon-excerpt rr-ribbon-excerpt-bare">{r.label || 'A marked page'}</span>}
-                        <span className="rr-ribbon-where">{where}{where ? ' · ' : ''}{timeAgo(r.createdAt)}</span>
+                        <span className="rr-ribbon-where">
+                          {jumpable
+                            ? <>{where}{where ? ' · ' : ''}{timeAgo(r.createdAt)}</>
+                            : <>No saved position · {timeAgo(r.createdAt)}</>}
+                        </span>
                       </span>
                     </button>
                     <button className="rr-ribbon-x" onClick={() => onRemoveRibbon(r)} aria-label="Remove ribbon">&times;</button>
@@ -481,6 +492,13 @@ const ROOM_CSS = `
   .rr-resume-toast.in{animation:toastIn .4s ease forwards}
   .rr-resume-toast.out{animation:toastOut .4s ease forwards}
 
+  /* ?rrdebug=1 only. Deliberately plain and high-contrast: this exists to be legible in a
+     screenshot taken on a phone in a hurry, not to match the room. */
+  .rr-debug{position:fixed;left:0;right:0;bottom:0;z-index:120;max-height:44dvh;overflow-y:auto;
+    background:rgba(6,6,8,.94);color:#9ef39e;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:10px;line-height:1.5;padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+    border-top:1px solid rgba(158,243,158,.35);pointer-events:none;white-space:pre-wrap;word-break:break-word}
+  .rr-debug-head{color:#ffd479;font-weight:600;margin-bottom:4px}
   .rr-noepub{position:fixed;inset:0;background:#f6f0e2;display:flex;align-items:center;justify-content:center;font-family:Cormorant Garamond,Georgia,serif;font-style:italic;color:#888;font-size:1rem}
   .rr-booting{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--rr-bg)}
   .rr-spin{width:34px;height:34px;border:2px solid rgba(201,164,76,.2);border-top-color:#c9a44c;border-radius:50%;animation:spin .9s linear infinite}
@@ -605,6 +623,31 @@ export default function ReadingRoom({
   const saveRibbonRef = useRef(null);
   const searchIdRef = useRef(0);
   const searchDebounce = useRef(null);
+  const jumpIdRef = useRef(0);
+  const pendingJumpRef = useRef(null);
+
+  // ?rrdebug=1 — an on-glass trace of the jump chain: what came out of the database, what
+  // went onto the wire, what the host said back. Read in an effect rather than during
+  // render so the static export's first paint cannot disagree with the client's.
+  const [debug, setDebug] = useState(false);
+  const [debugLog, setDebugLog] = useState([]);
+  // A ref as well as state: dbg must stay identity-stable (it sits in effect deps) while
+  // still being able to no-op entirely when the flag is off, so production pays nothing.
+  const debugRef = useRef(false);
+  useEffect(() => {
+    let on = false;
+    try { on = new URLSearchParams(window.location.search).get('rrdebug') === '1'; } catch {}
+    debugRef.current = on;
+    setDebug(on);
+  }, []);
+  const dbg = useCallback((line) => {
+    if (!debugRef.current) return;
+    setDebugLog((prev) => {
+      const t = new Date();
+      const stamp = `${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}`;
+      return [...prev.slice(-13), `${stamp} ${line}`];
+    });
+  }, []);
 
   // Parent callbacks behind a ref: an adapter passing an inline arrow must not re-register
   // the window message listener on every render.
@@ -681,11 +724,14 @@ export default function ReadingRoom({
           if (snap.exists()) snap.forEach((c) => { out.push({ id: c.key, ...(c.val() || {}) }); return false; });
           out.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
           setRibbons(out);
+          const withCfi = out.filter((r) => typeof r.cfi === 'string' && r.cfi).length;
+          const withFrac = out.filter((r) => typeof r.fraction === 'number').length;
+          dbg(`ribbons read: ${out.length} (cfi ${withCfi}, fraction ${withFrac})`);
         });
       } catch (e) {}
     })();
     return () => { if (unsub) unsub(); };
-  }, [ribbonsOn, user?.uid, slug]);
+  }, [ribbonsOn, user?.uid, slug, dbg]);
 
   // ── Auto-save the position (debounced ~2s). Shape: { cfi?, fraction, updatedAt }. ──
   // The destination is the register's own node: stories keep users/{uid}/readerProgress,
@@ -780,6 +826,11 @@ export default function ReadingRoom({
         if (d.chapterHref) setChapterHref(d.chapterHref);
         setBotInfo({ cur: d.pageCurrent, total: d.pageTotal, pct: d.pct, minLeft: d.minLeft });
         if (typeof d.pageSpan === 'number' && d.pageSpan > 0) setPageSpan(d.pageSpan);
+        // The reader moved: whatever jump was in flight worked, so stand the watchdog down.
+        if (pendingJumpRef.current) {
+          if (pendingJumpRef.current.timer) clearTimeout(pendingJumpRef.current.timer);
+          pendingJumpRef.current = null;
+        }
         // R7.2 (recon §8.5): turning pages IS activity. The 3.5s countdown restarts on
         // every relocate while the chrome is up, so chrome stays for as long as the reader
         // is moving and hides only on true idleness. When the chrome is already hidden a
@@ -795,6 +846,15 @@ export default function ReadingRoom({
         cbRef.current.onEnded?.();
       } else if (d.type === 'toggleChrome') {
         toggleChrome();
+      } else if (d.type === 'goToAck') {
+        const pending = pendingJumpRef.current;
+        dbg(`ack #${d.id} ${d.ok ? 'ok' : `FAILED (${d.reason || d.message || 'unknown'})`}`);
+        if (!d.ok && pending && pending.id === d.id && typeof pending.fraction === 'number') {
+          if (pending.timer) clearTimeout(pending.timer);
+          pendingJumpRef.current = null;
+          dbg(`fallback → goToFraction ${pending.fraction.toFixed(4)}`);
+          postToFrame({ type: 'goToFraction', fraction: pending.fraction });
+        }
       } else if (d.type === 'bookmarkCFI') {
         saveRibbonRef.current?.(d);
       } else if (d.type === 'error') {
@@ -807,7 +867,7 @@ export default function ReadingRoom({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [postToFrame, toggleChrome, bumpIdle]);
+  }, [postToFrame, toggleChrome, bumpIdle, dbg]);
 
   // ── Typesetter handlers ───────────────────────────────────────────────────────
   // WALL §7.10 — every change travels by message. Nothing here touches the src.
@@ -865,6 +925,7 @@ export default function ReadingRoom({
     } catch (e) { console.warn('[reader] ribbon save failed', e); }
   }, [user, slug, chapterLabel, reduced, ribbons, pageSpan, removeRibbonById]);
   useEffect(() => { saveRibbonRef.current = saveRibbon; }, [saveRibbon]);
+  useEffect(() => () => { if (pendingJumpRef.current?.timer) clearTimeout(pendingJumpRef.current.timer); }, []);
 
   // One tap, two meanings, no dialog either way — the mock's contract. Dropping asks the
   // host for the page's CFI, fraction and opening words; the write lands in saveRibbon.
@@ -882,10 +943,52 @@ export default function ReadingRoom({
     await removeRibbonById(r.id);
   }, [user, removeRibbonById]);
 
-  const jumpTo = useCallback((cfiOrHref) => {
-    postToFrame({ type: 'goTo', cfi: cfiOrHref });
+  /**
+   * Jump to a ribbon record, or to a bare target string (a TOC href).
+   *
+   * R7.2.2 — TWO WAYS HOME. A CFI is the precise one and is tried first, but it can fail:
+   * it resolves against the book's structure, and a record written against a different
+   * build of the same EPUB, or a malformed one, will not resolve. The record's fraction is
+   * the coarse one and always resolves. So: cfi if there is one, fraction if there is not,
+   * and fraction again if the cfi comes back unresolved. A record is only unjumpable when
+   * it carries neither — and the Contents row says so rather than doing nothing.
+   *
+   * The 7 pre-R7.2 records live in production with a cfi and no fraction; they keep working
+   * through the first path, and need no migration.
+   */
+  const jumpTo = useCallback((target) => {
+    const rec = typeof target === 'string' ? { cfi: target } : (target || {});
+    const cfi = typeof rec.cfi === 'string' && rec.cfi ? rec.cfi : null;
+    const fraction = typeof rec.fraction === 'number' ? rec.fraction : null;
+    const id = ++jumpIdRef.current;
+
+    if (pendingJumpRef.current?.timer) clearTimeout(pendingJumpRef.current.timer);
+
+    if (cfi) {
+      // Measured (tests/reader/ribbon.spec.mjs): foliate acks ok:true for a CFI it cannot
+      // actually resolve — it resolves to nothing rather than rejecting. So the ack alone
+      // cannot prove the reader moved. The watchdog closes that gap: if no relocate arrives
+      // and the record carries a fraction, take the coarse route. Harmless when the ribbon
+      // was already on the current page — goToFraction lands in the same place.
+      const timer = fraction != null ? setTimeout(() => {
+        if (pendingJumpRef.current?.id !== id) return;
+        pendingJumpRef.current = null;
+        dbg(`no movement → goToFraction ${fraction.toFixed(4)}`);
+        postToFrame({ type: 'goToFraction', fraction });
+      }, JUMP_WATCHDOG_MS) : null;
+      pendingJumpRef.current = { id, fraction, timer };
+      dbg(`jump #${id} → goTo ${cfi.slice(0, 20)}… (frac ${fraction != null ? fraction.toFixed(4) : '—'})`);
+      postToFrame({ type: 'goTo', cfi, id });
+    } else if (fraction != null) {
+      pendingJumpRef.current = null;
+      dbg(`jump #${id} → goToFraction ${fraction.toFixed(4)} (no cfi)`);
+      postToFrame({ type: 'goToFraction', fraction, id });
+    } else {
+      pendingJumpRef.current = null;
+      dbg(`jump #${id} → nothing to jump to`);
+    }
     closePanel();
-  }, [postToFrame, closePanel]);
+  }, [postToFrame, closePanel, dbg]);
 
   // ── Search (debounced) ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1026,6 +1129,17 @@ export default function ReadingRoom({
 
         {ended && renderEnding && (
           <div className="rr-end-wrap">{renderEnding({ close: () => setEnded(false) })}</div>
+        )}
+
+        {debug && (
+          <div className="rr-debug">
+            <div className="rr-debug-head">
+              rrdebug · {register}{sample ? '/sample' : ''} · ribbons {ribbons.length}
+              {' · '}span {pageSpan ? pageSpan.toFixed(5) : '—'}
+              {' · '}frac {fraction.toFixed(4)}
+            </div>
+            {debugLog.length === 0 ? <div>waiting…</div> : debugLog.map((l, i) => <div key={i}>{l}</div>)}
+          </div>
         )}
       </div>
     </>

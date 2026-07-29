@@ -406,16 +406,31 @@ window.addEventListener('message', async (e) => {
     case 'setFlow': setFlow(d.flow); break
     case 'prev': view?.goLeft(); break
     case 'next': view?.goRight(); break
-    case 'goTo':
-      if (!d.cfi) break
-      if (!ready) { pendingGoTo = d.cfi; break }
-      try { view.goTo(d.cfi) } catch (err) {}
+    // R7.2.2: every navigation now ACKS. view.goTo is async, and the old synchronous
+    // try/catch could not catch its rejection — a CFI that failed to resolve died in
+    // silence, with nothing in the console and nothing for the parent to act on. The ack
+    // makes the failure a fact the parent can respond to (it falls back to the record's
+    // fraction), and makes the whole chain visible under ?rrdebug=1.
+    case 'goTo': {
+      const id = d.id ?? null
+      if (!d.cfi) { post({ type: 'goToAck', id, ok: false, reason: 'no-target' }); break }
+      if (!ready) { pendingGoTo = d.cfi; post({ type: 'goToAck', id, ok: true, reason: 'queued' }); break }
+      Promise.resolve()
+        .then(() => view.goTo(d.cfi))
+        .then(() => post({ type: 'goToAck', id, ok: true }))
+        .catch((err) => post({ type: 'goToAck', id, ok: false, reason: 'unresolved', message: String(err && err.message || err) }))
       break
-    case 'goToFraction':
-      if (typeof d.fraction !== 'number') break
-      if (!ready) { pendingFraction = d.fraction; break }
-      try { view.goToFraction(d.fraction) } catch (err) {}
+    }
+    case 'goToFraction': {
+      const id = d.id ?? null
+      if (typeof d.fraction !== 'number') { post({ type: 'goToAck', id, ok: false, reason: 'no-target' }); break }
+      if (!ready) { pendingFraction = d.fraction; post({ type: 'goToAck', id, ok: true, reason: 'queued' }); break }
+      Promise.resolve()
+        .then(() => view.goToFraction(d.fraction))
+        .then(() => post({ type: 'goToAck', id, ok: true }))
+        .catch((err) => post({ type: 'goToAck', id, ok: false, reason: 'unresolved', message: String(err && err.message || err) }))
       break
+    }
     // R7.2: the round trip that shipped orphaned in R4a now carries everything a ribbon
     // record needs. `excerpt` is the current page's own opening words, so a ribbon reads
     // as the passage it marks rather than as 'Bookmarked passage'.

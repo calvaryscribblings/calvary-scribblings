@@ -28,10 +28,10 @@ test('paginated: our layer contributes NOTHING to a drag — no second turn', as
     const mk = (x) => new win.Touch({ identifier: 1, target: doc.body, clientX: x, clientY: 400 });
     const start = mk(370);
     const end = mk(30);
-    doc.dispatchEvent(new win.TouchEvent('touchstart', { bubbles: true, touches: [start], changedTouches: [start] }));
-    doc.dispatchEvent(new win.TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [end] }));
+    doc.body.dispatchEvent(new win.TouchEvent('touchstart', { bubbles: true, touches: [start], changedTouches: [start] }));
+    doc.body.dispatchEvent(new win.TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [end] }));
     // The echo a real drag leaves behind.
-    doc.dispatchEvent(new win.MouseEvent('click', { bubbles: true, clientX: 30, clientY: 400 }));
+    doc.body.dispatchEvent(new win.MouseEvent('click', { bubbles: true, clientX: 30, clientY: 400 }));
   });
   await settle(page, 700);
 
@@ -95,9 +95,9 @@ test('selection guard: releasing a selection in the centre third does nothing', 
     const x = Math.round(win.innerWidth / 2);
     const y = Math.round(win.innerHeight / 2);
     const touch = new win.Touch({ identifier: 1, target: doc.body, clientX: x, clientY: y });
-    doc.dispatchEvent(new win.TouchEvent('touchstart', { bubbles: true, touches: [touch], changedTouches: [touch] }));
-    doc.dispatchEvent(new win.TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch] }));
-    doc.dispatchEvent(new win.MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
+    doc.body.dispatchEvent(new win.TouchEvent('touchstart', { bubbles: true, touches: [touch], changedTouches: [touch] }));
+    doc.body.dispatchEvent(new win.TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch] }));
+    doc.body.dispatchEvent(new win.MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
     return true;
   });
   expect(madeSelection, 'the test must have made a live selection').toBe(true);
