@@ -491,6 +491,7 @@ const ROOM_CSS = `
   .rr-resume-toast{position:fixed;bottom:calc(52px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:#6b2fad;border:1px solid rgba(201,164,76,0.3);border-radius:999px;padding:9px 20px;font-family:Cormorant Garamond,Georgia,serif;font-size:.82rem;font-style:italic;color:#f0ead8;white-space:nowrap;z-index:55;pointer-events:none}
   .rr-resume-toast.in{animation:toastIn .4s ease forwards}
   .rr-resume-toast.out{animation:toastOut .4s ease forwards}
+  .rr-notice{background:#3a2c0a;border-color:rgba(201,164,76,.5);color:#f0ead8}
 
   /* ?rrdebug=1 only. Deliberately plain and high-contrast: this exists to be legible in a
      screenshot taken on a phone in a hurry, not to match the room. */
@@ -618,17 +619,29 @@ export default function ReadingRoom({
   const panelRef = useRef('none');
   useEffect(() => { panelRef.current = panel; }, [panel]);
   // Read by the relocate handler, which must not re-bind on every visibility change.
+  //
+  // R7.2.3 — WRITTEN SYNCHRONOUSLY, NOT IN AN EFFECT. This used to be mirrored from state
+  // in a useEffect, which meant it lagged by a render. foliate's paginator fires a relocate
+  // on EVERY touch release (its snap() re-lands the current page, reason 'snap'), so a tap
+  // that hid the chrome was immediately followed by a relocate whose handler still read the
+  // ref as `true` — and re-summoned what the tap had just dismissed. That is glass bug 1:
+  // the second centre tap appeared to do nothing. Reproduced in tests/reader/app.spec.mjs.
   const chromeVisibleRef = useRef(true);
-  useEffect(() => { chromeVisibleRef.current = chromeVisible; }, [chromeVisible]);
+  const setChrome = useCallback((next) => {
+    chromeVisibleRef.current = next;
+    setChromeVisible(next);
+  }, []);
   const saveRibbonRef = useRef(null);
   const searchIdRef = useRef(0);
   const searchDebounce = useRef(null);
   const jumpIdRef = useRef(0);
   const pendingJumpRef = useRef(null);
+  const jumpNoticeRef = useRef(false);
 
   // ?rrdebug=1 — an on-glass trace of the jump chain: what came out of the database, what
   // went onto the wire, what the host said back. Read in an effect rather than during
   // render so the static export's first paint cannot disagree with the client's.
+  const [jumpNotice, setJumpNotice] = useState(null);
   const [debug, setDebug] = useState(false);
   const [debugLog, setDebugLog] = useState([]);
   // A ref as well as state: dbg must stay identity-stable (it sits in effect deps) while
@@ -757,32 +770,48 @@ export default function ReadingRoom({
     return () => { if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current); };
   }, [pct, progressEnabled, user?.uid, slug]);
 
-  // ── Chrome vanishing behaviour — carried over AS-IS (R7.2 owns any change) ───
-  const bumpIdle = useCallback(() => {
-    setChromeVisible(true);
+  // ── Chrome vanishing behaviour ───────────────────────────────────────────────
+  // Two verbs, deliberately separate. `rearmIdle` restarts the countdown and NEVER changes
+  // visibility; `bumpIdle` summons and then arms. Reading activity re-arms; only a tap, a
+  // panel or the start of reading summons. Conflating them is what let a page turn
+  // resurrect chrome the reader had just dismissed.
+  const rearmIdle = useCallback(() => {
     if (idleTimer.current) clearTimeout(idleTimer.current);
     if (panelRef.current !== 'none') return; // never auto-hide with a panel open
-    idleTimer.current = setTimeout(() => { if (panelRef.current === 'none') setChromeVisible(false); }, CHROME_IDLE_MS);
-  }, []);
+    idleTimer.current = setTimeout(() => {
+      if (panelRef.current === 'none') setChrome(false);
+    }, CHROME_IDLE_MS);
+  }, [setChrome]);
+  const bumpIdle = useCallback(() => {
+    setChrome(true);
+    rearmIdle();
+  }, [setChrome, rearmIdle]);
   const toggleChrome = useCallback(() => {
     if (panelRef.current !== 'none') return;
-    setChromeVisible((v) => {
-      const nv = !v;
-      if (idleTimer.current) clearTimeout(idleTimer.current);
-      if (nv) idleTimer.current = setTimeout(() => { if (panelRef.current === 'none') setChromeVisible(false); }, CHROME_IDLE_MS);
-      return nv;
-    });
-  }, []);
+    // Read through the ref, which is now authoritative and current — see setChrome.
+    const next = !chromeVisibleRef.current;
+    setChrome(next);
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    if (next) rearmIdle();
+  }, [setChrome, rearmIdle]);
   const openPanel = useCallback((name) => {
     if (idleTimer.current) clearTimeout(idleTimer.current);
-    setChromeVisible(true);
+    setChrome(true);
     setPanel(name);
-  }, []);
+  }, [setChrome]);
   const closePanel = useCallback(() => {
     setPanel('none');
     postToFrame({ type: 'clearSearch' });
     bumpIdle();
   }, [postToFrame, bumpIdle]);
+
+  // The notice is a sentence, not a state: it retires on its own.
+  useEffect(() => {
+    if (!jumpNotice) { jumpNoticeRef.current = false; return undefined; }
+    jumpNoticeRef.current = true;
+    const t = setTimeout(() => setJumpNotice(null), 3600);
+    return () => clearTimeout(t);
+  }, [jumpNotice]);
 
   // Escape closes whatever sheet is open. R7.0 §4 recorded that the panels could only be
   // dismissed by their backdrop; a keyboard reader had no way out. Focus is in the parent
@@ -827,15 +856,15 @@ export default function ReadingRoom({
         setBotInfo({ cur: d.pageCurrent, total: d.pageTotal, pct: d.pct, minLeft: d.minLeft });
         if (typeof d.pageSpan === 'number' && d.pageSpan > 0) setPageSpan(d.pageSpan);
         // The reader moved: whatever jump was in flight worked, so stand the watchdog down.
+        if (jumpNoticeRef.current) { jumpNoticeRef.current = false; setJumpNotice(null); }
         if (pendingJumpRef.current) {
           if (pendingJumpRef.current.timer) clearTimeout(pendingJumpRef.current.timer);
           pendingJumpRef.current = null;
         }
-        // R7.2 (recon §8.5): turning pages IS activity. The 3.5s countdown restarts on
-        // every relocate while the chrome is up, so chrome stays for as long as the reader
-        // is moving and hides only on true idleness. When the chrome is already hidden a
-        // page turn must NOT summon it — hence the guard rather than an unconditional bump.
-        if (chromeVisibleRef.current) bumpIdle();
+        // Turning pages IS activity: the countdown restarts while the chrome is up, so it
+        // stays for as long as the reader is moving and hides only on true idleness. It
+        // must never SUMMON — hence rearmIdle, and hence the guard.
+        if (chromeVisibleRef.current) rearmIdle();
         cbRef.current.onRelocate?.({
           cfi: d.cfi, fraction: currentFraction.current, pct: d.pct,
           pageCurrent: d.pageCurrent, pageTotal: d.pageTotal,
@@ -867,7 +896,7 @@ export default function ReadingRoom({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [postToFrame, toggleChrome, bumpIdle, dbg]);
+  }, [postToFrame, toggleChrome, rearmIdle, dbg]);
 
   // ── Typesetter handlers ───────────────────────────────────────────────────────
   // WALL §7.10 — every change travels by message. Nothing here touches the src.
@@ -970,12 +999,20 @@ export default function ReadingRoom({
       // cannot prove the reader moved. The watchdog closes that gap: if no relocate arrives
       // and the record carries a fraction, take the coarse route. Harmless when the ribbon
       // was already on the current page — goToFraction lands in the same place.
-      const timer = fraction != null ? setTimeout(() => {
+      const timer = setTimeout(() => {
         if (pendingJumpRef.current?.id !== id) return;
         pendingJumpRef.current = null;
-        dbg(`no movement → goToFraction ${fraction.toFixed(4)}`);
-        postToFrame({ type: 'goToFraction', fraction });
-      }, JUMP_WATCHDOG_MS) : null;
+        if (fraction != null) {
+          dbg(`no movement → goToFraction ${fraction.toFixed(4)}`);
+          postToFrame({ type: 'goToFraction', fraction });
+          return;
+        }
+        // Nothing to fall back to — a pre-R7.2 record carries a cfi and nothing else. Say
+        // so. A tap that produces silence reads as a broken reader; a tap that produces a
+        // sentence reads as a book that has moved on, which is the truth.
+        dbg('no movement and no fraction → notice');
+        setJumpNotice('We couldn’t find this ribbon’s page.');
+      }, JUMP_WATCHDOG_MS);
       pendingJumpRef.current = { id, fraction, timer };
       dbg(`jump #${id} → goTo ${cfi.slice(0, 20)}… (frac ${fraction != null ? fraction.toFixed(4) : '—'})`);
       postToFrame({ type: 'goTo', cfi, id });
@@ -1113,7 +1150,11 @@ export default function ReadingRoom({
           <SearchPanel query={searchQuery} setQuery={setSearchQuery} results={searchResults} truncated={searchTruncated} searching={searching} onPick={pickResult} onClose={closePanel} />
         )}
 
-        {showFurniture && resumeToast && (
+        {showFurniture && jumpNotice && (
+          <div className="rr-resume-toast in rr-notice">{jumpNotice}</div>
+        )}
+
+        {showFurniture && !jumpNotice && resumeToast && (
           <div className={'rr-resume-toast ' + (toastFading ? 'out' : 'in')}>Continue where you left off 🏝️</div>
         )}
 

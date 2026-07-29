@@ -5,6 +5,10 @@ const PORT = process.env.HARNESS_PORT || 4321;
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.mjs',
+  // app.spec.mjs is the OTHER harness: it needs out/ and its own server, and runs from
+  // playwright.app.config.mjs. A negative lookahead in testMatch does not work here —
+  // Playwright matches the absolute path, so the anchor never sees the filename.
+  testIgnore: 'app.spec.mjs',
   // The reader is a geometry surface: two specs racing the same paginator on the same
   // machine produce timing noise that looks like a bug. One worker, in order.
   workers: 1,

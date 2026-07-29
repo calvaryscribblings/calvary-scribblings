@@ -61,3 +61,4 @@ out/
 tests/fixtures/harness-book.epub
 test-results/
 playwright-report/
+tests/fixtures/*.master.epub

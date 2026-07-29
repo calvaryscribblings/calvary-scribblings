@@ -215,7 +215,24 @@ function flattenTOC(items, level = 0, out = []) {
 // And the reason a centre tap used to do nothing on a phone: a tap fires touchend AND a
 // synthesised click, so onTap ran twice and the chrome toggled straight back. The
 // timestamp latch below swallows the compatibility click.
+// ── OWNERSHIP BANDS (R7.2.3) ─────────────────────────────────────────────────
+// Exactly one layer may act on a gesture. The boundary is not a distance alone, because a
+// FLICK can travel almost no distance and still carry enough velocity for the paginator to
+// snap a page — and if our tap zones also fired, one flick would move two pages.
+//
+//   BAND A — ours.        The paginator did not scroll AND travel <= TAP_SLOP.
+//                         A true tap: no touchmove, so foliate's scrollBy never ran.
+//                         → the left/centre/right zones apply.
+//   BAND B — foliate's.   Anything else: the container scrolled, or travel exceeded the
+//                         slop. Our layer is entirely inert, INCLUDING the click echo.
+//
+// The scroll test is what makes the bands exclusive rather than adjacent: it asks whether
+// the other owner has already acted, instead of guessing from the gesture's shape.
+// Paginated flow only — in scrolled flow the container scrolls natively on every swipe, so
+// the same test would mute us permanently, and there the paginator declines the gesture
+// anyway (paginator.js:842, :855).
 const TAP_SLOP = 12              // px of travel still read as a tap, not a drag
+const SCROLL_EPS = 0.5           // px of container movement that counts as "the paginator acted"
 const CLICK_AFTER_TOUCH_MS = 700 // window in which a click is a touch's synthetic echo
 let lastTouchEndAt = 0
 
@@ -318,25 +335,30 @@ if (!url) {
     currentIndex = detail.index
     if (!sectionWords.has(currentIndex)) sectionWords.set(currentIndex, countWords(detail.doc))
     // Tap + swipe on the section document. See the ownership note above onTap.
-    let tx = null, ty = null
+    let tx = null, ty = null, tScroll = null
     detail.doc.addEventListener('touchstart', (e) => {
       const t = e.touches[0]
       tx = t ? t.clientX : null
       ty = t ? t.clientY : null
+      tScroll = view && view.renderer ? view.renderer.start : null
     }, { passive: true })
     detail.doc.addEventListener('touchend', (e) => {
+      // R7.2.1/R7.2.3: latch on EVERY touch end, BEFORE any guard — including the
+      // `no touchstart seen` one. Measured: a drag our handler correctly declined still
+      // produced a compatibility click, which fell through to onTap and turned a second
+      // page. What must be suppressed is the echo of a touch sequence, not of a handled tap.
+      lastTouchEndAt = Date.now()
       if (tx === null) return
       const startX = tx, startY = ty
-      tx = null; ty = null
+      const startScroll = tScroll
+      tx = null; ty = null; tScroll = null
       const t = e.changedTouches[0]
       const dx = startX - (t ? t.clientX : startX)
       const dy = startY - (t ? t.clientY : startY)
-      // R7.2.1: latch on EVERY touch end, before any early return. Measured: a drag that
-      // our handler correctly declines still produced a compatibility click, which fell
-      // through to onTap and turned a second page — the other half of the double-turn.
-      // What must be suppressed is the echo of a touch sequence, not of a handled tap.
-      lastTouchEndAt = Date.now()
       if (hasLiveSelection(detail.doc)) return
+      // BAND B, first test: did the paginator already move the page under this finger?
+      if (!isScrolledFlow() && startScroll !== null && view && view.renderer
+        && Math.abs(view.renderer.start - startScroll) > SCROLL_EPS) return
       if (isScrolledFlow()) {
         // Ours: the paginator did not act on this gesture.
         if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
@@ -344,7 +366,7 @@ if (!url) {
           return
         }
       } else if (Math.abs(dx) > TAP_SLOP || Math.abs(dy) > TAP_SLOP) {
-        return // the paginator already snapped this drag — do not turn again
+        return // BAND B by distance — the paginator owns it
       }
       onTap(startX, e.target, detail.doc)
     })

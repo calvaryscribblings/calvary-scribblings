@@ -120,3 +120,80 @@ test('the host reports pageSpan once the reader has moved forward', async ({ pag
     + `\nlast pageSpan: ${relocates.length ? relocates[relocates.length - 1].pageSpan : 'n/a'}\n`);
   expect(withSpan.length, 'pageSpan must be reported after forward movement').toBeGreaterThan(0);
 });
+
+// ── R7.2.3: THE OWNERSHIP MATRIX ─────────────────────────────────────────────
+// One gesture, one owner, at every distance. The two failure shapes this pins:
+//   • two owners  → a single gesture moves TWO pages (our turn plus the paginator's)
+//   • wrong owner → a gesture moves OPPOSITE to itself (the click echo of a forward drag
+//                   landing in the back third, which is what R7.2.1 measured at −1 page)
+//
+// Every gesture below is arranged so the tap zone it releases in and the direction it
+// travels AGREE, which makes one rule cover the whole table: a gesture may move zero or
+// one page, and never against itself.
+//
+// Velocity is held near zero (touchDrag's hold before release), so the paginator's
+// contribution is decided by displacement alone and the table is reproducible.
+// Each row is (distance, gesture speed). The FLICK rows are the ones a slow-drag table
+// cannot see: a few pixels of travel carrying enough velocity for foliate to snap a page.
+// If our tap zones also fired there, one flick would move two pages.
+const GESTURES = [
+  { dx: 6, fast: false }, { dx: 10, fast: false }, { dx: 20, fast: false },
+  { dx: 40, fast: false }, { dx: 80, fast: false }, { dx: 340, fast: false },
+  { dx: 6, fast: true }, { dx: 10, fast: true }, { dx: 40, fast: true }, { dx: 120, fast: true },
+];
+
+test('ownership matrix: no distance has two owners, none moves against itself', async ({ page }) => {
+  await openReader(page);
+
+  // Calibrate one page from the reader itself.
+  const base = await gotoPage(page, 4);
+  await post(page, { type: 'next' });
+  await settle(page, 400);
+  const oneStep = (await currentFraction(page)) - base;
+  expect(oneStep, 'calibration turn must move forward').toBeGreaterThan(0);
+
+  const rows = [];
+  const failures = [];
+
+  for (const g of GESTURES) {
+    const { dx, fast } = g;
+    for (const dir of ['forward', 'backward']) {
+      // Forward gestures travel leftward and release in the right/forward third;
+      // backward gestures travel rightward and release in the left/back third.
+      const from = dir === 'forward' ? 350 : 50;
+      const to = dir === 'forward' ? from - dx : from + dx;
+
+      await post(page, { type: 'goToFraction', fraction: base });
+      await settle(page, 500);
+      const before = await currentFraction(page);
+      await clearMsgs(page);
+
+      // fast = no hold before release, two steps: maximum velocity the pipe allows.
+      if (fast) await touchDrag(page, { x: from, y: MID_Y }, { x: to, y: MID_Y }, 2, 0, 0);
+      else await touchDrag(page, { x: from, y: MID_Y }, { x: to, y: MID_Y });
+      await settle(page, 900);
+
+      const after = await currentFraction(page);
+      const moved = Math.round((after - before) / oneStep);
+      const toggles = (await msgs(page, 'toggleChrome')).length;
+      const speed = fast ? 'flick' : 'slow';
+      rows.push({ dx, dir, speed, from, to, moved, toggles });
+
+      const tag = `dx=${dx} ${speed} ${dir}`;
+      if (Math.abs(moved) > 1) failures.push(`${tag}: moved ${moved} pages — two owners`);
+      if (dir === 'forward' && moved < 0) failures.push(`${tag}: moved ${moved} — against itself`);
+      if (dir === 'backward' && moved > 0) failures.push(`${tag}: moved ${moved} — against itself`);
+    }
+  }
+
+  console.log('\n=== OWNERSHIP MATRIX (calibrated page step '
+    + oneStep.toFixed(5) + ') ===');
+  console.log('  dx   speed  direction   from→to     pages moved   chrome toggles');
+  for (const r of rows) {
+    console.log(`  ${String(r.dx).padStart(3)}  ${r.speed.padEnd(5)}  ${r.dir.padEnd(9)}  ${String(r.from).padStart(3)}→${String(r.to).padStart(3)}`
+      + `      ${String(r.moved).padStart(3)}             ${r.toggles}`);
+  }
+  console.log('');
+
+  expect(failures, failures.join(' | ')).toEqual([]);
+});
