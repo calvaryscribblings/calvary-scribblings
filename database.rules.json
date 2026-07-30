@@ -110,7 +110,25 @@
     },
     "subscribers": {
       ".read": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
-      ".write": true
+      "$entry": {
+        ".write": "newData.exists()",
+        ".validate": "newData.hasChildren(['email', 'subscribedAt'])",
+        "email": {
+          ".validate": "newData.isString() && newData.val().length >= 5 && newData.val().length <= 320 && newData.val().contains('@')"
+        },
+        "subscribedAt": {
+          ".validate": "newData.isString() && newData.val().length >= 20 && newData.val().length <= 40"
+        },
+        "name": {
+          ".validate": "newData.isString() && newData.val().length <= 120"
+        },
+        "status": {
+          ".validate": "newData.isString() && (newData.val() === 'active' || newData.val() === 'unsubscribed')"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
     },
     "users": {
       ".read": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
