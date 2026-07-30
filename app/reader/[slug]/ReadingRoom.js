@@ -33,6 +33,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { findRibbonOnPage, ribbonEpsilonFor, RIBBON_MIN_SPAN } from '../../lib/ribbonGeometry';
+import { lookupWord } from '../../lib/dictionary';
 
 // R7.3: the ribbon-geometry rule moved to app/lib/ribbonGeometry.js — plain ESM, so the
 // harness can import it under Node and assert the decision against measured geometry. It is
@@ -181,6 +182,81 @@ function TypesetterPanel({ prefs, onPaper, onFace, onSize, onLeading, onFlow, on
 }
 
 // ── Contents + Ribbons ────────────────────────────────────────────────────────
+// ── THE DEFINITION (R7.4) ────────────────────────────────────────────────────
+//
+// A centred card rather than the bottom sheet the panels use, and the difference is
+// deliberate. A sheet is a place you go — Contents, Search, the Typesetter are destinations
+// with lists in them. A definition is an aside: it belongs beside the sentence that
+// prompted it, not at the bottom of the screen with the book pushed out of the way. Same
+// paper, same rules (backdrop dismiss, Escape, chrome pinned), different posture.
+//
+// THE ANCHORED QUOTE is the part that makes this the Reading Room's dictionary rather than
+// a dictionary that happens to be open. The word is shown at work, in the reader's own book,
+// with the word itself picked out — so the answer arrives already attached to the question.
+function DefinePanel({ state, onClose }) {
+  const { word, entry, sentence, status } = state;
+  return (
+    <div className="rr-sheet-backdrop rr-define-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="rr-define" role="dialog" aria-label={`Definition of ${word}`} aria-live="polite">
+        <button className="rr-define-x" onClick={onClose} aria-label="Close">&times;</button>
+        <div className="rr-define-head">
+          <span className="rr-define-word">{entry?.word || word}</span>
+          {entry?.phonetic && <span className="rr-define-phon">{entry.phonetic}</span>}
+        </div>
+
+        {status === 'looking' && <div className="rr-define-wait">Looking it up…</div>}
+
+        {status === 'miss' && (
+          <div className="rr-define-miss">No definition found for &ldquo;{word}&rdquo;.</div>
+        )}
+
+        {status === 'found' && (
+          <ol className="rr-define-senses">
+            {entry.senses.map((s, i) => (
+              <li key={i} className="rr-define-sense">
+                {s.partOfSpeech && <span className="rr-define-pos">{s.partOfSpeech}</span>}
+                <span className="rr-define-def">{s.definition}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {sentence && <AnchoredQuote sentence={sentence} word={word} />}
+
+        {status !== 'looking' && (
+          <div className="rr-define-src">{status === 'found' ? entry.source : 'Calvary Scribblings'}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The book's own sentence, with the tapped word picked out. Split on the word rather than
+// dangerouslySetInnerHTML: the sentence is book text and must never be able to inject
+// markup into the reader's chrome, however unlikely a malicious EPUB is on our own shelf.
+function AnchoredQuote({ sentence, word }) {
+  const parts = useMemo(() => {
+    if (!word) return [sentence];
+    // Escape the word before it becomes a pattern — an EPUB may contain "(" or "*".
+    const safe = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    try {
+      return sentence.split(new RegExp(`(${safe})`, 'iu')).filter((p) => p !== '');
+    } catch (e) {
+      return [sentence];
+    }
+  }, [sentence, word]);
+  const target = String(word || '').toLowerCase();
+  return (
+    <blockquote className="rr-define-quote">
+      {parts.map((p, i) => (
+        p.toLowerCase() === target
+          ? <em key={i} className="rr-define-mark">{p}</em>
+          : <span key={i}>{p}</span>
+      ))}
+    </blockquote>
+  );
+}
+
 function ContentsPanel({ toc, chapterHref, ribbons, showRibbons, currentRibbonId, pageOf, onJump, onRemoveRibbon, onClose }) {
   return (
     <div className="rr-sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -368,6 +444,39 @@ const ROOM_CSS = `
     border-radius:18px 18px 0 0;padding:10px 20px calc(24px + env(safe-area-inset-bottom));animation:sheetUp .32s cubic-bezier(.2,.7,.2,1);display:flex;flex-direction:column}
   .rr-sheet-tall{height:78dvh}
   .rr-grab{width:38px;height:4px;border-radius:999px;background:var(--rr-soft);opacity:.5;margin:2px auto 14px}
+
+  /* ── THE DEFINITION (R7.4) ───────────────────────────────────────────────
+     Centred, not bottom-anchored: an aside beside the sentence, not a destination.
+     Everything is drawn from the paper variables, so it changes colour with the
+     Typesetter exactly as the sheets do. */
+  .rr-define-backdrop{align-items:center;padding:20px}
+  .rr-define{width:100%;max-width:420px;max-height:76dvh;overflow-y:auto;background:var(--rr-bg);color:var(--rr-fg);
+    border:1px solid var(--rr-line);border-radius:14px;padding:26px 24px 20px;position:relative;
+    box-shadow:0 18px 50px rgba(0,0,0,.42);animation:defineIn .26s cubic-bezier(.2,.7,.2,1)}
+  @keyframes defineIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+  .rr-define-x{position:absolute;top:6px;inset-inline-end:8px;width:40px;height:40px;background:none;border:none;
+    color:var(--rr-soft);font-size:1.5rem;line-height:1;cursor:pointer;opacity:.65}
+  .rr-define-head{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin-bottom:1.1rem;padding-inline-end:32px}
+  .rr-define-word{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.85rem;font-weight:500;line-height:1.1;
+    color:var(--rr-fg);overflow-wrap:anywhere}
+  .rr-define-phon{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1rem;color:var(--rr-soft);opacity:.8}
+  .rr-define-wait{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;color:var(--rr-soft);opacity:.75;padding:.2rem 0 .6rem}
+  /* A miss is a sentence in the room's voice, never an error tone: no red, no icon,
+     no apology. Not finding a word is a normal thing for a dictionary to do. */
+  .rr-define-miss{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.02rem;
+    color:var(--rr-soft);opacity:.85;line-height:1.6;padding:.1rem 0 .5rem}
+  .rr-define-senses{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.85rem}
+  .rr-define-sense{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-size:1.04rem;line-height:1.62}
+  .rr-define-pos{display:inline-block;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--rr-accent);opacity:.85;margin-inline-end:.55rem;vertical-align:.16em}
+  .rr-define-def{color:var(--rr-fg);opacity:.92}
+  .rr-define-quote{margin:1.3rem 0 0;padding:.85rem 0 0;border-top:1px solid var(--rr-line);
+    font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:.98rem;line-height:1.7;
+    color:var(--rr-fg);opacity:.72}
+  .rr-define-mark{font-style:italic;font-weight:600;color:var(--rr-accent);opacity:1}
+  .rr-define-src{margin-top:1.15rem;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.17em;
+    text-transform:uppercase;color:var(--rr-soft);opacity:.65}
+  @media (prefers-reduced-motion:reduce){.rr-define{animation:none}}
   .rr-sheet-title{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:var(--rr-accent);text-align:center;margin-bottom:1.4rem}
   .rr-row-label{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.2em;text-transform:uppercase;color:var(--rr-soft);margin:0 0 .7rem}
   .rr-swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1.4rem}
@@ -523,6 +632,9 @@ const ROOM_CSS = `
  *                                     omitting it leaves the register to handle onError
  *                                     itself, which is what the book register does (it
  *                                     re-mints the signed URL once before giving up).
+ * @param {object|null} p.glossary   The title's house glossary, { lowercasedWord: definition }.
+ *                                     Consulted BEFORE the network and, on a hit, INSTEAD of
+ *                                     it. Absent on the story register until October.
  * @param {(info:object)=>void} p.onRelocate
  * @param {()=>void} p.onEnded
  * @param {(message:string)=>void} p.onError       Host could not open the file.
@@ -542,6 +654,7 @@ export default function ReadingRoom({
   earlyEnding = null,
   renderEnding = null,
   renderFailure = null,
+  glossary = null,
   onRelocate,
   onEnded,
   onError,
@@ -566,7 +679,18 @@ export default function ReadingRoom({
 
   // Chrome state
   const [chromeVisible, setChromeVisible] = useState(true);
-  const [panel, setPanel] = useState('none'); // 'none' | 'type' | 'toc' | 'search'
+  const [panel, setPanel] = useState('none'); // 'none' | 'type' | 'toc' | 'search' | 'define'
+
+  // R7.4 — THE DEFINITION. Modelled as a PANEL rather than as its own overlay, which buys
+  // every rule the contract asks for without writing one of them again: chrome pinned while
+  // it is open (rearmIdle returns early on any panel), a centre tap unable to toggle chrome
+  // behind it (toggleChrome likewise), Escape already wired to closePanel, backdrop dismiss
+  // already the sheet idiom. A separate overlay would have had to re-earn all four.
+  //   null | { word, sentence, entry, status: 'looking' | 'found' | 'miss' }
+  const [defineState, setDefineState] = useState(null);
+  const defineTokenRef = useRef(0);
+  const glossaryRef = useRef(glossary);
+  useEffect(() => { glossaryRef.current = glossary; }, [glossary]);
   const [reduced, setReduced] = useState(false);
 
   // WALL §7.12 — prefs captured ONCE into a ref. `prefs` state drives the panel and the
@@ -801,9 +925,35 @@ export default function ReadingRoom({
   }, [setChrome]);
   const closePanel = useCallback(() => {
     setPanel('none');
+    setDefineState(null);
+    // Any in-flight lookup is now for a modal nobody is looking at. Bumping the token makes
+    // its result land nowhere rather than reopening the panel four seconds later.
+    defineTokenRef.current += 1;
     postToFrame({ type: 'clearSearch' });
     bumpIdle();
   }, [postToFrame, bumpIdle]);
+
+  // R7.4 — the chip was tapped. Open on 'looking' immediately rather than waiting for the
+  // answer: the reader asked, and a modal that appears at once with the word in it is the
+  // acknowledgement. A glossary hit resolves within the same tick, so in the house case the
+  // 'looking' state is never actually painted.
+  const openDefine = useCallback(async (rawWord, sentence) => {
+    const word = String(rawWord || '').trim();
+    if (!word) return;
+    const token = ++defineTokenRef.current;
+    setDefineState({ word, sentence: sentence || '', entry: null, status: 'looking' });
+    openPanel('define');
+    postToFrame({ type: 'dismissChip' });
+    let entry = null;
+    try {
+      entry = await lookupWord(word, { glossary: glossaryRef.current });
+    } catch (e) {
+      entry = null;      // lookupWord already absorbs everything; this is belt and braces
+    }
+    // A second word asked for while the first was in flight, or the reader closed the modal.
+    if (defineTokenRef.current !== token) return;
+    setDefineState((prev) => (prev ? { ...prev, entry, status: entry ? 'found' : 'miss' } : prev));
+  }, [openPanel, postToFrame]);
 
   // The notice is a sentence, not a state: it retires on its own.
   useEffect(() => {
@@ -877,6 +1027,12 @@ export default function ReadingRoom({
         cbRef.current.onEnded?.();
       } else if (d.type === 'toggleChrome') {
         toggleChrome();
+      } else if (d.type === 'wordSelected') {
+        // The host owns the chip; this is the fact travelling up so a register can see it.
+        // Nothing is rendered from it — the modal waits for an actual tap on the chip.
+        dbg(`selected "${d.word}"`);
+      } else if (d.type === 'defineWord') {
+        openDefine(d.word, d.sentence || '');
       } else if (d.type === 'goToAck') {
         const pending = pendingJumpRef.current;
         dbg(`ack #${d.id} ${d.ok ? 'ok' : `FAILED (${d.reason || d.message || 'unknown'})`}`);
@@ -902,7 +1058,7 @@ export default function ReadingRoom({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [postToFrame, toggleChrome, rearmIdle, dbg]);
+  }, [postToFrame, toggleChrome, rearmIdle, dbg, openDefine]);
 
   // ── Typesetter handlers ───────────────────────────────────────────────────────
   // WALL §7.10 — every change travels by message. Nothing here touches the src.
@@ -1171,6 +1327,12 @@ export default function ReadingRoom({
         )}
         {panel === 'search' && (
           <SearchPanel query={searchQuery} setQuery={setSearchQuery} results={searchResults} truncated={searchTruncated} searching={searching} onPick={pickResult} onClose={closePanel} />
+        )}
+
+        {/* R7.4 — the definition. Guarded on defineState as well as the panel name so a
+            close can never leave a card with no word in it. */}
+        {panel === 'define' && defineState && (
+          <DefinePanel state={defineState} onClose={closePanel} />
         )}
 
         {showFurniture && jumpNotice && (

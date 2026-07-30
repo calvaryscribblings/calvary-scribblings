@@ -39,6 +39,13 @@ export function migrateTitle(doc) {
     };
   }
   if (!out.schemaVersion) out = { ...out, schemaVersion: SCHEMA_VERSION };
+  // R7.4 — the house glossary rides through the spread above untouched, like samplePath and
+  // the Bookseller's Fields: schema-external, so there is nothing to migrate and nothing to
+  // strip. Normalised to null so a caller can test `title.glossary` without also testing for
+  // the empty object a hand-edited record might carry.
+  if (out.glossary && (typeof out.glossary !== 'object' || Array.isArray(out.glossary) || !Object.keys(out.glossary).length)) {
+    out = { ...out, glossary: null };
+  }
   return out;
 }
 

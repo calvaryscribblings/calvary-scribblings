@@ -36,9 +36,29 @@
   #error-orn{font-size:.8rem;letter-spacing:.4em;opacity:.35;margin-bottom:14px}
   #error-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1.05rem;opacity:.7;line-height:1.6;max-width:22em}
   @keyframes spin{to{transform:rotate(360deg)}}
+  /* ── THE DEFINE CHIP (R7.4) ────────────────────────────────────────────────
+     Gold on ink, Cinzel small-caps: the Reading Room's own voice for a control that
+     appears inside the page rather than on the chrome. It lives in the HOST document,
+     never in the section document — see the ownership note beside showChip() for why
+     that placement is what keeps it out of the tap bands.
+     44px of touch target with only ~26px of visible chip: the visible size is
+     typographic restraint, the hit area is not negotiable on a phone. */
+  #define-chip{position:fixed;z-index:90;display:none;align-items:center;gap:6px;
+    height:44px;padding:0 14px;margin:0;border:0;border-radius:22px;cursor:pointer;
+    background:linear-gradient(180deg,#2a2018 0%,#1b1410 100%);
+    box-shadow:0 4px 14px rgba(0,0,0,.34),0 0 0 1px rgba(201,164,76,.42) inset;
+    font-family:'Cinzel',Georgia,serif;font-size:.62rem;font-weight:600;
+    letter-spacing:.2em;text-transform:uppercase;color:#e6c977;
+    -webkit-tap-highlight-color:transparent;white-space:nowrap;
+    animation:chipIn .16s ease-out}
+  #define-chip.show{display:inline-flex}
+  #define-chip .chip-orn{font-size:.7rem;line-height:1;opacity:.8}
+  @keyframes chipIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){#define-chip{animation:none}}
 </style>
 <div id="loading"><div id="spinner"></div><div id="loading-text">Opening book…</div></div>
 <div id="error"><div id="error-orn">&#10022;</div><div id="error-text">This book would not open.</div></div>
+<button id="define-chip" type="button" aria-label="Define the selected word"><span class="chip-orn">&#10022;</span>Define</button>
 
 <script type="module">
 import '/vendor/foliate-js-main/view.js'
@@ -399,6 +419,26 @@ function hasLiveSelection(doc) {
   } catch (e) { return false }
 }
 
+// R7.4 — the same question asked of the WHOLE reader rather than one document.
+//
+// A selection lives in the section document; the host document knows nothing about it. So
+// `hasLiveSelection(document)` is always false at the host level, and the host's own click
+// handler (which serves the margins outside the section, and any echo that lands on
+// <foliate-view>) would happily turn a page while the reader had a word selected. That hole
+// predates the chip — it is simply unreachable until something puts a control in the host
+// document. It is closed here rather than worked around at the chip, because the rule is
+// "a live selection means the tap layer is inert", and the rule should not depend on which
+// document the finger happened to land in.
+function anySelectionLive() {
+  if (hasLiveSelection(document)) return true
+  try {
+    for (const c of (view && view.renderer && view.renderer.getContents && view.renderer.getContents()) || []) {
+      if (c && c.doc && hasLiveSelection(c.doc)) return true
+    }
+  } catch (e) { /* no contents yet */ }
+  return false
+}
+
 function onTap(clientX, target, doc) {
   if (target && target.closest && target.closest('a[href]')) return // let links through
   if (hasLiveSelection(doc)) return
@@ -408,6 +448,211 @@ function onTap(clientX, target, doc) {
   else if (x > (w * 2) / 3) view?.goRight()
   else post({ type: 'toggleChrome' })
 }
+
+// ── THE DEFINE CHIP (R7.4) ────────────────────────────────────────────────────
+//
+// WHY THIS CANNOT COLLIDE WITH THE TAP BANDS, and why that is structural rather than
+// careful. The chip exists only while a selection is live, and a live selection is exactly
+// the state in which BOTH tap paths are already inert — the same predicate, checked twice,
+// written long before this feature:
+//
+//   touchend (:589)  `if (hasLiveSelection(detail.doc)) return`  — before either band test
+//   onTap    (:404)  `if (hasLiveSelection(doc)) return`         — before the thirds
+//
+// So a long-press that selects a word cannot turn a page or toggle chrome, and a tap that
+// COULD turn a page has, by definition, no selection and therefore no chip. The two paths
+// are complements of one boolean, not neighbours separated by a margin. Band A and Band B
+// are untouched: nothing below adds a listener to the section document's touch pipeline.
+//
+// AND THE CHIP ITSELF IS IN THE HOST DOCUMENT, not the section document. That is the second
+// half of the guarantee. The host's own click handler (:617) acts only when
+// `e.target === document.body || e.target === view`; a <button id="define-chip"> is neither,
+// so tapping it is inert at the zone layer without needing a single special case. The
+// section document never sees the event at all — different document, different listeners.
+//
+// The chip is positioned in HOST viewport coordinates. A selection rect comes from the
+// section document, whose iframe foliate has expanded to the whole column strip and scrolled
+// under the viewport (R7.2.1), so the rect must be offset by the frame's own box — the same
+// correction toHostX applies to a tap, in both axes.
+const SELECT_SETTLE_MS = 220     // quiet time after the last selection change
+const CHIP_GAP = 8               // px between the word and the chip
+const CHIP_MARGIN = 8            // px of viewport the chip may never cross
+const SENTENCE_MAX = 320         // a quote, not a chapter
+
+const chipEl = document.getElementById('define-chip')
+let settleTimer = null
+let pendingWord = null           // { word, sentence } captured AT SELECTION TIME
+let chipHold = false             // a finger is down on the chip: do not let go of it
+let lastChipFireAt = 0
+
+function toHostRect(rect, doc) {
+  if (!doc || doc === document) return rect
+  try {
+    const frameEl = doc.defaultView && doc.defaultView.frameElement
+    if (frameEl) {
+      const f = frameEl.getBoundingClientRect()
+      return {
+        left: rect.left + f.left, top: rect.top + f.top,
+        right: rect.right + f.left, bottom: rect.bottom + f.top,
+        width: rect.width, height: rect.height,
+      }
+    }
+  } catch (e) { /* same-origin only; fall through */ }
+  return rect
+}
+
+// The coarse gate: is this ONE word? The parent owns the real normalisation
+// (app/lib/dictionary.js) because that is where the lookup happens and there must be one
+// authority for what a headword is. The host only decides whether to offer the chip, so
+// punctuation rides along untouched and the parent strips it.
+function selectionWord(raw) {
+  const w = String(raw == null ? '' : raw).trim()
+  if (!w || w.length > 60) return ''
+  if (/\s/.test(w)) return ''            // more than one word — the chip is single-word only
+  if (!/\p{L}/u.test(w)) return ''       // a lone comma or numeral is not a word
+  return w
+}
+
+const BLOCK_TAGS = new Set(['P', 'DIV', 'LI', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+  'TD', 'SECTION', 'ARTICLE', 'FIGCAPTION', 'DD', 'DT', 'PRE', 'BODY'])
+
+// EPUB content documents are XHTML, and in an XML document `tagName` PRESERVES CASE — the
+// heading above is `h1`, never `H1`. Uppercasing here is what makes this work on a real book
+// at all: measured in tests/reader/define-chip.spec.mjs, the uppercase-only test walked
+// straight past `body` to `html`, returned null, and every anchored quote in the product
+// would have been empty.
+function blockAncestor(node) {
+  let el = node && node.nodeType === 3 ? node.parentElement : node
+  while (el && el.tagName && !BLOCK_TAGS.has(el.tagName.toUpperCase())) el = el.parentElement
+  return el || null
+}
+
+// Absolute character offset of (node, offset) within the block's textContent. Walking the
+// text nodes is the only way to get this: textContent flattens inline markup, so an offset
+// inside an <em> means nothing without knowing how much text preceded it.
+function offsetInBlock(block, node, offset) {
+  try {
+    const walker = block.ownerDocument.createTreeWalker(block, NodeFilter.SHOW_TEXT, null)
+    let total = 0, n
+    while ((n = walker.nextNode())) {
+      if (n === node) return total + offset
+      total += n.nodeValue.length
+    }
+  } catch (e) { /* fall through */ }
+  return -1
+}
+
+// THE ANCHORED QUOTE — the tapped word's own sentence, so the modal can show the word at
+// work rather than in isolation.
+//
+// Sentence detection is a terminator scan, and it is deliberately naive: "Mr. Ferryman"
+// will cut at the abbreviation. The alternative is a list of honorifics per language, which
+// is a large amount of machinery to slightly improve a quote that is already only context.
+// Cutting early yields a SHORTER true fragment of the book, never a wrong one.
+function sentenceAround(range) {
+  try {
+    const block = blockAncestor(range.startContainer)
+    if (!block) return ''
+    const raw = block.textContent || ''
+    const s = offsetInBlock(block, range.startContainer, range.startOffset)
+    const e = offsetInBlock(block, range.endContainer, range.endOffset)
+    if (s < 0 || e < 0) return ''
+    let from = 0
+    for (let i = s - 1; i > 0; i--) {
+      if (/[.!?…]/.test(raw[i]) && /\s/.test(raw[i + 1] || ' ')) { from = i + 1; break }
+    }
+    let to = raw.length
+    for (let i = e; i < raw.length; i++) {
+      if (/[.!?…]/.test(raw[i])) { to = i + 1; break }
+    }
+    let out = raw.slice(from, to).replace(/\s+/g, ' ').trim()
+    // An unpunctuated block (verse, a heading) can run the whole way; keep the word's
+    // neighbourhood rather than the whole page.
+    if (out.length > SENTENCE_MAX) {
+      const mid = Math.max(0, s - from)
+      const start = Math.max(0, mid - SENTENCE_MAX / 2)
+      out = (start > 0 ? '… ' : '') + out.slice(start, start + SENTENCE_MAX).trim() + ' …'
+    }
+    return out
+  } catch (e) { return '' }
+}
+
+function hideChip() {
+  chipEl.classList.remove('show')
+}
+
+function showChipAt(hostRect) {
+  chipEl.classList.add('show')
+  const cw = chipEl.offsetWidth || 96
+  const ch = chipEl.offsetHeight || 44
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  // Above the word by preference — that is where the reader's finger is NOT.
+  let top = hostRect.top - ch - CHIP_GAP
+  if (top < CHIP_MARGIN) top = hostRect.bottom + CHIP_GAP     // no room above → below it
+  top = Math.min(Math.max(CHIP_MARGIN, top), Math.max(CHIP_MARGIN, vh - ch - CHIP_MARGIN))
+  let left = hostRect.left + hostRect.width / 2 - cw / 2      // centred on the word
+  left = Math.min(Math.max(CHIP_MARGIN, left), Math.max(CHIP_MARGIN, vw - cw - CHIP_MARGIN))
+  chipEl.style.left = Math.round(left) + 'px'
+  chipEl.style.top = Math.round(top) + 'px'
+}
+
+function settleSelection(doc) {
+  if (chipHold) return          // the reader is pressing the chip; the selection may go
+  let sel = null
+  try { sel = (doc || document).getSelection() } catch (e) { sel = null }
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) { pendingWord = null; hideChip(); return }
+  const word = selectionWord(String(sel))
+  if (!word) { pendingWord = null; hideChip(); return }
+  const range = sel.getRangeAt(0)
+  const rect = range.getBoundingClientRect()
+  if (!rect || (!rect.width && !rect.height)) { pendingWord = null; hideChip(); return }
+  const sentence = sentenceAround(range)
+  pendingWord = { word, sentence }
+  const hostRect = toHostRect(rect, doc)
+  showChipAt(hostRect)
+  // The parent gets the fact even though the chip is ours: it is what lets a register log,
+  // debug or (later) act on a selection without reaching into this document.
+  post({ type: 'wordSelected', word, sentence, rect: {
+    left: Math.round(hostRect.left), top: Math.round(hostRect.top),
+    width: Math.round(hostRect.width), height: Math.round(hostRect.height),
+  } })
+}
+
+function watchSelection(doc) {
+  const onChange = () => {
+    if (settleTimer) clearTimeout(settleTimer)
+    settleTimer = setTimeout(() => settleSelection(doc), SELECT_SETTLE_MS)
+  }
+  try { doc.addEventListener('selectionchange', onChange) } catch (e) { /* noop */ }
+  // A new touch on the page means the reader has moved on from the last selection.
+  try { doc.addEventListener('touchstart', () => { if (!chipHold) hideChip() }, { passive: true }) } catch (e) {}
+}
+
+function fireDefine() {
+  // Idempotent: pointerup and the click that follows it are one intent, and Playwright's
+  // .click() dispatches both. Same shape as the CLICK_AFTER_TOUCH_MS latch above.
+  if (Date.now() - lastChipFireAt < 500) return
+  if (!pendingWord) return
+  lastChipFireAt = Date.now()
+  // Swallow the chip tap's own click echo with the SAME latch the tap zones use. Measured:
+  // preventDefault on pointerdown stops the BUTTON being the click target, and by the time
+  // the compatibility click is dispatched the chip has hidden itself — so the echo lands on
+  // <foliate-view>, which the host's click handler acts on, and a define turned into a
+  // chrome toggle. The latch is the mechanism already in place for exactly this class of
+  // ghost; reusing it keeps one answer to "was that a real click?" rather than two.
+  lastTouchEndAt = Date.now()
+  post({ type: 'defineWord', word: pendingWord.word, sentence: pendingWord.sentence })
+  hideChip()
+}
+
+// preventDefault on pointerdown is what keeps the chip tappable at all: without it the
+// press collapses the selection, selectionchange fires, and the chip removes itself out
+// from under the finger before pointerup can land.
+chipEl.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); chipHold = true })
+chipEl.addEventListener('pointerup', (e) => { e.preventDefault(); e.stopPropagation(); chipHold = false; fireDefine() })
+chipEl.addEventListener('pointercancel', () => { chipHold = false })
+chipEl.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fireDefine() })
 
 // ── THE LOAD FENCE (R7.3, recon §8.19) ────────────────────────────────────────
 //
@@ -551,6 +796,8 @@ if (!url) {
       pageSpan: pageSpanNow(),
     })
     if (!endedFired && fraction >= 0.999) { endedFired = true; post({ type: 'ended' }) }
+    // R7.4: the page moved, so the word the chip was offered for is no longer under it.
+    if (!chipHold) { pendingWord = null; hideChip() }
   })
 
   view.addEventListener('load', ({ detail }) => {
@@ -606,6 +853,10 @@ if (!url) {
       onTap(e.clientX, e.target, detail.doc)
     })
     detail.doc.addEventListener('keydown', handleKey)
+    // R7.4: the define chip's selection watch. Bound alongside the touch handlers and
+    // deliberately AFTER them, so the reading order of this block matches the ownership
+    // note: the bands are established first, and the chip lives in the state they decline.
+    watchSelection(detail.doc)
   })
 
   function handleKey(e) {
@@ -616,6 +867,7 @@ if (!url) {
   // Host-frame taps (margins outside the section doc) also route through the zone logic.
   document.addEventListener('click', (e) => {
     if (Date.now() - lastTouchEndAt < CLICK_AFTER_TOUCH_MS) return
+    if (anySelectionLive()) return          // R7.4 — see anySelectionLive
     if (e.target === document.body || e.target === view) onTap(e.clientX, e.target, document)
   })
 
@@ -712,6 +964,14 @@ window.addEventListener('message', async (e) => {
       break
     case 'clearSearch':
       try { view?.clearSearch?.() } catch (err) {}
+      break
+    // R7.4: the parent opened the definition modal, so the chip has done its job. Also the
+    // register's way to retract it on any panel opening, since the chip must never sit on
+    // top of a sheet.
+    case 'dismissChip':
+      chipHold = false
+      pendingWord = null
+      hideChip()
       break
     case 'search': {
       const token = ++searchToken

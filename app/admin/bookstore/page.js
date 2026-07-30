@@ -11,6 +11,9 @@ import {
   uploadSampleEpub,
 } from '../../lib/bookstore/admin-writes';
 import { GENRES, TITLE_STATUSES } from '../../lib/bookstore/schema';
+// R7.4 — the same parser the reader's lookup is built on, so what an editor types here
+// and what a long-press finds cannot drift apart.
+import { parseGlossary, serialiseGlossary } from '../../lib/dictionary';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -124,6 +127,7 @@ const emptyForm = {
   backCoverBlurb: '',
   openingLine: '',
   shelfCard: '',
+  glossary: '',            // R7.4 — authored as text, saved as a map
   catalogueNumber: '',
   priceGbp: '',
   priceNgn: '',
@@ -233,6 +237,8 @@ export default function AdminBookstorePage() {
       backCoverBlurb: title.backCoverBlurb || '',
       openingLine: title.openingLine || '',
       shelfCard: title.shelfCard || '',
+      // R7.4 — the stored map back into the editor's line-per-entry form.
+      glossary: serialiseGlossary(title.glossary),
       catalogueNumber: Number.isInteger(title.catalogueNumber) ? String(title.catalogueNumber) : '',
       priceGbp: minorToMajor(title.prices?.gbp),
       priceNgn: minorToMajor(title.prices?.ngn),
@@ -314,6 +320,10 @@ export default function AdminBookstorePage() {
     payload.backCoverBlurb = form.backCoverBlurb.trim() || null;
     payload.openingLine = form.openingLine.trim() || null;
     payload.shelfCard = form.shelfCard.trim() || null;
+    // R7.4 — the textarea is parsed into the map that reaches RTDB. Always included (null
+    // when empty) for the same reason as the fields above: an edit must be able to CLEAR it.
+    payload.glossary = parseGlossary(form.glossary).map;
+    if (!Object.keys(payload.glossary).length) payload.glossary = null;
     const catNum = form.catalogueNumber.trim() === '' ? null : Number(form.catalogueNumber);
     payload.catalogueNumber = Number.isInteger(catNum) && catNum > 0 ? catNum : null;
 
@@ -338,6 +348,8 @@ export default function AdminBookstorePage() {
     // The Bookseller's Fields (R4b) — caps + positive-integer catalogue number.
     if (form.backCoverBlurb.length > 280) local.push('Back cover blurb must be 280 characters or fewer');
     if (form.shelfCard.length > 160) local.push('Shelf card must be 160 characters or fewer');
+    // R7.4 — surface a malformed glossary line here rather than as a write rejection.
+    local.push(...parseGlossary(form.glossary).errors);
     if (form.catalogueNumber.trim() !== '') {
       const n = Number(form.catalogueNumber);
       if (!Number.isInteger(n) || n <= 0) local.push('Catalogue number must be a positive whole number');
@@ -630,6 +642,14 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
     : null;
   const catDup = catDupTitle && catDupTitle.id !== editingTitleId ? catDupTitle : null;
 
+  // R7.4 — live glossary feedback as the editor types: a running entry count, and the
+  // malformed lines named by number before Save is ever pressed.
+  const glossaryParsed = useMemo(() => {
+    const { map, errors } = parseGlossary(form.glossary);
+    return { count: Object.keys(map).length, errors };
+  }, [form.glossary]);
+  const glossaryErrors = glossaryParsed.errors;
+
   function handleAddTerritory(code) {
     const v = (code || '').trim().toUpperCase();
     if (!/^[A-Z]{2}$/.test(v)) return;
@@ -773,6 +793,24 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
           <label style={s.label}>Shelf card <span style={s.labelSoft}>(optional, ≤ 160)</span></label>
           <textarea style={{ ...s.textarea, minHeight: 70 }} maxLength={160} value={form.shelfCard} onChange={(e) => setForm((f) => ({ ...f, shelfCard: e.target.value }))} placeholder="The curator's note, in your voice." />
           <div style={s.hint}>The curator&rsquo;s note, in your voice, signed &mdash; Calvary. NO fallback: leave empty and the book gets no card. Never invent one. <span style={{ color: form.shelfCard.length > 160 ? '#fcd34d' : 'rgba(255,255,255,0.35)' }}>{form.shelfCard.length}/160</span></div>
+        </div>
+        {/* R7.4 — THE HOUSE GLOSSARY. One entry per line, `word — definition`, because that
+            is how a glossary is written on paper. Parsed on save; the map is what reaches
+            RTDB and what the reader looks up before it ever asks the internet. */}
+        <div style={{ ...s.fg, marginTop: '1.1rem' }}>
+          <label style={s.label}>House glossary <span style={s.labelSoft}>(optional, one per line)</span></label>
+          <textarea
+            style={{ ...s.textarea, minHeight: 130, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '0.8rem' }}
+            value={form.glossary}
+            onChange={(e) => setForm((f) => ({ ...f, glossary: e.target.value }))}
+            placeholder={'harmattan — the dry dusty wind that blows down from the Sahara\nogbanje — a child said to die and return to the same mother'}
+          />
+          <div style={glossaryErrors.length ? s.hintWarn : s.hint}>
+            One entry per line: <code>word — definition</code> (em dash, en dash or a spaced hyphen).
+            The reader long-presses a word and gets THIS before any dictionary. Definitions ≤ 500 characters.
+            {glossaryParsed.count > 0 && !glossaryErrors.length && <> &mdash; {glossaryParsed.count} {glossaryParsed.count === 1 ? 'entry' : 'entries'}.</>}
+            {glossaryErrors.map((er, i) => <div key={i}>⚠ {er}</div>)}
+          </div>
         </div>
         <div style={{ ...s.fg, marginTop: '1.1rem', maxWidth: 240 }}>
           <label style={s.label}>Catalogue number <span style={s.labelSoft}>(optional)</span></label>

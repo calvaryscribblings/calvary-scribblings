@@ -13,6 +13,9 @@ import {
   PUBLISHER_STATUSES,
   TITLE_STATUSES,
 } from './schema';
+// R7.4 — the glossary's shape rule lives with the reader that consumes it, so the writer
+// and the lookup can never disagree about what a valid entry is.
+import { validateGlossary } from '../dictionary';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const PUBLISHERS_PATH = 'bookstore_publishers';
@@ -74,6 +77,25 @@ function validateBooksellerFields(doc) {
     errors.push('catalogueNumber must be a positive integer or null');
   }
   return errors;
+}
+
+// R7.4 — the glossary as it must look on the way into RTDB. Accepts what the admin form
+// hands over (already a map) and reduces every "there isn't one" spelling to null, so a
+// title either HAS a glossary or carries the field as null and never as an empty husk.
+// Keys are lowercased here as well as in the parser: this is the last gate before the
+// database, and the reader's lookup assumes lowercased keys.
+function normaliseGlossaryField(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'object' || Array.isArray(value)) return value; // let the validator name it
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (typeof k !== 'string' || typeof v !== 'string') { out[k] = v; continue; } // ditto
+    const key = k.trim().toLowerCase();
+    const def = v.trim();
+    if (!key || !def) continue;      // an empty key or definition is dropped, not written
+    out[key] = def;
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 function slugify(input) {
@@ -250,6 +272,12 @@ export async function createTitle(input) {
     openingLine: typeof input.openingLine === 'string' && input.openingLine.trim() ? input.openingLine.trim() : null,
     shelfCard: typeof input.shelfCard === 'string' && input.shelfCard.trim() ? input.shelfCard.trim() : null,
     catalogueNumber: Number.isInteger(input.catalogueNumber) && input.catalogueNumber > 0 ? input.catalogueNumber : null,
+    // R7.4 — THE HOUSE GLOSSARY. Schema-external, same precedent as samplePath and the
+    // Bookseller's Fields: TITLE_SCHEMA is locked, so validateTitle ignores this and the
+    // shape is checked inline below. A flat map { lowercasedWord: definition }; null when
+    // the editor left the field empty, never {} — an empty object would ride into RTDB as
+    // a key with nothing under it, which RTDB drops anyway, so null says it plainly.
+    glossary: normaliseGlossaryField(input.glossary),
     prices: input.prices || {},
     genre: input.genre,
     publishedDate: input.publishedDate,
@@ -278,6 +306,8 @@ export async function createTitle(input) {
   }
   const bfErrors = validateBooksellerFields(doc);
   if (bfErrors.length) return { ok: false, errors: bfErrors };
+  const glErrors = validateGlossary(doc.glossary);
+  if (glErrors.length) return { ok: false, errors: glErrors };
 
   try {
     const existing = await get(ref(db, `${TITLES_PATH}/${slug}`));
@@ -343,6 +373,13 @@ export async function updateTitle(titleId, partial) {
     }
     const bfErrors = validateBooksellerFields(merged);
     if (bfErrors.length) return { ok: false, errors: bfErrors };
+
+    // R7.4 — the glossary rides through the spread; normalise then check inline. An edit
+    // that clears the textarea must be able to REMOVE a glossary, so '' / {} / undefined all
+    // become null rather than being skipped as "no change".
+    merged.glossary = normaliseGlossaryField(merged.glossary);
+    const glErrors = validateGlossary(merged.glossary);
+    if (glErrors.length) return { ok: false, errors: glErrors };
 
     const result = validateTitle(merged);
     if (!result.valid) return { ok: false, errors: result.errors };

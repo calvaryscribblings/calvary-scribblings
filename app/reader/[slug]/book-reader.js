@@ -103,6 +103,11 @@ export default function BookstoreReaderClient({ slug, title }) {
     fetchStreamUrl();
   }, [isSample, fetchStreamUrl]);
 
+  // R7.4 — the house glossary is passed on BOTH paths below, sample included. A sample
+  // reader meeting the book's own vocabulary is the selling moment, not a privilege of
+  // purchase; withholding it would withhold the best evidence that this book was made by
+  // people who care about its words.
+  //
   // ── Sample: the public sample EPUB, straight from Storage. ──
   useEffect(() => {
     if (!isSample) return undefined;
@@ -265,6 +270,7 @@ export default function BookstoreReaderClient({ slug, title }) {
           escape={{ href: `/bookstore/${slug}`, label: '← Store' }}
           user={user}
           coverSplash={coverSplash}
+          glossary={title.glossary || null}
           banner={(
             <div className="rr-banner">
               <span className="rr-banner-label">Sample · {title.title}</span>
@@ -291,6 +297,7 @@ export default function BookstoreReaderClient({ slug, title }) {
           ribbons
           progress={bookProgress}
           coverSplash={coverSplash}
+          glossary={title.glossary || null}
           renderEnding={colophon}
           onError={handleHostError}
           onRequireAuth={() => setShowAuth(true)}

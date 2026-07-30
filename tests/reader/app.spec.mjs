@@ -286,3 +286,151 @@ test('a book that will not open shows the failure state, with a way out', async 
 
   console.log(`\n=== failure state ===\n${(await fail.innerText()).replace(/\n+/g, ' / ')}\n`);
 });
+
+// ── R7.4 — THE DICTIONARY, across the React boundary ─────────────────────────
+// define-chip.spec.mjs proves the HOST turns a settled selection into a chip and a tapped
+// chip into a defineWord message. dictionary.spec.mjs proves the lookup pipeline in
+// isolation, including that a glossary hit never touches the network. What neither can
+// reach is the thing the reader actually looks at: the modal, rendered by ReadingRoom from
+// the message, over a real book, on a real register.
+//
+// THE ONE SUBSTITUTION, again: api.dictionaryapi.dev is stubbed. This file is about what the
+// Reading Room does with an answer, not about whether a third party is up — and a suite that
+// fails when someone else's server is slow is a suite people learn to ignore.
+const DICT_HOST = 'api.dictionaryapi.dev';
+
+async function stubDictionary(page, handler) {
+  await page.route((url) => url.hostname === DICT_HOST, handler);
+}
+
+const DICT_OK = () => (route) => route.fulfill({
+  status: 200,
+  headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  body: JSON.stringify([{
+    // The word the reader actually tapped, taken from the request the pipeline made.
+    word: decodeURIComponent((route.request().url().split('/en/')[1] || 'word').split('?')[0]),
+    phonetic: '/ˈtɛst/',
+    meanings: [{
+      partOfSpeech: 'noun',
+      definitions: [
+        { definition: 'The first sense, which the reader should see.' },
+        { definition: 'The second sense.' },
+      ],
+    }],
+  }]),
+});
+
+/** Select a real word in the open book and tap the chip the host offers for it. */
+async function defineAWord(page) {
+  const frame = page.frames().find((fr) => fr.url().includes('/reading-room.html'));
+  const picked = await frame.evaluate(() => {
+    const view = document.querySelector('foliate-view');
+    const doc = view.renderer.getContents()[0].doc;
+    const p = doc.querySelector('p') || doc.body;
+    const node = [...p.childNodes].find((n) => n.nodeType === 3 && n.nodeValue.trim().length > 40)
+      || doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT).nextNode();
+    const text = node.nodeValue;
+    const m = /\b[A-Za-z]{4,}\b/.exec(text);
+    const range = doc.createRange();
+    range.setStart(node, m.index);
+    range.setEnd(node, m.index + m[0].length);
+    const sel = doc.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return m[0];
+  });
+
+  // Wait for the host's settle debounce to offer the chip, then tap it where it is.
+  const chip = await frame.locator('#define-chip');
+  await expect(chip, 'the host must offer a Define chip for a settled word').toBeVisible({ timeout: 5000 });
+  await chip.click();
+  return picked;
+}
+
+test('a defined word opens the Reading Room modal, sourced and anchored', async ({ page }) => {
+  await openStory(page);
+  // THE STUB GOES IN FIRST. Tapping the chip STARTS the lookup, so installing the route
+  // afterwards races a real request to api.dictionaryapi.dev — which, on the 404 test,
+  // answered with a genuine definition and quietly turned a miss into a hit.
+  // The word is not known until the selection is made, so the stub matches on the host and
+  // reads the word back out of the request URL.
+  await stubDictionary(page, DICT_OK());
+  const word = await defineAWord(page);
+
+  const modal = page.locator('.rr-define');
+  await expect(modal, 'tapping Define must open the definition').toBeVisible({ timeout: 15000 });
+
+  // The word as headline, and the phonetic beside it.
+  await expect(page.locator('.rr-define-word')).toHaveText(new RegExp(word, 'i'));
+  await expect(page.locator('.rr-define-phon')).toHaveText('/ˈtɛst/');
+
+  // Senses — at most three, the first one the reader should see.
+  const senses = page.locator('.rr-define-sense');
+  await expect(senses.first()).toContainText('first sense');
+  expect(await senses.count(), 'at most three senses').toBeLessThanOrEqual(3);
+
+  // THE ANCHORED QUOTE: the book's own sentence, with the tapped word picked out.
+  const quote = page.locator('.rr-define-quote');
+  await expect(quote).toBeVisible();
+  await expect(quote).toContainText(new RegExp(word, 'i'));
+  await expect(page.locator('.rr-define-mark'), 'the word itself must be emphasised in its sentence')
+    .toHaveText(new RegExp(`^${word}$`, 'i'));
+
+  // The source line, at the foot.
+  await expect(page.locator('.rr-define-src')).toHaveText('Free Dictionary');
+
+  console.log(`\n=== definition modal ===\nword "${word}"\n${(await modal.innerText()).replace(/\n+/g, ' / ')}\n`);
+});
+
+test('the modal pins the chrome and closes on Escape, like any panel', async ({ page }) => {
+  await openStory(page);
+  await stubDictionary(page, DICT_OK());
+  const word = await defineAWord(page);
+  await expect(page.locator('.rr-define')).toBeVisible({ timeout: 15000 });
+
+  // CHROME IS PINNED. The idle countdown is 3.5 s; well past it, the chrome must still be up
+  // because a panel is open — the rule ReadingRoom already applies to Contents and Search,
+  // inherited here by modelling the definition AS a panel rather than as its own overlay.
+  await page.waitForTimeout(IDLE_MS + 900);
+  expect(await chromeHidden(page), 'an open definition must pin the chrome').toBe(false);
+  await expect(page.locator('.rr-define'), 'and must not retire on its own').toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.rr-define'), 'Escape must close it').toHaveCount(0);
+});
+
+test('a word the dictionary does not know is a calm miss, not an error', async ({ page }) => {
+  await openStory(page);
+  // Exactly what api.dictionaryapi.dev returns for an unknown word. Installed BEFORE the
+  // tap — see the note in the first dictionary test.
+  await stubDictionary(page, (route) => route.fulfill({
+    status: 404,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    body: JSON.stringify({ title: 'No Definitions Found' }),
+  }));
+  const word = await defineAWord(page);
+
+  const miss = page.locator('.rr-define-miss');
+  await expect(miss, 'a miss must still open the modal').toBeVisible({ timeout: 15000 });
+  await expect(miss).toContainText(`No definition found for “${word}”`);
+  // In the register's own voice: the modal is there, the word is there, nothing is red.
+  await expect(page.locator('.rr-define-word')).toHaveText(new RegExp(word, 'i'));
+  await expect(page.locator('.rr-define-quote'), 'the anchored quote survives a miss').toBeVisible();
+
+  console.log(`\n=== graceful miss ===\n${(await page.locator('.rr-define').innerText()).replace(/\n+/g, ' / ')}\n`);
+});
+
+test('a dictionary that never answers ends as a miss, not a spinner', async ({ page }) => {
+  await openStory(page);
+  // A server that accepts and says nothing — the §B lesson applied to the dictionary.
+  // Installed before the tap so the silence is OURS and not the real network's.
+  await stubDictionary(page, () => { /* never fulfil */ });
+  const word = await defineAWord(page);
+
+  await expect(page.locator('.rr-define'), 'the modal opens at once, on "looking"').toBeVisible({ timeout: 10000 });
+  // The 4 s fence, plus room for the round trip that will never come.
+  await expect(page.locator('.rr-define-miss'), 'silence must resolve to a miss')
+    .toBeVisible({ timeout: 15000 });
+  await expect(page.locator('.rr-define-wait'), 'and the "Looking it up…" line must go').toHaveCount(0);
+  console.log(`\n=== dictionary timeout ===\nword "${word}" resolved to the miss state\n`);
+});
