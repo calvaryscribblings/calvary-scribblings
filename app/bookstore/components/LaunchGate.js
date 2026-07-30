@@ -34,11 +34,35 @@ const OPENING_DATE = '30 September 2026';
 const GATE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Cinzel:wght@400;600&display=swap');
 
+  /* THE BOTTOM TERM CLEARS THE TAB BAR. /bookstore renders <TabBar /> in every state now,
+     including this one, so the curtain's last line would otherwise sit under 64px of opaque bar.
+     The 64px stacks ON TOP of the 3rem — the breathing room the composition was drawn with is
+     not the bar's clearance and must not be spent as it. safe-area-inset-bottom appears ONCE, on
+     this term, and it is the bar that consumes it: .cs-tabbar carries its own
+     padding-bottom:env(safe-area-inset-bottom) and .cs-tabbar-spacer reserves 65px + the inset in
+     flow (components/TabBar.js). Adding the inset again here would double it on a notched phone.
+     Vertical padding only — the 1.5rem side gutter is untouched. */
   .bg-gate{position:fixed;inset:0;z-index:9000;overflow-y:auto;
     background:#070707;color:#f0ead8;font-family:'Cormorant Garamond',Georgia,serif;
     display:flex;
-    padding:calc(3rem + env(safe-area-inset-top)) 1.5rem calc(3rem + env(safe-area-inset-bottom));
+    padding:calc(3rem + env(safe-area-inset-top)) 1.5rem calc(3rem + 64px + env(safe-area-inset-bottom));
     transition:transform .9s cubic-bezier(.7,0,.3,1), opacity .9s cubic-bezier(.7,0,.3,1)}
+
+  /* THE BAR PAINTS ABOVE THE CURTAIN — a scoped lift, live only while this stylesheet is mounted.
+     .cs-tabbar ships z-index:900 (components/TabBar.js) and .bg-gate is 9000, so clearing the
+     bar's height above would have bought nothing: the curtain's opaque ground painted straight
+     over it. The gate keeps 9000 — every other overlay on the site sits below that on purpose
+     (Navbar 1000, its drawer 999, its dropdown 2000, QuickLookModal 1200) and lowering the gate
+     under the bar would put it under those too.
+     So the BAR rises instead, from 900 to 9100, and only here. Two properties make that safe:
+       · This rule lives in GATE_CSS, which React unmounts with the gate. The instant the curtain
+         lifts, the bar is back to 900 and below QuickLookModal where it belongs. Nothing on any
+         other surface ever sees 9100.
+       · The selector is nav.cs-tabbar, not .cs-tabbar. Element-plus-class outranks the bare
+         class, so this wins regardless of which <style> block the browser met first — the same
+         defence, and for the same reason, as the ".cs-dtabs a.cs-dtab" scoping documented in
+         components/TabBar.js. Do not weaken it to a lone class to match the rules around it. */
+  nav.cs-tabbar{z-index:9100}
   /* The lift. Fade runs ahead of the travel — by the time the panel is halfway up it is
      already mostly gone, which is what stops a 0.9s full-height translate reading as a wipe. */
   .bg-gate.is-lifting{transform:translateY(-100%);opacity:0}

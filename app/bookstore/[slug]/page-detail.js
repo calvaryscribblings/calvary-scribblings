@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { getTitleBySlug, getPublisher } from '../../lib/bookstore/loader';
 import { sectionForGenre } from '../page';
 import Navbar from '../../components/Navbar';
+import TabBar from '../../components/TabBar';
 import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
 import BuyButton from '../components/BuyButton';
 import { truncate, formatCatalogueNumber } from '../components/fields';
@@ -115,8 +116,9 @@ export default function BookDetailClient({ params }) {
     window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
   }, []);
 
-  // Nothing until the curtain effect has read storage.
-  if (curtain === 'checking') return null;
+  // No early return on curtain === 'checking' any more — same change, same reasoning, as the
+  // storefront (app/bookstore/page.js). The bar renders in every state, so blanking the tree
+  // before storage has been read would drop it for a frame and ship a prerender without it.
   // Only reachable from behind the curtain — the fetch that can set 'missing' does not run
   // until `unlocked`, so a visitor without the key gets the gate rather than a 404.
   if (unlocked) { if (state === 'missing') notFound(); }
@@ -286,6 +288,20 @@ export default function BookDetailClient({ params }) {
         </main>
         </>
       )}
+
+      {/* ── THE BAR, AND R9 MUST NOT TAKE IT ────────────────────────────────────────────────
+          This route carried NO tab bar in any state — not locked, not open. A reader arriving on
+          a shared /bookstore/<slug> link (the reader's "View in the Book Store", a message from a
+          friend) reached a detail page, or a curtain, with no way back into the platform. The
+          storefront at least kept the bar behind `storeReady`; this page never had it at all.
+          Unconditional here for the same reason it is unconditional there.
+
+          THIS IS PLATFORM CHROME, NOT GATE MACHINERY. gate.js's delete list (:101-115) names this
+          file — it takes the LaunchGate import, the `curtain` state and the slot below, and it
+          must leave this line standing. The bar outlives the curtain.
+
+          No tab is lit; the fifth tab is its own round and will pass active="store". */}
+      <TabBar />
 
       {curtain === 'up' && (
         <LaunchGate onUnlock={() => setUnlocked(true)} onLifted={() => setCurtain('gone')} />

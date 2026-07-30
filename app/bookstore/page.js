@@ -275,8 +275,13 @@ export default function BookStorePage() {
   const openModal = (title, rect, reset) => { modalReset.current = reset; setModal({ title, rect }); };
   const closeModal = () => { if (modalReset.current) modalReset.current(); modalReset.current = null; setModal(null); };
 
-  // Nothing at all until the curtain effect has read storage — see the note on `curtain`.
-  if (curtain === 'checking') return null;
+  // No early return on curtain === 'checking' any more. It used to be `return null`, which was
+  // correct while the bar lived inside storeReady — there was nothing to render before storage
+  // had been read. Now the bar renders in EVERY state, so returning null would blank it for the
+  // one frame between first paint and the effect, and the prerendered HTML would ship without it.
+  // Hydration is still safe: the bar's markup is a pure function of the pathname, identical on
+  // the server and on the first client render, and it is the ONLY thing rendered while
+  // `curtain === 'checking'` — storeReady is false and the gate's slot is empty.
 
   // Only reachable from behind the curtain, because gateState stays 'checking' until `unlocked`
   // lets the A0 query run. A visitor without the key gets the gate, never the 404.
@@ -440,14 +445,26 @@ export default function BookStorePage() {
           )}
         </main>
 
-        {/* The storefront already renders the platform Navbar, which carries the desktop tab row.
-            Without this the mobile visitor lost the tabs the desktop one kept. No tab is lit here —
-            /bookstore is none of the four. The bookstore's own surfaces are untouched. */}
-        <TabBar />
-
         {modal && <QuickLookModal title={modal.title} originRect={modal.rect} onClose={closeModal} />}
         </>
       )}
+
+      {/* ── THE BAR SITS OUTSIDE BOTH SLOTS, AND R9 MUST NOT TAKE IT ────────────────────────
+          It was inside `storeReady` until now, which meant a locked visitor got a full-screen
+          curtain with no bar and no way back but the browser's own — and on an installed PWA
+          there may be no back affordance at all. That is a dead end at the exact moment the tab
+          is meant to prove the two platforms converge, so the bar is now unconditional: locked,
+          checking, open, all three.
+
+          THIS IS PLATFORM CHROME, NOT GATE MACHINERY. The delete list at the foot of
+          app/lib/bookstore/gate.js (:101-115) names this file — it removes the LaunchGate import,
+          the `curtain` state and the <LaunchGate /> slot below. It must NOT remove this line or
+          the padding that clears it in LaunchGate.js. The bar outlives the curtain: after R9 the
+          storefront still needs it, for exactly the reason the storefront needed it before R8.1.
+
+          No tab is lit — /bookstore is none of the four today. The fifth tab is its own round,
+          and when it lands this call gains `active="store"`. */}
+      <TabBar />
 
       {/* The curtain outlives the unlock: `unlocked` is already true while this is still
           mounted, and that overlap is the reveal. It unmounts itself via onLifted. */}
