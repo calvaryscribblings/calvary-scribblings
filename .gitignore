@@ -65,3 +65,6 @@ tests/fixtures/harness-book-short.epub
 test-results/
 playwright-report/
 tests/fixtures/*.master.epub
+samples/
+tests/fixtures/*.sample.epub
+tests/fixtures/harness-sample.epub

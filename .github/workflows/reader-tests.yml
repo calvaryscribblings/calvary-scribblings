@@ -34,6 +34,8 @@ on:
       - 'app/lib/ribbonGeometry.js'
       - 'app/lib/readerCollection.js'
       - 'tests/**'
+      # R8.0 — the sample splitter, which tests/reader/sample-epub.spec.mjs imports directly.
+      - 'scripts/make-sample-epub.mjs'
       - '.github/workflows/reader-tests.yml'
       - 'package.json'
       - 'package-lock.json'
