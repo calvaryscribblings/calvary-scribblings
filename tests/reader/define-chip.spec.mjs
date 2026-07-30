@@ -118,6 +118,10 @@ async function chipState(page) {
       shown: el.classList.contains('show'),
       left: r.left, top: r.top, right: r.right, bottom: r.bottom,
       width: r.width, height: r.height,
+      // The host places the chip using offsetWidth/offsetHeight, which are INTEGERS, not the
+      // fractional box the rect reports. Recomputing its arithmetic with the rect's width
+      // lands a pixel off — so the exactness assertions must read the same numbers it did.
+      offsetWidth: el.offsetWidth, offsetHeight: el.offsetHeight,
       text: (el.textContent || '').trim(),
     };
   });
@@ -309,4 +313,353 @@ test('with NO selection the tap bands still work exactly as before', async ({ pa
   console.log(`\n=== bands, no selection ===\nstart ${before.start} → ${after.start}\n`);
   expect(after.start, 'the right third must still turn the page').toBeGreaterThan(before.start);
   expect((await chipState(page)).shown, 'and no chip appears from a plain tap').toBe(false);
+});
+
+// ── R7.4.1 — CHIP GEOMETRY vs THE iOS CALLOUT ────────────────────────────────
+//
+// Glass found the collision: on iOS the system selection menu (Copy / Look Up / Translate)
+// is drawn directly ABOVE the selection, which is where R7.4 put the chip. The callout is
+// owned by the OS and drawn above the web view, so no z-index reaches it and no CSS
+// suppresses it without also breaking the selection. The chip moves; the callout does not.
+//
+// WHAT CAN AND CANNOT BE ASSERTED HERE. Playwright is not an iPhone, and the callout does
+// not exist in Chromium — so this file cannot prove the two no longer overlap. What it CAN
+// prove, and does, is the geometry policy that makes them not overlap: that on an Apple
+// touch platform the chip lands below the selection with clearance, that it flips above only
+// when there is no room, that clamping still holds, and — the assertion that protects the
+// green surface — that non-Apple placement is byte-for-byte what R7.4 shipped.
+//
+// The platform is emulated by overriding what isAppleTouch() reads. That exercises the REAL
+// detection function rather than a test hatch: production code has no idea it is being
+// tested, and a change to the detection breaks these tests, which is the point.
+
+/** Make the host believe it is an iPhone. Must be called BEFORE the reader is opened. */
+async function asIPhone(page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'platform', { get: () => 'iPhone', configurable: true });
+    Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5, configurable: true });
+    Object.defineProperty(navigator, 'userAgent', {
+      get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+      configurable: true,
+    });
+  });
+}
+
+/** iPadOS 13+, which lies and calls itself a Mac. Only maxTouchPoints gives it away. */
+async function asIPadOS(page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel', configurable: true });
+    Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5, configurable: true });
+    Object.defineProperty(navigator, 'userAgent', {
+      get: () => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+      configurable: true,
+    });
+  });
+}
+
+/**
+ * The selection's rect in HOST coordinates, unrounded — computed exactly as the host
+ * computes it, so an assertion about the chip's position can be exact rather than fuzzy.
+ * (The `rect` on the wordSelected message is rounded for the wire; this is not.)
+ */
+async function selectionHostRect(page) {
+  return roomFrame(page).evaluate(() => {
+    const view = document.querySelector('foliate-view');
+    const doc = view.renderer.getContents()[0].doc;
+    const sel = doc.getSelection();
+    const r = sel.getRangeAt(0).getBoundingClientRect();
+    const f = doc.defaultView.frameElement.getBoundingClientRect();
+    return {
+      left: r.left + f.left, top: r.top + f.top,
+      right: r.right + f.left, bottom: r.bottom + f.top,
+      width: r.width, height: r.height,
+      vw: window.innerWidth, vh: window.innerHeight,
+    };
+  });
+}
+
+/** Is anything selected anywhere — host document or any section document? */
+async function selectionLiveAnywhere(page) {
+  return roomFrame(page).evaluate(() => {
+    const live = (d) => {
+      try { const s = d.getSelection(); return !!s && !s.isCollapsed && String(s).trim().length > 0; }
+      catch (e) { return false; }
+    };
+    if (live(document)) return true;
+    const view = document.querySelector('foliate-view');
+    for (const c of view?.renderer?.getContents?.() || []) if (c.doc && live(c.doc)) return true;
+    return false;
+  });
+}
+
+/**
+ * Show the chip once and throw the result away, so its webfont is loaded before any
+ * measurement that matters.
+ *
+ * WHY THIS IS NEEDED, and why document.fonts.ready is not enough. The chip's horizontal
+ * position derives from its OWN width at the instant it is first shown, and it is set in
+ * Cinzel. But the chip is `display:none` until the first selection settles — a never-rendered
+ * element requests no font, so fonts.ready resolves without Cinzel in it. On the first show
+ * the browser measures with the fallback serif (93 px), places the chip from that, and only
+ * then swaps in Cinzel (95 px). Net effect: the chip's first appearance sits ~1 px off the
+ * position its finished width implies.
+ *
+ * That is a real product nuance, and it is being left alone: one pixel, once, on the first
+ * definition of a session. Pre-warming the font in the host would be code written for a
+ * measurement error nobody can see. What it WOULD do is make an exact-pixel assertion flip
+ * between 8 and 9 depending on timing — so the harness warms it instead, and then asserts
+ * the arithmetic exactly.
+ */
+async function warmChipFont(page) {
+  await selectWordInParagraph(page);
+  await page.waitForTimeout(SETTLED);
+  await collapseSelection(page);
+  await page.waitForTimeout(SETTLED);
+}
+
+const CLAMP = 8;          // CHIP_MARGIN in the host
+const GAP = 8;            // CHIP_GAP
+const IOS_CLEARANCE = 18; // IOS_HANDLE_CLEARANCE
+
+test('iOS: the chip sits BELOW the selection, clear of the grab-dots', async ({ page }) => {
+  await asIPhone(page);
+  await openReader(page);
+  await warmChipFont(page);
+  await selectWordInParagraph(page);
+  await page.waitForTimeout(SETTLED);
+
+  const rect = await selectionHostRect(page);
+  const chip = await chipState(page);
+  console.log(`\n=== iOS placement ===\nselection ${JSON.stringify({ top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right })}\nchip      ${JSON.stringify({ top: chip.top, bottom: chip.bottom, left: chip.left, right: chip.right })}\n`);
+
+  expect(chip.shown).toBe(true);
+  // THE FIX, stated as one assertion: the chip's top edge is below the selection's bottom.
+  expect(chip.top, 'on iOS the chip must clear the selection downwards').toBeGreaterThan(rect.bottom);
+  // And by enough to clear the handle knob that hangs below the rect.
+  expect(chip.top - rect.bottom, 'it must clear the grab-dots, not merely the text')
+    .toBeGreaterThanOrEqual(IOS_CLEARANCE - 1);
+  // It is genuinely below, not merely overlapping lower down.
+  expect(chip.top).toBeGreaterThanOrEqual(rect.bottom);
+
+  // Horizontally near the selection's END, not centred on it.
+  const chipCentre = chip.left + chip.width / 2;
+  const clamped = chip.left <= CLAMP + 0.5 || chip.right >= rect.vw - CLAMP - 0.5;
+  if (!clamped) {
+    expect(Math.abs(chipCentre - rect.right), 'the chip is centred on the selection END')
+      .toBeLessThanOrEqual(1);
+  }
+});
+
+test('iPadOS is detected too, though it calls itself a Mac', async ({ page }) => {
+  // The case that is easy to miss: iPadOS 13+ reports platform 'MacIntel' and a Macintosh
+  // UA. It raises the same callout an iPhone does, and it is the device most likely to be
+  // reading a book, so getting this wrong would leave the collision exactly where it hurts.
+  await asIPadOS(page);
+  await openReader(page);
+  await warmChipFont(page);
+  await selectWordInParagraph(page);
+  await page.waitForTimeout(SETTLED);
+
+  const rect = await selectionHostRect(page);
+  const chip = await chipState(page);
+  console.log(`\n=== iPadOS placement ===\nchip.top ${chip.top} vs selection.bottom ${rect.bottom}\n`);
+  expect(chip.top, 'an iPad must get the iOS placement').toBeGreaterThan(rect.bottom);
+});
+
+test('NON-iOS placement is byte-for-byte what R7.4 shipped', async ({ page }) => {
+  // The regression guard for a surface glass called PERFECT on Android. This does not assert
+  // "above the word" loosely — it recomputes R7.4's exact arithmetic and demands the same
+  // pixel, so any drift in the shared clamp or the gap shows up here first.
+  await openReader(page);                      // no platform override: plain Chromium
+  await warmChipFont(page);
+  await selectWordInParagraph(page);
+  await page.waitForTimeout(SETTLED);
+
+  const rect = await selectionHostRect(page);
+  const chip = await chipState(page);
+
+  const cw = chip.offsetWidth;
+  const ch = chip.offsetHeight;
+  const expectedTop = Math.round(Math.min(
+    Math.max(CLAMP, rect.top - ch - GAP),
+    Math.max(CLAMP, rect.vh - ch - CLAMP),
+  ));
+  const expectedLeft = Math.round(Math.min(
+    Math.max(CLAMP, rect.left + rect.width / 2 - cw / 2),
+    Math.max(CLAMP, rect.vw - cw - CLAMP),
+  ));
+  console.log(`\n=== non-iOS placement ===\nselection left ${rect.left} width ${rect.width} | chip ${cw}x${ch}\nexpected top ${expectedTop} left ${expectedLeft}\nactual   top ${Math.round(chip.top)} left ${Math.round(chip.left)}\n`);
+
+  expect(Math.round(chip.top), 'R7.4 placed the chip ABOVE the word — unchanged').toBe(expectedTop);
+  expect(Math.round(chip.left), 'R7.4 centred the chip on the word — unchanged').toBe(expectedLeft);
+  expect(chip.bottom, 'and it is above the selection, as before').toBeLessThanOrEqual(rect.top + 1);
+});
+
+test('iOS: clamping still holds on all four edges', async ({ page }) => {
+  await asIPhone(page);
+  await openReader(page);
+  await warmChipFont(page);
+  await selectWordInParagraph(page);
+  await page.waitForTimeout(SETTLED);
+
+  const rect = await selectionHostRect(page);
+  const chip = await chipState(page);
+  expect(chip.left).toBeGreaterThanOrEqual(CLAMP - 0.5);
+  expect(chip.top).toBeGreaterThanOrEqual(CLAMP - 0.5);
+  expect(chip.right).toBeLessThanOrEqual(rect.vw - CLAMP + 0.5);
+  expect(chip.bottom).toBeLessThanOrEqual(rect.vh - CLAMP + 0.5);
+});
+
+test('the define tap clears the selection, so the platform menu goes with it', async ({ page }) => {
+  // Universal — asserted here in PLAIN Chromium, because it is not an iOS workaround. The
+  // system menu (iOS callout, Android action bar) is tied to the selection and is drawn above
+  // the web view; collapsing the selection is the only instruction that dismisses it.
+  await openReader(page);
+  await clearMsgs(page);
+  await warmChipFont(page);
+  await selectWordInParagraph(page);
+  await page.waitForTimeout(SETTLED);
+  expect(await selectionLiveAnywhere(page), 'a selection must exist to begin with').toBe(true);
+
+  const chip = await chipState(page);
+  const frameBox = await page.locator('iframe').boundingBox();
+  await page.touchscreen.tap(frameBox.x + chip.left + chip.width / 2, frameBox.y + chip.top + chip.height / 2);
+  await settle(page, 400);
+
+  console.log(`\n=== selection after define ===\nmessages: ${JSON.stringify((await msgs(page)).map((m) => m.type))}\n`);
+  expect(await msgs(page, 'defineWord'), 'the define still fires').toHaveLength(1);
+  expect(await selectionLiveAnywhere(page), 'and the selection is released').toBe(false);
+});
+
+test('iOS: the define tap clears the selection there too', async ({ page }) => {
+  await asIPhone(page);
+  await openReader(page);
+  await clearMsgs(page);
+  await warmChipFont(page);
+  await selectWordInParagraph(page);
+  await page.waitForTimeout(SETTLED);
+
+  const chip = await chipState(page);
+  const frameBox = await page.locator('iframe').boundingBox();
+  await page.touchscreen.tap(frameBox.x + chip.left + chip.width / 2, frameBox.y + chip.top + chip.height / 2);
+  await settle(page, 400);
+
+  expect(await msgs(page, 'defineWord')).toHaveLength(1);
+  expect(await selectionLiveAnywhere(page)).toBe(false);
+});
+
+// ── THE FLIP: no room below ──────────────────────────────────────────────────
+//
+// A FINDING FIRST, because it shapes the test. At the harness's 400x800 the lowest line of a
+// page ends 70.2 px above the viewport floor, and the iOS placement needs exactly 70
+// (18 clearance + 44 chip + 8 margin). Shrinking the viewport does not help: foliate's own
+// bottom margin scales with it, so at 400x400 the gap is 79.6 px — LARGER. The fixture
+// cannot produce a natural no-room case, which is itself the useful news: with foliate's
+// margins, a word on the last line normally DOES have room beneath it, and the flip is a
+// safety net rather than a routine path.
+//
+// So the condition is manufactured the only way that is still faithful to the rule under
+// test — the rule is "does the chip fit below", and the chip is made too tall to fit. The
+// selection is a real word on the real last line; only the chip's height is synthetic.
+test('iOS: with no room below, the chip flips ABOVE the selection', async ({ page }) => {
+  await asIPhone(page);
+  await openReader(page);
+  await warmChipFont(page);
+
+  const TALL = 120;
+  await roomFrame(page).evaluate((h) => {
+    const style = document.createElement('style');
+    style.textContent = `#define-chip{height:${h}px !important}`;
+    document.head.appendChild(style);
+  }, TALL);
+
+  // A real word on the real last line of the page — the bottom-line case the flip is for.
+  const picked = await roomFrame(page).evaluate(() => {
+    const view = document.querySelector('foliate-view');
+    const doc = view.renderer.getContents()[0].doc;
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+    let node, best = null;
+    while ((node = walker.nextNode())) {
+      const t = node.nodeValue;
+      if (!t || !t.trim()) continue;
+      const re = /\b[A-Za-z]{4,}\b/g;
+      let m;
+      while ((m = re.exec(t))) {
+        const r = doc.createRange();
+        r.setStart(node, m.index);
+        r.setEnd(node, m.index + m[0].length);
+        const b = r.getBoundingClientRect();
+        if (!b.height) continue;
+        if (!best || b.bottom > best.bottom) best = { node, index: m.index, len: m[0].length, word: m[0], bottom: b.bottom };
+      }
+    }
+    const r = doc.createRange();
+    r.setStart(best.node, best.index);
+    r.setEnd(best.node, best.index + best.len);
+    const sel = doc.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    return best.word;
+  });
+  await page.waitForTimeout(SETTLED);
+
+  const rect = await selectionHostRect(page);
+  const chip = await chipState(page);
+  const roomBelow = rect.vh - CLAMP - (rect.bottom + IOS_CLEARANCE);
+  console.log(`\n=== iOS flip ===\nword "${picked}" on the last line, selection bottom ${rect.bottom.toFixed(1)} of ${rect.vh}\nroom below: ${roomBelow.toFixed(1)} px for a ${chip.offsetHeight} px chip\nchip top ${chip.top} bottom ${chip.bottom}, selection top ${rect.top.toFixed(1)}\n`);
+
+  // The premise must actually hold, or the test proves nothing.
+  expect(chip.offsetHeight, 'the chip must really be too tall to fit below').toBe(TALL);
+  expect(roomBelow, 'there must genuinely be no room below').toBeLessThan(chip.offsetHeight);
+
+  // THE FLIP.
+  expect(chip.bottom, 'with no room below, the chip must go above the selection')
+    .toBeLessThanOrEqual(rect.top + 1);
+  // And the clamp survives it.
+  expect(chip.top).toBeGreaterThanOrEqual(CLAMP - 0.5);
+  expect(chip.bottom).toBeLessThanOrEqual(rect.vh - CLAMP + 0.5);
+});
+
+// The companion to the above: at the ordinary chip size the last line does NOT flip, because
+// it does not need to. Stated as a test so the finding above is recorded in the suite and not
+// only in a comment.
+test('iOS: the last line does NOT flip at the real chip size — there is room', async ({ page }) => {
+  await asIPhone(page);
+  await openReader(page);
+  await warmChipFont(page);
+
+  await roomFrame(page).evaluate(() => {
+    const view = document.querySelector('foliate-view');
+    const doc = view.renderer.getContents()[0].doc;
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+    let node, best = null;
+    while ((node = walker.nextNode())) {
+      const t = node.nodeValue;
+      if (!t || !t.trim()) continue;
+      const re = /\b[A-Za-z]{4,}\b/g;
+      let m;
+      while ((m = re.exec(t))) {
+        const r = doc.createRange();
+        r.setStart(node, m.index);
+        r.setEnd(node, m.index + m[0].length);
+        const b = r.getBoundingClientRect();
+        if (!b.height) continue;
+        if (!best || b.bottom > best.bottom) best = { node, index: m.index, len: m[0].length, bottom: b.bottom };
+      }
+    }
+    const r = doc.createRange();
+    r.setStart(best.node, best.index);
+    r.setEnd(best.node, best.index + best.len);
+    const sel = doc.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  });
+  await page.waitForTimeout(SETTLED);
+
+  const rect = await selectionHostRect(page);
+  const chip = await chipState(page);
+  console.log(`\n=== iOS last line, normal chip ===\nselection bottom ${rect.bottom.toFixed(1)} of ${rect.vh}, chip top ${chip.top}\n`);
+  expect(chip.top, 'there is room below the last line, so the chip stays below')
+    .toBeGreaterThan(rect.bottom);
+  expect(chip.bottom).toBeLessThanOrEqual(rect.vh - CLAMP + 0.5);
 });

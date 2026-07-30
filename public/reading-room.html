@@ -439,6 +439,30 @@ function anySelectionLive() {
   return false
 }
 
+// R7.4.1 — the same reach, used to LET GO rather than to ask.
+//
+// WHY THE DEFINE TAP CLEARS THE SELECTION, ON EVERY PLATFORM. The selection is what keeps
+// the platform's own menu on screen — iOS's Copy / Look Up callout, Android's action bar.
+// Leaving it standing means the modal opens with a system menu floating over it, which no
+// amount of z-index can fix: those menus are drawn by the OS, above the web view entirely.
+// Collapsing the selection is the only instruction we have that dismisses them, and it is
+// the right thing regardless: the reader asked for the definition, so the selection has
+// served its purpose. Universal because the improvement is universal — this is not the iOS
+// workaround, it is simply correct.
+//
+// The collapse fires selectionchange, which settles into hideChip(); the chip is already
+// hidden by then, and the click echo the collapse would otherwise release is caught by the
+// lastTouchEndAt latch fireDefine sets on the line above the call.
+function clearAllSelections() {
+  const clear = (d) => { try { const s = d && d.getSelection && d.getSelection(); if (s) s.removeAllRanges() } catch (e) {} }
+  clear(document)
+  try {
+    for (const c of (view && view.renderer && view.renderer.getContents && view.renderer.getContents()) || []) {
+      if (c && c.doc) clear(c.doc)
+    }
+  } catch (e) { /* nothing open */ }
+}
+
 function onTap(clientX, target, doc) {
   if (target && target.closest && target.closest('a[href]')) return // let links through
   if (hasLiveSelection(doc)) return
@@ -478,6 +502,47 @@ const SELECT_SETTLE_MS = 220     // quiet time after the last selection change
 const CHIP_GAP = 8               // px between the word and the chip
 const CHIP_MARGIN = 8            // px of viewport the chip may never cross
 const SENTENCE_MAX = 320         // a quote, not a chapter
+
+// ── R7.4.1 — THE CHIP AND THE iOS CALLOUT ────────────────────────────────────
+//
+// THE COLLISION. On iOS a text selection raises the system callout — Copy / Look Up /
+// Translate — and iOS puts it directly ABOVE the selection, which is exactly where the chip
+// was. The two overlap and the platform wins, because its menu is drawn by the OS above the
+// web view. We do NOT try to suppress the callout: it is platform-owned, readers expect it,
+// and every trick for killing it (-webkit-touch-callout, preventing selectstart) also breaks
+// the selection the chip depends on. So the chip moves instead.
+//
+// AND IT MOVES ON iOS ONLY. Android Chrome's placement is glass-verified perfect: its action
+// bar floats at the TOP of the viewport, nowhere near a chip sitting just above a word.
+// Moving the chip everywhere to fix one platform would trade a verified-good surface for an
+// unverified one. The non-Apple branch below is the R7.4 code, unchanged.
+const IOS_HANDLE_CLEARANCE = 18  // px below the selection rect, to clear the grab-dots
+
+// Is this an Apple touch platform? Three tests, because Apple has changed the answer twice.
+//
+//   1. `navigator.platform` says iPhone/iPad/iPod — true on iOS through 12, and still true
+//      on iPhone today.
+//   2. The user agent says so — belt to that braces, and what a UA-emulating harness sets.
+//   3. iPadOS 13+ DELIBERATELY reports itself as a Mac: platform is 'MacIntel' and the UA
+//      says Macintosh, precisely so sites serve it the desktop experience. The only thing
+//      that separates it from a real Mac is a touch screen — desktop Safari reports
+//      maxTouchPoints 0, an iPad reports 5. An iPad raises the same callout an iPhone does,
+//      so missing this case would leave the collision in place on the device most likely to
+//      be reading a book.
+//
+// Evaluated per placement rather than once at load: it costs three regexes on a gesture that
+// happens at most every few seconds, and it means nothing depends on script ordering.
+function isAppleTouch() {
+  try {
+    const nav = navigator
+    const platform = String(nav.platform || '')
+    const ua = String(nav.userAgent || '')
+    if (/^iP(hone|ad|od)/.test(platform)) return true
+    if (/\biP(hone|ad|od)\b/.test(ua)) return true
+    if (/Mac/.test(platform) && (nav.maxTouchPoints || 0) > 1) return true
+    return false
+  } catch (e) { return false }
+}
 
 const chipEl = document.getElementById('define-chip')
 let settleTimer = null
@@ -581,17 +646,52 @@ function hideChip() {
   chipEl.classList.remove('show')
 }
 
-function showChipAt(hostRect) {
+function showChipAt(hostRect, doc) {
   chipEl.classList.add('show')
   const cw = chipEl.offsetWidth || 96
   const ch = chipEl.offsetHeight || 44
   const vw = window.innerWidth
   const vh = window.innerHeight
-  // Above the word by preference — that is where the reader's finger is NOT.
-  let top = hostRect.top - ch - CHIP_GAP
-  if (top < CHIP_MARGIN) top = hostRect.bottom + CHIP_GAP     // no room above → below it
+  let top
+  let left
+
+  if (isAppleTouch()) {
+    // ── iOS: BELOW the selection, out from under the callout. ────────────────
+    // The vertical offset has to clear the selection's lower grab-dots, not merely the text:
+    // iOS draws the end handle as a knob CENTRED on the bottom edge of the selection rect, so
+    // roughly half of it hangs below the rect the DOM reports. IOS_HANDLE_CLEARANCE is that
+    // overhang plus enough air that the chip does not read as attached to the handle. It is a
+    // glass-tuned number — the knob's real size is not exposed to us.
+    top = hostRect.bottom + IOS_HANDLE_CLEARANCE
+    // FLIP ONLY WHEN THERE IS NO ROOM. The bottom-line case: a word on the last line of the
+    // page has no space beneath it, and a chip clamped to the viewport floor would sit ON the
+    // selection. Above is the lesser evil there — the callout may overlap, but the reader can
+    // still see both, whereas a chip on top of the word hides the thing being defined.
+    if (top + ch > vh - CHIP_MARGIN) top = hostRect.top - ch - CHIP_GAP
+    // Horizontally near the selection's END, not its centre: that is where the reader's
+    // attention and thumb already are after a long-press, and it keeps the chip from sitting
+    // symmetrically under a callout that is itself centred on the word.
+    const rtl = (() => {
+      try {
+        const el = doc && doc.documentElement
+        if (!el) return false
+        if ((el.getAttribute('dir') || '').toLowerCase() === 'rtl') return true
+        return (doc.defaultView.getComputedStyle(doc.body || el).direction === 'rtl')
+      } catch (e) { return false }
+    })()
+    const endX = rtl ? hostRect.left : hostRect.right
+    left = endX - cw / 2
+  } else {
+    // ── Everything else: R7.4's placement, untouched. ────────────────────────
+    // Above the word by preference — that is where the reader's finger is NOT.
+    top = hostRect.top - ch - CHIP_GAP
+    if (top < CHIP_MARGIN) top = hostRect.bottom + CHIP_GAP     // no room above → below it
+    left = hostRect.left + hostRect.width / 2 - cw / 2          // centred on the word
+  }
+
+  // The clamp is shared, and applies on every platform: whatever the policy above decided,
+  // the chip may not cross any edge of the viewport.
   top = Math.min(Math.max(CHIP_MARGIN, top), Math.max(CHIP_MARGIN, vh - ch - CHIP_MARGIN))
-  let left = hostRect.left + hostRect.width / 2 - cw / 2      // centred on the word
   left = Math.min(Math.max(CHIP_MARGIN, left), Math.max(CHIP_MARGIN, vw - cw - CHIP_MARGIN))
   chipEl.style.left = Math.round(left) + 'px'
   chipEl.style.top = Math.round(top) + 'px'
@@ -610,7 +710,7 @@ function settleSelection(doc) {
   const sentence = sentenceAround(range)
   pendingWord = { word, sentence }
   const hostRect = toHostRect(rect, doc)
-  showChipAt(hostRect)
+  showChipAt(hostRect, doc)
   // The parent gets the fact even though the chip is ours: it is what lets a register log,
   // debug or (later) act on a selection without reaching into this document.
   post({ type: 'wordSelected', word, sentence, rect: {
@@ -644,6 +744,10 @@ function fireDefine() {
   lastTouchEndAt = Date.now()
   post({ type: 'defineWord', word: pendingWord.word, sentence: pendingWord.sentence })
   hideChip()
+  // R7.4.1 — let the selection go, so the platform's own menu goes with it. See
+  // clearAllSelections. Ordered AFTER the post so nothing about the request depends on it,
+  // and after the latch so the resulting click echo is already covered.
+  clearAllSelections()
 }
 
 // preventDefault on pointerdown is what keeps the chip tappable at all: without it the

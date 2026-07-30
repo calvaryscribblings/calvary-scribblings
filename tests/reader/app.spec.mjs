@@ -51,11 +51,26 @@ async function chromeHidden(page) {
   return page.locator('.rr-top').evaluate((el) => el.classList.contains('hidden'));
 }
 
-async function expectChrome(page, state, why) {
+async function expectChrome(page, state, why, timeout = 4000) {
   await expect
-    .poll(async () => ((await chromeHidden(page)) ? 'hidden' : 'visible'), { message: why, timeout: 4000 })
+    .poll(async () => ((await chromeHidden(page)) ? 'hidden' : 'visible'), { message: why, timeout })
     .toBe(state);
 }
+
+// R7.4.1 — the budget for the RETIRE assertion specifically.
+//
+// CHROME_IDLE_MS is 3500 and the default budget above is 4000, which leaves 500 ms for three
+// round trips to the page plus the poll's own granularity (its last attempt before timing out
+// lands at ~3850 ms). Measured on this container: the chrome actually retires 3539–3585 ms
+// after the final page turn — the timer is accurate to within ~85 ms and the product is doing
+// exactly what it was built to do. But 3585 against a 3850 ms last poll is a 265 ms margin,
+// and under load that margin is gone: the assertion failed twice in three runs mid-session
+// while the measured latency never moved.
+//
+// So this is a badly calibrated assertion, not a slow reader. Eight seconds still fails
+// loudly if the chrome stops retiring at all — which is what the test is actually for —
+// without racing its own timer.
+const RETIRE_BUDGET = 8000;
 
 // OPEN THE BOOK — and not by clicking the middle of the cover.
 //
@@ -152,7 +167,7 @@ test.describe('A1 — chrome across the boundary', () => {
     }
 
     // Stop reading: now it should fall on its own.
-    await expectChrome(page, 'hidden', 'chrome must retire once the reader goes quiet');
+    await expectChrome(page, 'hidden', 'chrome must retire once the reader goes quiet', RETIRE_BUDGET);
   });
 });
 
