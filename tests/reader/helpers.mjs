@@ -4,17 +4,57 @@ import { expect } from '@playwright/test';
 
 export const VIEWPORT = { width: 400, height: 800 };
 export const BOOK_URL = '/__t/fixtures/harness-book.epub';
+// R7.3 §D: the uneven book — a one-line half-title and two three-paragraph chapters among
+// long ones. See tests/fixtures/make-epub.mjs for why unevenness is the test.
+export const UNEVEN_BOOK_URL = '/__t/fixtures/harness-book-short.epub';
 
-/** Open the stub with the book loaded and wait for the host's `ready`. */
-export async function openReader(page, { flow = 'paginated' } = {}) {
+/**
+ * Open the stub with a book loaded and wait for the host's `ready`.
+ * `book` defaults to the frozen even fixture; pass UNEVEN_BOOK_URL for the geometry specs.
+ * Pass `waitFor: 'error'` to open something that is meant to fail.
+ */
+export async function openReader(page, { flow = 'paginated', book = BOOK_URL, waitFor = 'ready' } = {}) {
   const q = new URLSearchParams({
-    url: BOOK_URL,
+    url: book,
     bg: '#f2ecd9', fg: '#2b2418', face: 'cormorant',
     size: '100', leading: '1.6', flow,
   }).toString();
   await page.goto(`/__t/reader/harness.html?q=${encodeURIComponent(q)}`);
-  await page.waitForFunction(() => window.__msgs.some((m) => m.type === 'ready'), null, { timeout: 20000 });
+  await page.waitForFunction(
+    (t) => window.__msgs.some((m) => m.type === t), waitFor, { timeout: 20000 },
+  );
   await settle(page);
+}
+
+/**
+ * Everything the host knows about the book's page geometry, read from inside the reader.
+ * This is the ground truth the host's own pageSpan is asserted against — the same numbers
+ * from the same objects, computed independently in the test.
+ */
+export async function sectionGeometry(page) {
+  return roomFrame(page).evaluate(() => {
+    const view = document.querySelector('foliate-view');
+    const r = view?.renderer;
+    // progress.js:60 — non-linear or zero-size sections carry no weight.
+    const sizes = (view?.book?.sections || [])
+      .map((s) => (s && s.linear !== 'no' && s.size > 0 ? s.size : 0));
+    const total = sizes.reduce((a, b) => a + b, 0);
+    const rawPages = r?.pages ?? null;
+    const contentPages = rawPages > 2 ? rawPages - 2 : 0;
+    // The paginator's own index is private; renderer.pages/page plus the view's last
+    // location give us the section without reaching into internals.
+    const index = view?.lastLocation?.section?.current ?? null;
+    return {
+      sizes, total, rawPages, contentPages,
+      page: r?.page ?? null,
+      index,
+      // One page of THIS section as a fraction of the whole book — progress.js:73-83's
+      // arithmetic, recomputed here from the same inputs the host uses.
+      expectedSpan: index != null && total > 0 && contentPages > 0 && sizes[index] > 0
+        ? (sizes[index] / total) / contentPages
+        : 0,
+    };
+  });
 }
 
 /** Let pagination and any in-flight relocate finish. */

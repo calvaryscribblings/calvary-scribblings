@@ -25,7 +25,10 @@
 
   const frame = document.createElement('iframe');
   frame.id = 'room';
-  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  // The component's sandbox, verbatim. allow-popups arrived in R7.3 §F so an EPUB's
+  // external links can reach globalThis.open; if these two ever diverge the harness stops
+  // being a stand-in for ReadingRoom.js, so they are kept identical on purpose.
+  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
   frame.src = '/reading-room.html?' + query;
   document.getElementById('mount').append(frame);
 

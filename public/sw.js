@@ -86,6 +86,13 @@ const PASS_THROUGH_PATHS = [
   '/bookstore',      // fence — retail is not ours to cache
   '/reader',         // fence — reader internals
   '/book-reader',    // fence — reader internals
+  // R7.3: the reader HOST document, which the fence above misses because it shares no
+  // prefix with /reader. It loads as an iframe NAVIGATION, so without this it falls to
+  // navigateNetworkFirst, whose cache lookup uses `ignoreSearch: true` — and every book in
+  // the catalogue is the same path with a different ?url=. Nothing caches it today
+  // (shouldCache is isShelfPath, which this is not), so no reader has been served the wrong
+  // book; this closes the door rather than relying on that staying true.
+  '/reading-room.html',
   '/api/',           // Pages Functions: hits, quiz attempts, moderation. Never replay.
   '/square',         // live surface
   '/admin',          // never

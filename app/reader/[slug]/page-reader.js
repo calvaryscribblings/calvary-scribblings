@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import React from 'react';
-import { stories } from '../../lib/stories';
+import { quizAllowed } from '../../lib/readerCollection';
 import { resolveAuthorNames, currentAuthorName } from '../../lib/resolveAuthorNames';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
@@ -411,9 +411,13 @@ function CommentsSection({ slug, onSignIn }) {
 // what it needs through onRelocate.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function StoryReaderClient({ params }) {
+export default function StoryReaderClient({ params, initialStory = null }) {
   const { slug } = use(params);
-  const [story, setStory] = useState(stories.find(s => s.id === slug) || null);
+  // R7.3 §C: the gate resolves cms_stories in parallel with the bookstore lookup and hands
+  // the record down, so the story is already here on first render and the effect below never
+  // runs. It stays as the fallback for a direct mount (and for anything that renders this
+  // component without a gate).
+  const [story, setStory] = useState(initialStory);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [hitCount, setHitCount] = useState(null);
   const [readerUser, setReaderUser] = useState(null);
@@ -447,8 +451,8 @@ export default function StoryReaderClient({ params }) {
     return () => { if (unsub) unsub(); };
   }, []);
 
-  // cms_stories fallback load (PRESERVED). NOTE: app/lib/stories.js exports an empty array
-  // since the 2026-05-18 CMS migration, so this is the ONLY path that resolves a story.
+  // cms_stories load. Skipped entirely when the gate has already resolved the record —
+  // which is the normal path since R7.3 §C.
   useEffect(() => {
     if (story) return;
     (async () => {
@@ -554,6 +558,15 @@ export default function StoryReaderClient({ params }) {
     </>
   );
 
+  // R7.3 §A — NO QUIZ IN THE BOOK-READER COLLECTION. The collection reads as a bound book
+  // and a bound book does not stop to be marked out of ten. The gate is the collection flag
+  // (app/lib/readerCollection.js), not "has an EPUB" and not "arrived at /reader": a story
+  // outside the collection that reaches this register keeps its quiz exactly as before, and
+  // its story page keeps it too. Quiz RECORDS are untouched in the database — this removes
+  // the rendering and the gating, nothing else. The same predicate governs the story page
+  // (app/stories/[slug]/page-client.js), so the two surfaces cannot drift apart.
+  const showQuiz = quizAllowed(story);
+
   const renderEnding = ({ close }) => (
     <>
       <div className="rr-end">
@@ -569,11 +582,32 @@ export default function StoryReaderClient({ params }) {
           <a href={'/' + (story.category || '')} className="rr-ebtn">More stories</a>
         </div>
       </div>
-      <div style={{ maxWidth: 680, margin: '2rem auto 0', padding: '0 1.5rem' }}>
-        <QuizCard slug={slug} user={readerUser} mode="reader" readPercent={progress} onSignIn={() => setShowAuthModal(true)} />
-      </div>
+      {showQuiz && (
+        <div style={{ maxWidth: 680, margin: '2rem auto 0', padding: '0 1.5rem' }}>
+          <QuizCard slug={slug} user={readerUser} mode="reader" readPercent={progress} onSignIn={() => setShowAuthModal(true)} />
+        </div>
+      )}
       <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
     </>
+  );
+
+  // R7.3 §B — the failure state. Until now the host's error report reached this register
+  // and stopped: onError was never passed, so a book that would not arrive left the room
+  // dressed for reading with nothing in it. The route out is the story's own page, which is
+  // where the prose lives when the EPUB does not.
+  const renderFailure = () => (
+    <div className="rr-fail">
+      <div className="rr-fail-orn">✦</div>
+      <div className="rr-fail-kicker">The Reading Room</div>
+      <div className="rr-fail-title">{story.title}</div>
+      <p className="rr-fail-note">
+        This copy would not open. The story itself is still here — it is waiting on its own page.
+      </p>
+      <div className="rr-fail-actions">
+        <a href={`/stories/${slug}`} className="rr-ebtn">Read it on the story page →</a>
+        <a href="/public-library" className="rr-ebtn">← Library</a>
+      </div>
+    </div>
   );
 
   return (
@@ -639,6 +673,7 @@ export default function StoryReaderClient({ params }) {
           Discuss
         </>}
         renderEnding={renderEnding}
+        renderFailure={renderFailure}
         onRelocate={onRelocate}
         onRequireAuth={() => setShowAuthModal(true)}
       />

@@ -1,4 +1,3 @@
-import { stories } from '../../lib/stories';
 import ReaderGate from './reader-gate';
 
 const FB = {
@@ -11,10 +10,15 @@ const FB = {
   appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
 };
 
+// R7.3 §C — the second consumer of the dead fast path, and the last one on this route.
+// This used to seed itself with `stories.map(...)` from app/lib/stories.js and then treat
+// everything from the CMS as `extra` merged on top. That array has been `[]` since the
+// 2026-05-18 migration, so the seed contributed no path on any build since — the reader's
+// entire route list has always come from the two reads below. Removing it changes no
+// output; it stops the file claiming a source it does not have.
 export async function generateStaticParams() {
-  const staticSlugs = stories.map(s => ({ slug: s.id }));
-  const seen = new Set(staticSlugs.map(s => s.slug));
-  const extra = [];
+  const seen = new Set();
+  const slugs = [];
   try {
     const { initializeApp, getApps } = await import('firebase/app');
     const { getDatabase, ref, get, query, orderByChild, equalTo } = await import('firebase/database');
@@ -25,7 +29,7 @@ export async function generateStaticParams() {
     const snap = await get(ref(db, 'cms_stories'));
     if (snap.exists()) {
       Object.keys(snap.val()).forEach((slug) => {
-        if (!seen.has(slug)) { seen.add(slug); extra.push({ slug }); }
+        if (!seen.has(slug)) { seen.add(slug); slugs.push({ slug }); }
       });
     }
 
@@ -35,14 +39,14 @@ export async function generateStaticParams() {
     if (bs.exists()) {
       bs.forEach((child) => {
         const slug = child.val()?.slug;
-        if (slug && !seen.has(slug)) { seen.add(slug); extra.push({ slug }); }
+        if (slug && !seen.has(slug)) { seen.add(slug); slugs.push({ slug }); }
         return false;
       });
     }
   } catch (e) {
     console.error('generateStaticParams error:', e);
   }
-  return [...staticSlugs, ...extra];
+  return slugs;
 }
 
 export default function ReaderPage({ params }) {

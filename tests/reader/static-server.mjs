@@ -38,7 +38,31 @@ function resolvePath(urlPath) {
   return join(PUBLIC_DIR, clean);
 }
 
+// ── FAILURE ENDPOINTS (R7.3 §B) ──────────────────────────────────────────────
+// The load fence in reading-room.html distinguishes four ways a book can fail to arrive,
+// and each needs a server that fails in exactly that way. A 404 comes free from the
+// resolver below; these three do not exist as files.
+//
+//   /__fail/hang   headers never sent      → the HEADERS fence ('no-answer')
+//   /__fail/stall  headers + a few bytes,  → the STALL fence ('stalled')
+//                  then silence
+//   /__fail/empty  200 with a zero-length  → 'empty'
+//                  body
+const FAILURES = {
+  '/__fail/hang': (res) => { /* deliberately never respond, never end */ },
+  '/__fail/stall': (res) => {
+    res.writeHead(200, { 'Content-Type': 'application/epub+zip', 'Transfer-Encoding': 'chunked' });
+    res.write(Buffer.from('PK'));   // a plausible opening, then nothing more
+  },
+  '/__fail/empty': (res) => {
+    res.writeHead(200, { 'Content-Type': 'application/epub+zip', 'Content-Length': '0' });
+    res.end();
+  },
+};
+
 createServer(async (req, res) => {
+  const path = (req.url || '/').split('?')[0];
+  if (FAILURES[path]) { FAILURES[path](res); return; }
   try {
     const file = resolvePath(req.url || '/');
     const base = file.startsWith(TESTS_DIR) ? TESTS_DIR : PUBLIC_DIR;

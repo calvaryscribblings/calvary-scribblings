@@ -7,6 +7,7 @@ import { useAuth } from '../lib/AuthContext';
 import Navbar from '../components/Navbar';
 import AuthModal from '../components/AuthModal';
 import QuizPill from '../components/QuizPill';
+import { advertisesQuiz } from '../lib/readerCollection';
 
 const CATEGORY_NAMES = {
   flash: 'Flash Fiction', short: 'Short Story', serial: 'Serial',
@@ -29,7 +30,10 @@ export default function QuizzesPage() {
         if (!snap.exists()) { setStories([]); return; }
         const raw = snap.val();
         const list = Object.entries(raw)
-          .filter(([, s]) => s.quizMeta?.hasQuiz === true)
+          // R7.3 §A: the collection's quizzes are not takeable anywhere, so listing them
+          // here would send a reader to a story page whose quiz card no longer renders.
+          // The records stay in the database; this index just stops pointing at them.
+          .filter(([, s]) => advertisesQuiz(s))
           .map(([slug, s]) => ({ slug, ...s }))
           .sort((a, b) => (b.quizMeta?.attemptCount ?? 0) - (a.quizMeta?.attemptCount ?? 0));
         const nameMap = await resolveAuthorNames(list);

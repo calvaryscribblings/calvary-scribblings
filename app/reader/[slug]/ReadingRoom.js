@@ -32,6 +32,13 @@
 //   §7.14 the ready-gated goTo queue is the host's; we only post into it
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { findRibbonOnPage, ribbonEpsilonFor, RIBBON_MIN_SPAN } from '../../lib/ribbonGeometry';
+
+// R7.3: the ribbon-geometry rule moved to app/lib/ribbonGeometry.js — plain ESM, so the
+// harness can import it under Node and assert the decision against measured geometry. It is
+// re-exported here because these were public names of this module and every call site,
+// including tests written against R7.2, imports them from here.
+export { findRibbonOnPage, ribbonEpsilonFor, RIBBON_MIN_SPAN };
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -116,41 +123,6 @@ export function readingRoomSrc(epubUrl, p) {
     size: String(p.sizePct), leading: String(p.leading), flow: p.flow,
   });
   return '/reading-room.html?' + qs.toString();
-}
-
-// ── THE RIBBON PRINCIPLE (R7.2) ───────────────────────────────────────────────
-// The tab is not a button that adds things — it IS the current page's bookmark state.
-// Deciding whether a stored ribbon belongs to the page in front of the reader is a
-// fraction-proximity test, because a CFI cannot be compared for "same page": pagination
-// depends on the reader's type size, leading, flow and screen, so the same CFI lands on a
-// different page for a different reader — and for the same reader after a Typesetter tap.
-//
-// THE RULE. pageSpan is the host's minStep: the smallest forward fraction step it has
-// observed, i.e. one page as a fraction of the whole book. A ribbon is on the current page
-// when |ribbon.fraction − currentFraction| < pageSpan / 2. Half a page either side of the
-// reader's position is exactly the span the current page occupies, so the neighbouring
-// pages — a full pageSpan away — can never match, and no page can match two ribbons.
-// Before the first forward turn pageSpan is 0, so a floor of 0.2% of the book stands in;
-// on a 300-page book that is well under one page, which errs toward "no ribbon here" —
-// the safe direction, since the cost is a duplicate the dedupe still catches on write.
-//
-// Legacy records (R4a-era, cfi + label only) carry no fraction and therefore never match.
-// They render in the Contents list and jump correctly; they simply cannot light the tab.
-const RIBBON_MIN_SPAN = 0.002;
-export function ribbonEpsilonFor(pageSpan) {
-  return Math.max(typeof pageSpan === 'number' ? pageSpan : 0, RIBBON_MIN_SPAN) / 2;
-}
-export function findRibbonOnPage(list, fraction, pageSpan) {
-  if (!Array.isArray(list) || typeof fraction !== 'number') return null;
-  const eps = ribbonEpsilonFor(pageSpan);
-  let best = null;
-  let bestD = Infinity;
-  for (const r of list) {
-    if (!r || typeof r.fraction !== 'number') continue;
-    const d = Math.abs(r.fraction - fraction);
-    if (d < eps && d < bestD) { best = r; bestD = d; }
-  }
-  return best;
 }
 
 // ── Typesetter ────────────────────────────────────────────────────────────────
@@ -474,6 +446,20 @@ const ROOM_CSS = `
   .rr-ebtn{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;padding:10px 26px;background:none;border:1px solid rgba(107,47,173,.35);color:#c9a84c;border-radius:2px;cursor:pointer;text-decoration:none;display:inline-block;transition:all .2s;margin:4px}
   .rr-ebtn:hover{background:rgba(107,47,173,.12);border-color:#c9a84c}
 
+  /* THE FAILURE STATE (R7.3 §B). Same overlay mechanics as the ending — it covers the
+     chrome without unmounting the frame — but it is emphatically not an ending: the book
+     never opened. z-75 sits it above the ending (70) and below the cover splash (80),
+     which cannot be up at the same time anyway (the frame only mounts once the cover is
+     dismissed, so no load failure can happen behind it). */
+  .rr-fail-wrap{position:fixed;inset:0;overflow-y:auto;background:#0a0a0a;animation:fadeOpacity .5s ease forwards;z-index:75}
+  .rr-fail{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:calc(56px + env(safe-area-inset-top)) 28px calc(44px + env(safe-area-inset-bottom));text-align:center}
+  .rr-fail-orn{font-size:.95rem;color:rgba(201,164,76,.55);letter-spacing:.45em;margin-bottom:24px}
+  .rr-fail-kicker{font-family:'Cinzel',serif;font-size:.55rem;letter-spacing:.28em;text-transform:uppercase;color:rgba(201,164,76,.6);margin-bottom:1.2rem}
+  .rr-fail-title{font-family:Cormorant Garamond,Georgia,serif;font-size:clamp(1.3rem,4vw,1.7rem);font-weight:300;font-style:italic;color:#f5efe0;line-height:1.25;max-width:460px}
+  .rr-fail-note{font-family:Cormorant Garamond,Georgia,serif;font-style:italic;font-size:1rem;color:rgba(240,234,216,.55);line-height:1.75;max-width:360px;margin:20px 0 30px}
+  .rr-fail-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+
   /* The colophon — the bookstore ending. A printer's last page, not a call to action. */
   .rr-colo{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;
     padding:calc(56px + env(safe-area-inset-top)) 28px calc(44px + env(safe-area-inset-bottom));text-align:center}
@@ -530,6 +516,13 @@ const ROOM_CSS = `
  * @param {React.ReactNode} p.banner        Pinned under the bar, rides with the chrome.
  * @param {React.ReactNode} p.earlyEnding   Contents of the pre-end pill (shown past 90%).
  * @param {(ctx:{close:()=>void})=>React.ReactNode} p.renderEnding  The ending overlay.
+ * @param {(ctx:{message:string|null,reason:string|null})=>React.ReactNode} p.renderFailure
+ *                                     The overlay for "this book would not open" (R7.3
+ *                                     §B). Supplying it is what turns the host's error
+ *                                     report into something the reader can see and act on;
+ *                                     omitting it leaves the register to handle onError
+ *                                     itself, which is what the book register does (it
+ *                                     re-mints the signed URL once before giving up).
  * @param {(info:object)=>void} p.onRelocate
  * @param {()=>void} p.onEnded
  * @param {(message:string)=>void} p.onError       Host could not open the file.
@@ -548,6 +541,7 @@ export default function ReadingRoom({
   banner = null,
   earlyEnding = null,
   renderEnding = null,
+  renderFailure = null,
   onRelocate,
   onEnded,
   onError,
@@ -592,13 +586,19 @@ export default function ReadingRoom({
   const [ribbons, setRibbons] = useState([]);
   const [ribbonDropping, setRibbonDropping] = useState(false);
   const [pct, setPct] = useState(0);
-  // One page as a fraction of the whole book, learned by the host from the smallest
-  // observed forward step. 0 until the first forward turn.
+  // R7.3: one page OF THE SECTION THE READER IS IN, as a fraction of the whole book —
+  // computed by the host from the paginator's real geometry, not inferred from observed
+  // steps. It legitimately changes as the reader crosses into a section of a different
+  // length, so it is not monotonic; the last good value is kept whenever the host reports 0
+  // (nothing laid out yet). Feeds only the ribbon epsilon.
   const [pageSpan, setPageSpan] = useState(0);
 
   // Gates and overlays
   const [coverPending, setCoverPending] = useState(!!coverSplash);
   const [ended, setEnded] = useState(false);
+  // R7.3 §B — the host said the book would not open. Null until it does say so; the
+  // overlay is only rendered when a register has supplied renderFailure.
+  const [failure, setFailure] = useState(null); // null | { message, reason }
   const [readerReady, setReaderReady] = useState(!progressEnabled);
   const [resumeToast, setResumeToast] = useState(false);
   const [toastFading, setToastFading] = useState(false);
@@ -854,6 +854,8 @@ export default function ReadingRoom({
         setChapterLabel(d.chapterLabel || '');
         if (d.chapterHref) setChapterHref(d.chapterHref);
         setBotInfo({ cur: d.pageCurrent, total: d.pageTotal, pct: d.pct, minLeft: d.minLeft });
+        // 0 means "the host cannot see the geometry yet" — never a reason to discard a span
+        // it has already measured.
         if (typeof d.pageSpan === 'number' && d.pageSpan > 0) setPageSpan(d.pageSpan);
         // The reader moved: whatever jump was in flight worked, so stand the watchdog down.
         if (jumpNoticeRef.current) { jumpNoticeRef.current = false; setJumpNotice(null); }
@@ -887,7 +889,11 @@ export default function ReadingRoom({
       } else if (d.type === 'bookmarkCFI') {
         saveRibbonRef.current?.(d);
       } else if (d.type === 'error') {
+        // BOTH, always, in this order. The register's own handler runs first because it may
+        // recover — the book register re-mints its signed URL once — and the overlay is
+        // simply what a register gets when it has no recovery of its own to try.
         cbRef.current.onError?.(d.message || null);
+        setFailure({ message: d.message || null, reason: d.reason || null });
       } else if (d.type === 'searchResults' && d.id === searchIdRef.current) {
         setSearchResults(Array.isArray(d.results) ? d.results : []);
         setSearchTruncated(!!d.truncated);
@@ -1055,16 +1061,25 @@ export default function ReadingRoom({
     [epubSource],
   );
 
+  // A new epubSource is a fresh attempt — the purchased path's single re-mint — so the
+  // previous attempt's failure must not outlive it.
+  useEffect(() => { setFailure(null); }, [epubSource]);
+
   const chromeOff = coverPending || ended || !chromeVisible;
   const showFurniture = !coverPending && !ended;
   const mountFrame = !coverPending && readerReady && !!iframeSrc;
 
-  // Page number for a stored fraction, by the same arithmetic the host uses for the footer
-  // (reading-room.html computePages), so a ribbon's page and the footer's page agree.
+  // Page number for a STORED fraction — a ribbon's, in the Contents list.
+  //
+  // R7.3: this used to divide by pageSpan, which is now (correctly) the width of a page in
+  // the section the reader happens to be in. Applying that to a ribbon three chapters away
+  // would use one section's ruler to measure another's, which is the very mistake §D exists
+  // to undo. The book's page TOTAL is the only ruler that spans the whole book, so scale by
+  // it: within a page of the footer's own number at the reader's position, and honest
+  // everywhere else. Null until a total is known.
   const pageOf = (f) => {
-    if (!(pageSpan > 0) || typeof f !== 'number') return null;
-    const total = botInfo.total || Math.max(1, Math.round(1 / pageSpan));
-    return Math.min(total, Math.max(1, Math.round(f / pageSpan) + 1));
+    if (!(botInfo.total > 0) || typeof f !== 'number') return null;
+    return Math.min(botInfo.total, Math.max(1, Math.round(f * botInfo.total)));
   };
 
   const botText = (() => {
@@ -1090,7 +1105,15 @@ export default function ReadingRoom({
               className="rr-frame"
               src={iframeSrc}
               title={meta?.title || 'Reading Room'}
-              sandbox="allow-scripts allow-same-origin"
+              // R7.3 §F — allow-popups. An EPUB's external links reach
+              // view.js:359, which calls globalThis.open(href, '_blank'); without this
+              // token that call returns null and the tap dies in silence (recon §8.18).
+              // The widening is narrow by construction: `allow-popup-to-escape-sandbox` is
+              // NOT granted, so anything opened inherits this sandbox rather than escaping
+              // it, and the framed document is our own same-origin reading-room.html, which
+              // allow-same-origin already trusts completely. Internal links are untouched —
+              // they never reach globalThis.open at all (view.js:361 → view.goTo).
+              sandbox="allow-scripts allow-same-origin allow-popups"
             />
           </div>
         ) : coverPending ? null : iframeSrc ? (
@@ -1170,6 +1193,13 @@ export default function ReadingRoom({
 
         {ended && renderEnding && (
           <div className="rr-end-wrap">{renderEnding({ close: () => setEnded(false) })}</div>
+        )}
+
+        {/* R7.3 §B — the end of the forever-spinner. The host now reports every way a book
+            can fail to arrive, and a register that supplies renderFailure gets a state the
+            reader can read and a door they can walk through. */}
+        {failure && renderFailure && (
+          <div className="rr-fail-wrap">{renderFailure(failure)}</div>
         )}
 
         {debug && (

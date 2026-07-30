@@ -6,6 +6,7 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import TabBar from '../components/TabBar';
 import QuizPill from '../components/QuizPill';
+import { advertisesQuiz } from '../lib/readerCollection';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { db } from '../lib/firebaseCore';
 import CoverImage from '../components/CoverImage';
@@ -253,7 +254,7 @@ function StoryCard({ story, userTier = null, scorePct, ...rest }) {
       {isNew(story) && (
         <span style={{ ...newBadgeStyle, top: 8, left: 8 }}>New</span>
       )}
-      <QuizPill hasQuiz={(story.quiz || story.quizMeta)?.hasQuiz || false} userTier={userTier} scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
+      <QuizPill hasQuiz={advertisesQuiz(story)} userTier={userTier} scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 8px 8px' }}>
         <div style={{ fontFamily: DISPLAY, fontSize: '0.75rem', fontWeight: 600, color: '#f5f0e8', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{story.title}</div>
         <div style={{ ...cardAuthorStyle, fontSize: '0.6rem', marginTop: 2 }}>{story.author}</div>
@@ -278,7 +279,7 @@ function JustAddedCard({ story, userTier = null, scorePct, ...rest }) {
         {isNew(story) && (
           <span style={{ ...newBadgeStyle, top: 10, left: 10 }}>New</span>
         )}
-        <QuizPill hasQuiz={(story.quiz || story.quizMeta)?.hasQuiz || false} userTier={userTier} scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
+        <QuizPill hasQuiz={advertisesQuiz(story)} userTier={userTier} scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
       </div>
       <div style={{ marginTop: 10, padding: '0 2px' }}>
         <div style={{ fontFamily: DISPLAY, fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.3, color: '#f5f0e8', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{story.title}</div>
@@ -349,7 +350,7 @@ function Top10Card({ s, i, userTier = null, scorePct, ...rest }) {
           <CoverImage fill cover={s.cover} coverSizes={s.coverSizes} coverHash={s.coverHash} alt={s.title} sizes="120px"
             imgStyle={{ filter: active ? 'brightness(0.85)' : 'brightness(1)', transition: 'filter 0.3s' }} />
         </div>
-        <QuizPill hasQuiz={(s.quiz || s.quizMeta)?.hasQuiz || false} userTier={userTier} scribblesReward={(s.quiz || s.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
+        <QuizPill hasQuiz={advertisesQuiz(s)} userTier={userTier} scribblesReward={(s.quiz || s.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
       </div>
       <div style={{ marginTop: 10, marginLeft: NUM_W, width: CARD_WIDTH }}>
         <div style={{ fontFamily: DISPLAY, fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: '#f5f0e8', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{s.title}</div>

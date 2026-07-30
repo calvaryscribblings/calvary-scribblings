@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { isNew } from '../lib/stories';
 import QuizPill from './QuizPill';
+import { advertisesQuiz } from '../lib/readerCollection';
 import CoverImage from './CoverImage';
 
 export default function StoryCard({ story, userTier = null, scorePct, rank = null, ...rest }) {
@@ -41,7 +42,7 @@ export default function StoryCard({ story, userTier = null, scorePct, rank = nul
           }}>New</span>
         )}
         <QuizPill
-          hasQuiz={(story.quiz || story.quizMeta)?.hasQuiz || false}
+          hasQuiz={advertisesQuiz(story)}
           userTier={userTier}
           scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50}
           scorePct={scorePct}

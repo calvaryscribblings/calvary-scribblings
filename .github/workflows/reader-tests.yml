@@ -1,0 +1,99 @@
+# R7.3 §G — THE READER HARNESS, ON PERMANENT DUTY.
+#
+# The reader is a geometry surface. Its defects are not type errors or bad props — they are
+# a tab that fails to light on a short chapter-end page, a spinner that never stops, a page
+# count that drifts by one. None of that is visible in a diff, and all of it is cheap to
+# reintroduce. So the harness that proved the mechanics runs on every push that touches the
+# reader, rather than on whoever remembers.
+#
+# TWO SUITES, and they are not the same test twice:
+#
+#   HOST  tests/reader/playwright.config.mjs — reading-room.html driven directly through
+#         tests/reader/harness.html, no React, no Firebase, no network. Geometry, gestures,
+#         the load fence, the ribbon rule. Fast and hermetic.
+#
+#   APP   tests/reader/playwright.app.config.mjs — the real /reader/{slug} route out of
+#         out/, so ReadingRoom.js, the gate and the postMessage bridge are production ones.
+#         It reads a published story from LIVE cms_stories: the one external dependency in
+#         this workflow, and a deliberate one, because a gate that cannot resolve a slug is
+#         exactly the failure worth hearing about.
+#
+# RETRIES ARE 0 HERE, and 1 locally. That asymmetry is the whole point of moving off the
+# codespace: `retries: 1` exists in the local config to absorb "Target crashed", which is a
+# CONTAINER fact — ~130 MB free with the editor server holding 3 GB, and a 64 MB /dev/shm
+# that Chromium exhausts rendering one iframe per EPUB section. A GitHub runner has 16 GB
+# and a normal /dev/shm, so the cause is absent and the retry would only serve to hide a
+# genuine flake. Green here means green, not green on the second try.
+name: reader tests
+
+on:
+  push:
+    paths: &reader_paths
+      - 'public/reading-room.html'
+      - 'app/reader/**'
+      - 'app/lib/ribbonGeometry.js'
+      - 'app/lib/readerCollection.js'
+      - 'tests/**'
+      - '.github/workflows/reader-tests.yml'
+      - 'package.json'
+      - 'package-lock.json'
+  pull_request:
+    paths: *reader_paths
+  # So a green run can be demanded on a branch that touched none of the above.
+  workflow_dispatch:
+
+# A second push supersedes the first: the reader suite takes minutes and the older answer
+# is worthless the moment it is stale.
+concurrency:
+  group: reader-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reader:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Chromium only. The reader is one engine's geometry problem and the other two
+      # browsers would triple the minutes to answer a question nobody asked.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Both suites regenerate these anyway (the npm scripts call make-epub first); doing it
+      # once up front means a malformed fixture fails HERE, with its own name on it, rather
+      # than as a mysterious timeout inside a spec.
+      - name: Build fixture EPUBs
+        run: node tests/fixtures/make-epub.mjs
+
+      - name: Host harness (reading-room.html)
+        run: npx playwright test -c tests/reader/playwright.config.mjs
+
+      # §H's build gate, and the app suite's input in one step: out/ IS the artifact
+      # Cloudflare Pages serves, and it is what the app config drives.
+      - name: Build the static export
+        run: npx next build
+
+      - name: App harness (the React boundary)
+        run: npx playwright test -c tests/reader/playwright.app.config.mjs
+
+      - name: Upload traces and reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reader-test-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

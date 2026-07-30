@@ -16,7 +16,11 @@ export default defineConfig({
   // The container runs with ~130 MB free (the editor server holds ~3 GB), and a renderer
   // that loses that race reports "Target crashed" from wherever it happened to be. One
   // retry absorbs that; it cannot hide a real defect, because a real defect fails again.
-  retries: 1,
+  //
+  // R7.3 §G: NONE in CI. The retry is compensation for a codespace's memory, not for the
+  // reader — a GitHub runner has 16 GB and a normal /dev/shm, so the crash it absorbs
+  // cannot happen there and the only thing a retry could still hide is a real flake.
+  retries: process.env.CI ? 0 : 1,
   timeout: 60000,
   expect: { timeout: 10000 },
   reporter: [['list']],

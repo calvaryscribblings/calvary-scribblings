@@ -11,6 +11,7 @@ import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
 import QuizCard from '../../components/QuizCard';
+import { quizAllowed, advertisesQuiz } from '../../lib/readerCollection';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import NewsletterInvite from '../../components/NewsletterInvite';
 import ReadSeal from '../../components/ReadSeal';
@@ -1227,6 +1228,15 @@ useEffect(() => {
   const isPoetry = story.category === 'poetry';
   const isVerse = isPoetry && !story.prosePoetry;
 
+  // R7.3 §A — NO QUIZ IN THE BOOK-READER COLLECTION, on this surface as well as in the
+  // reader. The redirect above normally takes a collection story to /reader/{slug} before
+  // this ever renders, so treat this as the belt to that braces: the redirect is a
+  // post-paint effect, it can be beaten by a slow-resolving record, and it does not run at
+  // all if navigation is blocked. Rendering a quiz for one beat is still rendering it.
+  // The reader's end card is gated by the same predicate (app/lib/readerCollection.js).
+  // The DB records are untouched; only rendering and gating go.
+  const showQuiz = quizAllowed(story);
+
   return (
 
     <>
@@ -1398,7 +1408,7 @@ useEffect(() => {
               <span>{story.date}</span>
               {readingTime > 0 && (<><div className="byline-dot" /><span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline-block',verticalAlign:'middle',marginRight:3}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>{readingTime} MIN. READ</span></>)}
             </div>
-            {story.quizMeta?.hasQuiz && (
+            {advertisesQuiz(story) && (
               <a
                 onClick={() => document.getElementById('quiz-card')?.scrollIntoView({ behavior: 'smooth' })}
                 style={{
@@ -1481,9 +1491,11 @@ useEffect(() => {
           </main>
         </div>
         <ExerciseSection slug={slug} />
-        <div id="quiz-card">
-          <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
-        </div>
+        {showQuiz && (
+          <div id="quiz-card">
+            <QuizCard slug={slug} user={storyUser} onSignIn={() => setShowAuthModal(true)} />
+          </div>
+        )}
         <AboutTheAuthor story={story} />
         {/* The invitation sits here and nowhere earlier: the closing ceremony
             (.last-page → ReadSeal → .story-footer) finishes untouched inside

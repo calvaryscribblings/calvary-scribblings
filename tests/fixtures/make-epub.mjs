@@ -1,13 +1,26 @@
-// Deterministic fixture EPUB for the reader harness.
+// Deterministic fixture EPUBs for the reader harness.
 //
 // Written by hand rather than with a zip dependency: an EPUB is a store-only ZIP with the
 // mimetype first, which is ~70 lines of Node and no supply chain. The output is
 // byte-identical on every run, so the harness has a fixed book to measure against — page
 // counts and CFIs are stable, which is the whole point of a geometry fixture.
 //
-// 6 chapters x 12 paragraphs. At the harness viewport (400x800, 18px base) this paginates
-// to comfortably more than 10 pages, which is what the tap-zone tests need in order to
-// sample an early page, a middle page and a late one.
+// TWO BOOKS, and they are not interchangeable:
+//
+//   harness-book.epub        6 chapters x 12 paragraphs — EVEN. At the harness viewport
+//                            (400x800, 18px base) it paginates to comfortably more than 10
+//                            pages, which is what the tap-zone tests need in order to
+//                            sample an early page, a middle page and a late one. Every
+//                            existing spec measures against this book, so its bytes are
+//                            FROZEN: change nothing above the second builder.
+//
+//   harness-book-short.epub  R7.3 §D — UNEVEN on purpose. A one-line half-title section and
+//                            two three-paragraph chapters sit among long ones, so a page's
+//                            width in whole-book fraction terms differs several-fold from
+//                            one section to the next and chapter-end pages are slivers.
+//                            This is the book that catches minStep-as-ruler: the smallest
+//                            step in it belongs to the half-title and describes nowhere
+//                            else. Used by page-geometry.spec.mjs.
 //
 // Run: node tests/fixtures/make-epub.mjs   (the test:reader script does this for you)
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -202,3 +215,134 @@ mkdirSync(HERE, { recursive: true });
 const out = join(HERE, 'harness-book.epub');
 writeFileSync(out, zip(entries));
 console.log(`fixture: ${out} (${entries.length} entries, ${CHAPTERS.length} chapters)`);
+
+// ── THE UNEVEN BOOK (R7.3 §D) ─────────────────────────────────────────────────
+//
+// A separate builder rather than a parameterised one, so the frozen book above cannot
+// change by accident: its bytes are what every pre-R7.3 spec measures against.
+//
+// WHY UNEVENNESS IS THE TEST. foliate's whole-book fraction is SIZE-weighted
+// (progress.js:73-83) while pagination is measured in SCREENFULS, so one page of the book
+// is worth `(sectionSize / bookSize) / pagesInSection`. In an even book those two terms
+// cancel and every section's page is the same width — which is precisely why the even book
+// never caught minStep. Break the evenness and they stop cancelling:
+//
+//   • a one-line half-title occupies a whole PAGE but almost none of the book's WEIGHT, so
+//     its page is a fraction of the width of a page anywhere else. minStep latches onto it
+//     on the first turn and reports it as the width of every page in the book.
+//   • a three-paragraph chapter has the same problem in miniature, and its last page is a
+//     sliver of text that still counts as a full page.
+//
+// THE LEVER IS BYTES PER PAGE, and it has to be pulled hard.
+//
+// A section's page width in whole-book terms is (sectionBytes / bookBytes) / itsPages,
+// i.e. bytesPerPage / bookBytes. So making sections merely SHORT is not enough: a short
+// chapter has fewer bytes AND fewer pages, and the two very nearly cancel — measured on the
+// first draft of this fixture, an unevenness of 9.4x in section SIZE produced only 1.6x in
+// page width, because how much prose fits on a 400x800 screen is roughly fixed.
+//
+// What actually differs between real EPUBs is MARKUP DENSITY. A page of heavily tagged
+// prose — inline emphasis, per-word spans, the sort of thing a converted manuscript is full
+// of — weighs several times what the same visible page weighs in clean markup, while
+// occupying exactly the same screen. So the fixture mixes the two: `dense` sections carry
+// per-word inline markup, plain ones do not, and a one-line half-title carries almost
+// nothing at all. That is where minStep goes badly wrong in the wild, and now here.
+const UNEVEN = [
+  { title: 'Half Title', paras: 0, dense: false },   // one line: a whole page, almost no weight
+  { title: 'The Long Crossing', paras: 10, dense: true },
+  { title: 'An Interlude', paras: 3, dense: false },
+  { title: 'What the Tide Left', paras: 9, dense: true },
+  { title: 'A Short Coda', paras: 2, dense: false },
+  { title: 'Everything After', paras: 8, dense: true },
+];
+
+// Same visible words, ~5x the bytes. `<i>`/`<b>` rather than classed spans so no stylesheet
+// is needed and the text still reads as prose on the page.
+function densify(text) {
+  return text.split(' ')
+    .map((w, i) => (i % 2 ? `<i>${w}</i>` : `<b>${w}</b>`))
+    .join(' ');
+}
+
+function unevenDoc(n, title, paras, dense) {
+  const body = [];
+  for (let i = 1; i <= paras; i++) {
+    const p = paragraph(n, i);
+    body.push(`    <p>${dense ? densify(p) : p}</p>`);
+  }
+  return B(`<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+  <head><title>${title}</title></head>
+  <body>
+    <h1 id="s${n}">${title}</h1>
+${body.join('\n')}
+  </body>
+</html>
+`);
+}
+
+const uManifest = UNEVEN.map((_, i) =>
+  `    <item id="s${i + 1}" href="s${i + 1}.xhtml" media-type="application/xhtml+xml"/>`).join('\n');
+const uSpine = UNEVEN.map((_, i) => `    <itemref idref="s${i + 1}"/>`).join('\n');
+const uNav = UNEVEN.map((s, i) =>
+  `        <li><a href="s${i + 1}.xhtml">${s.title}</a></li>`).join('\n');
+
+const unevenEntries = [
+  { name: 'mimetype', data: B('application/epub+zip') },
+  {
+    name: 'META-INF/container.xml',
+    data: B(`<?xml version="1.0" encoding="utf-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+`),
+  },
+  {
+    name: 'OEBPS/content.opf',
+    data: B(`<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:calvary-reader-harness-uneven-0001</dc:identifier>
+    <dc:title>The Uneven Book</dc:title>
+    <dc:creator>Calvary Test Press</dc:creator>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-01-01T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+${uManifest}
+  </manifest>
+  <spine>
+${uSpine}
+  </spine>
+</package>
+`),
+  },
+  {
+    name: 'OEBPS/nav.xhtml',
+    data: B(`<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en">
+  <head><title>Contents</title></head>
+  <body>
+    <nav epub:type="toc" id="toc">
+      <h1>Contents</h1>
+      <ol>
+${uNav}
+      </ol>
+    </nav>
+  </body>
+</html>
+`),
+  },
+  ...UNEVEN.map((s, i) => ({ name: `OEBPS/s${i + 1}.xhtml`, data: unevenDoc(i + 1, s.title, s.paras, s.dense) })),
+];
+
+const unevenOut = join(HERE, 'harness-book-short.epub');
+writeFileSync(unevenOut, zip(unevenEntries));
+const sizes = unevenEntries.filter(e => /s\d+\.xhtml$/.test(e.name)).map(e => e.data.length);
+console.log(`fixture: ${unevenOut} (${unevenEntries.length} entries, ${UNEVEN.length} sections, `
+  + `section bytes ${sizes.join('/')} — ratio ${(Math.max(...sizes) / Math.min(...sizes)).toFixed(1)}x)`);

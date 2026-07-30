@@ -21,7 +21,9 @@ export default defineConfig({
   testMatch: 'app.spec.mjs',
   workers: 1,
   fullyParallel: false,
-  retries: 1,
+  // R7.3 §G: no retries in CI — see the note in playwright.config.mjs. The retry exists for
+  // this container's memory ceiling and nothing else.
+  retries: process.env.CI ? 0 : 1,
   timeout: 120000,
   expect: { timeout: 15000 },
   reporter: [['list']],

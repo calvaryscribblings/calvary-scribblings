@@ -176,3 +176,92 @@ test('Contents → a chapter tap moves the reader (the React jump path)', async 
   expect((chapterLabel || '').trim().length, 'the top bar must name the chapter we jumped to')
     .toBeGreaterThan(0);
 });
+
+// ── R7.3 §E — the Contents panel knows where the reader IS ───────────────────
+// ContentsPanel has always carried `.current` styling for the chapter in hand
+// (ReadingRoom.js:393), and it has never once been applied: the class is decided by
+// `c.href === chapterHref`, and chapterHref had no source. The host reported tocItem.label
+// on relocate but not tocItem.href, so the panel could name the chapter in the top bar and
+// still not know which row it was. R7.3 adds chapterHref to the relocate payload — purely
+// additive, so the bookstore register and the story adapter are untouched — and the
+// comparison comes alive.
+//
+// Chapter 3 specifically, not the last: the last row is where the previous test leaves the
+// reader, so matching it could pass on a stale highlight. Three is somewhere the reader has
+// to be MOVED to, which is the thing being asserted.
+const CHAPTER_3 = 'What the Ferryman Knew';
+
+async function openContents(page) {
+  if (await chromeHidden(page)) {
+    await page.touchscreen.tap(CENTRE_X, TAP_Y);
+    await expectChrome(page, 'visible', 'chrome for the toolbar');
+  }
+  await page.locator('.rr-tool', { hasText: 'Contents' }).click();
+  await page.waitForSelector('.rr-sheet .rr-toc-item', { timeout: 15000 });
+}
+
+test('Contents marks the chapter the reader is actually in', async ({ page }) => {
+  await openStory(page);
+
+  await openContents(page);
+  const items = page.locator('.rr-toc-item');
+  await expect(items.nth(2), 'the fixture book must expose a third chapter').toHaveText(CHAPTER_3);
+
+  // Nothing should be current-by-accident before the jump: the reader opens at chapter one,
+  // so if chapter 3 were already marked the assertion below would prove nothing.
+  const currentBefore = await page.locator('.rr-toc-item.current').allTextContents();
+  expect(currentBefore, 'chapter 3 must not be marked before the reader goes there')
+    .not.toContain(CHAPTER_3);
+
+  await items.nth(2).click();
+  await expect(page.locator('.rr-sheet')).toHaveCount(0);
+
+  // Reopen and read the highlight. Polled: the mark follows the host's relocate, which
+  // lands after the section has been laid out, not on the click.
+  await openContents(page);
+  await expect
+    .poll(async () => (await page.locator('.rr-toc-item.current').allTextContents()).join('|'),
+      { timeout: 10000, message: 'Contents must mark chapter 3 as current after jumping there' })
+    .toBe(CHAPTER_3);
+
+  console.log(`\n=== Contents current chapter ===\nbefore: ${JSON.stringify(currentBefore)}\nafter:  "${CHAPTER_3}"\n`);
+});
+
+// ── R7.3 §B — the forever-spinner, closed across the React boundary ──────────
+// load-fence.spec.mjs proves the HOST turns a book that will not arrive into a reported
+// fact. This proves the other half: that the register above renders a reader-facing state
+// off that report instead of leaving the room dressed for reading with nothing in it.
+// Before R7.3 the story register never passed onError at all, so the message arrived
+// nowhere and the spinner ran until the reader gave up.
+//
+// A 404 rather than a hang: the fence is the host's business and is already measured
+// against real silence next door. Here the only question is what the READER sees, and 404
+// is the cheapest dead URL that asks it.
+test('a book that will not open shows the failure state, with a way out', async ({ page }) => {
+  await page.route(
+    (url) => url.hostname === 'firebasestorage.googleapis.com' && /\.epub/i.test(url.pathname),
+    (route) => route.fulfill({ status: 404, headers: { 'Access-Control-Allow-Origin': '*' }, body: 'gone' }),
+  );
+
+  await page.goto(`/reader/${SLUG}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.rr-cover', { timeout: 45000 });
+  await page.locator('.rr-cover').click();     // the frame only mounts once the cover is dismissed
+
+  const fail = page.locator('.rr-fail');
+  await expect(fail, 'a dead EPUB URL must end in the failure state, not a spinner')
+    .toBeVisible({ timeout: 30000 });
+
+  // It must read as the Reading Room, not as a stack trace...
+  await expect(page.locator('.rr-fail-kicker')).toHaveText('The Reading Room');
+  await expect(page.locator('.rr-fail-note')).toContainText('would not open');
+
+  // ...and it must offer the route the whole state exists for: the prose is still on the
+  // story page even when the EPUB is not.
+  const out = page.locator(`.rr-fail-actions a[href="/stories/${SLUG}"]`);
+  await expect(out, 'the failure state must route the reader to the story page').toHaveCount(1);
+
+  // And the spinner must be gone — the defect was never "no error", it was "spins forever".
+  await expect(page.locator('.rr-booting')).toHaveCount(0);
+
+  console.log(`\n=== failure state ===\n${(await fail.innerText()).replace(/\n+/g, ' / ')}\n`);
+});

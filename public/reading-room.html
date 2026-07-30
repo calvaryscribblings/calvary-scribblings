@@ -27,13 +27,18 @@
   #loading.hidden{opacity:0;pointer-events:none}
   #spinner{width:32px;height:32px;border:2px solid rgba(201,164,76,.2);border-top-color:#c9a44c;border-radius:50%;animation:spin .9s linear infinite}
   #loading-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1rem;opacity:.55}
-  #error{display:none;position:fixed;inset:0;align-items:center;justify-content:center;padding:32px;text-align:center;z-index:100}
+  /* R7.3 (§8.19): the host's own last word. The register above us renders the real failure
+     state — it is the only layer that knows where this reader should be sent — but if a
+     register supplies none, this must still read as the Reading Room rather than as a
+     browser error. Paper-coloured, set in the room's face, no red. */
+  #error{display:none;position:fixed;inset:0;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;z-index:100}
   #error.show{display:flex}
-  #error-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1rem;color:#c0392b}
+  #error-orn{font-size:.8rem;letter-spacing:.4em;opacity:.35;margin-bottom:14px}
+  #error-text{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1.05rem;opacity:.7;line-height:1.6;max-width:22em}
   @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 <div id="loading"><div id="spinner"></div><div id="loading-text">Opening book…</div></div>
-<div id="error"><div id="error-text">Could not open this book. Please try again.</div></div>
+<div id="error"><div id="error-orn">&#10022;</div><div id="error-text">This book would not open.</div></div>
 
 <script type="module">
 import '/vendor/foliate-js-main/view.js'
@@ -47,7 +52,6 @@ const post = (msg) => { try { parent.postMessage(msg, PARENT_ORIGIN) } catch (e)
 
 const params = new URLSearchParams(location.search)
 const url = params.get('url')
-const isSample = params.get('sample') === '1'
 
 // Initial typesetter state from the query (prevents a flash before the parent's first message).
 const initial = {
@@ -132,8 +136,11 @@ let pendingGoTo = null
 let pendingFraction = null
 let lastCFI = ''
 let lastChapter = ''
+// R7.3 (§8.7): the current chapter's href, so the Contents panel can mark where the reader
+// actually is. Sticky in the same way the label is — a section with no TOC entry of its own
+// keeps showing the chapter it belongs to rather than blanking.
+let lastChapterHref = null
 let lastFraction = 0
-let minStep = 0
 const sectionWords = new Map()
 let currentIndex = -1
 let endedFired = false
@@ -161,32 +168,145 @@ function countWords(doc) {
   try { return (doc.body.innerText || '').trim().split(/\s+/).filter(Boolean).length } catch { return 0 }
 }
 
+// ── PAGE GEOMETRY (R7.3 §D) ───────────────────────────────────────────────────
+//
+// WHAT WENT. `minStep` — the smallest forward fraction step ever observed — used to stand
+// in for the width of a page, feeding both the parent's ribbon epsilon and the footer's
+// Page X of Y. It is not a ruler, and the reason is structural rather than a rounding
+// wobble. Read progress.js:73-83 with paginator.js:952-969: the whole-book fraction of a
+// page is
+//
+//       fraction = (sizeBefore + (fractionInSection + pageFraction) × sizeInSection) / sizeTotal
+//
+// with pageFraction = 1/(pages−2). So EVERY step foliate reports — inside a section and
+// across a section boundary alike — is exactly one page OF THE DESTINATION SECTION. The
+// minimum over all of them is therefore the page width of the SHORTEST SECTION in the
+// book: one half-title, one one-page interlude, one short chapter, and minStep is pinned
+// there for the rest of the session while the reader is somewhere else entirely.
+//
+// WHAT REPLACED IT. The same arithmetic, read forwards, from the paginator's own numbers.
+// A page's width is a property of the section the reader is IN, so that is what we compute
+// and what we report. Measured on the two-fixture harness in
+// tests/reader/page-geometry.spec.mjs.
+let sectionSizes = []              // spine weights, in SectionProgress's own order
+let sectionSizeTotal = 0
+const sectionPages = new Map()     // section index → its content pages, once laid out
+
+function readSectionSizes() {
+  try {
+    const sections = (view && view.book && view.book.sections) || []
+    // progress.js:60, verbatim: a non-linear or zero-size section carries no weight, so it
+    // occupies no fraction of the book and must not be given a page width.
+    sectionSizes = sections.map((s) => (s && s.linear !== 'no' && s.size > 0 ? s.size : 0))
+    sectionSizeTotal = sectionSizes.reduce((a, b) => a + b, 0)
+  } catch (e) { sectionSizes = []; sectionSizeTotal = 0 }
+}
+
+// Readable pages in the section on screen. NOT `renderer.pages`: paginator.js:790 counts
+// two blank pad pages either side of the text, which is why the paginator's own maths
+// divides by pages − 2. That is the number of pages a reader can actually turn to.
+function pagesInSection() {
+  const r = view && view.renderer
+  if (!r) return 0
+  // Fixed layout: a section IS a page. fixed-layout.js:253 reports size:1 for exactly this
+  // reason, and exposes no pagination to measure.
+  if (view.isFixedLayout) return 1
+  if (isScrolledFlow()) {
+    // A "page" in scrolled flow is one screenful. Fractional by nature — the last
+    // screenful of a section is rarely a whole one — and that is correct here: this is a
+    // width, not a count.
+    const size = r.size, viewSize = r.viewSize
+    return size > 0 && viewSize > 0 ? Math.max(1, viewSize / size) : 0
+  }
+  const pages = r.pages
+  return pages > 2 ? pages - 2 : 0
+}
+
+// Where the reader is within the current section, in whole pages, 1-based.
+function pageInSection() {
+  const r = view && view.renderer
+  if (!r) return 1
+  if (view.isFixedLayout) return 1
+  if (isScrolledFlow()) return r.size > 0 ? Math.max(1, Math.floor(r.start / r.size) + 1) : 1
+  return r.page >= 1 ? r.page : 1
+}
+
+// ONE PAGE, as a fraction of the WHOLE BOOK, for the section in front of the reader.
+// 0 when the geometry is not knowable yet (nothing laid out, a book with no weights); the
+// parent reads 0 as "keep the last good span, or fall back to the floor".
+function pageSpanNow() {
+  const pages = pagesInSection()
+  if (!(pages > 0) || !(sectionSizeTotal > 0)) return 0
+  const own = sectionSizes[currentIndex]
+  if (!(own > 0)) return 0
+  return (own / sectionSizeTotal) / pages
+}
+
 function computeMinLeft() {
   const w = sectionWords.get(currentIndex)
-  const pages = view?.renderer?.pages
-  const page = view?.renderer?.page
-  if (!w || !(pages > 2) || !(page >= 1)) return null
-  const frac = Math.min(1, Math.max(0, (page - 1) / (pages - 2)))
+  const pages = pagesInSection()
+  if (!w || !(pages > 0)) return null
+  const frac = Math.min(1, Math.max(0, (pageInSection() - 1) / pages))
   return Math.max(0, Math.round((w * (1 - frac)) / 220))
 }
 
-function computePages(fraction) {
-  // Whole-book Page X of Y estimate from the smallest observed fraction step. Universal —
-  // works for EPUBs without a page-list. Omitted (null) until a step is known.
-  if (!(minStep > 0)) return { cur: null, total: null }
-  const total = Math.max(1, Math.round(1 / minStep))
-  const cur = Math.min(total, Math.max(1, Math.round(fraction / minStep) + 1))
+// Pages per unit of section weight, measured over every section already laid out. This is
+// the bridge between "I know this section exactly" and "I have never opened that one":
+// sections the reader has visited contribute their real count, and the rest are estimated
+// at the density those real counts imply. Cleared whenever the book re-paginates.
+// A density measured over too little of the book is not an estimate, it is a guess. Measured
+// on the uneven fixture: standing on the one-line half-title — 0.94% of the book's weight,
+// one page — the density it implies alone says the book is 106 pages long. It is 15. So the
+// total is withheld until the sections actually laid out account for this much of the book;
+// one real chapter clears it immediately, and until then the footer prints the percentage
+// alone rather than a number that is off by 7x.
+const DENSITY_MIN_COVERAGE = 0.08
+
+function pageDensity() {
+  let pages = 0
+  let size = 0
+  for (const [index, count] of sectionPages) {
+    const own = sectionSizes[index]
+    if (own > 0 && count > 0) { pages += count; size += own }
+  }
+  if (!(size > 0) || !(sectionSizeTotal > 0)) return 0
+  if (size / sectionSizeTotal < DENSITY_MIN_COVERAGE) return 0
+  return pages / size
+}
+
+// Page X of Y. X is exact for every section the reader has actually paginated — which
+// always includes the one they are on — and Y converges on the truth as they move through
+// the book. Both are omitted (null) until enough of the book has been laid out to say
+// anything honest about its length.
+function computePages() {
+  const density = pageDensity()
+  if (!(density > 0) || !(sectionSizeTotal > 0)) return { cur: null, total: null }
+  const total = Math.max(1, Math.round(sectionSizeTotal * density))
+  let before = 0
+  for (let i = 0; i < currentIndex; i++) {
+    const known = sectionPages.get(i)
+    before += known > 0 ? known : (sectionSizes[i] || 0) * density
+  }
+  const cur = Math.min(total, Math.max(1, Math.round(before) + pageInSection()))
   return { cur, total }
 }
+
+// Every section's page count is a function of the current typesetting, so a Typesetter tap
+// or a flow switch invalidates all of them at once. Dropping the map is the honest move:
+// averaging pre-change counts with post-change ones would produce a density that describes
+// neither. The section on screen is re-recorded on the very next relocate.
+function forgetPageGeometry() { sectionPages.clear() }
 
 function applyStyles(patch) {
   Object.assign(state, patch)
   paintHost(state.bg)
+  forgetPageGeometry()
   view?.renderer?.setStyles?.(buildCSS(state))
 }
 
 function setFlow(flow) {
   state.flow = flow === 'scrolled' ? 'scrolled' : 'paginated'
+  forgetPageGeometry()
   view?.renderer?.setAttribute('flow', state.flow)
   view?.renderer?.setStyles?.(buildCSS(state))
 }
@@ -289,10 +409,117 @@ function onTap(clientX, target, doc) {
   else post({ type: 'toggleChrome' })
 }
 
-if (!url) {
+// ── THE LOAD FENCE (R7.3, recon §8.19) ────────────────────────────────────────
+//
+// THE FOREVER-SPINNER. foliate's loader is fetch(url) → res.blob() → new File(...)
+// (view.js:70-75, makeBook). It has no fence of any kind: a request that answers with a
+// status code fails loudly, but a request that never answers at all, or one whose body
+// stops arriving halfway, leaves "Opening book…" spinning for as long as the reader is
+// willing to look at it. There is no timeout, no error, and nothing for the register above
+// to report.
+//
+// So we do the fetch here and hand foliate the same File its own makeBook() would have
+// built — same object, same name, identical code path from that point on — which is what
+// makes every failure a fact with a reason attached.
+//
+// TWO fences, and deliberately NOT a cap on the download as a whole. A 30 MB book on a
+// train is slow, not broken, and cutting it off would be exactly the mistake public/sw.js's
+// timeout rule exists to prevent: turning a working connection into an apology.
+//   • HEADERS — nothing answered at all within OPEN_HEADERS_MS: the file is not coming.
+//   • STALL   — the body stopped arriving for OPEN_STALL_MS: the connection died mid-file.
+// Every chunk re-arms the stall clock, so a slow-but-moving download runs as long as it
+// needs to. A book that is genuinely arriving is never interrupted.
+//
+// `?fencems=` shortens both, for the harness only (tests/reader/load-fence.spec.mjs):
+// waiting out a real 20 s stall in every CI run would cost more than the test is worth. It
+// is deliberately harmless in the wild — the only thing a reader could do by setting it is
+// give up on their own book sooner than we would have.
+const FENCE_OVERRIDE = (() => {
+  const n = parseInt(params.get('fencems') || '', 10)
+  return Number.isFinite(n) && n > 0 ? n : null
+})()
+const OPEN_HEADERS_MS = FENCE_OVERRIDE ?? 20000
+const OPEN_STALL_MS = FENCE_OVERRIDE ?? 20000
+
+class BookLoadError extends Error {
+  constructor(reason, message) { super(message || reason); this.reason = reason }
+}
+
+async function fetchBookFile(src) {
+  const controller = new AbortController()
+  const headerTimer = setTimeout(() => controller.abort(), OPEN_HEADERS_MS)
+  let res
+  try {
+    res = await fetch(src, { signal: controller.signal })
+  } catch (e) {
+    throw new BookLoadError(controller.signal.aborted ? 'no-answer' : 'network', String((e && e.message) || e))
+  } finally {
+    clearTimeout(headerTimer)
+  }
+  if (!res.ok) throw new BookLoadError('http', `${res.status} ${res.statusText}`)
+
+  // foliate names the File after the response's full pathname (view.js:74). Kept verbatim:
+  // makeBook branches on the name's extension for CBZ and FBZ, so the name is load-bearing.
+  let name = 'book.epub'
+  try { name = new URL(res.url).pathname || name } catch (e) { /* keep the default */ }
+
+  // An opaque or bodyless response cannot be watched for progress. Take it whole — which is
+  // what foliate would have done anyway — rather than refusing to open a readable book.
+  if (!res.body || typeof res.body.getReader !== 'function') {
+    const blob = await res.blob()
+    const whole = new File([blob], name)
+    if (!whole.size) throw new BookLoadError('empty', 'the file was empty')
+    return whole
+  }
+
+  const reader = res.body.getReader()
+  const chunks = []
+  let stallTimer = null
+  let stalled = false
+  // ABORT, not reader.cancel(). cancel() is the GRACEFUL close: per the streams spec it
+  // fulfils the pending read() with { done: true } rather than rejecting it, so the loop
+  // below would fall out of its `if (done) break` believing the body had finished. A
+  // stalled 30 MB book then became a truncated File that foliate rejected further down as
+  // 'unreadable' — a real failure reported under the wrong name, and the wrong name is the
+  // one thing this fence exists to get right. Aborting the controller errors the body
+  // stream, which is what makes read() actually reject.
+  const arm = () => {
+    if (stallTimer) clearTimeout(stallTimer)
+    stallTimer = setTimeout(() => { stalled = true; try { controller.abort() } catch (e) {} }, OPEN_STALL_MS)
+  }
+  try {
+    arm()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) chunks.push(value)
+      arm()   // progress: the clock starts again from here
+    }
+  } catch (e) {
+    // Only OUR timer means 'stalled'. Anything else that kills a body mid-flight — a reset
+    // connection, a decoding failure — is a network fault, and saying so keeps the log line
+    // honest about which fence fired.
+    throw new BookLoadError(stalled ? 'stalled' : 'network', String((e && e.message) || e))
+  } finally {
+    if (stallTimer) clearTimeout(stallTimer)
+  }
+  const file = new File(chunks, name)
+  if (!file.size) throw new BookLoadError('empty', 'the file was empty')
+  return file
+}
+
+// One exit for every way this can go wrong. The register above renders the reader-facing
+// state (it is the only layer that knows where this reader should be sent); the `reason`
+// travels with the message so a log line can name the failure without guessing.
+function showFailure(reason, message) {
+  console.error('[reading-room] could not open the book:', reason, message || '')
   document.getElementById('loading').classList.add('hidden')
-  const err = document.getElementById('error'); err.classList.add('show')
-  document.getElementById('error-text').textContent = 'No book URL provided.'
+  document.getElementById('error').classList.add('show')
+  post({ type: 'error', reason: reason || 'unknown', message: message || null })
+}
+
+if (!url) {
+  showFailure('no-target', 'No book URL provided.')
 } else {
   view = document.createElement('foliate-view')
   document.body.append(view)
@@ -301,23 +528,27 @@ if (!url) {
     const fraction = detail.fraction ?? 0
     lastCFI = detail.cfi || view.lastLocation?.cfi || lastCFI
     lastChapter = detail.tocItem?.label || lastChapter
+    if (detail.tocItem && detail.tocItem.href) lastChapterHref = detail.tocItem.href
     lastRange = detail.range || lastRange
-    if (fraction > lastFraction) {
-      const step = fraction - lastFraction
-      if (step > 0 && step < 0.5 && (minStep === 0 || step < minStep)) minStep = step
-    }
     lastFraction = fraction
-    const { cur, total } = computePages(fraction)
+    // The section has now been laid out, so its page count is real. Recorded here rather
+    // than on 'load': at load time the paginator has not measured anything yet.
+    const laidOut = pagesInSection()
+    if (currentIndex >= 0 && laidOut > 0) sectionPages.set(currentIndex, laidOut)
+    const { cur, total } = computePages()
     post({
       type: 'relocate', cfi: lastCFI, fraction,
       chapterLabel: lastChapter || null,
+      // R7.3 (§8.7), additive: the parent already compares this against the TOC it was
+      // handed at ready, so the Contents panel's .current comparison comes alive with it.
+      chapterHref: lastChapterHref,
       pageCurrent: cur, pageTotal: total,
       pct: Math.round(fraction * 100),
       minLeft: computeMinLeft(),
-      // R7.2, additive: the smallest observed forward step — one page as a fraction of the
-      // whole book. The parent derives its "is a ribbon on THIS page" epsilon from it.
-      // 0 until the first forward turn; the parent falls back until then.
-      pageSpan: minStep,
+      // R7.3: ONE PAGE OF THIS SECTION, as a fraction of the whole book — real geometry,
+      // not the smallest step ever seen. The parent derives its "is a ribbon on THIS page"
+      // epsilon from it. See the geometry block above for why the old ruler was wrong.
+      pageSpan: pageSpanNow(),
     })
     if (!endedFired && fraction >= 0.999) { endedFired = true; post({ type: 'ended' }) }
   })
@@ -388,7 +619,25 @@ if (!url) {
     if (e.target === document.body || e.target === view) onTap(e.clientX, e.target, document)
   })
 
-  view.open(url).then(() => {
+  ;(async () => {
+    // Two separately reportable failures: the file never arrived, or it arrived and is not
+    // a book we can read. They are different sentences to a reader, so they stay apart.
+    let file
+    try {
+      file = await fetchBookFile(url)
+    } catch (err) {
+      showFailure(err instanceof BookLoadError ? err.reason : 'network', String((err && err.message) || err))
+      return
+    }
+    try {
+      await view.open(file)
+    } catch (err) {
+      showFailure('unreadable', String((err && err.message) || err))
+      return
+    }
+    // The spine weights are only knowable once the book is open, and every page-geometry
+    // answer depends on them, so this must land before the first relocate.
+    readSectionSizes()
     view.renderer?.setStyles?.(buildCSS(state))
     view.renderer?.setAttribute?.('flow', state.flow)
     view.renderer?.next()
@@ -401,12 +650,7 @@ if (!url) {
     // the coarse fraction fallback.
     if (pendingGoTo) { const t = pendingGoTo; pendingGoTo = null; try { view.goTo(t) } catch (e) {} }
     else if (pendingFraction != null) { const f = pendingFraction; pendingFraction = null; try { view.goToFraction(f) } catch (e) {} }
-  }).catch((err) => {
-    console.error('[reading-room] open failed', err)
-    document.getElementById('loading').classList.add('hidden')
-    document.getElementById('error').classList.add('show')
-    post({ type: 'error', message: String(err?.message || err) })
-  })
+  })()
 }
 
 // Re-apply typesetting only when the justification decision actually flips (rotation, iPad split
@@ -416,6 +660,7 @@ window.addEventListener('resize', () => {
   const now = effectiveJustify(state)
   if (now === lastJustify) return
   lastJustify = now
+  forgetPageGeometry()   // a justification flip re-paginates every section
   view?.renderer?.setStyles?.(buildCSS(state))
 })
 
