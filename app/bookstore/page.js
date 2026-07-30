@@ -11,6 +11,8 @@ import BuyButton from './components/BuyButton';
 import QuickLookModal from './components/QuickLookModal';
 import { useBookGesture } from './components/useBookGesture';
 import { formatGbp, resolveOpeningLine, formatCatalogueNumber } from './components/fields';
+import LaunchGate from './components/LaunchGate';
+import { isStoreUnlocked } from '../lib/bookstore/gate';
 
 // Fiction/non-fiction split, derived from genre. Exported so the detail page (R3) can reuse
 // the exact same mapping without re-deriving it. Every slug here is a member of GENRES in
@@ -222,9 +224,29 @@ export default function BookStorePage() {
   const [modal, setModal] = useState(null); // { title, rect }
   const modalReset = useRef(null);
 
-  // A0 runtime gate — UNCHANGED. Route stays invisible (404) until at least one title is
-  // published; once one is, the storefront is public (the old passcode is retired).
+  // ── R8.1 THE CURTAIN ──────────────────────────────────────────────────────
+  //
+  // Three states, and the middle one is why this is not a boolean: 'checking' is the render
+  // before the effect has read localStorage. The export prerenders this component to HTML at
+  // build time, so the first client render must match that HTML — reading storage during
+  // render would make a returning keyholder's markup differ from the prerendered gate and
+  // throw a hydration error. So the first paint commits to neither, and the effect decides.
+  //
+  // 'up' keeps the gate mounted while `unlocked` is already true: that overlap IS the reveal.
+  // See the note at the head of components/LaunchGate.js.
+  const [curtain, setCurtain] = useState('checking'); // 'checking' | 'up' | 'gone'
+  const [unlocked, setUnlocked] = useState(false);
   useEffect(() => {
+    if (isStoreUnlocked()) { setUnlocked(true); setCurtain('gone'); }
+    else setCurtain('up');
+  }, []);
+
+  // A0 runtime gate — UNCHANGED in substance: the route still stays invisible (404) until at
+  // least one title is published. The only difference is that it now waits for the curtain,
+  // because R8.1's brief is that nothing is fetched from behind it. A visitor without the key
+  // never issues this query, so the 404 case is not even reachable until they are through.
+  useEffect(() => {
+    if (!unlocked) return;
     let cancelled = false;
     (async () => {
       try {
@@ -236,7 +258,7 @@ export default function BookStorePage() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [unlocked]);
 
   // Single-fetch data flow — UNCHANGED. Fetch the full published catalogue exactly once and
   // derive every view (genre filter, split, featured/window, opening lines) client-side.
@@ -253,8 +275,14 @@ export default function BookStorePage() {
   const openModal = (title, rect, reset) => { modalReset.current = reset; setModal({ title, rect }); };
   const closeModal = () => { if (modalReset.current) modalReset.current(); modalReset.current = null; setModal(null); };
 
-  if (gateState === 'checking') return null;
-  if (gateState === 'empty') notFound();
+  // Nothing at all until the curtain effect has read storage — see the note on `curtain`.
+  if (curtain === 'checking') return null;
+
+  // Only reachable from behind the curtain, because gateState stays 'checking' until `unlocked`
+  // lets the A0 query run. A visitor without the key gets the gate, never the 404.
+  if (unlocked && gateState === 'empty') notFound();
+
+  const storeReady = unlocked && gateState === 'open';
 
   const loading = titles === null;
   const fictionTitles = loading ? [] : titles.filter((t) => FICTION_GENRES.includes(t.genre));
@@ -270,146 +298,162 @@ export default function BookStorePage() {
 
   return (
     <>
-      <Navbar />
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Cinzel:wght@400;600&family=Inter:wght@300;400;500;600&display=swap');
-        html{scroll-behavior:smooth}
-        body{background:#070707;color:#f0ead8;font-family:'Cormorant Garamond',Georgia,serif;overflow-x:hidden}
-        ${BOUND_BOOK_CSS}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.75}}
-        @keyframes lampPulse{0%,100%{opacity:.5}50%{opacity:.9}}
-        @keyframes grainShift{0%{transform:translate(0,0)}10%{transform:translate(-3%,-2%)}20%{transform:translate(-8%,4%)}30%{transform:translate(3%,-8%)}40%{transform:translate(-2%,9%)}50%{transform:translate(-8%,3%)}60%{transform:translate(4%,-2%)}70%{transform:translate(-4%,6%)}80%{transform:translate(6%,3%)}90%{transform:translate(-2%,-4%)}}
-        .skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
-        .bookstore-grain{position:fixed;inset:-50%;z-index:1;pointer-events:none;opacity:.05;
-          background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0,rgba(0,0,0,.6) 1px,transparent 1px,transparent 2px),repeating-linear-gradient(90deg,rgba(255,255,255,.5) 0,rgba(0,0,0,.5) 1px,transparent 1px,transparent 3px);
-          animation:grainShift 8s steps(10) infinite}
+      {/* R8.1: the storefront is a slot in a fragment whose SECOND slot is the curtain, and
+          it stays a fragment in every state — including the one where this slot is empty.
+          Returning <LaunchGate /> alone while locked and a fragment once open would change
+          the root element type between renders, so React would unmount and remount the gate
+          at the exact moment it is mid-lift, throwing away its `lifting` state. Same shape,
+          same positions, always. */}
+      {storeReady && (
+        <>
+        <Navbar />
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Cinzel:wght@400;600&family=Inter:wght@300;400;500;600&display=swap');
+          html{scroll-behavior:smooth}
+          body{background:#070707;color:#f0ead8;font-family:'Cormorant Garamond',Georgia,serif;overflow-x:hidden}
+          ${BOUND_BOOK_CSS}
+          @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+          @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.75}}
+          @keyframes lampPulse{0%,100%{opacity:.5}50%{opacity:.9}}
+          @keyframes grainShift{0%{transform:translate(0,0)}10%{transform:translate(-3%,-2%)}20%{transform:translate(-8%,4%)}30%{transform:translate(3%,-8%)}40%{transform:translate(-2%,9%)}50%{transform:translate(-8%,3%)}60%{transform:translate(4%,-2%)}70%{transform:translate(-4%,6%)}80%{transform:translate(6%,3%)}90%{transform:translate(-2%,-4%)}}
+          .skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
+          .bookstore-grain{position:fixed;inset:-50%;z-index:1;pointer-events:none;opacity:.05;
+            background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0,rgba(0,0,0,.6) 1px,transparent 1px,transparent 2px),repeating-linear-gradient(90deg,rgba(255,255,255,.5) 0,rgba(0,0,0,.5) 1px,transparent 1px,transparent 3px);
+            animation:grainShift 8s steps(10) infinite}
 
-        .hero{min-height:88vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;text-align:center;padding:2rem}
-        .hero-lamp{position:absolute;inset:0;background:radial-gradient(ellipse 60% 44% at 50% 40%,rgba(201,164,76,.16) 0%,transparent 66%);animation:lampPulse 5.5s ease-in-out infinite}
-        .hero-inner{position:relative;z-index:2;max-width:720px;animation:fadeUp .9s ease forwards}
-        .hero-eyebrow{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;color:#c9a44c;margin-bottom:2rem}
-        .hero-title{line-height:.9;margin-bottom:1.8rem}
-        .hero-the{display:block;font-family:'Cinzel',serif;font-weight:400;font-size:clamp(1.6rem,4vw,2.6rem);letter-spacing:.06em;color:rgba(240,234,216,.72)}
-        .hero-store{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:300;font-size:clamp(3.6rem,10vw,7.6rem);color:#c9a44c}
-        .hero-colophon{font-size:1.05rem;font-style:italic;color:rgba(240,234,216,.5);line-height:1.7;max-width:520px;margin:0 auto 2.2rem}
-        .hero-edition{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.28em;text-transform:uppercase;color:rgba(201,164,76,.6)}
+          .hero{min-height:88vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;text-align:center;padding:2rem}
+          .hero-lamp{position:absolute;inset:0;background:radial-gradient(ellipse 60% 44% at 50% 40%,rgba(201,164,76,.16) 0%,transparent 66%);animation:lampPulse 5.5s ease-in-out infinite}
+          .hero-inner{position:relative;z-index:2;max-width:720px;animation:fadeUp .9s ease forwards}
+          .hero-eyebrow{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;color:#c9a44c;margin-bottom:2rem}
+          .hero-title{line-height:.9;margin-bottom:1.8rem}
+          .hero-the{display:block;font-family:'Cinzel',serif;font-weight:400;font-size:clamp(1.6rem,4vw,2.6rem);letter-spacing:.06em;color:rgba(240,234,216,.72)}
+          .hero-store{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:300;font-size:clamp(3.6rem,10vw,7.6rem);color:#c9a44c}
+          .hero-colophon{font-size:1.05rem;font-style:italic;color:rgba(240,234,216,.5);line-height:1.7;max-width:520px;margin:0 auto 2.2rem}
+          .hero-edition{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.28em;text-transform:uppercase;color:rgba(201,164,76,.6)}
 
-        .the-window{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:4rem 2rem 3rem}
-        .window-plate{text-align:center;font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.6rem}
-        .window-case{position:relative;border:1px solid rgba(201,164,76,.2);background:radial-gradient(ellipse 70% 60% at 50% 0%,rgba(201,164,76,.06),transparent 70%),rgba(255,255,255,.015);padding:3.5rem 3rem}
-        .window-lamp{position:absolute;top:-1px;left:20%;right:20%;height:120px;background:radial-gradient(ellipse 60% 100% at 50% 0%,rgba(201,164,76,.18),transparent 72%);pointer-events:none}
-        .fleuron-corner{position:absolute;color:rgba(201,164,76,.4);font-size:.9rem}
-        .fleuron-corner.tl{top:.7rem;left:.9rem}.fleuron-corner.tr{top:.7rem;right:.9rem}
-        .fleuron-corner.bl{bottom:.7rem;left:.9rem}.fleuron-corner.br{bottom:.7rem;right:.9rem}
-        .window-inner{position:relative;display:grid;grid-template-columns:auto 1fr;gap:3.5rem;align-items:center}
-        .window-book{display:flex;justify-content:center;padding:1rem 1.4rem}
-        .window-kicker{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.22em;text-transform:uppercase;color:#c9a44c;margin-bottom:.8rem}
-        .window-title{font-family:'Cinzel',serif;font-size:clamp(1.5rem,3vw,2.2rem);font-weight:600;color:#f0ead8;line-height:1.12;margin-bottom:.35rem}
-        .window-author{font-size:1.05rem;font-style:italic;color:rgba(240,234,216,.5);margin-bottom:1.3rem}
-        .window-pull{font-size:1.05rem;font-style:italic;line-height:1.6;color:rgba(240,234,216,.78);border-left:2px solid rgba(201,164,76,.35);padding-left:1.1rem;margin-bottom:1.2rem}
-        .window-shelfcard{font-size:.92rem;line-height:1.6;color:rgba(240,234,216,.6);background:rgba(236,228,207,.06);border:1px solid rgba(201,164,76,.15);padding:.85rem 1.1rem;margin-bottom:1.5rem}
-        .window-shelfcard span{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:#c9a44c}
-        .window-actions{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center}
+          .the-window{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:4rem 2rem 3rem}
+          .window-plate{text-align:center;font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.6rem}
+          .window-case{position:relative;border:1px solid rgba(201,164,76,.2);background:radial-gradient(ellipse 70% 60% at 50% 0%,rgba(201,164,76,.06),transparent 70%),rgba(255,255,255,.015);padding:3.5rem 3rem}
+          .window-lamp{position:absolute;top:-1px;left:20%;right:20%;height:120px;background:radial-gradient(ellipse 60% 100% at 50% 0%,rgba(201,164,76,.18),transparent 72%);pointer-events:none}
+          .fleuron-corner{position:absolute;color:rgba(201,164,76,.4);font-size:.9rem}
+          .fleuron-corner.tl{top:.7rem;left:.9rem}.fleuron-corner.tr{top:.7rem;right:.9rem}
+          .fleuron-corner.bl{bottom:.7rem;left:.9rem}.fleuron-corner.br{bottom:.7rem;right:.9rem}
+          .window-inner{position:relative;display:grid;grid-template-columns:auto 1fr;gap:3.5rem;align-items:center}
+          .window-book{display:flex;justify-content:center;padding:1rem 1.4rem}
+          .window-kicker{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.22em;text-transform:uppercase;color:#c9a44c;margin-bottom:.8rem}
+          .window-title{font-family:'Cinzel',serif;font-size:clamp(1.5rem,3vw,2.2rem);font-weight:600;color:#f0ead8;line-height:1.12;margin-bottom:.35rem}
+          .window-author{font-size:1.05rem;font-style:italic;color:rgba(240,234,216,.5);margin-bottom:1.3rem}
+          .window-pull{font-size:1.05rem;font-style:italic;line-height:1.6;color:rgba(240,234,216,.78);border-left:2px solid rgba(201,164,76,.35);padding-left:1.1rem;margin-bottom:1.2rem}
+          .window-shelfcard{font-size:.92rem;line-height:1.6;color:rgba(240,234,216,.6);background:rgba(236,228,207,.06);border:1px solid rgba(201,164,76,.15);padding:.85rem 1.1rem;margin-bottom:1.5rem}
+          .window-shelfcard span{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:#c9a44c}
+          .window-actions{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center}
 
-        .btn-buy{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:pointer;transition:filter .25s,opacity .25s}
-        .btn-buy:hover{filter:brightness(1.08)}
-        .btn-buy:disabled{cursor:progress;opacity:.6;filter:none}
-        .btn-sample{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:1px solid rgba(201,164,76,.4);border-radius:3px;background:rgba(201,164,76,.04);color:#c9a44c;font-weight:600;text-decoration:none}
-        .btn-sample:hover{background:rgba(201,164,76,.1)}
-        .btn-details{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.55);text-decoration:none;border-bottom:1px solid rgba(201,164,76,.25);padding-bottom:2px}
+          .btn-buy{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:pointer;transition:filter .25s,opacity .25s}
+          .btn-buy:hover{filter:brightness(1.08)}
+          .btn-buy:disabled{cursor:progress;opacity:.6;filter:none}
+          .btn-sample{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:1px solid rgba(201,164,76,.4);border-radius:3px;background:rgba(201,164,76,.04);color:#c9a44c;font-weight:600;text-decoration:none}
+          .btn-sample:hover{background:rgba(201,164,76,.1)}
+          .btn-details{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.55);text-decoration:none;border-bottom:1px solid rgba(201,164,76,.25);padding-bottom:2px}
 
-        .rail{position:relative;z-index:2;max-width:760px;margin:0 auto;padding:3.5rem 2rem;text-align:center}
-        .rail-eyebrow{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.5rem}
-        .rail-quote{font-size:clamp(1.3rem,3vw,1.9rem);font-style:italic;font-weight:300;line-height:1.5;color:#f0ead8;margin-bottom:1.8rem}
-        .rail-reveal{display:flex;flex-direction:column;align-items:center;gap:1rem}
-        .rail-answer{text-decoration:none;color:inherit}
-        .rail-answer-title{display:block;font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.1em;color:#c9a44c}
-        .rail-answer-author{display:block;font-size:.9rem;font-style:italic;color:rgba(240,234,216,.5);margin-top:.2rem}
-        .rail-btn{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:#c9a44c;background:none;border:1px solid rgba(201,164,76,.3);border-radius:3px;padding:.7rem 1.6rem;cursor:pointer;transition:all .2s}
-        .rail-btn:hover{background:rgba(201,164,76,.08);border-color:rgba(201,164,76,.55)}
+          .rail{position:relative;z-index:2;max-width:760px;margin:0 auto;padding:3.5rem 2rem;text-align:center}
+          .rail-eyebrow{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.5rem}
+          .rail-quote{font-size:clamp(1.3rem,3vw,1.9rem);font-style:italic;font-weight:300;line-height:1.5;color:#f0ead8;margin-bottom:1.8rem}
+          .rail-reveal{display:flex;flex-direction:column;align-items:center;gap:1rem}
+          .rail-answer{text-decoration:none;color:inherit}
+          .rail-answer-title{display:block;font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.1em;color:#c9a44c}
+          .rail-answer-author{display:block;font-size:.9rem;font-style:italic;color:rgba(240,234,216,.5);margin-top:.2rem}
+          .rail-btn{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:#c9a44c;background:none;border:1px solid rgba(201,164,76,.3);border-radius:3px;padding:.7rem 1.6rem;cursor:pointer;transition:all .2s}
+          .rail-btn:hover{background:rgba(201,164,76,.08);border-color:rgba(201,164,76,.55)}
 
-        .catalogue-section{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:4rem 2.5rem}
-        .section-head{display:flex;align-items:center;gap:1.2rem;margin-bottom:2.5rem}
-        .section-rule{flex:1;height:1px;background:rgba(201,164,76,.12)}
-        .section-mark{font-size:.7rem}
-        .section-title{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;font-weight:600}
-        .genre-tabs{display:flex;overflow-x:auto;margin-bottom:3rem;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.06)}
-        .genre-tabs::-webkit-scrollbar{display:none}
-        .genre-tab{padding:.7rem 1.3rem;white-space:nowrap;font-family:'Cormorant Garamond',Georgia,serif;font-size:.75rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:rgba(240,234,216,.45);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
-        .genre-tab:hover{color:#f0ead8}
-        .genre-tab.active{color:#c9a44c;border-bottom-color:#c9a44c}
-        .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:3.5rem 1.5rem;justify-items:center}
-        .shelf-entry{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:200px;animation:fadeUp .5s ease forwards}
-        .shelf-book-wrap{margin-bottom:1.1rem}
-        .no-divider{display:flex;align-items:center;gap:.6rem;width:100%;margin-bottom:1rem}
-        .no-line{flex:1;height:1px;background:rgba(201,164,76,.14)}
-        .no-label{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(201,164,76,.6)}
-        .entry-genre{font-family:'Cormorant Garamond',Georgia,serif;font-size:.55rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#c9a44c;margin-bottom:.3rem}
-        .entry-title{font-size:.92rem;font-weight:600;color:#f0ead8;line-height:1.28;margin-bottom:.15rem}
-        .entry-author{font-family:'Cormorant Garamond',Georgia,serif;font-size:.76rem;font-style:italic;color:rgba(240,234,216,.45);margin-bottom:.4rem}
-        .entry-price{font-family:'Cormorant Garamond',Georgia,serif;font-size:.85rem;font-weight:600;color:#f0ead8}
-        .shelf-card{margin-top:1rem;background:#ece4cf;color:#2a2318;padding:.75rem .9rem;border-radius:1px;box-shadow:0 6px 18px rgba(0,0,0,.4);font-size:.72rem;line-height:1.5;max-width:190px}
-        .shelf-card-body{display:block;font-style:italic}
-        .shelf-card-sign{display:block;margin-top:.4rem;font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.12em;color:#7a5f24}
-        .shelf-empty{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.05rem;color:rgba(240,234,216,.4);text-align:center;padding:2rem 0}
+          .catalogue-section{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:4rem 2.5rem}
+          .section-head{display:flex;align-items:center;gap:1.2rem;margin-bottom:2.5rem}
+          .section-rule{flex:1;height:1px;background:rgba(201,164,76,.12)}
+          .section-mark{font-size:.7rem}
+          .section-title{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;font-weight:600}
+          .genre-tabs{display:flex;overflow-x:auto;margin-bottom:3rem;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.06)}
+          .genre-tabs::-webkit-scrollbar{display:none}
+          .genre-tab{padding:.7rem 1.3rem;white-space:nowrap;font-family:'Cormorant Garamond',Georgia,serif;font-size:.75rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:rgba(240,234,216,.45);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+          .genre-tab:hover{color:#f0ead8}
+          .genre-tab.active{color:#c9a44c;border-bottom-color:#c9a44c}
+          .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:3.5rem 1.5rem;justify-items:center}
+          .shelf-entry{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:200px;animation:fadeUp .5s ease forwards}
+          .shelf-book-wrap{margin-bottom:1.1rem}
+          .no-divider{display:flex;align-items:center;gap:.6rem;width:100%;margin-bottom:1rem}
+          .no-line{flex:1;height:1px;background:rgba(201,164,76,.14)}
+          .no-label{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(201,164,76,.6)}
+          .entry-genre{font-family:'Cormorant Garamond',Georgia,serif;font-size:.55rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#c9a44c;margin-bottom:.3rem}
+          .entry-title{font-size:.92rem;font-weight:600;color:#f0ead8;line-height:1.28;margin-bottom:.15rem}
+          .entry-author{font-family:'Cormorant Garamond',Georgia,serif;font-size:.76rem;font-style:italic;color:rgba(240,234,216,.45);margin-bottom:.4rem}
+          .entry-price{font-family:'Cormorant Garamond',Georgia,serif;font-size:.85rem;font-weight:600;color:#f0ead8}
+          .shelf-card{margin-top:1rem;background:#ece4cf;color:#2a2318;padding:.75rem .9rem;border-radius:1px;box-shadow:0 6px 18px rgba(0,0,0,.4);font-size:.72rem;line-height:1.5;max-width:190px}
+          .shelf-card-body{display:block;font-style:italic}
+          .shelf-card-sign{display:block;margin-top:.4rem;font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.12em;color:#7a5f24}
+          .shelf-empty{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.05rem;color:rgba(240,234,216,.4);text-align:center;padding:2rem 0}
 
-        .curation-band{position:relative;z-index:2;max-width:640px;margin:2rem auto;padding:2.5rem 2rem;text-align:center;display:flex;flex-direction:column;align-items:center;gap:1rem}
-        .curation-band p{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.15rem;line-height:1.6;color:rgba(240,234,216,.6)}
-        .colophon{position:relative;z-index:2;max-width:640px;margin:0 auto;padding:3rem 2rem 5rem;text-align:center}
-        .colophon-rule{width:80px;height:1px;background:rgba(201,164,76,.3);margin:0 auto 2rem}
-        .colophon-text{font-size:.85rem;line-height:1.9;color:rgba(240,234,216,.4);font-style:italic}
-        .colophon-mark{margin-top:1.5rem;color:rgba(201,164,76,.5)}
+          .curation-band{position:relative;z-index:2;max-width:640px;margin:2rem auto;padding:2.5rem 2rem;text-align:center;display:flex;flex-direction:column;align-items:center;gap:1rem}
+          .curation-band p{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.15rem;line-height:1.6;color:rgba(240,234,216,.6)}
+          .colophon{position:relative;z-index:2;max-width:640px;margin:0 auto;padding:3rem 2rem 5rem;text-align:center}
+          .colophon-rule{width:80px;height:1px;background:rgba(201,164,76,.3);margin:0 auto 2rem}
+          .colophon-text{font-size:.85rem;line-height:1.9;color:rgba(240,234,216,.4);font-style:italic}
+          .colophon-mark{margin-top:1.5rem;color:rgba(201,164,76,.5)}
 
-        @media(max-width:640px){
-          .shelf{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2.75rem 1rem}
-          .window-inner{grid-template-columns:1fr;gap:2rem;text-align:center}
-          .window-book{padding:0}
-          .window-pull{border-left:none;padding-left:0}
-          .window-actions{justify-content:center}
-          .catalogue-section{padding:3rem 1.25rem}
-        }
-      `}</style>
+          @media(max-width:640px){
+            .shelf{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2.75rem 1rem}
+            .window-inner{grid-template-columns:1fr;gap:2rem;text-align:center}
+            .window-book{padding:0}
+            .window-pull{border-left:none;padding-left:0}
+            .window-actions{justify-content:center}
+            .catalogue-section{padding:3rem 1.25rem}
+          }
+        `}</style>
 
-      <div className="bookstore-grain" aria-hidden="true" />
+        <div className="bookstore-grain" aria-hidden="true" />
 
-      <main style={{ background: '#070707', color: '#f0ead8', position: 'relative' }}>
-        <Hero count={totalCount} />
+        <main style={{ background: '#070707', color: '#f0ead8', position: 'relative' }}>
+          <Hero count={totalCount} />
 
-        {loading ? (
-          <SkeletonShelf />
-        ) : (
-          <>
-            {windowTitle && <TheWindow title={windowTitle} />}
-            {linesPool.length >= 2 && <OpeningLinesRail pool={linesPool} />}
+          {loading ? (
+            <SkeletonShelf />
+          ) : (
+            <>
+              {windowTitle && <TheWindow title={windowTitle} />}
+              {linesPool.length >= 2 && <OpeningLinesRail pool={linesPool} />}
 
-            {fictionTitles.length > 0 && (
-              <CatalogueSection
-                id="fiction" sectionLabel="Fiction" allLabel="All Fiction"
-                titles={fictionTitles} genresPresent={fictionGenresPresent}
-                active={activeFiction} setActive={setActiveFiction} onOpen={openModal}
-              />
-            )}
+              {fictionTitles.length > 0 && (
+                <CatalogueSection
+                  id="fiction" sectionLabel="Fiction" allLabel="All Fiction"
+                  titles={fictionTitles} genresPresent={fictionGenresPresent}
+                  active={activeFiction} setActive={setActiveFiction} onOpen={openModal}
+                />
+              )}
 
-            {nonfictionTitles.length > 0 && (
-              <CatalogueSection
-                id="nonfiction" sectionLabel="Non-Fiction" allLabel="All Non-Fiction"
-                titles={nonfictionTitles} genresPresent={nonfictionGenresPresent}
-                active={activeNonfiction} setActive={setActiveNonfiction} onOpen={openModal}
-              />
-            )}
+              {nonfictionTitles.length > 0 && (
+                <CatalogueSection
+                  id="nonfiction" sectionLabel="Non-Fiction" allLabel="All Non-Fiction"
+                  titles={nonfictionTitles} genresPresent={nonfictionGenresPresent}
+                  active={activeNonfiction} setActive={setActiveNonfiction} onOpen={openModal}
+                />
+              )}
 
-            <Colophon count={totalCount} />
-          </>
-        )}
-      </main>
+              <Colophon count={totalCount} />
+            </>
+          )}
+        </main>
 
-      {/* The storefront already renders the platform Navbar, which carries the desktop tab row.
-          Without this the mobile visitor lost the tabs the desktop one kept. No tab is lit here —
-          /bookstore is none of the four. The bookstore's own surfaces are untouched. */}
-      <TabBar />
+        {/* The storefront already renders the platform Navbar, which carries the desktop tab row.
+            Without this the mobile visitor lost the tabs the desktop one kept. No tab is lit here —
+            /bookstore is none of the four. The bookstore's own surfaces are untouched. */}
+        <TabBar />
 
-      {modal && <QuickLookModal title={modal.title} originRect={modal.rect} onClose={closeModal} />}
+        {modal && <QuickLookModal title={modal.title} originRect={modal.rect} onClose={closeModal} />}
+        </>
+      )}
+
+      {/* The curtain outlives the unlock: `unlocked` is already true while this is still
+          mounted, and that overlap is the reveal. It unmounts itself via onLifted. */}
+      {curtain === 'up' && (
+        <LaunchGate onUnlock={() => setUnlocked(true)} onLifted={() => setCurtain('gone')} />
+      )}
     </>
   );
 }

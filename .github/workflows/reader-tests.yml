@@ -33,6 +33,11 @@ on:
       - 'app/reader/**'
       - 'app/lib/ribbonGeometry.js'
       - 'app/lib/readerCollection.js'
+      # R8.1 — the pre-launch gate. It rides this workflow rather than getting its own because
+      # it needs the same one expensive input: a built out/. A second workflow would mean a
+      # second `npx next build` on every push for the sake of one 19-second suite.
+      - 'app/bookstore/**'
+      - 'app/lib/bookstore/gate.js'
       - 'tests/**'
       # R8.0 — the sample splitter, which tests/reader/sample-epub.spec.mjs imports directly.
       - 'scripts/make-sample-epub.mjs'
@@ -88,6 +93,11 @@ jobs:
 
       - name: App harness (the React boundary)
         run: npx playwright test -c tests/reader/playwright.app.config.mjs
+
+      # R8.1 — the pre-launch gate, against the same out/ the step above built. Its own port
+      # (4323), so it neither waits for nor collides with the reader suite's server.
+      - name: Gate harness (the pre-launch curtain)
+        run: npx playwright test -c tests/bookstore/playwright.gate.config.mjs
 
       - name: Upload traces and reports
         if: failure()
