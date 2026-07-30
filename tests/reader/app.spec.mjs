@@ -57,15 +57,37 @@ async function expectChrome(page, state, why) {
     .toBe(state);
 }
 
+// OPEN THE BOOK — and not by clicking the middle of the cover.
+//
+// The splash is a full-screen div whose onClick is the only way past it, but it CONTAINS
+// `<div className="rr-cabout" onClick={e => e.stopPropagation()}>` — the About-the-Author
+// block, deliberately swallowing taps so a reader can expand a bio without accidentally
+// opening the book (page-reader.js:554). Playwright's .click() aims at the centre of the
+// target's box, and the centre of a full-screen flex-column cover is wherever the content
+// happens to land. Locally that missed the bio; on a CI runner, where the display webfonts
+// are absent and every block is a different height, it landed square on it — the click was
+// swallowed, the cover never lifted, and all six specs failed 30 s later complaining about
+// the iframe. Diagnosed off the CI trace, which shows "Open to begin reading" still on
+// screen at failure time.
+//
+// So: click a fixed offset in the cover's top-left corner, which is the cover itself under
+// any layout (.rr-cover::before is pointer-events:none), and then PROVE the cover lifted.
+// A click that stops working now fails here, by name, instead of somewhere downstream.
+async function dismissCover(page) {
+  await page.waitForSelector('.rr-cover', { timeout: 45000 });
+  await page.locator('.rr-cover').click({ position: { x: 8, y: 8 } });
+  await expect(page.locator('.rr-cover'), 'the cover splash must lift when it is tapped')
+    .toHaveCount(0, { timeout: 10000 });
+}
+
 /** Open the reader, dismiss the splash, and wait until the book has actually painted. */
 async function openStory(page) {
   await stubEpub(page);
   await page.goto(`/reader/${SLUG}`, { waitUntil: 'domcontentloaded' });
 
-  // The gate resolves the slug against bookstore_titles, then cms_stories. If this times
-  // out the story did not resolve — data or network, not chrome.
-  await page.waitForSelector('.rr-cover', { timeout: 45000 });
-  await page.locator('.rr-cover').click();
+  // The gate resolves the slug against bookstore_titles and cms_stories. If this times out
+  // the story did not resolve — data or network, not chrome.
+  await dismissCover(page);
 
   await page.waitForSelector('.rr-frame', { timeout: 30000 });
 
@@ -244,8 +266,7 @@ test('a book that will not open shows the failure state, with a way out', async 
   );
 
   await page.goto(`/reader/${SLUG}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.rr-cover', { timeout: 45000 });
-  await page.locator('.rr-cover').click();     // the frame only mounts once the cover is dismissed
+  await dismissCover(page);                    // the frame only mounts once the cover is dismissed
 
   const fail = page.locator('.rr-fail');
   await expect(fail, 'a dead EPUB URL must end in the failure state, not a spinner')
