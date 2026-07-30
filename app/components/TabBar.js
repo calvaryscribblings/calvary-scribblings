@@ -136,6 +136,47 @@ function BooksIcon({ size, className }) {
   );
 }
 
+/* BOOK STORE — a canopy over a facade. Not yet in TABS; the fifth tab is its own round.
+   The set already owns "books" (BooksIcon, above), so this mark deliberately does not draw one.
+   At the 78px cells five tabs give a 390px bar — and again at 14px in the desktop row — two book
+   glyphs side by side read as two variants of one destination. What separates them here is the
+   SILHOUETTE: BooksIcon is four vertical strokes with daylight between them, this is one closed
+   outline with a strong horizontal at y=9.2. That difference survives the shrink to 14px, where
+   the leaning book's 15 degree tilt has all but gone.
+   Three decisions, all load-bearing:
+     · THE CANOPY IS A STRAIGHT TRAPEZOID, not a scalloped awning. The scallop is the more
+       literal shop cue and it is the one thing this glyph must not have: at stroke 1.5 in a 24
+       box those arcs land under a pixel apart and fuse into a solid band. That is the same
+       failure BooksIcon records above — 1.6-unit gutters photographed at TRUE 1x showed 0.1 of a
+       pixel at each seam and the three spines became a picket block.
+     · THE FACADE'S TOP EDGE IS NOT DRAWN. The canopy's own bottom line IS that edge, so the
+       facade path opens at (4.6, 9.2) and closes at (19.4, 9.2) without crossing between them.
+       Drawing both would lay two 1.5 strokes along the same 14.8-unit run; at 1x that run renders
+       a hair darker than every other line in the set and the canopy reads as a cast shadow.
+     · THE BASELINE IS y=20.4 — BooksIcon's baseline. The two sit adjacent in the bar, and a
+       shared floor is what stops the pair reading as two icons hung at two heights.
+   FALLBACK, recorded rather than applied — AND CORRECTED. The doorway was shot at TRUE 1x at 14,
+   16 and 24px against BooksIcon before this landed: it does not fuse and it does not read busy,
+   so the doorway stays. But the fallback as first written was wrong and would have shipped the
+   defect the paragraph above forbids. Dropping the doorway and adding a sill "M2.6 20.4 H21.4"
+   next to the facade path lays a SECOND 1.5 stroke over the facade's own floor — the H19.4 run —
+   and at 1x that edge photographs visibly brighter than every other line in the glyph. Verified;
+   it is not a subtle difference. If the fallback is ever needed, the facade must give the floor
+   up first:
+       piers   M4.6 9.2 V20.4   and   M19.4 9.2 V20.4
+       sill    M2.6 20.4 H21.4
+   Three subpaths, one stroke per run, still unmistakably a shopfront. Decide at TRUE 1x; every
+   problem this icon has is invisible at 3x. */
+function ShopfrontIcon({ size, className }) {
+  return (
+    <Icon size={size} className={className}>
+      <path d="M3 9.2 L5.4 4.6 H18.6 L21 9.2 Z" />
+      <path d="M4.6 9.2 V20.4 H19.4 V9.2" />
+      <path d="M9.9 20.4 V15.4 Q9.9 13.6 12 13.6 Q14.1 13.6 14.1 15.4 V20.4" />
+    </Icon>
+  );
+}
+
 export const TABS = [
   { key: 'home',    href: '/public-library', Icon: GridIcon,    label: 'Home' },
   { key: 'search',  href: '/search',         Icon: SearchIcon,  label: 'Search' },
