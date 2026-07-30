@@ -42,25 +42,26 @@ const OG_IMAGE = `${BASE_URL}/favicon.png`;
 // A PLACEHOLDER MUST NOT PRODUCE A LINK. Anything still on its TODO value renders visibly but
 // inert — dimmed, no href, marked 'coming soon' — because the failure mode this guards against
 // is the one that costs trust: a reader taps App Store from an Instagram bio, lands on a 404
-// or on the word TODO, and does not tap anything of ours again. Deploying today with four
-// honest 'coming soon' labels is strictly better than deploying one dead link.
+// or on the word TODO, and does not tap anything of ours again. Deploying with an honest
+// 'coming soon' label is strictly better than deploying one dead link.
 //
 // The gate is isLive() below, and it is deliberately not 'does this contain the word TODO'. It
 // admits a value only if it is an absolute https:// URL or a site-relative path, so a
 // half-finished entry ('instagram.com/calvary', 'coming soon', an empty string, a note to
 // self) fails closed and renders as 'coming soon' rather than as a broken link.
 const LINKS = {
-  // The reading app. Both are TODO until the listings are public — App Store URLs only exist
-  // once the app has a numeric ID, and Play URLs once the package name is registered.
+  // The reading app. Both listings are public, so both are live.
   app: {
-    appStore: 'TODO — https://apps.apple.com/gb/app/story-island/id0000000000',
-    googlePlay: 'TODO — https://play.google.com/store/apps/details?id=uk.co.calvary.storyisland',
+    appStore: 'https://apps.apple.com/gb/app/story-island/id6769357370',
+    googlePlay: 'https://play.google.com/store/apps/details?id=uk.co.storyisland.app',
   },
-  // The social accounts. Paste the full profile URL, not the handle.
+  // The social accounts. Paste the full profile URL, not the handle. YouTube is the one channel
+  // that does not exist yet; it stays on its TODO value so the row renders it dimmed rather
+  // than pointing at a handle nobody has claimed.
   social: {
-    instagram: 'TODO — https://www.instagram.com/<handle>/',
-    x: 'TODO — https://x.com/<handle>',
-    tiktok: 'TODO — https://www.tiktok.com/@<handle>',
+    instagram: 'https://www.instagram.com/storyislanduk/',
+    x: 'https://x.com/storyislanduk',
+    tiktok: 'https://www.tiktok.com/@storyislanduk',
     youtube: 'TODO — https://www.youtube.com/@<handle>',
   },
   // Known today, so wired live today. Internal paths stay relative so they never need touching
@@ -137,11 +138,56 @@ const AT = {
   footer: '780ms',
 };
 
+// ── THE SOCIAL MARKS ─────────────────────────────────────────────────────────
+//
+// The four platforms' own monochrome glyphs, inlined as one path each on a 24-unit box (the
+// Simple Icons geometry, which is the platforms' own artwork normalised to a common box). They
+// are inline rather than files for two reasons: a request per logo on the page whose brief is
+// hotel wifi is four requests too many, and an <img> cannot be tinted — fill:currentColor is
+// what lets one rule move all four from gold to cream on the same 200ms as the buttons.
+//
+// SIZE IS PER MARK, and that is the whole trick to a row of logos that does not look assembled
+// by accident. A 24-unit box is not an optical size: Instagram's rounded square fills it edge
+// to edge, X's mark is dense and solid black across most of it, TikTok's note is tall and
+// narrow, and YouTube's rounded rectangle is the width of the box but two-thirds of its height.
+// Drawn at one number they read as four different sizes. These four numbers were set by eye at
+// 360px against each other and the ✦ divider above; ~22px is the nominal, and each mark sits
+// within 2px of it. Change one and check it against the other three, not against the number.
 const SOCIALS = [
-  { key: 'instagram', label: 'Instagram', href: LINKS.social.instagram },
-  { key: 'x', label: 'X', href: LINKS.social.x },
-  { key: 'tiktok', label: 'TikTok', href: LINKS.social.tiktok },
-  { key: 'youtube', label: 'YouTube', href: LINKS.social.youtube },
+  {
+    key: 'instagram',
+    label: 'Instagram',
+    href: LINKS.social.instagram,
+    size: 22,
+    path: 'M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.76-6.162-6.162-6.162zM12 16c-2.209 0-4-1.79-4-4 0-2.209 1.79-4 4-4 2.209 0 4 1.79 4 4 0 2.209-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z',
+  },
+  {
+    key: 'x',
+    label: 'X',
+    href: LINKS.social.x,
+    // The densest of the four — a solid glyph reads larger than an outlined one at the same box.
+    size: 20,
+    path: 'M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z',
+  },
+  {
+    key: 'tiktok',
+    label: 'TikTok',
+    href: LINKS.social.tiktok,
+    size: 21,
+    path: 'M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z',
+  },
+  {
+    key: 'youtube',
+    label: 'YouTube',
+    href: LINKS.social.youtube,
+    // Box-width but only two-thirds box-height, so it takes the largest number to weigh the same
+    // — but it is also the only solid mark here, and solid reads heavier than outline. Checked
+    // at full gold beside the other three at 21/22/23/24 (it ships dimmed, so its live weight
+    // has to be judged deliberately): 24 came out visibly wider than Instagram's square, 22
+    // came out short. 23 is the one that matches.
+    size: 23,
+    path: 'M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z',
+  },
 ];
 
 // ── STYLE NOTES ──────────────────────────────────────────────────────────────
@@ -331,7 +377,9 @@ const CSS = `
   }
 
   /* ── Not yet filled in: designed, not broken ─────────────────────────────── */
-  .cs-lk-btn.is-soon, .cs-lk-social.is-soon, .cs-lk-badge.is-soon {
+  /* The socials are not in this list: their dim lands on the glyph alone, in the socials block
+     below, because a caption already set in 75% cream would be unreadable at .4 of that. */
+  .cs-lk-btn.is-soon, .cs-lk-badge.is-soon {
     opacity:.4; cursor:default;
   }
   .cs-lk-soon {
@@ -384,28 +432,48 @@ const CSS = `
   .cs-lk-badge-google { height:calc(var(--lk-badge-ink) * 250 / 168); }
 
   /* ── The socials ────────────────────────────────────────────────────────── */
-  /* One row, at 360 too: four labels of tracked Cinzel plus their tap padding come to ~273px,
-     so the column gap is the small step and not the large one. flex-wrap stays as the safety
-     net for a longer handle set — but with these four it must never fire, or YouTube ends up
-     alone on a second line, which reads as an accident rather than a row. */
+  /* ONE ROW, AND NOW PROVABLY SO. Four 48px targets and three 16px gaps come to 240px — inside
+     the 288px left by a 320px viewport at this page's narrow padding, so the row cannot wrap at
+     any width this page is ever opened at. That is why the wrap has gone: with text labels the
+     row's width depended on how long the handles were and flex-wrap was the net under that
+     unknown; a row of squares has no such unknown, and nowrap says so rather than leaving a
+     rule that would only ever fire as a bug (YouTube alone on a second line).
+     The gap is the large step, not the small one — four bare glyphs at 8px apart read as one
+     smeared object, where four tracked words at 8px read as four words. */
   .cs-lk-socials {
     display:flex; align-items:center; justify-content:center;
-    flex-wrap:wrap; gap:var(--lk-s1);
+    flex-wrap:nowrap; gap:var(--lk-s2);
     width:100%; margin:var(--lk-s4) 0 0; padding:0; list-style:none;
   }
+  /* THE TARGET IS THE ANCHOR, THE ARTWORK IS THE GLYPH, and the padding between them is the
+     whole point: 48x48 of anchor around ~22px of ink. Growing the logo to meet the 48px
+     guideline instead would put four oversized marks under a 40px store badge. */
   .cs-lk-social {
-    display:inline-flex; align-items:center; justify-content:center; gap:6px;
-    min-height:48px; padding:0 6px;
-    font-family:var(--lk-display); font-weight:500;
-    font-size:.7rem; letter-spacing:.18em; text-transform:uppercase;
+    position:relative;
+    display:inline-flex; align-items:center; justify-content:center;
+    width:48px; height:48px;
     color:var(--lk-gold); text-decoration:none;
     transition:color 200ms ease-out, opacity 200ms ease-out;
   }
+  /* currentColor is what makes the tint one rule instead of four fills — and the 200ms matches
+     the buttons above, so a pointer crossing the page meets one timing, not two. */
+  .cs-lk-social svg { display:block; fill:currentColor; }
   @media (hover:hover) and (pointer:fine) {
-    .cs-lk-social:not(.is-soon):hover { color:#e6c977; }
+    .cs-lk-social:not(.is-soon):hover { color:var(--lk-cream); }
   }
-  .cs-lk-social:not(.is-soon):active { opacity:.75; }
-  .cs-lk-social .cs-lk-soon { font-size:.72rem; }
+  .cs-lk-social:not(.is-soon):active { color:var(--lk-cream); opacity:.75; }
+  /* A square target takes a round ring; the shared focus rule's 14px is for the wide buttons. */
+  .cs-lk-social:focus-visible { border-radius:50%; }
+
+  .cs-lk-social.is-soon { cursor:default; }
+  .cs-lk-social.is-soon svg { opacity:.4; }
+  /* Out of flow, so the one dimmed mark keeps the row's shared centreline — a caption in flow
+     would make its item taller and push its glyph off the line the other three sit on. */
+  .cs-lk-social .cs-lk-soon {
+    position:absolute; left:50%; top:calc(50% + 12px); transform:translateX(-50%);
+    font-size:.62rem; line-height:1; white-space:nowrap;
+    color:rgba(245,240,232,.6);
+  }
 
   .cs-lk-footer {
     font-family:var(--lk-serif); font-size:.8rem; letter-spacing:.02em;
@@ -489,6 +557,32 @@ function Badge({ href, src, className, alt, width, height }) {
     <span className="cs-lk-badge is-soon" aria-disabled="true">
       {img}
     </span>
+  );
+}
+
+/**
+ * One social logo, drawn at its own optical size (see the SOCIALS table).
+ *
+ * WHO CARRIES THE NAME depends on what wraps it, and it must be exactly one of them. A live
+ * entry is an anchor and the anchor takes the aria-label, so the glyph is decoration and is
+ * hidden — label both and a screen reader announces the platform twice. A not-yet entry is a
+ * span, and a span with no role cannot be labelled at all, so there the glyph carries the name
+ * itself via role="img". With the text labels gone this is the only accessible name on the row;
+ * there is no visible fallback left to lean on.
+ */
+function SocialGlyph({ icon, label }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={icon.size}
+      height={icon.size}
+      role={label ? 'img' : undefined}
+      aria-label={label || undefined}
+      aria-hidden={label ? undefined : 'true'}
+      focusable="false"
+    >
+      <path d={icon.path} />
+    </svg>
   );
 }
 
@@ -581,20 +675,29 @@ export default function LinksPage() {
         </section>
 
         <ul className="cs-lk-socials cs-lk-rise" style={{ '--lk-at': AT.socials }}>
-          {SOCIALS.map((s) => (
-            <li key={s.key}>
-              {isLive(s.href) ? (
-                <a className="cs-lk-social" href={s.href} target="_blank" rel="noopener noreferrer">
-                  {s.label}
-                </a>
-              ) : (
-                <span className="cs-lk-social is-soon" aria-disabled="true">
-                  {s.label}
-                  {socialsAllSoon ? null : <span className="cs-lk-soon">soon</span>}
-                </span>
-              )}
-            </li>
-          ))}
+          {SOCIALS.map((s) => {
+            const name = `Story Island on ${s.label}`;
+            return (
+              <li key={s.key}>
+                {isLive(s.href) ? (
+                  <a
+                    className="cs-lk-social"
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={name}
+                  >
+                    <SocialGlyph icon={s} />
+                  </a>
+                ) : (
+                  <span className="cs-lk-social is-soon" aria-disabled="true">
+                    <SocialGlyph icon={s} label={name} />
+                    {socialsAllSoon ? null : <span className="cs-lk-soon">soon</span>}
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
         {socialsAllSoon ? (
           <p className="cs-lk-soon-line cs-lk-rise" style={{ '--lk-at': AT.socials }}>
