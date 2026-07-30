@@ -86,8 +86,21 @@ export default function Navbar() {
            and the full row already needed ~1400px of nav to fit. Rather than clip the Sign In
            button off the right edge (which it did, silently, down to 1440), the secondary set
            folds into the hamburger drawer below 1400 — the drawer already carries every one of
-           them. The four primary destinations stay visible at every width. */
-        @media (max-width: 1399.98px) {
+           them. The four primary destinations stay visible at every width.
+
+           RAISED 1400 → 1500 AHEAD OF THE FIFTH TAB. A Book Store tab adds a measured +111.6px
+           of intrinsic row width in this tier (12px labels, 10px padding, 6px gap — the row goes
+           390.4px to 502.0px; the two tighter tiers add +102.6px and +88.5px and have slack to
+           absorb it). Against the nav's content box that lands at −43px of slack at 1400 and
+           −6.2px at 1440: the exact clipping this block was written to stop, back again across
+           roughly 1400–1460. 1500 clears it with room, and costs only that the secondary set
+           folds into the drawer — which already carries every one of them — over a 100px band no
+           layout depended on.
+           The number is measured, not guessed, but the replica used to measure it approximated
+           the wordmark and the Sign In button, so treat the crossover as ±30px and the +111.6px
+           as the solid figure. If a sixth destination is ever proposed, measure again before
+           assuming this holds. */
+        @media (max-width: 1499.98px) {
           .cs-secondary { display: none !important; }
           .cs-hamburger { display: flex !important; }
         }
