@@ -16,7 +16,7 @@
 // ownership bands inviolate, so the chip is tested not only for what it does but for what it
 // must never cause: a page turn or a chrome toggle.
 import { test, expect } from '@playwright/test';
-import { openReader, settle, msgs, clearMsgs, roomFrame, geometry } from './helpers.mjs';
+import { openReader, settle, msgs, clearMsgs, roomFrame, geometry, post } from './helpers.mjs';
 
 /**
  * Select one real word inside the section document, the way a long-press would leave it.
@@ -662,4 +662,243 @@ test('iOS: the last line does NOT flip at the real chip size — there is room',
   expect(chip.top, 'there is room below the last line, so the chip stays below')
     .toBeGreaterThan(rect.bottom);
   expect(chip.bottom).toBeLessThanOrEqual(rect.vh - CLAMP + 0.5);
+});
+
+// ── R7.4.2 — THE TOP ZONE ────────────────────────────────────────────────────
+//
+// Glass confirmed R7.4.1's predicted edge: near the top of a page iOS has no room for its
+// callout above the selection, so it puts the callout BELOW — onto the chip that had just
+// moved below to escape it. In that band the chip steps down past the callout instead.
+//
+// WHAT THIS CAN PROVE, again stated plainly: not that the overlap is gone (Chromium has no
+// callout, so the collision itself is unobservable here) but the GEOMETRY POLICY — that a
+// selection inside the band gets exactly IOS_HANDLE_CLEARANCE + CALLOUT_ALLOWANCE of drop,
+// that a selection outside it gets exactly R7.4.1's placement to the pixel, that the deep
+// placement and the flip cannot both fire, and that the deep chip is still on the glass at
+// the smallest viewport a reader might hold.
+//
+// THE FIXTURE MAKES THE BOUNDARY TESTABLE, and it is worth recording how. On page 1 the
+// section opens with a two-line h1, whose lines sit at host y 73 and 115 — both inside the
+// zone, with the next line all the way down at 184. Page 2 has no heading, so its body lines
+// land at 52, 80.8, 109.6, 138.4 — two ADJACENT lines, 28.8 px apart, one either side of the
+// 120 threshold. That is the straddle: the same page, the same paragraph, one line down, and
+// the placement rule changes. Nothing here hard-codes those numbers — each test measures the
+// selection it actually made and asserts the arithmetic against it — but the page is chosen
+// for them, so a fixture change that moved the lines would show up as a failed premise
+// assertion naming the real top, not as a mystery.
+const TOP_ZONE = 120;          // host TOP_ZONE
+const ALLOWANCE = 64;          // host CALLOUT_ALLOWANCE
+
+/**
+ * Select the word on the CURRENT page whose host-coordinate top is nearest `targetTop`.
+ *
+ * Words in other columns are excluded by their host x: foliate expands the section iframe to
+ * the whole column strip, so a word on the next page shares this page's y range while sitting
+ * far outside the viewport horizontally. Selecting one would produce a rect the chip has to
+ * clamp sideways, and the test would be measuring the clamp instead of the zone.
+ *
+ * BOTH EDGES must be inside the viewport, and that is not fussiness — measured: at 400x800
+ * the strip is 1860 px wide and the NEXT column starts at host x exactly 400, so its first
+ * words ("against", "slate") pass a `left > innerWidth` test and are the topmost things on the
+ * page by y. An off-screen selection still produces a rect and still exercises the zone
+ * arithmetic, so the test PASSES while measuring a word the reader cannot see.
+ */
+async function selectWordNearTop(page, targetTop) {
+  return roomFrame(page).evaluate((target) => {
+    const view = document.querySelector('foliate-view');
+    const doc = view.renderer.getContents()[0].doc;
+    const f = doc.defaultView.frameElement.getBoundingClientRect();
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+    let node, best = null;
+    while ((node = walker.nextNode())) {
+      const t = node.nodeValue;
+      if (!t || !t.trim()) continue;
+      const re = /\b[A-Za-z]{4,}\b/g;
+      let m;
+      while ((m = re.exec(t))) {
+        const r = doc.createRange();
+        r.setStart(node, m.index);
+        r.setEnd(node, m.index + m[0].length);
+        const b = r.getBoundingClientRect();
+        if (!b.height) continue;
+        const hostLeft = b.left + f.left;
+        const hostRight = b.right + f.left;
+        const hostTop = b.top + f.top;
+        if (hostLeft < 0 || hostRight > window.innerWidth) continue;   // this column only
+        const d = Math.abs(hostTop - target);
+        if (!best || d < best.d) best = { node, index: m.index, len: m[0].length, word: m[0], d, hostTop, hostLeft };
+      }
+    }
+    if (!best) throw new Error('no word on this page');
+    const r = doc.createRange();
+    r.setStart(best.node, best.index);
+    r.setEnd(best.node, best.index + best.len);
+    const sel = doc.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    return { word: best.word, hostTop: best.hostTop, hostLeft: best.hostLeft };
+  }, targetTop);
+}
+
+/** The host's own clamp, so a test can assert the finished pixel rather than a direction. */
+function clampTop(top, ch, vh) {
+  return Math.round(Math.min(Math.max(CLAMP, top), Math.max(CLAMP, vh - ch - CLAMP)));
+}
+
+test('iOS: the TOP_ZONE boundary — two adjacent lines, two different placements', async ({ page }) => {
+  // The whole round in one test, because the evidence IS the comparison: the same page, the
+  // same paragraph, one line apart, and only the line inside the band drops the extra 64 px.
+  await asIPhone(page);
+  await openReader(page);
+  await warmChipFont(page);
+  await post(page, { type: 'next' });        // page 2: body lines, no heading, tops astride 120
+  await settle(page, 500);
+
+  // ── Inside the zone: the deep placement. ──────────────────────────────────
+  const inside = await selectWordNearTop(page, 110);
+  await page.waitForTimeout(SETTLED);
+  const rIn = await selectionHostRect(page);
+  const cIn = await chipState(page);
+
+  await collapseSelection(page);
+  await page.waitForTimeout(SETTLED);
+
+  // ── One line lower, outside it: R7.4.1 exactly. ───────────────────────────
+  const outside = await selectWordNearTop(page, 138);
+  await page.waitForTimeout(SETTLED);
+  const rOut = await selectionHostRect(page);
+  const cOut = await chipState(page);
+
+  const deepExpected = clampTop(rIn.bottom + IOS_CLEARANCE + ALLOWANCE, cIn.offsetHeight, rIn.vh);
+  const normalExpected = clampTop(rOut.bottom + IOS_CLEARANCE, cOut.offsetHeight, rOut.vh);
+  console.log([
+    '\n=== iOS top-zone boundary (TOP_ZONE 120, CALLOUT_ALLOWANCE 64) ===',
+    `inside : "${inside.word}" at host x ${inside.hostLeft.toFixed(1)}, top ${rIn.top.toFixed(1)} (${(TOP_ZONE - rIn.top).toFixed(1)} px inside the zone)`,
+    `         bottom ${rIn.bottom.toFixed(1)} → chip top ${cIn.top} | drop ${(cIn.top - rIn.bottom).toFixed(1)} px`,
+    `outside: "${outside.word}" at host x ${outside.hostLeft.toFixed(1)}, top ${rOut.top.toFixed(1)} (${(rOut.top - TOP_ZONE).toFixed(1)} px outside)`,
+    `         bottom ${rOut.bottom.toFixed(1)} → chip top ${cOut.top} | drop ${(cOut.top - rOut.bottom).toFixed(1)} px`,
+    `line gap ${(rOut.top - rIn.top).toFixed(1)} px, boundary between them`,
+    `expected deep ${deepExpected}, normal ${normalExpected}\n`,
+  ].join('\n'));
+
+  // THE PREMISE: the two selections really do straddle the threshold. If a fixture change
+  // moved the lines, this fails first and says where they went.
+  expect(rIn.top, 'the first selection must be INSIDE the zone').toBeLessThan(TOP_ZONE);
+  expect(rOut.top, 'the second must be OUTSIDE it').toBeGreaterThanOrEqual(TOP_ZONE);
+
+  // THE DEEP PLACEMENT: the exact pixel, from the host's own arithmetic.
+  expect(Math.round(cIn.top), 'in the top zone the chip drops the extra allowance').toBe(deepExpected);
+  expect(cIn.top - rIn.bottom, 'clearance for the handles AND the relocated callout')
+    .toBeGreaterThanOrEqual(IOS_CLEARANCE + ALLOWANCE - 1);
+  expect(cIn.top, 'and it is still below the selection, not above it').toBeGreaterThan(rIn.bottom);
+
+  // OUTSIDE THE ZONE: byte-identical to R7.4.1 — the clearance and nothing more.
+  expect(Math.round(cOut.top), 'outside the zone R7.4.1 placement is untouched').toBe(normalExpected);
+  expect(cOut.top - rOut.bottom, 'no allowance is added outside the zone')
+    .toBeLessThan(IOS_CLEARANCE + ALLOWANCE - 1);
+
+  // The difference between the two is the dial itself, both chips being the same height.
+  // Within a pixel, not to the pixel: the host rounds the finished `top` to an integer and the
+  // two selection bottoms have different fractions (129.6 and 158.4 as measured), so the two
+  // drops differ by 64 ± the rounding. The exact placements are asserted above; this reads the
+  // dial back out of the pair.
+  expect(cIn.offsetHeight).toBe(cOut.offsetHeight);
+  const dialGap = (cIn.top - rIn.bottom) - (cOut.top - rOut.bottom);
+  expect(Math.abs(dialGap - ALLOWANCE), `the gap between the two rules is the allowance (got ${dialGap})`)
+    .toBeLessThanOrEqual(1);
+});
+
+test('iOS: the top zone and the flip-above cannot both apply', async ({ page }) => {
+  // The invariant the if/else exists for. Inside the zone the space above the selection is
+  // known to be too small — that is WHY iOS moved its callout down — so an above-placement
+  // there is the one outcome worse than the bug being fixed. The two rules must be exclusive.
+  //
+  // The condition is manufactured the same way the flip test manufactures it: the chip is
+  // made too tall to fit below. At 400x800 the page's first line ends at y 113, so the deep
+  // placement starts at 195 and anything over ~597 px of chip cannot fit beneath it; 700 gives
+  // that with room to spare. The clamp then dominates the finished number, and that is fine,
+  // because the only thing read here is WHICH branch supplied the pre-clamp value: deep → 195,
+  // clamped to 92; flip → -635, clamped to 8. Two distinct pixels, so the branch that ran is
+  // identifiable from the outcome — the test asserts they differ before relying on it.
+  await asIPhone(page);
+  await openReader(page);
+  await warmChipFont(page);
+
+  const TALL = 700;
+  await roomFrame(page).evaluate((h) => {
+    const style = document.createElement('style');
+    style.textContent = `#define-chip{height:${h}px !important}`;
+    document.head.appendChild(style);
+  }, TALL);
+
+  const picked = await selectWordNearTop(page, 0);      // the topmost word on the page
+  await page.waitForTimeout(SETTLED);
+  const rect = await selectionHostRect(page);
+  const chip = await chipState(page);
+
+  const deepExpected = clampTop(rect.bottom + IOS_CLEARANCE + ALLOWANCE, chip.offsetHeight, rect.vh);
+  const flipExpected = clampTop(rect.top - chip.offsetHeight - GAP, chip.offsetHeight, rect.vh);
+  const roomBelow = rect.vh - CLAMP - (rect.bottom + IOS_CLEARANCE + ALLOWANCE);
+  console.log([
+    '\n=== iOS top zone vs flip ===',
+    `word "${picked.word}" at host x ${picked.hostLeft.toFixed(1)} (this column), top ${rect.top.toFixed(1)} — inside the zone`,
+    `chip ${chip.offsetHeight} px tall, room below ${roomBelow.toFixed(1)} px`,
+    `deep→${deepExpected}  flip→${flipExpected}  actual ${Math.round(chip.top)}\n`,
+  ].join('\n'));
+
+  // The premises: in the zone, and below genuinely does not fit.
+  expect(rect.top, 'the selection must be inside the top zone').toBeLessThan(TOP_ZONE);
+  expect(roomBelow, 'below must genuinely not fit, or the flip guard is untested')
+    .toBeLessThan(chip.offsetHeight);
+  // The two branches must be distinguishable, or the assertion below proves nothing.
+  expect(deepExpected).not.toBe(flipExpected);
+
+  // THE EXCLUSION: the deep rule ran and the flip did not.
+  expect(Math.round(chip.top), 'the top zone rule wins; the flip must not fire inside it')
+    .toBe(deepExpected);
+  expect(chip.top, 'and so the chip never lands above a selection in the top zone')
+    .toBeGreaterThan(rect.top);
+  // The shared clamp still holds, even at an absurd chip height.
+  expect(chip.top).toBeGreaterThanOrEqual(CLAMP - 0.5);
+  expect(chip.bottom).toBeLessThanOrEqual(rect.vh - CLAMP + 0.5);
+});
+
+test('iOS: the deep chip stays on the glass at the smallest supported viewport', async ({ page }) => {
+  // 320x568 — an iPhone SE, the smallest screen this reader is built for. Worth an assertion
+  // because the deep placement spends height that R7.4.1 did not: in the worst case a
+  // top-zone selection needs TOP_ZONE + clearance + allowance + chip + margin =
+  // 120 + 18 + 64 + 44 + 8 = 254 px of viewport before the clamp has anything to do. The test
+  // states that arithmetic and then checks the chip against all four edges anyway, because
+  // the narrow width is the real risk here: the chip is END-aligned, so on a 320 px column a
+  // word near the right margin pushes it off unless the horizontal clamp catches it.
+  await asIPhone(page);
+  await page.setViewportSize({ width: 320, height: 568 });
+  await openReader(page);
+  await warmChipFont(page);
+
+  const picked = await selectWordNearTop(page, 0);
+  await page.waitForTimeout(SETTLED);
+  const rect = await selectionHostRect(page);
+  const chip = await chipState(page);
+
+  const headroom = rect.vh - CLAMP - (rect.bottom + IOS_CLEARANCE + ALLOWANCE + chip.offsetHeight);
+  console.log([
+    '\n=== iOS deep placement at 320x568 ===',
+    `word "${picked.word}" top ${rect.top.toFixed(1)} bottom ${rect.bottom.toFixed(1)} left ${rect.left.toFixed(1)} right ${rect.right.toFixed(1)} of ${rect.vw}`,
+    `chip ${chip.offsetWidth}x${chip.offsetHeight} at top ${chip.top} left ${chip.left} right ${chip.right.toFixed(1)}`,
+    `headroom below the deep chip: ${headroom.toFixed(1)} px\n`,
+  ].join('\n'));
+
+  expect(rect.vw).toBe(320);
+  expect(rect.top, 'the selection must be inside the top zone').toBeLessThan(TOP_ZONE);
+  // The placement itself, exact.
+  expect(Math.round(chip.top)).toBe(clampTop(rect.bottom + IOS_CLEARANCE + ALLOWANCE, chip.offsetHeight, rect.vh));
+  // The stated arithmetic: at the smallest supported height the deep chip fits unclamped.
+  expect(headroom, 'a 568 px viewport has room for the deep placement').toBeGreaterThanOrEqual(0);
+  // And on the glass on every edge, which is the assertion that matters at 320 px wide.
+  expect(chip.left).toBeGreaterThanOrEqual(CLAMP - 0.5);
+  expect(chip.top).toBeGreaterThanOrEqual(CLAMP - 0.5);
+  expect(chip.right).toBeLessThanOrEqual(rect.vw - CLAMP + 0.5);
+  expect(chip.bottom).toBeLessThanOrEqual(rect.vh - CLAMP + 0.5);
+  expect(chip.top, 'still below the selection').toBeGreaterThan(rect.bottom);
 });

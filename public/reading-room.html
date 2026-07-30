@@ -518,6 +518,48 @@ const SENTENCE_MAX = 320         // a quote, not a chapter
 // unverified one. The non-Apple branch below is the R7.4 code, unchanged.
 const IOS_HANDLE_CLEARANCE = 18  // px below the selection rect, to clear the grab-dots
 
+// ── R7.4.2 — THE TOP ZONE: WHEN THE CALLOUT COMES DOWN TOO ───────────────────
+//
+// R7.4.1 predicted this edge and glass confirmed it. The callout is not unconditionally
+// ABOVE the selection: it goes above WHEN THERE IS ROOM. Select a word on the first line or
+// two of a page and there is none, so iOS relocates its own menu BELOW the selection —
+// straight onto the chip that had just moved there to get out of its way. The platform and
+// the chip chase each other into the same strip of paper.
+//
+// The chip yields again, and downwards, because there is nowhere else to go. Above is not
+// available: the reason iOS moved is that the space above the selection is too small for a
+// menu, and it is therefore too small for a chip. So in the top band the chip steps DOWN
+// PAST the relocated callout — one placement, still below the word, just deeper.
+//
+// TWO DIALS, both glass-tuned, both stated here so the next round can turn them:
+//
+//   TOP_ZONE — how close to the top of the visible page a selection must be before iOS is
+//   expected to have flipped its callout down. It is a threshold on the PLATFORM's decision,
+//   which is not observable to us: nothing in the DOM reports where the callout went. 120 px
+//   is the callout's own height (~50) plus its gap from the selection plus the margin iOS
+//   keeps from the top of the web view — i.e. roughly the space the menu needs above a word
+//   in order not to move. Slightly generous on purpose: a chip placed deep when the callout
+//   in fact stayed above costs a reader nothing but a lower chip, whereas a chip placed
+//   normally when the callout came down is the bug being fixed here.
+//
+//   CALLOUT_ALLOWANCE — how far past it. 64 px is the callout's approximate height plus
+//   breathing room, so the chip reads as a separate object with daylight under the menu
+//   rather than as its bottom row. Approximate because the callout's real geometry is
+//   Apple's and is not exposed; this is measured off the glass, not derived.
+//
+// MEASURED FROM WHAT, EXACTLY. The zone test reads hostRect.top — the selection's distance
+// from the top of the host's layout viewport. In THIS document that is the top of the visible
+// page: html and body are height:100% with overflow:hidden, so the Reading Room never
+// scrolls and the layout viewport is the visual one. A pinch-zoom is the only thing that can
+// separate them, and it moves the chip's own `position:fixed` box by exactly the same offset
+// — so correcting the threshold for visualViewport.offsetTop without correcting the placement
+// would skew the test rather than sharpen it. One origin, used for both.
+//
+// Neither dial exists on any other platform: this whole branch is Apple-only, and Android's
+// action bar (top of the viewport, nowhere near the word) is unaffected by both.
+const TOP_ZONE = 120             // px from the top of the visible page: the band where iOS flips down
+const CALLOUT_ALLOWANCE = 64     // px of extra drop, to clear the callout it flipped down
+
 // Is this an Apple touch platform? Three tests, because Apple has changed the answer twice.
 //
 //   1. `navigator.platform` says iPhone/iPad/iPod — true on iOS through 12, and still true
@@ -663,11 +705,22 @@ function showChipAt(hostRect, doc) {
     // overhang plus enough air that the chip does not read as attached to the handle. It is a
     // glass-tuned number — the knob's real size is not exposed to us.
     top = hostRect.bottom + IOS_HANDLE_CLEARANCE
-    // FLIP ONLY WHEN THERE IS NO ROOM. The bottom-line case: a word on the last line of the
-    // page has no space beneath it, and a chip clamped to the viewport floor would sit ON the
-    // selection. Above is the lesser evil there — the callout may overlap, but the reader can
-    // still see both, whereas a chip on top of the word hides the thing being defined.
-    if (top + ch > vh - CHIP_MARGIN) top = hostRect.top - ch - CHIP_GAP
+    // THE TOP ZONE AND THE FLIP ARE MUTUALLY EXCLUSIVE, and the if/else is what makes that a
+    // fact rather than an intention. Both branches answer "there is not enough room" and they
+    // answer it in OPPOSITE directions, so a shape that let them both run would place the
+    // chip above a word precisely in the band where above is known to be too tight — the one
+    // outcome this round exists to prevent. In the top zone the chip goes deeper and the
+    // shared clamp below is the only thing that may still move it.
+    if (hostRect.top < TOP_ZONE) {
+      // R7.4.2: iOS has relocated its callout below the selection. Step down past it.
+      top += CALLOUT_ALLOWANCE
+    } else if (top + ch > vh - CHIP_MARGIN) {
+      // FLIP ONLY WHEN THERE IS NO ROOM. The bottom-line case: a word on the last line of the
+      // page has no space beneath it, and a chip clamped to the viewport floor would sit ON the
+      // selection. Above is the lesser evil there — the callout may overlap, but the reader can
+      // still see both, whereas a chip on top of the word hides the thing being defined.
+      top = hostRect.top - ch - CHIP_GAP
+    }
     // Horizontally near the selection's END, not its centre: that is where the reader's
     // attention and thumb already are after a long-press, and it keeps the chip from sitting
     // symmetrically under a callout that is itself centred on the word.
