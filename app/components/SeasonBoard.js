@@ -162,8 +162,14 @@ export default function SeasonBoard({ board }) {
         if (uid) union.add(uid);
         const candidates = [...union];
 
-        // A closed board with a closing capture needs no live reads at all.
+        // A closed board with a closing capture needs no live reads at all —
+        // and only then are the standings actually frozen. The closing capture
+        // is a manual run on the morning of 1 September, so there is a real gap
+        // between the window ending and `final` landing. During that gap these
+        // figures are still live and can still move; saying "frozen" would be a
+        // lie. `closedAt` alongside `final` is the signal that they are not.
         const useFinal = closed && final && Object.keys(final).length > 0;
+        const frozen = useFinal && typeof boardData?.closedAt === 'number';
 
         const totals = useFinal
           ? candidates.map(u => final[u]?.points ?? null)
@@ -230,7 +236,7 @@ export default function SeasonBoard({ board }) {
         rows = withRanks(rows).map(r => ({ ...r, displayName: r.displayName || 'Reader' }));
 
         if (!cancelled) {
-          setState({ phase: closed ? 'closed' : 'live', rows, hasSnapshot: true, closed });
+          setState({ phase: closed ? 'closed' : 'live', rows, hasSnapshot: true, closed, frozen });
         }
       } catch (e) {
         console.error('[SeasonBoard] load failed:', e);
@@ -358,9 +364,13 @@ export default function SeasonBoard({ board }) {
             <>
               {state.closed && (
                 <div style={{ marginBottom: '1.25rem', padding: '0.75rem 1rem', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}>
-                  <span style={{ fontFamily: LABEL, fontSize: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#c9a84c' }}>Closed</span>
+                  <span style={{ fontFamily: LABEL, fontSize: '0.6rem', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#c9a84c' }}>
+                    {state.frozen ? 'Closed' : 'Closing'}
+                  </span>
                   <p style={{ fontFamily: DISPLAY, fontSize: '0.95rem', color: 'rgba(245,240,232,0.6)', margin: '0.4rem 0 0', lineHeight: 1.55 }}>
-                    The program has ended. These standings are frozen while the final places are certified.
+                    {state.frozen
+                      ? 'The program has ended. These standings are frozen while the final places are certified.'
+                      : 'The program has ended. The closing capture is still to be taken, so these are the last live figures rather than the frozen result.'}
                   </p>
                 </div>
               )}
@@ -382,6 +392,20 @@ export default function SeasonBoard({ board }) {
                 <a href="/profile" style={{ color: '#a78bfa', textDecoration: 'underline' }}>Manage your visibility</a>.
               </p>
             </>
+          )}
+
+          {/* Terms — quiet, and present in every state, including before the
+              program opens. A reader deciding whether to take part needs the
+              rules before there is a board to read. */}
+          {board.termsHref && (
+            <p style={{ margin: '2.25rem 0 0' }}>
+              <a href={board.termsHref} style={{
+                fontFamily: LABEL, fontSize: '0.6rem', letterSpacing: '0.16em',
+                textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', textDecoration: 'none',
+              }}>
+                Program terms
+              </a>
+            </p>
           )}
         </div>
       </div>

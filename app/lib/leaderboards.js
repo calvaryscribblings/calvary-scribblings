@@ -51,6 +51,10 @@ export const SUMMER_2026 = {
   ],
   currency: 'GBP',
 
+  // Optional. Boards without published terms simply omit it and the board
+  // renders no terms line.
+  termsHref: '/leaderboard/summer-2026/terms',
+
   // points/{uid}/total is open to any signed-in user's own writes, so the live
   // delta is a display, not a result. Places are certified by the recompute at
   // the window boundaries (R2). The board must say so.
