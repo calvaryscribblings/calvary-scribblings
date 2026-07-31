@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getDatabase, ref, get } from "firebase/database";
 import { initializeApp, getApps } from "firebase/app";
+import { TEXT_FORMAT } from "../../lib/newsletterRender";
 
 const uuid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -128,7 +129,11 @@ export default function NewsletterPage() {
   }
 
   function addTextBlock() {
-    insertBlock({ type: "text", id: uuid(), content: "" });
+    // New text blocks opt into cs-inline-v1 (app/lib/newsletterRender.js).
+    // Blocks written before this — every saved draft, every sent issue — carry
+    // no format field and keep the legacy escape-everything path at send, so
+    // nothing already written changes meaning.
+    insertBlock({ type: "text", id: uuid(), content: "", format: TEXT_FORMAT });
   }
 
   function addDividerBlock() {

@@ -18,6 +18,15 @@
 // from every index-fed surface (homepage, category pages, search, gateway-build,
 // Voices). scripts/audit-stories-index.mjs has a scheduled-publish integrity
 // section that flags exactly this drift; run it after any scheduled publish.
+//
+// CS-INLINE-V1 CONTRACT: renderInlineHtmlMirror()/renderInlineTextMirror() below
+// MIRROR app/lib/newsletterRender.js under the same rule. Text blocks carrying
+// format:"cs-inline-v1" are rendered through them; blocks WITHOUT a format field
+// keep the original escape-everything path, byte for byte, so every issue and
+// draft written before this change mails exactly as it always did. The repo copy
+// drives the admin's live preview and the Worker copy drives the actual mail —
+// if they drift, the preview lies, and mail cannot be recalled once sent.
+// tests/newsletter/render.test.mjs is the contract for both.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default {
@@ -48,17 +57,28 @@ export default {
             return Response.json({ error: "Already subscribed" }, { status: 409, headers: cors });
           }
         }
-        await fetch(`${env.FIREBASE_DATABASE_URL}/subscribers.json?auth=${env.FIREBASE_SECRET}`, {
+        // The write response was previously discarded. A rejected write — a
+        // rules change, a bad secret, a validate failure on an over-long name —
+        // was therefore invisible: the subscriber got a welcome email for a
+        // subscription that had not been stored. Fail loudly instead.
+        const writeRes = await fetch(`${env.FIREBASE_DATABASE_URL}/subscribers.json?auth=${env.FIREBASE_SECRET}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, name: name || "", status: "active", subscribedAt: new Date().toISOString() }),
         });
+        if (!writeRes.ok) {
+          const detail = await writeRes.text();
+          console.error("[subscribe] subscriber write failed:", writeRes.status, detail.slice(0, 300));
+          return Response.json({ error: "Could not record subscription." }, { status: 502, headers: cors });
+        }
         const firstName = name ? name.trim().split(" ")[0] : "there";
         await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.RESEND_API_KEY}` },
           body: JSON.stringify({
-            from: "Calvary Scribblings <newsletter@calvaryscribblings.co.uk>",
+            // One identity, one source. This was the only hardcoded FROM in the
+            // file; issues have always used env.FROM_EMAIL.
+            from: `Calvary Scribblings <${env.FROM_EMAIL}>`,
             to: [email],
             subject: "You're on The Story Island — welcome to the newsletter",
             html: buildNewsletterWelcome({ email, firstName }),
@@ -76,7 +96,11 @@ export default {
         if (!authHeader || authHeader !== `Bearer ${env.NEWSLETTER_SEND_SECRET}`) {
           return Response.json({ error: "Unauthorised" }, { status: 401, headers: cors });
         }
-        const { subject, blocks, issueNumber, testEmail } = await request.json();
+        const body = await request.json();
+        const { subject, blocks, issueNumber } = body;
+        // testTo is the spec name; testEmail is what the admin UI has always
+        // sent. Both accepted so the existing test button keeps working.
+        const testEmail = body.testTo ?? body.testEmail;
         const hasContent = Array.isArray(blocks) && blocks.some((b) => b && (b.type === "text" || b.type === "story"));
         if (!subject || !hasContent) {
           return Response.json({ error: "subject and at least one text or story block are required" }, { status: 400, headers: cors });
@@ -322,9 +346,29 @@ async function sendNewsletter({ subject, blocks, intro, stories, issueNumber, te
   if (subsData && typeof subsData === "object") {
     emails = Object.values(subsData).filter((s) => s.email && s.status !== "unsubscribed").map((s) => s.email);
   }
-  if (testEmail) emails = [testEmail];
+  let allowlistOpen = false;
+  if (testEmail) {
+    // A single-address test send already existed; what it lacked was any limit
+    // on WHICH address. TEST_SEND_ALLOWLIST (comma-separated, case-insensitive)
+    // closes that. It fails OPEN when unset rather than closed, deliberately:
+    // the acceptance test for a freshly pasted Worker IS a test send, and a
+    // Worker that could not send one until an env var existed would be
+    // unverifiable at exactly the moment verification matters. The response
+    // reports allowlistOpen so an unconfigured Worker says so out loud.
+    const raw = String(env.TEST_SEND_ALLOWLIST || "").trim();
+    if (!raw) {
+      allowlistOpen = true;
+    } else {
+      const allowed = raw.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+      if (!allowed.includes(String(testEmail).trim().toLowerCase())) {
+        return { error: `Test sends are restricted. ${testEmail} is not on TEST_SEND_ALLOWLIST.` };
+      }
+    }
+    emails = [testEmail];
+  }
   if (emails.length === 0) return { error: "No active subscribers" };
   const html = buildEmail({ subject, blocks: normalisedBlocks, issueNumber });
+  const text = buildEmailText({ subject, blocks: normalisedBlocks, issueNumber });
   const BATCH_SIZE = 50;
   let sent = 0;
   let failed = 0;
@@ -335,6 +379,7 @@ async function sendNewsletter({ subject, blocks, intro, stories, issueNumber, te
       to: [email],
       subject: testEmail ? `[TEST] ${subject}` : subject,
       html: html.replace("token=TOKEN", `token=${btoa(email)}`),
+      text: text.replace("token=TOKEN", `token=${btoa(email)}`),
     }));
     const resendRes = await fetch("https://api.resend.com/emails/batch", {
       method: "POST",
@@ -354,10 +399,18 @@ async function sendNewsletter({ subject, blocks, intro, stories, issueNumber, te
         recipientCount: sent,
         failedCount: failed,
         storySlugs: normalisedBlocks.filter((b) => b.type === "story").map((b) => b.slug),
+        // The archive. Until now this record held metadata only, so the body of
+        // every issue ever sent was unrecoverable the moment the draft was
+        // deleted — seven issues are already gone that way. Storing the blocks
+        // makes a sent issue reproducible: the same array through the same
+        // renderer yields the same mail. `formats` is a cheap census so a future
+        // grammar version can find which archived issues predate it.
+        blocks: normalisedBlocks,
+        formats: [...new Set(normalisedBlocks.filter((b) => b.type === "text").map((b) => b.format || "legacy-escaped"))],
       }),
     });
   }
-  return { success: true, mode: testEmail ? "test" : "live", sent, failed };
+  return { success: true, mode: testEmail ? "test" : "live", sent, failed, allowlistOpen };
 }
 
 function escHtml(s) {
@@ -367,6 +420,104 @@ function escHtml(s) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+// ── cs-inline-v1 ─────────────────────────────────────────────────────────────
+// Hand-copy of app/lib/newsletterRender.js — see the CS-INLINE-V1 CONTRACT note
+// in the header. Keep character-identical to that module.
+//
+//   **bold**  *italic*  __underline__  [text](https://…)  \* \_ \[ \] \\
+//
+// Escape first, then substitute only recognised markers. Unrecognised input —
+// a stray <, an unclosed **, a javascript: URL — stays escaped as literal text.
+const CS_L0 = "\u0000";
+const CS_E0 = "\u0001";
+const CS_SENTINELS = /[\u0000\u0001]/g;
+const CS_LINK_SLOT = /\u0000(\d+)\u0000/g;
+const CS_ESC_SLOT = /\u0001(\d+)\u0001/g;
+const CS_SAFE_URL = /^https?:\/\//i;
+const CS_LINK = /\[([^\]\n]*)\]\(([^\s)]+)\)/g;
+const CS_BACKSLASH = /\\([*_[\]\\])/g;
+
+function csEmphasisHtml(s) {
+  return s
+    .replace(/\*\*([^\n]+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^\n]+?)__/g, '<u style="text-decoration:underline;">$1</u>')
+    .replace(/\*([^\n*]+?)\*/g, "<em>$1</em>");
+}
+
+function csEmphasisStrip(s) {
+  return s
+    .replace(/\*\*([^\n]+?)\*\*/g, "$1")
+    .replace(/__([^\n]+?)__/g, "$1")
+    .replace(/\*([^\n*]+?)\*/g, "$1");
+}
+
+function csExtract(src) {
+  let s = String(src ?? "").replace(CS_SENTINELS, "");
+  const escaped = [];
+  s = s.replace(CS_BACKSLASH, (_m, ch) => `${CS_E0}${escaped.push(ch) - 1}${CS_E0}`);
+  const links = [];
+  s = s.replace(CS_LINK, (m, text, url) => {
+    if (!CS_SAFE_URL.test(url)) return m;
+    return `${CS_L0}${links.push({ text, url }) - 1}${CS_L0}`;
+  });
+  return { s, escaped, links };
+}
+
+function renderInlineHtmlMirror(src) {
+  const { s: raw, escaped, links } = csExtract(src);
+  let s = csEmphasisHtml(escHtml(raw));
+  s = s.replace(CS_LINK_SLOT, (_m, i) => {
+    const { text, url } = links[Number(i)];
+    return `<a href="${escHtml(url)}" style="color:#6b2fad;">${csEmphasisHtml(escHtml(text))}</a>`;
+  });
+  return s.replace(CS_ESC_SLOT, (_m, i) => escHtml(escaped[Number(i)]));
+}
+
+function renderInlineTextMirror(src) {
+  const { s: raw, escaped, links } = csExtract(src);
+  let s = csEmphasisStrip(raw);
+  s = s.replace(CS_LINK_SLOT, (_m, i) => {
+    const { text, url } = links[Number(i)];
+    return `${csEmphasisStrip(text)} (${url})`;
+  });
+  return s.replace(CS_ESC_SLOT, (_m, i) => escaped[Number(i)]);
+}
+
+// The mail's text/plain part, derived from the SAME block array the HTML came
+// from so the two parts cannot drift. Resend previously received only `html`,
+// which meant no author-controlled plain-text alternative existed at all.
+function buildEmailText({ subject, blocks, issueNumber }) {
+  const lines = [`Calvary Scribblings — Issue #${issueNumber || "—"}`, subject || "", ""];
+  for (const b of blocks || []) {
+    if (!b || !b.type) continue;
+    if (b.type === "text") {
+      const body = b.format === "cs-inline-v1"
+        ? renderInlineTextMirror(b.content)
+        : String(b.content || "");
+      const paras = body.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+      if (paras.length) lines.push(paras.join("\n\n"), "");
+    } else if (b.type === "divider") {
+      lines.push("—".repeat(24), "");
+    } else if (b.type === "story") {
+      lines.push(
+        `${b.category || "Fiction"} — ${b.title || ""}`,
+        `by ${b.author || ""}`,
+        ...(b.excerpt ? [String(b.excerpt).slice(0, 120)] : []),
+        `https://calvaryscribblings.co.uk/stories/${b.slug}`,
+        ""
+      );
+    }
+  }
+  lines.push(
+    "More stories are waiting for you: https://calvaryscribblings.co.uk",
+    "",
+    "You're receiving this because you subscribed to Calvary Scribblings.",
+    "Calvary Media UK Ltd. · calvaryscribblings.co.uk",
+    "Unsubscribe: https://calvary-newsletter.calvarymediauk.workers.dev/unsubscribe?token=TOKEN"
+  );
+  return lines.join("\n");
 }
 
 function buildNewsletterWelcome({ email, firstName }) {
@@ -408,11 +559,15 @@ function buildEmail({ subject, blocks, issueNumber }) {
   const blocksHtml = (blocks || []).map((b) => {
     if (!b || !b.type) return "";
     if (b.type === "text") {
+      // A block WITHOUT a format field takes the original escape-everything
+      // path unchanged — every draft and issue predating cs-inline-v1 renders
+      // byte for byte as it always did.
+      const inline = b.format === "cs-inline-v1" ? renderInlineHtmlMirror : escHtml;
       const paras = String(b.content || "")
         .split(/\n\n+/)
         .map((p) => p.trim())
         .filter(Boolean)
-        .map((p) => `<p style="color:#1a1a2e;font-size:16px;line-height:1.75;margin:0 0 16px;">${escHtml(p)}</p>`)
+        .map((p) => `<p style="color:#1a1a2e;font-size:16px;line-height:1.75;margin:0 0 16px;">${inline(p)}</p>`)
         .join("");
       if (!paras) return "";
       return `<tr><td style="padding:20px 40px;">${paras}</td></tr>`;
@@ -421,17 +576,25 @@ function buildEmail({ subject, blocks, issueNumber }) {
       return `<tr><td><hr style="border:none;border-top:2px solid ${purple};width:100%;margin:24px 0;"/></td></tr>`;
     }
     if (b.type === "story") {
+      // Story fields were the ONE place in this function interpolating raw —
+      // title, author, excerpt, cover and slug all went in unescaped while text
+      // blocks beside them were fully escaped. Source is admin-controlled CMS
+      // data, so it was never an open injection, but an apostrophe-carrying
+      // title is enough to break the markup. Same escHtml as everything else.
+      const slug = escHtml(b.slug);
+      const cover = escHtml(b.cover);
+      const excerpt = String(b.excerpt || "");
       return `<tr><td style="padding:12px 40px;">
         <table width="100%" cellpadding="0" cellspacing="0"><tr>
-          ${b.cover ? `<td width="110" valign="top"><img src="${b.cover}" width="110" height="70" style="border-radius:6px;object-fit:cover;display:block;" /></td>` : ""}
+          ${b.cover ? `<td width="110" valign="top"><img src="${cover}" width="110" height="70" alt="" style="border-radius:6px;object-fit:cover;display:block;" /></td>` : ""}
           <td valign="top" style="padding-left:${b.cover ? "16px" : "0"};">
-            <p style="color:${purple};font-size:10px;letter-spacing:2px;text-transform:uppercase;margin:0 0 4px;font-family:Arial,sans-serif;font-weight:600;">${b.category || "Fiction"}</p>
-            <a href="https://calvaryscribblings.co.uk/stories/${b.slug}" style="text-decoration:none;">
-              <h2 style="color:#1a1a2e;font-size:17px;font-weight:700;margin:0 0 4px;font-family:Georgia,serif;">${b.title}</h2>
+            <p style="color:${purple};font-size:10px;letter-spacing:2px;text-transform:uppercase;margin:0 0 4px;font-family:Arial,sans-serif;font-weight:600;">${escHtml(b.category || "Fiction")}</p>
+            <a href="https://calvaryscribblings.co.uk/stories/${slug}" style="text-decoration:none;">
+              <h2 style="color:#1a1a2e;font-size:17px;font-weight:700;margin:0 0 4px;font-family:Georgia,serif;">${escHtml(b.title)}</h2>
             </a>
-            <p style="color:#666680;font-size:12px;margin:0 0 6px;font-family:Arial,sans-serif;">by ${b.author}</p>
-            ${b.excerpt ? `<p style="color:#444460;font-size:13px;line-height:1.6;margin:0 0 8px;">${b.excerpt.slice(0, 120)}${b.excerpt.length > 120 ? "…" : ""}</p>` : ""}
-            <a href="https://calvaryscribblings.co.uk/stories/${b.slug}" style="color:${purple};font-size:12px;font-weight:600;font-family:Arial,sans-serif;">Read on Calvary Scribblings →</a>
+            <p style="color:#666680;font-size:12px;margin:0 0 6px;font-family:Arial,sans-serif;">by ${escHtml(b.author)}</p>
+            ${excerpt ? `<p style="color:#444460;font-size:13px;line-height:1.6;margin:0 0 8px;">${escHtml(excerpt.slice(0, 120))}${excerpt.length > 120 ? "…" : ""}</p>` : ""}
+            <a href="https://calvaryscribblings.co.uk/stories/${slug}" style="color:${purple};font-size:12px;font-weight:600;font-family:Arial,sans-serif;">Read on Calvary Scribblings →</a>
           </td>
         </tr></table>
       </td></tr>`;
