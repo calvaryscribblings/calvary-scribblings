@@ -71,3 +71,25 @@ export function prizePool(board) {
 export function prizeForPlace(board, place) {
   return board.prizes.find((p) => p.place === place) ?? null;
 }
+
+// Collapse runs of consecutive places paying the same amount into one band.
+// Thirteen places where ten of them pay £5 is ten identical tiles — on a phone
+// that is seven rows of chrome between the reader and the actual standings.
+// Bands render as "4th – 13th · £5 each" instead. Fully general: a board with
+// thirteen distinct amounts produces thirteen bands and nothing is collapsed.
+export function prizeBands(board) {
+  const bands = [];
+  for (const p of board.prizes) {
+    const last = bands[bands.length - 1];
+    if (last && last.amount === p.amount && last.to === p.place - 1) last.to = p.place;
+    else bands.push({ from: p.place, to: p.place, amount: p.amount });
+  }
+  return bands;
+}
+
+const ORDINALS = ['0th', '1st', '2nd', '3rd'];
+export function ordinal(n) {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return ORDINALS[n % 10] ? `${n}${ORDINALS[n % 10].slice(1)}` : `${n}th`;
+}

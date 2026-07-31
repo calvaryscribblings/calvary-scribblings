@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { SUMMER_2026, prizePool } from '../lib/leaderboards';
+import { useContestPhase } from '../lib/useContestPhase';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -26,6 +28,35 @@ function timeAgo(ts) {
   if (days === 1) return 'Yesterday';
   if (days < 30) return `${days} days ago`;
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function SummerProgramCard() {
+  const board = SUMMER_2026;
+  const { visible, open } = useContestPhase(board);
+  if (!visible) return null;
+
+  return (
+    <a href="/leaderboard/summer-2026" style={{
+      display: 'block', textDecoration: 'none',
+      background: 'linear-gradient(135deg, rgba(201,164,76,0.09), rgba(107,47,173,0.08))',
+      border: '1px solid rgba(201,164,76,0.28)', borderRadius: 14,
+      padding: '1.25rem 1.5rem', marginBottom: '1.5rem',
+    }}>
+      <div style={{ fontSize: '0.7rem', fontWeight: 500, color: '#c9a44c', letterSpacing: '0.16em', textTransform: 'uppercase', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.45rem' }}>
+        {open ? 'Now on' : 'Starts 1 August'}
+      </div>
+      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.35rem', color: '#f5f0e8', lineHeight: 1.15, marginBottom: '0.5rem' }}>
+        {board.title}
+      </div>
+      <p style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', color: 'rgba(240,234,216,0.6)', lineHeight: 1.6, margin: '0 0 0.85rem' }}>
+        Every Scribble you earn between 1 and 31 August counts toward your place.
+        {' '}{board.prizes.length} prize places, £{prizePool(board)} in total.
+      </p>
+      <span style={{ fontSize: '0.85rem', fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#a78bfa', fontWeight: 600 }}>
+        {open ? 'View the standings →' : 'See the prizes →'}
+      </span>
+    </a>
+  );
 }
 
 export default function RewardsPage() {
@@ -117,6 +148,11 @@ export default function RewardsPage() {
                 Scribbles never expire — they unlock perks when the catalogue opens.
               </div>
             </div>
+
+            {/* Summer Reading Program — directly under the balance, because the
+                balance is exactly what the contest ranks. Self-hides outside the
+                window (lead-in of a week, tail of a fortnight). */}
+            <SummerProgramCard />
 
             {/* Catalogue placeholder */}
             <div style={{

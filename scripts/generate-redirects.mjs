@@ -34,6 +34,11 @@ const STATIC_LEGACY_REDIRECTS = [
   // The route no longer builds, so this rule has no static asset shadowing it.
   ['/library',        '/my-library'],
   ['/library.html',   '/my-library'],
+  // Summer Reading Program — the shareable short form for the seasonal board.
+  // The canonical route is /leaderboard/summer-2026 (a literal segment, so it
+  // static-exports without generateStaticParams). Verified nothing shadows this
+  // path: there is no app/summer-reading route and no public/summer-reading asset.
+  ['/summer-reading',  '/leaderboard/summer-2026'],
   // Author profile shorthand — Open Pages cards/detail link to /u/<handle>;
   // the live profile page is /user?handle=<handle>. Cloudflare placeholder
   // syntax (:handle) forwards the captured segment into the query string.

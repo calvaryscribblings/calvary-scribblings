@@ -5,6 +5,8 @@ import { db } from '../lib/firebaseCore';
 import Navbar from '../components/Navbar';
 import { RARITY_STYLES, pickHighestBadge } from '../lib/badges';
 import { getDeletedUidSet } from '../lib/userVisibility';
+import { SUMMER_2026 } from '../lib/leaderboards';
+import { useContestPhase } from '../lib/useContestPhase';
 
 const BADGE_LADDER = [
   { tier: 'reader',   label: 'Reader',                 color: '#b4b2a9', threshold: 25,   description: "You've begun. The page is turning." },
@@ -110,6 +112,34 @@ function BadgeLadderTooltip({ anchorRef, currentTier, onClose }) {
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+function SummerProgramLink() {
+  const board = SUMMER_2026;
+  const { visible, open } = useContestPhase(board);
+  if (!visible) return null;
+
+  return (
+    <a href="/leaderboard/summer-2026" style={{
+      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+      textDecoration: 'none', margin: '0 0 1.1rem', padding: '0.7rem 0.95rem',
+      borderRadius: 10, border: '1px solid rgba(201,168,76,0.3)',
+      background: 'rgba(201,164,76,0.06)',
+    }}>
+      <span style={{
+        fontFamily: 'Cinzel, Georgia, serif', fontSize: '0.58rem', letterSpacing: '0.16em',
+        textTransform: 'uppercase', color: '#c9a84c', flexShrink: 0,
+      }}>
+        {open ? 'Now on' : '1 Aug'}
+      </span>
+      <span style={{ fontSize: '0.86rem', color: '#f5f0e8', flex: 1, minWidth: 0 }}>
+        {board.title} — {board.prizes.length} prize places
+      </span>
+      <span style={{ fontSize: '0.78rem', color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>
+        {open ? 'Standings →' : 'Prizes →'}
+      </span>
+    </a>
+  );
+}
+
 export default function LeaderboardPage() {
   const [rows, setRows] = useState(null); // null = loading; else { week: [], all: [] }
   const [tab, setTab] = useState('week'); // default tab: This Week
@@ -199,6 +229,13 @@ export default function LeaderboardPage() {
               The Island's top readers, ranked by Reader Score — earned through quiz tiers, stories read, comments, and reading streak.
             </p>
           </div>
+
+          {/* Seasonal board — a banner link, deliberately NOT a third tab. The
+              tabs here are two views over one readerScore dataset; the summer
+              board ranks a different quantity (Scribbles earned in a window)
+              and a tab would imply they are comparable. Self-hides outside the
+              contest window. */}
+          <SummerProgramLink />
 
           <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', margin: '0 0 1.25rem' }}>
             Don't want to be listed?{' '}

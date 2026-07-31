@@ -14,6 +14,8 @@ import { ref, get, onValue } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { normalizeGenre } from '../lib/openPages';
 import { useArrivalReady } from '../components/ArrivalVeil';
+import { SUMMER_2026, prizePool } from '../lib/leaderboards';
+import { useContestPhase } from '../lib/useContestPhase';
 
 // ── Typography system ───────────────────────────────────────────────────────
 // DISPLAY for headings/titles, LABEL for kickers/badges/controls, BODY for meta.
@@ -474,6 +476,42 @@ function SquareFAB({ squareOpen, countdown }) {
         }} />
       )}
     </a>
+  );
+}
+
+// Contest banner for the seasonal board. Renders from a week before the window
+// opens until a fortnight after it closes, then disappears on its own — no
+// deploy needed to take it down. Pure config read, no network.
+function SummerProgramBanner() {
+  const board = SUMMER_2026;
+  const { visible, open } = useContestPhase(board);
+  if (!visible) return null;
+  const pool = prizePool(board);
+
+  return (
+    <section style={{ padding: '0.75rem 0' }}>
+      <a href="/leaderboard/summer-2026" data-reveal="up" style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 14, flexWrap: 'wrap',
+        margin: '0 4%', padding: '1.05rem 1.25rem', borderRadius: 14,
+        border: '1px solid rgba(201,168,76,0.3)',
+        background: 'linear-gradient(135deg, rgba(201,164,76,0.10), rgba(107,47,173,0.07))',
+        textDecoration: 'none',
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <span style={{ ...kickerStyle, marginBottom: 4 }}>
+            {open ? 'NOW ON' : 'STARTS 1 AUGUST'}
+          </span>
+          <h3 style={{ ...sectionTitleStyle, fontSize: '1.35rem' }}>{board.title}</h3>
+          <p style={{ fontFamily: BODY, fontSize: '0.92rem', color: 'rgba(245,240,232,0.55)', margin: '6px 0 0', lineHeight: 1.5 }}>
+            {board.prizes.length} prize places · £{pool} total · {board.windowLabel}
+          </p>
+        </div>
+        <span style={{ ...seeAllStyle, flexShrink: 0 }}>
+          {open ? 'View standings' : 'See the prizes'}{seeAllChevron}
+        </span>
+      </a>
+    </section>
   );
 }
 
@@ -1321,6 +1359,11 @@ export default function Home() {
         </div>
       </section>
       )}
+
+      {/* Summer Reading Program — sits above Top Readers because it is the
+          reason to care about the strip below it during August. Self-hides
+          outside the contest window. */}
+      <SummerProgramBanner />
 
       {/* Top Readers */}
       <TopReadersStrip />
