@@ -104,6 +104,30 @@
         ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
       }
     },
+    "leaderboards": {
+      ".read": true,
+      "$boardId": {
+        ".write": false,
+        "snapshot": {
+          "$uid": {
+            ".validate": "newData.hasChildren(['points', 'reads'])",
+            "points": { ".validate": "newData.isNumber()" },
+            "reads": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+        "final": {
+          "$uid": {
+            ".validate": "newData.hasChildren(['points', 'reads'])",
+            "points": { ".validate": "newData.isNumber()" },
+            "reads": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+        "startedAt": { ".validate": "newData.isNumber()" },
+        "closedAt": { ".validate": "newData.isNumber()" }
+      }
+    },
     "story_authors": {
       ".read": true,
       ".write": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
@@ -218,7 +242,10 @@
       ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
       "$uid": {
         ".read": "$uid === auth.uid",
-        ".write": "auth != null"
+        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+        "total": {
+          ".read": true
+        }
       }
     },
     "wallet": {
