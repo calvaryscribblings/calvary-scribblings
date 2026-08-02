@@ -14,6 +14,35 @@ import { getDatabase, ref, set, get } from 'firebase/database';
 import { auth } from '../lib/firebaseCore';
 import { SUSPENDED_MESSAGE } from '../lib/AuthContext';
 
+// Branded auth mail goes through our own Pages Functions, which verify the
+// caller's ID token and add the Worker secret server-side
+// (functions/api/auth/*). The browser used to call the Worker directly with
+// `Bearer ${process.env.NEXT_PUBLIC_AUTH_SECRET}` — a var that is inlined into
+// the bundle, and was unset, so every request carried the literal string
+// "Bearer undefined" and was refused. Nothing checked the response, so signups
+// silently went out without a verification email.
+//
+// Throws on failure. Callers decide what that means: the register flow must NOT
+// fail a signup over it — the account already exists in Firebase by then, and
+// only the mail rides this path — so it reports the problem and points at
+// Resend, while the resend button surfaces it directly.
+async function postAuthMail(path, user, firstName) {
+  const idToken = await user.getIdToken();
+  const res = await fetch(`/api/auth/${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ firstName }),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.error || `Mail request failed (${res.status}).`);
+  }
+  return res.json().catch(() => ({}));
+}
+
 // Returns true if the just-signed-in account is soft-deleted; signs them
 // back out and surfaces the suspension message so the modal can show it.
 async function rejectIfSoftDeleted(uid) {
@@ -57,17 +86,12 @@ export default function AuthModal({ onClose }) {
         if (user.emailVerified && !welcomeSentRef.current) {
           welcomeSentRef.current = true;
           clearInterval(pollingRef.current);
-          fetch('https://calvary-auth.calvarymediauk.workers.dev/welcome', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_SECRET}`,
-            },
-            body: JSON.stringify({
-              email: user.email,
-              firstName: user.displayName?.split(' ')[0] || 'there',
-            }),
-          }).catch(() => {});
+          // The welcome note is a courtesy sent AFTER verification has already
+          // succeeded, so a failure here must not hold the modal open in front
+          // of a reader who is, by this point, fully signed in and verified.
+          // Logged rather than surfaced — but no longer swallowed unexamined.
+          postAuthMail('welcome', user, user.displayName?.split(' ')[0])
+            .catch((err) => console.error('[AuthModal] welcome mail failed:', err.message));
           onClose();
         }
       } catch {
@@ -107,20 +131,23 @@ export default function AuthModal({ onClose }) {
         await set(ref(db, `users/${cred.user.uid}/displayName`), name);
         await set(ref(db, `users/${cred.user.uid}/joinDate`), Date.now());
 
-        // Send branded verification email via Worker — no idToken, Admin generates link silently
-        await fetch('https://calvary-auth.calvarymediauk.workers.dev/send-verification', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_SECRET}`,
-          },
-          body: JSON.stringify({
-            email,
-            firstName: name.trim().split(' ')[0],
-          }),
-        });
+        // THE ACCOUNT ALREADY EXISTS. Everything above this line has committed
+        // — Firebase created the user, the profile is written. Only the branded
+        // verification mail rides the proxy, so a failure here is reported, not
+        // thrown: dropping the reader back to a form whose email is now taken
+        // would be a worse outcome than a signup that needs one Resend tap.
+        let mailError = null;
+        try {
+          await postAuthMail('send-verification', cred.user, name.trim().split(' ')[0]);
+        } catch (err) {
+          console.error('[AuthModal] verification mail failed:', err.message);
+          mailError = err.message;
+        }
 
         switchMode('verify');
+        if (mailError) {
+          setError(`Your account was created, but we could not send the verification email (${mailError}) — tap Resend below.`);
+        }
       } else if (mode === 'forgot') {
         await sendPasswordResetEmail(auth, email);
         setSuccess('Password reset email sent. Check your inbox.');
@@ -159,22 +186,17 @@ export default function AuthModal({ onClose }) {
     try {
       const user = auth.currentUser;
       if (!user) return;
+      clearMessages();
       setResendCooldown(true);
-      setSuccess('Verification email resent.');
       setTimeout(() => setResendCooldown(false), 30000);
-      await fetch('https://calvary-auth.calvarymediauk.workers.dev/send-verification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_SECRET}`,
-        },
-        body: JSON.stringify({
-          email: user.email,
-          firstName: user.displayName?.split(' ')[0] || 'there',
-        }),
-      });
-    } catch {
-      setError('Could not resend. Please try again shortly.');
+      // Success is claimed AFTER the send succeeds, not before it is attempted.
+      // The old order set the success message first and ignored the result, so
+      // "Verification email resent." appeared even as the request 401'd.
+      await postAuthMail('send-verification', user, user.displayName?.split(' ')[0]);
+      setSuccess('Verification email resent.');
+    } catch (err) {
+      console.error('[AuthModal] resend failed:', err.message);
+      setError(`Could not resend: ${err.message}`);
     }
   };
 
