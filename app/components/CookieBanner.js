@@ -1,6 +1,43 @@
 'use client';
 import { useState, useEffect } from 'react';
 
+// The banner sits ABOVE the mobile tab bar rather than on top of it.
+//
+// It is fixed to the bottom at z-index 9999, and the bar (components/TabBar.js)
+// is fixed to the same edge at 900 — 9100 on /bookstore, where LaunchGate raises
+// it over the curtain. The banner therefore won every stacking contest and
+// covered all five tabs for every first-time visitor, on every page, until they
+// consented. THE FIX IS GEOMETRY, NOT STACKING: the z-index is untouched and the
+// banner still wins; it simply no longer occupies the same strip.
+//
+// 65px, not 64. The bar's `height` is calc(64px + env(safe-area-inset-bottom)),
+// but its 1px border-top sits OUTSIDE that box, so the strip it actually
+// occupies is 65px + inset — which is exactly what the bar's own in-flow spacer
+// reserves (.cs-tabbar-spacer). Offsetting by 64 would tuck the banner's bottom
+// edge under the bar's hairline border; it costs no taps, but the two borders
+// would sit on the same row and read as one thick rule.
+//
+// TWO CONDITIONS, because the bar is not always there:
+//   · The media query. The bar is display:none from 768px up, so on desktop the
+//     banner keeps its original bottom:0 and nothing about it changes.
+//   · body:has(.cs-tabbar). Attachment is opt-in per page — the gateway and the
+//     reader mount no bar — and this component renders on every page via
+//     Providers. Without the :has() test those pages would show the banner
+//     floating over a 65px strip of nothing. Where :has() is unsupported the
+//     rule simply never matches and the banner sits at bottom:0, i.e. today's
+//     behaviour: the safe direction to degrade in, since a covered bar is a
+//     known state and a dead gap is not.
+//
+// Consent logic below is untouched. This round moved a rectangle.
+const CSS = `
+  .cs-cookie {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;
+  }
+  @media (max-width: 767.98px) {
+    body:has(.cs-tabbar) .cs-cookie { bottom: calc(65px + env(safe-area-inset-bottom)); }
+  }
+`;
+
 export default function CookieBanner() {
   const [visible, setVisible] = useState(false);
 
@@ -22,8 +59,9 @@ export default function CookieBanner() {
   if (!visible) return null;
 
   return (
-    <div style={{
-      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9999,
+    <>
+    <style>{CSS}</style>
+    <div className="cs-cookie" style={{
       background: '#111', borderTop: '1px solid #2a2a2a',
       padding: '1rem 2rem', display: 'flex', alignItems: 'center',
       justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap',
@@ -58,5 +96,6 @@ export default function CookieBanner() {
         </button>
       </div>
     </div>
+    </>
   );
 }
