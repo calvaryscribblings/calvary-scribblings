@@ -21,6 +21,24 @@ service firebase.storage {
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
+    // Newsletter images. Public read, admin write, max 5 MB, image/* only.
+    // Issue-keyed, same shape as voices/ above.
+    //
+    // ⚠ WRITE-ONCE BY CONVENTION. Objects under newsletter/ are never deleted,
+    // renamed, or re-uploaded in place. A sent email cannot be patched: it
+    // holds an absolute URL to this object, and every copy in every inbox will
+    // fetch it for as long as the issue is read. Replacing an object breaks the
+    // picture in mail that has already landed; deleting one leaves a permanent
+    // hole. The rules cannot enforce this — delete is a client operation the
+    // admin UID is allowed to perform — so the enforcement lives in the upload
+    // helper (app/lib/newsletterImages.js), which only ever creates new paths.
+    match /newsletter/{issueId}/{file} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
     match /pdfs/{allPaths=**} {
       allow read: if true;
       allow write: if request.auth != null && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');

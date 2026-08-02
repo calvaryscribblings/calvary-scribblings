@@ -3,8 +3,9 @@ import { useState, useEffect, useRef } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getDatabase, ref, get } from "firebase/database";
 import { initializeApp, getApps } from "firebase/app";
-import { TEXT_FORMAT, renderTextBlockParagraphs } from "../../lib/newsletterRender";
+import { TEXT_FORMAT, renderTextBlockParagraphs, renderImageHtml, imageBlockError } from "../../lib/newsletterRender";
 import { MARKERS, applyMarker, applyLink, isSafeUrl } from "../../lib/newsletterToolbar";
+import { uploadNewsletterImage } from "../../lib/newsletterImages";
 
 const uuid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -86,6 +87,16 @@ export default function NewsletterPage() {
   // to be stored because focusing the URL input drops it from the textarea.
   const [linkDraft, setLinkDraft] = useState(null);
   const linkInputRef = useRef(null);
+  // Per-block upload progress, keyed by block id: 0-100 while running, absent
+  // otherwise. Also carries a per-block error string when an upload fails.
+  const [imageUploads, setImageUploads] = useState({});
+  const [imageErrors, setImageErrors] = useState({});
+  // The folder under newsletter/ for this composing session. A saved draft has
+  // an id to key on; an unsaved one does not, so mint a stable local id the
+  // first time it is needed. Images already uploaded under it keep working if
+  // the draft is later saved under a different id — the block stores an
+  // absolute URL, and the folder is only organisation.
+  const localFolderRef = useRef(null);
 
   const storyCount = blocks.filter((b) => b.type === "story").length;
 
@@ -148,6 +159,50 @@ export default function NewsletterPage() {
 
   function addDividerBlock() {
     insertBlock({ type: "divider", id: uuid() });
+  }
+
+  function addImageBlock() {
+    insertBlock({ type: "image", id: uuid(), src: "", alt: "" });
+  }
+
+  function updateBlockFields(id, patch) {
+    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+  }
+
+  function uploadFolderId() {
+    if (draftId) return draftId;
+    if (!localFolderRef.current) localFolderRef.current = `unsaved-${uuid()}`;
+    return localFolderRef.current;
+  }
+
+  async function handleImagePick(blockId, file) {
+    if (!file) return;
+    setImageErrors((prev) => ({ ...prev, [blockId]: null }));
+    setImageUploads((prev) => ({ ...prev, [blockId]: 0 }));
+    const res = await uploadNewsletterImage(uploadFolderId(), file, (pct) =>
+      setImageUploads((prev) => ({ ...prev, [blockId]: pct }))
+    );
+    setImageUploads((prev) => {
+      const next = { ...prev };
+      delete next[blockId];
+      return next;
+    });
+    if (!res.ok) {
+      setImageErrors((prev) => ({ ...prev, [blockId]: res.errors.join(" ") }));
+      return;
+    }
+    // Only the src is set. Alt stays the author's job — see imageBlockError.
+    updateBlockFields(blockId, { src: res.url });
+  }
+
+  // Every image problem in the letter, or [] if there are none. Used to stop a
+  // save or a send before it starts: the Worker rejects these too, but finding
+  // out here costs nothing and finding out there costs a round trip.
+  function imageProblems() {
+    return blocks
+      .filter((b) => b.type === "image")
+      .map((b) => imageBlockError(b))
+      .filter(Boolean);
   }
 
   function toggleStoryBlock(story) {
@@ -254,6 +309,15 @@ export default function NewsletterPage() {
       setStatusMsg("Add a subject or at least one block before saving.");
       return;
     }
+    // Refuse to persist a malformed image. A saved draft can be scheduled, and
+    // a scheduled send has no author present to notice the picture silently
+    // failing to render.
+    const saveProblems = imageProblems();
+    if (saveProblems.length) {
+      setStatus("error");
+      setStatusMsg(saveProblems[0]);
+      return;
+    }
     setStatus("loading");
     setStatusMsg(scheduleTime ? "Scheduling newsletter…" : "Saving draft…");
     try {
@@ -281,10 +345,18 @@ export default function NewsletterPage() {
   }
 
   async function handleSend(isTest) {
-    const hasContent = blocks.some((b) => b.type === "text" || b.type === "story");
+    const hasContent = blocks.some(
+      (b) => b.type === "text" || b.type === "story" || (b.type === "image" && !imageBlockError(b))
+    );
     if (!subject.trim() || !hasContent) {
       setStatus("error");
-      setStatusMsg("Subject and at least one text or story block are required.");
+      setStatusMsg("Subject and at least one text, image, or story block are required.");
+      return;
+    }
+    const sendProblems = imageProblems();
+    if (sendProblems.length) {
+      setStatus("error");
+      setStatusMsg(sendProblems[0]);
       return;
     }
     if (isTest && !testEmail.trim()) { setStatus("error"); setStatusMsg("Enter a test email address."); return; }
@@ -386,6 +458,7 @@ export default function NewsletterPage() {
                   <div style={s.blockToolbar}>
                     <button type="button" style={s.toolBtn} onClick={addTextBlock}>+ Add text</button>
                     <button type="button" style={s.toolBtn} onClick={addDividerBlock}>+ Add divider</button>
+                    <button type="button" style={s.toolBtn} onClick={addImageBlock}>+ Add image</button>
                     <button type="button" style={s.toolBtn} onClick={focusPicker}>+ Insert story</button>
                   </div>
                   <div style={s.blockList}>
@@ -491,6 +564,56 @@ export default function NewsletterPage() {
                             <div style={s.blockDividerWrap} onClick={() => setFocusedBlockId(b.id)}>
                               <span style={s.blockDividerLabel}>Divider</span>
                               <hr style={s.blockDividerLine} />
+                            </div>
+                          )}
+                          {b.type === "image" && (
+                            <div style={s.imgWrap} onClick={() => setFocusedBlockId(b.id)}>
+                              <div style={s.imgTopRow}>
+                                {b.src ? (
+                                  <img src={b.src} alt="" style={s.imgThumb} />
+                                ) : (
+                                  <div style={s.imgThumbEmpty}>no image</div>
+                                )}
+                                <div style={s.imgControls}>
+                                  <label style={s.imgPickBtn}>
+                                    {b.src ? "Replace image…" : "Choose image…"}
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      style={{ display: "none" }}
+                                      onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        // Clear the input so re-picking the
+                                        // same file fires change again.
+                                        e.target.value = "";
+                                        handleImagePick(b.id, f);
+                                      }}
+                                    />
+                                  </label>
+                                  {typeof imageUploads[b.id] === "number" && (
+                                    <div style={s.imgProgressWrap}>
+                                      <div style={{ ...s.imgProgressBar, width: `${imageUploads[b.id]}%` }} />
+                                      <span style={s.imgProgressPct}>{imageUploads[b.id]}%</span>
+                                    </div>
+                                  )}
+                                  <div style={s.imgHint}>JPG/PNG/WebP · under 5 MB · shown 540px wide</div>
+                                </div>
+                              </div>
+                              <input
+                                style={s.imgAltInput}
+                                className="ns-input"
+                                placeholder="Alt text (required) — describe the picture"
+                                value={b.alt || ""}
+                                onChange={(e) => updateBlockFields(b.id, { alt: e.target.value })}
+                                onFocus={() => setFocusedBlockId(b.id)}
+                              />
+                              {imageErrors[b.id] && <div style={s.imgError}>{imageErrors[b.id]}</div>}
+                              {/* The renderer's own verdict, shown live. This is
+                                  the same function the Worker runs at send, so
+                                  what it says here is what will happen there. */}
+                              {!imageErrors[b.id] && imageBlockError(b) && (
+                                <div style={s.imgWarn}>{imageBlockError(b)}</div>
+                              )}
                             </div>
                           )}
                           {b.type === "story" && (
@@ -622,6 +745,24 @@ export default function NewsletterPage() {
                   }
                   if (b.type === "divider") {
                     return <hr key={b.id} style={s.pvDivider} />;
+                  }
+                  if (b.type === "image") {
+                    // Same shared module, same 540px grammar, same fail-closed
+                    // rule as the mail. A block the mail will drop shows as a
+                    // stated omission here rather than silently vanishing —
+                    // the preview's job is to be honest, including about what
+                    // will NOT be sent.
+                    const img = renderImageHtml(b);
+                    if (!img) {
+                      return (
+                        <div key={b.id} style={s.pvImageCell}>
+                          <em style={{ color: "#aaa", fontSize: 13 }}>
+                            ( {imageBlockError(b)} — this block will not appear in the email )
+                          </em>
+                        </div>
+                      );
+                    }
+                    return <div key={b.id} style={s.pvImageCell} dangerouslySetInnerHTML={{ __html: img }} />;
                   }
                   if (b.type === "story") {
                     return (
@@ -808,6 +949,23 @@ const s = {
   blockBody: { flex: 1, minWidth: 0, display: "flex", alignItems: "stretch" },
   blockTextarea: { width: "100%", padding: "10px 12px", border: "1px solid #ede8f5", borderRadius: 6, fontSize: 14, color: "#1a1a2e", background: "#fff", outline: "none", resize: "vertical", lineHeight: 1.6, fontFamily: "Cormorant Garamond, Georgia, serif", boxSizing: "border-box" },
   textBlockWrap: { display: "flex", flexDirection: "column", gap: 6, width: "100%", minWidth: 0 },
+  imgWrap: { display: "flex", flexDirection: "column", gap: 8, width: "100%", minWidth: 0, cursor: "pointer" },
+  imgTopRow: { display: "flex", gap: 12, alignItems: "flex-start" },
+  imgThumb: { width: 108, height: 72, objectFit: "cover", borderRadius: 6, flexShrink: 0, background: "#f3eefb" },
+  imgThumbEmpty: { width: 108, height: 72, borderRadius: 6, flexShrink: 0, background: "#f3eefb", color: "#a99cc0", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" },
+  imgControls: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 },
+  imgPickBtn: { display: "inline-block", alignSelf: "flex-start", background: "#fff", color: purple, border: `1px solid ${purple}`, borderRadius: 6, padding: "7px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" },
+  imgProgressWrap: { position: "relative", height: 16, background: "#f3eefb", borderRadius: 8, overflow: "hidden" },
+  imgProgressBar: { position: "absolute", left: 0, top: 0, bottom: 0, background: purple, transition: "width 120ms linear" },
+  imgProgressPct: { position: "relative", fontSize: 10, fontWeight: 700, color: "#1a1a2e", lineHeight: "16px", paddingLeft: 8 },
+  imgHint: { fontSize: 11, color: "#a99cc0" },
+  imgAltInput: { width: "100%", padding: "8px 11px", border: "1px solid #ede8f5", borderRadius: 6, fontSize: 13, color: "#1a1a2e", background: "#fff", outline: "none", boxSizing: "border-box" },
+  imgError: { fontSize: 11, color: "#dc2626", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 5, padding: "6px 9px", lineHeight: 1.45 },
+  imgWarn: { fontSize: 11, color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 5, padding: "6px 9px", lineHeight: 1.45 },
+  // The mail puts an image in the same padded cell a text block uses; the
+  // preview shell is wider than the 620px mail shell, so max-width on the img
+  // (set by the shared renderer) is what keeps the two looking alike.
+  pvImageCell: { padding: "20px 40px" },
   fmtBar: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" },
   fmtBtn: { background: "#fff", color: purple, border: "1px solid #ede8f5", borderRadius: 5, minWidth: 30, height: 28, padding: "0 8px", fontSize: 13, cursor: "pointer", lineHeight: 1, fontFamily: "Georgia, serif" },
   fmtHint: { marginLeft: "auto", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "#a99cc0", fontWeight: 700 },

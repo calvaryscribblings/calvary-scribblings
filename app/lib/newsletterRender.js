@@ -173,3 +173,58 @@ export function renderTextBlockParagraphs(block) {
   const inline = b.format === TEXT_FORMAT ? renderInlineHtml : escapeHtml;
   return splitParagraphs(b.content).map((p) => inline(p));
 }
+
+// ── Image blocks ─────────────────────────────────────────────────────────────
+//
+// ⚠ MIRRORED INTO THE WORKER, same lockstep rule as the inline renderers above.
+//
+// 540 = the 620px shell minus the 40px cell padding on each side. Hard-coded in
+// the width attribute because Outlook's Word engine ignores CSS width on images
+// and will otherwise render the intrinsic pixel size; max-width:100% and
+// height:auto then let every other client scale it down on narrow screens.
+//
+// FAIL CLOSED. A block with a non-https src, or with no alt text, renders
+// NOTHING — no img, no empty cell, no placeholder. The alternative is worse in
+// both directions: a broken image in mail that cannot be recalled, or a picture
+// that is simply invisible to the large share of readers whose client blocks
+// images by default and who get the alt text or nothing at all. The composer
+// refuses to save such a block, and this refuses to render one, so a malformed
+// block cannot reach an inbox by any route.
+//
+// https only, not http: mail clients increasingly refuse mixed content outright,
+// and an http image in an https-hosted mail view is a broken picture.
+
+export const IMAGE_WIDTH = 540;
+const IMAGE_SRC = /^https:\/\//i;
+
+/**
+ * Why this block cannot be rendered, or null if it can. One function so the
+ * composer's validation message and the renderer's fail-closed check can never
+ * disagree about what counts as a valid image.
+ */
+export function imageBlockError(block) {
+  const b = block || {};
+  const src = String(b.src ?? '').trim();
+  const alt = String(b.alt ?? '').trim();
+  if (!src) return 'Image needs a source — upload a file first.';
+  if (!IMAGE_SRC.test(src)) return 'Image source must be an absolute https:// URL.';
+  if (!alt) return 'Alt text is required — most mail clients block images, and alt text is all those readers get.';
+  return null;
+}
+
+export function renderImageHtml(block) {
+  if (imageBlockError(block)) return '';
+  const src = String(block.src).trim();
+  const alt = String(block.alt).trim();
+  return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" width="${IMAGE_WIDTH}" style="display:block;max-width:100%;height:auto;border-radius:6px;" />`;
+}
+
+/**
+ * The text/plain part. `[image: alt]` rather than the URL, because the URL is a
+ * signed storage link that is unreadable noise in a text mail — the alt text is
+ * the actual information the picture was carrying.
+ */
+export function renderImageText(block) {
+  if (imageBlockError(block)) return '';
+  return `[image: ${String(block.alt).trim()}]`;
+}
