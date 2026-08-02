@@ -315,10 +315,16 @@ export default function NewOpenPagePage() {
     setOutcome(null);
     setSubmitting(true);
     try {
+      // The Function derives the author uid from this token; a body uid is
+      // ignored, so it is no longer sent.
+      const idToken = await user.getIdToken();
       const res = await fetch('/api/open-pages/moderate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: user.uid, title: title.trim(), body: body.trim(), coverImage, genre }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ title: title.trim(), body: body.trim(), coverImage, genre }),
       });
       const data = await res.json().catch(() => ({}));
 

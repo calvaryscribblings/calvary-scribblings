@@ -207,10 +207,17 @@ export default function QuizzesPage() {
     const generateMode = modeFilter === 'reader' ? 'reader' : 'story';
     setGenerating(true); setError(''); setMsg(''); setWarnings([]);
     try {
+      // The Function derives the admin uid from this token and checks it against
+      // QUIZ_ADMIN_UIDS. It no longer reads a uid from the body — sending one
+      // would be inert, so it is not sent.
+      const idToken = await user.getIdToken();
       const res = await fetch('/api/generate-quiz', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ slug: selectedSlug, mode: generateMode, uid: user.uid }),
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ slug: selectedSlug, mode: generateMode }),
       });
       let data;
       try {

@@ -74,6 +74,31 @@ function quizJson(data, status = 200) {
   });
 }
 
+// Verbatim from functions/api/record-attempt.js. Exchanges a Firebase ID token
+// for the uid Google says it belongs to, or null if the token is absent,
+// expired, forged or malformed.
+//
+// WHY THIS EXISTS HERE NOW: this endpoint used to read `uid` out of the request
+// BODY and check it against QUIZ_ADMIN_UIDS. The admin uids are not secret —
+// they are in the client bundle, in storage.rules, and in this file's first
+// line — so anyone who read them could post {"uid":"XaG6..."} and spend the
+// platform's Anthropic budget generating quizzes, and write the result into
+// cms_stories. The body uid is now ignored entirely; the only uid this function
+// trusts is the one that comes back from Google.
+async function verifyToken(token, apiKey) {
+  const res = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken: token }),
+    }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data?.users?.[0]?.localId ?? null;
+}
+
 function stripHtml(html) {
   return html
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -195,15 +220,26 @@ function validateQuiz(quiz, mode) {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
+  // Authenticate BEFORE reading the body, so a forged uid never even reaches a
+  // variable. Same order as record-attempt.js.
+  const authHeader = request.headers.get('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return quizJson({ error: 'Unauthorised.' }, 401);
+
+  const uid = await verifyToken(token, env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  if (!uid) return quizJson({ error: 'Unauthorised.' }, 401);
+  if (!QUIZ_ADMIN_UIDS.includes(uid)) return quizJson({ error: 'Unauthorised.' }, 401);
+
   let body;
   try { body = await request.json(); }
   catch { return quizJson({ error: 'Invalid request body.' }, 400); }
 
-  const { slug, mode, uid } = body;
-  console.log('[generate-quiz] slug:', slug, '| mode:', mode, '| uid:', uid);
+  // `uid` is deliberately NOT destructured from the body. If a client still
+  // sends one it is inert — the uid above came from the verified token.
+  const { slug, mode } = body;
+  console.log('[generate-quiz] slug:', slug, '| mode:', mode, '| uid:', uid, '(verified)');
   console.log('[generate-quiz] ANTHROPIC_API_KEY set:', !!env.ANTHROPIC_API_KEY);
 
-  if (!QUIZ_ADMIN_UIDS.includes(uid)) return quizJson({ error: 'Unauthorised.' }, 401);
   if (!slug || !['story', 'reader'].includes(mode))
     return quizJson({ error: 'slug and mode are required.' }, 400);
 

@@ -13,16 +13,27 @@
 //
 // This is a Cloudflare Pages Function (onRequestPost), modelled on the working
 // functions/api/generate-quiz.js — it reads env via context.env and calls Anthropic
-// with x-api-key. It does NOT verify a Firebase token (the token-verify path had
-// runtime issues); the `uid` is taken from the body. The real security boundary is
-// the RTDB rules: clients cannot write to the public open_pages node — only this
-// function can, using the Firebase Admin service-account credentials in the Pages
-// env (FIREBASE_PRIVATE_KEY / FIREBASE_CLIENT_EMAIL / FIREBASE_DATABASE_URL), the
-// same credentials record-attempt.js / the admin functions use. A forged `uid`
-// could mis-attribute a post, but cannot bypass moderation or publish directly.
+// with x-api-key.
+//
+// AUTH: the caller must present a Firebase ID token as `Authorization: Bearer
+// <idToken>` and the uid is derived from THAT, via the same verifyToken() path
+// record-attempt.js and hit.js use. Any verified signed-in user may post; this
+// endpoint's audience is every reader, not just admins.
+//
+// It previously took `uid` from the request body and verified nothing. The note
+// here used to argue that was acceptable because the RTDB rules are the real
+// boundary — clients cannot write to the public open_pages node, only this
+// function can, using the service-account credentials in the Pages env — so a
+// forged uid "could mis-attribute a post, but cannot bypass moderation or
+// publish directly". Both halves of that were true and it was still the wrong
+// trade. Mis-attribution IS the attack: anyone could publish under any reader's
+// name, to the public feed, with that reader's real name, handle and avatar
+// attached by the trustworthy-snapshot lookup below — which made the forgery
+// MORE convincing, not less. It also let an unauthenticated caller spend the
+// platform's Anthropic budget at will. The body uid is now ignored entirely.
 //
 // Trustworthy snapshot: the author's name/handle/avatar are fetched server-side from
-// users/{uid} — client-sent author fields are ignored beyond `uid`.
+// users/{uid} — client-sent author fields are ignored, and the uid is the verified one.
 
 import {
   OPEN_PAGES_NODE,
@@ -280,8 +291,34 @@ async function writePaths(fbDb, accessToken, paths) {
 // Handler.
 // ---------------------------------------------------------------------------
 
+// Verbatim from functions/api/record-attempt.js — exchanges a Firebase ID token
+// for the uid Google says it belongs to, or null if it is absent, expired,
+// forged or malformed.
+async function verifyToken(token, apiKey) {
+  const res = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken: token }),
+    }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data?.users?.[0]?.localId ?? null;
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+  // Authenticate BEFORE reading the body, so a forged uid never reaches a
+  // variable. Any verified signed-in user may post — see the AUTH note above.
+  const authHeader = request.headers.get('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return json({ error: 'Unauthorised.' }, 401);
+
+  const uid = await verifyToken(token, env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  if (!uid) return json({ error: 'Unauthorised.' }, 401);
 
   let body;
   try {
@@ -290,11 +327,12 @@ export async function onRequestPost(context) {
     return json({ error: 'Invalid request body.' }, 400);
   }
 
-  const { uid, title, body: postBody, coverImage, genre } = body || {};
-  console.log('[open-pages/moderate] uid:', uid, '| ANTHROPIC set:', !!env.ANTHROPIC_API_KEY);
+  // `uid` is deliberately NOT destructured from the body. A client that still
+  // sends one is ignored; every use of `uid` below is the verified one.
+  const { title, body: postBody, coverImage, genre } = body || {};
+  console.log('[open-pages/moderate] uid:', uid, '(verified) | ANTHROPIC set:', !!env.ANTHROPIC_API_KEY);
 
   // Server-side validation.
-  if (!uid || typeof uid !== 'string') return json({ error: 'uid required.' }, 400);
   if (!title || typeof title !== 'string' || !title.trim())
     return json({ error: 'title required.' }, 400);
   if (!postBody || typeof postBody !== 'string' || !postBody.trim())
