@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getDatabase, ref, get } from "firebase/database";
 import { initializeApp, getApps } from "firebase/app";
-import { TEXT_FORMAT } from "../../lib/newsletterRender";
+import { TEXT_FORMAT, renderTextBlockParagraphs } from "../../lib/newsletterRender";
+import { MARKERS, applyMarker, applyLink, isSafeUrl } from "../../lib/newsletterToolbar";
 
 const uuid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -76,6 +77,15 @@ export default function NewsletterPage() {
   const [drafts, setDrafts] = useState([]);
   const [pickerOpenMobile, setPickerOpenMobile] = useState(false);
   const pickerSearchRef = useRef(null);
+  // One textarea element per text block, so the toolbar can read the live
+  // selection. Keyed by block id and pruned on unmount — a stale node here
+  // would mean formatting applied to a block that is no longer on screen.
+  const textareaRefs = useRef({});
+  // The link popover: which block it belongs to, the URL being typed, and the
+  // selection captured at the moment the button was pressed. The selection has
+  // to be stored because focusing the URL input drops it from the textarea.
+  const [linkDraft, setLinkDraft] = useState(null);
+  const linkInputRef = useRef(null);
 
   const storyCount = blocks.filter((b) => b.type === "story").length;
 
@@ -178,6 +188,58 @@ export default function NewsletterPage() {
 
   function updateTextBlock(id, content) {
     setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, content } : b)));
+    // An open link popover holds the offsets captured when it was opened. Edit
+    // the text underneath it and those offsets point somewhere else, so the
+    // link would land in the wrong place. Close it rather than let it act on a
+    // selection that no longer exists.
+    setLinkDraft((d) => (d && d.blockId === id ? null : d));
+  }
+
+  // Write a toolbar result back and restore the selection the function chose.
+  // The textarea is controlled, so the DOM value only catches up after React
+  // re-renders — hence the rAF. Without it setSelectionRange runs against the
+  // pre-edit string and the caret lands in the wrong place.
+  function applyToolbarResult(blockId, result) {
+    updateTextBlock(blockId, result.value);
+    requestAnimationFrame(() => {
+      const ta = textareaRefs.current[blockId];
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(result.selectionStart, result.selectionEnd);
+    });
+  }
+
+  function applyFormat(blockId, kind) {
+    const ta = textareaRefs.current[blockId];
+    if (!ta) return;
+    applyToolbarResult(blockId, applyMarker(ta.value, ta.selectionStart, ta.selectionEnd, MARKERS[kind]));
+  }
+
+  function openLinkDraft(blockId) {
+    const ta = textareaRefs.current[blockId];
+    if (!ta) return;
+    setLinkDraft({ blockId, url: "", start: ta.selectionStart, end: ta.selectionEnd });
+    requestAnimationFrame(() => linkInputRef.current?.focus());
+  }
+
+  function commitLinkDraft() {
+    if (!linkDraft || !isSafeUrl(linkDraft.url)) return;
+    const ta = textareaRefs.current[linkDraft.blockId];
+    if (!ta) return;
+    applyToolbarResult(linkDraft.blockId, applyLink(ta.value, linkDraft.start, linkDraft.end, linkDraft.url.trim()));
+    setLinkDraft(null);
+  }
+
+  // Ctrl/Cmd+B/I/U. Only on blocks that actually carry the format — on a legacy
+  // block the markers would mail out as literal asterisks, so the shortcut is
+  // not wired there at all rather than quietly doing the wrong thing.
+  function handleTextKeyDown(e, block) {
+    if (block.format !== TEXT_FORMAT) return;
+    if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+    const kind = { b: "bold", i: "italic", u: "underline" }[e.key.toLowerCase()];
+    if (!kind) return;
+    e.preventDefault();
+    applyFormat(block.id, kind);
   }
 
   function focusPicker() {
@@ -334,15 +396,96 @@ export default function NewsletterPage() {
                       <div key={b.id} className="ns-blockItem" style={{ ...s.blockItem, ...(focusedBlockId === b.id ? s.blockItemActive : {}) }}>
                         <div style={s.blockBody} className="ns-blockBody">
                           {b.type === "text" && (
-                            <textarea
-                              style={s.blockTextarea}
-                              className="ns-blockTextarea"
-                              placeholder="Write a paragraph…"
-                              value={b.content}
-                              rows={4}
-                              onChange={(e) => updateTextBlock(b.id, e.target.value)}
-                              onFocus={() => setFocusedBlockId(b.id)}
-                            />
+                            <div style={s.textBlockWrap}>
+                              {b.format === TEXT_FORMAT ? (
+                                <div style={s.fmtBar} className="ns-fmtBar">
+                                  {[
+                                    { kind: "bold", label: "B", title: "Bold  **text**  (Ctrl/⌘+B)", css: { fontWeight: 800 } },
+                                    { kind: "italic", label: "I", title: "Italic  *text*  (Ctrl/⌘+I)", css: { fontStyle: "italic" } },
+                                    { kind: "underline", label: "U", title: "Underline  __text__  (Ctrl/⌘+U)", css: { textDecoration: "underline" } },
+                                  ].map((f) => (
+                                    <button
+                                      key={f.kind}
+                                      type="button"
+                                      title={f.title}
+                                      style={{ ...s.fmtBtn, ...f.css }}
+                                      className="ns-fmtBtn"
+                                      // Keep the textarea's selection alive: a
+                                      // button taking focus on mousedown would
+                                      // collapse it before the click fires.
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => applyFormat(b.id, f.kind)}
+                                    >
+                                      {f.label}
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    title="Link  [text](https://…)"
+                                    style={s.fmtBtn}
+                                    className="ns-fmtBtn"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => openLinkDraft(b.id)}
+                                  >
+                                    🔗
+                                  </button>
+                                  <span style={s.fmtHint}>rich text</span>
+                                </div>
+                              ) : (
+                                // Legacy blocks predate cs-inline-v1 and mail
+                                // with everything escaped. Saying so is the
+                                // honest alternative to showing a toolbar whose
+                                // markers would arrive as literal asterisks.
+                                <div style={s.fmtBar}>
+                                  <span style={s.fmtLegacy}>plain text · saved before rich text existed</span>
+                                </div>
+                              )}
+                              {linkDraft?.blockId === b.id && (
+                                <div style={s.linkRow}>
+                                  <input
+                                    ref={linkInputRef}
+                                    style={s.linkInput}
+                                    className="ns-input"
+                                    placeholder="https://…"
+                                    value={linkDraft.url}
+                                    onChange={(e) => setLinkDraft((d) => ({ ...d, url: e.target.value }))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") { e.preventDefault(); commitLinkDraft(); }
+                                      if (e.key === "Escape") { e.preventDefault(); setLinkDraft(null); }
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    style={{ ...s.fmtBtn, opacity: isSafeUrl(linkDraft.url) ? 1 : 0.4 }}
+                                    disabled={!isSafeUrl(linkDraft.url)}
+                                    onClick={commitLinkDraft}
+                                  >
+                                    Add
+                                  </button>
+                                  <button type="button" style={s.fmtBtn} onClick={() => setLinkDraft(null)}>✕</button>
+                                </div>
+                              )}
+                              {linkDraft?.blockId === b.id && linkDraft.url.trim() && !isSafeUrl(linkDraft.url) && (
+                                // The renderer drops non-http(s) links to
+                                // literal text rather than emitting them. Better
+                                // to say that here than to let it look accepted.
+                                <div style={s.linkWarn}>Only http:// and https:// links are recognised — anything else mails as plain text.</div>
+                              )}
+                              <textarea
+                                ref={(el) => {
+                                  if (el) textareaRefs.current[b.id] = el;
+                                  else delete textareaRefs.current[b.id];
+                                }}
+                                style={s.blockTextarea}
+                                className="ns-blockTextarea"
+                                placeholder={b.format === TEXT_FORMAT ? "Write a paragraph… **bold**, *italic*, __underline__, [link](https://…)" : "Write a paragraph…"}
+                                value={b.content}
+                                rows={4}
+                                onChange={(e) => updateTextBlock(b.id, e.target.value)}
+                                onFocus={() => setFocusedBlockId(b.id)}
+                                onKeyDown={(e) => handleTextKeyDown(e, b)}
+                              />
+                            </div>
                           )}
                           {b.type === "divider" && (
                             <div style={s.blockDividerWrap} onClick={() => setFocusedBlockId(b.id)}>
@@ -447,9 +590,33 @@ export default function NewsletterPage() {
                 )}
                 {blocks.map((b) => {
                   if (b.type === "text") {
+                    // Straight through app/lib/newsletterRender.js — the same
+                    // module the Worker's mirror is a hand-copy of, with the
+                    // same format gate and the same paragraph segmentation
+                    // buildEmail uses. This block previously rendered the raw
+                    // source under white-space:pre-wrap, which showed markers
+                    // as literal asterisks and turned a single newline into a
+                    // visible break that the mail collapses to a space.
+                    //
+                    // dangerouslySetInnerHTML is sound here for the one reason
+                    // that makes it ever sound: the string is not author HTML.
+                    // The renderer escapes its input in full and only then
+                    // re-introduces tags for markers it positively recognised,
+                    // so the tag set is closed by construction — see the fuzz
+                    // test in tests/newsletter/mirror-parity.test.mjs.
+                    const paras = renderTextBlockParagraphs(b);
+                    if (paras.length === 0) {
+                      return (
+                        <div key={b.id} style={s.pvTextBlock}>
+                          <em style={{ color: "#aaa" }}>( empty — this block will not appear in the email )</em>
+                        </div>
+                      );
+                    }
                     return (
                       <div key={b.id} style={s.pvTextBlock}>
-                        {b.content || <em style={{ color: "#aaa" }}>( empty paragraph )</em>}
+                        {paras.map((html, i) => (
+                          <p key={i} style={s.pvPara} dangerouslySetInnerHTML={{ __html: html }} />
+                        ))}
                       </div>
                     );
                   }
@@ -640,6 +807,14 @@ const s = {
   blockItemActive: { border: `1px solid ${purple}`, background: "#f9f5ff" },
   blockBody: { flex: 1, minWidth: 0, display: "flex", alignItems: "stretch" },
   blockTextarea: { width: "100%", padding: "10px 12px", border: "1px solid #ede8f5", borderRadius: 6, fontSize: 14, color: "#1a1a2e", background: "#fff", outline: "none", resize: "vertical", lineHeight: 1.6, fontFamily: "Cormorant Garamond, Georgia, serif", boxSizing: "border-box" },
+  textBlockWrap: { display: "flex", flexDirection: "column", gap: 6, width: "100%", minWidth: 0 },
+  fmtBar: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  fmtBtn: { background: "#fff", color: purple, border: "1px solid #ede8f5", borderRadius: 5, minWidth: 30, height: 28, padding: "0 8px", fontSize: 13, cursor: "pointer", lineHeight: 1, fontFamily: "Georgia, serif" },
+  fmtHint: { marginLeft: "auto", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "#a99cc0", fontWeight: 700 },
+  fmtLegacy: { fontSize: 10, letterSpacing: 0.6, textTransform: "uppercase", color: "#a99cc0", fontWeight: 700 },
+  linkRow: { display: "flex", gap: 6, alignItems: "center" },
+  linkInput: { flex: 1, minWidth: 0, padding: "6px 10px", border: "1px solid #ede8f5", borderRadius: 5, fontSize: 13, color: "#1a1a2e", background: "#fff", outline: "none", boxSizing: "border-box" },
+  linkWarn: { fontSize: 11, color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 5, padding: "6px 9px", lineHeight: 1.45 },
   blockDividerWrap: { display: "flex", alignItems: "center", gap: 10, padding: "12px 8px", width: "100%", cursor: "pointer" },
   blockDividerLabel: { fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: purple, fontWeight: 700, flexShrink: 0 },
   blockDividerLine: { flex: 1, border: "none", borderTop: `2px solid ${purple}`, margin: 0 },
@@ -648,7 +823,13 @@ const s = {
   blockStoryTitle: { fontSize: 14, fontWeight: 700, color: "#1a1a2e" },
   blockStoryAuthor: { fontSize: 12, color: "#666680", marginTop: 2 },
   blockControls: { display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 },
-  pvTextBlock: { padding: "20px 40px", fontSize: 15, color: "#1a1a2e", lineHeight: 1.75, fontFamily: "Cormorant Garamond, Georgia, serif", whiteSpace: "pre-wrap" },
+  // No white-space:pre-wrap. Paragraphs are segmented by the renderer exactly
+  // as buildEmail segments them, so the browser's own collapsing is correct
+  // here — it is what the mail client will do too.
+  pvTextBlock: { padding: "20px 40px", fontSize: 15, color: "#1a1a2e", lineHeight: 1.75, fontFamily: "Cormorant Garamond, Georgia, serif" },
+  // Matches the mail's own paragraph margin, on every paragraph including the
+  // last, because that is what buildEmail emits.
+  pvPara: { margin: "0 0 16px" },
   pvDivider: { border: "none", borderTop: `2px solid ${purple}`, margin: "24px 0" },
   pvStorySection: { padding: "12px 40px" },
 };
@@ -786,5 +967,14 @@ const responsiveCss = `
     width: 100% !important;
     box-sizing: border-box !important;
   }
+
+  /* Toolbar buttons are the smallest tap targets on the page — bring them up
+     to the same 44px floor the reorder controls already use. */
+  .ns-fmtBtn {
+    min-width: 44px !important;
+    height: 40px !important;
+    font-size: 15px !important;
+  }
+  .ns-fmtBar { gap: 6px !important; }
 }
 `;

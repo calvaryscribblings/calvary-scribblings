@@ -131,3 +131,45 @@ export function renderInlineText(src) {
 
   return s.replace(ESC_SLOT, (_m, i) => escaped[Number(i)]);
 }
+
+// ── Block-level projection ───────────────────────────────────────────────────
+//
+// Everything above is inline-only. These two are what the admin preview needs
+// to stop lying, and they exist because the preview and the mail were reaching
+// the same content by different routes.
+//
+// buildEmail — and its Worker mirror — splits a text block's SOURCE on blank
+// lines, trims each piece, drops the empties, and renders what remains through
+// the format gate. The preview used to render `content` verbatim under
+// `white-space: pre-wrap`, which got both halves wrong: markers showed as
+// literal asterisks, and a SINGLE newline looked like a line break when in the
+// mail it collapses to a space. Same source, two different pictures.
+//
+// The Worker keeps this segmentation inline inside buildEmail rather than in a
+// function, so there is nothing there to mirror by name. What pins the two
+// together is tests/newsletter/preview-parity.test.mjs, which asserts the
+// paragraphs produced here are exactly the paragraphs buildEmail emits.
+
+export function splitParagraphs(content) {
+  return String(content ?? '')
+    .split(/\n\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+/**
+ * A text block → its paragraphs as inline HTML, format gate applied.
+ *
+ * The gate is the whole reason this is one function and not a call site: a
+ * block WITHOUT a format field — every saved draft and every one of the seven
+ * sent issues predating cs-inline-v1 — is escaped, never parsed. An
+ * unrecognised format value fails CLOSED to escaping for the same reason. This
+ * is the same branch the Worker's buildEmail takes; if the preview chose
+ * differently, it would show formatting on blocks that mail out as literal
+ * asterisks, or vice versa.
+ */
+export function renderTextBlockParagraphs(block) {
+  const b = block || {};
+  const inline = b.format === TEXT_FORMAT ? renderInlineHtml : escapeHtml;
+  return splitParagraphs(b.content).map((p) => inline(p));
+}
