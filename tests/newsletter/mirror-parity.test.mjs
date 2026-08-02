@@ -16,7 +16,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderInlineHtml, renderInlineText } from '../../app/lib/newsletterRender.js';
+import {
+  renderInlineHtml,
+  renderInlineText,
+  renderImageHtml,
+  renderImageText,
+  imageBlockError,
+} from '../../app/lib/newsletterRender.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const WORKER = resolve(ROOT, 'workers-external/calvary-newsletter.worker.js');
@@ -39,7 +45,9 @@ test('the mirror can be located in the Worker source', () => {
 
 const mirrorSrc = src.slice(a, b);
 // eslint-disable-next-line no-new-func
-const mirror = new Function(`${mirrorSrc}\nreturn { renderInlineHtmlMirror, renderInlineTextMirror };`)();
+const mirror = new Function(
+  `${mirrorSrc}\nreturn { renderInlineHtmlMirror, renderInlineTextMirror, renderImageHtmlMirror, renderImageTextMirror, imageBlockErrorMirror };`
+)();
 
 const CORPUS = [
   '',
@@ -139,6 +147,118 @@ test('fuzz never produces a tag outside the grammar', () => {
   }
 });
 
+// ── Image blocks ─────────────────────────────────────────────────────────────
+// Same lockstep rule as the inline renderers: the Worker's copy drives the
+// mail, the repo's drives the preview, and a difference between them is a
+// picture that looks one way in the studio and another in the inbox.
+
+const IMAGE_BLOCKS = [
+  { type: 'image', src: 'https://x.co/a.png', alt: 'A picture' },
+  { type: 'image', src: 'https://x.co/a.png?token=1&b=2', alt: 'Query & ampersand' },
+  { type: 'image', src: 'https://x.co/a.png', alt: `Jerry's "quoted" <tag>` },
+  { type: 'image', src: 'https://x.co/a.png', alt: '  padded  ' },
+  { type: 'image', src: '  https://x.co/a.png  ', alt: 'padded src' },
+  // Every one of these must render to the empty string on BOTH sides.
+  { type: 'image', src: 'http://x.co/a.png', alt: 'insecure' },
+  { type: 'image', src: 'javascript:alert(1)', alt: 'hostile' },
+  { type: 'image', src: 'data:image/png;base64,AAAA', alt: 'inline data' },
+  { type: 'image', src: '//x.co/a.png', alt: 'protocol relative' },
+  { type: 'image', src: '/local.png', alt: 'root relative' },
+  { type: 'image', src: 'https://x.co/a.png', alt: '' },
+  { type: 'image', src: 'https://x.co/a.png', alt: '   ' },
+  { type: 'image', src: 'https://x.co/a.png' },
+  { type: 'image', src: '', alt: 'no src' },
+  { type: 'image' },
+  {},
+  null,
+  { type: 'image', src: 'HTTPS://X.CO/A.PNG', alt: 'uppercase scheme' },
+  { type: 'image', src: 'https://x.co/a.png"onload="alert(1)', alt: 'breakout attempt' },
+  { type: 'image', src: 'https://x.co/a.png', alt: 'breakout" onload="alert(1)' },
+];
+
+test('image HTML: mirror matches the repo module', () => {
+  for (const block of IMAGE_BLOCKS) {
+    assert.equal(
+      mirror.renderImageHtmlMirror(block),
+      renderImageHtml(block),
+      `image HTML drift on: ${JSON.stringify(block)}`
+    );
+  }
+});
+
+test('image TEXT: mirror matches the repo module', () => {
+  for (const block of IMAGE_BLOCKS) {
+    assert.equal(
+      mirror.renderImageTextMirror(block),
+      renderImageText(block),
+      `image TEXT drift on: ${JSON.stringify(block)}`
+    );
+  }
+});
+
+test('image validation: mirror agrees with the repo module, message for message', () => {
+  for (const block of IMAGE_BLOCKS) {
+    assert.equal(
+      mirror.imageBlockErrorMirror(block),
+      imageBlockError(block),
+      `image validation drift on: ${JSON.stringify(block)}`
+    );
+  }
+});
+
+test('an invalid image renders NOTHING, not a broken tag', () => {
+  const invalid = IMAGE_BLOCKS.filter((b) => imageBlockError(b));
+  assert.ok(invalid.length >= 10, 'expected the corpus to carry real invalid cases');
+  for (const block of invalid) {
+    assert.equal(renderImageHtml(block), '', `rendered markup for ${JSON.stringify(block)}`);
+    assert.equal(renderImageText(block), '', `rendered text for ${JSON.stringify(block)}`);
+  }
+});
+
+// The invariant is STRUCTURAL, not a keyword scan. `alt="… onerror=…"` is
+// perfectly safe when the quotes around it are escaped — searching the output
+// for "onerror=" flags that harmless case and still misses a real breakout.
+// What actually matters is that the tag has exactly these four attributes and
+// that no value contains a raw quote, which [^"]* is what proves: if a value
+// could close its own quote, the shape would not match.
+const IMG_SHAPE = /^<img src="[^"]*" alt="[^"]*" width="540" style="display:block;max-width:100%;height:auto;border-radius:6px;" \/>$/;
+
+test('a rendered image cannot break out of its attributes', () => {
+  for (const block of IMAGE_BLOCKS) {
+    const out = renderImageHtml(block);
+    if (!out) continue;
+    assert.match(out, IMG_SHAPE, `escaped its attribute shape: ${out}`);
+  }
+});
+
+test('a hostile alt is inert content, not markup', () => {
+  const out = renderImageHtml({ type: 'image', src: 'https://x.co/a.png', alt: 'x" onload="alert(1)' });
+  assert.match(out, IMG_SHAPE);
+  assert.ok(out.includes('&quot;'), `the quote was not escaped: ${out}`);
+  assert.ok(!/alt="[^"]*"\s+onload/i.test(out), `onload escaped the alt value: ${out}`);
+});
+
+// Fuzz the two author-controlled fields. src and alt both land inside attribute
+// values, so the escaping is the whole defence.
+test('image fuzz never escapes its attributes', () => {
+  const alphabet = ['"', "'", '<', '>', '&', ' ', '/', 'a', 'onerror=', 'javascript:', 'https://x.co/', '.png', '\\', '\n'];
+  let seed = 4242;
+  const next = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff);
+  for (let i = 0; i < 3000; i++) {
+    const build = () => {
+      const len = 1 + (next() % 10);
+      let s = '';
+      for (let j = 0; j < len; j++) s += alphabet[next() % alphabet.length];
+      return s;
+    };
+    const block = { type: 'image', src: `https://x.co/${build()}`, alt: build() };
+    assert.equal(mirror.renderImageHtmlMirror(block), renderImageHtml(block), `fuzz drift: ${JSON.stringify(block)}`);
+    const out = renderImageHtml(block);
+    if (!out) continue;
+    assert.match(out, IMG_SHAPE, `broke its attribute shape from ${JSON.stringify(block)}`);
+  }
+});
+
 // ── The format gate ──────────────────────────────────────────────────────────
 // Everything above proves the two renderers agree. These prove the renderer is
 // only reached when a block asks for it — the guarantee that seven already-sent
@@ -175,6 +295,31 @@ test('an unrecognised format value falls back to escaping, not to parsing', () =
   });
   assert.ok(out.includes('A **bold** one.'), out);
   assert.ok(!out.includes('<strong>'), 'unknown format was parsed — must fail closed');
+});
+
+test('a valid image block reaches the mail in the padded cell at 540', () => {
+  const out = buildEmail({
+    subject: 's',
+    issueNumber: 1,
+    blocks: [{ type: 'image', id: '1', src: 'https://x.co/a.png?t=1&b=2', alt: `Jerry's <picture>` }],
+  });
+  assert.ok(out.includes('<tr><td style="padding:20px 40px;"><img src='), out);
+  assert.ok(out.includes('width="540"'), out);
+  assert.ok(out.includes('a.png?t=1&amp;b=2'), 'src not escaped');
+  assert.ok(out.includes('alt="Jerry&#39;s &lt;picture&gt;"'), 'alt not escaped');
+  assert.ok(!out.includes('<picture>'), 'raw alt markup reached the mail');
+});
+
+test('an invalid image block leaves NO cell in the mail', () => {
+  for (const block of [
+    { type: 'image', id: '1', src: 'http://x.co/a.png', alt: 'insecure' },
+    { type: 'image', id: '1', src: 'https://x.co/a.png', alt: '' },
+    { type: 'image', id: '1', src: '', alt: 'nothing' },
+  ]) {
+    const out = buildEmail({ subject: 's', issueNumber: 1, blocks: [block] });
+    assert.ok(!out.includes('<img'), `an img reached the mail from ${JSON.stringify(block)}`);
+    assert.ok(!out.includes('padding:20px 40px'), `an empty cell was emitted for ${JSON.stringify(block)}`);
+  }
 });
 
 test('story block fields are escaped', () => {

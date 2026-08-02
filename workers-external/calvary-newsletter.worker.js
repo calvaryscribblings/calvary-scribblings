@@ -27,6 +27,11 @@
 // drives the admin's live preview and the Worker copy drives the actual mail —
 // if they drift, the preview lies, and mail cannot be recalled once sent.
 // tests/newsletter/render.test.mjs is the contract for both.
+// tests/newsletter/preview-parity.test.mjs is the other half of that contract:
+// it asserts the admin preview's paragraphs — and its image blocks — are
+// byte-identical to what buildEmail below actually emits, by slicing buildEmail
+// out of THIS file and running it. Inline parity alone was not enough; the
+// preview also has to segment paragraphs and gate formats the same way.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default {
@@ -101,9 +106,21 @@ export default {
         // testTo is the spec name; testEmail is what the admin UI has always
         // sent. Both accepted so the existing test button keeps working.
         const testEmail = body.testTo ?? body.testEmail;
-        const hasContent = Array.isArray(blocks) && blocks.some((b) => b && (b.type === "text" || b.type === "story"));
+        // A valid image counts as content; an invalid one does not, so an
+        // image-only issue whose image is malformed cannot pass as "has body".
+        const hasContent = Array.isArray(blocks) && blocks.some((b) => b && (b.type === "text" || b.type === "story" || (b.type === "image" && !imageBlockErrorMirror(b))));
         if (!subject || !hasContent) {
-          return Response.json({ error: "subject and at least one text or story block are required" }, { status: 400, headers: cors });
+          return Response.json({ error: "subject and at least one text, image, or story block are required" }, { status: 400, headers: cors });
+        }
+        // Reject a bad image OUT LOUD rather than relying on the renderer's
+        // fail-closed path. The renderer drops an invalid block silently, which
+        // is right for the cron (there is nobody to tell, and holding the whole
+        // issue over one picture is worse), but wrong here: an author who
+        // forgot the alt text would watch the send succeed and never learn the
+        // image was not in it. Mail cannot be recalled — say no first.
+        const badImage = (blocks || []).filter((b) => b && b.type === "image").map((b) => imageBlockErrorMirror(b)).find(Boolean);
+        if (badImage) {
+          return Response.json({ error: badImage }, { status: 400, headers: cors });
         }
         const result = await sendNewsletter({ subject, blocks, issueNumber, testEmail }, env);
         return Response.json(result, { headers: cors });
@@ -507,6 +524,45 @@ function renderInlineTextMirror(src) {
   return s.replace(CS_ESC_SLOT, (_m, i) => escaped[Number(i)]);
 }
 
+// ── Image blocks ─────────────────────────────────────────────────────────────
+// Hand-copy of app/lib/newsletterRender.js:imageBlockError / renderImageHtml /
+// renderImageText, under the same lockstep rule as the inline renderers above.
+//
+// 540 = the 620px shell minus the 40px cell padding on each side. Hard-coded in
+// the width attribute because Outlook's Word engine ignores CSS width on images
+// and will otherwise render the intrinsic pixel size; max-width:100% and
+// height:auto then let every other client scale it down on narrow screens.
+//
+// FAIL CLOSED. A block with a non-https src, or with no alt text, renders
+// NOTHING — no img, no empty cell, no placeholder. The composer refuses to save
+// such a block and this refuses to render one, so a malformed block cannot
+// reach an inbox by any route. https only: mail clients increasingly refuse
+// mixed content, and an http image in an https mail view is a broken picture.
+const IMAGE_WIDTH_MIRROR = 540;
+const IMAGE_SRC_MIRROR = /^https:\/\//i;
+
+function imageBlockErrorMirror(block) {
+  const b = block || {};
+  const src = String(b.src ?? "").trim();
+  const alt = String(b.alt ?? "").trim();
+  if (!src) return "Image needs a source — upload a file first.";
+  if (!IMAGE_SRC_MIRROR.test(src)) return "Image source must be an absolute https:// URL.";
+  if (!alt) return "Alt text is required — most mail clients block images, and alt text is all those readers get.";
+  return null;
+}
+
+function renderImageHtmlMirror(block) {
+  if (imageBlockErrorMirror(block)) return "";
+  const src = String(block.src).trim();
+  const alt = String(block.alt).trim();
+  return `<img src="${escHtml(src)}" alt="${escHtml(alt)}" width="${IMAGE_WIDTH_MIRROR}" style="display:block;max-width:100%;height:auto;border-radius:6px;" />`;
+}
+
+function renderImageTextMirror(block) {
+  if (imageBlockErrorMirror(block)) return "";
+  return `[image: ${String(block.alt).trim()}]`;
+}
+
 // The mail's text/plain part, derived from the SAME block array the HTML came
 // from so the two parts cannot drift. Resend previously received only `html`,
 // which meant no author-controlled plain-text alternative existed at all.
@@ -522,6 +578,12 @@ function buildEmailText({ subject, blocks, issueNumber }) {
       if (paras.length) lines.push(paras.join("\n\n"), "");
     } else if (b.type === "divider") {
       lines.push("—".repeat(24), "");
+    } else if (b.type === "image") {
+      // `[image: alt]`, not the URL — the src is a signed storage link that is
+      // unreadable noise in a text mail, while the alt text is the actual
+      // information the picture was carrying.
+      const line = renderImageTextMirror(b);
+      if (line) lines.push(line, "");
     } else if (b.type === "story") {
       lines.push(
         `${b.category || "Fiction"} — ${b.title || ""}`,
@@ -596,6 +658,14 @@ function buildEmail({ subject, blocks, issueNumber }) {
     }
     if (b.type === "divider") {
       return `<tr><td><hr style="border:none;border-top:2px solid ${purple};width:100%;margin:24px 0;"/></td></tr>`;
+    }
+    if (b.type === "image") {
+      // The same padded cell a text block uses, which is what makes 540 the
+      // right width. An invalid block renders nothing at all — not an empty
+      // cell — so it leaves no trace in the mail.
+      const img = renderImageHtmlMirror(b);
+      if (!img) return "";
+      return `<tr><td style="padding:20px 40px;">${img}</td></tr>`;
     }
     if (b.type === "story") {
       // Story fields were the ONE place in this function interpolating raw —

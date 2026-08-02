@@ -21,13 +21,18 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderTextBlockParagraphs, splitParagraphs } from '../../app/lib/newsletterRender.js';
+import {
+  renderTextBlockParagraphs,
+  splitParagraphs,
+  renderImageHtml,
+  renderImageText,
+} from '../../app/lib/newsletterRender.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const src = await readFile(resolve(ROOT, 'workers-external/calvary-newsletter.worker.js'), 'utf8');
 
-const buildEmail = new Function(
-  `${src.slice(src.indexOf('function escHtml(s) {'), src.indexOf('function unsubscribePage('))}\nreturn buildEmail;`
+const { buildEmail, buildEmailText } = new Function(
+  `${src.slice(src.indexOf('function escHtml(s) {'), src.indexOf('function unsubscribePage('))}\nreturn { buildEmail, buildEmailText };`
 )();
 
 // The shell buildEmail wraps each paragraph and each text block in. Restated
@@ -98,6 +103,73 @@ test('renderTextBlockParagraphs tolerates a missing or malformed block', () => {
   assert.deepEqual(renderTextBlockParagraphs(null), []);
   assert.deepEqual(renderTextBlockParagraphs({}), []);
   assert.deepEqual(renderTextBlockParagraphs({ content: 42 }), ['42']);
+});
+
+// ── Image blocks ─────────────────────────────────────────────────────────────
+// The preview renders images through renderImageHtml, the same function the
+// Worker mirrors. What this pins is that the preview's markup is EXACTLY the
+// markup that lands in the padded cell — same 540 width, same escaping — so the
+// picture cannot look one size in the studio and another in the inbox.
+
+const IMAGE_CELL_OPEN = '<tr><td style="padding:20px 40px;">';
+
+const PREVIEW_IMAGES = [
+  { name: 'plain', block: { type: 'image', id: '1', src: 'https://x.co/a.png', alt: 'A picture' } },
+  { name: 'ampersand in src', block: { type: 'image', id: '1', src: 'https://x.co/a.png?t=1&b=2', alt: 'Q' } },
+  { name: 'markup in alt', block: { type: 'image', id: '1', src: 'https://x.co/a.png', alt: `Jerry's <b>dog</b>` } },
+  { name: 'padded values', block: { type: 'image', id: '1', src: '  https://x.co/a.png  ', alt: '  Trimmed  ' } },
+];
+
+test('the preview image markup is exactly the mail image markup', () => {
+  for (const { name, block } of PREVIEW_IMAGES) {
+    const out = buildEmail({ subject: 's', issueNumber: 1, blocks: [block] });
+    const a = out.indexOf(IMAGE_CELL_OPEN);
+    assert.notEqual(a, -1, `no image cell in the mail for: ${name}`);
+    const cell = out.slice(a + IMAGE_CELL_OPEN.length, out.indexOf('</td></tr>', a));
+    assert.equal(cell, renderImageHtml(block), `preview/mail image drift on: ${name}`);
+  }
+});
+
+test('an image the preview refuses is an image the mail omits', () => {
+  for (const block of [
+    { type: 'image', id: '1', src: 'http://x.co/a.png', alt: 'insecure' },
+    { type: 'image', id: '1', src: 'javascript:alert(1)', alt: 'hostile' },
+    { type: 'image', id: '1', src: 'https://x.co/a.png', alt: '   ' },
+    { type: 'image', id: '1', src: '', alt: 'no src' },
+  ]) {
+    assert.equal(renderImageHtml(block), '', `preview rendered ${JSON.stringify(block)}`);
+    const out = buildEmail({ subject: 's', issueNumber: 1, blocks: [block] });
+    assert.ok(!out.includes('<img'), `mail rendered ${JSON.stringify(block)}`);
+  }
+});
+
+test('the text part carries [image: alt], never the URL', () => {
+  const block = { type: 'image', id: '1', src: 'https://x.co/secret-token-url.png', alt: 'A lighthouse at dusk' };
+  const text = buildEmailText({ subject: 's', issueNumber: 1, blocks: [block] });
+  assert.ok(text.includes('[image: A lighthouse at dusk]'), text);
+  assert.ok(!text.includes('secret-token-url'), 'the storage URL leaked into the text part');
+  assert.equal(renderImageText(block), '[image: A lighthouse at dusk]');
+});
+
+test('an invalid image contributes nothing to the text part', () => {
+  const block = { type: 'image', id: '1', src: 'http://x.co/a.png', alt: 'insecure' };
+  const text = buildEmailText({ subject: 's', issueNumber: 1, blocks: [block] });
+  assert.ok(!text.includes('[image:'), text);
+  assert.equal(renderImageText(block), '');
+});
+
+test('an image sits between its neighbours in both parts, in order', () => {
+  const blocks = [
+    { type: 'text', id: '1', format: 'cs-inline-v1', content: 'Before the picture.' },
+    { type: 'image', id: '2', src: 'https://x.co/a.png', alt: 'The picture' },
+    { type: 'text', id: '3', format: 'cs-inline-v1', content: 'After the picture.' },
+  ];
+  const html = buildEmail({ subject: 's', issueNumber: 1, blocks });
+  assert.ok(html.indexOf('Before the picture.') < html.indexOf('<img'), html);
+  assert.ok(html.indexOf('<img') < html.indexOf('After the picture.'), html);
+  const text = buildEmailText({ subject: 's', issueNumber: 1, blocks });
+  assert.ok(text.indexOf('Before the picture.') < text.indexOf('[image: The picture]'), text);
+  assert.ok(text.indexOf('[image: The picture]') < text.indexOf('After the picture.'), text);
 });
 
 test('splitParagraphs matches the Worker split across an awkward corpus', () => {
