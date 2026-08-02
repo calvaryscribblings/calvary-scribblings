@@ -33,7 +33,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 /* ── the icon set ─────────────────────────────────────────────────────────────────────────
-   One register across all four, matching the app's: 24×24 box, stroke 1.5, round caps and
+   One register across all five, matching the app's: 24×24 box, stroke 1.5, round caps and
    joins, no fill, currentColor throughout — so active/inactive is a single `color` change on
    the anchor and nothing needs a prop.
 
@@ -138,43 +138,50 @@ function BooksIcon({ size, className }) {
   );
 }
 
-/* BOOK STORE — a canopy over a facade.
-   The set already owns "books" (BooksIcon, above), so this mark deliberately does not draw one.
-   At the 78px cells five tabs give a 390px bar — and again at 14px in the desktop row — two book
-   glyphs side by side read as two variants of one destination. What separates them here is the
-   SILHOUETTE: BooksIcon is four vertical strokes with daylight between them, this is one closed
-   outline with a strong horizontal at y=9.2. That difference survives the shrink to 14px, where
-   the leaning book's 15 degree tilt has all but gone.
-   Three decisions, all load-bearing:
-     · THE CANOPY IS A STRAIGHT TRAPEZOID, not a scalloped awning. The scallop is the more
-       literal shop cue and it is the one thing this glyph must not have: at stroke 1.5 in a 24
-       box those arcs land under a pixel apart and fuse into a solid band. That is the same
-       failure BooksIcon records above — 1.6-unit gutters photographed at TRUE 1x showed 0.1 of a
-       pixel at each seam and the three spines became a picket block.
-     · THE FACADE'S TOP EDGE IS NOT DRAWN. The canopy's own bottom line IS that edge, so the
-       facade path opens at (4.6, 9.2) and closes at (19.4, 9.2) without crossing between them.
-       Drawing both would lay two 1.5 strokes along the same 14.8-unit run; at 1x that run renders
-       a hair darker than every other line in the set and the canopy reads as a cast shadow.
-     · THE BASELINE IS y=20.4 — BooksIcon's baseline. The two sit adjacent in the bar, and a
-       shared floor is what stops the pair reading as two icons hung at two heights.
-   FALLBACK, recorded rather than applied — AND CORRECTED. The doorway was shot at TRUE 1x at 14,
-   16 and 24px against BooksIcon before this landed: it does not fuse and it does not read busy,
-   so the doorway stays. But the fallback as first written was wrong and would have shipped the
-   defect the paragraph above forbids. Dropping the doorway and adding a sill "M2.6 20.4 H21.4"
-   next to the facade path lays a SECOND 1.5 stroke over the facade's own floor — the H19.4 run —
-   and at 1x that edge photographs visibly brighter than every other line in the glyph. Verified;
-   it is not a subtle difference. If the fallback is ever needed, the facade must give the floor
-   up first:
-       piers   M4.6 9.2 V20.4   and   M19.4 9.2 V20.4
-       sill    M2.6 20.4 H21.4
-   Three subpaths, one stroke per run, still unmistakably a shopfront. Decide at TRUE 1x; every
-   problem this icon has is invisible at 3x. */
-function ShopfrontIcon({ size, className }) {
+/* BOOK STORE — an open book: two upright panels either side of a centre gutter, the gutter
+   being the spine. This is the APP'S mark, adopted for parity; a reader crossing between the
+   two platforms meets the same object, which is the whole point of the v3 note at the top.
+   It replaces a shopfront (canopy over a facade) that lived here from c134b64 to this commit.
+
+   ADOPTING IT MEANT OVERRULING THE SET'S OWN COLLISION RULE, so the rule is restated rather
+   than deleted. The retired shopfront's comment argued that the set already owns "books"
+   (BooksIcon) and a second book glyph beside it would read as two variants of one destination.
+   That argument was and is correct in general — and the app itself never has to face it,
+   because the app's bar carries no My Library tab. Ours does, and Book Store sits directly
+   beside it. Parity won, but only after the pair was photographed at TRUE 1x at 24, 16 and
+   14px, touching, which is a harder adjacency than the bar's 78px cells ever impose.
+
+   WHAT KEEPS THE TWO APART IS WIDTH, NOT COUNT. An 8.4-unit panel is an ENCLOSED AREA; a
+   3.3-unit spine is a STROKE. At 14px BooksIcon's four uprights pack into a hatched block and
+   its leaner's 15 degree tilt has all but gone, while this reads as two open windows. Two
+   panels versus four bars would NOT have been enough on its own — count is the first thing
+   the eye loses at 14px. If this glyph is ever narrowed toward BooksIcon's stroke widths, the
+   pair collapses into siblings and the shopfront's warning comes true.
+
+   THE GUTTER IS 2.0, WHICH IS THE FILE'S MEASURED MINIMUM, NOT A GUESS. BooksIcon records it
+   directly above: at stroke 1.5 the strokes claim 0.75 either side, so a gutter leaves
+   (g − 1.5) of daylight; 1.6 was tried there and photographed at TRUE 1x showed 0.1 of a pixel
+   at each seam, fusing three spines into a picket block. 2.0 leaves 0.5 and they separate.
+   Verified here at 14px, where 0.5 units is only 0.29px — it holds, but there is nothing left
+   to give. 2.6 and 3.2 were photographed alongside and are the fallbacks if a future size
+   pushes this under; they cost app fidelity, since the app's own gutter is a hairline (~0.6
+   units) it can afford because it fills its panels and we stroke ours.
+
+   THE BASELINE IS y=20.4 — BooksIcon's baseline, for the same reason the shopfront used it:
+   the two sit adjacent in the bar, and a shared floor is what stops the pair reading as two
+   icons hung at two heights.
+
+   NOT PARITY IN TREATMENT, and this is deliberate rather than overlooked. The app FILLS its
+   two panels solid; every glyph in this set is fill="none" with a 1.5 stroke. Filling this one
+   alone would make it the only solid mark in the bar and would shout beside four outlines.
+   The geometry is the app's; the treatment is the set's.
+   Decide any change to this at TRUE 1x; every problem it has is invisible at 3x. */
+function OpenBookIcon({ size, className }) {
   return (
     <Icon size={size} className={className}>
-      <path d="M3 9.2 L5.4 4.6 H18.6 L21 9.2 Z" />
-      <path d="M4.6 9.2 V20.4 H19.4 V9.2" />
-      <path d="M9.9 20.4 V15.4 Q9.9 13.6 12 13.6 Q14.1 13.6 14.1 15.4 V20.4" />
+      {/* left panel 2.6→11.0, gutter 11.0→13.0, right panel 13.0→21.4; both 4.6→20.4 */}
+      <rect x="2.6" y="4.6" width="8.4" height="15.8" rx="2" />
+      <rect x="13" y="4.6" width="8.4" height="15.8" rx="2" />
     </Icon>
   );
 }
@@ -191,7 +198,7 @@ export const TABS = [
   { key: 'home',    href: '/public-library', Icon: GridIcon,     label: 'Home' },
   { key: 'search',  href: '/search',         Icon: SearchIcon,   label: 'Search' },
   { key: 'square',  href: '/square',         Icon: DiamondIcon,  label: 'Square' },
-  { key: 'store',   href: '/bookstore',      Icon: ShopfrontIcon, label: 'Book Store' },
+  { key: 'store',   href: '/bookstore',      Icon: OpenBookIcon, label: 'Book Store' },
   { key: 'library', href: '/my-library',     Icon: BooksIcon,    label: 'My Library' },
 ];
 
