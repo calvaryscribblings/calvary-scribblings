@@ -266,13 +266,41 @@ function buildIndexRecordMirror(slug, story) {
   return rec;
 }
 
+// One cron tick, TWO independent jobs. They used to share a single try and a
+// single early `return`: an empty cms_stories read — or a throwing one, since a
+// Firebase 5xx answers with HTML and res.json() throws — skipped every due
+// newsletter for that tick and said so only as "Cron error". The drafts were not
+// deleted, so the next tick retried and the issue went out late; a persistent
+// fault on the stories read held the mail indefinitely, silently. Neither half
+// may take the other down. tests/newsletter/cron-path.test.mjs is the acceptance.
 async function processScheduled(env) {
+  const now = new Date();
+  let published = false;
   try {
-    const res = await fetch(`${env.FIREBASE_DATABASE_URL}/cms_stories.json?auth=${env.FIREBASE_SECRET}`);
-    const stories = await res.json();
-    if (!stories || typeof stories !== "object") return;
-    const now = new Date();
-    let published = false;
+    published = await publishDueStories(env, now);
+  } catch (err) {
+    console.error("Cron error (story publish):", err);
+  }
+  try {
+    await sendDueNewsletters(env, now);
+  } catch (err) {
+    console.error("Cron error (scheduled newsletters):", err);
+  }
+  if (published) {
+    try {
+      await fetch("https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/df2479ae-06a5-4ff3-a319-29b7b94dd106", { method: "POST" });
+    } catch (err) {
+      console.error("Deploy hook failed:", err);
+    }
+  }
+}
+
+// Returns true if anything went live, which is what earns the rebuild.
+async function publishDueStories(env, now) {
+  const res = await fetch(`${env.FIREBASE_DATABASE_URL}/cms_stories.json?auth=${env.FIREBASE_SECRET}`);
+  const stories = await res.json();
+  let published = false;
+  if (stories && typeof stories === "object") {
     for (const [slug, story] of Object.entries(stories)) {
       if (story.published || !story.publishAt) continue;
       const publishTime = new Date(story.publishAt);
@@ -299,30 +327,24 @@ async function processScheduled(env) {
         console.error(`Failed to publish story ${slug}:`, err);
       }
     }
-    const draftsRes = await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts.json?auth=${env.FIREBASE_SECRET}`);
-    const drafts = await draftsRes.json();
-    if (drafts && typeof drafts === "object") {
-      for (const [id, draft] of Object.entries(drafts)) {
-        if (draft.status !== "scheduled" || !draft.scheduledAt) continue;
-        const scheduledTime = new Date(draft.scheduledAt);
-        if (scheduledTime > now) continue;
-        try {
-          await sendNewsletter({ subject: draft.subject, blocks: draft.blocks, intro: draft.intro, stories: draft.stories, issueNumber: draft.issueNumber }, env);
-          await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${id}.json?auth=${env.FIREBASE_SECRET}`, { method: "DELETE" });
-        } catch (err) {
-          console.error(`Failed to send scheduled newsletter ${id}:`, err);
-        }
-      }
+  }
+  return published;
+}
+
+async function sendDueNewsletters(env, now) {
+  const draftsRes = await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts.json?auth=${env.FIREBASE_SECRET}`);
+  const drafts = await draftsRes.json();
+  if (!drafts || typeof drafts !== "object") return;
+  for (const [id, draft] of Object.entries(drafts)) {
+    if (draft.status !== "scheduled" || !draft.scheduledAt) continue;
+    const scheduledTime = new Date(draft.scheduledAt);
+    if (scheduledTime > now) continue;
+    try {
+      await sendNewsletter({ subject: draft.subject, blocks: draft.blocks, intro: draft.intro, stories: draft.stories, issueNumber: draft.issueNumber }, env);
+      await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${id}.json?auth=${env.FIREBASE_SECRET}`, { method: "DELETE" });
+    } catch (err) {
+      console.error(`Failed to send scheduled newsletter ${id}:`, err);
     }
-    if (published) {
-      try {
-        await fetch("https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/df2479ae-06a5-4ff3-a319-29b7b94dd106", { method: "POST" });
-      } catch (err) {
-        console.error("Deploy hook failed:", err);
-      }
-    }
-  } catch (err) {
-    console.error("Cron error:", err);
   }
 }
 
