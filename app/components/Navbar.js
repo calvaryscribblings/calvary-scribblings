@@ -173,9 +173,9 @@ export default function Navbar() {
           </div>
         </a>
         <div className="cs-desktop-links">
-          {/* The four primary destinations, folded in as the tab row (see components/TabBar.js).
+          {/* The five primary destinations, folded in as the tab row (see components/TabBar.js).
               They REPLACE the old Home / Search / The Square / Library links rather than sitting
-              beside them — the same four are the bottom bar on mobile. "Home" is the reading
+              beside them — the same five are the bottom bar on mobile. "Home" is the reading
               platform; the gateway at / stays reachable as "The Island". */}
           <TabLinks />
           <span className="cs-secondary">
@@ -235,7 +235,9 @@ export default function Navbar() {
           <a href="/square" className="cs-drawer-square" onClick={() => setMenuOpen(false)}>
             <div className="cs-drawer-square-left">
               <div className={`cs-drawer-square-dot ${squareOpen ? 'open' : 'closed'}`} />
-              <span className="cs-drawer-square-label">The Square</span>
+              {/* "Square", matching the tab bar and the app. The status row beside it still
+                  says Open now / Closed, which is what the article was doing here anyway. */}
+              <span className="cs-drawer-square-label">Square</span>
             </div>
             <span className={`cs-drawer-square-status ${squareOpen ? 'open' : 'closed'}`}>
               {squareOpen ? 'Open now' : 'Closed'}

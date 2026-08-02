@@ -51,8 +51,13 @@ export default function BookstoreNotFound() {
       {/* This, not the storefront, is what /bookstore serves until the launch gate opens
           (page.js calls notFound() while gateState === 'empty'). It renders the platform
           Navbar and so carried the desktop tab row; the bar gives the mobile visitor the
-          same four. No surface variant needed — the bar carries its own ground now, which is
-          why it holds on this page's light canvas as well as it does on the night ones. */}
+          same five. No surface variant needed — the bar carries its own ground now, which is
+          why it holds on this page's light canvas as well as it does on the night ones.
+
+          No explicit `active` here, unlike the storefront and the title page. Every route that
+          renders this file is under /bookstore — page.js calls notFound() for the empty gate,
+          and a bad slug lands here too — so activeTabFor's pathname read already lights Book
+          Store, and there is no second component this file could be reached as. */}
       <TabBar />
     </>
   );

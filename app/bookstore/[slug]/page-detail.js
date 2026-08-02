@@ -300,8 +300,9 @@ export default function BookDetailClient({ params }) {
           file — it takes the LaunchGate import, the `curtain` state and the slot below, and it
           must leave this line standing. The bar outlives the curtain.
 
-          No tab is lit; the fifth tab is its own round and will pass active="store". */}
-      <TabBar />
+          Book Store is lit — a title page is a child of the storefront, not a destination of
+          its own. */}
+      <TabBar active="store" />
 
       {curtain === 'up' && (
         <LaunchGate onUnlock={() => setUnlocked(true)} onLifted={() => setCurtain('gone')} />

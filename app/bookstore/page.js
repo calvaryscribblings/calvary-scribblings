@@ -462,9 +462,10 @@ export default function BookStorePage() {
           the padding that clears it in LaunchGate.js. The bar outlives the curtain: after R9 the
           storefront still needs it, for exactly the reason the storefront needed it before R8.1.
 
-          No tab is lit — /bookstore is none of the four today. The fifth tab is its own round,
-          and when it lands this call gains `active="store"`. */}
-      <TabBar />
+          Book Store is lit. `active` is passed explicitly rather than left to activeTabFor's
+          pathname read: this component is the storefront no matter which route reaches it, and
+          stating that is cheaper than trusting every future route to keep matching. */}
+      <TabBar active="store" />
 
       {/* The curtain outlives the unlock: `unlocked` is already true while this is still
           mounted, and that overlap is the reveal. It unmounts itself via onLifted. */}

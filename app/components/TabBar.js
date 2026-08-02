@@ -1,14 +1,16 @@
 'use client';
-// The four-tab spine of the web platform: Home · Search · The Square · My Library.
+// The five-tab spine of the web platform: Home · Search · Square · Book Store · My Library.
 //
-// Two renderings of the same four destinations:
+// Two renderings of the same five destinations:
 //   <TabBar />   — mobile (<768px) fixed bottom bar.
 //   <TabLinks /> — desktop (≥768px) inline row, folded into whatever top chrome a page
 //                  already has (Navbar, or a page's own slim sticky nav).
 // Both are inert at the other breakpoint, so a surface renders BOTH and each shows up at
 // the width it belongs to. Attachment is opt-in per page (the codebase convention — the
-// root layout renders no chrome), so the gateway, the reader and /bookstore/** are excluded
-// BY CONSTRUCTION rather than by a pathname denylist that could rot.
+// root layout renders no chrome), so the gateway and the reader are excluded BY CONSTRUCTION
+// rather than by a pathname denylist that could rot. /bookstore/** was excluded the same way
+// until it became a tab of its own; it now mounts the bar in every state — storefront, title
+// page and not-found alike.
 //
 // ── v3: this bar is a REPLICA, not an interpretation ────────────────────────────────────
 //
@@ -136,7 +138,7 @@ function BooksIcon({ size, className }) {
   );
 }
 
-/* BOOK STORE — a canopy over a facade. Not yet in TABS; the fifth tab is its own round.
+/* BOOK STORE — a canopy over a facade.
    The set already owns "books" (BooksIcon, above), so this mark deliberately does not draw one.
    At the 78px cells five tabs give a 390px bar — and again at 14px in the desktop row — two book
    glyphs side by side read as two variants of one destination. What separates them here is the
@@ -177,11 +179,20 @@ function ShopfrontIcon({ size, className }) {
   );
 }
 
+// Order matches the app's bar exactly: Home · Search · Square · Book Store · My Library.
+// Store sits between Square and Library because that is where the app puts it, not because
+// anything here needs it there.
+//
+// LABELS ARE THE APP'S LABELS. "Square", not "The Square" — the tab is a destination name in
+// an 11px cell, and the app drops the article there while the Square's own page keeps its full
+// name in its headline. The place is still The Square everywhere it is spoken about; this is
+// the one register where it is not.
 export const TABS = [
-  { key: 'home',    href: '/public-library', Icon: GridIcon,    label: 'Home' },
-  { key: 'search',  href: '/search',         Icon: SearchIcon,  label: 'Search' },
-  { key: 'square',  href: '/square',         Icon: DiamondIcon, label: 'The Square' },
-  { key: 'library', href: '/my-library',     Icon: BooksIcon,   label: 'My Library' },
+  { key: 'home',    href: '/public-library', Icon: GridIcon,     label: 'Home' },
+  { key: 'search',  href: '/search',         Icon: SearchIcon,   label: 'Search' },
+  { key: 'square',  href: '/square',         Icon: DiamondIcon,  label: 'Square' },
+  { key: 'store',   href: '/bookstore',      Icon: ShopfrontIcon, label: 'Book Store' },
+  { key: 'library', href: '/my-library',     Icon: BooksIcon,    label: 'My Library' },
 ];
 
 // The category pages are children of HOME — landing on /flash should still light Home, not
@@ -193,6 +204,9 @@ export function activeTabFor(pathname) {
   const p = pathname.replace(/\/+$/, '') || '/';
   if (p === '/search') return 'search';
   if (p === '/square' || p.startsWith('/square/')) return 'square';
+  // Every title page is a child of the storefront, so /bookstore/basil lights Book Store —
+  // and so does /bookstore/<nonsense>, which renders not-found.js with the bar still on it.
+  if (p === '/bookstore' || p.startsWith('/bookstore/')) return 'store';
   if (p === '/my-library' || p.startsWith('/my-library/')) return 'library';
   if (HOME_ROUTES.includes(p)) return 'home';
   return null;
