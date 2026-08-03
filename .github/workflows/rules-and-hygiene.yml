@@ -83,7 +83,14 @@ jobs:
     timeout-minutes: 10
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
+      # fetch-depth: 0 because the change-detection below diffs against the push
+      # base. The default shallow clone does not contain that commit, so
+      # `git cat-file -e` fails and every run falls through to "assume changed" —
+      # observed on run 30861696385, where a commit touching no rules file still
+      # entered the check.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
