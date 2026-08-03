@@ -27,11 +27,12 @@ import {
   timingSafeEqual,
 } from '../../functions/api/bookstore/_lib.js';
 
+// The replay/repurchase guard is shared by both rails and specified in its own file,
+// tests/bookstore/purchase-guard.test.mjs.
 import {
   verifyPaystackSignature,
   extractReference,
   extractIdentity,
-  shouldSkipGrant,
 } from '../../functions/api/bookstore/paystack-webhook.js';
 
 import { selectNgnAmount } from '../../functions/api/bookstore/paystack-checkout.js';
@@ -231,35 +232,6 @@ test('revoke payload', () => {
   assert.equal(p.status, 'revoked');
   assert.equal(p.revokedReason, 'refunded');
   assert.equal(typeof p.revokedAt, 'number');
-});
-
-// ── Idempotency ──────────────────────────────────────────────────────────────
-
-const REF = buildPaystackReference(UID, TITLE_ID, 'aabbccddeeff');
-const OTHER_REF = buildPaystackReference(UID, TITLE_ID, '112233445566');
-
-test('idempotency: a replayed event for the same reference is skipped', () => {
-  assert.equal(shouldSkipGrant({ paystackRef: REF, status: 'active' }, REF), true);
-});
-
-test('idempotency: a replay must NOT resurrect a revoked purchase', () => {
-  assert.equal(
-    shouldSkipGrant({ paystackRef: REF, status: 'revoked', revokedReason: 'refunded' }, REF),
-    true,
-    'same reference, revoked record — the grant must be skipped, not re-applied',
-  );
-});
-
-test('idempotency: a genuine repurchase after a refund is NOT skipped', () => {
-  assert.equal(shouldSkipGrant({ paystackRef: REF, status: 'revoked' }, OTHER_REF), false);
-  assert.equal(shouldSkipGrant({ paystackRef: REF, status: 'active' }, OTHER_REF), false);
-});
-
-test('idempotency: no prior record, or a Stripe-only record, is not skipped', () => {
-  assert.equal(shouldSkipGrant(null, REF), false);
-  assert.equal(shouldSkipGrant(undefined, REF), false);
-  assert.equal(shouldSkipGrant({}, REF), false);
-  assert.equal(shouldSkipGrant({ stripeSessionId: 'cs_test_1', status: 'active' }, REF), false);
 });
 
 // ── Pricing ──────────────────────────────────────────────────────────────────

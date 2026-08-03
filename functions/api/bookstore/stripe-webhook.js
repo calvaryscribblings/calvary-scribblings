@@ -51,6 +51,7 @@ import {
   fetchTitleFields,
   buildGrantPayload,
   buildRevokePayload,
+  shouldSkipGrant,
 } from './_lib.js';
 
 const LABEL = 'bookstore/stripe-webhook';
@@ -166,18 +167,15 @@ async function handleGrant(env, session) {
 
   const token = await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY);
 
-  // Idempotency. Stripe delivers at-least-once, and a duplicate PATCH of identical data is
-  // harmless in itself — but re-running it would resurrect a purchase that had since been
-  // refunded, because the replayed grant would overwrite status:'revoked'. Skipping on an
-  // exact session match is what makes replay safe rather than merely wasteful.
+  // Idempotency. Stripe delivers at-least-once and retries a non-2xx for up to 72 hours, so
+  // the same checkout.session.completed can arrive again long after a refund revoked the
+  // purchase. shouldSkipGrant() decides on the SESSION ID ALONE — see the full argument in
+  // _lib.js. A different session id for the same book is a genuine repurchase and falls
+  // through to the write, which is what makes buying-again-after-a-refund work.
   //
-  // R8.2 CORRECTION — the paragraph above overstates what the guard below actually does. The
-  // `&& existing.status === 'active'` clause means a replayed checkout.session.completed
-  // arriving AFTER a refund does NOT skip: it falls through and rewrites status back to
-  // 'active', resurrecting exactly the purchase the comment claims it protects. Dropping that
-  // clause fixes it. It is left alone here only because R8.2 was scoped to add the naira rail
-  // without touching the Stripe path's behaviour — paystack-webhook.js's shouldSkipGrant() is
-  // the corrected shape, and this needs the same treatment plus a deliberate test.
+  // R8.2.1 removed a trailing `&& existing.status === 'active'` from this condition. It
+  // inverted the guard in the one case the guard existed for: a replay against a revoked
+  // record failed the test, fell through, and set status back to 'active'.
   let existing = null;
   try {
     existing = await readPurchase(env, token, uid, titleId);
@@ -187,8 +185,11 @@ async function handleGrant(env, session) {
     // reader with no book.
     console.error(`[bookstore/stripe-webhook] idempotency read failed for ${uid}/${titleId}:`, e.message || e);
   }
-  if (existing && existing.stripeSessionId === session.id && existing.status === 'active') {
-    console.log(`[bookstore/stripe-webhook] duplicate ${session.id} for ${uid}/${titleId} — skipped`);
+  if (shouldSkipGrant(existing, 'stripeSessionId', session.id)) {
+    console.log(
+      `[bookstore/stripe-webhook] duplicate ${session.id} for ${uid}/${titleId} ` +
+      `(status=${existing.status}) — skipped`,
+    );
     return;
   }
 

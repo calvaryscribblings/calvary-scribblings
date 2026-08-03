@@ -90,7 +90,7 @@ jobs:
       # naira signature scheme or the idempotency guard is wrong, that answer should not cost
       # a Chromium install and two builds to hear.
       - name: Payment rail specs (Stripe + Paystack)
-        run: npm run test:paystack
+        run: npm run test:purchases
 
       - name: Host harness (reading-room.html)
         run: npx playwright test -c tests/reader/playwright.config.mjs

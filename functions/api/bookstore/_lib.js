@@ -351,6 +351,44 @@ export function buildRevokePayload(reason) {
   };
 }
 
+/**
+ * REPLAY PROTECTION — the one guard standing between a refunded reader and a book they no
+ * longer own. Shared by both rails since R8.2.1, because both got it wrong the same way.
+ *
+ * THE RULE: skip whenever the stored record already names THIS transaction, whatever its
+ * status. Otherwise write.
+ *
+ * That splits every incoming grant event into exactly two cases, and the whole bug lives in
+ * failing to tell them apart:
+ *
+ *   REPLAY      Same reference as the stored one. Both providers deliver at least once —
+ *               Stripe retries any non-2xx for 72 hours, Paystack for 72 hours too — so the
+ *               SAME transaction can arrive again long after a refund revoked it. There is no
+ *               new money here, so there is nothing to grant. SKIP, and skip *especially* when
+ *               the record reads 'revoked': re-applying the payload would set status back to
+ *               'active' and hand back a book that was paid back for.
+ *
+ *   REPURCHASE  Different reference. The reader bought the book AGAIN — commonly after a
+ *               refund, which is exactly the case that looks identical from a distance. This
+ *               is new money and a genuine entitlement. WRITE, and let status:'active' in the
+ *               grant payload overwrite the old 'revoked'. This path is proven on glass and
+ *               must keep working; a guard that refuses to write over any revoked record
+ *               would silently take payment for a book it never delivered.
+ *
+ * WHAT THIS REPLACES (R8.1–R8.2, both rails): `existing[refField] === refValue && existing
+ * .status === 'active'`. That trailing clause inverted the guard in the one case it existed
+ * for — a replay against a revoked record failed the condition, fell through, and resurrected
+ * the purchase. Status must play no part in the decision; the reference alone decides.
+ *
+ * refValue must be a non-empty string, so a pair of missing fields cannot compare equal and
+ * skip a write that should have happened.
+ */
+export function shouldSkipGrant(existing, refField, refValue) {
+  if (!existing || typeof existing !== 'object') return false;
+  if (typeof refValue !== 'string' || !refValue) return false;
+  return existing[refField] === refValue;
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Constant-time signature comparison. Both webhooks verify a hex-encoded HMAC — Stripe
 // SHA-256, Paystack SHA-512 — so the byte plumbing is shared even though the schemes are not.

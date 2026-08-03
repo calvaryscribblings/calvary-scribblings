@@ -48,6 +48,7 @@ import {
   denormalisedFields,
   buildGrantPayload,
   buildRevokePayload,
+  shouldSkipGrant,
   parsePaystackReference,
 } from './_lib.js';
 
@@ -154,24 +155,6 @@ export function extractIdentity(data) {
   return { uid: uid || null, titleId: titleId || null };
 }
 
-/**
- * Replay protection.
- *
- * Skip whenever the record already names THIS reference — whatever its status. That last
- * clause is the whole point: Paystack delivers at least once, and a replayed charge.success
- * arriving after a refund must not overwrite status:'revoked' back to 'active'. A guard that
- * only skips on `status === 'active'` (as the Stripe path's does) leaves exactly that hole
- * open, and it is why this one is written differently rather than shared.
- *
- * A DIFFERENT reference for the same book is a genuine second purchase — the reader bought it
- * again after a refund — and must fall through to the write.
- *
- * Exported for tests.
- */
-export function shouldSkipGrant(existing, reference) {
-  return Boolean(existing && typeof existing === 'object' && existing.paystackRef === reference);
-}
-
 // ──────────────────────────────────────────────────────────────────────────
 // Server-side transaction verification.
 // ──────────────────────────────────────────────────────────────────────────
@@ -254,13 +237,17 @@ async function handleGrant(env, data) {
   // Idempotency. A failed read is not a reason to drop a purchase on the floor: log it and
   // fall through to the write, because a duplicate grant is a far smaller problem than a
   // paying reader with no book.
+  //
+  // The guard decides on the REFERENCE ALONE — a replay never re-grants, whatever the stored
+  // status, and a different reference is a genuine repurchase that must go through. Both
+  // rails share it since R8.2.1; the argument lives in _lib.js.
   let existing = null;
   try {
     existing = await readPurchase(env, token, uid, titleId);
   } catch (e) {
     console.error(`[${LABEL}] idempotency read failed for ${uid}/${titleId}:`, e.message || e);
   }
-  if (shouldSkipGrant(existing, reference)) {
+  if (shouldSkipGrant(existing, 'paystackRef', reference)) {
     console.log(
       `[${LABEL}] duplicate ${reference} for ${uid}/${titleId} ` +
       `(status=${existing.status}) — skipped`,
