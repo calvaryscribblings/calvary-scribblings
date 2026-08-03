@@ -16,7 +16,8 @@
     "test:reader:app": "node tests/fixtures/make-epub.mjs && next build && playwright test -c tests/reader/playwright.app.config.mjs",
     "test:reader:all": "npm run test:reader && npm run test:reader:app",
     "test:gate": "next build && playwright test -c tests/bookstore/playwright.gate.config.mjs",
-    "test:newsletter": "node --test \"tests/newsletter/*.test.mjs\""
+    "test:newsletter": "node --test \"tests/newsletter/*.test.mjs\"",
+    "test:paystack": "node --test \"tests/bookstore/*.test.mjs\""
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",

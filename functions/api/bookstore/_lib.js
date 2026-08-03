@@ -39,7 +39,11 @@ export const dbBase = (env) => (env.FIREBASE_DATABASE_URL ?? FB_DB).replace(/\/$
 // credential, and it is what gets verified.
 // ──────────────────────────────────────────────────────────────────────────
 
-export async function verifyIdToken(token, apiKey) {
+// R8.2: the lookup body is now reachable on its own, because the Paystack rail needs the
+// verified user's EMAIL as well as the uid — Paystack's initialize call requires an email and
+// it must be the one Firebase holds, not one the browser typed. verifyIdToken keeps its exact
+// previous contract (uid string or null) and is now a projection of this.
+export async function lookupUser(token, apiKey) {
   const res = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
     {
@@ -50,7 +54,12 @@ export async function verifyIdToken(token, apiKey) {
   );
   if (!res.ok) return null;
   const data = await res.json();
-  return data?.users?.[0]?.localId ?? null;
+  return data?.users?.[0] ?? null;
+}
+
+export async function verifyIdToken(token, apiKey) {
+  const user = await lookupUser(token, apiKey);
+  return user?.localId ?? null;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -240,4 +249,171 @@ export async function signGetUrl({ bucket, objectPath, clientEmail, privateKeyPe
     url: `https://${SIGNING_HOST}${canonicalUri}?${canonicalQuery}&X-Goog-Signature=${bytesToHex(sig)}`,
     expiresAt: issuedAt + expiresSeconds * 1000,
   };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// PURCHASE RECORDS — shared by both payment rails.
+//
+// R8.2 lifted this block verbatim out of stripe-webhook.js when paystack-webhook.js became
+// the second writer. A purchase record is the only thing standing between a reader and a
+// book they paid for; two hand-copies of the code that writes it is how a reader ends up
+// with a shelf that renders on one rail and not the other. This is a MOVE — the Stripe
+// path's behaviour is unchanged, and must stay unchanged.
+//
+// A record now carries EITHER stripeSessionId OR paystackRef, never both. Nothing reads
+// either field except the webhook that wrote it (its own idempotency guard) — verified
+// across app/my-library, app/reader and functions/api/bookstore/stream.js in R8.2. Anything
+// added later that reads a rail-specific field must tolerate its absence.
+// ──────────────────────────────────────────────────────────────────────────
+
+export const PURCHASES_PATH = 'bookstore_purchases';
+export const TITLES_PATH = 'bookstore_titles';
+
+export const purchaseUrl = (env, uid, titleId) =>
+  `${dbBase(env)}/${PURCHASES_PATH}/${encodeURIComponent(uid)}/${encodeURIComponent(titleId)}.json`;
+
+export async function readPurchase(env, token, uid, titleId) {
+  const res = await fetch(purchaseUrl(env, uid, titleId), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`RTDB GET failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  return res.json();
+}
+
+// PATCH so we never clobber sibling fields a later flow might add (fulfilment notes,
+// refund trails). A grant and a later revocation therefore layer on the same record.
+export async function patchPurchase(env, token, uid, titleId, payload) {
+  const res = await fetch(purchaseUrl(env, uid, titleId), {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`RTDB PATCH failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+}
+
+// The full title record, read with the admin token. The Paystack rail needs the stored NGN
+// price out of it to re-check the paid amount, and both rails need the four display fields
+// below — one read, not two. Never throws: a missing title costs the cosmetic fields (and,
+// on the Paystack rail, the price cross-check), not the purchase.
+export async function fetchTitleRecord(env, token, titleId, label) {
+  try {
+    const res = await fetch(
+      `${dbBase(env)}/${TITLES_PATH}/${encodeURIComponent(titleId)}.json`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) throw new Error(`${res.status}`);
+    const t = await res.json();
+    if (!t || typeof t !== 'object') return null;
+    return t;
+  } catch (e) {
+    console.error(`[${label}] title lookup failed for ${titleId}:`, e.message || e);
+    return null;
+  }
+}
+
+// Denormalised display fields, so My Library can render a shelf without a second read and
+// still shows something sane if the title doc is later renamed or removed. This mirrors the
+// fallback chain in app/my-library/page.js.
+export function denormalisedFields(t) {
+  if (!t || typeof t !== 'object') return null;
+  return {
+    slug: typeof t.slug === 'string' ? t.slug : null,
+    title: typeof t.title === 'string' ? t.title : null,
+    author: typeof t.author === 'string' ? t.author : null,
+    coverUrl: typeof t.coverUrl === 'string' ? t.coverUrl : null,
+  };
+}
+
+export async function fetchTitleFields(env, token, titleId, label) {
+  return denormalisedFields(await fetchTitleRecord(env, token, titleId, label));
+}
+
+/**
+ * The grant payload, identical in shape on both rails apart from which reference field
+ * names the transaction. Pure so the harness can assert it without a network.
+ */
+export function buildGrantPayload({ amount, currency, refField, refValue, fields }) {
+  return {
+    purchasedAt: Date.now(),
+    amount: typeof amount === 'number' ? amount : null,
+    currency: currency || null,
+    [refField]: refValue,
+    status: 'active',
+    ...(fields || {}),
+  };
+}
+
+export function buildRevokePayload(reason) {
+  return {
+    status: 'revoked',
+    revokedAt: Date.now(),
+    revokedReason: reason,
+  };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Constant-time signature comparison. Both webhooks verify a hex-encoded HMAC — Stripe
+// SHA-256, Paystack SHA-512 — so the byte plumbing is shared even though the schemes are not.
+// ──────────────────────────────────────────────────────────────────────────
+
+export function hexToBytes(hex) {
+  if (typeof hex !== 'string' || hex.length % 2 !== 0) return null;
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    const byte = parseInt(hex.substr(i * 2, 2), 16);
+    if (Number.isNaN(byte)) return null;
+    out[i] = byte;
+  }
+  return out;
+}
+
+// Returns false straight away for length mismatches — the lengths themselves are not
+// secret, so leaking that is fine.
+export function timingSafeEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// PAYSTACK TRANSACTION REFERENCES.
+//
+// Paystack, unlike Stripe, gives us no client_reference_id and no guarantee that a refund or
+// dispute event will carry the metadata we set at initialize time. The reference is the one
+// identifier that is present on every event about a transaction, so we mint our own and make
+// it self-describing: EVERY purchase must be reconcilable from the reference ALONE.
+//
+//   cs.<uid>.<titleId>.<nonce>
+//
+//   cs        fixed prefix, so a foreign reference is rejected rather than misparsed
+//   uid       Firebase uid — [A-Za-z0-9], 28 chars in practice
+//   titleId   the catalogue slug — slugify() in app/lib/bookstore/admin-writes.js emits
+//             [a-z0-9-] only, so it can never contain the '.' separator
+//   nonce     12 hex chars of CSPRNG, so a retried purchase of the same book by the same
+//             reader is a distinct transaction rather than a Paystack duplicate-reference
+//             rejection
+//
+// '.' is deliberate: Paystack permits only alphanumerics and -, . and = in a reference, and
+// '-' is already spent inside slugs. Typical length is ~70 characters.
+// ──────────────────────────────────────────────────────────────────────────
+
+const PAYSTACK_REF_RE = /^cs\.([A-Za-z0-9]{1,64})\.([A-Za-z0-9-]{1,128})\.([a-f0-9]{8,32})$/;
+
+// Guards on the way IN, so an id that would produce an unparseable reference is refused at
+// checkout rather than discovered at reconciliation time, after the money has moved.
+export const REF_SAFE_UID = /^[A-Za-z0-9]{1,64}$/;
+export const REF_SAFE_TITLE_ID = /^[A-Za-z0-9-]{1,128}$/;
+
+export function buildPaystackReference(uid, titleId, nonce) {
+  if (!REF_SAFE_UID.test(uid || '')) throw new Error('uid is not reference-safe');
+  if (!REF_SAFE_TITLE_ID.test(titleId || '')) throw new Error('titleId is not reference-safe');
+  const n = nonce || bytesToHex(crypto.getRandomValues(new Uint8Array(6)));
+  return `cs.${uid}.${titleId}.${n}`;
+}
+
+export function parsePaystackReference(ref) {
+  const m = PAYSTACK_REF_RE.exec(typeof ref === 'string' ? ref : '');
+  if (!m) return null;
+  return { uid: m[1], titleId: m[2], nonce: m[3] };
 }

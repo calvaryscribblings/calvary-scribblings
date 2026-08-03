@@ -38,6 +38,9 @@ on:
       # second `npx next build` on every push for the sake of one 19-second suite.
       - 'app/bookstore/**'
       - 'app/lib/bookstore/gate.js'
+      # R8.2 — the payment rails. tests/bookstore/paystack.test.mjs imports these modules
+      # directly, so a change to either endpoint must re-run the suite that specifies them.
+      - 'functions/api/bookstore/**'
       - 'tests/**'
       # R8.0 — the sample splitter, which tests/reader/sample-epub.spec.mjs imports directly.
       - 'scripts/make-sample-epub.mjs'
@@ -82,6 +85,12 @@ jobs:
       # than as a mysterious timeout inside a spec.
       - name: Build fixture EPUBs
         run: node tests/fixtures/make-epub.mjs
+
+      # R8.2 — the payment-rail specs. Offline, no browser, ~100 ms, so they run FIRST: if the
+      # naira signature scheme or the idempotency guard is wrong, that answer should not cost
+      # a Chromium install and two builds to hear.
+      - name: Payment rail specs (Stripe + Paystack)
+        run: npm run test:paystack
 
       - name: Host harness (reading-room.html)
         run: npx playwright test -c tests/reader/playwright.config.mjs

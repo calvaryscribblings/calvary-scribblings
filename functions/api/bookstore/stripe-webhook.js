@@ -35,13 +35,27 @@
 
 // R5b: json(), b64url(), pemToArrayBuffer(), mintAccessToken() and dbBase() moved to
 // ./_lib.js when stream.js became the third caller — a move, not a rewrite. The Stripe
-// signature machinery below stays here: nothing else needs it.
-import { json, dbBase, bytesToHex, mintAccessToken } from './_lib.js';
+// signature SCHEME below stays here: nothing else needs it.
+//
+// R8.2 moved the purchase-record plumbing (read/patch/denormalise/payload) and the hex-and-
+// constant-time comparison helpers there too, when paystack-webhook.js became the second
+// writer of bookstore_purchases. Also a move. Everything this file does is unchanged.
+import {
+  json,
+  bytesToHex,
+  hexToBytes,
+  timingSafeEqual,
+  mintAccessToken,
+  readPurchase,
+  patchPurchase,
+  fetchTitleFields,
+  buildGrantPayload,
+  buildRevokePayload,
+} from './_lib.js';
+
+const LABEL = 'bookstore/stripe-webhook';
 
 const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 300;
-
-const PURCHASES_PATH = 'bookstore_purchases';
-const TITLES_PATH = 'bookstore_titles';
 
 // Events that grant access, and events that take it away. Anything not listed is
 // acknowledged and ignored, so the Stripe dashboard can be configured broadly without
@@ -73,27 +87,6 @@ function parseStripeSigHeader(header) {
     else if (k === 'v1') v1Sigs.push(v);
   }
   return { timestamp, v1Sigs };
-}
-
-function hexToBytes(hex) {
-  if (hex.length % 2 !== 0) return null;
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    const byte = parseInt(hex.substr(i * 2, 2), 16);
-    if (Number.isNaN(byte)) return null;
-    out[i] = byte;
-  }
-  return out;
-}
-
-// Constant-time comparison over two equal-length Uint8Arrays. Returns false
-// straight away for length mismatches — the lengths themselves are not
-// secret, so leaking that is fine.
-function timingSafeEqual(a, b) {
-  if (!a || !b || a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
-  return diff === 0;
 }
 
 async function verifyStripeSignature(rawBody, header, secret) {
@@ -139,60 +132,6 @@ async function verifyStripeSignature(rawBody, header, secret) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// RTDB access. The rescued worker passed the token as an ?access_token= query
-// param; the sibling Pages Functions (record-attempt, open-pages/moderate) use an
-// Authorization header instead. Following the siblings keeps a bearer token out of
-// URLs, which is where tokens end up in logs.
-// ──────────────────────────────────────────────────────────────────────────
-
-const purchaseUrl = (env, uid, titleId) =>
-  `${dbBase(env)}/${PURCHASES_PATH}/${encodeURIComponent(uid)}/${encodeURIComponent(titleId)}.json`;
-
-async function readPurchase(env, token, uid, titleId) {
-  const res = await fetch(purchaseUrl(env, uid, titleId), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error(`RTDB GET failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
-  return res.json();
-}
-
-// PATCH so we never clobber sibling fields a later flow might add (fulfilment notes,
-// refund trails). A grant and a later revocation therefore layer on the same record.
-async function patchPurchase(env, token, uid, titleId, payload) {
-  const res = await fetch(purchaseUrl(env, uid, titleId), {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(`RTDB PATCH failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
-}
-
-// Denormalised display fields, so My Library can render a shelf without a second read and
-// still shows something sane if the title doc is later renamed or removed. This mirrors the
-// fallback chain in app/my-library/page.js. Never throws — a missing title costs us the
-// four cosmetic fields, not the purchase.
-async function fetchTitleFields(env, token, titleId) {
-  try {
-    const res = await fetch(
-      `${dbBase(env)}/${TITLES_PATH}/${encodeURIComponent(titleId)}.json`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (!res.ok) throw new Error(`${res.status}`);
-    const t = await res.json();
-    if (!t || typeof t !== 'object') return null;
-    return {
-      slug: typeof t.slug === 'string' ? t.slug : null,
-      title: typeof t.title === 'string' ? t.title : null,
-      author: typeof t.author === 'string' ? t.author : null,
-      coverUrl: typeof t.coverUrl === 'string' ? t.coverUrl : null,
-    };
-  } catch (e) {
-    console.error(`[bookstore/stripe-webhook] title lookup failed for ${titleId}:`, e.message || e);
-    return null;
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────
 // Identity. uid comes from client_reference_id (set by checkout.js from a VERIFIED id
 // token — never from anything the browser typed) with metadata.uid as the fallback;
 // titleId comes from metadata. Charge-shaped events carry neither natively, which is why
@@ -231,6 +170,14 @@ async function handleGrant(env, session) {
   // harmless in itself — but re-running it would resurrect a purchase that had since been
   // refunded, because the replayed grant would overwrite status:'revoked'. Skipping on an
   // exact session match is what makes replay safe rather than merely wasteful.
+  //
+  // R8.2 CORRECTION — the paragraph above overstates what the guard below actually does. The
+  // `&& existing.status === 'active'` clause means a replayed checkout.session.completed
+  // arriving AFTER a refund does NOT skip: it falls through and rewrites status back to
+  // 'active', resurrecting exactly the purchase the comment claims it protects. Dropping that
+  // clause fixes it. It is left alone here only because R8.2 was scoped to add the naira rail
+  // without touching the Stripe path's behaviour — paystack-webhook.js's shouldSkipGrant() is
+  // the corrected shape, and this needs the same treatment plus a deliberate test.
   let existing = null;
   try {
     existing = await readPurchase(env, token, uid, titleId);
@@ -245,16 +192,15 @@ async function handleGrant(env, session) {
     return;
   }
 
-  const fields = await fetchTitleFields(env, token, titleId);
+  const fields = await fetchTitleFields(env, token, titleId, LABEL);
 
-  const payload = {
-    purchasedAt: Date.now(),
-    amount: typeof session.amount_total === 'number' ? session.amount_total : null,
-    currency: session.currency || null,
-    stripeSessionId: session.id,
-    status: 'active',
-    ...(fields || {}),
-  };
+  const payload = buildGrantPayload({
+    amount: session.amount_total,
+    currency: session.currency,
+    refField: 'stripeSessionId',
+    refValue: session.id,
+    fields,
+  });
 
   await patchPurchase(env, token, uid, titleId, payload);
   console.log(
@@ -275,11 +221,7 @@ async function handleRevoke(env, obj, reason) {
   }
 
   const token = await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY);
-  await patchPurchase(env, token, uid, titleId, {
-    status: 'revoked',
-    revokedAt: Date.now(),
-    revokedReason: reason,
-  });
+  await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason));
   console.log(`[bookstore/stripe-webhook] revoked uid=${uid} titleId=${titleId} reason=${reason}`);
 }
 
