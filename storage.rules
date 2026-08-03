@@ -91,9 +91,19 @@ service firebase.storage {
                    && request.resource.size < 50 * 1024 * 1024
                    && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
     }
+    // R9.0 LB-6: `request.auth != null` was ABSENT here, and this was the only
+    // write rule in the file without an auth term. Anyone on the internet could
+    // upload unlimited 25 MB PDFs to caller-chosen paths in the billed bucket,
+    // and overwrite a genuine submission before an operator read it.
+    //
+    // Verified before tightening: NOTHING in app/ or functions/ uploads to this
+    // prefix — the submission form that presumably used it is not in this repo.
+    // If a public, signed-out submission form is reintroduced, it must sign the
+    // reader in anonymously first rather than have this line removed again.
     match /film_submissions/{submissionId}/{fileName} {
       allow read: if request.auth != null && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
-      allow write: if request.resource.size < 25 * 1024 * 1024
+      allow write: if request.auth != null
+                   && request.resource.size < 25 * 1024 * 1024
                    && request.resource.contentType == 'application/pdf';
     }
     match /open_pages/{uid}/{fileName} {
