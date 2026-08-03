@@ -17,7 +17,9 @@
     "test:reader:all": "npm run test:reader && npm run test:reader:app",
     "test:gate": "next build && playwright test -c tests/bookstore/playwright.gate.config.mjs",
     "test:newsletter": "node --test \"tests/newsletter/*.test.mjs\"",
-    "test:purchases": "node --test \"tests/bookstore/*.test.mjs\""
+    "test:purchases": "node --test \"tests/bookstore/*.test.mjs\"",
+    "test:rules": "firebase emulators:exec --only database,storage --project demo-calvary-rules \"node --test tests/rules/*.test.mjs\"",
+    "lint:ratchet": "node scripts/lint-ratchet.mjs"
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
@@ -31,6 +33,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4",
     "eslint": "^9",

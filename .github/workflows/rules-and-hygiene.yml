@@ -1,0 +1,178 @@
+# R9.0 PL-9 — THE JOB THAT WOULD HAVE CAUGHT THE NINE.
+#
+# The R9.0 audit found nine launch-blocking holes in database.rules.json and
+# storage.rules. Nothing in CI looked at either file: reader-tests.yml was the
+# only workflow in the repo, and neither rules file was in its trigger paths.
+#
+# WHY `rules:check` IS NOT THE HEADLINE HERE, despite being the obvious answer.
+# rules:check proves repo === live. It was GREEN throughout the audit and caught
+# none of the nine, because the holes were in the repo AND in production, in
+# perfect parity. Drift detection and permissiveness detection are different
+# jobs. So this workflow runs both, and the hermetic one runs first and always:
+#
+#   rules (no secrets)   — asserts what the rules ALLOW and DENY, against the
+#                          emulator. This is the ratchet. Runs on every push.
+#   drift (needs secret) — asserts repo === live. Runs only when a rules file
+#                          changed, and is skipped on forks, which cannot hold
+#                          the secret.
+#
+# The two are separate JOBS on purpose: a missing or rotated secret must never be
+# able to take the assertion suite down with it.
+
+name: rules and hygiene
+
+on:
+  push:
+    paths: &watched
+      - 'database.rules.json'
+      - 'storage.rules'
+      - 'firebase.json'
+      - 'tests/rules/**'
+      - 'tests/newsletter/**'
+      - 'app/**'
+      - 'functions/**'
+      - 'scripts/**'
+      - 'public/sw.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/lint-baseline.json'
+      - '.github/workflows/rules-and-hygiene.yml'
+  pull_request:
+    paths: *watched
+  workflow_dispatch:
+
+concurrency:
+  group: rules-and-hygiene-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # 1. THE RULES ASSERTION SUITE. Hermetic: emulator + a `demo-` project id,
+  #    which needs no credentials. No secret, so it runs on forks and on every
+  #    push, which is the whole point of it being the primary gate.
+  # ───────────────────────────────────────────────────────────────────────────
+  rules:
+    name: rules assertions (emulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # The RTDB and Storage emulators are JVM processes. ubuntu-latest ships a
+      # JDK, but pinning one means an image change cannot silently break this.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - name: Rules assertions — database.rules.json + storage.rules
+        run: npm run test:rules
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 2. DRIFT. Proves the console has not been edited behind the repo (RULES.md).
+  #    Needs the service account, so it is skipped where the secret is absent
+  #    rather than failing — a fork PR must not go red for lacking a credential
+  #    it is not allowed to have.
+  # ───────────────────────────────────────────────────────────────────────────
+  drift:
+    name: rules drift (repo === live)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Did a rules file change?
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          BASE="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          fi
+          if ! git cat-file -e "$BASE" 2>/dev/null; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if git diff --name-only "$BASE" "${{ github.sha }}" \
+               | grep -qE '^(database\.rules\.json|storage\.rules)$'; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Materialise the service account
+        if: steps.changed.outputs.yes == 'true' && env.KEY != ''
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: printf '%s' "$KEY" > serviceAccountKey.json
+
+      - name: rules:check — repo must match what Firebase is serving
+        if: steps.changed.outputs.yes == 'true' && env.KEY != ''
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: npm run rules:check
+
+      - name: Note when the check was skipped
+        if: steps.changed.outputs.yes != 'true' || env.KEY == ''
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ "${{ steps.changed.outputs.yes }}" != "true" ]; then
+            echo "No rules file changed in this push — drift check not needed."
+          else
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT is not set, so repo-vs-live drift was NOT verified."
+          fi
+
+      - name: Remove the key
+        if: always()
+        run: rm -f serviceAccountKey.json
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 3. HYGIENE. The suites that already existed and never ran, plus two gates.
+  # ───────────────────────────────────────────────────────────────────────────
+  hygiene:
+    name: newsletter · lint ratchet · audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Five suites have existed under tests/newsletter/ and CI has never run one.
+      - name: Newsletter suites
+        run: npm run test:newsletter
+
+      # Gates on the DIRECTION, not on zero: 146 errors + 110 warnings stand
+      # today and a zero gate would mean a permanently red pipeline. The count
+      # may fall and may never rise. See scripts/lint-ratchet.mjs.
+      - name: Lint ratchet
+        run: npm run lint:ratchet
+
+      # BLOCKING at `critical`, and deliberately not at `high`. Every remaining
+      # high in the production tree is next/postcss/sharp, each fixable only by
+      # next@16.3.0, and each one a Middleware / Server Component / Server Action
+      # / Image Optimization issue — none of which exists in what we deploy,
+      # because next.config.mjs sets output:'export'. Gating on `high` would mean
+      # a permanently red gate for advisories that cannot affect this site, and a
+      # gate nobody can turn green is a gate everybody learns to ignore.
+      - name: Audit — production dependencies, blocking on critical
+        run: npm audit --omit=dev --audit-level=critical
+
+      # The full picture, including dev, reported but never blocking.
+      - name: Audit — full report (advisory)
+        if: always()
+        run: npm audit || true

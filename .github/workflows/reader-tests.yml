@@ -37,10 +37,17 @@ on:
       # it needs the same one expensive input: a built out/. A second workflow would mean a
       # second `npx next build` on every push for the sake of one 19-second suite.
       - 'app/bookstore/**'
-      - 'app/lib/bookstore/gate.js'
+      # R9.0 PL-9: was the single file app/lib/bookstore/gate.js, which meant editing
+      # the checkout or stream CLIENT — the two modules that carry a purchase — ran
+      # nothing at all. The whole directory is in scope now.
+      - 'app/lib/bookstore/**'
       # R8.2 — the payment rails. tests/bookstore/paystack.test.mjs imports these modules
       # directly, so a change to either endpoint must re-run the suite that specifies them.
       - 'functions/api/bookstore/**'
+      # R9.0 PL-9: the service worker gates every returning reader's shell, and its own
+      # header calls it "the riskiest thing in the repo" (public/sw.js:5). The app suite
+      # drives the real out/, so a broken worker surfaces here.
+      - 'public/sw.js'
       - 'tests/**'
       # R8.0 — the sample splitter, which tests/reader/sample-epub.spec.mjs imports directly.
       - 'scripts/make-sample-epub.mjs'
