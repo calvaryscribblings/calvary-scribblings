@@ -235,8 +235,28 @@
       }
     },
     "dm_messages": {
-      ".read": "auth != null",
-      ".write": "auth != null"
+      "$convId": {
+        ".read": "auth != null && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",
+        "$msgId": {
+          ".write": "auth != null && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && !data.exists() && newData.exists()",
+          ".validate": "newData.hasChildren(['text', 'senderUid', 'createdAt'])",
+          "text": {
+            ".validate": "newData.isString() && newData.val().length <= 5000"
+          },
+          "senderUid": {
+            ".validate": "newData.isString() && newData.val() === auth.uid"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
+          "imageUrl": {
+            ".validate": "newData.isString() && newData.val().length <= 2048"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
     },
     "points": {
       ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
