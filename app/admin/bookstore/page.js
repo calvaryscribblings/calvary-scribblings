@@ -14,10 +14,26 @@ import { GENRES, TITLE_STATUSES } from '../../lib/bookstore/schema';
 // R7.4 — the same parser the reader's lookup is built on, so what an editor types here
 // and what a long-press finds cannot drift apart.
 import { parseGlossary, serialiseGlossary } from '../../lib/dictionary';
+// R8.4 — the rights vocabulary. describeTerritories is the SAME renderer the list column uses
+// and the same one the form's live summary uses, so what an editor is shown before saving and
+// what they are shown afterwards cannot disagree.
+import {
+  TERRITORY_PRESETS,
+  describeTerritories,
+  territoriesToForm,
+  territoriesFromForm,
+  MODE_WORLDWIDE,
+  MODE_ALLOW,
+  MODE_DENY,
+} from '../../lib/bookstore/territory';
+import { COUNTRY_CODES, COUNTRY_NAMES } from '../../lib/bookstore/countries';
+// R8.4 — the drift logged in R8.3, closed. The admin table printed money through a local
+// formatGbpMinor while every reader-facing surface used formatPrice; two implementations of
+// one job is how a shop ends up quoting one number to an editor and another to a customer.
+import { formatPrice } from '../../bookstore/components/fields';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const COMMON_TERRITORIES = ['GB', 'NG', 'US', 'CA', 'AU', 'ZA', 'IE', 'NZ'];
 const TITLES_PATH = 'bookstore_titles';
 
 const GENRE_OPTIONS = GENRES.map((g) => ({ value: g, label: g.split('-').map((p) => p[0].toUpperCase() + p.slice(1)).join(' ') }));
@@ -29,10 +45,34 @@ function slugify(input) {
     .replace(/(^-|-$)/g, '');
 }
 
-function formatGbpMinor(minor) {
-  if (typeof minor !== 'number') return '—';
-  return `£${(minor / 100).toFixed(2)}`;
+// R8.4 — all three currencies in the list, using the shared formatter. An unset currency is
+// marked rather than omitted: "—" beside a code says "nobody has priced this yet", which is a
+// fact an editor needs, where a missing column says only that the table is narrow. This is the
+// column that used to be "Price (GBP)" and a local formatGbpMinor.
+function PriceCell({ prices }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-end', fontSize: '0.8rem' }}>
+      {['gbp', 'ngn', 'usd'].map((c) => {
+        const tag = formatPrice(c, prices?.[c]);
+        return (
+          <span key={c} style={{ color: tag ? '#e8e8e8' : 'rgba(255,255,255,0.28)', fontVariantNumeric: 'tabular-nums' }}>
+            {tag || `— ${c.toUpperCase()}`}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
+
+// R8.4 — thin adapters over the shared converters in app/lib/bookstore/territory.js, which own
+// the mapping between the database's two fields and this form's mode-plus-one-list. The form
+// uses the canonical mode constants verbatim rather than inventing its own names, so there is
+// no translation table to get wrong and the round trip is testable without a browser.
+const territoriesToFormState = (title) => {
+  const { mode, countries } = territoriesToForm(title);
+  return { territoriesMode: mode, territoriesList: countries, territorySearch: '' };
+};
+const territoriesFromFormState = (form) => territoriesFromForm(form.territoriesMode, form.territoriesList);
 
 function minorToMajor(minor) {
   if (typeof minor !== 'number' || !Number.isFinite(minor)) return '';
@@ -92,10 +132,11 @@ const s = {
   gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
   radioGroup: { display: 'flex', gap: '1rem', flexWrap: 'wrap' },
   radioOption: { display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.88rem', color: '#e8e8e8' },
-  chip: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(124,58,237,0.18)', color: '#c4b5fd', border: '1px solid rgba(124,58,237,0.4)', borderRadius: 999, padding: '0.3rem 0.75rem', fontSize: '0.72rem', fontWeight: 600, fontFamily: 'monospace' },
+  // R8.4 — no longer monospace: the chips carry country NAMES now, not codes, and a proportional
+  // face is what "United Arab Emirates" needs to be read rather than parsed.
+  chip: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(124,58,237,0.18)', color: '#c4b5fd', border: '1px solid rgba(124,58,237,0.4)', borderRadius: 999, padding: '0.3rem 0.75rem', fontSize: '0.75rem', fontWeight: 600 },
   chipX: { background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '0.85rem', padding: 0, lineHeight: 1 },
   chipsWrap: { display: 'flex', gap: '0.4rem', flexWrap: 'wrap', minHeight: '2rem', alignItems: 'center', padding: '0.4rem', background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6 },
-  chipInput: { flex: 1, minWidth: '80px', background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontFamily: 'inherit', fontSize: '0.85rem' },
   fileBlock: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
   fileRow: { display: 'flex', gap: '0.6rem', alignItems: 'center' },
   fileMeta: { fontSize: '0.78rem', color: 'rgba(255,255,255,0.55)' },
@@ -132,8 +173,14 @@ const emptyForm = {
   priceGbp: '',
   priceNgn: '',
   priceUsd: '',
-  territoriesMode: 'worldwide', // 'worldwide' | 'specific'
+  // R8.4 — three modes, matching the three storable states exactly. `territoriesList` holds
+  // whichever list the chosen mode names: the EXCLUSIONS under 'except', the ALLOW-LIST under
+  // 'only'. One list rather than two because the two can never both apply — that combination
+  // is what assertTerritories refuses — and a form that can hold an impossible state is a form
+  // that will eventually be saved in one.
+  territoriesMode: MODE_WORLDWIDE, // MODE_WORLDWIDE | MODE_DENY | MODE_ALLOW
   territoriesList: [],
+  territorySearch: '',
   coverFile: null,
   coverUrl: '',          // existing URL when editing
   epubFile: null,
@@ -243,8 +290,10 @@ export default function AdminBookstorePage() {
       priceGbp: minorToMajor(title.prices?.gbp),
       priceNgn: minorToMajor(title.prices?.ngn),
       priceUsd: minorToMajor(title.prices?.usd),
-      territoriesMode: title.territoriesAllowed === '*' ? 'worldwide' : 'specific',
-      territoriesList: Array.isArray(title.territoriesAllowed) ? title.territoriesAllowed : [],
+      // R8.4 — the stored pair back into the form's one-mode-one-list shape. An allow-list
+      // wins the mode question because it is the only field that can make one: exclusions
+      // exist only alongside '*', by the write-time rule.
+      ...territoriesToFormState(title),
       coverFile: null,
       coverUrl: title.coverUrl || '',
       epubFile: null,
@@ -290,8 +339,6 @@ export default function AdminBookstorePage() {
       .map((t) => t.trim())
       .filter((t) => t.length > 0);
 
-    const territoriesAllowed = form.territoriesMode === 'worldwide' ? '*' : form.territoriesList;
-
     const payload = {
       title: form.title.trim(),
       author: form.author.trim(),
@@ -301,7 +348,7 @@ export default function AdminBookstorePage() {
       publishedDate: form.publishedDate,
       synopsis: form.synopsis.trim(),
       prices,
-      territoriesAllowed,
+      ...territoriesFromFormState(form),
       status: form.status,
       featured: form.featured,
       bestseller: form.bestseller,
@@ -342,8 +389,10 @@ export default function AdminBookstorePage() {
     if (!form.synopsis.trim()) local.push('Synopsis is required');
     if (form.slug && !SLUG_RE.test(form.slug)) local.push('Slug must be kebab-case');
     if (!form.priceGbp && !form.priceNgn && !form.priceUsd) local.push('Enter at least one price (GBP, NGN, or USD)');
-    if (form.territoriesMode === 'specific' && form.territoriesList.length === 0) {
-      local.push('Add at least one territory, or switch to Worldwide');
+    if (form.territoriesMode !== MODE_WORLDWIDE && form.territoriesList.length === 0) {
+      local.push(form.territoriesMode === MODE_DENY
+        ? 'Name at least one country to exclude, or switch to “Sold worldwide”'
+        : 'Name at least one country the book may be sold in, or switch to “Sold worldwide”');
     }
     // The Bookseller's Fields (R4b) — caps + positive-integer catalogue number.
     if (form.backCoverBlurb.length > 280) local.push('Back cover blurb must be 280 characters or fewer');
@@ -584,7 +633,8 @@ export default function AdminBookstorePage() {
                           <th style={s.th}>Author</th>
                           <th style={s.th}>Publisher</th>
                           <th style={s.th}>Status</th>
-                          <th style={{ ...s.th, textAlign: 'right' }}>Price (GBP)</th>
+                          <th style={s.th}>Rights</th>
+                          <th style={{ ...s.th, textAlign: 'right' }}>Prices</th>
                           <th style={{ ...s.th, textAlign: 'right' }}>Sales</th>
                           <th style={{ ...s.th, textAlign: 'right' }}>Actions</th>
                         </tr>
@@ -604,7 +654,12 @@ export default function AdminBookstorePage() {
                               <td style={{ ...s.td, ...s.tdMuted }}>{t.author}</td>
                               <td style={{ ...s.td, ...s.tdMuted, fontSize: '0.82rem' }}>{pub?.name || t.publisherId}</td>
                               <td style={s.td}><span style={statusPill(t.status)}>{t.status}</span></td>
-                              <td style={{ ...s.td, textAlign: 'right' }}>{formatGbpMinor(t.prices?.gbp)}</td>
+                              {/* R8.4 — a title's rights at a glance, in the SAME words the
+                                  form's summary showed when they were set. */}
+                              <td style={{ ...s.td, ...s.tdMuted, fontSize: '0.8rem', maxWidth: 260 }}>
+                                {describeTerritories(t.territoriesAllowed, t.territoriesExcluded)}
+                              </td>
+                              <td style={{ ...s.td, textAlign: 'right' }}><PriceCell prices={t.prices} /></td>
                               <td style={{ ...s.td, textAlign: 'right' }}>{t.salesCount ?? 0}</td>
                               <td style={{ ...s.td, textAlign: 'right' }}>
                                 <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -650,15 +705,47 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
   }, [form.glossary]);
   const glossaryErrors = glossaryParsed.errors;
 
-  function handleAddTerritory(code) {
+  // ── R8.4: RIGHTS ─────────────────────────────────────────────────────────────────────────
+  function handleToggleTerritory(code) {
     const v = (code || '').trim().toUpperCase();
-    if (!/^[A-Z]{2}$/.test(v)) return;
-    if (form.territoriesList.includes(v)) return;
-    setForm((f) => ({ ...f, territoriesList: [...f.territoriesList, v] }));
+    if (!COUNTRY_NAMES[v]) return;
+    setForm((f) => ({
+      ...f,
+      territoriesList: f.territoriesList.includes(v)
+        ? f.territoriesList.filter((c) => c !== v)
+        : [...f.territoriesList, v],
+    }));
   }
   function handleRemoveTerritory(code) {
     setForm((f) => ({ ...f, territoriesList: f.territoriesList.filter((c) => c !== code) }));
   }
+  // A PRESET IS A FILLER, NOT A VALUE. It adds its codes to the list and is then forgotten —
+  // nothing records that it was used, and nothing stored refers back to it. See the long note
+  // at TERRITORY_PRESETS in app/lib/bookstore/territory.js: a title's rights must mean in five
+  // years exactly what they meant on the day they were agreed, and a stored group NAME would
+  // silently re-scope every title carrying it the day someone corrected the group.
+  function handleApplyPreset(codes) {
+    setForm((f) => ({
+      ...f,
+      territoriesList: [...new Set([...f.territoriesList, ...codes])],
+    }));
+  }
+
+  const territoryMatches = useMemo(() => {
+    const q = form.territorySearch.trim().toLowerCase();
+    if (!q) return COUNTRY_CODES;
+    return COUNTRY_CODES.filter((c) => c.toLowerCase() === q || COUNTRY_NAMES[c].toLowerCase().includes(q));
+  }, [form.territorySearch]);
+
+  // The rights as they will read once saved, computed from the form rather than from anything
+  // stored — so a mis-tick is visible BEFORE the save, in the same words the list column will
+  // use afterwards.
+  const rightsSummary = useMemo(() => {
+    // The two fields, not the whole form: this depends on the mode and the list and on nothing
+    // else, and saying so keeps the memo honest (and the compiler able to preserve it).
+    const { territoriesAllowed, territoriesExcluded } = territoriesFromForm(form.territoriesMode, form.territoriesList);
+    return describeTerritories(territoriesAllowed, territoriesExcluded);
+  }, [form.territoriesMode, form.territoriesList]);
 
   return (
     <div>
@@ -849,44 +936,108 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
         <div style={s.sectionTitle}>Rights</div>
         <div style={s.fg}>
           <label style={s.label}>Territories</label>
+          {/* THREE CHOICES, because rights come in three shapes and the middle one is the one
+              contracts are actually written in ("World excluding North America"). The old form
+              offered only worldwide-or-list, which forced an editor with an exclusion to
+              enumerate the ~250 countries it did NOT cover — a licence stored as a
+              transcription error waiting to happen. */}
           <div style={s.radioGroup}>
-            <label style={s.radioOption}>
-              <input type="radio" name="territories" checked={form.territoriesMode === 'worldwide'} onChange={() => setForm((f) => ({ ...f, territoriesMode: 'worldwide' }))} />
-              Worldwide
-            </label>
-            <label style={s.radioOption}>
-              <input type="radio" name="territories" checked={form.territoriesMode === 'specific'} onChange={() => setForm((f) => ({ ...f, territoriesMode: 'specific' }))} />
-              Specific countries
-            </label>
-          </div>
-          {form.territoriesMode === 'specific' && (
-            <>
-              <div style={{ ...s.chipsWrap, marginTop: '0.6rem' }}>
-                {form.territoriesList.map((c) => (
-                  <span key={c} style={s.chip}>
-                    {c}
-                    <button type="button" style={s.chipX} onClick={() => handleRemoveTerritory(c)} aria-label={`Remove ${c}`}>×</button>
-                  </span>
-                ))}
+            {[
+              [MODE_WORLDWIDE, 'Sold worldwide'],
+              [MODE_DENY, 'Worldwide, except…'],
+              [MODE_ALLOW, 'Only in…'],
+            ].map(([mode, label]) => (
+              <label key={mode} style={s.radioOption}>
                 <input
-                  style={s.chipInput}
-                  placeholder={form.territoriesList.length === 0 ? 'Type a 2-letter code and press Enter (e.g. GB)' : 'Add another…'}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ',' || e.key === ' ') {
-                      e.preventDefault();
-                      handleAddTerritory(e.target.value);
-                      e.target.value = '';
-                    }
-                  }}
+                  type="radio"
+                  name="territories"
+                  checked={form.territoriesMode === mode}
+                  // Switching modes KEEPS the list. An editor who picks the wrong mode first
+                  // and re-picks has not asked to lose the countries they already chose, and
+                  // the summary below tells them immediately what the list now means.
+                  onChange={() => setForm((f) => ({ ...f, territoriesMode: mode }))}
                 />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          {form.territoriesMode !== MODE_WORLDWIDE && (
+            <>
+              <div style={{ ...s.hint, marginTop: '0.7rem', marginBottom: '0.35rem' }}>
+                {form.territoriesMode === MODE_DENY
+                  ? 'Countries the book may NOT be sold in.'
+                  : 'The complete list of countries the book may be sold in.'}
               </div>
-              <div style={s.hint}>
-                Common: {COMMON_TERRITORIES.map((c) => (
-                  <button key={c} type="button" style={{ background: 'transparent', border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa', borderRadius: 12, padding: '0.1rem 0.55rem', fontSize: '0.7rem', fontFamily: 'monospace', cursor: 'pointer', marginRight: '0.4rem' }} onClick={() => handleAddTerritory(c)}>+{c}</button>
+
+              {/* Presets EXPAND INTO CODES on the spot — nothing here is stored by name. */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.6rem' }}>
+                {TERRITORY_PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    title={`Adds ${p.codes.length} countries`}
+                    style={{ background: 'transparent', border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa', borderRadius: 12, padding: '0.18rem 0.7rem', fontSize: '0.72rem', cursor: 'pointer' }}
+                    onClick={() => handleApplyPreset(p.codes)}
+                  >
+                    + {p.label}
+                  </button>
                 ))}
+              </div>
+
+              {form.territoriesList.length > 0 && (
+                <div style={{ ...s.chipsWrap, marginBottom: '0.6rem' }}>
+                  {[...form.territoriesList].sort((a, b) => COUNTRY_NAMES[a].localeCompare(COUNTRY_NAMES[b])).map((c) => (
+                    <span key={c} style={s.chip}>
+                      {COUNTRY_NAMES[c] || c}
+                      <button type="button" style={s.chipX} onClick={() => handleRemoveTerritory(c)} aria-label={`Remove ${COUNTRY_NAMES[c] || c}`}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <input
+                style={s.input}
+                type="search"
+                value={form.territorySearch}
+                placeholder="Search countries…"
+                aria-label="Search countries"
+                onChange={(e) => setForm((f) => ({ ...f, territorySearch: e.target.value }))}
+              />
+              {/* THE WHOLE ISO LIST, BUNDLED. No lookup service, no autocomplete endpoint: it
+                  is a constant, it is a few KB, and an editor setting rights on a plane should
+                  not be told the country list is unavailable. */}
+              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #242424', borderRadius: 8, marginTop: '0.5rem', background: '#111' }}>
+                {territoryMatches.length === 0
+                  ? <div style={{ padding: '0.8rem', fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)' }}>No country matches “{form.territorySearch}”.</div>
+                  : territoryMatches.map((c) => (
+                    <label
+                      key={c}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.3rem 0.7rem', fontSize: '0.85rem', cursor: 'pointer', color: form.territoriesList.includes(c) ? '#c4b5fd' : '#e8e8e8' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.territoriesList.includes(c)}
+                        onChange={() => handleToggleTerritory(c)}
+                      />
+                      <span style={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem' }}>{c}</span>
+                      {COUNTRY_NAMES[c]}
+                    </label>
+                  ))}
               </div>
             </>
           )}
+
+          {/* THE RIGHTS, SAID BACK. Above Save, in the same words the list column will use, so
+              a mis-tick is caught by reading a sentence rather than by auditing a grid of
+              checkboxes. This is the whole reason the summary exists: "Sold worldwide except
+              the United States and Canada" is checkable at a glance; 250 boxes are not. */}
+          <div
+            data-testid="rights-summary"
+            style={{ marginTop: '0.9rem', padding: '0.6rem 0.85rem', border: '1px solid #2a2a2a', borderRadius: 8, background: '#141414', fontSize: '0.88rem', color: '#c4b5fd' }}
+          >
+            {rightsSummary}
+          </div>
         </div>
       </div>
 

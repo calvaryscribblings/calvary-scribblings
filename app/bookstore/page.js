@@ -11,7 +11,7 @@ import BuyButton from './components/BuyButton';
 import QuickLookModal from './components/QuickLookModal';
 import { useBookGesture } from './components/useBookGesture';
 import { resolveOpeningLine, formatCatalogueNumber } from './components/fields';
-import { useCurrency, priceFor, formatPrice, fallbackNote } from '../lib/bookstore/currency';
+import { useCurrency, useRegionCountry, priceLine } from '../lib/bookstore/currency';
 import CurrencySelector, { CURRENCY_SELECTOR_CSS } from './components/CurrencySelector';
 import LaunchGate from './components/LaunchGate';
 import { isStoreUnlocked } from '../lib/bookstore/gate';
@@ -57,9 +57,11 @@ function ShelfBook({ title, width, onOpen }) {
 
 function ShelfEntry({ title, index, onOpen }) {
   const [currency] = useCurrency();
-  const priced = priceFor(title, currency);
-  const price = priced ? formatPrice(priced.currency, priced.minorUnits) : null;
-  const note = fallbackNote(priced);
+  // R8.4 — the country from the SAME one-shot probe the currency default already uses; no
+  // second request. priceLine applies the precedence rule (territory outranks currency), so
+  // this component makes no decision about which mark to show.
+  const country = useRegionCountry();
+  const { price, note, isTerritoryNote } = priceLine(title, currency, country);
   const mark = formatCatalogueNumber(title.catalogueNumber);
   const tilt = index % 2 === 0 ? -0.7 : 0.7;
   return (
@@ -75,8 +77,19 @@ function ShelfEntry({ title, index, onOpen }) {
       <div className="entry-author">{title.author}</div>
       {price && <div className="entry-price">{price}</div>}
       {/* R8.3 — SHOWN AND MARKED. The book keeps its place on the shelf; the line beneath
-          simply names the money. No badge, no dimming, no alarm colour. */}
-      {note && <div className="entry-price-note">{note}</div>}
+          simply names the money. No badge, no dimming, no alarm colour.
+          R8.4 — a restricted title keeps its place too, and its cover, and its title, and its
+          weight. The ONLY difference is which sentence sits here and the absence of a price
+          above it. Same class, same quiet register: the shop is stating a fact about rights,
+          not apologising for one. */}
+      {note && (
+        <div
+          className="entry-price-note"
+          data-testid={isTerritoryNote ? 'territory-note' : undefined}
+        >
+          {note}
+        </div>
+      )}
       {title.shelfCard && (
         <div className="shelf-card" style={{ transform: `rotate(${tilt}deg)` }}>
           <span className="shelf-card-body">{title.shelfCard}</span>
@@ -378,6 +391,11 @@ export default function BookStorePage() {
           .btn-buy{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:pointer;transition:filter .25s,opacity .25s}
           .btn-buy:hover{filter:brightness(1.08)}
           .btn-buy:disabled{cursor:progress;opacity:.6;filter:none}
+          /* R8.4 — unavailable is not pending. A progress cursor on a button that will never
+             finish reads as a hang, so the territory state gets its own cursor and its own
+             flatter face: gilt is the shop's affordance for "press me", and this cannot be
+             pressed. It overrides the :disabled rule above because both apply at once. */
+          .btn-buy[data-unavailable]{cursor:not-allowed;opacity:.55;background:none;border:1px solid rgba(201,164,76,.28);color:rgba(240,234,216,.55)}
           .btn-sample{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:1px solid rgba(201,164,76,.4);border-radius:3px;background:rgba(201,164,76,.04);color:#c9a44c;font-weight:600;text-decoration:none}
           .btn-sample:hover{background:rgba(201,164,76,.1)}
           .btn-details{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.55);text-decoration:none;border-bottom:1px solid rgba(201,164,76,.25);padding-bottom:2px}

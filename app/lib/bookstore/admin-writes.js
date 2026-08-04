@@ -16,6 +16,9 @@ import {
 // R7.4 — the glossary's shape rule lives with the reader that consumes it, so the writer
 // and the lookup can never disagree about what a valid entry is.
 import { validateGlossary } from '../dictionary';
+// R8.4 — same precedent: the rule about what a licence may LOOK like lives beside the rule
+// about what one MEANS, so the till and the till's editor cannot disagree.
+import { assertTerritories, WORLDWIDE } from './territory';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const PUBLISHERS_PATH = 'bookstore_publishers';
@@ -77,6 +80,57 @@ function validateBooksellerFields(doc) {
     errors.push('catalogueNumber must be a positive integer or null');
   }
   return errors;
+}
+
+// R8.4 — THE TERRITORY PAIR, as it must look on the way into RTDB.
+//
+// `territoriesAllowed` is schema-locked ('*' | array<alpha-2>) and validateTitle already checks
+// it. `territoriesExcluded` is schema-external — the samplePath / glossary precedent again,
+// TITLE_SCHEMA stays at v2 — so its shape is checked here, at the last gate before the
+// database, and nowhere else writes it.
+//
+// Three storable states, and only three:
+//
+//   worldwide         territoriesAllowed '*'            (no territoriesExcluded key)
+//   worldwide-except  territoriesAllowed '*'            territoriesExcluded ['CA','US']
+//   only-in           territoriesAllowed ['GB','NG']    (no territoriesExcluded key)
+//
+// THE KEY IS OMITTED, NOT NULLED AND NOT EMPTY-ARRAYED, when there are no exclusions. "No
+// exclusions" is the absence of a claim, and the absence of a claim is said by the absence of
+// a field — every existing record in the catalogue already says it that way by predating the
+// field entirely, and a mixture of `undefined`, `null` and `[]` all meaning the same thing is
+// three shapes for every reader to handle forever. RTDB drops an undefined key on write, which
+// is exactly the behaviour wanted; updateTitle uses set() (a full overwrite), so DELETING the
+// key from the merged doc genuinely removes it rather than leaving the old value behind.
+//
+// Codes are tidied (trimmed, uppercased) before validation so an editor's 'gb' is stored as
+// 'GB', and sorted after it so two spellings of one licence produce one document — a diff in
+// this field should mean the rights changed, not that the boxes were ticked in another order.
+// Tidying is NOT the same as repairing: assertTerritories still rejects anything that is not a
+// real ISO country, a duplicate, or the contradictory allow-list-plus-exclusions pair.
+function normaliseTerritoryFields(doc) {
+  const tidy = (v) => (Array.isArray(v)
+    ? v.map((c) => (typeof c === 'string' ? c.trim().toUpperCase() : c))
+    : v);
+
+  const allowed = doc.territoriesAllowed === undefined || doc.territoriesAllowed === null
+    ? WORLDWIDE
+    : tidy(doc.territoriesAllowed);
+
+  const rawExcluded = doc.territoriesExcluded;
+  const excluded = rawExcluded === undefined || rawExcluded === null || rawExcluded === ''
+    || (Array.isArray(rawExcluded) && rawExcluded.length === 0)
+    ? undefined
+    : tidy(rawExcluded);
+
+  const verdict = assertTerritories(allowed, excluded);
+  if (!verdict.ok) return { errors: [verdict.error] };
+
+  doc.territoriesAllowed = Array.isArray(allowed) ? [...allowed].sort() : allowed;
+  if (excluded === undefined) delete doc.territoriesExcluded;
+  else doc.territoriesExcluded = [...excluded].sort();
+
+  return { errors: [] };
 }
 
 // R7.4 — the glossary as it must look on the way into RTDB. Accepts what the admin form
@@ -286,7 +340,11 @@ export async function createTitle(input) {
     status: input.status || 'draft',
     featured: !!input.featured,
     bestseller: !!input.bestseller,
-    territoriesAllowed: input.territoriesAllowed ?? '*',
+    territoriesAllowed: input.territoriesAllowed ?? WORLDWIDE,
+    // R8.4 — schema-external, checked by normaliseTerritoryFields below, which also DELETES
+    // this key when there are no exclusions. Present here so the field survives the object
+    // literal; absent from the written document unless it says something.
+    territoriesExcluded: input.territoriesExcluded,
     salesCount: 0,
     ratingAverage: null,
     ratingCount: 0,
@@ -297,6 +355,13 @@ export async function createTitle(input) {
   if (input.excerpt) doc.excerpt = String(input.excerpt).trim();
   if (Array.isArray(input.tags) && input.tags.length) doc.tags = input.tags.filter((t) => typeof t === 'string' && t.length > 0);
   if (Number.isInteger(input.pageCount) && input.pageCount > 0) doc.pageCount = input.pageCount;
+
+  // R8.4 — BEFORE validateTitle, because it tidies territoriesAllowed into the shape
+  // validateTitle then checks, and because a contradictory pair must be reported as the
+  // licence problem it is rather than as whatever validateTitle happens to say about the half
+  // of it that it can see.
+  const terrErrors = normaliseTerritoryFields(doc).errors;
+  if (terrErrors.length) return { ok: false, errors: terrErrors };
 
   const result = validateTitle(doc);
   if (!result.valid) return { ok: false, errors: result.errors };
@@ -380,6 +445,13 @@ export async function updateTitle(titleId, partial) {
     merged.glossary = normaliseGlossaryField(merged.glossary);
     const glErrors = validateGlossary(merged.glossary);
     if (glErrors.length) return { ok: false, errors: glErrors };
+
+    // R8.4 — the territory pair rides through the spread like the glossary. An edit that
+    // switches a title back to "Sold worldwide" must be able to REMOVE the exclusions, so ''
+    // / [] / null / undefined all delete the key rather than being skipped as "no change" —
+    // and set() below is a full overwrite, so a deleted key really does leave the record.
+    const terrErrors = normaliseTerritoryFields(merged).errors;
+    if (terrErrors.length) return { ok: false, errors: terrErrors };
 
     const result = validateTitle(merged);
     if (!result.valid) return { ok: false, errors: result.errors };

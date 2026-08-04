@@ -17,6 +17,7 @@
     "test:reader:all": "npm run test:reader && npm run test:reader:app",
     "test:gate": "next build && playwright test -c tests/bookstore/playwright.gate.config.mjs",
     "test:currency": "next build && playwright test -c tests/bookstore/playwright.currency.config.mjs",
+    "test:territory": "next build && playwright test -c tests/bookstore/playwright.territory.config.mjs",
     "test:newsletter": "node --test \"tests/newsletter/*.test.mjs\"",
     "test:purchases": "node --test \"tests/bookstore/*.test.mjs\"",
     "test:rules": "firebase emulators:exec --only database,storage --project demo-calvary-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",

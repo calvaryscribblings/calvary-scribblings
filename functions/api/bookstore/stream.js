@@ -27,6 +27,19 @@
 //      two 403 codes are distinguished so the reader is told the truth: 'not_purchased' is an
 //      invitation to buy, 'revoked' is not.
 //
+// NO TERRITORY CHECK HERE, DELIBERATELY (R8.4). checkout.js and paystack-checkout.js refuse to
+// SELL a title outside its licensed territories; this endpoint does not refuse to OPEN one that
+// was already bought, and it never should. A territory restriction governs the sale — where a
+// publisher may offer the book — not the copy. A reader who buys in London and opens the book
+// on a plane, on holiday, or after emigrating owns the same book they owned at the till, and a
+// shop that took their money and then locked the file because they crossed a border has sold
+// them something it then took away. That is not licence enforcement; it is a broken product.
+//
+// The check is therefore ABSENT ON PURPOSE rather than forgotten, and there is a test that
+// fails if someone adds one — see tests/bookstore/territory.test.mjs, "ownership survives
+// travel". If a publisher ever genuinely requires geo-locked reading, that is a new contract
+// term, a new field and a conversation, not a line quietly added here.
+//
 // The signed URL is short-lived (300s) on purpose. It only has to survive the one fetch the
 // Reading Room makes at load; nothing holds it afterwards. The client re-requests once on a
 // failed fetch (see app/reader/[slug]/book-reader.js) rather than the server issuing something

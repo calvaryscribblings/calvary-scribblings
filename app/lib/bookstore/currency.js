@@ -43,6 +43,9 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react';
 // module directly under `node --test` to assert priceFor/formatPrice without a browser. Drop
 // the extension and those tests stop being able to load the file.
 import { formatPrice } from '../../bookstore/components/fields.js';
+// R8.4. Same explicit-.js reasoning as the line above: tests/bookstore/territory.test.mjs
+// loads this module under bare Node to assert the precedence rule.
+import { isTitleSellableIn, TERRITORY_NOTE } from './territory.js';
 
 export const CURRENCIES = ['gbp', 'ngn', 'usd'];
 export const DEFAULT_CURRENCY = 'gbp';
@@ -170,11 +173,64 @@ export function fallbackSentence(priced, selected) {
   return `This title isn’t priced in ${from}. You can still buy it — you’ll be charged ${amount} in ${to}.`;
 }
 
+// ── PRECEDENCE: TERRITORY OUTRANKS CURRENCY (R8.4) ─────────────────────────────────────────
+//
+// Two independent facts can now qualify one book — it is not licensed here, and it is not
+// priced in the currency you are browsing in — and a title can carry both at once. Rendered
+// naively that is two marks under one cover, one of which ("in pounds only") invites the
+// reader to do something the other one forbids, next to a price they cannot act on.
+//
+// So there is ONE rule, and it lives in ONE function rather than in the five surfaces that
+// would each have to remember it: a title the reader may not buy shows the TERRITORY mark and
+// NO PRICE AT ALL. Not the price plus a caveat — the price is a claim that a sum of money will
+// buy this book, and that claim is false here. The currency mark exists to keep the button
+// honest about what it will charge; where there is no button there is nothing to keep honest.
+//
+// Which is also why this is not a component. The five callers — ShelfEntry, BoundBook's back
+// face, QuickLookModal, BuyButton and the detail page — render in five different type systems
+// (dark shelf, cream stock, modal, gilt button, editorial column). They share the DECISION;
+// they cannot share the markup. R8.3 made the same call about its own mark and said so.
+
+/**
+ * Everything a surface needs to print about one title's price, decided in the right order.
+ *
+ * @returns {{ sellable, priced, price, note, isTerritoryNote }}
+ *   sellable         false when the licence excludes this country
+ *   priced           the priceFor() result, or null — null whenever !sellable
+ *   price            the formatted tag, or null — null whenever !sellable
+ *   note             the ONE mark to show beneath, or null. Never two.
+ *   isTerritoryNote  which mark it is, so a surface can pick the right testid without
+ *                    re-deriving the decision or string-matching the note
+ *
+ * `country` null (undetermined) means no marks anywhere and the buy button enabled: the server
+ * still refuses a restricted title, so the reader meets one honest error instead of a shelf of
+ * warnings the shop is only guessing at. That behaviour is isSellableIn's, not this
+ * function's — see SELL_TO_UNKNOWN_COUNTRY in territory.js, which is where it is decided.
+ */
+export function priceLine(title, currency, country) {
+  if (!isTitleSellableIn(title, country)) {
+    return { sellable: false, priced: null, price: null, note: TERRITORY_NOTE, isTerritoryNote: true };
+  }
+  const priced = priceFor(title, currency);
+  return {
+    sellable: true,
+    priced,
+    price: priced ? formatPrice(priced.currency, priced.minorUnits) : null,
+    note: fallbackNote(priced),
+    isTerritoryNote: false,
+  };
+}
+
 // ── The store ──────────────────────────────────────────────────────────────────────────────
 
 let current = null;          // null = not yet read off the client
 let chosen = false;          // true once the reader has an explicit stored choice
-let upgraded = false;        // the region probe is one-shot per document
+let probed = false;          // the region probe is one-shot per document
+// R8.4. The country the probe found, kept rather than discarded. It starts undefined ("not
+// asked yet") and becomes a string or null ("asked; this is the answer, and null means
+// Cloudflare could not place them"). Both non-answers are reported to callers as null; the
+// distinction only matters inside upgradeFromRegion, which must not run twice.
+let regionCountry = null;
 const listeners = new Set();
 
 const emit = () => { listeners.forEach((l) => l()); };
@@ -204,8 +260,13 @@ export function setCurrency(currency) {
   if (!isCurrency(currency)) return;
   getSnapshot();
   writeStoredCurrency(currency);
+  // An explicit choice ends the probe's authority over the CURRENCY for good — but not the
+  // probe itself. It used to set `upgraded = true` here, which cancelled the fetch outright;
+  // R8.4 needs the country from that same fetch to mark restricted titles, so the probe now
+  // always runs and simply declines to touch the currency once `chosen` is true. The
+  // guarantee is unchanged and is asserted by "a region answer NEVER overrides a stored
+  // choice" in tests/bookstore/currency.spec.mjs.
   chosen = true;
-  upgraded = true;          // an explicit choice ends the probe's authority for good
   if (current !== currency) {
     current = currency;
     emit();
@@ -217,28 +278,53 @@ export function setCurrency(currency) {
 export const hasChosenCurrency = () => { getSnapshot(); return chosen; };
 
 /**
- * The one-shot region probe. Safe to call on every mount — it runs at most once per document
- * and returns immediately once a choice exists.
+ * The one-shot region probe. Safe to call on every mount — it runs at most once per document.
+ *
+ * ONE CALL, TWO CONSUMERS (R8.4). It answers two questions from a single request: which
+ * currency to default to (R8.3) and which country to judge a licence against (R8.4). A second
+ * fetch for the territory marking would be a second round-trip for a value already on its way,
+ * and — worse — two answers that could disagree if an edge ever load-balanced between them.
+ * `probed` guards the request, not the use, so both consumers are served by whichever surface
+ * mounts first.
+ *
+ * IT STILL RUNS WHEN A CURRENCY IS ALREADY CHOSEN, which is the one behavioural change here.
+ * The early `if (chosen) return` moved down to guard only the currency assignment: the country
+ * is needed either way, and a reader with a stored preference is exactly as subject to a
+ * publisher's licence as one without. "A region answer never overrides a stored choice" is
+ * unchanged — it is now enforced at the assignment rather than by refusing to ask.
+ *
+ * STILL NON-BLOCKING, and this is load-bearing. Nothing awaits this. getSnapshot() answers
+ * from storage or the default, the shelf paints, and the marks appear if and when the answer
+ * lands — a storefront that waited on a geo lookup before drawing would show every reader a
+ * spinner in order to be marginally more correct about a minority. The prerendered HTML and
+ * the first client render therefore both carry NO territory marks, which is also what makes
+ * hydration safe: country is null on both sides until the fetch resolves.
  *
  * Failure is silence, on purpose: an unreachable endpoint, an offline reader and a country we
- * do not map all land in the same place, which is "keep the default". There is nothing to
- * report to the reader, because nothing they asked for has failed.
+ * do not map all land in the same place, which is "keep the default, mark nothing". There is
+ * nothing to report to the reader, because nothing they asked for has failed — and a shelf of
+ * "not sold in your region" marks caused by a dropped request would be a lie told loudly.
  */
 export async function upgradeFromRegion() {
-  if (upgraded) return;
-  upgraded = true;
+  if (probed) return;
+  probed = true;
   getSnapshot();
-  if (chosen) return;
 
   try {
     const res = await fetch(REGION_ENDPOINT, { headers: { Accept: 'application/json' } });
     if (!res.ok) return;
     const { country } = (await res.json()) || {};
     if (!country) return;                       // null = Cloudflare could not place them
-    const next = currencyForCountry(country);
+
+    // R8.4 — kept whatever happens to the currency below. This is the value every territory
+    // decision on the client reads.
+    regionCountry = typeof country === 'string' ? country.trim().toUpperCase() : null;
+
     // Still not a "choice": the reader has not chosen anything, so `chosen` stays false and the
     // quiet line keeps offering to explain itself.
-    if (next !== current) { current = next; emit(); }
+    const next = chosen ? current : currencyForCountry(country);
+    if (next !== current) current = next;
+    emit();                                     // the country moved even when the currency did not
   } catch {
     /* offline, blocked, or malformed — keep the default */
   }
@@ -257,11 +343,30 @@ export function useCurrency() {
   return [currency, choose, hasChosenCurrency()];
 }
 
+/** The country the probe found, or null. Null means "not asked yet" AND "asked, no answer". */
+export const getRegionCountry = () => regionCountry;
+
+// The server render has no reader and no edge, so it has no country — and it must agree with
+// the first client render or hydration will fight. Both are null; the marks arrive afterwards.
+const getServerRegionCountry = () => null;
+
+/**
+ * The country hook (R8.4). Subscribes to the SAME store and kicks the SAME one-shot probe as
+ * useCurrency, so a surface that reads both — every one of them does — still makes one request
+ * per document.
+ */
+export function useRegionCountry() {
+  const country = useSyncExternalStore(subscribe, getRegionCountry, getServerRegionCountry);
+  useEffect(() => { upgradeFromRegion(); }, []);
+  return country;
+}
+
 // Test seam. The store is module-level by design, which means it outlives a single test; this
 // puts it back to a known state. Not called by application code.
 export function __resetCurrencyStore() {
   current = null;
   chosen = false;
-  upgraded = false;
+  probed = false;
+  regionCountry = null;
   listeners.clear();
 }

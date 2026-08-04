@@ -13,7 +13,8 @@ import { useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import AuthModal from '../../components/AuthModal';
 import { createCheckoutSession } from '../../lib/bookstore/checkout';
-import { useCurrency, priceFor, formatPrice } from '../../lib/bookstore/currency';
+import { useCurrency, useRegionCountry, priceLine } from '../../lib/bookstore/currency';
+import { UNAVAILABLE_LABEL } from '../../lib/bookstore/territory';
 
 export default function BuyButton({ title, className, align = 'flex-start' }) {
   const { user } = useAuth();
@@ -32,11 +33,25 @@ export default function BuyButton({ title, className, align = 'flex-start' }) {
   //
   // A button reading "Buy · ₦4,500" that charges £4.99 is the single worst outcome available
   // in this round, so it is made structurally impossible rather than merely avoided.
-  const effective = priceFor(title, currency);
-  const price = effective ? formatPrice(effective.currency, effective.minorUnits) : null;
+  // R8.4 — THE TERRITORY CHECK IS ADVISORY HERE, AND ONLY HERE.
+  //
+  // This button is a courtesy: it stops a reader walking into a refusal they could have been
+  // told about on the shelf. It is NOT the enforcement. The enforcement is in
+  // functions/api/bookstore/checkout.js and paystack-checkout.js, which resolve the country
+  // themselves from the Cloudflare edge and refuse with 403 not_in_territory — because
+  // everything below runs on the reader's machine and can be edited by anyone who wants to.
+  // If this check and the server's ever disagree, the server's is the one that is true.
+  //
+  // `country` comes from the same one-shot region probe that already picked the currency, so
+  // this costs no request. Null (Cloudflare could not place them) marks nothing and disables
+  // nothing: the button stays live and the server gives them an honest answer, which beats a
+  // shelf of warnings the shop is guessing at. See SELL_TO_UNKNOWN_COUNTRY in territory.js.
+  const country = useRegionCountry();
+  const { price, priced: effective, sellable } = priceLine(title, currency, country);
 
   const onClick = async () => {
     setError(null);
+    if (!sellable) return;   // belt and braces: the button is already disabled below.
 
     // Signed out: the platform's affordance everywhere else (open-pages, my-library) is to
     // raise AuthModal in place rather than route away, so a reader never loses their page.
@@ -58,14 +73,23 @@ export default function BuyButton({ title, className, align = 'flex-start' }) {
 
   return (
     <>
+      {/* DISABLED, NOT REMOVED. The button keeps its place, its size and its position in the
+          tab order's neighbourhood, so the page does not reflow around a reader's geography
+          and so a screen reader meets the control and is told it is unavailable — rather than
+          finding a book with no way to buy it and no explanation. `aria-disabled` is the
+          announcement; the native `disabled` is what makes the claim true, because an
+          aria-only disable is a promise the DOM does not keep. The detail page's sentence
+          beneath says why. */}
       <button
         type="button"
         className={className}
         onClick={onClick}
-        disabled={pending}
+        disabled={pending || !sellable}
+        aria-disabled={!sellable || undefined}
+        data-unavailable={!sellable || undefined}
         aria-busy={pending || undefined}
       >
-        {pending ? 'Opening…' : (price ? `Buy · ${price}` : 'Buy')}
+        {!sellable ? UNAVAILABLE_LABEL : (pending ? 'Opening…' : (price ? `Buy · ${price}` : 'Buy'))}
       </button>
 
       {error && (

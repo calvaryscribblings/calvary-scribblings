@@ -30,6 +30,12 @@
 // R5b: json() and the token verifier moved to ./_lib.js when stream.js became the third
 // caller. Behaviour is unchanged — the move exists so the three endpoints cannot drift.
 import { json, dbBase, verifyIdToken, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } from './_lib.js';
+// R8.4 — the SAME country resolver the region endpoint serves to the client, and the SAME
+// matcher the storefront marks with. Importing them rather than re-deriving is the point: a
+// shelf that says "not sold in your region" and a till that disagrees is worse than either
+// behaviour on its own.
+import { countryFrom } from './region.js';
+import { isTitleSellableIn } from '../../../app/lib/bookstore/territory.js';
 
 const TITLES_PATH = 'bookstore_titles';
 const PUBLISHERS_PATH = 'bookstore_publishers';
@@ -113,6 +119,36 @@ export async function onRequestPost(context) {
     } catch {
       // fall through — see above
     }
+  }
+
+  // ── territory (R8.4) ───────────────────────────────────────────────────────
+  // THE AUTHORITATIVE CHECK. The storefront marks restricted titles and disables their buy
+  // buttons, but that is a courtesy rendered on the reader's own machine — this is the line
+  // that keeps a publisher's licence.
+  //
+  // THE COUNTRY IS NEVER TAKEN FROM THE CLIENT. Not from the body, not from a header the
+  // caller could set: countryFrom() reads request.cf.country, which Cloudflare stamps at the
+  // edge and which an inbound header of that name cannot forge (the edge strips and re-sets
+  // it). A body-supplied country would be a body-supplied licence, and the same reasoning that
+  // keeps the uid and the price server-side applies here without a word changed.
+  //
+  // BEFORE THE PRICE, deliberately — the same precedence the storefront renders. A title that
+  // is both unsellable here and unpriced in this currency must fail as a licence problem, not
+  // as a pricing one, because 409 not_priced_in_ngn invites the reader to try another currency
+  // and no currency will help them.
+  const country = countryFrom(request);
+  if (!isTitleSellableIn(title, country)) {
+    // The country goes in the LOG, not in the response. The reader already knows where they
+    // are; what the response must not do is confirm to a caller probing the endpoint what the
+    // edge decided about them, or turn a refusal into a geolocation oracle.
+    console.warn(`[bookstore/checkout] refused ${titleId} uid=${uid} country=${country ?? 'unknown'} territories=${JSON.stringify(title.territoriesAllowed)} excluded=${JSON.stringify(title.territoriesExcluded ?? null)}`);
+    return json(
+      {
+        error: 'This title isn’t licensed for sale in your region.',
+        code: 'not_in_territory',
+      },
+      403,
+    );
   }
 
   const unitAmount = title.prices?.[cur];

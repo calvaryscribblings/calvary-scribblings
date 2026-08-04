@@ -121,6 +121,13 @@ jobs:
       - name: Currency harness (selection, marks and rails)
         run: npx playwright test -c tests/bookstore/playwright.currency.config.mjs
 
+      # R8.4. Its own port (4325) and its own step, for the same reason as the currency suite:
+      # a territory failure should read as a territory failure in the run summary, not as a
+      # currency one. The two share a store and a region call, so a regression in either can
+      # surface in the other — which is exactly why both names need to be visible.
+      - name: Territory harness (rights, marks and the disabled button)
+        run: npx playwright test -c tests/bookstore/playwright.territory.config.mjs
+
       - name: Upload traces and reports
         if: failure()
         uses: actions/upload-artifact@v4

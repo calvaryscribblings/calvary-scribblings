@@ -8,7 +8,22 @@ import TabBar from '../../components/TabBar';
 import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
 import BuyButton from '../components/BuyButton';
 import { truncate, formatCatalogueNumber } from '../components/fields';
-import { useCurrency, priceFor, fallbackSentence } from '../../lib/bookstore/currency';
+import { useCurrency, useRegionCountry, priceLine, fallbackSentence } from '../../lib/bookstore/currency';
+import { TERRITORY_SENTENCE } from '../../lib/bookstore/territory';
+
+// Both asides beneath the buy button — the currency one and the territory one — are the same
+// object on purpose. They are one editorial register (a quiet qualification of the button
+// above), they are mutually exclusive, and a reader who met them in different type would read
+// the difference as meaning something.
+const BUY_ASIDE_STYLE = {
+  margin: 0,
+  maxWidth: '34ch',
+  fontFamily: 'Cormorant Garamond, Georgia, serif',
+  fontSize: '.8rem',
+  fontStyle: 'italic',
+  lineHeight: 1.55,
+  color: 'rgba(240,234,216,.5)',
+};
 import LaunchGate from '../components/LaunchGate';
 import { isStoreUnlocked } from '../../lib/bookstore/gate';
 
@@ -128,8 +143,16 @@ export default function BookDetailClient({ params }) {
 
   // R8.3. `title` is null until the fetch lands, and priceFor tolerates that — the sentence is
   // simply absent until there is a book to say it about.
+  //
+  // R8.4 — PRECEDENCE, RENDERED. priceLine has already decided which of the two facts governs;
+  // this reads its answer rather than re-deriving it. `sellable` false means the currency
+  // sentence is not merely hidden, it is NOT COMPUTED: `priced` is null, so fallbackSentence
+  // has nothing to say and could not contradict the territory line even by accident. One
+  // sentence beneath the button, ever.
   const [currency] = useCurrency();
-  const fallbackLine = fallbackSentence(priceFor(title, currency), currency);
+  const country = useRegionCountry();
+  const { priced, sellable } = priceLine(title, currency, country);
+  const fallbackLine = fallbackSentence(priced, currency);
 
   const section = title ? sectionLabel(title.genre) : '';
   const cat = title ? formatCatalogueNumber(title.catalogueNumber) : null;
@@ -159,6 +182,8 @@ export default function BookDetailClient({ params }) {
           .bd-buy{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;padding:.95rem 2.2rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:pointer;transition:filter .25s,opacity .25s}
           .bd-buy:hover{filter:brightness(1.08)}
           .bd-buy:disabled{cursor:progress;opacity:.6;filter:none}
+          /* R8.4 — see the twin rule in app/bookstore/page.js. Unavailable is not pending. */
+          .bd-buy[data-unavailable]{cursor:not-allowed;opacity:.55;background:none;border:1px solid rgba(201,164,76,.28);color:rgba(240,234,216,.55)}
           .bd-sample{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;padding:.95rem 2.2rem;border:1px solid rgba(201,164,76,.4);border-radius:3px;background:rgba(201,164,76,.04);color:#c9a44c;font-weight:600;cursor:pointer;text-decoration:none;transition:all .25s;display:inline-flex;align-items:center}
           .bd-sample:hover{background:rgba(201,164,76,.1);border-color:rgba(201,164,76,.7)}
           .colophon{max-width:640px;margin:0 auto;padding:3rem 2rem 5rem;text-align:center;position:relative;z-index:2}
@@ -259,11 +284,19 @@ export default function BookDetailClient({ params }) {
                             which is not what the ruling asked for: it is a fact, quietly
                             stated, in the muted italic the rest of this column already uses
                             for asides. */}
+                        {/* R8.4 — THE TERRITORY SENTENCE, in the currency sentence's exact
+                            place and exact voice, because it does the same job: it qualifies
+                            the claim the button above it is making. The two are mutually
+                            exclusive by construction, not by this condition — when the title
+                            is not sellable here priceLine returns no price, so fallbackLine is
+                            already null and there is no second sentence to suppress. */}
+                        {!sellable && (
+                          <p data-testid="territory-sentence" style={BUY_ASIDE_STYLE}>
+                            {TERRITORY_SENTENCE}
+                          </p>
+                        )}
                         {fallbackLine && (
-                          <p
-                            data-testid="price-fallback-sentence"
-                            style={{ margin: 0, maxWidth: '34ch', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.8rem', fontStyle: 'italic', lineHeight: 1.55, color: 'rgba(240,234,216,.5)' }}
-                          >
+                          <p data-testid="price-fallback-sentence" style={BUY_ASIDE_STYLE}>
                             {fallbackLine}
                           </p>
                         )}

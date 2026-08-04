@@ -31,6 +31,11 @@ import {
   PROVIDER_TIMEOUT_MS,
   FIREBASE_TIMEOUT_MS,
 } from './_lib.js';
+// R8.4 — identical to checkout.js, and identical on purpose: one country resolver, one
+// matcher, two rails. A licence that held on the Stripe rail and not on the Paystack one
+// would be no licence at all.
+import { countryFrom } from './region.js';
+import { isTitleSellableIn } from '../../../app/lib/bookstore/territory.js';
 
 const LABEL = 'bookstore/paystack-checkout';
 
@@ -139,6 +144,24 @@ export async function onRequestPost(context) {
     } catch {
       // fall through — see above
     }
+  }
+
+  // ── territory (R8.4) ───────────────────────────────────────────────────────
+  // The authoritative check, word for word the one in checkout.js — see the long note there.
+  // The country comes from the Cloudflare edge and never from the caller; it is checked BEFORE
+  // the price so that a restricted title fails as a licence problem rather than as
+  // not_priced_in_ngn, which would send the reader off to try pounds for a book no currency
+  // can buy them.
+  const country = countryFrom(request);
+  if (!isTitleSellableIn(title, country)) {
+    console.warn(`[${LABEL}] refused ${titleId} uid=${uid} country=${country ?? 'unknown'} territories=${JSON.stringify(title.territoriesAllowed)} excluded=${JSON.stringify(title.territoriesExcluded ?? null)}`);
+    return json(
+      {
+        error: 'This title isn’t licensed for sale in your region.',
+        code: 'not_in_territory',
+      },
+      403,
+    );
   }
 
   const priced = selectNgnAmount(title);

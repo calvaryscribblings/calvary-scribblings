@@ -7,7 +7,8 @@
 // Escape / veil / × = put back: the modal recedes and the caller un-flips the book.
 import { useEffect, useRef, useState } from 'react';
 import { resolveOpeningLine, resolveBackBlurb, formatCatalogueNumber } from './fields';
-import { useCurrency, priceFor, formatPrice, fallbackNote } from '../../lib/bookstore/currency';
+import { useCurrency, useRegionCountry, priceLine } from '../../lib/bookstore/currency';
+import { UNAVAILABLE_LABEL } from '../../lib/bookstore/territory';
 
 const CARD_W = 440;
 
@@ -46,9 +47,8 @@ export default function QuickLookModal({ title, originRect, onClose }) {
 
   const opening = resolveOpeningLine(title);
   const blurb = resolveBackBlurb(title);
-  const priced = priceFor(title, currency);
-  const price = priced ? formatPrice(priced.currency, priced.minorUnits) : null;
-  const note = fallbackNote(priced);
+  const country = useRegionCountry();
+  const { price, note, sellable } = priceLine(title, currency, country);
   const cat = formatCatalogueNumber(title.catalogueNumber);
 
   // Desktop morph transform for the enter/closing phases.
@@ -120,8 +120,11 @@ export default function QuickLookModal({ title, originRect, onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '.9rem', flexWrap: 'wrap', marginBottom: '1.4rem' }}>
           {/* A link to the detail page, NOT a checkout. R5 keeps exactly one place in the
               bookstore where a charge can begin; a quick look is for deciding, and the
-              decision is made on the page that shows the whole book. */}
-          <a href={`/bookstore/${title.slug}`} style={{ fontFamily: "'Cinzel',serif", fontSize: '.64rem', letterSpacing: '.16em', textTransform: 'uppercase', padding: '.85rem 1.8rem', border: 'none', borderRadius: '3px', background: 'linear-gradient(135deg,#c9a44c,#a8842f)', color: '#0a0a0a', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>{price ? `Buy · ${price}` : 'Buy'}</a>
+              decision is made on the page that shows the whole book.
+              R8.4 — which is why this one is NOT disabled when the title is restricted: it
+              leads to the book, not to a charge, and the detail page is where the fuller
+              sentence explains itself. It only stops claiming there is something to buy. */}
+          <a href={`/bookstore/${title.slug}`} style={{ fontFamily: "'Cinzel',serif", fontSize: '.64rem', letterSpacing: '.16em', textTransform: 'uppercase', padding: '.85rem 1.8rem', border: 'none', borderRadius: '3px', background: 'linear-gradient(135deg,#c9a44c,#a8842f)', color: '#0a0a0a', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>{sellable ? (price ? `Buy · ${price}` : 'Buy') : UNAVAILABLE_LABEL}</a>
           {title.samplePath && (
             <a href={`/reader/${title.slug}?sample=1`} style={{ fontFamily: "'Cinzel',serif", fontSize: '.64rem', letterSpacing: '.16em', textTransform: 'uppercase', padding: '.85rem 1.8rem', border: '1px solid rgba(201,164,76,.4)', borderRadius: '3px', background: 'rgba(201,164,76,.04)', color: '#c9a44c', fontWeight: 600, textDecoration: 'none' }}>Read sample</a>
           )}
