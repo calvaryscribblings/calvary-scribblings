@@ -31,9 +31,29 @@ import { isPasscodeCorrect, grantGatePass, isEmailShaped } from '../../lib/books
 
 const OPENING_DATE = '30 September 2026';
 
+// R9.2 PL-21 — NO @import HERE, AND NONE MAY COME BACK.
+//
+// This block used to open with
+//   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond…&family=Cinzel…')
+// which was the worst possible place for it. GATE_CSS is injected as <style>{GATE_CSS}</style>
+// at the bottom of this file, so the @import was not discovered until the React tree had
+// already mounted; an @import inside an injected stylesheet is fetched serially AFTER the sheet
+// that contains it, and it blocks the gate's own render while it goes. That is a third-party
+// round trip on the first screen a paying customer ever sees.
+//
+// IT WAS ALSO REDUNDANT. app/layout.js:46-52 already loads both families for the whole app
+// from a render-blocking <link>, preceded by the two preconnects — Cinzel 400/500/600/700 and
+// Cormorant Garamond 400-700 in both romans and italics. Every face this gate asks for is in
+// that set. The one thing the @import added and the shell does not load is weight 300, and
+// nothing in this file has ever used it.
+//
+// app/globals.css:1-3 removed exactly this duplicate for exactly this reason and left the note
+// saying so; this is the same fix on the last copy of it.
+// tests/bookstore/gate-fonts.test.mjs asserts BOTH halves — that no @import returns, and that
+// every family and weight named below is one the shell's link actually loads. Add a
+// font-weight:300 rule here and that suite goes red rather than the gate silently rendering in
+// a face nobody chose.
 const GATE_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Cinzel:wght@400;600&display=swap');
-
   /* THE BOTTOM TERM CLEARS THE TAB BAR. /bookstore renders <TabBar /> in every state now,
      including this one, so the curtain's last line would otherwise sit under 64px of opaque bar.
      The 64px stacks ON TOP of the 3rem — the breathing room the composition was drawn with is

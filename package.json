@@ -21,6 +21,7 @@
     "test:newsletter": "node --test \"tests/newsletter/*.test.mjs\"",
     "test:purchases": "node --test \"tests/bookstore/*.test.mjs\"",
     "test:rules": "firebase emulators:exec --only database,storage --project demo-calvary-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
+    "test:ci": "node --test \"tests/ci/*.test.mjs\"",
     "lint:ratchet": "node scripts/lint-ratchet.mjs"
   },
   "dependencies": {

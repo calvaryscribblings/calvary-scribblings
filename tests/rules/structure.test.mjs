@@ -211,3 +211,44 @@ test('the two nodes that hold money or private mail are never world-readable', (
     assert.notEqual(r, true, `${node}/.read must never be true`);
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// R9.2 PL-4 · every declared index must be paid for by a real query.
+//
+// An .indexOn costs write throughput on every write to the node, forever. RTDB
+// never complains about one nothing queries — the only feedback is the absence
+// of the "Consider adding .indexOn" warning you were never going to see.
+//
+// bookstore_purchases/$uid declared ["purchaseDate", "titleId"] and BOTH were
+// wrong, in two different ways that between them cover the whole failure mode:
+// buildGrantPayload in functions/api/bookstore/_lib.js writes `purchasedAt`, not
+// `purchaseDate` — so that index was on a field that has never existed — and
+// `titleId` is the record KEY (bookstore_purchases/{uid}/{titleId}), not a child
+// of the record, so it can never be an orderByChild target either. No
+// orderByChild anywhere in the tree names this node. The whole declaration was
+// removed rather than corrected: nothing sorts a shelf server-side today, and a
+// speculative index is the same cost as a wrong one.
+// ─────────────────────────────────────────────────────────────────────────────
+test('bookstore_purchases declares no index — nothing queries it', () => {
+  const node = rules.bookstore_purchases?.$uid;
+  assert.ok(node, 'bookstore_purchases/$uid must still exist');
+  assert.equal(
+    node['.indexOn'], undefined,
+    'Re-adding an index here means a query was added too. If so, name the field ' +
+    'the code actually writes (purchasedAt, not purchaseDate) and point this test ' +
+    'at the orderByChild that justifies it.',
+  );
+});
+
+test('no index names a field the bookstore payload does not write', () => {
+  // The generalisation of the bug above, held over the node that DOES index.
+  // Reads the writer rather than restating its field names.
+  const lib = readFileSync(
+    new URL('../../functions/api/bookstore/_lib.js', import.meta.url), 'utf8',
+  );
+  assert.equal(
+    /purchaseDate/.test(lib), false,
+    'the grant payload writes purchasedAt. If purchaseDate has come back, the ' +
+    'index that was removed in R9.2 may be worth restoring.',
+  );
+});

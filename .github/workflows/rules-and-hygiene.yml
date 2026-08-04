@@ -29,6 +29,7 @@ on:
       - 'firebase.json'
       - 'tests/rules/**'
       - 'tests/newsletter/**'
+      - 'tests/ci/**'
       - 'app/**'
       - 'functions/**'
       - 'scripts/**'
@@ -36,7 +37,9 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/lint-baseline.json'
-      - '.github/workflows/rules-and-hygiene.yml'
+      # R9.2 (c): the whole directory, not just this file. test:ci below asserts over EVERY
+      # workflow, so an edit to reader-tests.yml has to be able to make this job run.
+      - '.github/workflows/**'
   pull_request:
     paths: *watched
   workflow_dispatch:
@@ -56,14 +59,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # R9.2 (c) — action majors pinned off the deprecated node20 runtime. The bump is
+      # per-action, not uniform: see the note in reader-tests.yml for which version of which
+      # action actually moves to node24, and why upload-artifact needs @v6 where the others
+      # need @v5.
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       # The RTDB and Storage emulators are JVM processes. ubuntu-latest ships a
       # JDK, but pinning one means an image change cannot silently break this.
-      - uses: actions/setup-java@v4
+      # setup-java@v5 deprecates the legacy `adopt` distributions; temurin below is
+      # unaffected.
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -88,10 +97,10 @@ jobs:
       # `git cat-file -e` fails and every run falls through to "assume changed" —
       # observed on run 30861696385, where a commit touching no rules file still
       # entered the check.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -152,8 +161,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -162,6 +171,11 @@ jobs:
       # Five suites have existed under tests/newsletter/ and CI has never run one.
       - name: Newsletter suites
         run: npm run test:newsletter
+
+      # R9.2 (c). The workflows check themselves: action majors held above the node24 floor,
+      # nothing pinned to a floating tag, and no new action slipping in unrecorded.
+      - name: Workflow hygiene (action runtimes)
+        run: npm run test:ci
 
       # Gates on the DIRECTION, not on zero: 146 errors + 110 warnings stand
       # today and a zero gate would mean a permanently red pipeline. The count

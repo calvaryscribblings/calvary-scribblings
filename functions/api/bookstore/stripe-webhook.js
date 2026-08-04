@@ -60,15 +60,60 @@ const LABEL = 'bookstore/stripe-webhook';
 
 const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 300;
 
+// R9.2 PL-14. The tolerance above is how far in the PAST a signed timestamp may be; this is
+// how far in the FUTURE. They are deliberately not the same number. Stripe's own libraries
+// check age one-sidedly (`now - t > tolerance`) and so accept an arbitrarily future
+// timestamp; this file used Math.abs, which was worse in a different way — it made the
+// tolerance symmetric and handed a captured, still-valid body five extra minutes of life.
+// A future timestamp is only ever clock skew between Cloudflare's edge and Stripe's, which
+// is seconds, never minutes.
+const STRIPE_CLOCK_SKEW_SECONDS = 30;
+
 // Events that grant access, and events that take it away. Anything not listed is
 // acknowledged and ignored, so the Stripe dashboard can be configured broadly without
 // this endpoint needing to change.
-const GRANT_EVENTS = new Set(['checkout.session.completed']);
+//
+// R9.2 PL-3: async_payment_succeeded is the OTHER half of a delayed-payment method. For a
+// card, checkout.session.completed arrives with payment_status 'paid' and is the whole
+// story. For anything asynchronous — BACS, SEPA debit, Bancontact, a bank redirect —
+// completed arrives FIRST, with payment_status 'unpaid', and the money lands (or does not)
+// days later as async_payment_succeeded / async_payment_failed. Both grant events carry the
+// same Session `id`, so a grant that arrives on the second one still stores the same
+// stripeSessionId, and the revoke path's reference matching is unaffected.
+const GRANT_EVENTS = new Set([
+  'checkout.session.completed',
+  'checkout.session.async_payment_succeeded',
+]);
 const REVOKE_EVENTS = new Map([
   ['charge.refunded', 'refunded'],
   ['charge.dispute.created', 'disputed'],
   ['checkout.session.async_payment_failed', 'payment-failed'],
 ]);
+
+/**
+ * Has the money actually arrived?
+ *
+ * Stripe sets `payment_status` on every Checkout Session and it is the only field on the
+ * event that answers this. Three values exist:
+ *
+ *   'paid'                 — settled. Grant.
+ *   'no_payment_required'  — a zero-amount session: a 100%-off coupon, a comp. There is no
+ *                            money to wait for and the session is legitimately complete, so
+ *                            this grants too. Refusing it would mean a free copy that
+ *                            silently never appears on the shelf.
+ *   'unpaid'               — the delayed-payment case. Do NOT grant; async_payment_succeeded
+ *                            is the event that will say the money landed.
+ *
+ * ANYTHING ELSE, INCLUDING A MISSING FIELD, IS NOT PAID. This is the one place in the grant
+ * path that fails closed, and it is the right place: everywhere else the choice is between a
+ * duplicate grant and a paying reader with no book, and a duplicate grant is cheaper. Here
+ * the choice is between a book given away and a book that arrives a few seconds late behind
+ * a loud log line, and the log line is cheaper. Exported for tests.
+ */
+export function isPaidSession(session) {
+  const status = session && session.payment_status;
+  return status === 'paid' || status === 'no_payment_required';
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // Stripe signature verification — manual HMAC-SHA256 since the Workers
@@ -102,9 +147,15 @@ async function verifyStripeSignature(rawBody, header, secret) {
   if (!Number.isFinite(ts)) {
     return { ok: false, reason: 'non-numeric timestamp in Stripe-Signature' };
   }
-  const ageSeconds = Math.abs(Math.floor(Date.now() / 1000) - ts);
+  // R9.2 PL-14: signed, not absolute. A positive age is an old body, a negative one is a
+  // body dated in the future — different problems, different bounds, and neither is what
+  // Math.abs was measuring.
+  const ageSeconds = Math.floor(Date.now() / 1000) - ts;
   if (ageSeconds > STRIPE_SIGNATURE_TOLERANCE_SECONDS) {
-    return { ok: false, reason: `timestamp outside tolerance (${ageSeconds}s)` };
+    return { ok: false, reason: `timestamp too old (${ageSeconds}s)` };
+  }
+  if (ageSeconds < -STRIPE_CLOCK_SKEW_SECONDS) {
+    return { ok: false, reason: `timestamp in the future (${-ageSeconds}s)` };
   }
 
   const signedPayload = `${timestamp}.${rawBody}`;
@@ -163,6 +214,20 @@ async function handleGrant(env, session) {
     console.error(
       `[bookstore/stripe-webhook] session ${session.id} has no uid/titleId ` +
       `(uid=${uid || '—'}, titleId=${titleId || '—'}) — nothing recorded`,
+    );
+    return;
+  }
+
+  // R9.2 PL-3. BEFORE the token mint, so an unpaid session costs nothing. This endpoint
+  // routed on event type alone and never looked at payment_status; for a card that was
+  // correct, because Stripe sets 'paid' before it sends completed. For a delayed-payment
+  // method it granted the book on a session where the money had not moved and might never.
+  if (!isPaidSession(session)) {
+    console.error(
+      `[bookstore/stripe-webhook] session ${session.id} for ${uid}/${titleId} has ` +
+      `payment_status=${session.payment_status || '—'} — NOT granted. A delayed-payment ` +
+      `method will follow with checkout.session.async_payment_succeeded; anything else here ` +
+      `needs a human.`,
     );
     return;
   }
@@ -281,6 +346,19 @@ async function handleRevoke(env, obj, reason) {
   const { verdict, stored } = classifyRevocation(existing, STRIPE_REF_FIELDS, candidates);
 
   if (verdict === 'absent') {
+    // R9.2 PL-3 changed what 'absent' MEANS for one of the three revoke events. Now that an
+    // unpaid session no longer grants, the ordinary life of a failed delayed payment is
+    // completed(unpaid) → nothing written → async_payment_failed → nothing to revoke. That
+    // is the system working, and it must not page anyone. The other two reasons keep the
+    // loud line: a refund or a dispute for a purchase that was never recorded means money
+    // moved somewhere this ledger cannot see.
+    if (reason === 'payment-failed') {
+      console.log(
+        `[bookstore/stripe-webhook] ${reason} for ${uid}/${titleId} with no purchase ` +
+        `recorded — expected: the session was never granted because it was never paid.`,
+      );
+      return;
+    }
     console.error(
       `[bookstore/stripe-webhook] NEEDS-MANUAL-REVIEW ${reason}: no purchase recorded at ` +
       `${uid}/${titleId} — event refs=[${candidates.join(', ') || '—'}], nothing revoked`,

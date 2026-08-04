@@ -181,9 +181,40 @@ export async function getBestsellers(limit = 10) {
   }
 }
 
+/**
+ * The public publisher record, and ONLY the public one. R9.2 PL-11.
+ *
+ * The storefront needs a publisher for exactly one thing — the name printed under "Publisher"
+ * on the detail page — and it used getPublisher() below to get it. That call also reaches for
+ * bookstore_publishers_private, which is founder-read-only, so for every reader who is not one
+ * of the two founders it was a request guaranteed to come back permission-denied: a wasted
+ * round trip and a red line in the console on the buying path, every time a book was opened.
+ *
+ * The audit asked for a grep at launch prep to prove no private field renders on a public
+ * surface. It does not — page-detail.js reads `pub.name` and nothing else, so nothing ever
+ * leaked. This exists so the question cannot be reopened by a later edit: a public surface
+ * calling a public getter can never render a private field, whoever is signed in.
+ *
+ * getPublisher() keeps the merge, because /admin/publishers genuinely needs it.
+ */
+export async function getPublisherPublic(publisherId) {
+  if (!publisherId) return null;
+  try {
+    const snap = await get(ref(db, `${PUBLISHERS_PATH}/${publisherId}`));
+    return snap.exists() ? snap.val() : null;
+  } catch (err) {
+    console.error('[bookstore.loader] getPublisherPublic failed', err);
+    return null;
+  }
+}
+
 // Returns the merged publisher shape (public + private fields) when called by an
 // admin context. Anonymous callers get only the public fields — the private fetch
 // silently fails on permission denied and we still return the public node.
+//
+// R9.2 PL-11: ADMIN SURFACES ONLY. A storefront caller wants getPublisherPublic() above —
+// the private half is founder-gated, so on a public page this always costs a denied request
+// and can never return anything.
 export async function getPublisher(publisherId) {
   if (!publisherId) return null;
   let publicVal = null;

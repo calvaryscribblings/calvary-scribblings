@@ -236,6 +236,11 @@ describe('stripe-webhook', () => {
         id: 'cs_test_1', client_reference_id: 'AAAAowner0000000000000000001',
         metadata: { uid: 'AAAAowner0000000000000000001', titleId: 'the-rescue' },
         payment_intent: 'pi_test_1', amount_total: 199, currency: 'gbp',
+        // R9.2 PL-3 added a payment_status gate IN FRONT of the token mint, so a session
+        // without one now returns before any Firebase call and this fixture would be asserting
+        // a plain 200 rather than the stalled-write posture it exists for. 'paid' is what
+        // Stripe sends for a card, which is the case under test.
+        payment_status: 'paid',
       } },
     });
     // The token mints; every RTDB call stalls.

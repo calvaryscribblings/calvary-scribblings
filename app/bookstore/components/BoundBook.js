@@ -65,12 +65,24 @@ export const BOUND_BOOK_CSS = `
 // Varying bar widths for the faux barcode — deterministic (index-seeded), no randomness.
 const BAR_WIDTHS = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 1, 2, 3, 1, 2, 1, 3, 2, 1, 1, 2];
 
+// R9.2 PL-20 — THE COVER'S alt IS EMPTY ON PURPOSE, and it is not an omission.
+//
+// The cover is decorative at every one of BoundBook's three call sites, because all three
+// print the title as adjacent text: app/bookstore/page.js:76 (.entry-title on the shelf),
+// :148 (.window-title in the window) and app/bookstore/[slug]/page-detail.js:268 (the <h1>).
+// BackFace below prints it a fourth time. alt={title.title} therefore made a screen reader
+// announce the same book twice in a row — once as an image, once as a heading — on a shelf
+// of them. app/my-library/page.js:78 always had this right; this now matches it.
+//
+// IF A FOURTH CALL SITE EVER RENDERS A COVER WITH NO TITLE BESIDE IT, this has to change with
+// it: alt="" on the only carrier of the name is a silent image, which is worse than the
+// duplicate. tests/bookstore/gate.spec.mjs pins both halves for the shelf and the detail page.
 function FrontFace({ title, width }) {
   const hasCover = !!title.coverUrl;
   return (
     <div className="bb-face bb-front">
       {hasCover ? (
-        <Image src={title.coverUrl} alt={title.title} fill unoptimized sizes={`${width}px`} style={{ objectFit: 'cover' }} />
+        <Image src={title.coverUrl} alt="" fill unoptimized sizes={`${width}px`} style={{ objectFit: 'cover' }} />
       ) : (
         <div style={{ position: 'absolute', inset: 0, background: gradientFor(title.slug || title.title), display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.4rem 1rem', textAlign: 'center' }}>
           <div className="bb-foil" style={{ fontFamily: "'Cinzel',serif", fontWeight: 600, fontSize: `${Math.max(0.62, width / 190)}rem`, lineHeight: 1.2, marginBottom: '.5rem', letterSpacing: '.02em' }}>{title.title}</div>

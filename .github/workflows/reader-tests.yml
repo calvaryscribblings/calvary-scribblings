@@ -72,9 +72,25 @@ jobs:
     env:
       CI: 'true'
     steps:
-      - uses: actions/checkout@v4
+      # R9.2 (c) — ACTION MAJORS, PINNED OFF THE NODE 20 RUNTIME.
+      #
+      # Every action here was on @v4, which GitHub runs on `node20` and has deprecated. The
+      # bump is per-action rather than uniform, because the version that clears node20 is not
+      # the same number for all of them — the runtime is what matters, not the tag:
+      #
+      #   actions/checkout@v5         runs: node24  ✓
+      #   actions/setup-node@v5       runs: node24  ✓
+      #   actions/setup-java@v5       runs: node24  ✓  (rules-and-hygiene.yml)
+      #   actions/upload-artifact@v5  runs: node20  ✗  — v5 shipped "preliminary" node24
+      #                                                  support but still DEFAULTS to node20.
+      #                                                  v6 is the one that actually moves.
+      #
+      # So upload-artifact is on @v6 and everything else on @v5, and that asymmetry is
+      # deliberate. Check `runs.using` in each action's action.yml before changing any of them;
+      # the release notes are not a reliable proxy for it.
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -130,7 +146,7 @@ jobs:
 
       - name: Upload traces and reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: reader-test-results
           path: |

@@ -413,3 +413,69 @@ test.describe('the gate is a dialog', () => {
     await expect(probe).toBeFocused();
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// R9.2 PL-20 — THE COVERS BEHIND THE CURTAIN ARE DECORATIVE.
+//
+// Why here rather than in a suite of its own: this file is already the only bookstore harness
+// that walks a real browser from the curtain onto the real storefront, and it is already where
+// the round's a11y work lives ("the gate is a dialog" above is PL-5). A fifth Playwright
+// config, port and CI step to assert one attribute would cost more than it proves.
+//
+// THE FINDING. BoundBook rendered <Image alt={title.title}>, and every call site prints the
+// title again as adjacent text. A screen reader therefore announced each book twice —
+// "The Rescue, image" then "The Rescue" — on a shelf of them. app/my-library/page.js:78 had
+// always had this right; the storefront had not.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+test.describe('cover images are decorative', () => {
+  async function enterShop(page) {
+    await page.goto('/bookstore');
+    await page.getByTestId('gate-passcode').fill(GATE_PASSCODE);
+    await page.getByTestId('gate-enter').click();
+    await expect(page.locator('.hero-store')).toBeVisible({ timeout: 30000 });
+  }
+
+  test('every BoundBook cover on the shelf carries an empty alt', async ({ page }) => {
+    await enterShop(page);
+
+    // .bb-front is BoundBook's own face class, so this cannot drift onto some other image.
+    const covers = page.locator('.bb-front img');
+    // WAIT FOR A COVER, NOT FOR AN ENTRY. The catalogue arrives from live Firebase and the
+    // sections paint progressively: .shelf-entry becomes visible a beat before its <img>
+    // exists, so counting on the entry alone raced and read 0. toBeAttached retries; count()
+    // does not — an unretried count is the classic false negative in this harness.
+    await expect(covers.first()).toBeAttached({ timeout: 30000 });
+    const n = await covers.count();
+    expect(n, 'the live catalogue must put at least one bound book on the shelf').toBeGreaterThan(0);
+
+    for (let i = 0; i < n; i++) {
+      // '' not null: the attribute has to be PRESENT and empty. A missing alt is an entirely
+      // different announcement — assistive tech falls back to reading the file name.
+      await expect(covers.nth(i)).toHaveAttribute('alt', '');
+    }
+  });
+
+  test('the title is still announced once, as text beside the cover', async ({ page }) => {
+    // The other half of the fix, and the half that makes alt="" correct rather than lossy.
+    // If a redesign ever drops .entry-title, the cover becomes the only carrier of the name
+    // and alt="" turns a decorative image into a silent one — this is what would catch it.
+    await enterShop(page);
+    const entry = page.locator('.shelf-entry').first();
+    await expect(entry.locator('.bb-front img')).toBeAttached({ timeout: 30000 });
+
+    const titleText = (await entry.locator('.entry-title').innerText()).trim();
+    expect(titleText.length, 'every shelf entry must print its title as text').toBeGreaterThan(0);
+    await expect(entry.locator('.bb-front img')).toHaveAttribute('alt', '');
+  });
+
+  test('the detail page names the book once in the heading, not twice', async ({ page }) => {
+    await enterShop(page);
+    await page.goto(`/bookstore/${DETAIL_SLUG}`);
+
+    const cover = page.locator('.bd-cover-wrap .bb-front img');
+    await expect(cover).toBeAttached({ timeout: 30000 });
+    await expect(cover).toHaveAttribute('alt', '');
+    await expect(page.locator('h1')).toBeVisible();
+  });
+});

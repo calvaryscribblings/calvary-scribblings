@@ -1,7 +1,7 @@
 'use client';
 import { use, useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
-import { getTitleBySlug, getPublisher } from '../../lib/bookstore/loader';
+import { getTitleBySlug, getPublisherPublic } from '../../lib/bookstore/loader';
 import { sectionForGenre } from '../page';
 import Navbar from '../../components/Navbar';
 import TabBar from '../../components/TabBar';
@@ -109,7 +109,10 @@ export default function BookDetailClient({ params }) {
       setTitle(t);
       setState('ready');
       if (t.publisherId) {
-        const pub = await getPublisher(t.publisherId);
+        // R9.2 PL-11 — the PUBLIC getter. Only `name` is ever used here, and the merged
+        // getPublisher() also reached for bookstore_publishers_private, which is
+        // founder-read-only: a guaranteed permission-denied on every reader's book page.
+        const pub = await getPublisherPublic(t.publisherId);
         if (!cancelled && pub?.name) setPublisherName(pub.name);
       }
     })();

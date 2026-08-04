@@ -595,3 +595,142 @@ describe('LB-9 · bookstore_waitlist — the launch mailing list', () => {
     await assertSucceeds(anon.ref('bookstore_waitlist/-short').set({ email: short, addedAt: now() }));
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R9.2 (a) · bookstore_titles/$titleId/territoriesAllowed — the licence the till keeps.
+//
+// WHAT WAS WRONG. The field was validated as `isString() || hasChildren()`, which is barely a
+// validation at all: '' passed, 'worldwide' passed, 'no' passed, an object of arbitrary junk
+// passed. And every one of those then read as WORLDWIDE downstream, because
+// normaliseTerritories in app/lib/bookstore/territory.js resolves anything it does not
+// recognise to worldwide — deliberately, and correctly, since a title whose rights field a bad
+// migration flattened must not silently become unsellable everywhere.
+//
+// So the two halves compounded: the rule accepted a meaningless value and the matcher read a
+// meaningless value as "sell it anywhere". A hand-edit in the Firebase console typing
+// `worldwide` into the box, meaning worldwide, would have got worldwide — and a hand-edit
+// typing `EU`, meaning the EU, would ALSO have got worldwide. That second case is a book sold
+// into a territory its publisher did not license.
+//
+// THE FIX IS ON THE RULE, NOT THE MATCHER. R8.4 spent its length arguing why the matcher must
+// resolve garbage permissively, and that argument still holds: the matcher's input is
+// whatever is already in the database, and refusing to sell is not a safe default. The way to
+// stop garbage being read is to stop it being STORED. So: a string must be exactly '*', a list
+// must be a list of ISO 3166-1 alpha-2 codes, and there is no third shape.
+//
+// territoriesExcluded gets the same treatment in the same edit. The rules did not know it
+// existed at all, and it is the field that decides where a worldwide licence does NOT reach.
+//
+// PARITY WITH schema.js. app/lib/bookstore/schema.js:164-173 has always enforced exactly this,
+// and app/lib/bookstore/admin-writes.js runs it on every curator save. The rule was the loose
+// half of a matched pair — the same shape of gap R9.1 LB-9 closed on the waitlist email. The
+// rule is the half a console edit cannot skip, which is why it is the half that matters.
+//
+// SAFE ON THE LIVE CATALOGUE: all four titles carry territoriesAllowed '*' and no
+// territoriesExcluded (read from the public node before the edit), so nothing already stored
+// becomes unwritable.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TITLE_BASE = {
+  schemaVersion: 3,
+  slug: 'a-title',
+  title: 'A Title',
+  author: 'An Author',
+  publisherId: 'calvary',
+  synopsis: 'A synopsis.',
+  prices: { gbp: 199 },
+  genre: 'fiction',
+  publishedDate: '2026-09-30',
+  addedAt: 1,
+  updatedAt: 1,
+  status: 'published',
+};
+const titleWith = (extra) => ({ ...TITLE_BASE, ...extra });
+
+describe('R9.2 · bookstore_titles territories', () => {
+  test('the legitimate shapes still save — worldwide, and an allow-list', async () => {
+    // CASE 4 FIRST. A tightening that breaks the curator is worse than the hole it closed,
+    // and both live shapes are here.
+    await assertSucceeds(founder.ref('bookstore_titles/t1').set(titleWith({ territoriesAllowed: '*' })));
+    await assertSucceeds(founder.ref('bookstore_titles/t2').set(titleWith({ territoriesAllowed: ['GB', 'NG'] })));
+    await assertSucceeds(founder.ref('bookstore_titles/t3').set(titleWith({
+      territoriesAllowed: '*', territoriesExcluded: ['CA', 'US'],
+    })));
+  });
+
+  test('THE FINDING: the strings that used to pass and mean worldwide', async () => {
+    for (const value of ['', 'worldwide', 'WORLDWIDE', 'all', 'GB', 'no', '*worldwide', ' *']) {
+      await assertFails(
+        founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: value })),
+        `territoriesAllowed ${JSON.stringify(value)} must not be storable`,
+      );
+    }
+  });
+
+  test("'*' is the only string, and it is exact", async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/ok').set(titleWith({ territoriesAllowed: '*' })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: '**' })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: '*,GB' })));
+  });
+
+  test('a list must be ISO 3166-1 alpha-2, upper case', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/ok').set(titleWith({ territoriesAllowed: ['GB'] })));
+    // Lower case is REJECTED rather than folded: admin-writes.js:112 uppercases before it
+    // validates, so a curator's 'gb' is stored as 'GB' and never reaches the rule as 'gb'.
+    // Anything that does reach it in lower case came from a console edit, which is exactly
+    // what this rule exists to catch.
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: ['gb'] })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: ['GBR'] })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: ['G'] })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: ['GB', 'nope'] })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: [1, 2] })));
+  });
+
+  test('a non-string, non-list value cannot be stored', async () => {
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: 5 })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: true })));
+  });
+
+  test('the field cannot simply be omitted', async () => {
+    // The parent hasChildren list already required it; asserted here so splitting the
+    // validator out of that expression cannot have dropped the requirement.
+    const { ...noTerritories } = TITLE_BASE;
+    await assertFails(founder.ref('bookstore_titles/bad').set(noTerritories));
+    // An empty list is the same thing: RTDB stores no empty containers, so the key vanishes.
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: [] })));
+  });
+
+  test('territoriesExcluded is validated too, or absent', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/ok').set(titleWith({ territoriesAllowed: '*' })));
+    await assertSucceeds(founder.ref('bookstore_titles/ok2').set(titleWith({
+      territoriesAllowed: '*', territoriesExcluded: ['US'],
+    })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({
+      territoriesAllowed: '*', territoriesExcluded: ['us'],
+    })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({
+      territoriesAllowed: '*', territoriesExcluded: 'US',
+    })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({
+      territoriesAllowed: '*', territoriesExcluded: '*',
+    })));
+  });
+
+  test('a single field cannot be edited around the validator', async () => {
+    // The route a console edit actually takes: reach past the record and set the leaf.
+    await seed(env, { 'bookstore_titles/t1': titleWith({ territoriesAllowed: ['GB'] }) });
+    await assertFails(founder.ref('bookstore_titles/t1/territoriesAllowed').set('worldwide'));
+    await assertFails(founder.ref('bookstore_titles/t1/territoriesAllowed/0').set('gb'));
+    await assertSucceeds(founder.ref('bookstore_titles/t1/territoriesAllowed/0').set('NG'));
+  });
+
+  test('and none of this lets a non-founder near the catalogue', async () => {
+    // The tightening must not have moved the permission boundary. It did not.
+    await assertFails(owner.ref('bookstore_titles/t9').set(titleWith({ territoriesAllowed: '*' })));
+    await assertFails(anon.ref('bookstore_titles/t9').set(titleWith({ territoriesAllowed: '*' })));
+    await assertFails(stranger.ref('bookstore_titles').remove());
+    // Read stays public — the storefront is anonymous.
+    await seed(env, { 'bookstore_titles/t1': titleWith({ territoriesAllowed: '*' }) });
+    await assertSucceeds(anon.ref('bookstore_titles').get());
+  });
+});
