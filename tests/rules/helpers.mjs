@@ -35,6 +35,23 @@ export const OTHER = 'CCCCother00000000000000000003';
 // dm ids are [uidA, uidB].sort().join('_') — app/square/page.js:518.
 export const convIdFor = (a, b) => [a, b].sort().join('_');
 
+// THE SUITE MUST RUN ITS FILES SERIALLY — package.json passes --test-concurrency=1, and it
+// is load-bearing rather than tidiness.
+//
+// initializeTestEnvironment() UPLOADS both rule sets into the emulator. database.test.mjs and
+// storage.test.mjs each call this from their own before() hook, and there is one emulator
+// behind both. Run the files concurrently and the two uploads overlap: for the window while
+// one file is replacing the storage rules, the emulator answers storage/unauthorized to the
+// other file's legitimate writes. The denial assertions pass straight through that window —
+// they expect a refusal — so the failure lands ONLY on assertSucceeds, and only in whichever
+// describe block happens to be running at t≈0.
+//
+// This bit on 2026-08-04 (CI run 30893313840): LB-6 film_submissions, the first block in
+// storage.test.mjs, failed its two assertSucceeds cases while every later block passed. It is
+// invisible on a 2-core machine, because node --test defaults file concurrency to
+// availableParallelism() - 1, which is 1 there — so the suite is already serial locally and
+// green forever. The CI runner has 4 cores. Do not remove the flag to "speed the suite up";
+// the ~20s it costs is the price of the emulator being shared.
 export async function makeEnv() {
   return initializeTestEnvironment({
     projectId: 'demo-calvary-rules',
