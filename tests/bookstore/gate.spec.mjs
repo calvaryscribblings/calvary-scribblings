@@ -1,12 +1,22 @@
 // R8.1 — THE PRE-LAUNCH GATE, against the real static export.
 //
-// WHY THE CONSTANTS ARE PARSED OUT OF gate.js RATHER THAN IMPORTED. package.json declares no
-// "type": "module", so app/lib/bookstore/gate.js — a .js file using `export const` — is ESM to
-// the bundler and CommonJS to bare Node, which cannot parse it. Importing it here is therefore
-// not available, and copying the passcode into this file is the one thing that must not happen:
-// a test that carries its own copy of the key passes forever after someone changes the real one.
-// So the source is read as text and the literal is extracted, and every extractor throws by name
-// if its constant is renamed or restyled. A rename breaks this suite loudly, which is the point.
+// WHY THE CONSTANTS ARE PARSED OUT OF gate.js RATHER THAN IMPORTED.
+//
+// The reason that mattered when this was written no longer holds, and the correction is worth
+// having in writing. The original claim was that package.json declares no "type": "module", so
+// app/lib/bookstore/gate.js — a .js file using `export const` — is CommonJS to bare Node, which
+// cannot parse it, and importing it here was therefore impossible. Node's automatic
+// module-syntax detection has since made that import work: R9.1's tests/rules/database.test.mjs
+// imports isEmailShaped from this very file and is green on Node 22 in CI. R8.3's
+// tests/bookstore/currency.test.mjs imports app/lib/bookstore/currency.js the same way.
+//
+// The EXTRACTORS STAY ANYWAY, because the second half of the original argument is the half that
+// was really load-bearing: copying the passcode into this file is the one thing that must not
+// happen — a test carrying its own copy of the key passes forever after someone changes the
+// real one. Reading the source as text achieves that, every extractor throws by name if its
+// constant is renamed or restyled, and a rename breaks this suite loudly. An import would do
+// the same job; it would not do it better, and rewriting working extractors to prove a point
+// about module resolution is not worth the risk to a suite that guards a door.
 //
 // FIREBASE IS LIVE for the gate mechanics. The assertion that earns its keep is that the REAL
 // storefront appears once the key fits — a stubbed catalogue would only prove a stub renders.
@@ -266,5 +276,140 @@ test.describe('the waitlist', () => {
     await expect(page.getByTestId('waitlist-submit')).toHaveText(/Sending/i);
     await expect(page.getByTestId('waitlist-email')).toBeDisabled();
     await expect.poll(wire.activity, { timeout: 15000 }).toBeGreaterThan(0);
+  });
+});
+
+// ── R9.0 PL-5 / PL-6 · THE GATE AS A DIALOG ─────────────────────────────────────────────────
+//
+// The gate always BEHAVED like a modal — a full-screen opaque overlay at z-index 9000 with the
+// storefront mounted and unreachable underneath — but declared none of it. R8.3 made the
+// contract explicit. These assertions are the behavioural half; the structural half (the
+// attributes, and the two contrast ratios) is pinned in tests/bookstore/gate-contrast.test.mjs,
+// which runs in the fast suite.
+//
+// The static-analysis tests cannot prove focus went anywhere, and this file cannot cheaply
+// measure a computed colour on a pseudo-element. Between them they cover it.
+test.describe('the gate is a dialog', () => {
+  test('it declares itself as one, labelled by its heading', async ({ page }) => {
+    await page.goto('/bookstore');
+    const gate = page.getByTestId('bookstore-gate');
+    await expect(gate).toBeVisible();
+
+    await expect(gate).toHaveAttribute('role', 'dialog');
+    await expect(gate).toHaveAttribute('aria-modal', 'true');
+    await expect(gate).toHaveAttribute('aria-labelledby', 'bg-gate-title');
+    // The accessible name resolves to something a reader can act on, not an empty id.
+    await expect(page.locator('#bg-gate-title')).toHaveText('The Book Store');
+    await expect(page.getByRole('dialog', { name: 'The Book Store' })).toBeVisible();
+  });
+
+  test('focus lands on the passcode field on mount', async ({ page }) => {
+    await page.goto('/bookstore');
+    await expect(page.getByTestId('bookstore-gate')).toBeVisible();
+    // The field IS the task. Landing on the container would make every keyboard reader tab
+    // past the brand line and the date to reach the only thing they can act on.
+    await expect(page.getByTestId('gate-passcode')).toBeFocused();
+  });
+
+  test('the storefront behind is inert AND hidden from the accessibility tree', async ({ page }) => {
+    await page.goto('/bookstore');
+    await expect(page.getByTestId('bookstore-gate')).toBeVisible();
+
+    const siblings = await page.evaluate(() => {
+      const gate = document.querySelector('[data-testid="bookstore-gate"]');
+      return Array.from(gate.parentElement.children)
+        .filter((el) => el !== gate)
+        .map((el) => ({
+          cls: el.className?.toString?.() ?? '',
+          inert: el.inert === true,
+          hidden: el.getAttribute('aria-hidden') === 'true',
+        }));
+    });
+
+    for (const s of siblings) {
+      // THE COOKIE BANNER IS THE ONE EXEMPTION, deliberately: Providers renders it above the
+      // gate at z-index 9999 so consent stays reachable behind a curtain. Inerting it would
+      // trap the one control that must never be trapped.
+      if (s.cls.includes('cs-cookie')) {
+        expect(s.inert, 'the cookie banner must stay reachable').toBeFalsy();
+        continue;
+      }
+      // aria-hidden alone would hide the shop while leaving every link in it tabbable, which
+      // is the worse half of the bug. Both, or neither is any use.
+      expect(s.inert, `sibling "${s.cls}" must be inert while the curtain is down`).toBeTruthy();
+      expect(s.hidden, `sibling "${s.cls}" must be aria-hidden while the curtain is down`).toBeTruthy();
+    }
+  });
+
+  test('Tab is trapped inside the curtain and wraps', async ({ page }) => {
+    await page.goto('/bookstore');
+    await expect(page.getByTestId('gate-passcode')).toBeFocused();
+
+    const insideGate = () => page.evaluate(() => {
+      const gate = document.querySelector('[data-testid="bookstore-gate"]');
+      return !!gate && gate.contains(document.activeElement);
+    });
+
+    // The curtain holds four controls (passcode, Enter, email, Keep me posted), so eight
+    // presses is two full cycles — enough to prove the wrap in both directions without
+    // paying for twenty-four round trips to the browser. This suite runs with retries:0 in
+    // CI and shares a container with a memory ceiling; a cheap assertion is a reliable one.
+    const CYCLES = 8;
+    for (let i = 0; i < CYCLES; i++) {
+      await page.keyboard.press('Tab');
+      expect(await insideGate(), `focus escaped the curtain after ${i + 1} tabs`).toBeTruthy();
+    }
+    // And backwards, which is the direction a naive trap forgets.
+    for (let i = 0; i < CYCLES; i++) {
+      await page.keyboard.press('Shift+Tab');
+      expect(await insideGate(), `focus escaped backwards after ${i + 1} shift-tabs`).toBeTruthy();
+    }
+  });
+
+  test('Escape does NOT dismiss the curtain', async ({ page }) => {
+    // A dialog usually closes on Escape; this one has nothing to close to. The shop is not
+    // open and there is no prior view to return to — a curtain a keystroke could lift would
+    // not be a gate. Asserted so nobody adds it for consistency with other dialogs.
+    await page.goto('/bookstore');
+    await expect(page.getByTestId('bookstore-gate')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('bookstore-gate')).toBeVisible();
+    await expectNoShelfDom(page);
+  });
+
+  test('the storefront is released when the curtain lifts', async ({ page }) => {
+    await page.goto('/bookstore');
+    await page.getByTestId('gate-passcode').fill(GATE_PASSCODE);
+    await page.getByTestId('gate-enter').click();
+
+    await expect(page.locator('.hero-store')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId('bookstore-gate')).toHaveCount(0);
+
+    // Every sibling the gate inerted must have been handed back — a shop nobody can tab into
+    // is a worse outcome than the bug this fixed.
+    //
+    // INERT IS THE THING CHECKED, not aria-hidden. The gate's sweep is the ONLY code in this
+    // application that sets `inert`, so "nothing is inert" is an exact statement that the
+    // cleanup ran. aria-hidden is not usable as the signal: the storefront legitimately ships
+    // it on decorative nodes — the lamp, the fleurons, the barcode on every book spine, the
+    // tab-bar spacer — and asserting on it means maintaining a denylist of ornaments that
+    // grows every time someone draws another one.
+    const stuck = await page.evaluate(() =>
+      Array.from(document.body.querySelectorAll('*'))
+        .filter((el) => el.inert === true)
+        .map((el) => el.tagName + '.' + (el.className?.toString?.() ?? '')));
+
+    expect(stuck, `left inert after the lift: ${stuck.join(', ')}`).toHaveLength(0);
+
+    // And the shop is genuinely operable — asserted by FOCUSING a real control inside it
+    // rather than by pressing Tab. An inert subtree silently refuses focus, so a control that
+    // accepts it is direct proof the sweep was undone; whereas "Tab moved focus somewhere"
+    // depends on where focus happened to start and on browser chrome, and was flaky for
+    // exactly that reason. The currency selector is a good probe: it lives in the storefront
+    // hero, so it is inside the region that was inert a moment ago.
+    const probe = page.getByTestId('currency-gbp');
+    await expect(probe).toBeVisible();
+    await probe.focus();
+    await expect(probe).toBeFocused();
   });
 });

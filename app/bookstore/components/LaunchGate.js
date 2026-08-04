@@ -107,11 +107,26 @@ const GATE_CSS = `
   .bg-label{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.24em;text-transform:uppercase;
     color:rgba(240,234,216,.55);margin-bottom:.9rem}
   .bg-row{display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap}
+  /* ── R9.0 PL-5 / PL-6: the two measured contrast failures, fixed ──────────────────────
+     Both were alpha values, and both are fixed by raising the alpha alone — the hues, the
+     hairline weight, the radius, the italic placeholder and the focus treatment are all
+     untouched, so the field looks like the same field.
+
+       border      rgba(201,164,76,.25) → .55    1.51:1 → 3.19:1   (needs 3:1, non-text)
+       placeholder rgba(240,234,216,.28) → .55   2.15:1 → 5.38:1   (needs 4.5:1, text)
+
+     Measured against the gate's own ground, #070707, which is what R9.0 measured against —
+     its published figures reproduce exactly, which is why these ones can be trusted.
+
+     .55 IS NOT A NEW VALUE. It is the alpha .bg-label already uses twelve lines up, so the
+     placeholder now sits at exactly the weight of the label above the field, and the palette
+     gains nothing to maintain. The minimum passing alphas were .495 and .530; rounding both
+     to an existing token beats inventing two new ones for the sake of two hundredths. */
   .bg-input{flex:1 1 200px;min-width:0;max-width:280px;
     font-family:'Cormorant Garamond',Georgia,serif;font-size:1rem;color:#f0ead8;
-    background:rgba(255,255,255,.02);border:1px solid rgba(201,164,76,.25);border-radius:3px;
+    background:rgba(255,255,255,.02);border:1px solid rgba(201,164,76,.55);border-radius:3px;
     padding:.8rem 1rem;outline:none;transition:border-color .25s,background-color .25s}
-  .bg-input::placeholder{color:rgba(240,234,216,.28);font-style:italic}
+  .bg-input::placeholder{color:rgba(240,234,216,.55);font-style:italic}
   .bg-input:focus{border-color:#c9a44c;background:rgba(201,164,76,.05)}
   .bg-input:disabled{opacity:.5}
   .bg-btn{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;
@@ -150,6 +165,95 @@ export default function LaunchGate({ onUnlock, onLifted }) {
   const timers = useRef([]);
   const after = (ms, fn) => { timers.current.push(setTimeout(fn, ms)); };
   useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
+
+  const gateRef = useRef(null);
+  const codeRef = useRef(null);
+  const restoreRef = useRef(null);
+
+  // ── R9.0 PL-5/PL-6 · THE GATE IS A DIALOG ────────────────────────────────────────────
+  //
+  // It always behaved like one — a full-screen overlay at z-index 9000 with the storefront
+  // mounted and unreachable underneath — but it declared none of it, so a screen reader met a
+  // page containing a shop and a passcode field with nothing to say the shop was not yet
+  // available. Everything below is the standard modal contract, and none of it changes a
+  // pixel: no copy, no layout, no lift.
+  //
+  // FOCUS ON MOUNT goes to the passcode field rather than to the dialog container. The field
+  // IS the task; landing on the container would make every keyboard reader tab past the brand
+  // line and the date to reach the only thing they can act on.
+  //
+  // THE STOREFRONT BEHIND IS MADE INERT, not merely aria-hidden. aria-hidden alone hides it
+  // from the accessibility tree while leaving every link in it tabbable, which is the worse
+  // half of the bug: focus would walk out of the curtain into a shop the reader cannot see.
+  // `inert` removes both. aria-hidden is set as well, for the assistive tech that predates it.
+  //
+  // THE COOKIE BANNER IS DELIBERATELY EXEMPT. Providers renders it as a DOM sibling of this
+  // component (<AuthProvider>{children}<CookieBanner /></AuthProvider>) at z-index 9999,
+  // ABOVE the gate, precisely so consent stays reachable behind a curtain — the reasoning is
+  // in tests/bookstore/gate.spec.mjs. Inerting it would make the one control that must never
+  // be trapped behind a modal unreachable. Do not "tidy" this exception away.
+  useEffect(() => {
+    restoreRef.current = document.activeElement;
+    codeRef.current?.focus();
+
+    const gate = gateRef.current;
+    const parent = gate?.parentElement;
+    const touched = [];
+    if (parent) {
+      for (const el of Array.from(parent.children)) {
+        if (el === gate) continue;
+        if (el.classList?.contains('cs-cookie')) continue;   // see above
+        touched.push([el, el.inert, el.getAttribute('aria-hidden')]);
+        el.inert = true;
+        el.setAttribute('aria-hidden', 'true');
+      }
+    }
+
+    return () => {
+      for (const [el, wasInert, wasHidden] of touched) {
+        el.inert = wasInert;
+        if (wasHidden === null) el.removeAttribute('aria-hidden');
+        else el.setAttribute('aria-hidden', wasHidden);
+      }
+      // FOCUS RESTORED ON UNLOCK. The element that had focus when the curtain came down gets
+      // it back — unless it has left the document, or it was <body>, which is the ordinary
+      // case on a cold load and where "restoring" would mean focusing nothing. Letting the
+      // browser reset to the top of the now-visible storefront is the right outcome there.
+      const target = restoreRef.current;
+      if (target && target !== document.body && document.contains(target) && typeof target.focus === 'function') {
+        target.focus();
+      }
+    };
+  }, []);
+
+  // THE TRAP. Tab and Shift+Tab wrap within the curtain, so focus cannot reach the inert shop
+  // behind it — belt to inert's braces, and the half that still works if a browser without
+  // `inert` support ever renders this.
+  //
+  // ESCAPE DOES NOTHING, deliberately, and that is not an oversight. A dialog usually closes
+  // on Escape; this one has nothing to close to. The shop is not open, there is no prior view
+  // to return to, and a curtain that could be dismissed with a keystroke would not be a gate.
+  function trapFocus(e) {
+    if (e.key !== 'Tab') return;
+    const gate = gateRef.current;
+    if (!gate) return;
+
+    const focusable = Array.from(
+      gate.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+    );
+    if (focusable.length === 0) { e.preventDefault(); return; }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+
+    // Also catches the case where focus has somehow escaped the gate entirely (a disabled
+    // field losing it mid-unlock, say): pull it back to the first control rather than letting
+    // the next Tab land outside.
+    if (!gate.contains(active)) { e.preventDefault(); first.focus(); return; }
+    if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+  }
 
   function submitKey(e) {
     e.preventDefault();
@@ -199,6 +303,11 @@ export default function LaunchGate({ onUnlock, onLifted }) {
       className={`bg-gate${lifting ? ' is-lifting' : ''}`}
       onTransitionEnd={handleLiftEnd}
       data-testid="bookstore-gate"
+      ref={gateRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bg-gate-title"
+      onKeyDown={trapFocus}
     >
       <style>{GATE_CSS}</style>
       <div className="bg-lamp" aria-hidden="true" />
@@ -206,7 +315,7 @@ export default function LaunchGate({ onUnlock, onLifted }) {
       <div className="bg-inner">
         <div className="bg-brand">Calvary Scribblings</div>
         <div className="bg-fleuron" aria-hidden="true">&#10086;</div>
-        <h1 className="bg-store">The Book Store</h1>
+        <h1 className="bg-store" id="bg-gate-title">The Book Store</h1>
         <p className="bg-whisper">The shelves are stocked and the ink is dry.</p>
 
         <div className="bg-hero">
@@ -220,6 +329,7 @@ export default function LaunchGate({ onUnlock, onLifted }) {
           <div className="bg-row">
             <input
               className="bg-input"
+              ref={codeRef}
               type="text"
               value={code}
               onChange={(e) => { setCode(e.target.value); if (keyState === 'wrong') setKeyState('idle'); }}
