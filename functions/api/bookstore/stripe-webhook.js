@@ -52,6 +52,8 @@ import {
   buildGrantPayload,
   buildRevokePayload,
   shouldSkipGrant,
+  classifyRevocation,
+  STRIPE_REF_FIELDS,
 } from './_lib.js';
 
 const LABEL = 'bookstore/stripe-webhook';
@@ -195,11 +197,23 @@ async function handleGrant(env, session) {
 
   const fields = await fetchTitleFields(env, token, titleId, LABEL);
 
+  // R9.1 LB-7: the PaymentIntent id is stored alongside the session id because it is the ONLY
+  // identifier that survives the hop from Checkout Session to Charge to Dispute. A
+  // charge.refunded carries `payment_intent`; a charge.dispute.created carries it too. Neither
+  // carries the session id, so without this field a refund could never prove which purchase it
+  // was about, and every revocation would fall to manual review. Stripe types it as a string
+  // when the session is complete and as an expandable object only when explicitly requested,
+  // which we do not do — but guard anyway rather than store `[object Object]`.
+  const paymentIntent = typeof session.payment_intent === 'string'
+    ? session.payment_intent
+    : (typeof session.payment_intent?.id === 'string' ? session.payment_intent.id : null);
+
   const payload = buildGrantPayload({
     amount: session.amount_total,
     currency: session.currency,
     refField: 'stripeSessionId',
     refValue: session.id,
+    extraRefs: { stripePaymentIntent: paymentIntent },
     fields,
   });
 
@@ -208,6 +222,31 @@ async function handleGrant(env, session) {
     `[bookstore/stripe-webhook] recorded uid=${uid} titleId=${titleId} ` +
     `session=${session.id}${fields ? '' : ' (no denormalised fields)'}`,
   );
+}
+
+/**
+ * Every identifier on a revoke-shaped event that could name the stored purchase.
+ *
+ * The three event types reach us as three different objects, and only one of them is the
+ * Session that was stored:
+ *
+ *   checkout.session.async_payment_failed  → a Session. `id` IS the stored stripeSessionId.
+ *   charge.refunded                        → a Charge.  `payment_intent` is the link.
+ *   charge.dispute.created                 → a Dispute. `payment_intent` is the link, and
+ *                                            `charge` names the charge it disputes.
+ *
+ * All of them are offered and the guard takes any match. `id` is included for every shape
+ * because it costs nothing: a `ch_`/`dp_` id simply matches neither stored field.
+ *
+ * Exported for tests.
+ */
+export function revocationCandidates(obj) {
+  const pi = typeof obj?.payment_intent === 'string'
+    ? obj.payment_intent
+    : (typeof obj?.payment_intent?.id === 'string' ? obj.payment_intent.id : null);
+  const charge = typeof obj?.charge === 'string' ? obj.charge : null;
+  const id = typeof obj?.id === 'string' ? obj.id : null;
+  return [id, pi, charge].filter((v) => typeof v === 'string' && v);
 }
 
 async function handleRevoke(env, obj, reason) {
@@ -222,8 +261,51 @@ async function handleRevoke(env, obj, reason) {
   }
 
   const token = await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY);
+
+  // R9.1 LB-7. The read is REQUIRED before the write, and a failed read must not fall through
+  // to one — see the fail-closed argument on classifyRevocation in _lib.js. This is the
+  // opposite posture to handleGrant above, on purpose.
+  const candidates = revocationCandidates(obj);
+  let existing;
+  try {
+    existing = await readPurchase(env, token, uid, titleId);
+  } catch (e) {
+    console.error(
+      `[bookstore/stripe-webhook] NEEDS-MANUAL-REVIEW ${reason}: could not read ` +
+      `${uid}/${titleId} to match the reference (${e.message || e}) — event refs=` +
+      `[${candidates.join(', ') || '—'}], nothing revoked`,
+    );
+    return;
+  }
+
+  const { verdict, stored } = classifyRevocation(existing, STRIPE_REF_FIELDS, candidates);
+
+  if (verdict === 'absent') {
+    console.error(
+      `[bookstore/stripe-webhook] NEEDS-MANUAL-REVIEW ${reason}: no purchase recorded at ` +
+      `${uid}/${titleId} — event refs=[${candidates.join(', ') || '—'}], nothing revoked`,
+    );
+    return;
+  }
+
+  if (verdict === 'review') {
+    // BOTH references, as the finding requires: the one on the record and the one on the
+    // event. Without the pair a human cannot tell a repurchase from a bug.
+    console.error(
+      `[bookstore/stripe-webhook] NEEDS-MANUAL-REVIEW ${reason} for ${uid}/${titleId}: ` +
+      `event refs=[${candidates.join(', ') || '—'}] do not match stored refs=` +
+      `[${stored.join(', ') || '—'}] (record status=${existing.status || '—'}) — ` +
+      `most likely a dispute for a refunded charge arriving after a repurchase. ` +
+      `NOTHING WRITTEN; the reader keeps the book they paid for.`,
+    );
+    return;
+  }
+
   await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason));
-  console.log(`[bookstore/stripe-webhook] revoked uid=${uid} titleId=${titleId} reason=${reason}`);
+  console.log(
+    `[bookstore/stripe-webhook] revoked uid=${uid} titleId=${titleId} reason=${reason} ` +
+    `(matched stored ref)`,
+  );
 }
 
 export async function onRequestPost(context) {

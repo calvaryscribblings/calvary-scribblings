@@ -29,7 +29,7 @@
 
 // R5b: json() and the token verifier moved to ./_lib.js when stream.js became the third
 // caller. Behaviour is unchanged — the move exists so the three endpoints cannot drift.
-import { json, dbBase, verifyIdToken } from './_lib.js';
+import { json, dbBase, verifyIdToken, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } from './_lib.js';
 
 const TITLES_PATH = 'bookstore_titles';
 const PUBLISHERS_PATH = 'bookstore_publishers';
@@ -83,7 +83,8 @@ export async function onRequestPost(context) {
   // bookstore_titles is world-readable (database.rules.json), so this needs no credential.
   let title;
   try {
-    const res = await fetch(`${fbDb}/${TITLES_PATH}/${encodeURIComponent(titleId)}.json`);
+    const res = await fetch(`${fbDb}/${TITLES_PATH}/${encodeURIComponent(titleId)}.json`,
+      { signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`${res.status}`);
     title = await res.json();
   } catch (e) {
@@ -101,7 +102,8 @@ export async function onRequestPost(context) {
   // not stop sales — but fail CLOSED on a definite non-active status.
   if (title.publisherId) {
     try {
-      const pres = await fetch(`${fbDb}/${PUBLISHERS_PATH}/${encodeURIComponent(title.publisherId)}.json`);
+      const pres = await fetch(`${fbDb}/${PUBLISHERS_PATH}/${encodeURIComponent(title.publisherId)}.json`,
+        { signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS) });
       if (pres.ok) {
         const pub = await pres.json();
         if (pub && pub.status && pub.status !== 'active') {
@@ -160,6 +162,7 @@ export async function onRequestPost(context) {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: form,
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     });
     session = await res.json();
     if (!res.ok) {

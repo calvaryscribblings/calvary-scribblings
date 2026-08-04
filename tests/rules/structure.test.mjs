@@ -67,14 +67,6 @@ const DELIBERATELY_OPEN = new Map([
     'Bounded by .validate (number >= 0). R9.0 LB-5.',
   ],
   [
-    'bookstore_waitlist',
-    'BOOKSTORE-OWNED — not the platform session\'s to change. Tracked as R9.0 ' +
-    'LB-9 on the bookstore list: .write: true sits at the node root, so the ' +
-    'launch mailing list is deletable by anyone, unauthenticated. Listed here so ' +
-    'it is visible rather than silently skipped. REMOVE THIS ENTRY when the ' +
-    'bookstore session fixes it; the suite will then hold the fix in place.',
-  ],
-  [
     'top_stories',
     'R9.0: deliberately NOT closed. .write is true (unauthenticated) and ' +
     'top_stories/weekly is regenerated on a schedule by something that is not in ' +

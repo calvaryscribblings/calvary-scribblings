@@ -49,6 +49,9 @@ import {
   buildGrantPayload,
   buildRevokePayload,
   shouldSkipGrant,
+  classifyRevocation,
+  PAYSTACK_REF_FIELDS,
+  PROVIDER_TIMEOUT_MS,
   parsePaystackReference,
 } from './_lib.js';
 
@@ -162,6 +165,7 @@ export function extractIdentity(data) {
 async function verifyTransaction(env, reference) {
   const res = await fetch(`${PAYSTACK_VERIFY_API}/${encodeURIComponent(reference)}`, {
     headers: { Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}` },
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
   const body = await res.json().catch(() => null);
   if (!res.ok || body?.status !== true || !body?.data) {
@@ -273,18 +277,62 @@ async function handleGrant(env, data) {
 
 async function handleRevoke(env, data, reason) {
   const { uid, titleId } = extractIdentity(data);
+  const reference = extractReference(data);
 
   if (!uid || !titleId) {
     console.error(
-      `[${LABEL}] ${reason} event ref=${extractReference(data) || '—'} carries no uid/titleId ` +
+      `[${LABEL}] ${reason} event ref=${reference || '—'} carries no uid/titleId ` +
       `— cannot match a purchase, nothing revoked`,
     );
     return;
   }
 
   const token = await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY);
+
+  // R9.1 LB-7. Identical shape to the Stripe rail, one field instead of two: the Paystack
+  // reference is self-describing and rides on every event about a transaction, so it is the
+  // only identifier needed. The read is required and a failed read must NOT fall through to a
+  // write — see classifyRevocation in _lib.js.
+  //
+  // NOTE the uid/titleId check above is now genuinely insufficient on its own, and that is the
+  // finding: extractIdentity parses them straight OUT of the reference, so a dispute for an
+  // old charge yields the same uid/titleId as the live purchase and looked, until now, exactly
+  // like a legitimate revocation.
+  const candidates = [reference];
+  let existing;
+  try {
+    existing = await readPurchase(env, token, uid, titleId);
+  } catch (e) {
+    console.error(
+      `[${LABEL}] NEEDS-MANUAL-REVIEW ${reason}: could not read ${uid}/${titleId} to match ` +
+      `the reference (${e.message || e}) — event ref=${reference || '—'}, nothing revoked`,
+    );
+    return;
+  }
+
+  const { verdict, stored } = classifyRevocation(existing, PAYSTACK_REF_FIELDS, candidates);
+
+  if (verdict === 'absent') {
+    console.error(
+      `[${LABEL}] NEEDS-MANUAL-REVIEW ${reason}: no purchase recorded at ${uid}/${titleId} ` +
+      `— event ref=${reference || '—'}, nothing revoked`,
+    );
+    return;
+  }
+
+  if (verdict === 'review') {
+    console.error(
+      `[${LABEL}] NEEDS-MANUAL-REVIEW ${reason} for ${uid}/${titleId}: event ref=` +
+      `${reference || '—'} does not match stored ref=[${stored.join(', ') || '—'}] ` +
+      `(record status=${existing.status || '—'}) — most likely a dispute for a refunded ` +
+      `charge arriving after a repurchase. NOTHING WRITTEN; the reader keeps the book they ` +
+      `paid for.`,
+    );
+    return;
+  }
+
   await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason));
-  console.log(`[${LABEL}] revoked uid=${uid} titleId=${titleId} reason=${reason}`);
+  console.log(`[${LABEL}] revoked uid=${uid} titleId=${titleId} reason=${reason} (matched stored ref)`);
 }
 
 export async function onRequestPost(context) {

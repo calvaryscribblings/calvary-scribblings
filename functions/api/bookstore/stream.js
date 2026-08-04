@@ -39,6 +39,7 @@ import {
   mintAccessToken,
   signGetUrl,
   STORAGE_BUCKET,
+  FIREBASE_TIMEOUT_MS,
 } from './_lib.js';
 
 const PURCHASES_PATH = 'bookstore_purchases';
@@ -93,7 +94,10 @@ export async function onRequestPost(context) {
   let purchase;
   try {
     const url = `${dbBase(env)}/${PURCHASES_PATH}/${encodeURIComponent(uid)}/${encodeURIComponent(titleId)}.json`;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
+    });
     if (!res.ok) throw new Error(`RTDB GET failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
     purchase = await res.json();
   } catch (e) {

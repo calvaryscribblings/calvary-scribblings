@@ -28,6 +28,8 @@ import {
   lookupUser,
   buildPaystackReference,
   REF_SAFE_TITLE_ID,
+  PROVIDER_TIMEOUT_MS,
+  FIREBASE_TIMEOUT_MS,
 } from './_lib.js';
 
 const LABEL = 'bookstore/paystack-checkout';
@@ -110,7 +112,8 @@ export async function onRequestPost(context) {
   // bookstore_titles is world-readable (database.rules.json), so this needs no credential.
   let title;
   try {
-    const res = await fetch(`${fbDb}/${TITLES_PATH}/${encodeURIComponent(titleId)}.json`);
+    const res = await fetch(`${fbDb}/${TITLES_PATH}/${encodeURIComponent(titleId)}.json`,
+      { signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`${res.status}`);
     title = await res.json();
   } catch (e) {
@@ -125,7 +128,8 @@ export async function onRequestPost(context) {
   // (a transient Firebase blip must not stop sales), CLOSED on a definite non-active status.
   if (title.publisherId) {
     try {
-      const pres = await fetch(`${fbDb}/${PUBLISHERS_PATH}/${encodeURIComponent(title.publisherId)}.json`);
+      const pres = await fetch(`${fbDb}/${PUBLISHERS_PATH}/${encodeURIComponent(title.publisherId)}.json`,
+        { signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS) });
       if (pres.ok) {
         const pub = await pres.json();
         if (pub && pub.status && pub.status !== 'active') {
@@ -191,6 +195,7 @@ export async function onRequestPost(context) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     });
     result = await res.json();
     if (!res.ok || result?.status !== true) {

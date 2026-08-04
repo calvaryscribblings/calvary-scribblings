@@ -89,13 +89,34 @@ export function isStoreUnlocked() {
  * Bounds match that rule exactly (5–320 characters, one '@' with something either side, no
  * whitespace) so the two halves cannot disagree — a value this accepts and the rule rejects
  * would surface as a silent permission-denied the reader could do nothing about.
+ *
+ * ── THESE TWO MOVE TOGETHER. R9.1 LB-9. ──────────────────────────────────────────────────
+ * The regex below and the one in database.rules.json under
+ * bookstore_waitlist/$entry/email/.validate are the SAME expression, deliberately duplicated
+ * because a rules file cannot import. Before R9.1 they were NOT the same: the rule asked only
+ * `contains('@')` while this asked for a dotted domain, so the rule was the looser of the two
+ * and a console could put `a@b` in the mailing list that this function would never have sent.
+ * Change one, change the other, and re-run tests/rules/database.test.mjs — the waitlist block
+ * there asserts both halves against the same table of addresses.
  */
+// R9.1 LB-9: a POSITIVE character class, not a negated one. The previous
+// `/^[^@]+@[^@.]+(\.[^@.]+)+$/` could not be expressed in database.rules.json, because the
+// RTDB rules regex dialect has no `\s` — so "anything but @, and no whitespace" is not
+// sayable there, and a negated class without it would have let a tab through the rule that
+// this function rejects. Naming the permitted characters says the same thing in a dialect
+// both halves speak. The set is the practical one every mail provider accepts; an address
+// outside it is refused by BOTH halves, in agreement, rather than by one of them silently.
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+
 export function isEmailShaped(value) {
   if (typeof value !== 'string') return false;
+  // NOTE the trim, and note that LaunchGate writes `email.trim()` — so a padded address is
+  // accepted here and stored WITHOUT the padding. The rule never sees the untrimmed form and
+  // is right to reject it; the two are consistent because the trim happens before the write.
   const v = value.trim();
   if (v.length < 5 || v.length > 320) return false;
-  if (/\s/.test(v)) return false;
-  return /^[^@]+@[^@.]+(\.[^@.]+)+$/.test(v);
+  // Whitespace needs no separate test: it is not in the class above.
+  return EMAIL_RE.test(v);
 }
 
 // ── WHAT R9 DOES, IN FULL ────────────────────────────────────────────────────

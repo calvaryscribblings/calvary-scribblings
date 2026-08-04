@@ -644,14 +644,14 @@
     },
     "bookstore_waitlist": {
       ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
-      ".write": true,
       "$entry": {
+        ".write": "!data.exists() && newData.exists()",
         ".validate": "newData.hasChildren(['email', 'addedAt'])",
         "email": {
-          ".validate": "newData.isString() && newData.val().length >= 5 && newData.val().length <= 320 && newData.val().contains('@')"
+          ".validate": "newData.isString() && newData.val().length >= 5 && newData.val().length <= 320 && newData.val().matches(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+$/)"
         },
         "addedAt": {
-          ".validate": "newData.isNumber()"
+          ".validate": "newData.isNumber() && newData.val() > 0"
         },
         "$other": {
           ".validate": false

@@ -32,7 +32,12 @@ import {
   shouldSkipGrant,
   buildGrantPayload,
   buildRevokePayload,
+  classifyRevocation,
+  storedReferences,
+  STRIPE_REF_FIELDS,
+  PAYSTACK_REF_FIELDS,
 } from '../../functions/api/bookstore/_lib.js';
+import { revocationCandidates } from '../../functions/api/bookstore/stripe-webhook.js';
 
 // PATCH semantics: sibling fields survive, named fields are replaced. This is why a revoke
 // leaves revokedAt/revokedReason lying beside a later grant's status:'active', and why the
@@ -51,6 +56,21 @@ const RAILS = [
     refB: 'cs_test_d4e5f6',
     currency: 'gbp',
     amount: 199,
+
+    // R9.1 LB-7. The Stripe rail stores TWO identifiers per transaction, because a
+    // charge- or dispute-shaped event never carries the Checkout Session id — the
+    // PaymentIntent is the only thing that reaches back to it.
+    revokeFields: STRIPE_REF_FIELDS,
+    extraRefs: { cs_test_a1b2c3: { stripePaymentIntent: 'pi_test_aaa' },
+                 cs_test_d4e5f6: { stripePaymentIntent: 'pi_test_bbb' } },
+    // What a charge.dispute.created about that transaction actually looks like on the wire:
+    // its own dispute id, the PaymentIntent, and the charge. Built through the REAL
+    // extractor the webhook uses, so a change to it breaks these tests rather than sliding by.
+    disputeFor: (ref) => revocationCandidates({
+      id: 'dp_test_zzz',
+      payment_intent: ref === 'cs_test_a1b2c3' ? 'pi_test_aaa' : 'pi_test_bbb',
+      charge: ref === 'cs_test_a1b2c3' ? 'ch_test_aaa' : 'ch_test_bbb',
+    }),
   },
   {
     name: 'paystack',
@@ -59,6 +79,11 @@ const RAILS = [
     refB: 'cs.XaG6bTGqdDXh7VkBTw4y1H2d2s82.the-rescue.112233445566',
     currency: 'NGN',
     amount: 450000,
+
+    revokeFields: PAYSTACK_REF_FIELDS,
+    extraRefs: {},
+    // Paystack's reference rides on every event about the transaction by construction.
+    disputeFor: (ref) => [ref],
   },
 ];
 
@@ -67,6 +92,7 @@ const grant = (rail, ref) => buildGrantPayload({
   currency: rail.currency,
   refField: rail.refField,
   refValue: ref,
+  extraRefs: rail.extraRefs[ref],
   fields: FIELDS,
 });
 
@@ -128,6 +154,78 @@ for (const rail of RAILS) {
     assert.equal(record.slug, 's');
   });
 
+  // ── (e) DISPUTE FOR AN OLD REF AFTER A REPURCHASE — R9.1 LB-7, the bug ─────
+  test(`${rail.name}: a dispute for the OLD charge leaves a repurchased book alone`, () => {
+    // buy → refund → buy again. The shelf now holds transaction B, active.
+    let record = applyPatch(null, grant(rail, rail.refA));
+    record = applyPatch(record, buildRevokePayload('refunded'));
+    record = applyPatch(record, grant(rail, rail.refB));
+    assert.equal(record.status, 'active');
+    assert.equal(record[rail.refField], rail.refB);
+
+    // The bank raises a dispute on charge A, weeks later. Same uid, same titleId — which is
+    // ALL the old code looked at, and why it revoked a book the reader had paid for twice.
+    const { verdict, stored, incoming } = classifyRevocation(
+      record, rail.revokeFields, rail.disputeFor(rail.refA),
+    );
+
+    assert.equal(verdict, 'review', 'an old transaction must not revoke the current one');
+    // BOTH references reach the log, which is the whole point of returning them.
+    assert.ok(stored.length > 0, 'the stored reference must be reported for manual review');
+    assert.ok(incoming.length > 0, 'the event reference must be reported for manual review');
+    assert.ok(!incoming.some((c) => stored.includes(c)), 'and they must genuinely not match');
+
+    // The webhook returns before patching, so the record is untouched.
+    const after = verdict === 'revoke' ? applyPatch(record, buildRevokePayload('disputed')) : record;
+    assert.equal(after.status, 'active', 'the reader keeps the book they paid for');
+    assert.equal(after.revokedReason, 'refunded', 'only the ORIGINAL refund is on the record');
+    assert.equal(after[rail.refField], rail.refB);
+  });
+
+  // ── (f) DISPUTE MATCHING THE CURRENT REF — must still revoke ───────────────
+  test(`${rail.name}: a dispute matching the CURRENT transaction does revoke`, () => {
+    let record = applyPatch(null, grant(rail, rail.refA));
+    record = applyPatch(record, buildRevokePayload('refunded'));
+    record = applyPatch(record, grant(rail, rail.refB));
+    assert.equal(record.status, 'active');
+
+    const { verdict } = classifyRevocation(record, rail.revokeFields, rail.disputeFor(rail.refB));
+    assert.equal(verdict, 'revoke', 'this dispute IS about the purchase on the shelf');
+
+    const after = applyPatch(record, buildRevokePayload('disputed'));
+    assert.equal(after.status, 'revoked');
+    assert.equal(after.revokedReason, 'disputed');
+  });
+
+  // A refund for the transaction actually on the shelf — the ordinary case, which the new
+  // guard must not have broken. This is (d) seen through classifyRevocation.
+  test(`${rail.name}: an ordinary refund for the only transaction revokes`, () => {
+    const record = applyPatch(null, grant(rail, rail.refA));
+    const { verdict } = classifyRevocation(record, rail.revokeFields, rail.disputeFor(rail.refA));
+    assert.equal(verdict, 'revoke');
+  });
+
+  test(`${rail.name}: a revoke event for a purchase that was never recorded writes nothing`, () => {
+    assert.equal(classifyRevocation(null, rail.revokeFields, rail.disputeFor(rail.refA)).verdict, 'absent');
+    assert.equal(classifyRevocation(undefined, rail.revokeFields, rail.disputeFor(rail.refA)).verdict, 'absent');
+  });
+
+  test(`${rail.name}: a pre-R9.1 record with no comparable reference goes to review, not revoke`, () => {
+    // Records written before LB-7 carry no stripePaymentIntent. On the Stripe rail a charge
+    // event about one of them can match nothing, and the safe answer is a human, not a write.
+    const legacy = { status: 'active', purchasedAt: 1, slug: 's' };
+    assert.equal(classifyRevocation(legacy, rail.revokeFields, rail.disputeFor(rail.refA)).verdict, 'review');
+  });
+
+  test(`${rail.name}: an unattributable event cannot revoke an arbitrary purchase`, () => {
+    // Empty candidate list vs a record with references. Two empty sets "agree" under a naive
+    // implementation; agreeing on nothing must never be a match.
+    const record = applyPatch(null, grant(rail, rail.refA));
+    assert.equal(classifyRevocation(record, rail.revokeFields, []).verdict, 'review');
+    assert.equal(classifyRevocation(record, rail.revokeFields, [null, '', undefined]).verdict, 'review');
+    assert.equal(classifyRevocation({ status: 'active' }, rail.revokeFields, []).verdict, 'review');
+  });
+
   // ── First purchase, and cross-rail isolation ───────────────────────────────
   test(`${rail.name}: a first purchase is never skipped`, () => {
     assert.equal(shouldSkipGrant(null, rail.refField, rail.refA), false);
@@ -179,3 +277,102 @@ test('guard: a non-object record is not a match', () => {
   assert.equal(shouldSkipGrant(0, 'paystackRef', 'x'), false);
   assert.equal(shouldSkipGrant(false, 'paystackRef', 'x'), false);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MUTATION TESTING — R9.1 LB-7, the same technique R8.2.1 used on shouldSkipGrant.
+//
+// The scenarios above pass against the implementation as written. That is necessary and it
+// is not sufficient: a table can pass while still failing to DISCRIMINATE, and a guard that
+// no test can break is a guard nobody can safely edit. So the plausible wrong versions are
+// written out and each one is required to FAIL the table.
+//
+// Every mutant below is something a reasonable person might actually write — including the
+// exact code that shipped before this round.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const STRIPE_A = { status: 'active', stripeSessionId: 'cs_B', stripePaymentIntent: 'pi_B' };
+const DISPUTE_OLD = revocationCandidates({ id: 'dp_1', payment_intent: 'pi_A', charge: 'ch_A' });
+const DISPUTE_NOW = revocationCandidates({ id: 'dp_1', payment_intent: 'pi_B', charge: 'ch_B' });
+
+// The behaviour contract, as data. Anything claiming to be this guard must satisfy all of it.
+const CONTRACT = [
+  ['old dispute after a repurchase → review', STRIPE_A, STRIPE_REF_FIELDS, DISPUTE_OLD, 'review'],
+  ['current dispute → revoke', STRIPE_A, STRIPE_REF_FIELDS, DISPUTE_NOW, 'revoke'],
+  ['no record → absent', null, STRIPE_REF_FIELDS, DISPUTE_NOW, 'absent'],
+  ['record with no refs → review', { status: 'active' }, STRIPE_REF_FIELDS, DISPUTE_NOW, 'review'],
+  ['no candidates → review', STRIPE_A, STRIPE_REF_FIELDS, [], 'review'],
+  ['session-id match (async_payment_failed) → revoke', STRIPE_A, STRIPE_REF_FIELDS, ['cs_B'], 'revoke'],
+  ['paystack ref match → revoke',
+    { status: 'active', paystackRef: 'cs.u.t.bbb' }, PAYSTACK_REF_FIELDS, ['cs.u.t.bbb'], 'revoke'],
+  ['paystack old ref → review',
+    { status: 'active', paystackRef: 'cs.u.t.bbb' }, PAYSTACK_REF_FIELDS, ['cs.u.t.aaa'], 'review'],
+];
+
+test('contract: the real implementation satisfies every case', () => {
+  for (const [label, record, fields, candidates, expected] of CONTRACT) {
+    assert.equal(classifyRevocation(record, fields, candidates).verdict, expected, label);
+  }
+});
+
+const MUTANTS = [
+  {
+    name: 'THE SHIPPED BUG — revoke on uid/titleId alone, never reading the reference',
+    fn: (existing) => ({ verdict: existing ? 'revoke' : 'absent' }),
+  },
+  {
+    name: 'only ever checks the first ref field (misses the PaymentIntent link)',
+    fn: (existing, fields, candidates) => {
+      if (!existing) return { verdict: 'absent' };
+      return { verdict: candidates.includes(existing[fields[0]]) ? 'revoke' : 'review' };
+    },
+  },
+  {
+    name: 'treats "nothing stored" as a match (empty sets agree)',
+    fn: (existing, fields, candidates) => {
+      if (!existing) return { verdict: 'absent' };
+      const stored = storedReferences(existing, fields);
+      return { verdict: stored.every((s) => !candidates.includes(s)) && stored.length
+        ? 'review' : 'revoke' };
+    },
+  },
+  {
+    name: 'lets status decide instead of the reference',
+    fn: (existing) => {
+      if (!existing) return { verdict: 'absent' };
+      return { verdict: existing.status === 'active' ? 'revoke' : 'review' };
+    },
+  },
+  {
+    name: 'falls back to revoking when it cannot match (fail-open)',
+    fn: (existing, fields, candidates) => {
+      if (!existing) return { verdict: 'absent' };
+      const stored = storedReferences(existing, fields);
+      if (!stored.length || !candidates.length) return { verdict: 'revoke' };
+      return { verdict: candidates.some((c) => stored.includes(c)) ? 'revoke' : 'review' };
+    },
+  },
+  {
+    name: 'matches on any substring rather than equality',
+    fn: (existing, fields, candidates) => {
+      if (!existing) return { verdict: 'absent' };
+      const stored = storedReferences(existing, fields);
+      const hit = stored.some((s) => candidates.some((c) => c.includes(s.slice(0, 2))));
+      return { verdict: hit ? 'revoke' : 'review' };
+    },
+  },
+];
+
+for (const mutant of MUTANTS) {
+  test(`mutation: the table CATCHES — ${mutant.name}`, () => {
+    const survived = CONTRACT.every(([, record, fields, candidates, expected]) => {
+      let got;
+      try { got = mutant.fn(record, fields, candidates).verdict; } catch { return false; }
+      return got === expected;
+    });
+    assert.equal(
+      survived, false,
+      'this broken implementation passes every assertion above — the suite does not ' +
+      'actually pin the behaviour it claims to. Add the scenario that separates them.',
+    );
+  });
+}

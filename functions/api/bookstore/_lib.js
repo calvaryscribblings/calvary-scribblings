@@ -22,6 +22,36 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ');
 
+// ──────────────────────────────────────────────────────────────────────────
+// OUTBOUND TIMEOUTS — R9.1 LB-10.
+//
+// Every fetch() in the bookstore surface carries one. Without a signal, fetch has NO default
+// timeout: a provider that accepts the connection and then stops talking holds the request
+// until the platform kills the invocation, and Cloudflare kills it by wall-clock, not by
+// anything this code can catch. On a checkout that is a reader staring at a dead button; on a
+// webhook it is a non-2xx that makes Stripe or Paystack retry a request that already moved
+// money.
+//
+// TWO BUDGETS, chosen by who is on the other end:
+//
+//   PROVIDER_TIMEOUT_MS (10s)  Stripe, Paystack, Google Identity Toolkit, Google OAuth.
+//                              Third-party APIs across the public internet, some of which do
+//                              real work (card authorisation) before answering. 10s is long
+//                              enough that a slow-but-working provider still completes.
+//
+//   FIREBASE_TIMEOUT_MS (5s)   RTDB REST, same region (europe-west1), no computation beyond a
+//                              key lookup. A healthy call is single-digit milliseconds; 5s
+//                              means something is wrong, and waiting longer will not fix it.
+//
+// AbortSignal.timeout() rejects with a TimeoutError DOMException, which every call site below
+// already handles the same way it handles a connection error — so adding these changes NO
+// fail-posture. That is deliberate and load-bearing: the webhooks still answer 200 once a
+// signature has verified, because the money has already moved and a retry storm helps nobody.
+// ──────────────────────────────────────────────────────────────────────────
+
+export const PROVIDER_TIMEOUT_MS = 10_000;
+export const FIREBASE_TIMEOUT_MS = 5_000;
+
 export function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -50,6 +80,7 @@ export async function lookupUser(token, apiKey) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken: token }),
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     }
   );
   if (!res.ok) return null;
@@ -146,6 +177,7 @@ export async function mintAccessToken(clientEmail, privateKeyPem) {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(jwt)}`,
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Token exchange failed: ${res.status} ${await res.text()}`);
@@ -275,6 +307,7 @@ export const purchaseUrl = (env, uid, titleId) =>
 export async function readPurchase(env, token, uid, titleId) {
   const res = await fetch(purchaseUrl(env, uid, titleId), {
     headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`RTDB GET failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
   return res.json();
@@ -287,6 +320,7 @@ export async function patchPurchase(env, token, uid, titleId, payload) {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`RTDB PATCH failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
 }
@@ -299,7 +333,7 @@ export async function fetchTitleRecord(env, token, titleId, label) {
   try {
     const res = await fetch(
       `${dbBase(env)}/${TITLES_PATH}/${encodeURIComponent(titleId)}.json`,
-      { headers: { Authorization: `Bearer ${token}` } },
+      { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS) },
     );
     if (!res.ok) throw new Error(`${res.status}`);
     const t = await res.json();
@@ -332,12 +366,19 @@ export async function fetchTitleFields(env, token, titleId, label) {
  * The grant payload, identical in shape on both rails apart from which reference field
  * names the transaction. Pure so the harness can assert it without a network.
  */
-export function buildGrantPayload({ amount, currency, refField, refValue, fields }) {
+export function buildGrantPayload({ amount, currency, refField, refValue, fields, extraRefs }) {
   return {
     purchasedAt: Date.now(),
     amount: typeof amount === 'number' ? amount : null,
     currency: currency || null,
     [refField]: refValue,
+    // R9.1 LB-7: additional identifiers for the SAME transaction, so a later refund or
+    // dispute can prove it is talking about this purchase. Only non-empty strings are
+    // stored — a null here would sit in the record looking like a reference and compare
+    // equal to nothing, which is the failure mode the guard below is built to avoid.
+    ...Object.fromEntries(
+      Object.entries(extraRefs || {}).filter(([, v]) => typeof v === 'string' && v),
+    ),
     status: 'active',
     ...(fields || {}),
   };
@@ -387,6 +428,73 @@ export function shouldSkipGrant(existing, refField, refValue) {
   if (!existing || typeof existing !== 'object') return false;
   if (typeof refValue !== 'string' || !refValue) return false;
   return existing[refField] === refValue;
+}
+
+/**
+ * REVOCATION MATCHING — R9.1 LB-7, the mirror image of shouldSkipGrant above.
+ *
+ * THE BUG THIS REPLACES: both rails used to PATCH status:'revoked' onto
+ * bookstore_purchases/{uid}/{titleId} on the strength of uid + titleId alone. The stored
+ * transaction reference was never consulted. That is fine right up until a reader refunds a
+ * book and buys it again — after which the OLD charge's dispute can still arrive (Stripe and
+ * Paystack both retry for up to 72 hours, and a bank dispute can be raised months later) and
+ * revoke the NEW purchase the reader has just paid for. The record has room for exactly one
+ * purchase per (uid, titleId), so a late event about a dead transaction is indistinguishable
+ * from one about the live one unless the reference is checked.
+ *
+ * THE RULE: revoke ONLY when an identifier on the incoming event matches an identifier stored
+ * on the record. Anything else writes NOTHING and is logged for manual review.
+ *
+ * Three verdicts, and the middle one is the whole point:
+ *
+ *   'revoke'  An incoming identifier matches a stored one. This event is about the purchase
+ *             that is on the shelf. Take it away.
+ *
+ *   'review'  The record exists but nothing matches — the classic case being a dispute for an
+ *             old charge arriving after a repurchase. Also covers a record written before
+ *             R9.1 that carries no comparable identifier at all. WRITE NOTHING. Both
+ *             references go to the log so a human can reconcile, and the webhook still
+ *             answers 200: the event is genuine and retrying it would change nothing.
+ *
+ *   'absent'  No record at all. Nothing to revoke; a refund for a purchase that was never
+ *             recorded is a reconciliation problem, not a write.
+ *
+ * FAIL-CLOSED ON REVOCATION, deliberately, and it is the opposite of the grant path's
+ * posture. A failed idempotency read on a grant falls through to the write, because a
+ * duplicate grant beats a paying reader with no book. Here the asymmetry reverses: if we
+ * cannot PROVE the event is about the purchase on the shelf, the wrong write takes a paid-for
+ * book away from someone who owns it. Leaving a refunded book readable until a human looks is
+ * the cheaper error, and it is loud in the log rather than silent.
+ *
+ * refFields is a list because the Stripe rail stores two identifiers for one transaction: the
+ * Checkout Session id it was bought under, and the PaymentIntent id, which is the only thing
+ * a charge- or dispute-shaped event carries that reaches back to the session. Paystack needs
+ * one, because its reference is on every event about a transaction by construction.
+ */
+export function storedReferences(existing, refFields) {
+  if (!existing || typeof existing !== 'object') return [];
+  return (refFields || [])
+    .map((f) => existing[f])
+    .filter((v) => typeof v === 'string' && v);
+}
+
+export const STRIPE_REF_FIELDS = ['stripeSessionId', 'stripePaymentIntent'];
+export const PAYSTACK_REF_FIELDS = ['paystackRef'];
+
+export function classifyRevocation(existing, refFields, candidates) {
+  const incoming = (candidates || []).filter((v) => typeof v === 'string' && v);
+
+  if (!existing || typeof existing !== 'object') {
+    return { verdict: 'absent', stored: [], incoming };
+  }
+
+  const stored = storedReferences(existing, refFields);
+  // Both sides must be non-empty. Two empty lists trivially "agree", and agreeing on nothing
+  // is exactly how an unattributable event would revoke an arbitrary purchase.
+  const matched = stored.length > 0 && incoming.length > 0
+    && incoming.some((c) => stored.includes(c));
+
+  return { verdict: matched ? 'revoke' : 'review', stored, incoming };
 }
 
 // ──────────────────────────────────────────────────────────────────────────

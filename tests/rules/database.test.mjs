@@ -19,10 +19,14 @@
 // product is on fire.
 
 import { test, before, after, beforeEach, describe } from 'node:test';
+import assert from 'node:assert/strict';
 import {
   makeEnv, seed, assertFails, assertSucceeds,
   OWNER, STRANGER, OTHER, FOUNDER_A, convIdFor,
 } from './helpers.mjs';
+// R9.1 LB-9: the client half of the waitlist email check, asserted against the rule half in
+// the same test so the two cannot drift. See the note above the ACCEPTED/REJECTED tables.
+import { isEmailShaped } from '../../app/lib/bookstore/gate.js';
 
 let env, owner, stranger, anon, founder;
 
@@ -417,5 +421,177 @@ describe('bookstore_purchases — money (owned by the bookstore session; asserte
     // Only the webhooks write, on a service-account token that bypasses rules.
     await assertFails(owner.ref(`bookstore_purchases/${OWNER}/a-title/status`).set('active'));
     await assertFails(stranger.ref(`bookstore_purchases/${OWNER}/b-title`).set({ status: 'active' }));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R9.1 LB-9 · bookstore_waitlist — the pre-launch mailing list.
+//
+// WHAT WAS WRONG: `.write: true` sat at the NODE ROOT. A root write grant is not merely
+// "loose validation" — it is a wipe hole that no .validate can close, because .validate never
+// runs on a null write. Anyone on the internet, signed in or not, could have emptied the
+// launch mailing list with a single unauthenticated DELETE, and the .validate block sitting
+// underneath it would not have been consulted. The fix moves .write DOWN to $entry and makes
+// it CREATE-ONLY.
+//
+// THIS NODE IS DELIBERATELY WRITABLE BY ANONYMOUS VISITORS, which is why the standard
+// four-case template is applied with its first case inverted. The gate is shown BEFORE
+// sign-in — asking someone to create an account in order to join a mailing list about a shop
+// that has not opened is not a product. So an unauthenticated CREATE is the legitimate write
+// (case 4), and it is overwrite, delete and root-write that must fail.
+//
+// The shape asserted here was MEASURED against the live node before it was written, not
+// assumed: 10 rows, of which the single push-id row {email, addedAt} is the only one any code
+// in this repo produces (app/bookstore/components/LaunchGate.js). Neither field is ever sent
+// as null by that writer, so hasChildren(['email','addedAt']) is safe — the null-stripping
+// trap that broke imageUrl in R9.0 does not apply here, and it was checked rather than
+// assumed. The other 9 rows are uid-keyed {joinedAt} written by something outside this repo;
+// create-only leaves every one of them intact and immutable to clients.
+describe('LB-9 · bookstore_waitlist — the launch mailing list', () => {
+  const entry = () => ({ email: 'reader@example.com', addedAt: now() });
+
+  test('the legitimate gate write is ACCEPTED — anonymous, create, push-id key', async () => {
+    // Case 4, and the one that matters most: a denial-only suite passes happily while the
+    // product is on fire. This is exactly what LaunchGate.js does.
+    await assertSucceeds(anon.ref('bookstore_waitlist').push(entry()));
+    await assertSucceeds(anon.ref('bookstore_waitlist/-NewPushIdAAAAAAAAAA').set(entry()));
+    // And a signed-in reader can join too.
+    await assertSucceeds(owner.ref('bookstore_waitlist/-NewPushIdBBBBBBBBBB').set(entry()));
+  });
+
+  test('ROOT-LEVEL WRITE is rejected — the hole this finding was about', async () => {
+    await seed(env, { 'bookstore_waitlist/-Existing0000000000A': entry() });
+    // A wholesale set() AT the node root. This is the shape that used to be allowed, and the
+    // one that could replace the entire mailing list in a single request.
+    await assertFails(anon.ref('bookstore_waitlist').set({ '-x': entry() }));
+    await assertFails(owner.ref('bookstore_waitlist').set({ '-x': entry() }));
+    await assertFails(founder.ref('bookstore_waitlist').set({ '-x': entry() }));
+  });
+
+  test('update() at the root fans out per child — it can create, never overwrite or delete', async () => {
+    // NOT A HOLE, and worth stating because it looks like one. RTDB evaluates a multi-path
+    // update() against each CHILD path independently, not against the node it was called on.
+    // So update({'-new': …}) is precisely the legitimate create above and is allowed, while
+    // the two dangerous shapes — overwriting an existing key, or nulling one — are each
+    // evaluated at that key and refused by the same create-only rule.
+    await seed(env, { 'bookstore_waitlist/-Existing0000000000A': entry() });
+
+    await assertSucceeds(anon.ref('bookstore_waitlist').update({ '-BrandNewKey00000001': entry() }));
+    await assertFails(anon.ref('bookstore_waitlist').update({ '-Existing0000000000A': entry() }));
+    await assertFails(anon.ref('bookstore_waitlist').update({ '-Existing0000000000A': null }));
+    // And a batch is atomic: one refused child refuses the whole update, so a create cannot
+    // be used as cover for a delete.
+    await assertFails(anon.ref('bookstore_waitlist').update({
+      '-BrandNewKey00000002': entry(),
+      '-Existing0000000000A': null,
+    }));
+  });
+
+  test('WIPE is rejected — .validate never runs on a null write', async () => {
+    await seed(env, { 'bookstore_waitlist/-Existing0000000000A': entry() });
+    await assertFails(anon.ref('bookstore_waitlist').remove());
+    await assertFails(owner.ref('bookstore_waitlist').remove());
+    await assertFails(stranger.ref('bookstore_waitlist').remove());
+    await assertFails(founder.ref('bookstore_waitlist').remove());
+  });
+
+  test('DELETE of a single entry is rejected', async () => {
+    await seed(env, { 'bookstore_waitlist/-Existing0000000000A': entry() });
+    await assertFails(anon.ref('bookstore_waitlist/-Existing0000000000A').remove());
+    await assertFails(owner.ref('bookstore_waitlist/-Existing0000000000A').remove());
+    await assertFails(anon.ref('bookstore_waitlist/-Existing0000000000A/email').remove());
+  });
+
+  test('OVERWRITE of an existing entry is rejected — create-only', async () => {
+    await seed(env, { 'bookstore_waitlist/-Existing0000000000A': entry() });
+    await assertFails(anon.ref('bookstore_waitlist/-Existing0000000000A').set(entry()));
+    await assertFails(anon.ref('bookstore_waitlist/-Existing0000000000A/email').set('hijack@example.com'));
+    await assertFails(owner.ref('bookstore_waitlist/-Existing0000000000A').update({ email: 'x@example.com' }));
+  });
+
+  test('the 9 legacy uid-keyed {joinedAt} rows survive and cannot be touched', async () => {
+    // Measured on the live node: uid-shaped keys carrying only joinedAt, written by something
+    // outside this repo. Create-only means they are frozen to clients rather than deleted.
+    await seed(env, { [`bookstore_waitlist/${STRANGER}`]: { joinedAt: now() } });
+    await assertFails(anon.ref(`bookstore_waitlist/${STRANGER}`).remove());
+    await assertFails(stranger.ref(`bookstore_waitlist/${STRANGER}`).set({ joinedAt: now() }));
+    // A NEW row of that shape is refused — nothing in the repo writes it, and the rule
+    // describes what the product produces rather than what history left behind.
+    await assertFails(anon.ref('bookstore_waitlist/-NewJoinedAtRow00000').set({ joinedAt: now() }));
+  });
+
+  test('READ stays founder-only — a mailing list is not public', async () => {
+    await seed(env, { 'bookstore_waitlist/-Existing0000000000A': entry() });
+    await assertFails(anon.ref('bookstore_waitlist').get());
+    await assertFails(owner.ref('bookstore_waitlist').get());
+    await assertFails(stranger.ref('bookstore_waitlist/-Existing0000000000A').get());
+    await assertSucceeds(founder.ref('bookstore_waitlist').get());
+  });
+
+  test('the shape is bounded — junk fields, wrong types and bad addresses are refused', async () => {
+    await assertFails(anon.ref('bookstore_waitlist/-r1').set({ email: 'reader@example.com' }));   // no addedAt
+    await assertFails(anon.ref('bookstore_waitlist/-r2').set({ addedAt: now() }));                // no email
+    await assertFails(anon.ref('bookstore_waitlist/-r3').set({ ...entry(), evil: 'payload' }));   // $other
+    await assertFails(anon.ref('bookstore_waitlist/-r4').set({ email: 'reader@example.com', addedAt: 'now' }));
+    await assertFails(anon.ref('bookstore_waitlist/-r5').set({ email: 42, addedAt: now() }));
+    await assertFails(anon.ref('bookstore_waitlist/-r6').set({ email: 'reader@example.com', addedAt: -1 }));
+    await assertFails(anon.ref('bookstore_waitlist/-r7').set('just-a-string'));
+  });
+
+  // ── THE TWO HALVES OF THE EMAIL CHECK MOVE TOGETHER ───────────────────────
+  // isEmailShaped() in app/lib/bookstore/gate.js is the client half; the .validate on
+  // bookstore_waitlist/$entry/email is the half a console cannot skip. Before R9.1 they were
+  // NOT equivalent — the rule asked only contains('@'), so `a@b`, ` x@y.z` and `a@@b.c` were
+  // all rule-legal while the gate rejected them. Anything the gate accepts the rule MUST
+  // accept (or a reader hits a permission-denied they can do nothing about), and anything the
+  // gate rejects the rule SHOULD reject (or the rule is not the backstop it claims to be).
+  const ACCEPTED = [
+    'reader@example.com',
+    'a.b+tag@sub.example.co.uk',
+    'x@y.zz',
+  ];
+  const REJECTED = [
+    'a@b',                 // no dot in the domain — rule-legal before R9.1
+    'no-at-sign.com',
+    'two@@example.com',
+    'trailing@example.',
+    '@example.com',
+    'spaced out@example.com',   // inner whitespace survives trim()
+    'a@.com',
+    'reader@exam ple.com',
+  ];
+
+  test('a padded address is accepted by the gate and stored trimmed', async () => {
+    // The one asymmetry, and it is deliberate rather than a drift: isEmailShaped() trims
+    // before testing and LaunchGate writes email.trim(), so the rule only ever sees the
+    // trimmed form. The rule rejecting the padded form is therefore correct AND unreachable
+    // from the product — asserted here so nobody "fixes" the rule to allow padding.
+    assert.equal(isEmailShaped('  reader@example.com  '), true);
+    await assertFails(anon.ref('bookstore_waitlist/-pad').set({ email: '  reader@example.com  ', addedAt: now() }));
+    await assertSucceeds(anon.ref('bookstore_waitlist/-pad2').set({ email: '  reader@example.com  '.trim(), addedAt: now() }));
+  });
+
+  test('every address the gate accepts, the rule accepts', async () => {
+    for (const [i, email] of ACCEPTED.entries()) {
+      assert.equal(isEmailShaped(email), true, `gate must accept ${JSON.stringify(email)}`);
+      await assertSucceeds(anon.ref(`bookstore_waitlist/-ok${i}`).set({ email, addedAt: now() }));
+    }
+  });
+
+  test('every address the gate rejects, the rule rejects', async () => {
+    for (const [i, email] of REJECTED.entries()) {
+      assert.equal(isEmailShaped(email), false, `gate must reject ${JSON.stringify(email)}`);
+      await assertFails(anon.ref(`bookstore_waitlist/-bad${i}`).set({ email, addedAt: now() }));
+    }
+  });
+
+  test('length bounds match the gate exactly', async () => {
+    const long = `${'a'.repeat(310)}@example.com`; // > 320
+    assert.equal(isEmailShaped(long), false);
+    await assertFails(anon.ref('bookstore_waitlist/-long').set({ email: long, addedAt: now() }));
+
+    const short = 'a@b.c'; // exactly 5, the lower bound, and dotted
+    assert.equal(isEmailShaped(short), true);
+    await assertSucceeds(anon.ref('bookstore_waitlist/-short').set({ email: short, addedAt: now() }));
   });
 });
