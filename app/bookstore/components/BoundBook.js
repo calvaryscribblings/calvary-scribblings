@@ -8,7 +8,8 @@
 // exposes a `bind` spread + a `bookRef` for rect measurement. Reduced motion is handled
 // entirely in CSS via prefers-reduced-motion (no resting angle, no transitions).
 import Image from 'next/image';
-import { formatGbp, resolveOpeningLine, resolveBackBlurb, gradientFor, obiLabel, formatCatalogueNumber } from './fields';
+import { resolveOpeningLine, resolveBackBlurb, gradientFor, obiLabel, formatCatalogueNumber } from './fields';
+import { useCurrency, priceFor, formatPrice, fallbackNote } from '../../lib/bookstore/currency';
 
 // Injected once per page (storefront, detail, modal). Keyed classes only — no dynamic values.
 export const BOUND_BOOK_CSS = `
@@ -85,9 +86,15 @@ function FrontFace({ title, width }) {
 }
 
 function BackFace({ title }) {
+  const [currency] = useCurrency();
   const opening = resolveOpeningLine(title);
   const blurb = resolveBackBlurb(title);
-  const price = formatGbp(title.prices?.gbp);
+  // R8.3: the effective price, and the mark when it is not the one being browsed in. The
+  // back face is printed matter — cream stock, brown ink — so the mark takes its muted tone
+  // from THAT palette rather than from the dark shelf's.
+  const priced = priceFor(title, currency);
+  const price = priced ? formatPrice(priced.currency, priced.minorUnits) : null;
+  const note = fallbackNote(priced);
   const cat = formatCatalogueNumber(title.catalogueNumber);
   return (
     <div className="bb-face bb-back">
@@ -113,6 +120,11 @@ function BackFace({ title }) {
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 700, fontSize: '.82rem', color: '#2a2318' }}>{price}</div>
               <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.44rem', letterSpacing: '.22em', textTransform: 'uppercase', color: 'rgba(42,35,24,.6)' }}>ebook</div>
+              {/* R8.3. Brown ink on cream stock, not the shelf's vellum-on-black — the back
+                  face is printed matter and the mark has to belong to it. */}
+              {note && (
+                <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '.52rem', color: 'rgba(42,35,24,.62)', marginTop: '1px' }}>{note}</div>
+              )}
             </div>
           )}
         </div>

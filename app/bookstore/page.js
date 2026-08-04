@@ -10,7 +10,9 @@ import BoundBook, { BOUND_BOOK_CSS } from './components/BoundBook';
 import BuyButton from './components/BuyButton';
 import QuickLookModal from './components/QuickLookModal';
 import { useBookGesture } from './components/useBookGesture';
-import { formatGbp, resolveOpeningLine, formatCatalogueNumber } from './components/fields';
+import { resolveOpeningLine, formatCatalogueNumber } from './components/fields';
+import { useCurrency, priceFor, formatPrice, fallbackNote } from '../lib/bookstore/currency';
+import CurrencySelector, { CURRENCY_SELECTOR_CSS } from './components/CurrencySelector';
 import LaunchGate from './components/LaunchGate';
 import { isStoreUnlocked } from '../lib/bookstore/gate';
 
@@ -54,7 +56,10 @@ function ShelfBook({ title, width, onOpen }) {
 }
 
 function ShelfEntry({ title, index, onOpen }) {
-  const price = formatGbp(title.prices?.gbp);
+  const [currency] = useCurrency();
+  const priced = priceFor(title, currency);
+  const price = priced ? formatPrice(priced.currency, priced.minorUnits) : null;
+  const note = fallbackNote(priced);
   const mark = formatCatalogueNumber(title.catalogueNumber);
   const tilt = index % 2 === 0 ? -0.7 : 0.7;
   return (
@@ -69,6 +74,9 @@ function ShelfEntry({ title, index, onOpen }) {
       <div className="entry-title">{title.title}</div>
       <div className="entry-author">{title.author}</div>
       {price && <div className="entry-price">{price}</div>}
+      {/* R8.3 — SHOWN AND MARKED. The book keeps its place on the shelf; the line beneath
+          simply names the money. No badge, no dimming, no alarm colour. */}
+      {note && <div className="entry-price-note">{note}</div>}
       {title.shelfCard && (
         <div className="shelf-card" style={{ transform: `rotate(${tilt}deg)` }}>
           <span className="shelf-card-body">{title.shelfCard}</span>
@@ -168,7 +176,7 @@ function OpeningLinesRail({ pool }) {
 }
 
 // ── Hero: the title-page treatment ────────────────────────────────────────────
-function Hero({ count }) {
+function Hero({ count, currency, onCurrency, chosen }) {
   return (
     <section className="hero">
       <div className="hero-lamp" />
@@ -177,6 +185,12 @@ function Hero({ count }) {
         <h1 className="hero-title"><span className="hero-the">The</span><em className="hero-store">Book Store</em></h1>
         <p className="hero-colophon">A shop, not a warehouse. Every title on these shelves was chosen by hand.</p>
         <div className="hero-edition">Catalogue &middot; {count} {count === 1 ? 'Title' : 'Titles'} &middot; Est. 2026</div>
+        {/* R8.3 — the currency line sits with the catalogue line, because that is what it is:
+            a statement about how this catalogue is priced, in the same register as the count
+            and the year. Not a control panel, and not a floating widget. */}
+        <div className="hero-currency">
+          <CurrencySelector currency={currency} onChange={onCurrency} chosen={chosen} />
+        </div>
       </div>
     </section>
   );
@@ -289,6 +303,12 @@ export default function BookStorePage() {
 
   const storeReady = unlocked && gateState === 'open';
 
+  // R8.3. The hook is read here for the selector; every OTHER surface that prints money reads
+  // the same module store directly (ShelfEntry, BoundBook, QuickLookModal, BuyButton), so
+  // there is no prop to thread through the shelf and no context to provide. One store, one
+  // document, one answer.
+  const [currency, chooseCurrency, currencyChosen] = useCurrency();
+
   const loading = titles === null;
   const fictionTitles = loading ? [] : titles.filter((t) => FICTION_GENRES.includes(t.genre));
   const nonfictionTitles = loading ? [] : titles.filter((t) => NONFICTION_GENRES.includes(t.genre));
@@ -317,6 +337,7 @@ export default function BookStorePage() {
           html{scroll-behavior:smooth}
           body{background:#070707;color:#f0ead8;font-family:'Cormorant Garamond',Georgia,serif;overflow-x:hidden}
           ${BOUND_BOOK_CSS}
+          ${CURRENCY_SELECTOR_CSS}
           @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.75}}
           @keyframes lampPulse{0%,100%{opacity:.5}50%{opacity:.9}}
@@ -335,6 +356,7 @@ export default function BookStorePage() {
           .hero-store{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:300;font-size:clamp(3.6rem,10vw,7.6rem);color:#c9a44c}
           .hero-colophon{font-size:1.05rem;font-style:italic;color:rgba(240,234,216,.5);line-height:1.7;max-width:520px;margin:0 auto 2.2rem}
           .hero-edition{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.28em;text-transform:uppercase;color:rgba(201,164,76,.6)}
+          .hero-currency{margin-top:1.6rem}
 
           .the-window{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:4rem 2rem 3rem}
           .window-plate{text-align:center;font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.6rem}
@@ -390,6 +412,11 @@ export default function BookStorePage() {
           .entry-title{font-size:.92rem;font-weight:600;color:#f0ead8;line-height:1.28;margin-bottom:.15rem}
           .entry-author{font-family:'Cormorant Garamond',Georgia,serif;font-size:.76rem;font-style:italic;color:rgba(240,234,216,.45);margin-bottom:.4rem}
           .entry-price{font-family:'Cormorant Garamond',Georgia,serif;font-size:.85rem;font-weight:600;color:#f0ead8}
+          /* R8.3 — the mark. Lowercase, small, italic, muted, and NOTHING else: no border,
+             no background, no colour that could be read as a warning. It states a fact about
+             which money the price is in. */
+          .entry-price-note{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;
+            font-size:.72rem;line-height:1.4;color:rgba(240,234,216,.42);margin-top:.1rem}
           .shelf-card{margin-top:1rem;background:#ece4cf;color:#2a2318;padding:.75rem .9rem;border-radius:1px;box-shadow:0 6px 18px rgba(0,0,0,.4);font-size:.72rem;line-height:1.5;max-width:190px}
           .shelf-card-body{display:block;font-style:italic}
           .shelf-card-sign{display:block;margin-top:.4rem;font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.12em;color:#7a5f24}
@@ -415,7 +442,7 @@ export default function BookStorePage() {
         <div className="bookstore-grain" aria-hidden="true" />
 
         <main style={{ background: '#070707', color: '#f0ead8', position: 'relative' }}>
-          <Hero count={totalCount} />
+          <Hero count={totalCount} currency={currency} onCurrency={chooseCurrency} chosen={currencyChosen} />
 
           {loading ? (
             <SkeletonShelf />

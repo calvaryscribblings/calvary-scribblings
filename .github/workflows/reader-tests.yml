@@ -115,6 +115,12 @@ jobs:
       - name: Gate harness (the pre-launch curtain)
         run: npx playwright test -c tests/bookstore/playwright.gate.config.mjs
 
+      # R8.3. Separate step rather than folded into the gate config: the two suites drive
+      # different surfaces on different ports, and a currency failure should not read as a
+      # gate failure in the run summary.
+      - name: Currency harness (selection, marks and rails)
+        run: npx playwright test -c tests/bookstore/playwright.currency.config.mjs
+
       - name: Upload traces and reports
         if: failure()
         uses: actions/upload-artifact@v4

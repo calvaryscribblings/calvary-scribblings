@@ -8,6 +8,7 @@ import TabBar from '../../components/TabBar';
 import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
 import BuyButton from '../components/BuyButton';
 import { truncate, formatCatalogueNumber } from '../components/fields';
+import { useCurrency, priceFor, fallbackSentence } from '../../lib/bookstore/currency';
 import LaunchGate from '../components/LaunchGate';
 import { isStoreUnlocked } from '../../lib/bookstore/gate';
 
@@ -124,6 +125,11 @@ export default function BookDetailClient({ params }) {
   if (unlocked) { if (state === 'missing') notFound(); }
 
   const detailReady = unlocked;
+
+  // R8.3. `title` is null until the fetch lands, and priceFor tolerates that — the sentence is
+  // simply absent until there is a book to say it about.
+  const [currency] = useCurrency();
+  const fallbackLine = fallbackSentence(priceFor(title, currency), currency);
 
   const section = title ? sectionLabel(title.genre) : '';
   const cat = title ? formatCatalogueNumber(title.catalogueNumber) : null;
@@ -247,6 +253,20 @@ export default function BookDetailClient({ params }) {
                     <div className="bd-actions" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginTop: '2.2rem' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem', alignItems: 'flex-start' }}>
                         <BuyButton title={title} className="bd-buy" />
+                        {/* R8.3 — BENEATH the button, deliberately. The button makes a claim
+                            about a sum of money; this qualifies that claim, so it has to be
+                            read second. Above the price it would be a banner over the book,
+                            which is not what the ruling asked for: it is a fact, quietly
+                            stated, in the muted italic the rest of this column already uses
+                            for asides. */}
+                        {fallbackLine && (
+                          <p
+                            data-testid="price-fallback-sentence"
+                            style={{ margin: 0, maxWidth: '34ch', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.8rem', fontStyle: 'italic', lineHeight: 1.55, color: 'rgba(240,234,216,.5)' }}
+                          >
+                            {fallbackLine}
+                          </p>
+                        )}
                         <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.72rem', fontStyle: 'italic', color: 'rgba(201,164,76,.6)', letterSpacing: '.04em' }}>Available September 2026</span>
                       </div>
                       {title.samplePath && (

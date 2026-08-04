@@ -7,9 +7,58 @@
 //   backBlurb   : field backCoverBlurb → synopsis truncated ~180 chars   → null (omit)
 //   shelfCard   : NO fallback — present only when the curator wrote one.
 
-export function formatGbp(minor) {
+// ── MONEY ────────────────────────────────────────────────────────────────────────────────
+// R8.3 generalised formatGbp into formatPrice. There is still exactly ONE implementation:
+// formatGbp is now a projection of it, keeping its original contract byte-for-byte (a
+// non-finite input returns null, which is what makes every call site's `{price && …}` omit the
+// line rather than print "£NaN").
+//
+// EVERY AMOUNT IN THIS SYSTEM IS AN INTEGER OF MINOR UNITS, and the three currencies do not
+// agree on what a minor unit buys:
+//   gbp  pence  — £4.99 is 499, two decimals shown
+//   usd  cents  — $6.99 is 699, two decimals shown
+//   ngn  kobo   — ₦4,500 is 450000, and NO decimals are shown
+//
+// The naira case is the one worth stating. Kobo are still hundredths, so the arithmetic is
+// identical — but naira prices are quoted in whole naira and a shop that prints "₦4,500.00"
+// reads as a foreign site guessing at the format. Grouping separators are mandatory at that
+// magnitude for the same reason: ₦450000 is unreadable and ₦4,500 is a price.
+//
+// GROUPING IS HAND-ROLLED rather than Intl.NumberFormat, deliberately. This runs in a static
+// export served from a CDN to readers in any locale, and Intl formats to the RUNTIME's locale
+// data unless pinned — so the same title could render ₦4,500 for one reader and ₦4.500 for
+// another with a European locale. The shop's prices are not a localised number; they are a
+// price tag, and they must be identical everywhere. Two lines of code buys that certainty.
+const CURRENCY_FORMAT = {
+  gbp: { symbol: '£', decimals: 2 },
+  usd: { symbol: '$', decimals: 2 },
+  ngn: { symbol: '₦', decimals: 0 },
+};
+
+function group(intPart) {
+  return String(intPart).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/**
+ * A price tag from a currency code and an integer of minor units.
+ * Returns null for anything unusable — an unknown currency, a non-finite amount — so a bad
+ * record omits its price rather than printing nonsense next to a buy button.
+ */
+export function formatPrice(currency, minor) {
+  const fmt = CURRENCY_FORMAT[currency];
+  if (!fmt) return null;
   if (typeof minor !== 'number' || !Number.isFinite(minor)) return null;
-  return `£${(minor / 100).toFixed(2)}`;
+
+  const major = minor / 100;
+  if (fmt.decimals === 0) return `${fmt.symbol}${group(Math.round(major))}`;
+  // toFixed first, so the grouping runs over the rounded integer part rather than over a
+  // value that is about to round up into another digit.
+  const [i, d] = major.toFixed(fmt.decimals).split('.');
+  return `${fmt.symbol}${group(i)}.${d}`;
+}
+
+export function formatGbp(minor) {
+  return formatPrice('gbp', minor);
 }
 
 export function stripHtml(str) {

@@ -6,11 +6,13 @@
 //   Mobile (<640px):  a bottom sheet with a grab handle, slides up (no morph).
 // Escape / veil / × = put back: the modal recedes and the caller un-flips the book.
 import { useEffect, useRef, useState } from 'react';
-import { formatGbp, resolveOpeningLine, resolveBackBlurb, formatCatalogueNumber } from './fields';
+import { resolveOpeningLine, resolveBackBlurb, formatCatalogueNumber } from './fields';
+import { useCurrency, priceFor, formatPrice, fallbackNote } from '../../lib/bookstore/currency';
 
 const CARD_W = 440;
 
 export default function QuickLookModal({ title, originRect, onClose }) {
+  const [currency] = useCurrency();
   const [phase, setPhase] = useState('enter'); // 'enter' → 'open' → 'closing'
   const [isMobile, setIsMobile] = useState(false);
   const cardRef = useRef(null);
@@ -44,7 +46,9 @@ export default function QuickLookModal({ title, originRect, onClose }) {
 
   const opening = resolveOpeningLine(title);
   const blurb = resolveBackBlurb(title);
-  const price = formatGbp(title.prices?.gbp);
+  const priced = priceFor(title, currency);
+  const price = priced ? formatPrice(priced.currency, priced.minorUnits) : null;
+  const note = fallbackNote(priced);
   const cat = formatCatalogueNumber(title.catalogueNumber);
 
   // Desktop morph transform for the enter/closing phases.
@@ -120,6 +124,16 @@ export default function QuickLookModal({ title, originRect, onClose }) {
           <a href={`/bookstore/${title.slug}`} style={{ fontFamily: "'Cinzel',serif", fontSize: '.64rem', letterSpacing: '.16em', textTransform: 'uppercase', padding: '.85rem 1.8rem', border: 'none', borderRadius: '3px', background: 'linear-gradient(135deg,#c9a44c,#a8842f)', color: '#0a0a0a', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>{price ? `Buy · ${price}` : 'Buy'}</a>
           {title.samplePath && (
             <a href={`/reader/${title.slug}?sample=1`} style={{ fontFamily: "'Cinzel',serif", fontSize: '.64rem', letterSpacing: '.16em', textTransform: 'uppercase', padding: '.85rem 1.8rem', border: '1px solid rgba(201,164,76,.4)', borderRadius: '3px', background: 'rgba(201,164,76,.04)', color: '#c9a44c', fontWeight: 600, textDecoration: 'none' }}>Read sample</a>
+          )}
+          {/* R8.3: the mark sits on its own line beneath the row, so it reads as a note about
+              the price rather than as a third control. */}
+          {note && (
+            <div
+              data-testid="price-note"
+              style={{ flexBasis: '100%', fontFamily: "'Cormorant Garamond',Georgia,serif", fontStyle: 'italic', fontSize: '.78rem', color: 'rgba(240,234,216,.42)' }}
+            >
+              {note}
+            </div>
           )}
         </div>
 

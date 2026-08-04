@@ -13,17 +13,27 @@ import { useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import AuthModal from '../../components/AuthModal';
 import { createCheckoutSession } from '../../lib/bookstore/checkout';
-import { formatGbp } from './fields';
+import { useCurrency, priceFor, formatPrice } from '../../lib/bookstore/currency';
 
 export default function BuyButton({ title, className, align = 'flex-start' }) {
   const { user } = useAuth();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [currency] = useCurrency();
 
-  // R5 sells in GBP only; the display toggle is R9. Keep the currency the button shows and
-  // the currency it charges in as one decision, not two.
-  const price = formatGbp(title?.prices?.gbp);
+  // R8.3 — THE BUTTON NAMES THE SUM THAT WILL BE CHARGED, NEVER THE BROWSING CURRENCY.
+  //
+  // priceFor() returns the EFFECTIVE currency: the reader's selection when the title carries
+  // that price, and the fallback when it does not. Both the label and the rail read from this
+  // one value, which is what keeps them from ever disagreeing — the original file's own
+  // instruction ("keep the currency the button shows and the currency it charges in as one
+  // decision, not two"), now that there is more than one currency for it to be true of.
+  //
+  // A button reading "Buy · ₦4,500" that charges £4.99 is the single worst outcome available
+  // in this round, so it is made structurally impossible rather than merely avoided.
+  const effective = priceFor(title, currency);
+  const price = effective ? formatPrice(effective.currency, effective.minorUnits) : null;
 
   const onClick = async () => {
     setError(null);
@@ -34,7 +44,9 @@ export default function BuyButton({ title, className, align = 'flex-start' }) {
 
     setPending(true);
     try {
-      const url = await createCheckoutSession(user, title?.id, 'gbp');
+      // The same `effective.currency` the label printed — never `currency`. createCheckoutSession
+      // picks the rail from it: 'ngn' → Paystack, 'gbp'/'usd' → Stripe.
+      const url = await createCheckoutSession(user, title?.id, effective?.currency || 'gbp');
       // Leaving for Stripe — deliberately no setPending(false); the button stays in its
       // pending state until the navigation takes the page, so it cannot be double-fired.
       window.location.assign(url);
