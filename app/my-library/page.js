@@ -71,9 +71,18 @@ function gradientFor(seed) {
   return COVERS[h % COVERS.length];
 }
 
+// R9.1 LB-8 — a book whose access has been withdrawn renders IN PLACE, in the position its
+// purchase date earns it. It is never filtered out, never pushed to the bottom, never
+// reordered: a reader who paid for a book and then lost access needs to SEE that, and a row
+// that quietly vanishes reads as a bug in the shelf rather than a fact about the purchase.
+//
+// The treatment matches the reader's own revoked gate (app/reader/[slug]/book-reader.js) so
+// the two surfaces read as one product: the same "Access Withdrawn" wording, and the same
+// quiet route onward to the Book Store instead of a dead end.
 function BookCard({ book }) {
+  const withdrawn = !book.active;
   return (
-    <div className="ml-card">
+    <div className={`ml-card${withdrawn ? ' is-withdrawn' : ''}`}>
       <div className="ml-cover" style={{ background: gradientFor(book.slug || book.title) }}>
         {book.coverUrl
           ? <img src={book.coverUrl} alt="" className="ml-cover-img" />
@@ -81,7 +90,14 @@ function BookCard({ book }) {
       </div>
       <div className="ml-meta-t">{book.title}</div>
       {book.author && <div className="ml-meta-a">{book.author}</div>}
-      <a className="ml-read" href={`/reader/${book.slug}`}>READ NOW</a>
+      {withdrawn ? (
+        <>
+          <div className="ml-withdrawn">ACCESS WITHDRAWN</div>
+          <a className="ml-read ml-read-quiet" href={`/bookstore/${book.slug}`}>VIEW IN THE BOOK STORE</a>
+        </>
+      ) : (
+        <a className="ml-read" href={`/reader/${book.slug}`}>READ NOW</a>
+      )}
     </div>
   );
 }
@@ -243,10 +259,39 @@ export default function MyLibraryPage() {
             author: titleDoc?.author || p.author || '',
             coverUrl: titleDoc?.coverUrl || p.coverUrl || null,
             purchasedAt: typeof p.purchasedAt === 'number' ? p.purchasedAt : 0,
+            // R9.1 LB-8. `status === 'active'` verbatim, because that is the exact test the
+            // server gate applies before it will hand over the file
+            // (functions/api/bookstore/stream.js). Any looser reading here — treating a
+            // missing status as owned, say — would show a READ NOW that 403s on tap.
+            active: p.status === 'active',
           };
         }));
-        resolved.sort((a, b) => (b.purchasedAt || 0) - (a.purchasedAt || 0));
-        if (!cancelled) setBooks(resolved);
+
+        // ── ONE ROW PER SLUG, ACTIVE WINS ─────────────────────────────────────────
+        // Purchases are keyed by titleId, but the shelf is keyed by SLUG: two catalogue
+        // entries can carry the same slug (a re-issue, a publisher migration), and the
+        // reader owns "the book", not the row. So if ANY record for a slug is active the
+        // reader owns it and no withdrawn ghost appears beside it; the withdrawn row shows
+        // only when EVERY record for that slug is revoked.
+        //
+        // This also removes a latent duplicate-key warning — the grid below keys on slug.
+        const bySlug = new Map();
+        for (const row of resolved) {
+          const prev = bySlug.get(row.slug);
+          if (!prev) { bySlug.set(row.slug, row); continue; }
+          // Active beats withdrawn outright. Between two of the same standing, the most
+          // recent purchase is the one that describes the reader's position today.
+          if (row.active !== prev.active) {
+            if (row.active) bySlug.set(row.slug, row);
+          } else if ((row.purchasedAt || 0) > (prev.purchasedAt || 0)) {
+            bySlug.set(row.slug, row);
+          }
+        }
+
+        // Sorted by purchase date ALONE. Status deliberately plays no part: a withdrawn book
+        // holds the place it earned, which is what "renders in place" means.
+        const shelf = [...bySlug.values()].sort((a, b) => (b.purchasedAt || 0) - (a.purchasedAt || 0));
+        if (!cancelled) setBooks(shelf);
       } catch (e) {
         console.error('[my-library] purchases load failed', e);
         if (!cancelled) setBooks([]);
@@ -256,7 +301,9 @@ export default function MyLibraryPage() {
   }, [user, loading]);
 
   const initials = user ? (user.displayName || 'R').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() : '';
-  const ownedCount = Array.isArray(books) ? books.length : 0;
+  // R9.1 LB-8: withdrawn books are shown but not counted as owned — the switch says "N owned"
+  // and a book whose access has been withdrawn is precisely the one the reader no longer owns.
+  const ownedCount = Array.isArray(books) ? books.filter((b) => b.active).length : 0;
 
   return (
     <div className="ml-page">
@@ -353,6 +400,24 @@ export default function MyLibraryPage() {
           border-bottom: 1px solid rgba(201,168,76,.3); padding-bottom: 2px;
         }
         .ml-read:hover { color: #e2c876; border-bottom-color: rgba(201,168,76,.7); }
+
+        /* R9.1 LB-8 — WITHDRAWN. Dimmed and desaturated rather than hidden: the card keeps
+           its place in the grid and its full size, so the shelf does not reflow and the
+           reader can see exactly which book it was. */
+        .ml-card.is-withdrawn .ml-cover { filter: grayscale(1); opacity: .38; }
+        .ml-card.is-withdrawn .ml-meta-t { color: rgba(245,240,232,.42); }
+        .ml-card.is-withdrawn .ml-meta-a { color: rgba(245,240,232,.28); }
+        .ml-withdrawn {
+          font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .18em;
+          color: rgba(245,240,232,.45); margin-top: 7px;
+        }
+        /* The route onward, deliberately quieter than READ NOW — it is an explanation, not
+           an invitation to buy again. */
+        .ml-read-quiet {
+          color: rgba(245,240,232,.38); border-bottom-color: rgba(245,240,232,.16);
+          margin-top: 5px;
+        }
+        .ml-read-quiet:hover { color: rgba(245,240,232,.7); border-bottom-color: rgba(245,240,232,.4); }
 
         .ml-cover-link { display: block; text-decoration: none; }
         .ml-saved { font-family: ${LABEL}; font-size: 7px; letter-spacing: .14em; color: rgba(245,240,232,.32); margin-top: 5px; }
