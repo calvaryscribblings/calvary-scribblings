@@ -129,6 +129,74 @@ describe('LB-1 · stories — the hit counter', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// R9.8 · top_stories — the last open write grant, now closed.
+//
+// This node was world-writable until R9.8 and carried the ONLY exception in the
+// structure ratchet that was not an open finding: it was blessed because the
+// writer was unidentified, and locking it blind risked killing a live job.
+//
+// The writer is the calvary-hit-counter Cloudflare Worker, mirrored at
+// workers-external/calvary-hit-counter.worker.js. It rebuilds top_stories/weekly
+// hourly at ~:00:41 UTC. Until R9.6 it authenticated with the Firebase WEB API
+// KEY as ?auth=, which RTDB ignores — so it was writing UNAUTHENTICATED, and only
+// the open grant kept it alive. R9.6 gave it env.FIREBASE_SECRET, a legacy
+// database secret, which BYPASSES rules entirely. That is why closing .write does
+// not stop it, and it is the same reason the stories node above can stay locked
+// while functions/api/hit.js keeps writing to it.
+//
+// The credential was proven by OBSERVATION, not by inspection: the Worker's prune
+// PATCH passes through the already-closed `stories` node, and day buckets
+// 2026-07-25/26 disappearing at the 21:00:41 UTC run on 5 Aug is what showed the
+// secret was live in this exact code path.
+describe('R9.8 · top_stories — the public top-10', () => {
+  const weekly = () => ({
+    items: [{ slug: 'a-slug', count: 12 }, { slug: 'b-slug', count: 7 }],
+    generatedAt: now(),
+  });
+
+  test('unauthenticated cannot write', async () => {
+    await assertFails(anon.ref('top_stories/weekly').set(weekly()));
+    await assertFails(anon.ref('top_stories/weekly/items/0/count').set(99999));
+  });
+
+  test('a signed-in stranger cannot write either', async () => {
+    // Sign-up is open, so this is the threat model — not an exotic attacker.
+    await assertFails(stranger.ref('top_stories/weekly').set(weekly()));
+    await assertFails(stranger.ref('top_stories/weekly/items/0/slug').set('their-own-story'));
+  });
+
+  test('WIPE: nobody can delete the node or the weekly payload', async () => {
+    // The case that mattered most here. .validate NEVER runs on a null write, so
+    // while the grant sat at the node root a single anonymous request emptied the
+    // public top-10 — no auth, no trace.
+    await seed(env, { 'top_stories/weekly': weekly() });
+    await assertFails(anon.ref('top_stories').remove());
+    await assertFails(stranger.ref('top_stories').remove());
+    await assertFails(anon.ref('top_stories/weekly').remove());
+    await assertFails(stranger.ref('top_stories/weekly').remove());
+    await assertFails(anon.ref('top_stories/weekly').set(null));
+    await assertFails(anon.ref('top_stories/weekly/items').remove());
+  });
+
+  test('LEGITIMATE: the world can still READ (app/public-library/page.js:1093)', async () => {
+    // .read stays true and this is why. fetchTop10() reads top_stories/weekly
+    // with no signed-in user — every anonymous visitor to /public-library hits
+    // this path, so a read regression here empties the top-10 for everyone.
+    await seed(env, { 'top_stories/weekly': weekly() });
+    await assertSucceeds(anon.ref('top_stories/weekly').get());
+    await assertSucceeds(anon.ref('top_stories').get());
+  });
+
+  test('LEGITIMATE: the Worker writes on a secret that bypasses rules', async () => {
+    // env.FIREBASE_SECRET is a legacy database secret — rules do not apply to it.
+    // Modelled by the rules-disabled context, the emulator's stand-in for admin
+    // privilege, exactly as the stories block above models hit.js.
+    await seed(env, { 'top_stories/weekly': weekly() });
+    await assertSucceeds(anon.ref('top_stories/weekly/generatedAt').get());
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 describe('LB-3/LB-4 · wallet and payout_requests — money-adjacent', () => {
   for (const node of ['wallet', 'payout_requests']) {
     test(`${node}: nobody may write, not even the owner`, async () => {

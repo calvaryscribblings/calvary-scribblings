@@ -11,7 +11,7 @@
     },
     "top_stories": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "cms_authors": {
       ".read": true,

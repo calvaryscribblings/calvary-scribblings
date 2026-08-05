@@ -66,14 +66,19 @@ const DELIBERATELY_OPEN = new Map([
     'As likeCount above: written by the reacting user, not the post author. ' +
     'Bounded by .validate (number >= 0). R9.0 LB-5.',
   ],
-  [
-    'top_stories',
-    'R9.0: deliberately NOT closed. .write is true (unauthenticated) and ' +
-    'top_stories/weekly is regenerated on a schedule by something that is not in ' +
-    'this repo, so locking it blind risks silently killing a live daily job. ' +
-    'Needs the writer identified before it can be closed. REMOVE THIS ENTRY once ' +
-    'it is.',
-  ],
+  // R9.8 — the top_stories entry that stood here is GONE, which is what its own note asked
+  // for: "Needs the writer identified before it can be closed. REMOVE THIS ENTRY once it is."
+  //
+  // The writer is calvary-hit-counter, now mirrored at
+  // workers-external/calvary-hit-counter.worker.js. It was writing unauthenticated — it sent
+  // the Firebase WEB API KEY as ?auth=, which RTDB ignores — so it survived only while the
+  // node was world-writable. R9.6 gave it env.FIREBASE_SECRET, and the node is closed.
+  //
+  // The close was gated on OBSERVED evidence, not on the credential looking right: the
+  // Worker's prune PATCH has to pass through the already-closed `stories` node, and day
+  // buckets 2026-07-25/26 disappearing at the 21:00 run is what proved the secret was live
+  // in that code path. A fresh generatedAt would have proved nothing, because top_stories
+  // was open and the broken Worker had been writing it successfully throughout.
 
   // ───────────────────────────────────────────────────────────────────────────
   // NOT BLESSED — these four are OPEN FINDINGS this ratchet surfaced the first
