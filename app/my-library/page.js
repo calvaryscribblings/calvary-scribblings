@@ -27,9 +27,10 @@ import AuthModal from '../components/AuthModal';
 import TabBar, { TabLinks } from '../components/TabBar';
 import CoverImage from '../components/CoverImage';
 import {
-  listSaved, removeSaved, getCoverURL, capFor, savedAgo,
+  listSaved, removeSaved, getCoverURL, capFor, keptAgo,
   isIOSSafariBrowser, getMeta, setMeta,
 } from '../lib/shelf';
+import { formatCatalogueNumber } from '../bookstore/components/fields';
 import { registerShelfWorker, sealShelf } from '../lib/shelfWorker';
 import { useOffline } from '../lib/useOffline';
 
@@ -79,26 +80,82 @@ function gradientFor(seed) {
 // The treatment matches the reader's own revoked gate (app/reader/[slug]/book-reader.js) so
 // the two surfaces read as one product: the same "Access Withdrawn" wording, and the same
 // quiet route onward to the Book Store instead of a dead end.
-function BookCard({ book }) {
+// A VOLUME ON THE LEDGE.
+//
+// The shelf used to be a grid of rectangles with a link underneath — inventory. The three
+// things a grid cannot say on its own are the three this renders: that the book is OWNED
+// (the bookplate), that it stands somewhere (the ledge and its shadow), and how far into it
+// the reader is (the ribbon).
+//
+// PORTABILITY. This is the Phase A reference for the app's shelf, so every effect here has a
+// plain equivalent on RN: gradients, borders, opacity, box-shadow, translate/scale. No 3D
+// transforms, no backdrop-filter, no :has(), no mix-blend-mode. BoundBook's full flip is the
+// bookstore's language and deliberately NOT borrowed — "slight dimensionality", per the
+// brief, is a fore-edge, a spine shadow and one sheen, not a rotating object.
+function BookCard({ book, index, progress }) {
   const withdrawn = !book.active;
+  const cat = formatCatalogueNumber(book.catalogueNumber);
+  // Fraction only. No CFI maths, no page estimates: the record carries a 0–1 number and the
+  // shelf reports it. A book with no record has not been opened, which is a "Begin", not 0%.
+  const pct = progress != null ? Math.max(1, Math.min(100, Math.round(progress * 100))) : null;
+  const started = pct != null && !withdrawn;
+
   return (
-    <div className={`ml-card${withdrawn ? ' is-withdrawn' : ''}`}>
-      <div className="ml-cover" style={{ background: gradientFor(book.slug || book.title) }}>
-        {book.coverUrl
-          ? <img src={book.coverUrl} alt="" className="ml-cover-img" />
-          : <div className="ml-cover-t">{book.title}</div>}
+    <article className={`ml-vol${withdrawn ? ' is-withdrawn' : ''}`} style={{ '--i': index }}>
+      <div className="ml-stage">
+        <a
+          className="ml-book"
+          href={withdrawn ? `/bookstore/${book.slug}` : `/reader/${book.slug}`}
+          aria-label={withdrawn ? `${book.title} — access withdrawn` : book.title}
+        >
+          <span className="ml-boards" style={{ background: gradientFor(book.slug || book.title) }}>
+            {book.coverUrl
+              ? <img src={book.coverUrl} alt="" className="ml-art" loading="lazy" decoding="async" />
+              : <span className="ml-art-t">{book.title}</span>}
+            {/* Lamplight from above-left: one sheen, one spine shadow, one fore-edge. */}
+            <span className="ml-sheen" aria-hidden="true" />
+            <span className="ml-spine" aria-hidden="true" />
+            <span className="ml-foreedge" aria-hidden="true" />
+            {/* THE RIBBON IS THE PROGRESS. Its length down the boards is the fraction read,
+                so the marker sits where the reader stopped — the same information the text
+                gives, in the object's own language. Hidden from AT: the line below says it
+                in words, and a decorative ribbon announcing "43 percent" twice is noise. */}
+            {started && (
+              <span className="ml-ribbon" style={{ height: `calc(6% + ${pct * 0.82}%)` }} aria-hidden="true" />
+            )}
+          </span>
+        </a>
+        <span className="ml-ledge" aria-hidden="true" />
       </div>
-      <div className="ml-meta-t">{book.title}</div>
-      {book.author && <div className="ml-meta-a">{book.author}</div>}
+
+      {/* The bookplate — printed matter, cream stock and brown ink, the same register as
+          BoundBook's back face. It is pasted inside the cover of a book you own, which is
+          exactly what it is being used to say here. */}
+      <div className="ml-plate">
+        <span className="ml-plate-cat">{cat || 'CS —'}</span>
+        <span className="ml-plate-state">{withdrawn ? 'WITHDRAWN' : 'PURCHASED'}</span>
+      </div>
+
+      <h3 className="ml-vol-t">{book.title}</h3>
+      {book.author && <p className="ml-vol-a">{book.author}</p>}
+
       {withdrawn ? (
         <>
+          {/* R9.1 LB-8, unchanged in substance: same wording, same quiet route onward. */}
           <div className="ml-withdrawn">ACCESS WITHDRAWN</div>
-          <a className="ml-read ml-read-quiet" href={`/bookstore/${book.slug}`}>VIEW IN THE BOOK STORE</a>
+          <a className="ml-quiet" href={`/bookstore/${book.slug}`}>VIEW IN THE BOOK STORE</a>
         </>
+      ) : started ? (
+        <div className="ml-vol-foot">
+          <span className="ml-pct">{pct}% in</span>
+          <a className="ml-gild" href={`/reader/${book.slug}`}>CONTINUE READING</a>
+        </div>
       ) : (
-        <a className="ml-read" href={`/reader/${book.slug}`}>READ NOW</a>
+        <div className="ml-vol-foot">
+          <a className="ml-gild" href={`/reader/${book.slug}`}>BEGIN</a>
+        </div>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -114,7 +171,7 @@ function BookCard({ book }) {
 // CoverImage IS reused, because it earns its keep here more than anywhere: it decodes the
 // blurhash from coverHash with zero network, so a cover whose blob went missing degrades to
 // the story's own colour rather than a hole in the grid.
-function ShelfStoryCard({ record, onRemove, busy }) {
+function ShelfStoryCard({ record, onRemove, busy, index }) {
   const [coverURL, setCoverURL] = useState(null);
 
   useEffect(() => {
@@ -130,28 +187,77 @@ function ShelfStoryCard({ record, onRemove, busy }) {
     return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
   }, [record.id, record.coverBlobKey]);
 
+  const href = `/my-library/read?slug=${encodeURIComponent(record.slug)}`;
+
   return (
-    <div className="ml-card">
-      <a className="ml-cover-link" href={`/my-library/read?slug=${encodeURIComponent(record.slug)}`}>
-        <div className="ml-cover">
-          {/* No `cover` fallback URL on purpose: offline that remote URL cannot load, and
-              CoverImage holds the <img> at opacity 0 until it decodes — so a missing blob
-              leaves the blurhash showing rather than a broken-image glyph over it. */}
-          <CoverImage
-            fill
-            coverSizes={coverURL ? { w360: coverURL } : null}
-            coverHash={record.coverHash}
-            alt={record.title}
-          />
-        </div>
-      </a>
-      <div className="ml-meta-t">{record.title}</div>
-      {record.author && <div className="ml-meta-a">{record.author}</div>}
-      <div className="ml-saved">{savedAgo(record.savedAt)}</div>
-      <div className="ml-card-row">
-        <a className="ml-read" href={`/my-library/read?slug=${encodeURIComponent(record.slug)}`}>READ</a>
-        <button className="ml-remove" type="button" disabled={busy} onClick={() => onRemove(record.slug)}>REMOVE</button>
+    <article className="ml-vol" style={{ '--i': index }}>
+      <div className="ml-stage">
+        <a className="ml-book" href={href} aria-label={record.title}>
+          <span className="ml-boards">
+            {/* No `cover` fallback URL on purpose: offline that remote URL cannot load, and
+                CoverImage holds the <img> at opacity 0 until it decodes — so a missing blob
+                leaves the blurhash showing rather than a broken-image glyph over it. */}
+            <CoverImage
+              fill
+              coverSizes={coverURL ? { w360: coverURL } : null}
+              coverHash={record.coverHash}
+              alt=""
+            />
+            <span className="ml-sheen" aria-hidden="true" />
+            <span className="ml-spine" aria-hidden="true" />
+            <span className="ml-foreedge" aria-hidden="true" />
+            {/* THE SEAL. The on-this-device fact was a grey caption; it is the whole reason
+                this half of the shelf exists, so it becomes a stamp pressed on the object.
+                Gold as light, not trim — it reads as something applied, not as a badge. */}
+            <span className="ml-seal" aria-hidden="true">✦</span>
+          </span>
+        </a>
+        <span className="ml-ledge" aria-hidden="true" />
       </div>
+
+      <h3 className="ml-vol-t">{record.title}</h3>
+      {record.author && <p className="ml-vol-a">{record.author}</p>}
+      <p className="ml-kept">
+        <span className="ml-kept-mark" aria-hidden="true">✦</span>
+        {keptAgo(record.savedAt)}
+        <span className="ml-sr">, saved on this device</span>
+      </p>
+
+      <div className="ml-vol-foot">
+        <a className="ml-gild" href={href}>READ</a>
+        {/* Quiet, never alarming: no red, no border, no warning shape. Removing a story you
+            saved is an ordinary act and the shelf should not flinch at it. */}
+        <button className="ml-quiet ml-quiet-btn" type="button" disabled={busy} onClick={() => onRemove(record.slug)}>
+          REMOVE
+        </button>
+      </div>
+    </article>
+  );
+}
+
+// Capacity as slots, not a fraction. Two filled pips out of two says "your shelf is full" at
+// a glance in a way "2 of 2" never did.
+//
+// BUILT FOR 20 FROM THE START, because tiers are coming and a pip row that works at 2 and
+// falls apart at 20 would have to be redesigned exactly when it matters. Past twelve the pips
+// would be a smear, so it switches to a filled rail with the same reading — same component,
+// same vocabulary, one branch.
+function SlotPips({ used, cap }) {
+  const label = `${used} of ${cap} saved`;
+  if (cap > 12) {
+    const pctFull = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
+    return (
+      <div className="ml-slots" role="img" aria-label={label}>
+        <span className="ml-rail"><span className="ml-rail-fill" style={{ width: `${pctFull}%` }} /></span>
+        <span className="ml-slots-n">{used}<span className="ml-slots-of"> / {cap}</span></span>
+      </div>
+    );
+  }
+  return (
+    <div className="ml-slots" role="img" aria-label={label}>
+      {Array.from({ length: cap }).map((_, i) => (
+        <span key={i} className={`ml-pip${i < used ? ' is-filled' : ''}`} />
+      ))}
     </div>
   );
 }
@@ -162,6 +268,8 @@ export default function MyLibraryPage() {
   const [showAuth, setShowAuth] = useState(false);
   const [opensLabel, setOpensLabel] = useState(LAUNCH_TEXT);
   const [books, setBooks] = useState(null); // null = not loaded, [] = none owned
+  // titleId -> fraction (0–1). {} once read; a titleId absent from it has never been opened.
+  const [progress, setProgress] = useState({});
 
   // ── STORIES — the offline shelf ────────────────────────────────────────────────────────
   const offline = useOffline();
@@ -234,6 +342,38 @@ export default function MyLibraryPage() {
     return () => clearInterval(id);
   }, []);
 
+  // R9.7 — READING POSITION. bookstore_reading_progress/{uid} is owner-only, so this is ONE
+  // read of the reader's own node rather than a fetch per book: a shelf of twelve should not
+  // cost twelve round trips to draw twelve ribbons.
+  //
+  // It is deliberately separate from the purchases effect and deliberately non-blocking. A
+  // failure here — offline, rules, a half-written record — must leave the shelf rendering
+  // books with no ribbons, never an empty shelf: position is an ornament on ownership, and
+  // ownership is what the purchases read establishes.
+  useEffect(() => {
+    if (loading || !user) { setProgress({}); return undefined; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, `bookstore_reading_progress/${user.uid}`));
+        if (cancelled || !snap.exists()) return;
+        const map = {};
+        snap.forEach((child) => {
+          const f = child.val()?.fraction;
+          // The rule bounds this 0–1, but the shelf is downstream of a client write and a
+          // ribbon drawn from a bad number is a visibly broken book.
+          if (typeof f === 'number' && f > 0 && f <= 1) map[child.key] = f;
+          return false;
+        });
+        if (!cancelled) setProgress(map);
+      } catch (e) {
+        console.error('[my-library] reading progress load failed', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, loading]);
+
   // BOOKS — ported from /library.
   useEffect(() => {
     if (loading || !user) { setBooks(null); return; }
@@ -254,10 +394,18 @@ export default function MyLibraryPage() {
             if (tsnap.exists()) titleDoc = tsnap.val();
           } catch { /* fall back to denormalised purchase fields */ }
           return {
+            // R9.7: the titleId is carried through now. bookstore_reading_progress is keyed
+            // by titleId while this shelf is keyed by slug, so without it the progress
+            // record cannot be matched to the row it belongs to. Nothing else about this
+            // read changed — same node, same fields, same fallbacks.
+            id: p.id,
             slug: titleDoc?.slug || p.slug || p.id,
             title: titleDoc?.title || p.title || 'Untitled',
             author: titleDoc?.author || p.author || '',
             coverUrl: titleDoc?.coverUrl || p.coverUrl || null,
+            // Presentation field for the bookplate. Absent ⇒ the plate prints no mark, the
+            // same rule book-reader.js applies: an id is not a catalogue number.
+            catalogueNumber: titleDoc?.catalogueNumber ?? null,
             purchasedAt: typeof p.purchasedAt === 'number' ? p.purchasedAt : 0,
             // R9.1 LB-8. `status === 'active'` verbatim, because that is the exact test the
             // server gate applies before it will hand over the file
@@ -350,20 +498,31 @@ export default function MyLibraryPage() {
         .ml-eyebrow { font-family: ${LABEL}; font-size: 9.5px; letter-spacing: .3em; color: #c9a84c; text-align: center; }
         .ml-rule { width: 60px; height: 1px; background: #c9a84c; opacity: .55; margin: 9px auto 0; }
 
-        .ml-switch { display: flex; gap: 9px; justify-content: center; margin: 20px 0 6px; }
+        /* THE PLAQUES — what the STORIES / BOOKS switch became. Engraved brass on the wall
+           of the corner, not two buttons: an inset ground, a hairline edge catching the same
+           lamplight as the shelves, and the active one lit rather than outlined. */
+        .ml-switch { display: flex; gap: 10px; justify-content: center; margin: 22px 0 4px; }
         .ml-sw {
-          flex: 1; max-width: 158px; border-radius: 11px; padding: 11px 8px; text-align: center;
-          cursor: pointer; font: inherit; color: inherit;
-          transition: transform .09s ease, border-color .2s ease;
+          flex: 1; max-width: 172px; border-radius: 4px; padding: 12px 9px 11px; text-align: center;
+          cursor: pointer; font: inherit; color: inherit; position: relative;
+          border: 1px solid rgba(201,168,76,.28);
+          background: linear-gradient(180deg, rgba(245,240,232,.05), rgba(0,0,0,.22));
+          box-shadow: inset 0 1px 0 rgba(255,246,222,.14), inset 0 -1px 0 rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.4);
+          transition: border-color .2s ease, background .2s ease;
         }
-        .ml-sw:active { transform: scale(.985); }
-        .ml-sw:focus-visible { outline: 1px solid rgba(226,200,118,.9); outline-offset: 3px; }
-        .ml-sw-g { display: block; font-size: 14px; color: rgba(201,168,76,.5); margin-bottom: 4px; }
-        .ml-sw-t { display: block; font-family: ${LABEL}; font-size: 9.5px; letter-spacing: .18em; color: rgba(245,240,232,.55); }
-        .ml-sw-n { display: block; font-size: 11px; color: rgba(245,240,232,.35); margin-top: 2px; }
-        .ml-sw.is-on { border-color: rgba(201,168,76,.6); }
+        .ml-sw:focus-visible { outline: 2px solid #e2c876; outline-offset: 3px; }
+        .ml-sw-g { display: block; font-size: 14px; color: rgba(201,168,76,.7); margin-bottom: 5px; }
+        .ml-sw-t { display: block; font-family: ${LABEL}; font-size: 9.5px; letter-spacing: .2em; color: rgba(245,240,232,.72); }
+        .ml-sw-n { display: block; font-size: 11px; color: rgba(245,240,232,.6); margin-top: 3px; }
+        /* Lit, not merely outlined: the plaque the reader is standing at catches the lamp. */
+        .ml-sw.is-on {
+          border-color: rgba(226,200,118,.7);
+          background: linear-gradient(180deg, rgba(201,168,76,.16), rgba(0,0,0,.2));
+          box-shadow: inset 0 1px 0 rgba(255,246,222,.24), inset 0 -1px 0 rgba(0,0,0,.4), 0 2px 10px rgba(201,168,76,.14);
+        }
         .ml-sw.is-on .ml-sw-g { color: #e2c876; }
         .ml-sw.is-on .ml-sw-t { color: #f5f0e8; }
+        .ml-sw-slots { display: flex; justify-content: center; margin-top: 6px; }
 
         .ml-empty { text-align: center; padding: 56px 22px 30px; }
         .ml-empty-g { font-size: 22px; color: rgba(201,168,76,.5); }
@@ -382,53 +541,190 @@ export default function MyLibraryPage() {
         .ml-soon-g { font-size: 20px; color: rgba(201,168,76,.5); }
         .ml-soon-d { font-style: italic; font-size: 26px; color: #e2c876; margin-top: 12px; }
         .ml-soon-p { font-size: 14.5px; line-height: 1.55; color: rgba(245,240,232,.62); max-width: 300px; margin: 8px auto 0; }
-        .ml-soon-note { font-family: ${LABEL}; font-size: 8px; letter-spacing: .16em; color: rgba(245,240,232,.38); margin-top: 22px; }
+        .ml-soon-note { font-family: ${LABEL}; font-size: 8px; letter-spacing: .16em; color: rgba(245,240,232,.6); margin-top: 22px; }
 
-        .ml-grid { display: grid; gap: 14px; margin-top: 18px; grid-template-columns: repeat(2, 1fr); }
-        @media (min-width: 768px) { .ml-grid { grid-template-columns: repeat(5, 1fr); gap: 18px; } }
-        .ml-cover {
-          position: relative; aspect-ratio: 2/3; border-radius: 8px; overflow: hidden;
-          border: 1px solid rgba(201,168,76,.18); display: grid; place-items: center; padding: 14px 10px;
-        }
-        .ml-cover-img { width: 100%; height: 100%; object-fit: cover; }
-        .ml-cover-t { font-family: ${LABEL}; font-size: 10px; letter-spacing: .1em; text-align: center; color: rgba(245,240,232,.92); line-height: 1.5; }
-        .ml-meta-t { font-weight: 600; font-size: 13.5px; line-height: 1.25; color: #f5f0e8; margin-top: 7px; }
-        .ml-meta-a { font-style: italic; font-size: 12px; color: rgba(245,240,232,.5); margin-top: 1px; }
-        .ml-read {
-          display: inline-block; margin-top: 7px; font-family: ${LABEL}; font-size: 7.5px;
-          letter-spacing: .14em; color: rgba(201,168,76,.85); text-decoration: none;
-          border-bottom: 1px solid rgba(201,168,76,.3); padding-bottom: 2px;
-        }
-        .ml-read:hover { color: #e2c876; border-bottom-color: rgba(201,168,76,.7); }
+        /* ═══ THE SHELF ═══════════════════════════════════════════════════════════════════
+           EVERY VALUE BELOW HAS A PLAIN RN EQUIVALENT — gradients, borders, opacity,
+           box-shadow, translate/scale. No 3D transforms, no backdrop-filter on anything
+           load-bearing, no :has(), no mix-blend-mode. This is the Phase A reference for the
+           app's shelf, so a trick the app cannot copy is a trick that puts the two surfaces
+           out of step on day one.
 
-        /* R9.1 LB-8 — WITHDRAWN. Dimmed and desaturated rather than hidden: the card keeps
-           its place in the grid and its full size, so the shelf does not reflow and the
-           reader can see exactly which book it was. */
-        .ml-card.is-withdrawn .ml-cover { filter: grayscale(1); opacity: .38; }
-        .ml-card.is-withdrawn .ml-meta-t { color: rgba(245,240,232,.42); }
-        .ml-card.is-withdrawn .ml-meta-a { color: rgba(245,240,232,.28); }
+           CONTRAST. Cream on this ground needs alpha >= .50 to clear AA at 4.5:1, which is
+           why nothing below is dimmer than .55 — the old .32 captions measured ~2.5:1.
+           tests/ci/my-library-contrast.test.mjs computes these from this stylesheet. */
+
+        .ml-grid { display: grid; gap: 18px 14px; margin-top: 20px; grid-template-columns: repeat(2, 1fr); }
+        @media (min-width: 600px) { .ml-grid { grid-template-columns: repeat(3, 1fr); gap: 22px 18px; } }
+        @media (min-width: 900px) { .ml-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 1100px) { .ml-grid { grid-template-columns: repeat(5, 1fr); } }
+
+        .ml-vol { min-width: 0; }
+
+        /* The stage is cover + ledge. The ledge is per-card rather than per-row: a wrapping
+           grid has no row element to draw on, and a per-card ledge is what the app can
+           reproduce with one view under each cover. */
+        .ml-stage { position: relative; }
+        .ml-book { display: block; text-decoration: none; border-radius: 3px 6px 6px 3px; }
+        .ml-book:focus-visible { outline: 2px solid #e2c876; outline-offset: 4px; }
+
+        .ml-boards {
+          position: relative; display: block; aspect-ratio: 2/3; overflow: hidden;
+          border-radius: 3px 6px 6px 3px;
+          /* Standing, not floating: a contact shadow tight under the boards plus a longer,
+             softer cast to the lower right, as one lamp above-left would throw it. */
+          box-shadow:
+            0 1px 0 rgba(0,0,0,.6),
+            6px 10px 22px rgba(0,0,0,.55),
+            0 0 0 1px rgba(201,168,76,.16);
+          transition: transform .16s ease, box-shadow .16s ease;
+        }
+        .ml-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .ml-art-t {
+          position: absolute; inset: 0; display: grid; place-items: center; padding: 14px 10px;
+          font-family: ${LABEL}; font-size: 10px; letter-spacing: .1em; text-align: center;
+          color: rgba(245,240,232,.94); line-height: 1.5;
+        }
+
+        /* Lamplight. One sheen across the top-left corner — gold as LIGHT, not as trim. */
+        .ml-sheen {
+          position: absolute; inset: 0; pointer-events: none;
+          background: linear-gradient(122deg, rgba(255,246,222,.16) 0%, rgba(255,246,222,.05) 24%, transparent 46%);
+        }
+        /* The hinge side: a dark gutter with one bright line where the light catches it. */
+        .ml-spine {
+          position: absolute; top: 0; bottom: 0; left: 0; width: 9px; pointer-events: none;
+          background: linear-gradient(90deg, rgba(0,0,0,.55) 0%, rgba(0,0,0,.18) 55%, rgba(255,246,222,.10) 78%, transparent 100%);
+        }
+        /* The fore-edge: the page block, which is the one detail that says "book" rather
+           than "picture" at this size. Two hairlines, no repeating stripe — at 150px wide a
+           striped edge is moiré, not paper. */
+        .ml-foreedge {
+          position: absolute; top: 3%; bottom: 3%; right: 0; width: 4px; pointer-events: none;
+          background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(232,224,200,.62) 45%, rgba(180,170,142,.5) 100%);
+          border-radius: 0 3px 3px 0;
+        }
+
+        /* THE PROGRESS RIBBON. Anchored at the head, hanging to where the reader stopped. */
+        .ml-ribbon {
+          position: absolute; top: 0; right: 17%; width: 9px; pointer-events: none;
+          background: linear-gradient(180deg, #f0dda0, #c9a44c 55%, #a8842f);
+          box-shadow: 0 2px 6px rgba(0,0,0,.55);
+          border-radius: 0 0 1px 1px;
+        }
+        .ml-ribbon::after {
+          content: ''; position: absolute; left: 0; right: 0; bottom: -5px; height: 6px;
+          background: #a8842f;
+          clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 48%, 0 100%);
+        }
+
+        /* THE SEAL — stories. Pressed into the lower-left corner of the boards. */
+        .ml-seal {
+          position: absolute; left: 7px; bottom: 7px; width: 20px; height: 20px;
+          display: grid; place-items: center; border-radius: 50%;
+          font-size: 9px; line-height: 1; color: #2a2318;
+          background: radial-gradient(circle at 34% 30%, #f4e2a6, #c9a44c 62%, #9c7b2c);
+          box-shadow: 0 2px 5px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.45);
+        }
+
+        /* The ledge itself: a lit front edge, a body, and the shadow it casts into the dark. */
+        /* MEASURED, not guessed: the first pass ran a 7px ledge at .22 highlight and it
+           disappeared entirely under dark cover art — the books read as floating again. These
+           values were compared side by side against the built page before being written here. */
+        .ml-ledge {
+          display: block; height: 10px; margin-top: -1px; border-radius: 0 0 4px 4px;
+          background:
+            linear-gradient(180deg, rgba(255,246,222,.42) 0%, rgba(201,168,76,.26) 26%, rgba(38,26,12,.9) 62%, rgba(0,0,0,.85) 100%);
+          box-shadow: 0 10px 18px -6px rgba(0,0,0,.9), 0 1px 0 rgba(255,246,222,.18);
+        }
+
+        /* THE BOOKPLATE — printed matter. Cream stock, brown ink, the register BoundBook's
+           back face already established. Contrast is plate-relative (#2a2318 on #ece4cf,
+           ~13:1), which is why this is the one light surface on a dark shelf. */
+        .ml-plate {
+          display: flex; align-items: center; justify-content: space-between; gap: 6px;
+          margin-top: 11px; padding: 3px 7px; border-radius: 2px;
+          background: linear-gradient(180deg, #ece4cf, #dcd2b6);
+          box-shadow: 0 1px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.5);
+        }
+        .ml-plate-cat { font-family: ${LABEL}; font-size: 8px; letter-spacing: .12em; color: #2a2318; }
+        .ml-plate-state { font-family: ${LABEL}; font-size: 6.5px; letter-spacing: .18em; color: #5a4a2a; }
+
+        .ml-vol-t { font-weight: 600; font-size: 13.5px; line-height: 1.25; color: #f5f0e8; margin: 9px 0 0; }
+        .ml-vol-a { font-style: italic; font-size: 12px; color: rgba(245,240,232,.62); margin: 2px 0 0; }
+
+        .ml-vol-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
+        .ml-pct { font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .12em; color: rgba(245,240,232,.72); }
+
+        /* THE GILDED LABEL — what READ NOW became. Struck metal, not a button: a hairline
+           of gold, a warm fill, and text bright enough to clear AA on it (~10:1). */
+        .ml-gild {
+          display: inline-block; font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .16em;
+          color: #f0dda0; text-decoration: none; cursor: pointer;
+          padding: 5px 9px; border-radius: 3px;
+          border: 1px solid rgba(201,168,76,.55);
+          background: linear-gradient(180deg, rgba(201,168,76,.24), rgba(201,168,76,.07));
+          transition: background .18s ease, border-color .18s ease, transform .09s ease;
+        }
+        .ml-gild:hover { background: linear-gradient(180deg, rgba(201,168,76,.36), rgba(201,168,76,.12)); border-color: rgba(226,200,118,.8); }
+        .ml-gild:active { transform: scale(.97); }
+        .ml-gild:focus-visible { outline: 2px solid #e2c876; outline-offset: 2px; }
+
+        /* QUIET — remove, and the withdrawn route onward. No red, no border, no warning
+           shape: removing a story you saved is an ordinary act. */
+        .ml-quiet {
+          display: inline-block; font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .14em;
+          color: rgba(245,240,232,.58); text-decoration: none; transition: color .18s ease;
+        }
+        .ml-quiet:hover { color: rgba(245,240,232,.9); }
+        .ml-quiet:focus-visible { outline: 2px solid #e2c876; outline-offset: 3px; border-radius: 2px; }
+        .ml-quiet-btn { background: none; border: none; padding: 4px 2px; cursor: pointer; font-family: ${LABEL}; }
+        .ml-quiet-btn[disabled] { opacity: .5; cursor: default; }
+
+        .ml-kept { display: flex; align-items: center; gap: 5px; margin: 6px 0 0; font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .1em; color: rgba(245,240,232,.58); }
+        .ml-kept-mark { color: #c9a84c; font-size: 8px; }
+        .ml-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+        /* R9.1 LB-8 — WITHDRAWN. Substance unchanged: in place, full size, never filtered or
+           reordered, same wording, same quiet route on. The dimming now also lifts the book
+           off the ledge — light stops reaching a book you no longer own. */
+        .ml-vol.is-withdrawn .ml-boards { filter: grayscale(1); opacity: .38; box-shadow: 0 1px 0 rgba(0,0,0,.5), 2px 4px 10px rgba(0,0,0,.4); }
+        .ml-vol.is-withdrawn .ml-ledge { opacity: .35; }
+        .ml-vol.is-withdrawn .ml-plate { background: linear-gradient(180deg, #b9b2a2, #a79f8c); }
+        .ml-vol.is-withdrawn .ml-vol-t { color: rgba(245,240,232,.6); }
+        .ml-vol.is-withdrawn .ml-vol-a { color: rgba(245,240,232,.55); }
         .ml-withdrawn {
           font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .18em;
-          color: rgba(245,240,232,.45); margin-top: 7px;
+          color: rgba(245,240,232,.62); margin-top: 9px;
         }
-        /* The route onward, deliberately quieter than READ NOW — it is an explanation, not
-           an invitation to buy again. */
-        .ml-read-quiet {
-          color: rgba(245,240,232,.38); border-bottom-color: rgba(245,240,232,.16);
-          margin-top: 5px;
-        }
-        .ml-read-quiet:hover { color: rgba(245,240,232,.7); border-bottom-color: rgba(245,240,232,.4); }
+        .ml-vol.is-withdrawn .ml-quiet { margin-top: 5px; }
 
-        .ml-cover-link { display: block; text-decoration: none; }
-        .ml-saved { font-family: ${LABEL}; font-size: 7px; letter-spacing: .14em; color: rgba(245,240,232,.32); margin-top: 5px; }
-        .ml-card-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
-        .ml-remove {
-          background: none; border: none; padding: 0; cursor: pointer;
-          font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .14em;
-          color: rgba(245,240,232,.32); transition: color .2s ease;
+        /* SLOT PIPS — capacity as slots. Sized to stay legible from 2 up to 12; past that
+           SlotPips switches to the rail. */
+        .ml-slots { display: flex; align-items: center; gap: 5px; }
+        .ml-pip {
+          width: 7px; height: 7px; border-radius: 50%;
+          border: 1px solid rgba(201,168,76,.55); background: transparent;
         }
-        .ml-remove:hover { color: rgba(245,240,232,.6); }
-        .ml-remove:focus-visible { outline: 1px solid rgba(226,200,118,.9); outline-offset: 3px; }
+        .ml-pip.is-filled { background: radial-gradient(circle at 34% 30%, #f4e2a6, #c9a44c 70%); border-color: rgba(226,200,118,.85); }
+        .ml-rail { display: block; width: 54px; height: 4px; border-radius: 2px; background: rgba(245,240,232,.16); overflow: hidden; }
+        .ml-rail-fill { display: block; height: 100%; background: linear-gradient(90deg, #c9a44c, #f4e2a6); }
+        .ml-slots-n { font-family: ${LABEL}; font-size: 8px; letter-spacing: .1em; color: rgba(245,240,232,.72); }
+        .ml-slots-of { color: rgba(245,240,232,.58); }
+
+        /* ENTRANCE — covers settle onto the ledge. Staggered by index, capped so a full
+           shelf does not make the last book wait. */
+        @keyframes ml-settle {
+          from { opacity: 0; transform: translateY(9px); }
+          to { opacity: 1; transform: none; }
+        }
+        .ml-vol { animation: ml-settle .42s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(min(var(--i, 0) * 45ms, 450ms)); }
+
+        /* TAP FEEDBACK — the cover lifts toward the reader. */
+        @media (hover: hover) {
+          .ml-book:hover .ml-boards { transform: translateY(-3px); box-shadow: 0 1px 0 rgba(0,0,0,.6), 8px 14px 28px rgba(0,0,0,.6), 0 0 0 1px rgba(201,168,76,.28); }
+        }
+        .ml-book:active .ml-boards { transform: translateY(-2px) scale(.99); }
 
         /* OFFLINE — the banner. Shelf surfaces only. */
         .ml-offline {
@@ -441,7 +737,7 @@ export default function MyLibraryPage() {
         .ml-section-head {
           display: flex; align-items: baseline; justify-content: center; gap: 10px;
           margin-top: 20px; font-family: ${LABEL}; font-size: 8px; letter-spacing: .2em;
-          color: rgba(245,240,232,.38); text-align: center; flex-wrap: wrap;
+          color: rgba(245,240,232,.62); text-align: center; flex-wrap: wrap;
         }
         .ml-section-head b { font-weight: 400; color: rgba(226,200,118,.7); }
 
@@ -454,7 +750,7 @@ export default function MyLibraryPage() {
         .ml-nudge-p { font-size: 12.5px; line-height: 1.5; color: rgba(245,240,232,.6); margin: 4px 0 0; }
         .ml-nudge-x {
           background: none; border: none; padding: 2px 4px; cursor: pointer; flex-shrink: 0;
-          font-family: ${LABEL}; font-size: 12px; color: rgba(245,240,232,.35); line-height: 1;
+          font-family: ${LABEL}; font-size: 12px; color: rgba(245,240,232,.62); line-height: 1;
         }
         .ml-nudge-x:hover { color: rgba(245,240,232,.7); }
 
@@ -467,9 +763,16 @@ export default function MyLibraryPage() {
         .ml-gate-h { font-size: 20px; color: #f5f0e8; margin-top: 14px; }
         .ml-gate-p { font-size: 14.5px; line-height: 1.55; color: rgba(245,240,232,.62); max-width: 290px; margin: 8px auto 0; }
 
+        /* REDUCED MOTION. The settle is removed outright rather than shortened — a cover
+           that still slides, briefly, is still a cover that slides. Everything arrives at
+           its final state instantly; nothing that carries meaning is lost, because the
+           stagger was never carrying any. The tap lift goes too: it is motion under a
+           finger, which is exactly what the preference is about. */
         @media (prefers-reduced-motion: reduce) {
-          .ml-sw, .ml-btn { transition: none; }
-          .ml-sw:active, .ml-btn:active { transform: none; }
+          .ml-sw, .ml-btn, .ml-boards, .ml-gild, .ml-quiet { transition: none; }
+          .ml-sw:active, .ml-btn:active, .ml-gild:active { transform: none; }
+          .ml-vol { animation: none; }
+          .ml-book:hover .ml-boards, .ml-book:active .ml-boards { transform: none; }
           .ml-skel { animation: none; }
         }
       `}</style>
@@ -515,9 +818,11 @@ export default function MyLibraryPage() {
               >
                 <span className="ml-sw-g" aria-hidden="true">✦</span>
                 <span className="ml-sw-t">STORIES</span>
-                <span className="ml-sw-n">
-                  {saved === null ? '—' : saved.length === 0 ? 'none saved' : `${saved.length} of ${cap} saved`}
-                </span>
+                {saved === null ? (
+                  <span className="ml-sw-n">—</span>
+                ) : (
+                  <span className="ml-sw-slots"><SlotPips used={saved.length} cap={cap} /></span>
+                )}
               </button>
               <button
                 type="button"
@@ -554,10 +859,12 @@ export default function MyLibraryPage() {
 
                 {saved !== null && saved.length > 0 && (
                   <>
+                    {/* The device line stays — it is the honesty line, and the seal on each
+                        cover is a reminder, not a replacement for saying it once in words. */}
                     <div className="ml-section-head">
-                      <span>ON THIS DEVICE</span>
+                      <span>KEPT ON THIS DEVICE</span>
                       <span aria-hidden="true">·</span>
-                      <span><b>{saved.length}</b> OF {cap}</span>
+                      <span><b>{saved.length}</b> OF {cap} SLOTS FILLED</span>
                     </div>
 
                     {showNudge && (
@@ -575,8 +882,8 @@ export default function MyLibraryPage() {
                     )}
 
                     <div className="ml-grid">
-                      {saved.map((r) => (
-                        <ShelfStoryCard key={r.id} record={r} onRemove={doRemove} busy={removing} />
+                      {saved.map((r, i) => (
+                        <ShelfStoryCard key={r.id} record={r} onRemove={doRemove} busy={removing} index={i} />
                       ))}
                     </div>
                   </>
@@ -615,7 +922,9 @@ export default function MyLibraryPage() {
 
             {section === 'books' && books !== null && books.length > 0 && (
               <div className="ml-grid">
-                {books.map((b) => <BookCard key={b.slug} book={b} />)}
+                {books.map((b, i) => (
+                  <BookCard key={b.slug} book={b} index={i} progress={progress[b.id]} />
+                ))}
               </div>
             )}
 

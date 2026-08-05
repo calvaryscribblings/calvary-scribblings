@@ -321,6 +321,35 @@ export function savedAgo(ts) {
   return `Saved ${months} month${months === 1 ? '' : 's'} ago`;
 }
 
+// R9.7 — the same fact as savedAgo(), in the house's voice rather than a log line.
+//
+// savedAgo() stays exactly as it is: it is the honesty line, and "Saved 3 days ago" is the
+// phrasing an iOS eviction warning wants — flat, dated, checkable. This one is for the shelf
+// itself, where the fact being stated is possession rather than staleness. "Kept" is the
+// difference between a receipt and a bookshelf.
+//
+// Small numbers are spelled out because the house does: a shelf that says "Kept three days"
+// reads as prose, and "Kept 3 days" reads as telemetry. Past ten it goes back to digits,
+// which is also the house rule.
+const SPELLED = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+const count = (n) => (n <= 10 ? SPELLED[n] : String(n));
+
+export function keptAgo(ts) {
+  if (!ts) return '';
+  const mins = Math.floor((Date.now() - ts) / 60000);
+  if (mins < 2) return 'Kept just now';
+  if (mins < 60) return `Kept ${count(mins)} minutes ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs === 1) return 'Kept an hour ago';
+  if (hrs < 24) return `Kept ${count(hrs)} hours ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'Kept since yesterday';
+  if (days < 30) return `Kept ${count(days)} days`;
+  const months = Math.floor(days / 30);
+  if (months === 1) return 'Kept a month';
+  return `Kept ${count(months)} months`;
+}
+
 // iOS Safari clears all script-writable storage after ~7 days without a visit, and the
 // only exemption is a site on the Home Screen. Detect the exact population that can act
 // on that: iOS, in Safari's browser UI, not already installed.
