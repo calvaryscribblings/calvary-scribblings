@@ -6,6 +6,7 @@
 import { useEffect } from 'react';
 import { AuthProvider } from '../lib/AuthContext';
 import CookieBanner from './CookieBanner';
+import VerifyEmailBanner from './VerifyEmailBanner';
 
 export default function Providers({ children }) {
   // Global scroll-reveal: adds .is-revealed to [data-reveal] elements as they
@@ -45,6 +46,9 @@ export default function Providers({ children }) {
   return (
     <AuthProvider>
       {children}
+      {/* Mounted globally like CookieBanner, and it excludes the reading surfaces itself —
+          see IMMERSIVE_ROUTES in the component. It needs AuthProvider, so it stays inside. */}
+      <VerifyEmailBanner />
       <CookieBanner />
     </AuthProvider>
   );

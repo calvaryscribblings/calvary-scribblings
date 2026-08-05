@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DeleteAccountModal from '../components/DeleteAccountModal';
+// R9.4: the resend used to be implemented right here. It moved to app/lib/verifyEmail.js so
+// the verification banner could call the SAME path rather than grow a second copy of it —
+// see that module's header. This page's button behaviour is unchanged; only the "sent"
+// wording moved with it, and it moved because the wording is part of the path, not the page.
+import { useVerificationResend } from '../lib/verifyEmail';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -30,10 +35,13 @@ export default function SettingsPage() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetState, setResetState] = useState('idle');
   const [resetMsg, setResetMsg] = useState('');
-  const [verifyState, setVerifyState] = useState('idle');
-  const [verifyMsg, setVerifyMsg] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [username, setUsername] = useState(null);
+  const {
+    state: verifyState,
+    message: verifyMsg,
+    send: resendVerification,
+  } = useVerificationResend(authUser);
 
   useEffect(() => {
     let unsubAuth = null;
@@ -81,21 +89,6 @@ export default function SettingsPage() {
     } catch (e) {
       setResetState('error');
       setResetMsg('Something went wrong. Please try again.');
-    }
-  };
-
-  const resendVerification = async () => {
-    if (!authUser) return;
-    setVerifyState('sending');
-    setVerifyMsg('');
-    try {
-      const { sendEmailVerification } = await import('firebase/auth');
-      await sendEmailVerification(authUser);
-      setVerifyState('sent');
-      setVerifyMsg('Verification email sent. Check your inbox.');
-    } catch (e) {
-      setVerifyState('error');
-      setVerifyMsg('Something went wrong. Please try again.');
     }
   };
 
