@@ -13,35 +13,13 @@ import {
 import { getDatabase, ref, set, get } from 'firebase/database';
 import { auth } from '../lib/firebaseCore';
 import { SUSPENDED_MESSAGE } from '../lib/AuthContext';
+import { postAuthMail } from '../lib/authMail';
 
-// Branded auth mail goes through our own Pages Functions, which verify the
-// caller's ID token and add the Worker secret server-side
-// (functions/api/auth/*). The browser used to call the Worker directly with
-// `Bearer ${process.env.NEXT_PUBLIC_AUTH_SECRET}` — a var that is inlined into
-// the bundle, and was unset, so every request carried the literal string
-// "Bearer undefined" and was refused. Nothing checked the response, so signups
-// silently went out without a verification email.
-//
-// Throws on failure. Callers decide what that means: the register flow must NOT
-// fail a signup over it — the account already exists in Firebase by then, and
-// only the mail rides this path — so it reports the problem and points at
-// Resend, while the resend button surfaces it directly.
-async function postAuthMail(path, user, firstName) {
-  const idToken = await user.getIdToken();
-  const res = await fetch(`/api/auth/${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify({ firstName }),
-  });
-  if (!res.ok) {
-    const detail = await res.json().catch(() => ({}));
-    throw new Error(detail.error || `Mail request failed (${res.status}).`);
-  }
-  return res.json().catch(() => ({}));
-}
+// postAuthMail MOVED to app/lib/authMail.js in R9.5, unchanged apart from the status fields
+// it now attaches to the error it throws. The verification resend calls the same endpoint
+// now, and a second copy of this fetch sitting behind that button is exactly the drift the
+// shared resend path exists to prevent. Behaviour here is identical — this modal reads
+// err.message and nothing else.
 
 // Returns true if the just-signed-in account is soft-deleted; signs them
 // back out and surfaces the suspension message so the modal can show it.

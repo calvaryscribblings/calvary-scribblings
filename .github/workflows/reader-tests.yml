@@ -37,6 +37,12 @@ on:
       # story page AND the offline shelf reader, so a change to either is a reader change.
       - 'app/lib/dropcap.js'
       - 'app/lib/proseCSS.js'
+      # R9.5 — the verification resend and the auth-mail client it posts through. Not reader
+      # code; this workflow is simply where the browser suites live, because it is the one
+      # that installs Chromium. The alternative was a second workflow that installs the same
+      # browser to run four seconds of tests.
+      - 'app/lib/verifyEmail.js'
+      - 'app/lib/authMail.js'
       # R8.1 — the pre-launch gate. It rides this workflow rather than getting its own because
       # it needs the same one expensive input: a built out/. A second workflow would mean a
       # second `npx next build` on every push for the sake of one 19-second suite.
@@ -124,6 +130,14 @@ jobs:
       # suites: "which paragraph gets the cap" should not wait on a build to be answered.
       - name: Drop-cap targeting
         run: npx playwright test -c tests/dropcap/playwright.config.mjs
+
+      # R9.5 — the verification resend goes to the branded sender. Same shape as above: no
+      # server, no build, the endpoint is intercepted. It asserts the REQUEST (URL, bearer
+      # token, body) because the regression it guards is silent — restore the firebase/auth
+      # call and mail quietly reverts to an untraceable firebaseapp.com template with nothing
+      # failing.
+      - name: Verification resend
+        run: npx playwright test -c tests/verify-email/playwright.config.mjs
 
       - name: Host harness (reading-room.html)
         run: npx playwright test -c tests/reader/playwright.config.mjs

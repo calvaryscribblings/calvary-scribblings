@@ -23,6 +23,7 @@
     "test:rules": "firebase emulators:exec --only database,storage --project demo-calvary-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",
     "test:dropcap": "playwright test -c tests/dropcap/playwright.config.mjs",
+    "test:verify-email": "playwright test -c tests/verify-email/playwright.config.mjs",
     "lint:ratchet": "node scripts/lint-ratchet.mjs"
   },
   "dependencies": {
