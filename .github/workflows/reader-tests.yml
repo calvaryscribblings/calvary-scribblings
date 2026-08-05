@@ -33,6 +33,10 @@ on:
       - 'app/reader/**'
       - 'app/lib/ribbonGeometry.js'
       - 'app/lib/readerCollection.js'
+      # R9.3 — the drop-cap tagger and the stylesheet it hooks. Both are shared by the
+      # story page AND the offline shelf reader, so a change to either is a reader change.
+      - 'app/lib/dropcap.js'
+      - 'app/lib/proseCSS.js'
       # R8.1 — the pre-launch gate. It rides this workflow rather than getting its own because
       # it needs the same one expensive input: a built out/. A second workflow would mean a
       # second `npx next build` on every push for the sake of one 19-second suite.
@@ -114,6 +118,12 @@ jobs:
       # a Chromium install and two builds to hear.
       - name: Payment rail specs (Stripe + Paystack)
         run: npm run test:purchases
+
+      # R9.3 — the drop-cap tagger. Needs no server and no EPUB (every case is a string of
+      # prose HTML in page.setContent), so it costs seconds and runs before the geometry
+      # suites: "which paragraph gets the cap" should not wait on a build to be answered.
+      - name: Drop-cap targeting
+        run: npx playwright test -c tests/dropcap/playwright.config.mjs
 
       - name: Host harness (reading-room.html)
         run: npx playwright test -c tests/reader/playwright.config.mjs
