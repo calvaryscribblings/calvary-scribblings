@@ -10,11 +10,6 @@
 //
 //   node scripts/worker-mirror-check.mjs <dashboard-source> hit-counter
 //
-// THIS COMMIT IS THE MIRROR AS FOUND. Everything below the header is the deployed
-// source verbatim, including the hardcoded FIREBASE_AUTH that does not work — the
-// mirror's job is to record what IS running, not what it should be. The repair is
-// the next commit, so the diff between them is exactly the fix and nothing else.
-//
 // WHAT IT OWNS, and why that matters to the rules:
 //   · stories/{slug}/hits           — cumulative, also written by functions/api/hit.js
 //   · stories/{slug}/hitsByDay/{d}  — UTC day buckets. NOTHING ELSE WRITES THESE.
@@ -22,17 +17,52 @@
 // app/public-library/page.js:1093 reads top_stories/weekly. If this Worker stops,
 // that surface goes stale silently — which is precisely what happened on 3 Aug.
 //
-// THE 3 AUG STOPPAGE. `stories` was open (.write:true) until f8f547d closed it at
-// 2026-08-03 22:50:56Z. FIREBASE_AUTH below is the Firebase WEB API KEY, which is
-// not RTDB credentials at all — RTDB ignored it and treated every call here as
-// unauthenticated. That worked only for as long as the node was world-writable.
-// From the moment it closed, every write from this Worker was denied, and the last
-// day bucket written anywhere is 2026-08-03. top_stories kept regenerating because
-// top_stories still carries .write:true — same Worker, one node closed, one open.
+// ── R9.6: THE 3 AUG STOPPAGE, AND THE TWO THINGS THAT CAUSED IT ──────────────
+//
+// 1. THE CREDENTIAL WAS NEVER A CREDENTIAL. This Worker used to send the Firebase
+//    WEB API KEY as ?auth=. That is not RTDB credentials in any form — not a
+//    database secret, not an ID token — so RTDB ignored it and treated every call
+//    from here as UNAUTHENTICATED. It worked only because `stories` was
+//    world-writable. f8f547d closed it (.write:true -> false) at
+//    2026-08-03 22:50:56Z and every write from this Worker has been denied since.
+//    The last day bucket written anywhere is 2026-08-03. It now sends
+//    env.FIREBASE_SECRET, the same legacy database secret calvary-newsletter uses,
+//    which authenticates as admin — so the writes work WITHOUT reopening the node.
+//
+//    The key is gone from this file entirely and must never come back. Every RTDB
+//    URL is built by dbUrl() below for exactly that reason: there is one place
+//    where auth is attached, so "did every call get fixed?" is answerable by
+//    grepping for FIREBASE_URL and finding it only there.
+//
+// 2. NOTHING SAID A WORD. Two days of total rejection produced no signal at all,
+//    and that was not one bug but five, in ascending order of harm:
+//
+//      · the increment PATCH   — DID check res.ok and DID return 502 to its
+//                                caller, but never logged. Nothing reached
+//                                `wrangler tail`, so the only witness was a
+//                                caller that discards it.
+//      · readCount()           — no res.ok check. A denied read returns the body
+//                                {"error":"Permission denied"}, parseInt gives
+//                                NaN, and the function returns null exactly as it
+//                                does for "no hits yet". Failure was indistinguish-
+//                                able from an empty counter.
+//      · the top_stories PUT   — response ignored entirely.
+//      · the prune PATCH       — response ignored entirely.
+//      · the stories.json read — WORST. No res.ok check, and a denied read's error
+//                                body is an OBJECT, so Object.entries walked it,
+//                                found one string-valued key, skipped it as
+//                                "not a record", and carried on to rebuild
+//                                top_stories from ZERO stories. A permission
+//                                failure would have been written out as a
+//                                legitimately empty top-10, destroying the live
+//                                surface with no error anywhere. It now aborts.
+//
+//    Every RTDB call is now checked and logged with its status and a slice of the
+//    response body, and the scheduled handler catches so a throw inside the cron
+//    cannot vanish into waitUntil.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const FIREBASE_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
-const FIREBASE_AUTH = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
 
 const WINDOW_DAYS = 7;  // rolling window counted as "weekly"
 const KEEP_DAYS = 9;    // prune day-buckets older than this
@@ -53,13 +83,46 @@ function utcDay(offsetDays = 0) {
   return d.toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
 }
 
-async function readCount(slug) {
-  const url = `${FIREBASE_URL}/stories/${slug}/hits.json?auth=${FIREBASE_AUTH}&nc=${Date.now()}`;
+// THE ONLY PLACE auth is attached to an RTDB URL. Keep it that way: if a new call
+// site builds its own URL, the next credential change will miss it, which is the
+// shape of the bug this round exists to fix.
+function dbUrl(env, path, extra = '') {
+  return `${FIREBASE_URL}/${path}.json?auth=${env.FIREBASE_SECRET}${extra}`;
+}
+
+// Loud, not silent. A missing secret must never again look like a working Worker:
+// this is the same failure mode that made every auth mail vanish when
+// AUTH_WORKER_SECRET was unset (see functions/api/auth/send-verification.js).
+function assertSecret(env) {
+  if (!env || !env.FIREBASE_SECRET) {
+    console.error('[hit-counter] FIREBASE_SECRET is not set in this Worker\'s variables — every RTDB call will be unauthenticated and denied');
+    return false;
+  }
+  return true;
+}
+
+// One reporter for every RTDB response, so no call site can quietly decide not to
+// care. Returns true when the call actually succeeded.
+async function ok(res, label) {
+  if (res.ok) return true;
+  let body = '';
+  try { body = (await res.text()).slice(0, 300); } catch { /* body already consumed or unreadable */ }
+  console.error(`[hit-counter] ${label} FAILED ${res.status} ${res.statusText} ${body}`);
+  return false;
+}
+
+async function readCount(slug, env) {
   try {
-    const res = await fetch(url, { cf: { cacheTtl: -1, cacheEverything: false } });
+    const res = await fetch(dbUrl(env, `stories/${slug}/hits`, `&nc=${Date.now()}`), {
+      cf: { cacheTtl: -1, cacheEverything: false },
+    });
+    // Checked BEFORE parsing: a denied read's body parses to NaN and used to be
+    // returned as null, which is also what "no hits yet" looks like.
+    if (!(await ok(res, `readCount(${slug})`))) return null;
     const n = parseInt(await res.text(), 10);
     return Number.isNaN(n) ? null : n;
-  } catch (_) {
+  } catch (e) {
+    console.error(`[hit-counter] readCount(${slug}) threw: ${e.message}`);
     return null;
   }
 }
@@ -73,15 +136,17 @@ export default {
     const headers = jsonHeaders();
 
     if (!slug) return new Response(JSON.stringify({ error: 'Missing slug' }), { status: 400, headers });
+    if (!assertSecret(env)) {
+      return new Response(JSON.stringify({ error: 'Worker misconfigured' }), { status: 500, headers });
+    }
 
     // GET (or anything not POST) is read-only — returns the current count, never increments.
     if (request.method !== 'POST') {
-      return new Response(JSON.stringify({ count: await readCount(slug) }), { headers });
+      return new Response(JSON.stringify({ count: await readCount(slug, env) }), { headers });
     }
 
     // POST increments both the cumulative counter and today's bucket atomically,
     // in one multi-path PATCH using RTDB increment server values.
-    const patchUrl = `${FIREBASE_URL}/stories/${slug}.json?auth=${FIREBASE_AUTH}`;
     const today = utcDay(0);
     const patchBody = JSON.stringify({
       hits: { '.sv': { increment: 1 } },
@@ -89,29 +154,46 @@ export default {
     });
 
     try {
-      const patchRes = await fetch(patchUrl, {
+      const patchRes = await fetch(dbUrl(env, `stories/${slug}`), {
         method: 'PATCH',
         body: patchBody,
         headers: { 'Content-Type': 'application/json' },
       });
       if (!patchRes.ok) {
         const detail = await patchRes.text();
+        // The 502 to the caller was always here; the log is what was missing, and
+        // the log is the half anyone investigating can actually see.
+        console.error(`[hit-counter] increment(${slug}, ${today}) FAILED ${patchRes.status} ${detail.slice(0, 300)}`);
         return new Response(JSON.stringify({ error: 'increment failed', status: patchRes.status, detail }), { status: 502, headers });
       }
       // Increment sentinels don't return the resolved value, so read it back for display.
-      return new Response(JSON.stringify({ count: await readCount(slug) }), { headers });
+      return new Response(JSON.stringify({ count: await readCount(slug, env) }), { headers });
     } catch (e) {
+      console.error(`[hit-counter] increment(${slug}) threw: ${e.message}`);
       return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
     }
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(rebuildTopStories());
+    // waitUntil swallows a rejection: without this catch, a throw anywhere in the
+    // rebuild is invisible and the cron simply appears to have done nothing.
+    ctx.waitUntil(
+      rebuildTopStories(env).catch((e) => {
+        console.error(`[hit-counter] rebuildTopStories threw: ${e.message}`);
+      }),
+    );
   },
 };
 
-async function rebuildTopStories() {
-  const res = await fetch(`${FIREBASE_URL}/stories.json?auth=${FIREBASE_AUTH}&nc=${Date.now()}`);
+async function rebuildTopStories(env) {
+  if (!assertSecret(env)) return;
+
+  const res = await fetch(dbUrl(env, 'stories', `&nc=${Date.now()}`));
+  // ABORT, do not continue. A denied read hands back an error OBJECT, which the
+  // loop below happily walks as "zero valid stories" — and the PUT further down
+  // would then overwrite a live top-10 with an empty one.
+  if (!(await ok(res, 'read stories'))) return;
+
   const data = (await res.json()) || {};
 
   const windowDays = [];
@@ -149,17 +231,23 @@ async function rebuildTopStories() {
     .sort((a, b) => (b.count - a.count) || (a.slug < b.slug ? -1 : 1))
     .slice(0, TOP_N);
 
-  await fetch(`${FIREBASE_URL}/top_stories/weekly.json?auth=${FIREBASE_AUTH}`, {
+  const putRes = await fetch(dbUrl(env, 'top_stories/weekly'), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mode, generatedAt: Date.now(), windowDays: WINDOW_DAYS, items }),
   });
+  if (await ok(putRes, 'write top_stories/weekly')) {
+    // The success line is not decoration: it is how the next person confirms the
+    // cron ran at all, and its cadence, without guessing from generatedAt.
+    console.log(`[hit-counter] top_stories/weekly written | mode=${mode} items=${items.length}`);
+  }
 
   if (Object.keys(prunePatch).length > 0) {
-    await fetch(`${FIREBASE_URL}/stories.json?auth=${FIREBASE_AUTH}`, {
+    const pruneRes = await fetch(dbUrl(env, 'stories'), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(prunePatch),
     });
+    await ok(pruneRes, `prune ${Object.keys(prunePatch).length} old day-bucket(s)`);
   }
 }
