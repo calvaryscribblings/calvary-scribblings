@@ -1053,7 +1053,7 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
     ['createdAt', 1786000000000], ['displayName', 'A Reader'], ['dob', '1990-01-01'],
     ['email', 'r@example.com'], ['handle', 'areader'], ['handleLowercased', 'areader'],
     ['headerOffsetY', 12], ['headerScale', 1], ['headerUrl', 'https://x/h.png'],
-    ['isAuthor', true], ['isDeleted', true], ['joinDate', 1786000000000],
+    ['isDeleted', true], ['joinDate', 1786000000000],
     ['leaderboardVisible', false], ['pendingDeletion', { requestedAt: 1786000000000 }],
     ['photoURL', 'https://x/p.png'], ['platformAvatar', 'https://x/pa.png'],
     ['platforms', { web: true }], ['profile', { a: 1 }], ['readCount', 7],
@@ -1065,7 +1065,12 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
     ['authorRole', 'Contributor'], ['authorSocials', { x: 'https://x.com/a' }],
   ];
 
-  test('all 32 are writable by the owner', async () => {
+  // R10.2 — isAuthor is the ONE field a reader may not set on themselves. It has no writer
+  // anywhere in the tree, and app/lib/readerCollection.js:12 treats it as author membership,
+  // so an owner grant let any reader promote themselves into the author collection.
+  const FOUNDER_ONLY_FIELDS = [['isAuthor', true]];
+
+  test('all 31 owner fields are writable by the owner', async () => {
     for (const [field, value] of FIELDS) {
       await assertSucceeds(owner.ref(`users/${OWNER}/${field}`).set(value));
     }
@@ -1084,8 +1089,34 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
     const granted = Object.entries(rules.users.$uid)
       .filter(([k, v]) => !k.startsWith('.') && v && typeof v === 'object' && '.write' in v)
       .map(([k]) => k).sort();
-    assert.deepEqual(granted, FIELDS.map(([f]) => f).sort());
+    const expected = [...FIELDS, ...FOUNDER_ONLY_FIELDS].map(([f]) => f).sort();
+    assert.deepEqual(granted, expected);
     assert.equal(granted.length, 32);
+  });
+
+  test('R10.2 · isAuthor — a reader cannot promote themselves into the author collection', async () => {
+    // The escalation: readerCollection.js:12 reads this flag as author membership, and it is
+    // written by NOTHING in the repo — so an owner grant was pure downside.
+    await assertFails(owner.ref(`users/${OWNER}/isAuthor`).set(true));
+    await assertFails(stranger.ref(`users/${OWNER}/isAuthor`).set(true));
+    await assertFails(anon.ref(`users/${OWNER}/isAuthor`).set(true));
+    // Nor by the routes that reach it sideways.
+    await assertFails(owner.ref(`users/${OWNER}`).update({ isAuthor: true }));
+    await assertFails(owner.ref('/').update({ [`users/${OWNER}/isAuthor`]: true }));
+    // Smuggled into a legitimate save, the whole update must fail.
+    await seed(env, { [`users/${OWNER}`]: { bio: 'original' } });
+    await assertFails(owner.ref(`users/${OWNER}`).update({ bio: 'changed', isAuthor: true }));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const snap = await ctx.database().ref(`users/${OWNER}/bio`).get();
+      assert.equal(snap.val(), 'original', 'the granted half must NOT have landed');
+    });
+    // A founder still confers it — that is how someone becomes an author.
+    await assertSucceeds(founder.ref(`users/${OWNER}/isAuthor`).set(true));
+    await assertSucceeds(founder.ref(`users/${OWNER}/isAuthor`).set(false));
+    // …and an existing author cannot revoke their own flag either way round.
+    await seed(env, { [`users/${OWNER}`]: { isAuthor: true } });
+    await assertFails(owner.ref(`users/${OWNER}/isAuthor`).remove());
+    await assertFails(stranger.ref(`users/${OWNER}/isAuthor`).set(false));
   });
 
   test('the founder can write the author fields on ANOTHER reader — the admin page', async () => {

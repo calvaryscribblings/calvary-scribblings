@@ -196,7 +196,7 @@
           ".write": "auth != null && auth.uid == $uid"
         },
         "isAuthor": {
-          ".write": "auth != null && auth.uid == $uid"
+          ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
         },
         "isDeleted": {
           ".write": "auth != null && auth.uid == $uid"
