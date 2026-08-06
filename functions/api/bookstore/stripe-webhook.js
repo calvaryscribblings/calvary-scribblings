@@ -206,6 +206,14 @@ function extractIdentity(obj) {
 // ──────────────────────────────────────────────────────────────────────────
 
 async function handleGrant(env, session) {
+  // R10.4 — NOT OURS. Membership checkouts are mode 'subscription' and are handled by
+  // functions/api/membership/stripe-webhook.js. Stripe delivers checkout.session.completed to
+  // EVERY endpoint subscribed to it, so membership sessions arrive here too; without this they
+  // fall through to the "no uid/titleId" branch below and log an error on every single
+  // membership signup, which would train everyone to ignore that line. A book purchase is
+  // always mode 'payment', so this can never affect one.
+  if (session?.mode === 'subscription') return;
+
   const { uid, titleId } = extractIdentity(session);
 
   // A verified-but-unattributable session. Returning 4xx would make Stripe retry a request
