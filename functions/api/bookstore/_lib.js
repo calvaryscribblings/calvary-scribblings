@@ -22,6 +22,13 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ');
 
+// R9.10: read-only Cloud Storage, for reading an object's `generation` — the per-EPUB
+// version stream.js hands the native app so it can cache the file on disk. Deliberately
+// NOT added to SCOPES above: the money paths (checkout, both webhooks) keep the exact
+// two-scope credential they have always minted, and only stream.js opts in by passing
+// this to mintAccessToken(). read_only, so the widened token still cannot write bytes.
+export const STORAGE_READ_SCOPE = 'https://www.googleapis.com/auth/devstorage.read_only';
+
 // ──────────────────────────────────────────────────────────────────────────
 // OUTBOUND TIMEOUTS — R9.1 LB-10.
 //
@@ -153,12 +160,14 @@ export async function importSigningKey(privateKeyPem) {
 // database.rules.json to make anything easier: the rules ARE the boundary for everyone else.
 // ──────────────────────────────────────────────────────────────────────────
 
-export async function mintAccessToken(clientEmail, privateKeyPem) {
+// `scope` defaults to SCOPES, so every existing caller mints exactly the token it minted
+// before — this parameter is additive and changes nothing for checkout or either webhook.
+export async function mintAccessToken(clientEmail, privateKeyPem, scope = SCOPES) {
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'RS256', typ: 'JWT' };
   const claim = {
     iss: clientEmail,
-    scope: SCOPES,
+    scope,
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600,

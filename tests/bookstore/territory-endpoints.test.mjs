@@ -68,11 +68,19 @@ const ENV = {
  * entirely, exactly as `wrangler dev` does.
  */
 function contextFor(body, country, env = ENV) {
-  const request = {
-    json: async () => body,
-    headers: { get: () => null },
-  };
-  if (country !== null) request.cf = { country };
+  // R9.10: this double used to expose only `json()` and a null-returning `headers.get`. A real
+  // Cloudflare Request also has `text()`, a real Headers and a `url` — and when stream.js began
+  // reading the raw body (so a native client may send none) and the Authorization header, the
+  // three stream cases below failed on `request.text is not a function` while production was
+  // fine. A partial double that drifts from the platform object tests the double, not the code.
+  // Building a real Request removes the whole class of drift; `cf` is the one genuinely
+  // Cloudflare-specific field and is still attached by hand.
+  const request = new Request('https://calvaryscribblings.co.uk/api/bookstore/stub', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+  if (country !== null) Object.defineProperty(request, 'cf', { value: { country }, configurable: true });
   return { request, env };
 }
 
