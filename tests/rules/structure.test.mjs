@@ -80,32 +80,39 @@ const DELIBERATELY_OPEN = new Map([
   // in that code path. A fresh generatedAt would have proved nothing, because top_stories
   // was open and the broken Worker had been writing it successfully throughout.
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // NOT BLESSED — these four are OPEN FINDINGS this ratchet surfaced the first
-  // time it ran, all the same shape as R9.0 LB-5 (a write grant sitting at the
-  // root of a subtree, so any signed-in account can wipe it in one request).
-  // They were outside the scope of the R9.0 round-2 fix and are recorded here so
-  // the suite passes on a known baseline RATHER THAN on a clean bill of health.
-  // Each one is real work still to do. Delete the entry as you fix it.
-  // ───────────────────────────────────────────────────────────────────────────
-  [
-    'cms_stories/$slug/reads',
-    'OPEN FINDING (R9.0 PL-1, not yet fixed). Any signed-in account can write or ' +
-    'wipe the per-story reads subtree. Needs the same treatment as storyReads: ' +
-    'grant at the $uid leaf, owner-scoped, validated.',
-  ],
-  [
-    'user_square_posts/$uid',
-    'OPEN FINDING (R9.0 PL-1, not yet fixed). The grant is above $uid\'s contents, ' +
-    'so any signed-in account can write into — or wipe — ANOTHER user\'s post ' +
-    'index. Needs auth.uid === $uid and a grant at the leaf.',
-  ],
-  [
-    'storyReactions/$slug/$type',
-    'OPEN FINDING (R9.0 PL-1, not yet fixed). Grant sits above the per-uid ' +
-    'children, so one request wipes every reaction on a story. Mirror ' +
-    'storyReactionUsers, which already scopes to $uid correctly.',
-  ],
+  // R9.9 — the last three PL-1 entries stood here. All three are CLOSED, and the notes
+  // they carried were wrong about two of the three nodes in a way worth recording,
+  // because the wrongness is what the house rule exists to catch.
+  //
+  // The notes were written from the RULES, not from the DATA. They described
+  // `cms_stories/$slug/reads` and `storyReactions/$slug/$type` as grants sitting above a
+  // per-$uid subtree, and prescribed "push the grant down to the $uid leaf". There is no
+  // $uid subtree under either one. Measured live (2026-08-06):
+  //
+  //   cms_stories/$slug/reads   — a NUMBER. 3 of 173 slugs carry it (values 1, 2, 2).
+  //                               Vestigial: read tracking moved to storyReads/$slug/$uid
+  //                               and users/$uid/readCount long ago.
+  //   storyReactions/$slug/$type — a NUMBER. 141 slugs, 407 counters, $type ∈
+  //                               {fire, heart, quill} and nothing else. The per-uid half
+  //                               is the SIBLING node storyReactionUsers/$slug/$uid,
+  //                               which was already scoped correctly.
+  //
+  // Both grants were therefore ALREADY at the leaf. "Push it down" was a no-op; the whole
+  // fix was the second half of the instruction — constrain type and shape *at* the leaf.
+  // Both now carry `newData.isNumber() && newData.val() >= 0` IN THE .write EXPRESSION,
+  // which is the part that matters: a `.validate` cannot close a wipe hole, because
+  // .validate never runs on a null write. With the numeric term in the grant itself, a
+  // null write fails the grant and the counter cannot be deleted at all.
+  //
+  // That lands both nodes in the same class as open_pages/$postId/readCount, described
+  // below: type-constrained but not owner-constrained — forgeable, not wipeable. That is
+  // a deliberate, lesser posture, and it is the honest one for a counter no account owns.
+  //
+  // user_square_posts/$uid WAS the shape its note described. The grant sat above $uid's
+  // contents, so any signed-in account could write into or wipe another reader's post
+  // index. It now mirrors square_posts/$postId exactly — owner-on-create (and the row must
+  // be filed under its own authorUid), owner-or-founder-on-modify — because the two nodes
+  // are written by the same code path and any divergence between them is a bug waiting.
 ]);
 
 // NOT LISTED, and worth saying why: open_pages/$postId/readCount carries

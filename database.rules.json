@@ -32,7 +32,8 @@
       ],
       "$slug": {
         "reads": {
-          ".write": "auth != null"
+          ".write": "auth != null && newData.isNumber() && newData.val() >= 0",
+          ".validate": "newData.isNumber() && newData.val() >= 0"
         }
       }
     },
@@ -284,7 +285,13 @@
     "user_square_posts": {
       "$uid": {
         ".read": true,
-        ".write": "auth != null"
+        "$postId": {
+          ".write": "auth != null && ((!data.exists() && auth.uid === $uid && newData.child('authorUid').val() === auth.uid) || (data.exists() && (auth.uid === $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['authorUid', 'createdAt']) && newData.child('authorUid').val() === $uid && newData.child('createdAt').isNumber())",
+          "text": {
+            ".validate": "newData.isString() && newData.val().length <= 10000"
+          }
+        }
       }
     },
     "notifications": {
@@ -435,7 +442,8 @@
       "$slug": {
         ".read": true,
         "$type": {
-          ".write": "auth != null"
+          ".write": "auth != null && newData.isNumber() && newData.val() >= 0",
+          ".validate": "newData.isNumber() && newData.val() >= 0 && ($type === 'fire' || $type === 'heart' || $type === 'quill')"
         }
       }
     },

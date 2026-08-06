@@ -802,3 +802,214 @@ describe('R9.2 · bookstore_titles territories', () => {
     await assertSucceeds(anon.ref('bookstore_titles').get());
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R9.9 · the last three PL-1 open grants.
+//
+// All three were filed under one heading — "a grant above the $uid/$type children,
+// so one request wipes the subtree" — and MEASURING THE LIVE DATA FIRST said that
+// was true of exactly one of them. Two are flat numeric counters with no children
+// at all, so there was no subtree to wipe and nowhere to push the grant down TO.
+// The shape each block asserts below is the shape the live node actually had on
+// 2026-08-06, not the shape the finding predicted. That is the whole house rule.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('R9.9 PL-1 · cms_stories/$slug/reads — the vestigial counter', () => {
+  // LIVE SHAPE: a number. 3 of 173 slugs carry it (1, 2, 2). Superseded by
+  // storyReads/$slug/$uid and users/$uid/readCount; no writer exists in the client
+  // bundle, the Pages Functions, either mirrored Worker, or scripts/.
+  //
+  // This is the ONLY grant that let a non-founder write anywhere under cms_stories —
+  // the node root is founder-only. Left open, it was also an unbounded write into
+  // billed storage: `auth != null` with no type term accepts an object of any size.
+
+  test('unauthenticated cannot write', async () => {
+    await assertFails(anon.ref('cms_stories/a-slug/reads').set(5));
+    await assertFails(anon.ref('cms_stories/a-slug/reads').set(null));
+  });
+
+  test('WIPE: the counter cannot be deleted, by anyone who is not a founder', async () => {
+    // The point of the round. `.validate` is powerless here — it never runs on a
+    // null write — so the numeric term has to live in the .write GRANT, and does.
+    await seed(env, { 'cms_stories/a-slug': { title: 'A', reads: 7 } });
+    await assertFails(stranger.ref('cms_stories/a-slug/reads').remove());
+    await assertFails(stranger.ref('cms_stories/a-slug/reads').set(null));
+    await assertFails(anon.ref('cms_stories/a-slug/reads').remove());
+    // And the story it hangs off is still untouchable, as it always was.
+    await assertFails(stranger.ref('cms_stories/a-slug').remove());
+    await assertFails(stranger.ref('cms_stories').remove());
+  });
+
+  test('PAYLOAD: no longer a free unbounded write into billed storage', async () => {
+    await assertFails(stranger.ref('cms_stories/a-slug/reads').set({ junk: 'x'.repeat(500) }));
+    await assertFails(stranger.ref('cms_stories/a-slug/reads').set('99'));
+    await assertFails(stranger.ref('cms_stories/a-slug/reads').set(true));
+    await assertFails(stranger.ref('cms_stories/a-slug/reads').set(-1));
+  });
+
+  test('SUBTREE: the grant cannot be climbed to reach story content', async () => {
+    await seed(env, { 'cms_stories/a-slug': { title: 'A', content: 'body', reads: 7 } });
+    await assertFails(stranger.ref('cms_stories/a-slug/title').set('defaced'));
+    await assertFails(stranger.ref('cms_stories/a-slug/content').remove());
+    await assertFails(stranger.ref('cms_stories/a-slug').set({ reads: 1 }));
+  });
+
+  test('LEGITIMATE: a signed-in reader may still bump it, and founders keep full control', async () => {
+    // The counter is not owned by anyone, so this stays open by type rather than by
+    // owner — the same posture as open_pages/$postId/readCount. Forgeable, not wipeable.
+    await assertSucceeds(stranger.ref('cms_stories/a-slug/reads').set(1));
+    await assertSucceeds(stranger.ref('cms_stories/a-slug/reads').set(0));
+    // Founders write through the node-root grant, which still cascades down —
+    // including deleting reads, which is how a story edit that drops the field works.
+    await seed(env, { 'cms_stories/a-slug': { title: 'A', reads: 7 } });
+    await assertSucceeds(founder.ref('cms_stories/a-slug/reads').remove());
+    await assertSucceeds(founder.ref('cms_stories/a-slug').set({ title: 'A2' }));
+    // And the world can still read it — cms_stories is `.read: true` and 173 slugs
+    // are served to anonymous visitors from it.
+    await assertSucceeds(anon.ref('cms_stories/a-slug').get());
+  });
+});
+
+describe('R9.9 PL-1 · storyReactions/$slug/$type — the aggregate counters', () => {
+  // LIVE SHAPE: a number, NOT a per-uid subtree. 141 slugs, 407 counters,
+  // $type ∈ {fire, heart, quill} exactly. The per-uid half is the sibling node
+  // storyReactionUsers/$slug/$uid, which was already correctly scoped — the
+  // finding's "mirror storyReactionUsers" prescription described a node that
+  // already existed rather than a change to make here.
+
+  test('unauthenticated cannot write', async () => {
+    await assertFails(anon.ref('storyReactions/a-slug/heart').set(5));
+    await assertFails(anon.ref('storyReactions/a-slug/heart').remove());
+  });
+
+  test('WIPE: counters cannot be nulled, and the slug cannot be emptied', async () => {
+    await seed(env, { 'storyReactions/a-slug': { fire: 3, heart: 9, quill: 2 } });
+    await assertFails(stranger.ref('storyReactions/a-slug/heart').remove());
+    await assertFails(stranger.ref('storyReactions/a-slug/heart').set(null));
+    await assertFails(anon.ref('storyReactions/a-slug/fire').set(null));
+    // There is no grant at $slug or at the node root, so these were never writable
+    // and still are not — asserted so a future edit cannot quietly add one.
+    await assertFails(stranger.ref('storyReactions/a-slug').remove());
+    await assertFails(stranger.ref('storyReactions').remove());
+    await assertFails(stranger.ref('storyReactions/a-slug').set({ heart: 1 }));
+  });
+
+  test('PAYLOAD: type and key are both constrained at the leaf', async () => {
+    await assertFails(stranger.ref('storyReactions/a-slug/heart').set('9'));
+    await assertFails(stranger.ref('storyReactions/a-slug/heart').set({ uid: true }));
+    await assertFails(stranger.ref('storyReactions/a-slug/heart').set(-4));
+    // $type is a wildcard: without the whitelist, anyone could invent reaction
+    // keys on any of the 141 slugs and grow the node without bound.
+    await assertFails(stranger.ref('storyReactions/a-slug/spam').set(1));
+    await assertFails(stranger.ref('storyReactions/a-slug/Heart').set(1));
+  });
+
+  test('LEGITIMATE: a reader may still react, and storyReactionUsers stays owner-scoped', async () => {
+    await assertSucceeds(stranger.ref('storyReactions/a-slug/heart').set(1));
+    await assertSucceeds(stranger.ref('storyReactions/a-slug/fire').set(4));
+    await assertSucceeds(stranger.ref('storyReactions/a-slug/quill').set(0));
+    await assertSucceeds(anon.ref('storyReactions/a-slug').get());
+    // The membership half is untouched by this round. Re-asserted because the two
+    // nodes are a pair, and a counter rule is only as honest as the flag beside it.
+    await assertSucceeds(owner.ref(`storyReactionUsers/a-slug/${OWNER}`).set({ heart: true }));
+    await assertFails(stranger.ref(`storyReactionUsers/a-slug/${OWNER}`).set({ heart: true }));
+    await assertFails(stranger.ref(`storyReactionUsers/a-slug/${OWNER}`).remove());
+  });
+});
+
+describe('R9.9 PL-1 · user_square_posts/$uid — the one that was the shape it claimed', () => {
+  // LIVE SHAPE: 21 uids, 103 post rows, every row an object with a numeric createdAt.
+  // 78 carry authorUid and it matches $uid in ALL 78 — the index has never been
+  // mis-filed, which is what makes an authorUid === $uid validator safe to add.
+  // (The 25 without it are legacy rows; .validate only runs on writes, so they are
+  // not disturbed by this.) Written by app/square/page.js:940 mirrorToUserPosts,
+  // deleted by :1053 handleDelete. app/api/square-cleanup/route.js also names the
+  // path, but `output: 'export'` means it is never built — absent from out/ — and it
+  // sends no ?auth=, so it would have been denied by `auth != null` regardless.
+
+  const row = (uid) => ({
+    text: 'a post', authorUid: uid, authorName: 'Reader', authorInitials: 'R',
+    authorHandle: '', authorReadCount: 0, isAuthor: false,
+    likeCount: 0, pinned: false, createdAt: now(),
+  });
+
+  test('unauthenticated cannot write', async () => {
+    await assertFails(anon.ref(`user_square_posts/${OWNER}/p1`).set(row(OWNER)));
+    await assertFails(anon.ref(`user_square_posts/${OWNER}/p1`).remove());
+  });
+
+  test('a stranger cannot write into another reader\'s index', async () => {
+    // This is the node that WAS the finding's shape. Sign-up is open, so "stranger"
+    // is a second real account, not an exotic attacker.
+    await assertFails(stranger.ref(`user_square_posts/${OWNER}/p1`).set(row(OWNER)));
+    await assertFails(stranger.ref(`user_square_posts/${OWNER}/p1`).set(row(STRANGER)));
+  });
+
+  test('WIPE: another reader\'s index cannot be emptied — node, payload, null, subtree', async () => {
+    await seed(env, {
+      [`user_square_posts/${OWNER}`]: { p1: row(OWNER), p2: row(OWNER) },
+    });
+    await assertFails(stranger.ref(`user_square_posts/${OWNER}`).remove());
+    await assertFails(stranger.ref(`user_square_posts/${OWNER}`).set(null));
+    await assertFails(stranger.ref(`user_square_posts/${OWNER}/p1`).remove());
+    await assertFails(stranger.ref(`user_square_posts/${OWNER}/p1`).set(null));
+    await assertFails(stranger.ref(`user_square_posts/${OWNER}/p1/text`).set('defaced'));
+    await assertFails(stranger.ref('user_square_posts').remove());
+    await assertFails(anon.ref('user_square_posts').remove());
+    // The $uid level itself carries no grant now, so even the OWNER cannot wipe their
+    // whole index in one request — deletes go row by row, as handleDelete does them.
+    await assertFails(owner.ref(`user_square_posts/${OWNER}`).remove());
+  });
+
+  test('PAYLOAD: a row must be filed under its own authorUid, with a createdAt', async () => {
+    // An index whose key and whose authorUid disagree is not an index. This is the
+    // term that stops a row being planted under someone else's uid on create.
+    await assertFails(owner.ref(`user_square_posts/${OWNER}/p1`).set(row(STRANGER)));
+    await assertFails(owner.ref(`user_square_posts/${OWNER}/p1`).set({ text: 'no uid', createdAt: now() }));
+    await assertFails(owner.ref(`user_square_posts/${OWNER}/p1`).set({ authorUid: OWNER }));
+    await assertFails(owner.ref(`user_square_posts/${OWNER}/p1`).set({ authorUid: OWNER, createdAt: '2026-08-06' }));
+    await assertFails(owner.ref(`user_square_posts/${OWNER}/p1`).set({
+      ...row(OWNER), text: 'x'.repeat(10001),
+    }));
+  });
+
+  test('LEGITIMATE: mirrorToUserPosts, the author\'s own delete, and founder moderation', async () => {
+    // app/square/page.js:940 — set(user_square_posts/<own uid>/<pushKey>, postData).
+    await assertSucceeds(owner.ref(`user_square_posts/${OWNER}/p1`).set(row(OWNER)));
+    // A reply carries parentId and is mirrored the same way (:998). Optional fields
+    // that the client sends as `null` — authorAvatarUrl, attachedStory, unpinnedAt,
+    // quotedPostId — arrive as ABSENT children, so the validator must not require them.
+    // That is the imageUrl:null trap; this asserts we did not walk into it.
+    await assertSucceeds(owner.ref(`user_square_posts/${OWNER}/p2`).set({
+      ...row(OWNER), parentId: 'p1', quotedPostId: null, attachedStory: null,
+      authorAvatarUrl: null, unpinnedAt: null,
+    }));
+    // :1053 handleDelete — the author removing their own post's index row.
+    await assertSucceeds(owner.ref(`user_square_posts/${OWNER}/p1`).remove());
+    // Founder moderation deletes another reader's row, exactly as square_posts allows.
+    await seed(env, { [`user_square_posts/${OWNER}/p3`]: row(OWNER) });
+    await assertSucceeds(founder.ref(`user_square_posts/${OWNER}/p3`).remove());
+    // The index stays world-readable — app/user/page.js:106 and app/profile/page.js:265
+    // both read another reader's index to render their profile.
+    await seed(env, { [`user_square_posts/${OWNER}/p4`]: row(OWNER) });
+    await assertSucceeds(anon.ref(`user_square_posts/${OWNER}`).get());
+    await assertSucceeds(stranger.ref(`user_square_posts/${OWNER}`).get());
+  });
+
+  test('the reply cascade a non-founder cannot complete — and could not before either', async () => {
+    // app/square/page.js:1056 deletes replies to a deleted post, including replies
+    // BY OTHER READERS, from their indexes. That is now denied for a non-founder.
+    // It was ALREADY denied on the paired square_posts/<replyId> removal in the very
+    // same Promise.all, so the cascade already threw; the open grant only meant the
+    // index row vanished while the reply itself survived. Closing it makes the two
+    // consistent. Asserted so the behaviour is recorded rather than rediscovered.
+    await seed(env, {
+      [`user_square_posts/${STRANGER}/reply1`]: { ...row(STRANGER), parentId: 'p1' },
+      'square_posts/reply1': { ...row(STRANGER), parentId: 'p1' },
+    });
+    await assertFails(owner.ref('square_posts/reply1').remove());          // already true before R9.9
+    await assertFails(owner.ref(`user_square_posts/${STRANGER}/reply1`).remove()); // now true too
+    // The founder, who is the only MOD_UID, can complete it.
+    await assertSucceeds(founder.ref(`user_square_posts/${STRANGER}/reply1`).remove());
+  });
+});
