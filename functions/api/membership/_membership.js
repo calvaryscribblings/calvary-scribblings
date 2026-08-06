@@ -87,11 +87,20 @@ const oneOf = (v, list) => (typeof v === 'string' && list.includes(v) ? v : null
 /**
  * The billing record. Pure, so the harness can assert every field without a network.
  *
- * EVERY KEY IS ALWAYS PRESENT, null when unknown — the same posture R9.10 settled on for
- * stream.js's `version`. An absent key is ambiguous (old writer? failed lookup? not
- * implemented?); an explicit null is a fact a reader of this record can branch on. It also
- * means a PATCH of this object CLEARS a field that no longer applies, rather than leaving
- * last month's value sitting beside this month's.
+ * EVERY KEY IS PRESENT IN THE RETURN VALUE, null when unknown — but NOT in the stored record,
+ * and the difference is worth stating because it surprised this module's own author.
+ *
+ * RTDB TREATS null AS DELETE. A null in a PATCH body removes the key rather than storing it,
+ * so a detail built with ten nulls arrives in the database with the four keys that had real
+ * values. Verified on the live canary record: 12 keys returned, 4 keys stored.
+ *
+ * That is FINE, and half of it is the point: writing null is exactly how a field that no
+ * longer applies gets CLEARED, rather than leaving last month's currentPeriodEnd sitting
+ * beside this month's status. What it means for readers is that ABSENT AND null ARE THE SAME
+ * FACT here, and every consumer must treat them alike — which they do, by testing for the
+ * type they want rather than for null (see describeMembership, activePass,
+ * shouldSkipMembershipGrant and storedReferences). Do not write `detail.status === null`;
+ * write `typeof detail.status === 'string'`.
  *
  * Rail-specific identifiers are filtered to non-empty strings before they are stored, for the
  * reason buildGrantPayload gives in _lib.js: a null sitting in a record looking like a

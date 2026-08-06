@@ -35,6 +35,12 @@ const UID = 'reader-uid-0001';
 const NOW = 1786000000000;
 const ENV = {};
 
+// RTDB treats null as DELETE, so a record arrives back with its null keys missing. This models
+// that so the consumers can be asserted against the shape they will ACTUALLY be handed rather
+// than the one buildDetail returns. Confirmed against the live canary record: 12 keys written,
+// 4 keys stored.
+const asStored = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== null));
+
 describe('the scalar contract — a string, and total over everything else', () => {
   test('the three tiers, and nothing else, are tiers', () => {
     assert.deepEqual(TIERS, ['free', 'gold', 'platinum']);
@@ -147,7 +153,7 @@ describe('buildDetail — every key present, null when unknown', () => {
     assert.equal(d.updatedAt, NOW);
   });
 
-  test('unknown values are explicit nulls, not absent keys', () => {
+  test('unknown values are explicit nulls in the RETURN VALUE', () => {
     const d = buildDetail({ tier: 'free', now: NOW });
     for (const k of ['interval', 'currency', 'rail', 'status', 'currentPeriodEnd',
       'foundingSince', 'lastInvoiceRef', 'pass']) {
@@ -156,6 +162,33 @@ describe('buildDetail — every key present, null when unknown', () => {
     }
     assert.equal(d.cancelAtPeriodEnd, false);
     assert.equal(d.founding, false);
+  });
+
+  test('…but RTDB DROPS them, so absent and null are the same fact on read', () => {
+    // Measured on the live canary, not assumed: buildDetail returned 12 keys and the stored
+    // record had 4. RTDB treats null as DELETE, which is precisely how a field that no longer
+    // applies gets cleared — but it means no consumer may test for null.
+    const stored = asStored(buildDetail({ tier: 'free', now: NOW }));
+    assert.deepEqual(Object.keys(stored).sort(), ['cancelAtPeriodEnd', 'founding', 'tier', 'updatedAt']);
+    assert.equal(stored.status, undefined);
+
+    // Every consumer must behave identically on the stored shape and the built one.
+    const built = buildDetail({ tier: 'free', now: NOW });
+    assert.equal(activePass(stored, NOW), activePass(built, NOW));
+    assert.deepEqual(describeMembership('gold', stored, NOW), describeMembership('gold', built, NOW));
+    assert.equal(shouldSkipMembershipGrant(stored, 'in_1'), shouldSkipMembershipGrant(built, 'in_1'));
+    assert.equal(
+      classifyDowngrade(stored, STRIPE_SUB_REF_FIELDS, ['sub_1']).verdict,
+      classifyDowngrade(built, STRIPE_SUB_REF_FIELDS, ['sub_1']).verdict,
+    );
+  });
+
+  test('a stored record that lost its nulls still round-trips through a renewal', () => {
+    // The realistic sequence: write a sparse record, read it back sparse, decide on it.
+    const first = asStored(buildDetail({ tier: 'gold', invoiceRef: 'in_001', now: NOW }));
+    assert.equal(shouldSkipMembershipGrant(first, 'in_001'), true, 'replay still detected');
+    assert.equal(shouldSkipMembershipGrant(first, 'in_002'), false, 'renewal still writes');
+    assert.equal(describeMembership('gold', first, NOW).tier, 'gold');
   });
 
   test('a bad enum becomes null rather than being stored verbatim', () => {
