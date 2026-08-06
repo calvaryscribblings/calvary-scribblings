@@ -178,9 +178,46 @@ TIERS.forEach((tier, i) => {
   });
 });
 
-const config = await api('billing_portal/configurations', portalParams);
-console.log(`\n  portal configuration: CREATED ${config.id}`);
-console.log('    restricted to the 8 founding prices — an upgrade cannot leave the generation');
+// Idempotent, like the prices above. Stripe cannot search configurations by metadata, so this
+// lists and filters — and it matters more here than it looks: a configuration cannot be
+// DELETED, only deactivated, so a script that created a new one on every run would leave a
+// drift of near-identical configurations and no way to tell which one prices.js points at.
+const configs = await api('billing_portal/configurations?limit=100', null, 'GET');
+const existingConfig = (configs.data || []).find(
+  (c) => c.active && c.metadata?.calvary_generation === 'founding',
+);
+const config = existingConfig
+  ? await api(`billing_portal/configurations/${existingConfig.id}`, portalParams)
+  : await api('billing_portal/configurations', portalParams);
+console.log(`\n  portal configuration: ${existingConfig ? 'UPDATED' : 'CREATED'} ${config.id}`);
+
+// VERIFY THE RESTRICTION, and verify it with expand[].
+//
+// `features.subscription_update.products` IS NOT RETURNED BY DEFAULT. Read the configuration
+// without expanding it and the field comes back `null` — which is indistinguishable from "no
+// restriction configured at all". That is not a cosmetic difference: an unrestricted portal
+// offers every active price on the product, so a founding member upgrading Gold → Platinum
+// would land on a current price and lose their lock silently. Checking it the lazy way would
+// report the lock broken when it is fine, or — far worse, if a future edit really did drop the
+// restriction — report it fine when it is broken.
+const verify = await api(
+  `billing_portal/configurations/${config.id}?expand[]=features.subscription_update.products`, null, 'GET',
+);
+const offered = (verify.features?.subscription_update?.products || []).flatMap((p) => p.prices || []);
+const expected = plan.map((p) => created[p.tier][p.interval][p.currency]);
+const missing = expected.filter((id) => !offered.includes(id));
+const extra = offered.filter((id) => !expected.includes(id));
+if (offered.length !== expected.length || missing.length || extra.length) {
+  console.error(
+    `\n  ✗ the portal restriction did NOT take: ${offered.length} prices offered, expected ${expected.length}.` +
+    `${missing.length ? `\n    missing: ${missing.join(', ')}` : ''}` +
+    `${extra.length ? `\n    unexpected: ${extra.join(', ')}` : ''}` +
+    '\n    An unrestricted portal works perfectly and silently ends the founding lock on the' +
+    '\n    first upgrade. Resolve before using this configuration.\n',
+  );
+  process.exit(1);
+}
+console.log(`    VERIFIED: ${offered.length} prices offered, all founding — an upgrade cannot leave the generation`);
 
 // ── the block to paste ──────────────────────────────────────────────────────
 const fmt = (t) => INTERVALS.map((iv) =>

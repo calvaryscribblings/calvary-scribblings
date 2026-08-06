@@ -61,8 +61,8 @@ export const CURRENT_GENERATION = 'founding';
 export const PRICE_BOOK = {
   founding: {
     test: {
-      gold:     { monthly: { gbp: null, usd: null }, annual: { gbp: null, usd: null } },
-      platinum: { monthly: { gbp: null, usd: null }, annual: { gbp: null, usd: null } },
+      gold:     { monthly: { gbp: 'price_1U1QJB0BtuEAyw2trDPzxZJp', usd: 'price_1U1QJB0BtuEAyw2tFttQ51eW' }, annual: { gbp: 'price_1U1QJC0BtuEAyw2tWvhWAamB', usd: 'price_1U1QJC0BtuEAyw2tueliuaeJ' } },
+      platinum: { monthly: { gbp: 'price_1U1QJC0BtuEAyw2tbF9hWv0D', usd: 'price_1U1QJD0BtuEAyw2tWkJKBSjH' }, annual: { gbp: 'price_1U1QJD0BtuEAyw2tmJTCwn6o', usd: 'price_1U1QJE0BtuEAyw2t0w3NYJcT' } },
     },
     live: {
       gold:     { monthly: { gbp: null, usd: null }, annual: { gbp: null, usd: null } },
@@ -74,7 +74,7 @@ export const PRICE_BOOK = {
 // The portal configuration id, also created by setup. It restricts the portal to the founding
 // generation's prices — see the trap above. Without it the portal offers whatever the Product
 // currently has, which is exactly how the lock ends.
-export const PORTAL_CONFIGURATION = { founding: { test: null, live: null } };
+export const PORTAL_CONFIGURATION = { founding: { test: 'bpc_1U1QJE0BtuEAyw2tQGwmXOle', live: null } };
 
 /** Which mode a secret key belongs to. Stripe's own prefix is the only honest signal. */
 export const modeOf = (secretKey) =>
