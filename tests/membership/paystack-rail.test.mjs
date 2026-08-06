@@ -18,7 +18,7 @@ import {
   buildMembershipReference, parseMembershipReference, isMembershipReference,
 } from '../../functions/api/membership/paystack-plans.js';
 import {
-  isMembershipEvent, mapStatus, resolveUid, seedIndex, INDEX_PATH,
+  isMembershipEvent, mapStatus, resolveUid, seedIndex, INDEX_PATH, subscriptionOwner,
   planCodeFromEvent, subscriptionCodeFromEvent, customerCodeFromEvent, invoiceRefFromEvent,
   handleMembershipPaystackEvent, PAYSTACK_SUB_REF_FIELDS,
 } from '../../functions/api/membership/_paystack.js';
@@ -410,5 +410,69 @@ describe('the lifecycle — same postures as the Stripe rail', () => {
       await handleMembershipPaystackEvent(ENV, getToken, ev('invoice.update', { paid: true, invoice_code: 'INV_7', plan: { plan_code: CODE('gold', 'monthly') } }), NOW);
       assert.deepEqual(Object.keys(h.membershipWrite()).sort(), [DETAIL_PATH(UID), SCALAR_PATH(UID)].sort());
     } finally { h.restore(); }
+  });
+});
+
+describe('R10.5b · the ordering hole a LIVE test card exposed', () => {
+  // MEASURED, not reasoned about. R10.5 claimed that if subscription.create arrived before
+  // charge.success, "the charge behind it recovers". A real Paystack transaction says
+  // otherwise: charge.success carries the customer code and the plan, and NO subscription
+  // code. So the first charge can only ever seed CUS_…; SUB_… arrives on a subscription-shaped
+  // event and nowhere else. A cancellation carrying only a subscription code, before that code
+  // was indexed, was therefore unattributable — and a cancelled member would keep their tier.
+
+  test('a first charge cannot seed the subscription code — it does not carry one', () => {
+    // The real payload shape, from the live run.
+    const firstCharge = {
+      reference: 'ms.readerUid0001.gold-monthly.3649e36fcfa1',
+      status: 'success',
+      plan: 'PLN_founding_gold_monthly',
+      customer: { customer_code: 'CUS_live', email: 'x@example.com' },
+    };
+    assert.equal(customerCodeFromEvent(firstCharge), 'CUS_live');
+    assert.equal(subscriptionCodeFromEvent(firstCharge), null,
+      'charge.success carries NO subscription code — this is what broke the original claim');
+  });
+
+  test('an unindexed subscription code resolves by ASKING PAYSTACK, not by guessing', async () => {
+    const real = globalThis.fetch;
+    let asked = null;
+    globalThis.fetch = async (url, opts = {}) => {
+      const u = String(url);
+      if (u.startsWith('https://api.paystack.co/subscription/')) {
+        asked = u;
+        return new Response(JSON.stringify({ status: true, data: { customer: { customer_code: 'CUS_live' } } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      const m = /paystack_membership_index\/([^.]+)\.json/.exec(u);
+      if (m) {
+        const code = decodeURIComponent(m[1]);
+        // ONLY the customer code is indexed — the subscription code never was.
+        return new Response(JSON.stringify(code === 'CUS_live' ? UID : null),
+          { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      throw new Error(`unstubbed: ${u}`);
+    };
+    try {
+      const { uid, via } = await resolveUid(ENV, 'tok', { subscription_code: 'SUB_never_indexed' });
+      assert.equal(uid, UID, 'the cancelled member must still be identifiable');
+      assert.equal(via, 'subscription_lookup');
+      assert.match(asked, /SUB_never_indexed/);
+    } finally { globalThis.fetch = real; }
+  });
+
+  test('and if Paystack cannot say either, it STILL writes nothing', async () => {
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.startsWith('https://api.paystack.co/subscription/')) {
+        return new Response(JSON.stringify({ status: false, message: 'not found' }), { status: 404 });
+      }
+      return new Response(JSON.stringify(null), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+    try {
+      const { uid } = await resolveUid(ENV, 'tok', { subscription_code: 'SUB_ghost' });
+      assert.equal(uid, null, 'unattributable stays unattributable — never a guess');
+    } finally { globalThis.fetch = real; }
   });
 });

@@ -42,13 +42,26 @@
 // Paystack, and two accounts can share one address. Guessing an identity wrong here does not
 // fail loudly — it silently grants somebody else's membership to the wrong reader.
 //
-// ORDERING CAVEAT, stated because it is real and survivable. Paystack does not guarantee that
-// charge.success precedes subscription.create. If subscription.create arrives first the index
-// is empty, that one event goes to review, and the charge.success behind it still writes the
-// membership and seeds the index — so the subscription code is picked up on the next event
-// instead. The member is never wrong, only a log line is.
+// ORDERING CAVEAT — and R10.5 stated this WRONG, which a live test-card run corrected.
+//
+// The original claim was: if subscription.create arrives before charge.success, that one event
+// reviews and "the charge behind it recovers". THE CHARGE CANNOT RECOVER THE SUBSCRIPTION
+// CODE. Measured against a real Paystack transaction: charge.success carries the customer code
+// and the plan, and NO subscription code at all. So the first charge can only ever seed
+// `CUS_…`; `SUB_…` arrives on a subscription-shaped event and nowhere else.
+//
+// In practice that resolved itself in the live run — subscription.not_renew carried the
+// customer code, which was already indexed, so the subscription code was seeded then. But it
+// left one narrow hole: a subscription-shaped event carrying ONLY a subscription code, before
+// that code was ever indexed, is unattributable. A cancellation is the case that matters, and
+// the consequence is a cancelled member keeping their tier until somebody looks.
+//
+// subscriptionOwner() below closes it. On an index miss for a subscription code, it ASKS
+// PAYSTACK who the subscription belongs to and retries the index with the customer code that
+// comes back. That is a lookup, not a guess — the authenticated provider is telling us, which
+// is the whole difference between this and the email fallback refused above.
 
-import { dbBase, FIREBASE_TIMEOUT_MS } from '../bookstore/_lib.js';
+import { dbBase, FIREBASE_TIMEOUT_MS, PROVIDER_TIMEOUT_MS } from '../bookstore/_lib.js';
 import { applyMembershipChange, readDetail, buildDetail } from './_membership.js';
 import {
   describePlan, modeOf, domainOf, parseMembershipReference, isMembershipReference,
@@ -166,8 +179,9 @@ export async function resolveUid(env, token, data) {
   const parsed = parseMembershipReference(referenceFromEvent(data));
   if (parsed) return { uid: parsed.uid, via: 'reference' };
 
+  const subCode = subscriptionCodeFromEvent(data);
   for (const [via, code] of [
-    ['subscription_code', subscriptionCodeFromEvent(data)],
+    ['subscription_code', subCode],
     ['customer_code', customerCodeFromEvent(data)],
   ]) {
     if (!code) continue;
@@ -178,7 +192,39 @@ export async function resolveUid(env, token, data) {
       console.error(`[${LABEL}] index read failed for ${code}:`, e.message || e);
     }
   }
+
+  // LAST RESORT, and it is a lookup rather than a guess: ask Paystack who owns this
+  // subscription, then try the index again with the customer code it returns. Reached only
+  // when a subscription-shaped event carries no customer code AND its own code was never
+  // indexed — the narrow hole the live run exposed. See the ordering note in the header.
+  if (subCode) {
+    const owner = await subscriptionOwner(env, subCode);
+    if (owner) {
+      try {
+        const uid = await readIndex(env, token, owner);
+        if (typeof uid === 'string' && uid) return { uid, via: 'subscription_lookup' };
+      } catch (e) {
+        console.error(`[${LABEL}] index read failed for ${owner}:`, e.message || e);
+      }
+    }
+  }
   return { uid: null, via: null };
+}
+
+/** The customer code owning a subscription, straight from Paystack. Never throws. */
+export async function subscriptionOwner(env, subscriptionCode) {
+  try {
+    const res = await fetch(`https://api.paystack.co/subscription/${encodeURIComponent(subscriptionCode)}`, {
+      headers: { Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}` },
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+    });
+    const body = await res.json();
+    if (!res.ok || body?.status !== true) return null;
+    return str(body?.data?.customer?.customer_code);
+  } catch (e) {
+    console.error(`[${LABEL}] subscription lookup failed for ${subscriptionCode}:`, e.message || e);
+    return null;
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
