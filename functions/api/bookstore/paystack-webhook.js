@@ -55,6 +55,10 @@ import {
   parsePaystackReference,
 } from './_lib.js';
 
+// R10.5 — see the delegation note in onRequestPost. Membership owns every decision behind
+// this import; nothing of the bookstore's own logic moved.
+import { isMembershipEvent, handleMembershipPaystackEvent } from '../membership/_paystack.js';
+
 const LABEL = 'bookstore/paystack-webhook';
 
 export const PAYSTACK_SIGNATURE_HEADER = 'x-paystack-signature';
@@ -373,6 +377,24 @@ export async function onRequestPost(context) {
 
   // Past this line the request is provably from Paystack, so every exit is a 200.
   try {
+    // ── R10.5: MEMBERSHIP DELEGATION ────────────────────────────────────────────────────
+    // PAYSTACK ALLOWS ONE WEBHOOK URL PER ACCOUNT — test and live share it, told apart by
+    // `domain` on the payload. So membership events cannot have an endpoint of their own the
+    // way the Stripe rail does; they arrive HERE, at the single configured URL, and this hands
+    // them on. Repointing the dashboard at a new dispatcher would mean a cutover on a live
+    // money path in exchange for nothing.
+    //
+    // isMembershipEvent() is conservative: a subscription/invoice event, an `ms.` reference, or
+    // a `plan` object — which a book purchase never carries. A book charge cannot match, so
+    // this cannot divert a purchase. The token factory is passed through so no admin token is
+    // minted for an event neither rail ends up writing.
+    if (isMembershipEvent(event.event, data)) {
+      let cached = null;
+      const getToken = async () => (cached ||= await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY));
+      const result = await handleMembershipPaystackEvent(env, getToken, event);
+      return json({ received: true, rail: 'membership', verdict: result?.verdict || 'ok' });
+    }
+
     if (GRANT_EVENTS.has(event.event)) {
       await handleGrant(env, data);
     } else if (REVOKE_EVENTS.has(event.event)) {

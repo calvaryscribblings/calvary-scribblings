@@ -1330,3 +1330,34 @@ describe('R10.1 · memberships/$uid — the billing record, off the world-readab
     await assertFails(anon.ref('memberships').get());
   });
 });
+
+describe('R10.5 · paystack_membership_index — the renewal identity map', () => {
+  // WHY IT EXISTS. The bookstore's Paystack reference is self-describing (cs.<uid>.<titleId>
+  // .<nonce>), so a book event carries its own identity. A membership RENEWAL does not: only
+  // the FIRST charge uses a reference we minted, and every recurring charge after it carries
+  // one Paystack generated, which parses as neither rail's format. So the first charge seeds
+  // this map — CUS_… and SUB_… codes → uid — and later events resolve through it.
+  //
+  // It is written and read ONLY by the service account, which bypasses rules. No client has
+  // any business reading a map from opaque payment identifiers to reader uids, so unlike
+  // memberships/{uid} it is not even owner-readable — an owner has no code to look up.
+
+  test('closed to everyone: no read, no write, no exceptions', async () => {
+    await seed(env, { 'paystack_membership_index/SUB_abc': OWNER });
+    for (const [who, ctx] of [['owner', owner], ['stranger', stranger], ['founder', founder], ['anon', anon]]) {
+      await assertFails(ctx.ref('paystack_membership_index/SUB_abc').get(), `${who} must not read`);
+      await assertFails(ctx.ref('paystack_membership_index/SUB_new').set(OWNER), `${who} must not write`);
+      await assertFails(ctx.ref('paystack_membership_index').get(), `${who} must not enumerate`);
+    }
+  });
+
+  test('WIPE: it cannot be emptied, and an entry cannot be repointed', async () => {
+    // Repointing SUB_abc at another uid would send a member's renewals — and their tier — to
+    // somebody else's account. That is the sharpest failure this node has.
+    await seed(env, { 'paystack_membership_index/SUB_abc': OWNER });
+    await assertFails(stranger.ref('paystack_membership_index/SUB_abc').set(STRANGER));
+    await assertFails(owner.ref('paystack_membership_index/SUB_abc').remove());
+    await assertFails(anon.ref('paystack_membership_index').remove());
+    await assertFails(founder.ref('paystack_membership_index/SUB_abc').set(FOUNDER_A));
+  });
+});
