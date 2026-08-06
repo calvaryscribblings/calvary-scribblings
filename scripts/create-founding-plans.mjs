@@ -18,13 +18,26 @@
 // every founding naira member would land in manual review at once. Never delete one. If a
 // founding amount is wrong, that is a new generation and a new block in paystack-plans.js.
 //
-// ── IDEMPOTENT BY NAME ──────────────────────────────────────────────────────────────────
+// ── IDEMPOTENT BY NAME, WHICH IS WEAKER THAN IT LOOKS ───────────────────────────────────
 //
-// Paystack has no lookup_key, so plans are matched on their exact name. The script lists
+// Paystack has no lookup_key, so plans are matched on their exact NAME. The script lists
 // existing plans and reuses a match rather than creating a parallel set — a duplicate plan is
 // indistinguishable in the dashboard and would break the reverse lookup. A plan that exists
-// with the WRONG amount is refused rather than used, because the amount is what the marketing
-// page will quote.
+// with the WRONG amount is refused rather than adopted, because the amount is what the
+// marketing page will quote.
+//
+// ⚠ DO NOT RENAME A PLAN IN THE PAYSTACK DASHBOARD. The name is the only thing this script
+// can match on, so a renamed plan is invisible to it: a re-run would not recognise the plan,
+// would create a SECOND one at the same amount, and paystack-plans.js would then point at a
+// code that half the subscribers are not on. Nothing would error — the duplicate is perfectly
+// valid — and the damage would only surface as renewals landing in manual review for members
+// whose subscription is bound to the older code.
+//
+// The name is only ever a re-run guard. THE PLAN CODE IS THE REAL IDENTITY, and it lands in
+// paystack-plans.js the moment the plan is created, which is what the reverse lookup and every
+// webhook actually use. Editing a name after the codes are pasted breaks nothing that is
+// already running; it breaks the next run of this script. If a plan must be renamed, update
+// the name in this file's planName() in the same commit so the two cannot drift.
 
 import { AMOUNTS, TIERS, INTERVALS, PAYSTACK_INTERVAL, modeOf } from '../functions/api/membership/paystack-plans.js';
 

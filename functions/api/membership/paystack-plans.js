@@ -52,7 +52,10 @@ export const CURRENT_GENERATION = 'founding';
 // ─────────────────────────────────────────────────────────────────────────────────────────
 export const PLAN_BOOK = {
   founding: {
-    test: { gold: { monthly: null, annual: null }, platinum: { monthly: null, annual: null } },
+    test: {
+      gold:     { monthly: 'PLN_8cew7gwzmk85xu5', annual: 'PLN_ay0fmybtffpkyu5' },
+      platinum: { monthly: 'PLN_20apb1ehzib9fl6', annual: 'PLN_bclwjduphwzna67' },
+    },
     live: { gold: { monthly: null, annual: null }, platinum: { monthly: null, annual: null } },
   },
 };
