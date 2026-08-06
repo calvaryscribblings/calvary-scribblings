@@ -20,8 +20,10 @@
 
 import { test, before, after, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   makeEnv, seed, assertFails, assertSucceeds,
+  DB_RULES_PATH,
   OWNER, STRANGER, OTHER, FOUNDER_A, convIdFor,
 } from './helpers.mjs';
 // R9.1 LB-9: the client half of the waitlist email check, asserted against the rule half in
@@ -1011,5 +1013,289 @@ describe('R9.9 PL-1 · user_square_posts/$uid — the one that was the shape it 
     await assertFails(owner.ref(`user_square_posts/${STRANGER}/reply1`).remove()); // now true too
     // The founder, who is the only MOD_UID, can complete it.
     await assertSucceeds(founder.ref(`user_square_posts/${STRANGER}/reply1`).remove());
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R10.1 · users/$uid — the membership prerequisite.
+//
+// WHY THIS ROUND EXISTS. `users/$uid` carried ONE `.write` at its root, owner-or-founder,
+// with no `.validate` beneath it. Membership tiers live at users/{uid}/membership, so that
+// grant meant ANY signed-in reader could write their own tier and hand themselves platinum.
+//
+// AND THE OBVIOUS FIX DOES NOT WORK. `membership: { ".write": false }` under an owner-granted
+// $uid changes NOTHING: RTDB write grants cascade DOWN and a descendant cannot revoke an
+// ancestor's. Measured on the emulator before this round was designed, not inferred from the
+// docs. The same is true of `.read` — which is why the rich billing record lives at top-level
+// `memberships/{uid}` and NOT under users/{uid}, where `.read: true` would publish
+// stripeCustomerId to the world with no way to close it.
+//
+// So the grant had to move to the leaves, and that is the whole blast radius of this round:
+// a field with no leaf grant is now UNWRITABLE. The enumeration below is therefore the
+// contract, and it was built from the UNION of two sweeps — every users/{uid} write site in
+// the repo (plus both mirrored Workers, which touch none) and every key present in live data
+// (285 users, 33 keys). Neither list alone was sufficient: `readStories`, `readCount` and
+// `readerScore` are the three most common fields in the node and appear in code, while
+// `ageConfirmed`, `headerOffsetY`, `platforms` and nine others appear ONLY in live data with
+// no writer left in the tree.
+//
+// EVERY GRANTED FIELD HAS AN assertSucceeds BELOW. The denials are the point of the round,
+// but the permissions are what a reader notices: a missing grant here is a reader who cannot
+// save their profile, and that failure would reach them before it reached us.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('R10.1 · users/$uid — every enumerated field stays writable by its owner', () => {
+  // The 32 granted fields, with a value of the shape live data actually holds. Table-driven so
+  // adding a field to the rules without adding it here is a visible omission rather than a
+  // silent one.
+  const FIELDS = [
+    ['ageConfirmed', true], ['avatarUrl', 'https://x/a.png'], ['bio', 'a bio'],
+    ['createdAt', 1786000000000], ['displayName', 'A Reader'], ['dob', '1990-01-01'],
+    ['email', 'r@example.com'], ['handle', 'areader'], ['handleLowercased', 'areader'],
+    ['headerOffsetY', 12], ['headerScale', 1], ['headerUrl', 'https://x/h.png'],
+    ['isAuthor', true], ['isDeleted', true], ['joinDate', 1786000000000],
+    ['leaderboardVisible', false], ['pendingDeletion', { requestedAt: 1786000000000 }],
+    ['photoURL', 'https://x/p.png'], ['platformAvatar', 'https://x/pa.png'],
+    ['platforms', { web: true }], ['profile', { a: 1 }], ['readCount', 7],
+    ['readStories', { 'a-slug': true }], ['readerProgress', { 'a-slug': { cfi: 'epubcfi(/6/2)' } }],
+    ['readerScore', 42], ['scoreUpdatedAt', 1786000000000], ['uid', OWNER],
+    ['username', 'areader'],
+    // The four the admin UI writes on ANOTHER reader's node — app/admin/authors/page.js:238.
+    ['authorBio', 'an author bio'], ['authorPhotoUrl', 'https://x/ap.png'],
+    ['authorRole', 'Contributor'], ['authorSocials', { x: 'https://x.com/a' }],
+  ];
+
+  test('all 32 are writable by the owner', async () => {
+    for (const [field, value] of FIELDS) {
+      await assertSucceeds(owner.ref(`users/${OWNER}/${field}`).set(value));
+    }
+  });
+
+  test('and none of them is writable by a stranger', async () => {
+    for (const [field, value] of FIELDS) {
+      await assertFails(stranger.ref(`users/${OWNER}/${field}`).set(value));
+    }
+  });
+
+  test('the enumeration matches the rules file exactly — no drift either way', async () => {
+    // The table above and the rules are two hand-maintained lists of the same thing. If they
+    // disagree, one of them is wrong and this says which.
+    const rules = JSON.parse(readFileSync(DB_RULES_PATH, 'utf8')).rules;
+    const granted = Object.entries(rules.users.$uid)
+      .filter(([k, v]) => !k.startsWith('.') && v && typeof v === 'object' && '.write' in v)
+      .map(([k]) => k).sort();
+    assert.deepEqual(granted, FIELDS.map(([f]) => f).sort());
+    assert.equal(granted.length, 32);
+  });
+
+  test('the founder can write the author fields on ANOTHER reader — the admin page', async () => {
+    // app/admin/authors/page.js:238 does update(users/{editingUid}, {authorBio, authorRole,
+    // authorSocials, authorPhotoUrl}) with a founder session. It is the ONLY admin surface
+    // that writes another reader's node; the rest only read.
+    await assertSucceeds(founder.ref(`users/${OWNER}`).update({
+      authorBio: 'set by admin', authorRole: 'Contributor',
+      authorSocials: { x: 'https://x.com/a' }, authorPhotoUrl: 'https://x/ap.png',
+    }));
+  });
+
+  test('but the founder no longer has a blanket write over a reader\'s profile', async () => {
+    // A NARROWING, recorded deliberately. Founders keep total control through the console and
+    // the service account, both of which bypass rules entirely — this only removes the
+    // browser-session blanket grant, which nothing in the repo used.
+    await assertFails(founder.ref(`users/${OWNER}/displayName`).set('renamed by admin'));
+    await assertFails(founder.ref(`users/${OWNER}/bio`).set('rewritten'));
+  });
+});
+
+describe('R10.1 · users/$uid — the real journeys, as the app actually issues them', () => {
+  // update() is evaluated PER CHILD PATH, not as a write to the node — verified on the
+  // emulator, and the reason multi-field profile saves survive leaf grants at all.
+
+  test('JOURNEY profile edit — app/profile/page.js:625', async () => {
+    await assertSucceeds(owner.ref(`users/${OWNER}`).update({
+      displayName: 'New Name', bio: 'new bio', username: 'newhandle',
+      avatarUrl: 'https://x/new.png', headerUrl: 'https://x/newh.png',
+    }));
+  });
+
+  test('JOURNEY avatar change alone, and a handle claim with its usernames/ index', async () => {
+    await assertSucceeds(owner.ref(`users/${OWNER}/avatarUrl`).set('https://x/avatar2.png'));
+    // app/profile/page.js:626 — the claim is two writes and both must pass, or a reader ends
+    // up with a handle on their profile that the index does not know about.
+    await assertSucceeds(owner.ref(`users/${OWNER}/username`).set('claimed'));
+    await assertSucceeds(owner.ref('usernames/claimed').set(OWNER));
+    // and the mirror at user_search — app/profile/page.js:630
+    await assertSucceeds(owner.ref(`user_search/${OWNER}`).update({
+      displayName: 'New Name', username: 'claimed', avatarUrl: 'https://x/new.png',
+    }));
+  });
+
+  test('JOURNEY leaderboard opt-out — a ROOT multi-path update, app/profile/page.js:1013', async () => {
+    await assertSucceeds(owner.ref('/').update({
+      [`users/${OWNER}/leaderboardVisible`]: false,
+      [`leaderboard/${OWNER}/leaderboardVisible`]: false,
+    }));
+    // and opting back in, which writes null to both
+    await assertSucceeds(owner.ref('/').update({
+      [`users/${OWNER}/leaderboardVisible`]: null,
+      [`leaderboard/${OWNER}/leaderboardVisible`]: null,
+    }));
+  });
+
+  test('JOURNEY register — three child sets, app/components/AuthModal.js:108-110', async () => {
+    await assertSucceeds(owner.ref(`users/${OWNER}/dob`).set('1990-01-01'));
+    await assertSucceeds(owner.ref(`users/${OWNER}/displayName`).set('A Reader'));
+    await assertSucceeds(owner.ref(`users/${OWNER}/joinDate`).set(1786000000000));
+  });
+
+  test('JOURNEY reading a story — readStories + a readCount transaction', async () => {
+    // app/stories/[slug]/page-client.js:1146-1150 and page-reader.js:511-515.
+    await assertSucceeds(owner.ref(`users/${OWNER}/readStories/a-slug`).set(true));
+    await assertSucceeds(owner.ref(`users/${OWNER}/readCount`).transaction((c) => (c || 0) + 1));
+    // and the reader's place in the book — ReadingRoom.js:885 via progress.path(uid)
+    await assertSucceeds(owner.ref(`users/${OWNER}/readerProgress/a-slug`).set({
+      cfi: 'epubcfi(/6/2)', fraction: 0.4, updatedAt: 1786000000000,
+    }));
+  });
+
+  test('JOURNEY badge engine — a ROOT multi-path across users and leaderboard', async () => {
+    // app/lib/badgeEngine.js:33-36. Runs on the reader's own session, not a server.
+    await assertSucceeds(owner.ref('/').update({
+      [`users/${OWNER}/readerScore`]: 42,
+      [`users/${OWNER}/scoreUpdatedAt`]: 1786000000000,
+      [`leaderboard/${OWNER}/readerScore`]: 42,
+    }));
+  });
+
+  test('JOURNEY account deletion — app/components/DeleteAccountModal.js:51-53', async () => {
+    await assertSucceeds(owner.ref('/').update({
+      [`users/${OWNER}/isDeleted`]: true,
+      [`users/${OWNER}/pendingDeletion/requestedAt`]: 1786000000000,
+      [`users/${OWNER}/pendingDeletion/scheduledFor`]: 1788000000000,
+    }));
+  });
+
+  test('the profile stays world-readable — every conversation surface depends on it', async () => {
+    await seed(env, { [`users/${OWNER}`]: { displayName: 'A Reader', avatarUrl: 'https://x/a.png' } });
+    await assertSucceeds(anon.ref(`users/${OWNER}`).get());
+    await assertSucceeds(stranger.ref(`users/${OWNER}/displayName`).get());
+  });
+});
+
+describe('R10.1 · users/$uid/membership — the scalar nobody may write', () => {
+  // THE APP'S DEPLOYED CONTRACT, on both fleets: membership is a STRING compared with strict
+  // equality (=== 'gold' || === 'platinum', else free). NOT an object, and there is no `.tier`
+  // anywhere in the app. An object here silently downgrades every paying member to free.
+  // The rich billing record is a SIBLING at top-level memberships/{uid}.
+
+  test('the owner cannot grant themselves a tier — the hole this round exists to close', async () => {
+    await assertFails(owner.ref(`users/${OWNER}/membership`).set('platinum'));
+    await assertFails(owner.ref(`users/${OWNER}/membership`).set('gold'));
+    await assertFails(owner.ref(`users/${OWNER}/membership`).set('free'));
+  });
+
+  test('nor can a stranger, an anonymous caller, or a founder', async () => {
+    await assertFails(stranger.ref(`users/${OWNER}/membership`).set('platinum'));
+    await assertFails(anon.ref(`users/${OWNER}/membership`).set('platinum'));
+    // Founders too: the webhook's service account bypasses rules, so nothing needs a
+    // rules-level grant here, and a founder session in a browser is not the writer.
+    await assertFails(founder.ref(`users/${OWNER}/membership`).set('platinum'));
+  });
+
+  test('it cannot be reached by climbing to the parent, either', async () => {
+    // The route the old shape allowed: write the node wholesale and carry membership in.
+    await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A', membership: 'platinum' }));
+    await assertFails(owner.ref(`users/${OWNER}`).update({ membership: 'platinum' }));
+    await assertFails(owner.ref('/').update({ [`users/${OWNER}/membership`]: 'platinum' }));
+  });
+
+  test('ATOMICITY: smuggling membership into a legitimate profile save fails the WHOLE update', async () => {
+    // The subtle one. update() is per-child, so a caller could hope the granted fields land
+    // and only the ungranted one is dropped. RTDB rejects the entire update instead — asserted
+    // because "partially applied" would be the worst possible outcome here.
+    await seed(env, { [`users/${OWNER}`]: { displayName: 'Original' } });
+    await assertFails(owner.ref(`users/${OWNER}`).update({
+      displayName: 'Changed', bio: 'changed', membership: 'platinum',
+    }));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const snap = await ctx.database().ref(`users/${OWNER}/displayName`).get();
+      assert.equal(snap.val(), 'Original', 'the granted half must NOT have landed');
+    });
+  });
+
+  test('an existing tier cannot be wiped or downgraded by the reader', async () => {
+    await seed(env, { [`users/${OWNER}`]: { displayName: 'A', membership: 'platinum' } });
+    await assertFails(owner.ref(`users/${OWNER}/membership`).remove());
+    await assertFails(owner.ref(`users/${OWNER}/membership`).set(null));
+    await assertFails(stranger.ref(`users/${OWNER}/membership`).remove());
+    // …and a reader cannot take someone else's away by wiping the whole profile
+    await assertFails(stranger.ref(`users/${OWNER}`).remove());
+    await assertFails(owner.ref(`users/${OWNER}`).remove());
+  });
+
+  test('the scalar stays readable — the app live-subscribes to it', async () => {
+    await seed(env, { [`users/${OWNER}`]: { membership: 'gold' } });
+    await assertSucceeds(owner.ref(`users/${OWNER}/membership`).get());
+    // World-readable, inherited from users/$uid. A tier name is not a secret; the billing
+    // record that IS one lives at memberships/{uid} below, precisely because a child cannot
+    // close an ancestor's read grant.
+    await assertSucceeds(anon.ref(`users/${OWNER}/membership`).get());
+  });
+
+  test('the .validate on membership is a TRIPWIRE, not the boundary — and is inert today', async () => {
+    // Stated plainly so nobody mistakes it for protection. There is no `.write` at or above
+    // membership, so no client write ever reaches validation; and the service account bypasses
+    // .validate as it bypasses everything. Its whole job is to fail loudly if a future round
+    // ever adds a grant above it — and to pin the SHAPE, which is a string and not an object.
+    await assertFails(owner.ref(`users/${OWNER}/membership`).set({ tier: 'platinum' }));
+    await assertFails(owner.ref(`users/${OWNER}/membership`).set('PLATINUM'));
+    await assertFails(owner.ref(`users/${OWNER}/membership`).set(3));
+  });
+
+  test('an UNLISTED field is now refused — the cost of the enumeration, asserted', async () => {
+    // The behaviour change a future round must know about: adding a profile field now needs a
+    // rules edit. That is the trade for membership being unreachable.
+    await assertFails(owner.ref(`users/${OWNER}/somethingNew`).set(1));
+    await assertFails(owner.ref(`users/${OWNER}/pass`).set({ kind: 'day' }));
+    await assertFails(owner.ref(`users/${OWNER}/membershipDetail`).set({ tier: 'gold' }));
+    // and the wholesale set, which no code path in the repo does
+    await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A' }));
+  });
+});
+
+describe('R10.1 · memberships/$uid — the billing record, off the world-readable node', () => {
+  const detail = () => ({
+    interval: 'monthly', currency: 'gbp', rail: 'stripe', status: 'active',
+    currentPeriodEnd: 1790000000000, founding: true,
+    stripeCustomerId: 'cus_SECRET', stripeSubscriptionId: 'sub_SECRET',
+  });
+
+  test('nobody may write it — not the owner, not a stranger, not a founder', async () => {
+    await assertFails(owner.ref(`memberships/${OWNER}`).set(detail()));
+    await assertFails(stranger.ref(`memberships/${OWNER}`).set(detail()));
+    await assertFails(founder.ref(`memberships/${OWNER}`).set(detail()));
+    await assertFails(anon.ref(`memberships/${OWNER}`).set(detail()));
+    await assertFails(owner.ref(`memberships/${OWNER}/status`).set('active'));
+    await assertFails(owner.ref('memberships').set({ [OWNER]: detail() }));
+  });
+
+  test('WIPE: it cannot be emptied either', async () => {
+    await seed(env, { [`memberships/${OWNER}`]: detail() });
+    await assertFails(owner.ref(`memberships/${OWNER}`).remove());
+    await assertFails(stranger.ref('memberships').remove());
+    await assertFails(anon.ref(`memberships/${OWNER}`).set(null));
+  });
+
+  test('the owner and the founder may READ it; nobody else can', async () => {
+    await seed(env, { [`memberships/${OWNER}`]: detail() });
+    await assertSucceeds(owner.ref(`memberships/${OWNER}`).get());
+    await assertSucceeds(founder.ref(`memberships/${OWNER}`).get());
+    // THE REASON THIS NODE EXISTS. Under users/{uid} — which is .read: true — these
+    // identifiers would be world-readable, and a child ".read": false cannot close an
+    // ancestor's grant. Measured, not assumed.
+    await assertFails(stranger.ref(`memberships/${OWNER}`).get());
+    await assertFails(anon.ref(`memberships/${OWNER}`).get());
+    await assertFails(stranger.ref(`memberships/${OWNER}/stripeCustomerId`).get());
+    await assertFails(anon.ref('memberships').get());
   });
 });

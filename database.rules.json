@@ -159,7 +159,110 @@
       ".read": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
       "$uid": {
         ".read": true,
-        ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+        "ageConfirmed": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "avatarUrl": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "bio": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "createdAt": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "displayName": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "dob": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "email": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "handle": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "handleLowercased": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "headerOffsetY": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "headerScale": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "headerUrl": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "isAuthor": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "isDeleted": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "joinDate": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "leaderboardVisible": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "pendingDeletion": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "photoURL": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "platformAvatar": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "platforms": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "profile": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "readCount": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "readStories": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "readerProgress": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "readerScore": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "scoreUpdatedAt": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "uid": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "username": {
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "authorBio": {
+          ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+        },
+        "authorPhotoUrl": {
+          ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+        },
+        "authorRole": {
+          ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+        },
+        "authorSocials": {
+          ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+        },
+        "membership": {
+          ".validate": "newData.isString() && (newData.val() === 'free' || newData.val() === 'gold' || newData.val() === 'platinum')"
+        }
+      }
+    },
+    "memberships": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
       }
     },
     "usernames": {
