@@ -61,9 +61,20 @@
 // ── NO GATES HERE ────────────────────────────────────────────────────────────────────────
 //
 // This provider REPORTS entitlement. It does not enforce it: no cap lookup, no shelf slot
-// arithmetic, no paywalling. capFor(kind, tier) is Round 7 and the ruling it must honour is
-// already written above CAPS in app/lib/shelf.js. Keeping the reporting round free of gates
-// means Round 7 changes what the caps ARE without touching how the tier is learned.
+// arithmetic, no paywalling. The bet was that keeping the reporting round free of gates would
+// let the next one change what the caps ARE without touching how the tier is learned.
+//
+// IT PAID. capFor(kind, tier) shipped in R11.6 and this file did not change: the caps became a
+// table in app/lib/shelf.js and the two surfaces that enforce them — SaveForOffline and
+// /my-library — took the tier from useMembership() below and passed it down. Nothing here
+// learned what a cap is, and that is the property to preserve. A gate added to this provider
+// would be read by every consumer including the ones that only want to print a tier name, and
+// the next round is the UI round, which will have more of those than any round so far.
+//
+// The one obligation this DOES place on a consumer: `loading` is true for a beat after a
+// signed-in mount and `tier` is 'free' during it. A surface that prints a number or refuses an
+// action must wait for it rather than act on the default — the shelf surfaces do, and the
+// reason (a Gold reader told their shelf is full) is written where they do it.
 
 // THE PURE HALF LIVES IN ./membership.js, not here. This file contains JSX, so bare Node
 // cannot parse it and `node --test` cannot import a single symbol from it — which would make
