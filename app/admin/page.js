@@ -57,14 +57,41 @@ function getScheduleStatus(publishAt) {
   return `Scheduled · publishes in ${mins}m`;
 }
 
+// Plain-text paragraphs → prose HTML. Lines that already look like block markup are
+// passed through untouched; everything else becomes a paragraph.
+//
+// ── The closing tag, and the extra bullet it drew ────────────────────────────
+// blockTags used to match OPENING tags only, so a `</ul>` sitting on its own line
+// was not recognised as markup and got wrapped like prose:
+//
+//     <ul> <li>One</li> <li>Two</li> <p style="…"></ul></p>
+//
+// The browser closes the paragraph at `</ul>` and drops the orphaned `</p>`, which
+// leaves an EMPTY <p> inside the list — and the app's renderer drew a bullet for
+// it. That is the artefact sitting in 13 of the corpus's 20 lists. `<\/?` now
+// matches the closing form too, so a list typed across several lines survives
+// intact. This is the source; stripping the stored copies without it just refills
+// the bucket.
+//
+// ── Why no inline style any more ─────────────────────────────────────────────
+// Indented paragraphs used to carry style="text-indent:1.5em; margin-bottom:0".
+// app/lib/proseCSS.js already declares exactly that:
+//
+//     .prose p { margin-bottom: 0; } .prose:not(.is-verse) p + p { text-indent: 1.5em; }
+//
+// so the inline copy was redundant — `p + p` indents every paragraph but the
+// first, which is precisely what the old `i === 0` branch hand-rolled. Worse, an
+// inline style outranks a class selector, so it DEFEATED the two rules written to
+// override it: `.prose:not(.is-verse)`, which deliberately leaves verse
+// unindented, and `.has-dropcap p.dropcap-target { text-indent: 0 }` — and the
+// drop-cap target is not always the first paragraph, because the front-matter walk
+// in app/lib/dropcap.js skips ahead. Emitting plain <p> hands both back to the
+// stylesheet. Plain <p> is also already the corpus norm (123 of 174 stories,
+// including the most recent), so this is the shape both renderers proved.
 function convertToHTML(text) {
-  const blockTags = /^<(figure|img|h[1-6]|ul|ol|li|blockquote|div|table|hr|p[\s>])/i;
+  const blockTags = /^<\/?(figure|img|h[1-6]|ul|ol|li|blockquote|div|table|hr|p[\s>])/i;
   const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
-  return paragraphs.map((p, i) => {
-    if (blockTags.test(p)) return p;
-    if (i === 0) return `<p>${p}</p>`;
-    return `<p style="text-indent:1.5em; margin-bottom:0">${p}</p>`;
-  }).join(' ');
+  return paragraphs.map((p) => (blockTags.test(p) ? p : `<p>${p}</p>`)).join(' ');
 }
 
 async function uploadToStorage(file) {
@@ -526,11 +553,11 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
           </div>
           <textarea ref={textareaRef} style={s.textarea} value={form.content}
             onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
-            placeholder={'<p>First paragraph — no indent.</p>\n<p style="text-indent:1.5em; margin-bottom:0">Indented paragraph.</p>'} />
+            placeholder={'Type paragraphs as plain text, one per line.\n\nOr paste HTML: <p>A paragraph.</p>'} />
           <div style={s.hint}>
             House style: British English · single quotes for dialogue · em dashes with spaces · no Oxford comma<br />
-            First paragraph flush, all subsequent: style="text-indent:1.5em; margin-bottom:0"<br />
-            Separator: &lt;p style="text-indent:1.5em; margin-bottom:0"&gt;***&lt;/p&gt;
+            Indentation is automatic — the stylesheet flushes the first paragraph and indents the rest. Do not type text-indent by hand.<br />
+            Separator: &lt;p&gt;***&lt;/p&gt;
           </div>
         </div>
 
