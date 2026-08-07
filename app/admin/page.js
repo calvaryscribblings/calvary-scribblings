@@ -684,7 +684,7 @@ export default function AdminPage() {
 
     setSaving(true); setMsg('');
     try {
-      const { ref, update } = await import('firebase/database');
+      const { ref, get, update } = await import('firebase/database');
       const slug = editingId || slugify(form.title);
       const categoryObj = CATEGORIES.find(c => c.value === form.category);
       const coverFilename = form.coverFilename.trim();
@@ -714,20 +714,60 @@ export default function AdminPage() {
         extractedText: form.extractedText || '',
         trailerQuote: form.trailerQuote?.trim() || '',
       };
-      // Carry the EPUB version signal through the full-node overwrite: fresh on a new
-      // upload, preserved from the loaded story otherwise, absent on stories never uploaded.
-      if (form.epubUpdatedAt) storyData.epubUpdatedAt = form.epubUpdatedAt;
-      // Written only when true, so the 153 stories that are not book-reader titles stay
-      // exactly as they are (no schema churn from a blanket false).
-      if (form.bookReader) storyData.bookReader = true;
-      if (form.publishAt) storyData.publishAt = new Date(form.publishAt).toISOString();
-      // Atomic dual-write: the full record and its slim index entry land in ONE
-      // multi-path update so the pair can never half-write. A path→object value
-      // replaces that node wholesale (nested nulls delete), exactly as set() did.
-      // A hidden next-state removes the index entry (see indexUpdatePaths).
+      // These three were previously written only when truthy, letting the wholesale
+      // overwrite delete them when absent. The write is now per-field (below), so
+      // "absent" has to be said out loud: an explicit null deletes the child and is
+      // indistinguishable from never having been written. bookReader stays true-or-
+      // nothing, so the stories that are not book-reader titles get no schema churn.
+      storyData.epubUpdatedAt = form.epubUpdatedAt || null;
+      storyData.bookReader = form.bookReader ? true : null;
+      storyData.publishAt = form.publishAt ? new Date(form.publishAt).toISOString() : null;
+
+      // ── Why this is a per-field write and not a node overwrite ──────────────
+      // It used to be `cms_stories/${slug}: storyData` — a path→object value, which
+      // replaces the node WHOLESALE. storyData is the editor's form, so every field
+      // living on the node that the form does not own was deleted on every save.
+      // That is how 16 approved quizzes lost their quizMeta and stopped being
+      // advertised (the story page still rendered the card — QuizCard reads
+      // cms_quizzes itself — so readers kept taking quizzes that no pill, no
+      // /quizzes row and no library badge pointed at). Live today: quizMeta on 134
+      // stories, plus pdfUrl, reads and ageRestricted.
+      //
+      // The fix is NOT read-merge-write. `record-attempt` increments
+      // cms_stories/<slug>/quizMeta/attemptCount with a server-side {'.sv': increment}.
+      // Reading that counter and writing it back across an await silently reverses
+      // any increment a reader landed in between — one admin and one reader is
+      // enough. Writing one path per owned field never reads the counter and never
+      // touches a field the form does not own, so the race cannot arise.
+      const ownedPaths = {};
+      for (const [k, v] of Object.entries(storyData)) ownedPaths[`cms_stories/${slug}/${k}`] = v;
+
+      // The read below is for the INDEX PROJECTION ONLY — never written back to
+      // cms_stories. buildIndexRecord derives the index's quiz badge from quizMeta,
+      // which the form does not carry; projecting from storyData alone is what
+      // dropped the badge in lockstep with the record and made the loss invisible to
+      // a drift check. attemptCount is deliberately excluded from the projection
+      // (see storyIndex.js), so a stale read here cannot move a counter.
+      const prevSnap = await get(ref(db, `cms_stories/${slug}`));
+      const prev = prevSnap.val() || {};
+      const projected = { ...prev, ...storyData };
+
+      // Say what survived. The value of a per-field write is the fields nobody has
+      // invented yet, and a silent preserve is how the next one hides — so the
+      // expected four are logged, and anything else is raised where an admin can
+      // see it rather than left to a drift check months later.
+      const PRESERVED_EXPECTED = ['quizMeta', 'pdfUrl', 'reads', 'ageRestricted'];
+      const preserved = Object.keys(prev).filter(k => !(k in storyData));
+      const unexpected = preserved.filter(k => !PRESERVED_EXPECTED.includes(k));
+      if (preserved.length) console.info(`[admin/save] ${slug}: preserved ${preserved.length} field(s) the editor does not own — ${preserved.join(', ')}`);
+      if (unexpected.length) console.warn(`[admin/save] ${slug}: UNEXPECTED preserved field(s) — ${unexpected.join(', ')}. Not written by this form and not in the known set; confirm they belong on cms_stories and add them to PRESERVED_EXPECTED.`);
+
+      // Atomic dual-write: the owned fields and the slim index entry land in ONE
+      // multi-path update so the pair can never half-write. A hidden next-state
+      // removes the index entry (see indexUpdatePaths).
       await update(ref(db), {
-        [`cms_stories/${slug}`]: storyData,
-        ...indexUpdatePaths(slug, storyData),
+        ...ownedPaths,
+        ...indexUpdatePaths(slug, projected),
       });
       // Notify followers of this author if publishing now (not scheduled)
       if (!form.publishAt || new Date(form.publishAt) <= new Date()) {
@@ -753,9 +793,12 @@ export default function AdminPage() {
         await fetch('https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/df2479ae-06a5-4ff3-a319-29b7b94dd106', { method: 'POST' });
       } catch(e) { console.warn('Deploy hook failed:', e); }
       const isScheduled = form.publishAt && new Date(form.publishAt) > new Date();
-      setMsg(isScheduled
+      // An unexpected preserved field is surfaced HERE, not just in the console —
+      // the console is where the last silent field loss hid for three months.
+      const preservedNote = unexpected.length ? `  ⚠ Preserved unrecognised field(s): ${unexpected.join(', ')} — confirm they belong on cms_stories.` : '';
+      setMsg((isScheduled
         ? `⏰ Story scheduled for ${new Date(form.publishAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}.`
-        : editingId ? '✓ Story updated.' : '✓ Story published.');
+        : editingId ? '✓ Story updated.' : '✓ Story published.') + preservedNote);
       setForm(emptyForm); setEditingId(null); setView('list');
       loadStories();
     } catch (e) { setMsg('Error saving: ' + e.message); }
