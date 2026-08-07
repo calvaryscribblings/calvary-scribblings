@@ -35,14 +35,42 @@ export const DB_NAME = 'cs-shelf';
 export const DB_VERSION = 1;
 export const SCHEMA_V = 1;
 
-// The cap is universal this round. Tiers change this constant into a lookup later and
-// nothing else in the codebase moves — every caller goes through capFor().
+// ── THE CAP IS A LOOKUP ON (kind, tier) ──────────────────────────────────────────────────
 //
-// ── SETTLED BEFORE IT IS BUILT: THE CAP GATES AT SAVE TIME, AND ONLY AT SAVE TIME ────────
+// R11.6. The prediction the previous version of this comment made held: every caller already
+// went through capFor(), so the constant became a table and nothing else moved but the two
+// call sites that now have a tier to pass.
 //
-// When capFor takes a tier — capFor(kind, tier), the R11 membership work — a reader on a day
-// pass will hold a larger cap for twenty-four hours and can fill it. The pass then expires
-// and their tier falls back, leaving them holding MORE SAVED STORIES THAN THEIR CAP ALLOWS.
+// STORY: Free 2 · Gold 20 · Platinum unlimited.
+//
+// UNLIMITED IS `Infinity`, NOT null AND NOT -1. The arithmetic then needs no special case
+// anywhere: `existing.length >= Infinity` is false for every possible shelf, so the save path
+// below is correct for Platinum without a branch. A sentinel would have needed one at every
+// comparison, and the one someone forgot would be the one that told a Platinum member their
+// shelf was full. The cost is paid in the UI instead, where it is visible: a renderer that
+// draws one pip per slot cannot draw Infinity of them, so surfaces call isUnlimitedCap()
+// and render a count rather than a denominator. That is a real constraint and it is why the
+// helper exists rather than each surface testing for it in its own way.
+//
+// ── BOOKS ARE 0 ON EVERY TIER, AND THAT IS NOT A MISSING FEATURE ─────────────────────────
+//
+// "Books uncapped" appears in the pricing notes and means something specific that is easy to
+// misread as an unbuilt shelf. THERE IS NO WEB BOOK SHELF TO CAP. A purchased book is
+// STREAMING-ONLY on the web by design: master EPUBs are stored `read: false`, and access is a
+// 300-second signed URL minted per session by functions/api/bookstore/stream.js. Nothing
+// durable lands in the browser, so there is nothing for a cap to bound and a non-zero number
+// here would describe storage that does not exist.
+//
+// The offline book cache lives in the APP, which has its own storage and its own limits, and
+// this table does not govern it. So 0 here is the accurate description of the web surface,
+// not a placeholder waiting for a feature — do not "finish" it by raising the number, because
+// raising it would let saveStory() admit a book the web has no way to store or re-open.
+//
+// ── SETTLED BEFORE IT WAS BUILT: THE CAP GATES AT SAVE TIME, AND ONLY AT SAVE TIME ───────
+//
+// Now that capFor takes a tier, a reader on a day pass holds the Gold cap for twenty-four
+// hours and can fill it. The pass then expires and their tier falls back, leaving them
+// holding MORE SAVED STORIES THAN THEIR CAP ALLOWS — eighteen over, in the worst case.
 //
 // THE RULING IS THAT THOSE SAVES PERSIST. Nothing evicts them, nothing prunes them down to
 // the new cap, and no background sweep reconciles a shelf against a tier. The over-cap
@@ -67,11 +95,38 @@ export const SCHEMA_V = 1;
 // The honest consequence to keep visible in the UI: an over-cap reader must be told they are
 // over, not shown a broken save button with no explanation. ShelfFullError already carries
 // the cap for exactly that copy.
-export const CAPS = { story: 2, book: 0 };
-export const SHELF_CAP = CAPS.story;
-export function capFor(kind = 'story') {
-  return CAPS[kind] ?? 0;
+export const CAPS = {
+  story: { free: 2, gold: 20, platinum: Infinity },
+  book: { free: 0, gold: 0, platinum: 0 },
+};
+
+/**
+ * How many of `kind` this tier may keep on this device.
+ *
+ * TOTAL, and it floors to the FREE row rather than to zero. An unknown tier — a typo, a value
+ * from a membership record written by something newer than this build — must not silently
+ * take away the two slots every signed-in reader has; and it must not hand out twenty either.
+ * Free is the honest floor, and it matches normaliseTier() in app/lib/membership.js, which
+ * turns anything it does not recognise into 'free' for exactly the same reason.
+ *
+ * An unknown KIND is 0, which is different on purpose: a tier we cannot read is a reader we
+ * can still serve conservatively, while a kind we cannot read is a bug in the caller and
+ * should store nothing at all.
+ */
+export function capFor(kind = 'story', tier = 'free') {
+  const row = CAPS[kind];
+  if (!row) return 0;
+  return row[tier] ?? row.free ?? 0;
 }
+
+/**
+ * Is this cap unbounded? The one thing a renderer must ask before drawing slots.
+ *
+ * Exported rather than left to each surface to test, because `cap > 12`, `Number.isFinite(cap)`
+ * and `cap === Infinity` are three different guesses at the same question and the pip
+ * renderers would have drifted between them. Array.from({ length: Infinity }) throws.
+ */
+export const isUnlimitedCap = (cap) => !Number.isFinite(cap);
 
 const STORE_SHELF = 'shelf';
 const STORE_ASSETS = 'assets';
@@ -259,18 +314,26 @@ async function fetchCoverBlob(story) {
   return { blob, bytes: blob.size, type: blob.type || 'image/webp' };
 }
 
-export async function saveStory({ uid, slug, story, readingTime = 0 }) {
+/**
+ * `tier` IS PASSED IN, NOT LOOKED UP. This module has no React and no Firebase — it cannot
+ * call useMembership() and must not open a second subscription of its own to learn something
+ * the calling surface already holds. It defaults to 'free' for the same reason capFor() floors
+ * there: a caller that forgets to pass one gets the conservative answer, not the generous one.
+ */
+export async function saveStory({ uid, slug, story, readingTime = 0, tier = 'free' }) {
   if (!uid) throw new Error('Sign in to save stories.');
   if (!slug || !story) throw new Error('Nothing to save.');
 
   const kind = 'story';
   // THE ONLY PLACE THE CAP IS ENFORCED — see the ruling above CAPS. This compares the current
-  // count against the current cap and has no opinion about how the count got there, which is
-  // precisely what lets an over-cap shelf (a lapsed day pass, once capFor takes a tier) sit
-  // undisturbed while still refusing anything new. Re-saving a slug already on the shelf is
-  // not a new save and is allowed through, so an over-cap reader can still refresh what they
-  // have.
-  const cap = capFor(kind);
+  // count against the CURRENT cap and has no opinion about how the count got there, which is
+  // precisely what lets an over-cap shelf — a day pass that has since lapsed — sit undisturbed
+  // while still refusing anything new. Re-saving a slug already on the shelf is not a new save
+  // and is allowed through, so an over-cap reader can still refresh what they have.
+  //
+  // Platinum's cap is Infinity, so the comparison is false for every possible shelf and the
+  // ShelfFullError below is unreachable for them without a branch saying so.
+  const cap = capFor(kind, tier);
   const existing = await listSaved(uid, kind);
   if (!existing.some((r) => r.slug === slug) && existing.length >= cap) throw new ShelfFullError(cap);
 

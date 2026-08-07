@@ -27,9 +27,10 @@ import AuthModal from '../components/AuthModal';
 import TabBar, { TabLinks } from '../components/TabBar';
 import CoverImage from '../components/CoverImage';
 import {
-  listSaved, removeSaved, getCoverURL, capFor, keptAgo,
+  listSaved, removeSaved, getCoverURL, capFor, isUnlimitedCap, keptAgo,
   isIOSSafariBrowser, getMeta, setMeta,
 } from '../lib/shelf';
+import { useMembership } from '../lib/MembershipContext';
 import { formatCatalogueNumber } from '../bookstore/components/fields';
 import { registerShelfWorker, sealShelf } from '../lib/shelfWorker';
 import { useOffline } from '../lib/useOffline';
@@ -241,9 +242,23 @@ function ShelfStoryCard({ record, onRemove, busy, index }) {
 // BUILT FOR 20 FROM THE START, because tiers are coming and a pip row that works at 2 and
 // falls apart at 20 would have to be redesigned exactly when it matters. Past twelve the pips
 // would be a smear, so it switches to a filled rail with the same reading — same component,
-// same vocabulary, one branch.
+// same vocabulary, one branch. R11.6 collected on that: Gold's 20 arrived and took the rail
+// branch that was already here.
+//
+// PLATINUM HAS NO DENOMINATOR. Its cap is Infinity, so there is nothing to draw a fraction
+// against and nothing to fill a rail to — `used / Infinity` is 0 and would render a full
+// shelf as an empty bar, which is worse than drawing no bar at all. It gets the count and the
+// word instead. (Array.from({ length: Infinity }) throws, which is the other reason this
+// branch comes first.)
 function SlotPips({ used, cap }) {
   const label = `${used} of ${cap} saved`;
+  if (isUnlimitedCap(cap)) {
+    return (
+      <div className="ml-slots" role="img" aria-label={`${used} saved, no limit`}>
+        <span className="ml-slots-n">{used}<span className="ml-slots-of"> saved · no limit</span></span>
+      </div>
+    );
+  }
   if (cap > 12) {
     const pctFull = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
     return (
@@ -276,7 +291,18 @@ export default function MyLibraryPage() {
   const [saved, setSaved] = useState(null); // null = not loaded, [] = nothing saved
   const [removing, setRemoving] = useState(false);
   const [showNudge, setShowNudge] = useState(false);
-  const cap = capFor('story');
+
+  // The cap is the reader's: Free 2 · Gold 20 · Platinum unlimited, live from the membership
+  // record and recomputed the moment a pass lapses. `tierLoading` is true for the one beat
+  // before the record arrives, and during it `tier` is the 'free' default — so every surface
+  // that would print a number treats that beat as "not loaded yet" rather than printing 2 at
+  // a Gold member. Same discipline as SaveForOffline's disabled button.
+  const { tier, loading: tierLoading } = useMembership();
+  const cap = capFor('story', tier);
+  const unlimited = isUnlimitedCap(cap);
+  // The shelf grid's placeholder count. It cannot be the cap: Platinum's is Infinity, and
+  // twenty skeletons for Gold would be a page of grey where two seconds ago there was none.
+  const skeletons = unlimited ? 6 : Math.min(cap, 6);
 
   const loadShelf = useCallback(async () => {
     if (!user) { setSaved(null); return; }
@@ -818,7 +844,7 @@ export default function MyLibraryPage() {
               >
                 <span className="ml-sw-g" aria-hidden="true">✦</span>
                 <span className="ml-sw-t">STORIES</span>
-                {saved === null ? (
+                {saved === null || tierLoading ? (
                   <span className="ml-sw-n">—</span>
                 ) : (
                   <span className="ml-sw-slots"><SlotPips used={saved.length} cap={cap} /></span>
@@ -847,7 +873,7 @@ export default function MyLibraryPage() {
 
                 {saved === null && (
                   <div className="ml-grid" aria-hidden="true">
-                    {Array.from({ length: cap }).map((_, i) => (
+                    {Array.from({ length: skeletons }).map((_, i) => (
                       <div key={i}>
                         <div className="ml-skel" style={{ width: '100%', aspectRatio: '2/3' }} />
                         <div className="ml-skel" style={{ height: 11, width: '80%', marginTop: 9 }} />
@@ -864,7 +890,20 @@ export default function MyLibraryPage() {
                     <div className="ml-section-head">
                       <span>KEPT ON THIS DEVICE</span>
                       <span aria-hidden="true">·</span>
-                      <span><b>{saved.length}</b> OF {cap} SLOTS FILLED</span>
+                      {/* Four readings of the same shelf, and the wrong one is a lie about
+                          what the reader owns. Unlimited has no denominator; an over-cap
+                          shelf (a lapsed pass — see the ruling above CAPS in app/lib/shelf.js)
+                          must say what the plan holds WITHOUT implying anything was taken;
+                          and while the tier is still in flight there is no number to print. */}
+                      {tierLoading ? (
+                        <span><b>{saved.length}</b> SAVED</span>
+                      ) : unlimited ? (
+                        <span><b>{saved.length}</b> SAVED · NO LIMIT</span>
+                      ) : saved.length > cap ? (
+                        <span><b>{saved.length}</b> SAVED · YOUR PLAN HOLDS {cap}</span>
+                      ) : (
+                        <span><b>{saved.length}</b> OF {cap} SLOTS FILLED</span>
+                      )}
                     </div>
 
                     {showNudge && (
@@ -898,9 +937,16 @@ export default function MyLibraryPage() {
                     </p>
                     {/* The honesty line, in the empty state as well as the full one: the
                         constraint should be known BEFORE the first save, not discovered after. */}
-                    <p className="ml-empty-p" style={{ marginTop: 10, fontSize: 13, opacity: .75 }}>
-                      Saved stories live on this device only, and your shelf holds {cap}.
-                    </p>
+                    {/* The honesty line waits for the tier rather than guessing at it: an
+                        empty shelf is not urgent, and "your shelf holds 2" shown to a Gold
+                        member for one beat is the kind of small lie that costs a subscription. */}
+                    {!tierLoading && (
+                      <p className="ml-empty-p" style={{ marginTop: 10, fontSize: 13, opacity: .75 }}>
+                        {unlimited
+                          ? 'Saved stories live on this device only. Your shelf has no limit.'
+                          : `Saved stories live on this device only, and your shelf holds ${cap}.`}
+                      </p>
+                    )}
                     <a className="ml-btn ml-glass" href="/public-library">BROWSE THE LIBRARY</a>
                   </div>
                 )}

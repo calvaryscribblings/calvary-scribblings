@@ -30,6 +30,7 @@ import {
 } from '../lib/shelf';
 import { sealShelf, registerShelfWorker } from '../lib/shelfWorker';
 import { useOffline } from '../lib/useOffline';
+import { useMembership } from '../lib/MembershipContext';
 
 const SERIF = "'Cormorant Garamond', Georgia, serif";
 
@@ -51,7 +52,19 @@ export default function SaveForOffline({ slug, story, user, readingTime = 0, onS
   const [error, setError] = useState('');
 
   const uid = user?.uid || null;
-  const cap = capFor('story');
+
+  // THE CAP IS THE READER'S, NOT THE BUILD'S. Free 2 · Gold 20 · Platinum unlimited, resolved
+  // from the live entitlement — a day pass raises it for the hours it is alive and this button
+  // follows it down again when it lapses, because the provider recomputes at expiry.
+  //
+  // `tierLoading` is true for exactly one beat after a signed-in mount, while the membership
+  // record is in flight, and during that beat `tier` is the 'free' default. A Gold reader
+  // holding two stories would be told their shelf was full — a lie, and the one lie this
+  // button must never tell. So the cap verdict waits: the button is inert until the tier is
+  // known, and both the pre-flight check and the save itself are gated on it below. A beat of
+  // unavailability is honest; a wrong "full" is not.
+  const { tier, loading: tierLoading } = useMembership();
+  const cap = capFor('story', tier);
 
   const refresh = useCallback(async () => {
     if (!uid) { setSaved(false); setShelf([]); return; }
@@ -84,7 +97,7 @@ export default function SaveForOffline({ slug, story, user, readingTime = 0, onS
     setError('');
     setBusy(true);
     try {
-      await saveStory({ uid, slug, story, readingTime });
+      await saveStory({ uid, slug, story, readingTime, tier });
       // Cache the shelf shell so /my-library and the reader work with no signal. Best
       // effort and deliberately not awaited into the button state — a slow seal must not
       // make a completed save look unfinished.
@@ -112,7 +125,11 @@ export default function SaveForOffline({ slug, story, user, readingTime = 0, onS
 
   // Offline and unsaved: honest rather than hopeful. The save fetches the cover, so there
   // is nothing useful this button can do without a connection.
-  const disabled = busy || (offline && !saved);
+  //
+  // `tierLoading` joins it for the reason above — but only for a SIGNED-IN reader, which is
+  // the only case where it is ever true (the signed-out shape carries loading: false). The
+  // signed-out button stays live so it can still open the sign-in sheet.
+  const disabled = busy || tierLoading || (offline && !saved);
 
   const label = busy ? '⤓ Saving…'
     : saved ? '✓ On your shelf'
@@ -179,9 +196,21 @@ export default function SaveForOffline({ slug, story, user, readingTime = 0, onS
             </>
           ) : (
             <>
-              <div style={{ fontSize: 14, color: '#f5f0e8', lineHeight: 1.4 }}>Your shelf is full</div>
+              {/* TWO WAYS TO BE UNABLE TO SAVE, AND THEY ARE NOT THE SAME SENTENCE.
+                  At the cap: remove one, save one. OVER the cap — the reader filled twenty
+                  slots on a day pass and the pass ended — "remove one to make room" would be
+                  a lie, because one is not enough and nothing here took the other stories
+                  away. The ruling above CAPS in app/lib/shelf.js is that those saves persist;
+                  this is where the reader is told so, in the place they discover it. */}
+              <div style={{ fontSize: 14, color: '#f5f0e8', lineHeight: 1.4 }}>
+                {shelf.length > cap ? 'More saved than your plan holds' : 'Your shelf is full'}
+              </div>
               <p style={{ margin: '4px 0 0', fontSize: 12.5, lineHeight: 1.5, color: 'rgba(245,240,232,0.55)' }}>
-                It holds {cap} {cap === 1 ? 'story' : 'stories'}. Remove one to make room.
+                {shelf.length > cap ? (
+                  <>Your plan holds {cap}, and you have {shelf.length} — kept from when your pass was live. Nothing has been removed. Remove {shelf.length - cap + 1} to save another.</>
+                ) : (
+                  <>It holds {cap} {cap === 1 ? 'story' : 'stories'}. Remove one to make room.</>
+                )}
               </p>
               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {shelf.map((r) => (
