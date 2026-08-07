@@ -37,6 +37,36 @@ export const SCHEMA_V = 1;
 
 // The cap is universal this round. Tiers change this constant into a lookup later and
 // nothing else in the codebase moves — every caller goes through capFor().
+//
+// ── SETTLED BEFORE IT IS BUILT: THE CAP GATES AT SAVE TIME, AND ONLY AT SAVE TIME ────────
+//
+// When capFor takes a tier — capFor(kind, tier), the R11 membership work — a reader on a day
+// pass will hold a larger cap for twenty-four hours and can fill it. The pass then expires
+// and their tier falls back, leaving them holding MORE SAVED STORIES THAN THEIR CAP ALLOWS.
+//
+// THE RULING IS THAT THOSE SAVES PERSIST. Nothing evicts them, nothing prunes them down to
+// the new cap, and no background sweep reconciles a shelf against a tier. The over-cap
+// reader simply cannot save anything NEW until they are back under the line — the check in
+// saveStory() already has exactly that shape, because it compares the current count against
+// the current cap and has no opinion about how the count got there.
+//
+// THE REASON, so nobody has to reconstruct it: we do not take away a reader's saved content.
+// They paid £1, they saved twenty stories, the pass ended — deleting nineteen of them would
+// be reaching into a device to remove things a reader chose to keep, for a debt of a pound
+// that has already been settled. The shelf is on THEIR hardware, in THEIR IndexedDB; the cap
+// exists to bound what we encourage them to store, not to police what is already there. And
+// the failure modes are not symmetric: a reader carrying a few extra saved stories costs us
+// nothing, while a reader who opens the app to find their library culled has been robbed by
+// a program.
+//
+// This is a DECISION, not an oversight, and it is written here because the code cannot show
+// it: an eviction sweep would be a new function, and its absence looks identical to nobody
+// having thought about it. If a future round adds one, it is reversing this — deliberately,
+// with a reason that beats the one above — and not tidying up a loose end.
+//
+// The honest consequence to keep visible in the UI: an over-cap reader must be told they are
+// over, not shown a broken save button with no explanation. ShelfFullError already carries
+// the cap for exactly that copy.
 export const CAPS = { story: 2, book: 0 };
 export const SHELF_CAP = CAPS.story;
 export function capFor(kind = 'story') {
@@ -234,6 +264,12 @@ export async function saveStory({ uid, slug, story, readingTime = 0 }) {
   if (!slug || !story) throw new Error('Nothing to save.');
 
   const kind = 'story';
+  // THE ONLY PLACE THE CAP IS ENFORCED — see the ruling above CAPS. This compares the current
+  // count against the current cap and has no opinion about how the count got there, which is
+  // precisely what lets an over-cap shelf (a lapsed day pass, once capFor takes a tier) sit
+  // undisturbed while still refusing anything new. Re-saving a slug already on the shelf is
+  // not a new save and is allowed through, so an over-cap reader can still refresh what they
+  // have.
   const cap = capFor(kind);
   const existing = await listSaved(uid, kind);
   if (!existing.some((r) => r.slug === slug) && existing.length >= cap) throw new ShelfFullError(cap);
