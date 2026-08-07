@@ -22,7 +22,7 @@
 // THE UNDERLINE IS NOT THE ONLY SIGNAL. Colour plus an underscore plus aria-pressed means the
 // active currency survives greyscale, colour-blindness and having the stylesheet fail.
 
-import { CURRENCIES, CURRENCY_LABELS, CURRENCY_NAMES } from '../../lib/bookstore/currency';
+import { CURRENCIES, CURRENCY_LABELS, CURRENCY_NAMES } from '../../lib/currency';
 
 export const CURRENCY_SELECTOR_CSS = `
   .cur-line{display:flex;align-items:baseline;justify-content:center;flex-wrap:wrap;

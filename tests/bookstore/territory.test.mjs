@@ -41,7 +41,7 @@ import { COUNTRY_NAMES, COUNTRY_CODES, isKnownCountry } from '../../app/lib/book
 // The precedence rule lives at the composition point in currency.js, so that is where it is
 // asserted from. currency.js imports react; it loads fine under bare Node (currency.test.mjs
 // has relied on that since R8.3).
-import { priceLine } from '../../app/lib/bookstore/currency.js';
+import { priceLine } from '../../app/lib/currency.js';
 
 // The four titles in the live catalogue at the time of writing, all worldwide. Used to pin the
 // one behaviour this whole round must not change: the shop as it stands today.

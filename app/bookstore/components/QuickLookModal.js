@@ -7,7 +7,7 @@
 // Escape / veil / × = put back: the modal recedes and the caller un-flips the book.
 import { useEffect, useRef, useState } from 'react';
 import { resolveOpeningLine, resolveBackBlurb, formatCatalogueNumber } from './fields';
-import { useCurrency, useRegionCountry, priceLine } from '../../lib/bookstore/currency';
+import { useCurrency, useRegionCountry, priceLine } from '../../lib/currency';
 import { UNAVAILABLE_LABEL } from '../../lib/bookstore/territory';
 
 const CARD_W = 440;

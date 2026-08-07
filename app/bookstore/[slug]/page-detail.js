@@ -8,7 +8,7 @@ import TabBar from '../../components/TabBar';
 import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
 import BuyButton from '../components/BuyButton';
 import { truncate, formatCatalogueNumber } from '../components/fields';
-import { useCurrency, useRegionCountry, priceLine, fallbackSentence } from '../../lib/bookstore/currency';
+import { useCurrency, useRegionCountry, priceLine, fallbackSentence } from '../../lib/currency';
 import { TERRITORY_SENTENCE } from '../../lib/bookstore/territory';
 
 // Both asides beneath the buy button — the currency one and the territory one — are the same

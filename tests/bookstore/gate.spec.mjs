@@ -8,7 +8,7 @@
 // cannot parse it, and importing it here was therefore impossible. Node's automatic
 // module-syntax detection has since made that import work: R9.1's tests/rules/database.test.mjs
 // imports isEmailShaped from this very file and is green on Node 22 in CI. R8.3's
-// tests/bookstore/currency.test.mjs imports app/lib/bookstore/currency.js the same way.
+// tests/bookstore/currency.test.mjs imports app/lib/currency.js the same way.
 //
 // The EXTRACTORS STAY ANYWAY, because the second half of the original argument is the half that
 // was really load-bearing: copying the passcode into this file is the one thing that must not

@@ -39,6 +39,58 @@
 
 export const TIERS = ['free', 'gold', 'platinum'];
 
+// ── THE PROVIDER'S PURE HALF ─────────────────────────────────────────────────────────────
+//
+// app/lib/MembershipContext.js holds the React provider and therefore contains JSX, which
+// bare Node cannot parse — so nothing in it can be imported by `node --test`. Everything in
+// that file worth asserting lives here instead, which is the same split this module already
+// exists to draw. The provider imports these; the test suite imports these; neither has a
+// copy of its own.
+
+/** The node the provider subscribes to. One string, so the provider cannot drift from it. */
+export const MEMBERSHIP_DETAIL_PATH = (uid) => `memberships/${uid}`;
+
+/**
+ * A signed-out reader, and the shape every consumer can rely on existing.
+ *
+ * `loading` is false on purpose: a signed-out reader is not a reader whose membership is still
+ * being fetched, they are a reader who has none. A consumer that renders a spinner while
+ * `loading` would otherwise spin forever on the signed-out path.
+ */
+export const SIGNED_OUT = {
+  tier: 'free',
+  subscriptionTier: 'free',
+  pass: null,
+  source: 'none',
+  status: null,
+  founding: false,
+  currentPeriodEnd: null,
+  loading: false,
+  signedIn: false,
+};
+
+// setTimeout stores its delay in a signed 32-bit int; anything larger overflows and fires
+// IMMEDIATELY, and an immediate re-arm is an infinite loop that pins a tab at 100% CPU.
+export const MAX_TIMEOUT_MS = 2147483647;
+
+/**
+ * How long the provider should wait before recomputing entitlement, given when the pass
+ * expires. The one piece of the provider with arithmetic worth getting wrong.
+ *
+ *   { delay, final }  — `final` means the timeout lands ON the expiry and the next wake is the
+ *                       real one; otherwise it is a slice and the caller re-arms.
+ *
+ * `{ delay: 0, final: true }` is the already-expired case: recompute immediately rather than
+ * scheduling into the past. A negative delay must never reach setTimeout, which coerces it to
+ * 0 and would spin.
+ */
+export function timerSliceFor(expiresAt, now) {
+  const remaining = expiresAt - now;
+  if (!Number.isFinite(remaining) || remaining <= 0) return { delay: 0, final: true };
+  if (remaining > MAX_TIMEOUT_MS) return { delay: MAX_TIMEOUT_MS, final: false };
+  return { delay: remaining, final: true };
+}
+
 // Ordering, so "the better of two tiers" is arithmetic rather than a chain of ifs.
 const RANK = { free: 0, gold: 1, platinum: 2 };
 

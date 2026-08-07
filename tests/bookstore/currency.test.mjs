@@ -24,7 +24,7 @@ import {
   CURRENCY_NAMES,
   CURRENCY_LABELS,
   DEFAULT_CURRENCY,
-} from '../../app/lib/bookstore/currency.js';
+} from '../../app/lib/currency.js';
 import { formatGbp } from '../../app/bookstore/components/fields.js';
 import { countryFrom } from '../../functions/api/bookstore/region.js';
 

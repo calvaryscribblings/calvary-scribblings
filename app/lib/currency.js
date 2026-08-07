@@ -36,16 +36,36 @@
 // provider through both roots — plus a second one anywhere a fourth surface appears later.
 // A module store has one instance per document by construction, which is exactly the scope the
 // preference has.
+//
+// ── R11.5: MOVED UP OUT OF app/lib/bookstore/ ────────────────────────────────────────────
+//
+// "Anywhere a fourth surface appears later" turned out to be membership. The pass and
+// subscription prices are quoted per currency exactly as a title's are (£1 / $1.49 / ₦300 for
+// a day pass; the week pass exists in naira and nowhere else), and the membership page has to
+// ask the same question the storefront asks — which currency is this reader browsing in? —
+// through the same store, or the two surfaces could disagree inside one document.
+//
+// So this is no longer a bookstore module. It never really was one: nothing in it knows what a
+// title is, and priceFor() takes prices rather than fetching them. It sat under bookstore/
+// because the storefront was the only thing that needed it. Membership is the second, and the
+// import path now says so rather than making a membership page reach into the shop's folder
+// for its own currency.
+//
+// The bookstore-specific half stayed behind: ./bookstore/territory.js is imported, not
+// absorbed, because territory governs a PUBLISHER'S LICENCE on a title and a membership has no
+// publisher (see the note in functions/api/bookstore/stream.js). Currency is universal;
+// territory is not, and merging them would have handed membership a rule that cannot apply
+// to it.
 
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 // EXPLICIT .js EXTENSION, unlike the extensionless imports elsewhere in app/. Webpack resolves
 // both; bare Node resolves only this one, and tests/bookstore/currency.test.mjs imports this
 // module directly under `node --test` to assert priceFor/formatPrice without a browser. Drop
 // the extension and those tests stop being able to load the file.
-import { formatPrice } from '../../bookstore/components/fields.js';
+import { formatPrice } from '../bookstore/components/fields.js';
 // R8.4. Same explicit-.js reasoning as the line above: tests/bookstore/territory.test.mjs
 // loads this module under bare Node to assert the precedence rule.
-import { isTitleSellableIn, TERRITORY_NOTE } from './territory.js';
+import { isTitleSellableIn, TERRITORY_NOTE } from './bookstore/territory.js';
 
 export const CURRENCIES = ['gbp', 'ngn', 'usd'];
 export const DEFAULT_CURRENCY = 'gbp';

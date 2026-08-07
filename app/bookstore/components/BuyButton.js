@@ -13,7 +13,7 @@ import { useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import AuthModal from '../../components/AuthModal';
 import { createCheckoutSession } from '../../lib/bookstore/checkout';
-import { useCurrency, useRegionCountry, priceLine } from '../../lib/bookstore/currency';
+import { useCurrency, useRegionCountry, priceLine } from '../../lib/currency';
 import { UNAVAILABLE_LABEL } from '../../lib/bookstore/territory';
 
 export default function BuyButton({ title, className, align = 'flex-start' }) {

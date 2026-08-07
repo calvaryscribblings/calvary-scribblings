@@ -11,7 +11,7 @@ import BuyButton from './components/BuyButton';
 import QuickLookModal from './components/QuickLookModal';
 import { useBookGesture } from './components/useBookGesture';
 import { resolveOpeningLine, formatCatalogueNumber } from './components/fields';
-import { useCurrency, useRegionCountry, priceLine } from '../lib/bookstore/currency';
+import { useCurrency, useRegionCountry, priceLine } from '../lib/currency';
 import CurrencySelector, { CURRENCY_SELECTOR_CSS } from './components/CurrencySelector';
 import LaunchGate from './components/LaunchGate';
 import { isStoreUnlocked } from '../lib/bookstore/gate';

@@ -9,7 +9,7 @@
 // entirely in CSS via prefers-reduced-motion (no resting angle, no transitions).
 import Image from 'next/image';
 import { resolveOpeningLine, resolveBackBlurb, gradientFor, obiLabel, formatCatalogueNumber } from './fields';
-import { useCurrency, useRegionCountry, priceLine } from '../../lib/bookstore/currency';
+import { useCurrency, useRegionCountry, priceLine } from '../../lib/currency';
 
 // Injected once per page (storefront, detail, modal). Keyed classes only — no dynamic values.
 export const BOUND_BOOK_CSS = `

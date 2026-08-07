@@ -5,6 +5,7 @@
 // hand-written one. See the note in app/layout.js.
 import { useEffect } from 'react';
 import { AuthProvider } from '../lib/AuthContext';
+import { MembershipProvider } from '../lib/MembershipContext';
 import CookieBanner from './CookieBanner';
 import VerifyEmailBanner from './VerifyEmailBanner';
 
@@ -45,11 +46,18 @@ export default function Providers({ children }) {
 
   return (
     <AuthProvider>
-      {children}
-      {/* Mounted globally like CookieBanner, and it excludes the reading surfaces itself —
-          see IMMERSIVE_ROUTES in the component. It needs AuthProvider, so it stays inside. */}
-      <VerifyEmailBanner />
-      <CookieBanner />
+      {/* INSIDE AuthProvider because it needs the uid, and a separate provider rather than a
+          widened AuthContext because AuthContext's 3s isDeleted bound is tuned to exactly one
+          read and /my-library's whole shelf is gated on it — see the header of
+          app/lib/MembershipContext.js. It subscribes only when signed in, holds its own
+          loading state, and nothing structural waits on it. */}
+      <MembershipProvider>
+        {children}
+        {/* Mounted globally like CookieBanner, and it excludes the reading surfaces itself —
+            see IMMERSIVE_ROUTES in the component. It needs AuthProvider, so it stays inside. */}
+        <VerifyEmailBanner />
+        <CookieBanner />
+      </MembershipProvider>
     </AuthProvider>
   );
 }
