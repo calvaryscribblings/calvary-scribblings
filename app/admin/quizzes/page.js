@@ -1,8 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { db } from '../../lib/firebase';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { db, DB_URL } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
-import { buildQuizSummary } from '../../lib/storyIndex';
+import { buildQuizSummary, INDEX_PATH } from '../../lib/storyIndex';
+import { toRow, tokenize, quizState, selectRows } from '../../lib/quizPicker';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
@@ -40,6 +41,35 @@ const s = {
   topBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' },
   comingSoon: { background: 'rgba(201,164,76,0.07)', border: '1px solid rgba(201,164,76,0.2)', borderRadius: 10, padding: '2.5rem', textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.88rem', marginTop: '1.5rem' },
   spinner: { display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.15)', borderTopColor: '#a78bfa', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginRight: '0.5rem', verticalAlign: 'middle' },
+  search: { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.7rem 2.2rem 0.7rem 0.9rem', color: '#fff', fontSize: '1rem', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' },
+  selectSm: { background: '#1a1a1a', border: '1px solid #2e2e2e', borderRadius: 6, padding: '0.4rem 0.6rem', color: '#fff', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', maxWidth: 230 },
+  listBox: { border: '1px solid #242424', borderRadius: 8, background: '#141414', maxHeight: 360, overflowY: 'auto' },
+  meta: { fontSize: '0.8rem', fontWeight: 500, color: 'rgba(255,255,255,0.35)', fontFamily: 'Cormorant Garamond, Georgia, serif' },
+  countLine: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.75rem', flexWrap: 'wrap' },
+  linkBtn: { background: 'none', border: 'none', color: '#a78bfa', fontSize: '0.8rem', fontFamily: 'Cormorant Garamond, Georgia, serif', cursor: 'pointer', padding: 0, textDecoration: 'underline' },
+  empty: { padding: '2.25rem 1rem', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem' },
+};
+
+function row(selected) {
+  return {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
+    width: '100%', textAlign: 'left', boxSizing: 'border-box',
+    padding: '0.6rem 0.85rem',
+    background: selected ? 'rgba(124,58,237,0.16)' : 'transparent',
+    borderBottom: '1px solid #202020',
+    borderLeft: selected ? '3px solid #7c3aed' : '3px solid transparent',
+    cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif', color: 'inherit',
+    borderTop: 'none', borderRight: 'none',
+  };
+}
+
+// Quiz badge, one per state. `live` and `none` are the two the daily workflow sorts
+// on; `unlisted` is the honest third — a quiz record exists but the story does not
+// advertise it, so no card or story page offers it to a reader.
+const BADGE = {
+  live: { text: '✓ Quiz live', style: { color: '#1d9e75', background: 'rgba(29,158,117,0.12)', border: '1px solid rgba(29,158,117,0.3)' }, title: 'A quiz exists and the story advertises it.' },
+  unlisted: { text: '⚠ Built · not shown', style: { color: '#c9a44c', background: 'rgba(201,164,76,0.1)', border: '1px solid rgba(201,164,76,0.3)' }, title: 'A quiz exists in cms_quizzes, but the story does not advertise it (quizMeta.hasQuiz is not true), so no reader is offered it. Approve & publish to fix.' },
+  none: { text: 'No quiz', style: { color: 'rgba(255,255,255,0.3)', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)' }, title: 'No quiz has been built for this story.' },
 };
 
 function filterBtn(active) {
@@ -95,9 +125,28 @@ export default function QuizzesPage() {
   const { user, loading: authLoading } = useAuth();
   const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
 
-  const [cmsStories, setCmsStories] = useState([]);
-  const [quizStatuses, setQuizStatuses] = useState({});
+  // The picker's rows. `indexRows` come from cms_stories_index (published stories
+  // only — isIndexed() excludes hidden ones); `hiddenRows` are the unpublished
+  // remainder, loaded from cms_stories only when the admin asks for them.
+  const [indexRows, setIndexRows] = useState([]);
+  const [hiddenSlugs, setHiddenSlugs] = useState([]);
+  const [hiddenRows, setHiddenRows] = useState([]);
+  const [loadingHidden, setLoadingHidden] = useState(false);
+  // Slugs that HAVE a quiz record (cms_quizzes keys, read shallow) and slugs whose
+  // story ADVERTISES one (the index's quiz badge / quizMeta.hasQuiz). They are not
+  // the same set — see the drift note where quizStateOf is defined.
+  const [quizSlugs, setQuizSlugs] = useState(() => new Set());
+  const [advertisedSlugs, setAdvertisedSlugs] = useState(() => new Set());
+  const [quizKeysOk, setQuizKeysOk] = useState(false);
   const [modeFilter, setModeFilter] = useState('all');
+  const [quizFilter, setQuizFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [catFilter, setCatFilter] = useState('all');
+  const [authorFilter, setAuthorFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
+  const [genMode, setGenMode] = useState('story');
+  const [extractMissing, setExtractMissing] = useState(null);
+  const searchRef = useRef(null);
   const [selectedSlug, setSelectedSlug] = useState('');
   const [quiz, setQuiz] = useState(null);
   const [warnings, setWarnings] = useState([]);
@@ -129,27 +178,31 @@ export default function QuizzesPage() {
     try { localStorage.setItem(LS_KEY, JSON.stringify({ slug: selectedSlug, quiz })); } catch {}
   }, [quiz, selectedSlug]);
 
+  // ── Data sources ────────────────────────────────────────────────────────────
+  // The picker used to pull cms_stories (1.47 MB) and cms_quizzes (906 KB) whole,
+  // for a list that shows a title and a badge. It now reads:
+  //   cms_stories_index   ~176 KB  — the slim projection; carries every field a row
+  //                                  renders (title, author, categoryName, date,
+  //                                  readerMode/bookReader) plus the quiz badge.
+  //   cms_quizzes?shallow  ~4 KB   — KEYS ONLY. Which slugs have a quiz at all.
+  //   cms_stories?shallow  ~6 KB   — KEYS ONLY. Its difference from the index keys
+  //                                  is exactly the unpublished set, so the picker
+  //                                  can say how many stories it is not showing
+  //                                  without paying for their records.
+  // Neither shallow read exists in the JS SDK, so both go over RTDB's REST surface.
+  // cms_quizzes is world-readable (database.rules.json), so no token is needed.
   async function loadData() {
     setLoadingData(true);
+    let indexSlugs = new Set();
     try {
       const { ref, get } = await import('firebase/database');
-      const storiesSnap = await get(ref(db, 'cms_stories'));
-      if (storiesSnap.exists()) {
-        const data = storiesSnap.val();
-        setCmsStories(
-          Object.entries(data)
-            .map(([slug, st]) => ({
-              slug,
-              title: st.title || slug,
-              author: st.author || '',
-              hasEpub: !!st.epubUrl,
-              hasExtractedText: !!(st.extractedText && st.extractedText.length >= 500),
-              // Whether this story has a cms_stories_index entry to keep in sync
-              // (the index only carries published rows — see R1 guard below).
-              indexed: st.published !== false,
-            }))
-            .sort((a, b) => a.title.localeCompare(b.title))
-        );
+      const snap = await get(ref(db, INDEX_PATH));
+      if (snap.exists()) {
+        const data = snap.val();
+        const rows = Object.entries(data).map(([slug, r]) => toRow(slug, r, true));
+        indexSlugs = new Set(rows.map(r => r.slug));
+        setIndexRows(rows);
+        setAdvertisedSlugs(new Set(rows.filter(r => r.advertised).map(r => r.slug)));
       }
     } catch (e) {
       setError('Failed to load stories: ' + e.message);
@@ -157,23 +210,55 @@ export default function QuizzesPage() {
       return;
     }
 
-    // Load quiz statuses separately — cms_quizzes may not have rules yet
+    // Which slugs have a quiz record. Non-fatal: on failure the picker falls back
+    // to the story's own badge (see quizStateOf).
     try {
-      const { ref, get } = await import('firebase/database');
-      const quizzesSnap = await get(ref(db, 'cms_quizzes'));
-      if (quizzesSnap.exists()) {
-        const data = quizzesSnap.val();
-        const statuses = {};
-        for (const [slug, q] of Object.entries(data)) {
-          statuses[slug] = q.approvedAt ? 'live' : 'draft';
-        }
-        setQuizStatuses(statuses);
+      const res = await fetch(`${DB_URL}/cms_quizzes.json?shallow=true`);
+      if (res.ok) {
+        const keys = (await res.json()) || {};
+        setQuizSlugs(new Set(Object.keys(keys)));
+        setQuizKeysOk(true);
       }
     } catch {
-      // non-fatal: quiz statuses will show as unlabelled until rules allow the read
+      // leave quizKeysOk false — the badge is then derived from the story alone
+    }
+
+    // The unpublished remainder: story keys the index does not carry.
+    try {
+      const res = await fetch(`${DB_URL}/cms_stories.json?shallow=true`);
+      if (res.ok) {
+        const keys = (await res.json()) || {};
+        setHiddenSlugs(Object.keys(keys).filter(slug => !indexSlugs.has(slug)));
+      }
+    } catch {
+      // non-fatal: the picker simply will not offer the unpublished stories
     }
 
     setLoadingData(false);
+  }
+
+  // Pull the unpublished stories on demand. They are absent from the index by
+  // design, so there is no slim source for them — this reads their full records,
+  // which is why it is a click and not part of the initial load.
+  async function loadUnpublished() {
+    if (loadingHidden || !hiddenSlugs.length) return;
+    setLoadingHidden(true);
+    try {
+      const { ref, get } = await import('firebase/database');
+      const snaps = await Promise.all(hiddenSlugs.map(slug => get(ref(db, `cms_stories/${slug}`))));
+      const rows = snaps
+        .map((snap, i) => (snap.exists() ? toRow(hiddenSlugs[i], snap.val(), false) : null))
+        .filter(Boolean);
+      setHiddenRows(rows);
+      setAdvertisedSlugs(prev => {
+        const next = new Set(prev);
+        rows.forEach(r => { if (r.advertised) next.add(r.slug); });
+        return next;
+      });
+    } catch (e) {
+      setError('Failed to load unpublished stories: ' + e.message);
+    }
+    setLoadingHidden(false);
   }
 
   async function loadExistingQuiz(slug) {
@@ -204,7 +289,13 @@ export default function QuizzesPage() {
 
   async function handleGenerate() {
     if (!selectedSlug || !user) return;
-    const generateMode = modeFilter === 'reader' ? 'reader' : 'story';
+    // The mode sent to the Function is the one shown next to this button. It used
+    // to be read off the story-page/book-reader FILTER, which was safe only while
+    // the filter was the sole way to reach a story: pick a reader story with the
+    // filter on "All" and it silently generated a 10-question story quiz. Now the
+    // filter only filters, and the mode is its own control — defaulted from the
+    // selected story and overridable. The request body is unchanged.
+    const generateMode = genMode === 'reader' ? 'reader' : 'story';
     setGenerating(true); setError(''); setMsg(''); setWarnings([]);
     try {
       // The Function derives the admin uid from this token and checks it against
@@ -250,13 +341,16 @@ export default function QuizzesPage() {
       // state, and drop the index's quiz badge in the SAME atomic update (R1). The
       // index entry only exists for published stories, so guard on `indexed` — a
       // hidden story has no entry to patch (unhide rebuilds it from quizMeta).
-      const indexed = cmsStories.find(st => st.slug === selectedSlug)?.indexed;
+      const indexed = allRows.find(st => st.slug === selectedSlug)?.indexed;
       await update(ref(db), {
         [`cms_stories/${selectedSlug}/quizMeta/hasQuiz`]: false,
         ...(indexed ? { [`cms_stories_index/${selectedSlug}/quiz`]: null } : {}),
       });
       try { localStorage.removeItem(LS_KEY); } catch {}
-      setQuizStatuses(prev => ({ ...prev, [selectedSlug]: 'draft' }));
+      // A quiz record now exists but the story no longer advertises it — the
+      // picker's "Built · not shown" state, mirroring exactly what was written.
+      setQuizSlugs(prev => new Set(prev).add(selectedSlug));
+      setAdvertisedSlugs(prev => { const next = new Set(prev); next.delete(selectedSlug); return next; });
       showMsg('Draft saved.', 'green');
     } catch (e) { setError('Save failed: ' + e.message); }
     setSaving(false);
@@ -277,7 +371,7 @@ export default function QuizzesPage() {
       // slim quiz badge (R1). buildQuizSummary keeps the index sub-object in lockstep
       // with the stories-admin projection. Guard on `indexed`: only published stories
       // have an index entry to patch (a hidden story's is rebuilt on unhide).
-      const indexed = cmsStories.find(st => st.slug === selectedSlug)?.indexed;
+      const indexed = allRows.find(st => st.slug === selectedSlug)?.indexed;
       await update(ref(db), {
         [`cms_quizzes/${selectedSlug}`]: { ...quiz, approvedAt, approvedBy: user.uid },
         [`cms_stories/${selectedSlug}/quizMeta`]: {
@@ -291,7 +385,8 @@ export default function QuizzesPage() {
         ...(indexed ? { [`cms_stories_index/${selectedSlug}/quiz`]: buildQuizSummary({ hasQuiz: true, scribblesReward: quiz.maxPoints ?? 50 }) } : {}),
       });
       try { localStorage.removeItem(LS_KEY); } catch {}
-      setQuizStatuses(prev => ({ ...prev, [selectedSlug]: 'live' }));
+      setQuizSlugs(prev => new Set(prev).add(selectedSlug));
+      setAdvertisedSlugs(prev => new Set(prev).add(selectedSlug));
       showMsg('Quiz approved and published.', 'green');
     } catch (e) { setError('Approve failed: ' + e.message); }
     setSaving(false);
@@ -327,21 +422,71 @@ export default function QuizzesPage() {
     });
   }
 
-  const filteredStories = modeFilter === 'story'
-    ? cmsStories.filter(s => !s.hasEpub)
-    : modeFilter === 'reader'
-      ? cmsStories.filter(s => s.hasEpub && s.hasExtractedText)
-      : cmsStories;
-  const readerStoriesNeedingExtraction = modeFilter === 'reader'
-    ? cmsStories.filter(s => s.hasEpub && !s.hasExtractedText)
-    : [];
+  const allRows = useMemo(() => [...indexRows, ...hiddenRows], [indexRows, hiddenRows]);
+  const rowsRef = useRef(allRows);
+  rowsRef.current = allRows;
 
-  function statusLabel(slug) {
-    const status = quizStatuses[slug];
-    if (status === 'live') return ' ✓';
-    if (status === 'draft') return ' ⚠';
-    return '';
+  // Quiz state and the whole filtered list come from app/lib/quizPicker.js, so
+  // scripts/verify-quiz-picker.mjs exercises exactly this logic against the live
+  // index. See that module for why "built" and "advertised" are separate answers.
+  const quizStateOf = useMemo(
+    () => slug => quizState(slug, { quizSlugs, advertisedSlugs, quizKeysOk }),
+    [quizSlugs, advertisedSlugs, quizKeysOk]
+  );
+
+  const tokens = useMemo(() => tokenize(search), [search]);
+
+  const { visible, quizCounts, catOptions, authorOptions } = useMemo(
+    () => selectRows(allRows, { tokens, mode: modeFilter, cat: catFilter, author: authorFilter, quiz: quizFilter, sort: sortBy }, quizStateOf),
+    [allRows, tokens, modeFilter, catFilter, authorFilter, quizFilter, sortBy, quizStateOf]
+  );
+
+  const selectedRow = allRows.find(r => r.slug === selectedSlug) || null;
+  const filtersActive = !!search || modeFilter !== 'all' || quizFilter !== 'all' || catFilter !== 'all' || authorFilter !== 'all';
+
+  function clearFilters() {
+    setSearch(''); setModeFilter('all'); setQuizFilter('all'); setCatFilter('all'); setAuthorFilter('all');
+    if (searchRef.current) searchRef.current.focus();
   }
+
+  // The generation mode follows the story you picked; an explicit change survives
+  // until the next selection.
+  useEffect(() => {
+    const r = rowsRef.current.find(x => x.slug === selectedSlug);
+    setGenMode(r && r.reader ? 'reader' : 'story');
+  }, [selectedSlug]);
+
+  // Reader-mode quizzes are built from extractedText, which the index deliberately
+  // excludes. Rather than reload cms_stories for it, probe the reader slugs' KEYS
+  // (~300 B each, and only the reader stories) the first time reader mode is in
+  // play, so the "run extraction" warning survives the switch to the slim source.
+  const probedRef = useRef(false);
+  useEffect(() => {
+    if (probedRef.current || loadingData) return;
+    const sel = rowsRef.current.find(x => x.slug === selectedSlug);
+    if (modeFilter !== 'reader' && !(sel && sel.reader)) return;
+    const readers = rowsRef.current.filter(r => r.reader);
+    if (!readers.length) return;
+    probedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(readers.map(async r => {
+        try {
+          const res = await fetch(`${DB_URL}/cms_stories/${r.slug}.json?shallow=true`);
+          if (!res.ok) return null;
+          const keys = await res.json();
+          return keys && keys.extractedText ? null : r.slug;
+        } catch { return null; }
+      }));
+      if (!cancelled) setExtractMissing(results.filter(Boolean));
+    })();
+    return () => { cancelled = true; };
+  }, [modeFilter, selectedSlug, loadingData]);
+
+  // Focus the search on mount — this page is opened to look something up.
+  useEffect(() => {
+    if (!loadingData && searchRef.current) searchRef.current.focus();
+  }, [loadingData]);
 
   const busy = generating || saving;
 
@@ -378,67 +523,181 @@ export default function QuizzesPage() {
           </div>
         </div>
 
-        {/* Story selector */}
+        {/* Story picker */}
         <div style={s.card}>
+          <div style={{ marginBottom: '0.85rem', position: 'relative' }}>
+            <label style={s.label}>Search</label>
+            <input
+              ref={searchRef}
+              style={s.search}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Escape') { e.preventDefault(); setSearch(''); }
+                if (e.key === 'Enter' && visible.length === 1 && !busy) { e.preventDefault(); setSelectedSlug(visible[0].slug); }
+              }}
+              placeholder="Title or author — Esc clears"
+              spellCheck={false}
+              autoComplete="off"
+            />
+            {search && (
+              <button
+                onClick={() => { setSearch(''); if (searchRef.current) searchRef.current.focus(); }}
+                title="Clear search (Esc)"
+                style={{ position: 'absolute', right: 10, bottom: 10, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '1.05rem', cursor: 'pointer', lineHeight: 1, padding: 0 }}
+              >×</button>
+            )}
+          </div>
+
           <div style={{ marginBottom: '0.85rem' }}>
-            <label style={s.label}>Filter</label>
-            <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <label style={s.label}>Quiz state</label>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              {[
+                ['all', 'All', quizCounts.all],
+                ['none', 'No quiz yet', quizCounts.none],
+                ['has', 'Has quiz', quizCounts.has],
+              ].map(([f, labelText, n]) => (
+                <button key={f} style={filterBtn(quizFilter === f)} onClick={() => setQuizFilter(f)}>
+                  {labelText} ({n})
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '0.85rem' }}>
+            <label style={s.label}>Story type</label>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
               {['all', 'story', 'reader'].map(f => (
-                <button key={f} style={filterBtn(modeFilter === f)} onClick={() => { setModeFilter(f); setSelectedSlug(''); setQuiz(null); setMsg(''); setError(''); setWarnings([]); }}>
+                <button key={f} style={filterBtn(modeFilter === f)} onClick={() => setModeFilter(f)}>
                   {f === 'all' ? 'All' : f === 'story' ? 'Story page' : 'Book reader'}
                 </button>
               ))}
             </div>
           </div>
 
-          <div style={s.fg}>
-            <label style={s.label}>Story</label>
-            {loadingData ? (
-              <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Loading stories…</div>
-            ) : (
-              <select
-                style={s.select}
-                value={selectedSlug}
-                onChange={e => setSelectedSlug(e.target.value)}
-                disabled={busy}
-              >
-                <option value="">Select a story…</option>
-                {filteredStories.map(st => (
-                  <option key={st.slug} value={st.slug}>
-                    {st.title}{statusLabel(st.slug)}
-                    {statusLabel(st.slug) === ' ✓' ? ' — Quiz live' : statusLabel(st.slug) === ' ⚠' ? ' — Draft saved' : ''}
-                  </option>
-                ))}
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
+            <div>
+              <label style={s.labelDim}>Category</label>
+              <select style={s.selectSm} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+                <option value="all">All categories</option>
+                {catOptions.map(([name, n]) => <option key={name} value={name}>{name} ({n})</option>)}
               </select>
-            )}
-            {selectedSlug && quizStatuses[selectedSlug] && (
-              <div style={s.hint}>
-                {quizStatuses[selectedSlug] === 'live' ? '✓ This story has a published quiz.' : '⚠ Unpublished draft exists.'}
-              </div>
-            )}
-            {modeFilter === 'reader' && !loadingData && (
-              <div style={{ ...s.hint, marginTop: '0.4rem' }}>
-                Reader-mode quizzes are 15 MCQs + 3 essays, sourced from extracted EPUB text. Worth up to 100 Scribbles.
-              </div>
-            )}
-            {modeFilter === 'reader' && readerStoriesNeedingExtraction.length > 0 && (
-              <div style={{ ...s.warn, marginTop: '0.6rem', marginBottom: 0, fontSize: '0.78rem' }}>
-                {readerStoriesNeedingExtraction.length} reader stor{readerStoriesNeedingExtraction.length === 1 ? 'y has' : 'ies have'} an EPUB but no extracted text yet.
-                {' '}<a href="/admin/extract-text" style={{ color: '#fcd34d', textDecoration: 'underline' }}>Run extraction →</a>
-              </div>
-            )}
+            </div>
+            <div>
+              <label style={s.labelDim}>Author</label>
+              <select style={s.selectSm} value={authorFilter} onChange={e => setAuthorFilter(e.target.value)}>
+                <option value="all">All authors</option>
+                {authorOptions.map(([name, n]) => <option key={name} value={name}>{name} ({n})</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={s.labelDim}>Sort</label>
+              <select style={s.selectSm} value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="title">Title A–Z</option>
+              </select>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button
-              style={{ ...s.btn, opacity: (!selectedSlug || busy) ? 0.5 : 1 }}
-              disabled={!selectedSlug || busy}
-              onClick={handleGenerate}
-            >
-              {generating ? (
-                <><span style={s.spinner} />Generating quiz… (~30s)</>
-              ) : quiz ? 'Regenerate' : 'Generate Quiz'}
-            </button>
+          <div style={s.countLine}>
+            <span style={s.meta}>
+              {loadingData ? 'Loading stories…' : `${visible.length} of ${allRows.length} stor${allRows.length === 1 ? 'y' : 'ies'}`}
+            </span>
+            {filtersActive && !loadingData && <button style={s.linkBtn} onClick={clearFilters}>Clear filters</button>}
+          </div>
+
+          {!loadingData && (
+            <div style={s.listBox}>
+              {visible.length === 0 ? (
+                <div style={s.empty}>
+                  <div style={{ marginBottom: '0.6rem' }}>No stories match{search ? <> “{search}”</> : null}.</div>
+                  <button style={s.btnGhost} onClick={clearFilters}>Clear filters</button>
+                </div>
+              ) : visible.map(st => {
+                const badge = BADGE[quizStateOf(st.slug)];
+                return (
+                  <button
+                    key={st.slug}
+                    onClick={() => setSelectedSlug(st.slug)}
+                    disabled={busy}
+                    style={{ ...row(st.slug === selectedSlug), opacity: busy ? 0.55 : 1 }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: '0.95rem', fontWeight: 600, color: st.slug === selectedSlug ? '#c4b5fd' : '#e8e8e8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {st.title}
+                      </span>
+                      <span style={{ ...s.meta, display: 'block', marginTop: 2 }}>
+                        {st.author || 'Unknown'} · {st.date || 'undated'}{st.categoryName ? ` · ${st.categoryName}` : ''}
+                        {st.reader ? ' · Book reader' : ''}
+                        {!st.indexed ? ' · Unpublished' : ''}
+                      </span>
+                    </span>
+                    <span title={badge.title} style={{ ...badge.style, flexShrink: 0, borderRadius: 4, padding: '0.15rem 0.5rem', fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
+                      {badge.text}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {!loadingData && hiddenSlugs.length > 0 && hiddenRows.length === 0 && (
+            <div style={{ ...s.hint, marginTop: '0.6rem' }}>
+              {hiddenSlugs.length} unpublished stor{hiddenSlugs.length === 1 ? 'y is' : 'ies are'} not listed — they have no entry in the slim index.{' '}
+              <button style={s.linkBtn} onClick={loadUnpublished} disabled={loadingHidden}>
+                {loadingHidden ? 'Loading…' : 'Load them'}
+              </button>
+            </div>
+          )}
+
+          {modeFilter === 'reader' && !loadingData && (
+            <div style={{ ...s.hint, marginTop: '0.6rem' }}>
+              Reader-mode quizzes are 15 MCQs + 3 essays, sourced from extracted EPUB text. Worth up to 100 Scribbles.
+            </div>
+          )}
+          {extractMissing && extractMissing.length > 0 && (
+            <div style={{ ...s.warn, marginTop: '0.6rem', marginBottom: 0, fontSize: '0.78rem' }}>
+              {extractMissing.length} reader stor{extractMissing.length === 1 ? 'y has' : 'ies have'} an EPUB but no extracted text yet.
+              {' '}<a href="/admin/extract-text" style={{ color: '#fcd34d', textDecoration: 'underline' }}>Run extraction →</a>
+            </div>
+          )}
+
+          {/* Selection + generate */}
+          <div style={{ borderTop: '1px solid #242424', marginTop: '1rem', paddingTop: '1rem' }}>
+            {selectedSlug ? (
+              <>
+                <div style={{ ...s.countLine, marginBottom: '0.7rem' }}>
+                  <span style={{ fontSize: '0.95rem', color: '#fff', fontWeight: 600 }}>
+                    {selectedRow ? selectedRow.title : selectedSlug}
+                  </span>
+                  <button style={s.linkBtn} onClick={() => { setSelectedSlug(''); setQuiz(null); setMsg(''); setError(''); setWarnings([]); }} disabled={busy}>
+                    Clear selection
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    style={{ ...s.btn, opacity: busy ? 0.5 : 1 }}
+                    disabled={busy}
+                    onClick={handleGenerate}
+                  >
+                    {generating ? (
+                      <><span style={s.spinner} />Generating quiz… (~30s)</>
+                    ) : quiz ? 'Regenerate' : 'Generate Quiz'}
+                  </button>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <span style={s.meta}>as</span>
+                    {[['story', 'Story page · 10+2'], ['reader', 'Book reader · 15+3']].map(([m, labelText]) => (
+                      <button key={m} style={filterBtn(genMode === m)} onClick={() => setGenMode(m)} disabled={busy}>
+                        {labelText}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={s.meta}>Select a story above to generate or edit its quiz.</div>
+            )}
           </div>
         </div>
 
