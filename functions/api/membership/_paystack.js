@@ -62,7 +62,10 @@
 // is the whole difference between this and the email fallback refused above.
 
 import { dbBase, FIREBASE_TIMEOUT_MS, PROVIDER_TIMEOUT_MS } from '../bookstore/_lib.js';
-import { applyMembershipChange, readDetail, buildDetail } from './_membership.js';
+import { applyMembershipChange, applyPassPurchase, readDetail, buildDetail } from './_membership.js';
+import {
+  buildPass, parsePassReference, isPassReference, PAYSTACK_PASS_CURRENCY,
+} from '../../../app/lib/membershipPasses.js';
 import {
   describePlan, modeOf, domainOf, parseMembershipReference, isMembershipReference,
 } from './paystack-plans.js';
@@ -121,6 +124,11 @@ export const invoiceRefFromEvent = (d) =>
 export function isMembershipEvent(eventName, data) {
   if (MEMBERSHIP_EVENTS.has(eventName)) return true;
   if (isMembershipReference(referenceFromEvent(data))) return true;
+  // R11.3 — a PASS charge. It is the hardest of the three to recognise and the reference is the
+  // only thing that can do it: a pass is initialized with no plan, so there is no plan object,
+  // and it creates no subscription, so there is no subscription code. `mp.` is the whole signal.
+  // A book charge carries `cs.` and cannot match, so this cannot divert a purchase.
+  if (isPassReference(referenceFromEvent(data))) return true;
   // A renewal: Paystack's own reference, but a plan object a book purchase never has.
   return !!planCodeFromEvent(data);
 }
@@ -242,6 +250,45 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
   const data = event?.data || {};
   const name = event?.event;
   const mode = domainOf(event) === 'live' ? 'live' : modeOf(env.PAYSTACK_SECRET_KEY);
+
+  // ── R11.3: THE PASS, HANDLED BEFORE ANYTHING ELSE ────────────────────────
+  //
+  // First because everything below assumes a subscription. resolveUid() looks the reader up
+  // through a subscription or customer code, and a pass has neither; the plan lookup after it
+  // refuses anything it cannot name a tier for, and a pass has no plan by construction. Both
+  // would send a perfectly good pass to manual review.
+  //
+  // The uid comes from the REFERENCE, which this server built and Paystack echoed back inside
+  // a signed payload — the same trust the bookstore's `cs.` references have always had. The
+  // KIND comes from the reference too, and the duration and tier from the catalogue: nothing
+  // about what the reader receives is taken from the event body.
+  const passRef = referenceFromEvent(data);
+  const parsedPass = parsePassReference(passRef);
+  if (parsedPass) {
+    if (name !== 'charge.success') {
+      // A pass has no lifecycle beyond its charge. Anything else about one — a refund, a
+      // dispute — is a human matter, not a write.
+      console.log(`[${LABEL}] ${name} for pass ${passRef} — no automatic action`);
+      return { verdict: 'ignored' };
+    }
+    if (data.status && data.status !== 'success') {
+      console.error(`[${LABEL}] pass charge ${passRef} has status=${data.status} — NOT granted`);
+      return { verdict: 'ignored' };
+    }
+    const passToken = await getToken();
+    return applyPassPurchase(env, passToken, parsedPass.uid, {
+      ref: passRef,
+      label: LABEL,
+      buildPassFor: (existing) => buildPass({
+        kind: parsedPass.kind,
+        currency: PAYSTACK_PASS_CURRENCY,
+        rail: 'paystack',
+        ref: passRef,
+        existing,
+        now,
+      }),
+    });
+  }
 
   const token = await getToken();
   const { uid, via } = await resolveUid(env, token, data);

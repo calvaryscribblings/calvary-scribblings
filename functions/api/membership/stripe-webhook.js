@@ -47,9 +47,10 @@
 
 import { json, bytesToHex, hexToBytes, timingSafeEqual, mintAccessToken } from '../bookstore/_lib.js';
 import {
-  applyMembershipChange, readDetail, buildDetail, STRIPE_SUB_REF_FIELDS,
+  applyMembershipChange, applyPassPurchase, readDetail, buildDetail, STRIPE_SUB_REF_FIELDS,
 } from './_membership.js';
 import { describePrice, modeOf } from './prices.js';
+import { buildPass, isPassKind } from '../../../app/lib/membershipPasses.js';
 
 const LABEL = 'membership/stripe-webhook';
 const TOLERANCE_SECONDS = 300;
@@ -211,8 +212,68 @@ async function applySubscription(env, getToken, { subscription, uid, invoiceRef,
   });
 }
 
+/**
+ * Is this payment-mode session a PASS of ours?
+ *
+ * Read from the session's own metadata, which pass-checkout.js sets, and never inferred from
+ * "mode is payment and there is no titleId" — that shape is also what a broken book purchase
+ * looks like, and the bookstore's unattributable-session error is a real signal that must keep
+ * working. An explicit marker keeps the two apart.
+ */
+export const isPassSession = (session) =>
+  session?.mode === 'payment' && session?.metadata?.kind === 'pass';
+
+/**
+ * A pass purchase. Writes memberships/{uid}/pass and NOTHING else — no scalar, no billing row.
+ *
+ * The kind comes from session metadata, which only this server set; the DURATION and the TIER
+ * come from the catalogue, never from the event. An event-supplied duration would be a
+ * client-supplied duration the moment anyone could forge a session.
+ */
+async function handlePassCompleted(env, getToken, session, now) {
+  const uid = extractUid(session);
+  if (!uid) {
+    console.error(`[${LABEL}] pass session ${session.id} carries no uid — nothing recorded`);
+    return { verdict: 'review' };
+  }
+  const kind = session?.metadata?.passKind;
+  if (!isPassKind(kind)) {
+    console.error(`[${LABEL}] pass session ${session.id} for ${uid} has unknown passKind=${kind || '—'} — nothing recorded`);
+    return { verdict: 'review' };
+  }
+  // Money must have actually moved. A delayed-payment method reaches 'completed' unpaid and
+  // follows later with async_payment_succeeded — the lesson R9.2 PL-3 taught the bookstore.
+  if (session.payment_status && session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
+    console.error(
+      `[${LABEL}] pass session ${session.id} for ${uid} has payment_status=${session.payment_status} — NOT granted`,
+    );
+    return { verdict: 'ignored' };
+  }
+
+  const token = await getToken();
+  // The session id is the replay key: it is stable across Stripe's redeliveries of the same
+  // event and unique per purchase, which is exactly what an extend-on-write needs.
+  const ref = session.id;
+  return applyPassPurchase(env, token, uid, {
+    ref,
+    label: LABEL,
+    buildPassFor: (existing) => buildPass({
+      kind,
+      currency: session.currency || null,
+      rail: 'stripe',
+      ref,
+      existing,
+      now,
+    }),
+  });
+}
+
 async function handleCheckoutCompleted(env, getToken, session, now) {
-  // Not ours — the bookstore endpoint owns payment-mode sessions.
+  // OURS, and the one payment-mode session this endpoint claims. Checked before the mode
+  // guard below, which would otherwise send every pass straight to 'ignored'.
+  if (isPassSession(session)) return handlePassCompleted(env, getToken, session, now);
+
+  // Not ours — the bookstore endpoint owns every other payment-mode session.
   if (session?.mode !== 'subscription') return { verdict: 'ignored' };
 
   const uid = extractUid(session);

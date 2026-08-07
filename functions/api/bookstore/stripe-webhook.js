@@ -214,6 +214,18 @@ async function handleGrant(env, session) {
   // always mode 'payment', so this can never affect one.
   if (session?.mode === 'subscription') return;
 
+  // R11.3 — ALSO NOT OURS, and this one cannot be told apart by mode. A membership day or week
+  // pass is a one-off, so it is mode 'payment' exactly like a book, and it arrives here for the
+  // same fan-out reason. It carries metadata.kind === 'pass', set by
+  // functions/api/membership/pass-checkout.js, and functions/api/membership/stripe-webhook.js
+  // claims it on the strength of that marker.
+  //
+  // Without this line every pass sold would fall through to the "no uid/titleId" branch below
+  // and log an error — training everyone to ignore the line that means a real book purchase
+  // could not be attributed. The marker is explicit rather than inferred from a missing
+  // titleId, precisely so that branch keeps meaning what it says.
+  if (session?.metadata?.kind === 'pass') return;
+
   const { uid, titleId } = extractIdentity(session);
 
   // A verified-but-unattributable session. Returning 4xx would make Stripe retry a request

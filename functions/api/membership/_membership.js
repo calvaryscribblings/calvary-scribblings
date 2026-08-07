@@ -70,6 +70,26 @@ import { TIERS, isTier, normaliseTier, needsScalarRepair } from '../../../app/li
 export const SCALAR_PATH = (uid) => `users/${uid}/membership`;
 export const DETAIL_PATH = (uid) => `memberships/${uid}`;
 
+// ── THE PASS PATH IS A CHILD, AND THE WRITE IS DEEP ──────────────────────────────────────
+//
+// A pass lands at memberships/{uid}/pass and NOWHERE else. Two properties follow, and both
+// are load-bearing rather than incidental.
+//
+// FIRST: the scalar is not in the update body at all. Not written 'free', not written
+// anything — a pass purchase is not a tier change, and the only way to be sure a pass can
+// never move the tier is for the pass writer to have no path to it. The database rule on
+// users/{uid}/membership independently validates the value against the three tier strings, so
+// the two defences are a belt and braces that were designed apart.
+//
+// SECOND: it is a DEEP path, so it cannot clobber its siblings. writeMembership() writes
+// `memberships/{uid}: detail` — a path→object value, which replaces that node WHOLESALE. If a
+// pass were written the same way it would delete stripeCustomerId, founding, foundingSince
+// and the subscription's whole billing row on the first day-pass purchase, and the loss would
+// be invisible until the member's next renewal could not be attributed. That is not a
+// hypothetical: R11.1 was a week spent on exactly this failure in the story editor. A pass
+// purchase touches one child and leaves the rest of the record untouched.
+export const PASS_PATH = (uid) => `memberships/${uid}/pass`;
+
 // Both rails' subscription identifiers, for classifyRevocation. Stripe stores two because a
 // cancellation event and a subscription object do not always carry the same one; Paystack's
 // subscription code is on every event about a subscription by construction.
@@ -160,6 +180,36 @@ export function shouldSkipMembershipGrant(existingDetail, invoiceRef) {
   if (!existingDetail || typeof existingDetail !== 'object') return false;
   if (typeof invoiceRef !== 'string' || !invoiceRef) return false;
   return existingDetail.lastInvoiceRef === invoiceRef;
+}
+
+/**
+ * The pass update, as a multi-path body ready for a root PATCH. ONE path, deliberately.
+ *
+ * Pure and exported separately from the write for the same reason buildMembershipUpdate is:
+ * a test can assert the exact paths without a network, and anyone reading it can see in three
+ * lines that the tier scalar is not among them.
+ */
+export function buildPassUpdate(uid, pass) {
+  if (!str(uid)) throw new Error('buildPassUpdate: uid is required');
+  if (!pass || typeof pass !== 'object') throw new Error('buildPassUpdate: pass is required');
+  return { [PASS_PATH(uid)]: pass };
+}
+
+/**
+ * Replay guard for a pass purchase, keyed on the CHARGE reference.
+ *
+ * Same rule as shouldSkipMembershipGrant, one node down: reference alone, status irrelevant.
+ * The stakes are higher here than on a subscription, because a pass grant is not idempotent by
+ * nature — it EXTENDS. A replayed webhook that was not skipped would hand out a second day for
+ * one payment, every time Stripe or Paystack retried a delivery it was not sure landed.
+ *
+ * The reference is stored ON the pass rather than in a side node, so the guard and the thing it
+ * guards arrive in the same read and cannot disagree.
+ */
+export function shouldSkipPassGrant(existingPass, ref) {
+  if (!existingPass || typeof existingPass !== 'object') return false;
+  if (typeof ref !== 'string' || !ref) return false;
+  return existingPass.ref === ref;
 }
 
 /**
@@ -298,6 +348,80 @@ export async function applyMembershipChange(env, token, uid, {
     `status=${detail.status || '—'} invoice=${invoiceRef || '—'}`,
   );
   return { verdict: 'written', written };
+}
+
+export async function readPass(env, token, uid) {
+  const res = await fetch(`${dbBase(env)}/${PASS_PATH(encodeURIComponent(uid))}.json`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`RTDB GET ${PASS_PATH(uid)} failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  return res.json();
+}
+
+/** Write the pass. ONE deep path, so no sibling on the billing record can be disturbed. */
+export async function writePass(env, token, uid, pass) {
+  const body = buildPassUpdate(uid, pass);
+  const res = await fetch(`${dbBase(env)}/.json`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`RTDB pass PATCH failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  return body;
+}
+
+/**
+ * Apply a pass purchase, whichever rail it came from. The twin of applyMembershipChange, and
+ * deliberately a separate function rather than a `kind: 'pass'` branch inside it: that one
+ * writes the scalar on every path it takes, and the surest way for a pass never to reach the
+ * scalar is for the pass to be written by code that has no line that writes it.
+ *
+ *   'written'    the pass was written — see `stacked` on the returned pass for extend vs fresh
+ *   'skipped'    a replay of a charge reference already recorded
+ *
+ * ── THE READ FAILURE, AND WHY IT STILL WRITES ────────────────────────────────────────────
+ *
+ * Stacking needs the current pass, so a failed read leaves a choice with no clean answer:
+ *
+ *   refuse   — a reader who has paid gets nothing. Total loss, and Paystack's charge has
+ *              already settled by the time this runs.
+ *   proceed  — the new pass is built with no `existing`, so it REPLACES rather than extends.
+ *              A reader mid-pass loses the remainder: bounded, at most seven days, and
+ *              repairable by hand from the log line below.
+ *
+ * It proceeds, matching the fail-open posture every grant path in this codebase takes, and it
+ * says so loudly: the line carries the reference and the uid so the remainder can be restored
+ * without hunting. Both branches are bad; only one of them takes money and gives nothing back.
+ */
+export async function applyPassPurchase(env, token, uid, { buildPassFor, ref, label = 'membership/pass' }) {
+  let existing = null;
+  let readFailed = false;
+  try {
+    existing = await readPass(env, token, uid);
+  } catch (e) {
+    readFailed = true;
+    console.error(
+      `[${label}] NEEDS-MANUAL-REVIEW pass read failed for ${uid} ref=${ref || '—'}: ${e.message || e} — ` +
+      `writing a FRESH pass; if this reader held a live one, its remainder was not carried over`,
+    );
+  }
+
+  if (!readFailed && shouldSkipPassGrant(existing, ref)) {
+    console.log(`[${label}] duplicate pass reference ${ref} for ${uid} — skipped`);
+    return { verdict: 'skipped' };
+  }
+
+  // The caller supplies the builder so this function never has to know the catalogue — and so
+  // the `existing` it just read is the only source of the stacked expiry.
+  const pass = buildPassFor(readFailed ? null : existing);
+  await writePass(env, token, uid, pass);
+  console.log(
+    `[${label}] wrote pass ${uid} kind=${pass.kind} tier=${pass.tier} ` +
+    `expires=${new Date(pass.expiresAt).toISOString()} stacked=${pass.stacked} ref=${ref || '—'}`,
+  );
+  return { verdict: 'written', pass };
 }
 
 export { isTier, normaliseTier, needsScalarRepair, TIERS };
