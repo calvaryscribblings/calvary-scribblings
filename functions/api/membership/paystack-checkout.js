@@ -27,6 +27,7 @@ import {
   TIERS, INTERVALS, CURRENT_GENERATION,
   planCodeFor, amountFor, isConfigured, modeOf, buildMembershipReference, REF_SAFE_UID,
 } from './paystack-plans.js';
+import { LAUNCH_NOTICE } from '../../../app/lib/membershipPrices.js';
 
 const LABEL = 'membership/paystack-checkout';
 export const PAYSTACK_INITIALIZE_API = 'https://api.paystack.co/transaction/initialize';
@@ -71,7 +72,7 @@ export async function onRequestPost(context) {
   const mode = modeOf(env.PAYSTACK_SECRET_KEY);
   if (!isConfigured(mode)) {
     console.error(`[${LABEL}] plan book has no ${mode} codes for generation ${CURRENT_GENERATION}`);
-    return json({ error: 'Memberships open on 30 September.', code: 'not_configured' }, 409);
+    return json({ error: LAUNCH_NOTICE, code: 'not_configured' }, 409);
   }
   const planCode = planCodeFor({ tier, interval, mode });
   if (!planCode) return json({ error: 'That membership is not available in naira.', code: 'not_priced' }, 409);

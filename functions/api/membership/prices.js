@@ -38,16 +38,25 @@
 // would only break the reverse lookup that decides what an incoming subscription IS, which is
 // a far more confusing failure than a wrong number.
 
+import { stripeAmounts, LAUNCH_NOTICE } from '../../../app/lib/membershipPrices.js';
+
 export const TIERS = ['gold', 'platinum'];
 export const INTERVALS = ['monthly', 'annual'];
 export const STRIPE_CURRENCIES = ['gbp', 'usd'];
 
+// Re-exported so a caller that already imports this module for prices does not need a second
+// import for the one sentence it says when there are none.
+export { LAUNCH_NOTICE };
+
 // The settled figures, in minor units. Kept separate from the ids so the amounts can be
 // asserted without Stripe existing, and so setup has something to verify against.
-export const AMOUNTS = {
-  gold:     { monthly: { gbp: 299, usd: 399 },  annual: { gbp: 2999, usd: 3999 } },
-  platinum: { monthly: { gbp: 499, usd: 649 },  annual: { gbp: 4999, usd: 6499 } },
-};
+//
+// R11.7: NO LONGER TYPED OUT HERE. The same figures are now shown to a reader by the pricing
+// page, and a price that is displayed from one table and charged from another is a silent
+// mis-charge waiting to happen. The canonical hand-set table moved to app/lib/membershipPrices.js
+// — client-safe pure data, the same direction membershipPasses.js already goes — and this is
+// its GBP/USD slice, shaped exactly as it was before so no call site below had to change.
+export const AMOUNTS = stripeAmounts();
 
 export const CURRENT_GENERATION = 'founding';
 

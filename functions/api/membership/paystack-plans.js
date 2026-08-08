@@ -26,15 +26,18 @@
 // the reverse lookup below would stop recognising existing subscribers, and every renewal for
 // every founding member would land in manual review at once.
 
+import { paystackAmounts } from '../../../app/lib/membershipPrices.js';
+
 export const TIERS = ['gold', 'platinum'];
 export const INTERVALS = ['monthly', 'annual'];
 export const PAYSTACK_CURRENCY = 'ngn';
 
 // Kobo. ₦1,500 / ₦2,500 monthly; ₦15,000 / ₦25,000 annual.
-export const AMOUNTS = {
-  gold:     { monthly: 150000, annual: 1500000 },
-  platinum: { monthly: 250000, annual: 2500000 },
-};
+//
+// R11.7: the naira column of the one hand-set table in app/lib/membershipPrices.js, not a
+// second copy of it. The pricing page shows these figures and this file charges them; when
+// those were two tables, nothing in the build would have noticed them disagreeing.
+export const AMOUNTS = paystackAmounts();
 
 // Paystack's own interval vocabulary.
 export const PAYSTACK_INTERVAL = { monthly: 'monthly', annual: 'annually' };

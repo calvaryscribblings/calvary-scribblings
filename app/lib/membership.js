@@ -65,9 +65,48 @@ export const SIGNED_OUT = {
   status: null,
   founding: false,
   currentPeriodEnd: null,
+  // R11.7. The billing facts /settings states in words. All null for a signed-out reader, and
+  // — importantly — also null for a reader whose only entitlement is a PASS: a pass is written
+  // to one deep path (memberships/{uid}/pass) and never sets these, so `rail === null` is the
+  // honest answer to "which provider do I send them to in order to cancel", namely "none".
+  interval: null,
+  currency: null,
+  rail: null,
+  cancelAtPeriodEnd: false,
   loading: false,
   signedIn: false,
 };
+
+/**
+ * May a surface print a marker that says what this reader HAS — "YOUR PLAN", "ACTIVE"?
+ *
+ * ── THE LOADING BEAT, AND WHY IT IS A FUNCTION RATHER THAN AN INLINE `&&` ────────────────
+ *
+ * The provider starts `loading: true` for a signed-in reader (useState(!!uid)) and answers the
+ * DEFAULT tier — 'free' — for that beat, because it has not heard back from the database yet.
+ * A surface that prints its markers straight from `tier` therefore paints "YOUR PLAN" onto the
+ * Free card of a page being read by a Platinum member, then moves it a beat later. The member
+ * sees the site tell them they are on the free plan and then correct itself. On /membership,
+ * which is the page where we make promises to people who have paid, that is the single worst
+ * frame we could render.
+ *
+ * `signedIn` is the second half and it is NOT redundant. A signed-out reader resolves to tier
+ * 'free' with loading:false — correct as entitlement, wrong as a claim about a person: it put
+ * "YOUR PLAN" on the Free card of a visitor who has no account. They are not on a plan; they
+ * are reading a pricing page. A marker that says what you HAVE needs somebody to have it.
+ *
+ * It lives here, next to SIGNED_OUT, for the reason stated above: the rule is one boolean
+ * expression, three surfaces have to hold it identically, and the page that holds it is JSX
+ * that `node --test` cannot import. Inline, the rule could only be verified by reading it.
+ *
+ * Takes the auth flag separately because auth and membership settle independently and BOTH
+ * must be done — a resolved membership under an unresolved auth is still a guess.
+ */
+export function plansAreKnown(membership, authLoading = false) {
+  if (authLoading) return false;
+  if (!membership || membership.loading) return false;
+  return membership.signedIn === true;
+}
 
 // setTimeout stores its delay in a signed 32-bit int; anything larger overflows and fires
 // IMMEDIATELY, and an immediate re-arm is an infinite loop that pins a tab at 100% CPU.
@@ -192,5 +231,34 @@ export function describeMembership(scalar, detail, now = Date.now()) {
     founding: !!(detail && typeof detail === 'object' && detail.founding === true),
     currentPeriodEnd: detail && typeof detail === 'object' && typeof detail.currentPeriodEnd === 'number'
       ? detail.currentPeriodEnd : null,
+
+    // ── THE BILLING FACTS, added R11.7 for the /settings section ─────────────────────────
+    //
+    // These describe the SUBSCRIPTION, not the entitlement. `tier` above can be lifted by a
+    // pass; none of these ever are. A day-pass holder on no subscription reads
+    // tier:'gold' with rail:null, and that pair is exactly right — they are Gold today and
+    // there is nothing for them to cancel.
+    //
+    // `rail` is what decides which management path /settings offers: 'stripe' gets the portal,
+    // 'paystack' gets the honest interim, null gets neither. Reading it from the record rather
+    // than inferring it from the currency matters — a reader can hold a GBP subscription and a
+    // naira pass, and the currency of one says nothing about the rail of the other.
+    interval: str(detail, 'interval'),
+    currency: str(detail, 'currency'),
+    rail: str(detail, 'rail'),
+
+    // STRICT true. RTDB treats null as delete, so this field is ABSENT on most records rather
+    // than false — and `absent` and `false` are the same fact here. Anything that is not
+    // literally true means the membership is not scheduled to end, which is the safe reading:
+    // the failure this avoids is telling a paying member their membership is ending when it
+    // is not.
+    cancelAtPeriodEnd: !!(detail && typeof detail === 'object' && detail.cancelAtPeriodEnd === true),
   };
+}
+
+/** A string field off the detail record, or null. Absent, null and '' are one answer. */
+function str(detail, key) {
+  if (!detail || typeof detail !== 'object') return null;
+  const v = detail[key];
+  return typeof v === 'string' && v ? v : null;
 }

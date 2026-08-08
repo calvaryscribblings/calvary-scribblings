@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DeleteAccountModal from '../components/DeleteAccountModal';
+// R11.7. Above the danger zone and below sign-in: a reader looking for "how do I stop paying"
+// should find it before they find "delete my account", not after.
+import MembershipSection from '../components/MembershipSection';
 // R9.4: the resend used to be implemented right here. It moved to app/lib/verifyEmail.js so
 // the verification banner could call the SAME path rather than grow a second copy of it —
 // see that module's header. This page's button behaviour is unchanged; only the "sent"
@@ -229,6 +232,8 @@ export default function SettingsPage() {
             <button className="st-row-action" onClick={openResetModal}>Reset password</button>
           </div>
         </div>
+
+        <MembershipSection authUser={authUser} />
 
         <div className="st-section">
           <div className="st-section-header">

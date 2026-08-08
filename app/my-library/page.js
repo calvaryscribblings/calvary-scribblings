@@ -767,6 +767,15 @@ export default function MyLibraryPage() {
         }
         .ml-section-head b { font-weight: 400; color: rgba(226,200,118,.7); }
 
+        /* R11.7. Quiet by design — one line, prose weight, no button. It appears at the moment
+           the shelf fills and says what the limit is before it says what fixes it. */
+        .ml-roomier {
+          margin: 8px auto 0; text-align: center; max-width: 460px;
+          font-size: 13px; line-height: 1.55; color: rgba(232,224,212,.72);
+        }
+        .ml-roomier a { color: #e2c876; text-decoration: none; white-space: nowrap; }
+        .ml-roomier a:hover { text-decoration: underline; }
+
         .ml-nudge {
           max-width: 420px; margin: 18px auto 0; border-radius: 12px; padding: 15px 16px 13px;
           display: flex; gap: 12px; align-items: flex-start; text-align: left;
@@ -906,6 +915,17 @@ export default function MyLibraryPage() {
                       )}
                     </div>
 
+                    {/* R11.7 — offered only when the shelf is actually FULL, which is the one
+                        moment a bigger one is an answer rather than an advert. Withheld while
+                        the tier is unknown (it would be a guess), from Platinum (there is no
+                        bigger shelf), and from an over-cap reader on a lapsed pass — see the
+                        matching note in SaveForOffline. */}
+                    {!tierLoading && !unlimited && saved.length === cap && (
+                      <div className="ml-roomier">
+                        Your shelf is full. <a href="/membership">A bigger one starts at Gold →</a>
+                      </div>
+                    )}
+
                     {showNudge && (
                       <div className="ml-nudge ml-glass">
                         <span className="ml-nudge-g" aria-hidden="true">⇧</span>
@@ -947,6 +967,10 @@ export default function MyLibraryPage() {
                           : `Saved stories live on this device only, and your shelf holds ${cap}.`}
                       </p>
                     )}
+                    {/* No sell on an EMPTY shelf. A reader who has saved nothing has no cap
+                        problem, and offering them a bigger shelf here would be advertising
+                        rather than answering — the constraint is stated above and that is
+                        enough. The route in appears when the shelf is actually full. */}
                     <a className="ml-btn ml-glass" href="/public-library">BROWSE THE LIBRARY</a>
                   </div>
                 )}

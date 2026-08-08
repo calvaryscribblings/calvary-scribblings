@@ -47,7 +47,7 @@ import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } fr
 import { DETAIL_PATH } from './_membership.js';
 import {
   TIERS, INTERVALS, STRIPE_CURRENCIES, CURRENT_GENERATION,
-  priceIdFor, isConfigured, modeOf,
+  priceIdFor, isConfigured, modeOf, LAUNCH_NOTICE,
 } from './prices.js';
 
 const LABEL = 'membership/checkout';
@@ -112,7 +112,7 @@ export async function onRequestPost(context) {
     // HONEST, not a 500. The rail is built and the prices have not been created yet; a reader
     // seeing "try again later" would be told a lie about a transient problem.
     console.error(`[${LABEL}] price book has no ${mode} ids for generation ${CURRENT_GENERATION}`);
-    return json({ error: 'Memberships open on 30 September.', code: 'not_configured' }, 409);
+    return json({ error: LAUNCH_NOTICE, code: 'not_configured' }, 409);
   }
 
   const priceId = priceIdFor({ tier, interval, currency, mode });

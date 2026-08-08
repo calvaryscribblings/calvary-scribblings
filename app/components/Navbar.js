@@ -248,6 +248,10 @@ export default function Navbar() {
           {/* Always visible, signed in or not — the shelf is a reason to sign up, not something
               to hide. /library is retired into this page. */}
           <a href="/my-library" onClick={() => setMenuOpen(false)}>My Library</a>
+          {/* R11.7. Directly under My Library because that is the surface membership is ABOUT
+              — the shelf is the perk. Visible signed out too: nobody should have to make an
+              account to find out what something costs. */}
+          <a href="/membership" onClick={() => setMenuOpen(false)}>Membership</a>
           <button className={'cs-drawer-stories-btn' + (storiesOpen ? ' open' : '')} onClick={() => setStoriesOpen(!storiesOpen)}>
             Stories <span className="cs-arrow">▾</span>
           </button>

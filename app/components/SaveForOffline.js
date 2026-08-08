@@ -224,6 +224,20 @@ export default function SaveForOffline({ slug, story, user, readingTime = 0, onS
                   </div>
                 ))}
               </div>
+              {/* R11.7 — THE HONEST MOMENT, not a nag. This is the one instant where a bigger
+                  shelf is a real answer to a problem the reader actually has, so the route to
+                  it is offered here and nowhere else on the story page. It sits BELOW the
+                  remove list on purpose: removing a story is free and stays the first option.
+                  Never shown to a reader who is already over the cap on a lapsed pass — they
+                  had the bigger shelf, it is a sore point, and selling it back to them at the
+                  moment they notice would be crass. */}
+              {shelf.length <= cap && (
+                <a href="/membership" style={{
+                  display: 'inline-block', marginTop: 12,
+                  fontFamily: SERIF, fontSize: 12, letterSpacing: '0.1em',
+                  textTransform: 'uppercase', color: '#c9a84c', textDecoration: 'none',
+                }}>Room for more →</a>
+              )}
             </>
           )}
         </div>
