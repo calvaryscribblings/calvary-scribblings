@@ -221,9 +221,21 @@ export function servesAsReader(story) {
  * that flips both with one edit, and it is greppable, diffable and reviewable, which
  * a dashboard toggle is not.
  *
- * TO RE-ENABLE: set true, and read STORY-SERVING-CONTRACT.md §7 first — the phase
- * order there has a deliberate step (P8) that turns the reader-visible gate on
- * ONCE, on purpose, after the bodies are migrated. That step has not been taken.
+ * TO RE-ENABLE: set true — and understand first that NO PHASE OF THE CONTRACT EVER
+ * ASKED FOR THAT AS A STEP, which is the actual defect here and the reason this
+ * constant now exists.
+ *
+ * §7 runs T1 (dual-write) → T2 (app adoption) → T3 (the node's bodies cut). Its T1
+ * bullet says "Gating is not live for anybody." Three paragraphs later §7.1 puts the
+ * preview-only static render in "the same phase as T1". BOTH WERE IMPLEMENTED, and
+ * they contradict each other: the first sentence is only ever true of OLD APP
+ * INSTALLS reading cms_stories directly, and §7.1 describes the web page, which is
+ * a client too — the one client T1 also changed to stop reading the node's body.
+ *
+ * So there was never a "turn the gate on" step to skip or to perform early. Going
+ * live for readers was a SIDE EFFECT of a phase whose stated purpose was to be
+ * invisible to them. Before setting this true, give the contract that step
+ * explicitly, and decide separately for each surface who it turns on for.
  */
 export const GATING_ENABLED = false;
 
