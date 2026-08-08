@@ -252,6 +252,44 @@ function indexReadTimeMirror(content) {
   return Math.ceil(content.split(/\s+/).filter(Boolean).length / 220);
 }
 
+// publishedAtMsMirror — mirrors app/lib/storyAccess.js:publishedAtMsFor.
+//
+//   ⚠ THIS ONE IS NOT COSMETIC. Every other field in the projection below decides
+//   how a card LOOKS. This one decides whether a reader can READ the story: the
+//   story-serving endpoint resolves the most-recent-5 free floor with an ordered
+//   query on cms_stories_index.publishedAtMs, so a scheduled publish that omits it
+//   writes a record the floor cannot see. See STORY-SERVING-CONTRACT.md §3.2, §8.
+//
+//   Epoch MILLISECONDS, UTC, a NUMBER — never an ISO string, which would compare
+//   against a clock as a string and never expire. publishAt wins over the display
+//   date because it is the real publication moment written by code rather than typed
+//   by a person; a dayless "Jan 2026" takes the 1st, the earliest day it can mean;
+//   anything unreadable is null and is NOT guessed at.
+//
+//   Date.UTC, never new Date(str) — the latter parses in the runtime's LOCAL zone,
+//   and this Worker's zone is whatever Cloudflare picked.
+function publishedAtMsMirror(story) {
+  const s = story || {};
+  if (typeof s.publishAt === "string" && s.publishAt) {
+    const t = Date.parse(s.publishAt);
+    if (Number.isFinite(t)) return t;
+  }
+  const str = String(s.date || "").trim();
+  if (!str) return null;
+  const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const mi = (w) => MONTHS.indexOf(String(w || "").toLowerCase().slice(0, 3));
+  let m = /^([A-Za-z]{3,9})\s+(\d{1,2})\s*,?\s+(\d{4})$/.exec(str);
+  if (m) {
+    const i = mi(m[1]); const d = Number(m[2]);
+    return i >= 0 && d >= 1 && d <= 31 ? Date.UTC(Number(m[3]), i, d) : null;
+  }
+  m = /^([A-Za-z]{3,9})\s+(\d{4})$/.exec(str);
+  if (m) { const i = mi(m[1]); return i >= 0 ? Date.UTC(Number(m[2]), i, 1) : null; }
+  m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
+  if (m) return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return null;
+}
+
 function buildIndexRecordMirror(slug, story) {
   const s = story || {};
   const rec = {
@@ -274,6 +312,7 @@ function buildIndexRecordMirror(slug, story) {
     readerMode: s.readerMode === true,
     bookReader: s.bookReader === true,
     readTime: indexReadTimeMirror(s.content),
+    publishedAtMs: publishedAtMsMirror(s),
     url: s.url || `/stories/${slug}`,
   };
   if (s.publishAt) rec.publishAt = s.publishAt;

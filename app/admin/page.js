@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext';
 import { extractEpubText } from '../lib/epubExtract';
 import { indexUpdatePaths } from '../lib/storyIndex';
 import { publishedAtMsFor } from '../lib/storyAccess';
+import { validateBody } from '../lib/htmlBlocks';
 import { buildCoverDerivatives, COVER_CACHE_CONTROL } from '../lib/coverDerivatives';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
@@ -793,6 +794,28 @@ export default function AdminPage() {
       // any increment a reader landed in between — one admin and one reader is
       // enough. Writing one path per owned field never reads the counter and never
       // touches a field the form does not own, so the race cannot arise.
+      // ── THE VALIDATION GATE, AT THE ONE MOMENT IT IS CHEAP TO OBEY ─────────
+      // The preview cutter refuses to cut a body it cannot prove well-formed, and
+      // the endpoint's refusal is a 500 the reader can do nothing about
+      // (STORY-SERVING-CONTRACT.md §5.5). This is the same check, run here, where
+      // the person who can actually fix it is looking at the editor.
+      //
+      // REFUSES THE SAVE rather than warning past it. A warning would be dismissed
+      // and the story would ship un-previewable; the six bodies R11.8a had to repair
+      // by script all got in through a door with no check on it.
+      //
+      // Reader-mode stories are exempt because they have no HTML body to cut — their
+      // text is the uploaded EPUB.
+      if (!storyData.readerMode && storyData.content) {
+        const check = validateBody(storyData.content);
+        if (!check.ok) {
+          setSaving(false);
+          setMsg(`✗ Not saved — the story HTML is malformed and could not be previewed: ${check.error}.`
+            + (check.detail?.excerpt ? ` Near: "${String(check.detail.excerpt).replace(/\s+/g, ' ').trim().slice(0, 90)}"` : ''));
+          return;
+        }
+      }
+
       const ownedPaths = {};
       for (const [k, v] of Object.entries(storyData)) ownedPaths[`cms_stories/${slug}/${k}`] = v;
 
@@ -821,12 +844,36 @@ export default function AdminPage() {
       if (preserved.length) console.info(`[admin/save] ${slug}: preserved ${preserved.length} field(s) the editor does not own — ${preserved.join(', ')}`);
       if (unexpected.length) console.warn(`[admin/save] ${slug}: UNEXPECTED preserved field(s) — ${unexpected.join(', ')}. Not written by this form and not in the known set; confirm they belong on cms_stories and add them to PRESERVED_EXPECTED.`);
 
-      // Atomic dual-write: the owned fields and the slim index entry land in ONE
-      // multi-path update so the pair can never half-write. A hidden next-state
-      // removes the index entry (see indexUpdatePaths).
+      // ── THE BODY, WRITTEN TWICE, IN THE SAME UPDATE ────────────────────────
+      // Phase T1 of the gating work (STORY-SERVING-CONTRACT.md §7). The body now
+      // lives at story_bodies/<slug> — a node with `.read: false`, served only by
+      // /api/story with an admin token — while cms_stories keeps its copy so that
+      // already-deployed app versions, which read that node directly and cannot be
+      // updated, do not lose their story text the day the endpoint ships.
+      //
+      // BOTH COPIES GO IN THE SAME MULTI-PATH UPDATE, for exactly the reason the
+      // index does: a save that writes one node and not the other leaves a story
+      // whose gated body disagrees with its public one, and nothing would report
+      // it. RTDB applies a multi-path update atomically, so there is no window in
+      // which they can differ. scripts/backfill-story-bodies.mjs --verify is the
+      // standing check.
+      //
+      // extractedText travels WITH content and is not optional: it is the second
+      // copy of the body (the EPUB's plain text, read by generate-quiz.js for
+      // reader-mode stories). Moving one without the other gates the story and
+      // publishes the story.
+      const bodyPaths = {
+        [`story_bodies/${slug}/content`]: storyData.content,
+        [`story_bodies/${slug}/extractedText`]: storyData.extractedText,
+      };
+
+      // Atomic dual-write: the owned fields, the slim index entry and the gated
+      // body copy land in ONE multi-path update so they can never half-write. A
+      // hidden next-state removes the index entry (see indexUpdatePaths).
       await update(ref(db), {
         ...ownedPaths,
         ...indexUpdatePaths(slug, projected),
+        ...bodyPaths,
       });
       // Notify followers of this author if publishing now (not scheduled)
       if (!form.publishAt || new Date(form.publishAt) <= new Date()) {
@@ -878,8 +925,16 @@ export default function AdminPage() {
     if (!confirm('Delete this story? This cannot be undone.')) return;
     try {
       const { ref, update } = await import('firebase/database');
-      // Atomic: drop the full record and its index entry together.
-      await update(ref(db), { [`cms_stories/${id}`]: null, [`cms_stories_index/${id}`]: null });
+      // Atomic: drop the full record, its index entry and its gated body together.
+      // story_bodies joins the set for the same reason the index did — a body left
+      // behind for a story that no longer exists is an orphan nothing would ever
+      // report, on a node no surface reads from. It is not dangerous; it is a lie
+      // about what exists, and the backfill's --verify counts it as one.
+      await update(ref(db), {
+        [`cms_stories/${id}`]: null,
+        [`cms_stories_index/${id}`]: null,
+        [`story_bodies/${id}`]: null,
+      });
       setMsg('Story deleted.'); loadStories();
     } catch (e) { setMsg('Error: ' + e.message); }
   }

@@ -81,7 +81,18 @@ export default function ExtractTextPage() {
     try {
       const text = await extractEpubFromUrl(story.epubUrl);
       const { ref, update } = await import('firebase/database');
-      await update(ref(db, `cms_stories/${slug}`), { extractedText: text });
+      // THE SECOND BODY WRITER, and it dual-writes for the same reason the composer
+      // does. extractedText is a copy of the story's text; since phase T1 it lives at
+      // story_bodies/<slug> as well, where /api/story reads it and where
+      // generate-quiz.js will read it for reader-mode stories. A run that updated
+      // only cms_stories would leave the gated copy stale — the quiz would be
+      // generated from the OLD extraction while the admin page reported the new one.
+      // One multi-path update from the root, so the pair cannot half-write.
+      // See STORY-SERVING-CONTRACT.md §7 and scripts/backfill-story-bodies.mjs --verify.
+      await update(ref(db), {
+        [`cms_stories/${slug}/extractedText`]: text,
+        [`story_bodies/${slug}/extractedText`]: text,
+      });
       setStatuses(prev => ({ ...prev, [slug]: { state: 'done', length: text.length } }));
       setStories(prev => prev.map(s => s.slug === slug ? { ...s, extractedLength: text.length } : s));
     } catch (e) {

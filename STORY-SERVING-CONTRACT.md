@@ -122,12 +122,13 @@ picked.
 badge a story without fetching its body. That copy is for **presentation only**.
 
 > **DO NOT COMPUTE ENTITLEMENT ON THE CLIENT.** Not from the index copy, not from
-> the copy in this endpoint's own response. The window length is a server constant
-> and is not published to clients as a number. The device clock is settable — the
-> membership module already accepts that risk for a £1 pass on the reasoning that
-> "nothing is paywalled and the caps are shelf slots on the reader's own device."
-> That reasoning expires the moment something *is* paywalled, which is now. The
-> server clock decides.
+> the copy in this endpoint's own response — even though the window length is
+> derivable from either (see §3.1, which says so plainly rather than pretending
+> otherwise). The device clock is settable: the membership module already accepts
+> that risk for a £1 pass on the reasoning that "nothing is paywalled and the caps
+> are shelf slots on the reader's own device." That reasoning expires the moment
+> something *is* paywalled, which is now. The server clock decides, and the client
+> renders the answer it is given.
 
 The client renders what `access` says (§4). It does not second-guess it.
 
@@ -165,11 +166,26 @@ the floor of the window is the newsletter cycle — a story is free for as long 
 the issue that carried it is the current issue. Seven days is that cycle, not a
 guess at reader tolerance.
 
-**The constant is server-side and is never sent to a client as a duration.**
-`freeUntilMs` *is* sent (§4.1) — an absolute instant a client can render as "free
-to read until Saturday" without being able to recompute the policy. Publishing the
-duration invites a client to reimplement branch 4 on the device clock, which is
-exactly what §2.1 forbids.
+**The constant is NOT a secret, and an earlier draft of this document was wrong to
+imply it was.** That draft said the window is "never sent to a client as a
+duration" and offered `freeUntilMs` as a safe absolute instant instead. But every
+`200` carries `publishedAtMs` *and* `freeUntilMs`, and one subtraction yields the
+duration exactly. There was never anything hidden.
+
+Stating it properly, because the difference decides how the code is organised:
+
+> **The rule against client-side window arithmetic (§2.1) is a contract term, not
+> a security boundary.** A client that reimplements the window can only lie to
+> itself — it still cannot obtain a body, because the body comes only from this
+> endpoint and this endpoint decides `access` on the server clock. What
+> client-side arithmetic buys you is a second implementation that drifts, and a
+> reader whose device clock is wrong seeing a lock on a story they can open.
+
+So the constant lives in `app/lib/storyAccess.js` — one definition, imported by the
+endpoint, by the index projection that computes the `gated` badge (§8), and by the
+tests that assert those two agree. A constant duplicated to keep it "off the
+client" would have been the worse failure, and it would have been justified by a
+secret that does not exist.
 
 As of 2026-08-08 the window alone leaves 7 of 137 gateable stories free.
 
@@ -656,22 +672,29 @@ not about adding a second gate.
 `cms_stories_index` (see the contract block at the top of `app/lib/storyIndex.js`,
 which this section is subordinate to) gains two projected fields:
 
-- `publishedAtMs` — number, §2. **Presentation only** for clients (§2.1) — but
-  **load-bearing for the server**, which is new and worth stating plainly: the
-  most-recent-5 floor (§3.2) is resolved by an ordered query on this field. It is
-  therefore the one index field whose absence breaks entitlement rather than
-  cosmetics, and `"publishedAtMs"` must join `.indexOn` on `cms_stories_index` in
-  `database.rules.json` or that query is refused outright.
-- `gated` — boolean. `true` when the story is outside the free window *as of the
-  moment the index record was written*.
+**ONE new field: `publishedAtMs`** — number, §2.
 
-`gated` is a **badge, not a decision.** The index is editorially immutable — it is
-rewritten on publish/edit/unpublish/delete and at no other time — so a story that
-crosses the window boundary today does not get a fresh index record tomorrow.
-`gated` will therefore be stale for most of a story's life and that is fine for
-its actual job: deciding whether a library card shows a small lock. It is
-**never** an input to what gets rendered. Only `access` from a live `/api/story`
-response is.
+It is **presentation-only for clients** (§2.1) but **load-bearing for the server**,
+which is new and worth stating plainly: the most-recent-5 floor (§3.2) is resolved
+by an ordered query on this field. It is the one index field whose absence breaks
+entitlement rather than cosmetics, and `"publishedAtMs"` must join `.indexOn` on
+`cms_stories_index` in `database.rules.json` or that query is refused outright.
+
+**There is deliberately no `gated` field, and an earlier draft of this section was
+wrong to specify one.** It proposed a stored boolean, then had to spend a paragraph
+explaining that it would be stale for most of a story's life — the index is
+editorially immutable, rewritten only on publish/edit/unpublish/delete, so a story
+that crosses the window boundary tomorrow never gets a fresh record.
+
+That staleness was self-inflicted. Once `FREE_WINDOW_MS` lives in
+`app/lib/storyAccess.js` (§3.1) a library card can compute the badge from
+`publishedAtMs` at render time and it is never stale. A stored copy would have
+meant a third writer to keep in step — including the dashboard-managed Worker — to
+carry a value that is one subtraction away from a field already present.
+
+The rule that survives is the one that mattered: **a lock icon is a badge, never a
+decision.** Compute it for the card if you like. Only `access` from a live
+`/api/story` response decides what is rendered.
 
 The index rules from `storyIndex.js` apply unchanged and are worth restating
 because this change touches the projection: **anything writing to the index must

@@ -9,16 +9,24 @@
 //
 // See STORY-SERVING-CONTRACT.md §2 — this file IS that section.
 //
-// ── WHAT THIS FILE DELIBERATELY DOES NOT HOLD ────────────────────────────────────
+// ── WHY THE POLICY CONSTANTS ARE HERE, IN A BROWSER-IMPORTABLE FILE ──────────────
 //
-// The free-window LENGTH is not here. It is a server constant living in the Pages
-// Function, and it is never shipped to a client — not as a number, not as a
-// duration, not in a bundle. Anything importable by the browser is published by the
-// browser, and a window length in the client bundle is an invitation to reimplement
-// the gate on the device clock, which is settable. What the client gets is
-// `freeUntilMs`, an absolute instant it can render but not reason from.
+// An earlier draft kept FREE_WINDOW_MS out of this module on the theory that the
+// window length must not reach a client. That theory was wrong and it is worth
+// saying why, because it nearly produced two copies of the same number.
 //
-// This module answers exactly one question: WHEN was this story published?
+// Every 200 from /api/story carries BOTH `publishedAtMs` and `freeUntilMs`. One
+// subtraction is the window. There was never anything hidden, so "keeping it off
+// the client" would have bought nothing and cost the one property that matters:
+// a single definition.
+//
+// The real rule is a contract term, not a secret (STORY-SERVING-CONTRACT.md §2.1):
+// a client MUST NOT decide entitlement itself. It cannot cheat by doing so — the
+// body only ever comes from the endpoint, which decides on the SERVER clock — it
+// can only drift, and show a lock on a story a reader could actually open.
+//
+// So: one definition, imported by the Pages Function, by the index projection that
+// computes the `gated` badge, and by the tests that assert those two agree.
 
 // ── THE DISPLAY DATE IS FREE TEXT, AND THAT IS WHY THIS PARSER IS TOLERANT ───────
 //
@@ -153,4 +161,120 @@ export function isReaderMode(story) {
     || s.bookReader === true
     || s.category === 'novel'
     || (s.category === 'poetry' && !!s.epubUrl);
+}
+
+// ── THE POLICY ───────────────────────────────────────────────────────────────────
+// Settled 2026-08-07. See STORY-SERVING-CONTRACT.md §3.1–§3.4 for the reasoning
+// behind each; the short version is recorded here so a reader of this file is not
+// left guessing why the numbers are the numbers.
+
+/** 7 days. The floor is the NEWSLETTER CYCLE — a story is free while its issue is
+ *  the current issue — not a guess at reader tolerance. */
+export const FREE_WINDOW_DAYS = 7;
+export const FREE_WINDOW_MS = FREE_WINDOW_DAYS * 86400000;
+
+/** The 5 newest GATEABLE stories are free regardless of age. Dormant at healthy
+ *  cadence; simulated over 1 Apr – 8 Aug 2026 it fires on 26 of 130 days, and
+ *  across 9 Apr → 2 May it was the only thing keeping any story free at all. */
+export const RECENT_FLOOR_COUNT = 5;
+
+/** Gold unlocks the whole archive. Platinum's differentiators are elsewhere (the
+ *  Book Reader Collection, unlimited saves, the Series), and a pass confers gold
+ *  through effectiveTier — which is the entire point of "24 hours of Gold". */
+export const ARCHIVE_MIN_TIER = 'gold';
+
+/**
+ * Could this story ever be gated at all?
+ *
+ * FALSE for reader-mode (its body is an EPUB behind a public URL — this endpoint
+ * does not serve it and does not pretend to gate it) and for poetry (14 of the 15
+ * live poetry records carry no stanza markup, so a preview stops a poem
+ * mid-breath). Also false for anything unpublished.
+ *
+ * This is the set the most-recent-5 floor counts over. A floor whose slots were
+ * spent on stories that are free anyway would protect fewer than five and quietly
+ * fail at the one job it has.
+ */
+export function isGateable(story) {
+  const s = story || {};
+  if (s.published === false) return false;
+  if (isReaderMode(s)) return false;
+  if (s.category === 'poetry') return false;
+  return true;
+}
+
+/**
+ * THE ENTITLEMENT DECISION, as one pure function.
+ *
+ *   grantFor(story, { tier, floorSlugs, slug, now }) → { access, reason, freeUntilMs }
+ *
+ *     access  'full' | 'preview' | 'reader'
+ *     reason  'reader_mode' | 'poetry' | 'free_window' | 'recent_floor' | 'tier' | 'archive'
+ *
+ * `floorSlugs` is the resolved most-recent-5 set (a Set or array of slugs); pass an
+ * empty one where it is not known and the floor simply never fires. `tier` is the
+ * reader's EFFECTIVE tier — already resolved through effectiveTier() in
+ * app/lib/membership.js, pass included — because this function must not know how
+ * memberships work.
+ *
+ * FOUR GRANTS, ORed. Whichever leaves the story free wins. Written as an ordered
+ * chain rather than a boolean only so `reason` can say WHICH one opened it: "free
+ * this week", "poetry is always free" and "your Gold membership" are three
+ * different true sentences and a single boolean cannot pick between them.
+ *
+ * Not handled here, deliberately: missing/unpublished stories. Those are a 404 and
+ * the endpoint answers them before it gets this far — a function that returns an
+ * access level should not also be the thing that says a story does not exist.
+ */
+export function grantFor(story, { tier = 'free', floorSlugs = [], slug = '', now = Date.now() } = {}) {
+  const s = story || {};
+  const publishedAtMs = typeof s.publishedAtMs === 'number' && Number.isFinite(s.publishedAtMs)
+    ? s.publishedAtMs
+    : publishedAtMsFor(s);
+  const freeUntilMs = publishedAtMs === null ? null : publishedAtMs + FREE_WINDOW_MS;
+
+  if (isReaderMode(s)) return { access: 'reader', reason: 'reader_mode', freeUntilMs };
+  if (s.category === 'poetry') return { access: 'full', reason: 'poetry', freeUntilMs };
+
+  // An unparseable publication date CANNOT open the window. Treating null as "just
+  // published" would hand the archive to every record whose date the composer could
+  // not read — the same reasoning as publishedAtMsFor's refusal to guess.
+  if (freeUntilMs !== null && now <= freeUntilMs) {
+    return { access: 'full', reason: 'free_window', freeUntilMs };
+  }
+
+  const floor = floorSlugs instanceof Set ? floorSlugs : new Set(floorSlugs || []);
+  if (slug && floor.has(slug)) return { access: 'full', reason: 'recent_floor', freeUntilMs };
+
+  if (tierAtLeastGold(tier)) return { access: 'full', reason: 'tier', freeUntilMs };
+
+  return { access: 'preview', reason: 'archive', freeUntilMs };
+}
+
+// Local, tiny, and NOT a second copy of membership.js's tierAtLeast: this module is
+// imported by scripts and by a Worker, and pulling in the membership module for one
+// comparison would drag its whole surface along. The caller resolves the effective
+// tier with the real thing; this only asks whether the answer clears the bar.
+function tierAtLeastGold(tier) {
+  return tier === 'gold' || tier === 'platinum';
+}
+
+/**
+ * The most-recent-5 floor, from a set of index records.
+ *
+ * Takes `{ slug: record }` (or an array of `{ slug, ... }`) and returns the slugs of
+ * the RECENT_FLOOR_COUNT newest GATEABLE ones. Shared by the endpoint, which reads a
+ * limitToLast query off cms_stories_index, and by the tests, which build the set by
+ * hand — so "newest five" means one thing.
+ */
+export function resolveRecentFloor(records) {
+  const rows = Array.isArray(records)
+    ? records.filter(Boolean)
+    : Object.entries(records || {}).map(([slug, rec]) => ({ slug, ...(rec || {}) }));
+
+  return rows
+    .filter((r) => isGateable(r) && typeof r.publishedAtMs === 'number')
+    .sort((a, b) => b.publishedAtMs - a.publishedAtMs)
+    .slice(0, RECENT_FLOOR_COUNT)
+    .map((r) => r.slug);
 }

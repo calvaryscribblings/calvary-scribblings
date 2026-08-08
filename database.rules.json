@@ -3,7 +3,7 @@
     "cms_stories_index": {
       ".read": true,
       ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
-      ".indexOn": ["authorUid", "author"]
+      ".indexOn": ["authorUid", "author", "publishedAtMs"]
     },
     "stories": {
       ".read": true,
@@ -22,6 +22,10 @@
       "$uid": {
         ".write": "auth != null && (auth.uid == $uid || auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
       }
+    },
+    "story_bodies": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
     },
     "cms_stories": {
       ".read": true,

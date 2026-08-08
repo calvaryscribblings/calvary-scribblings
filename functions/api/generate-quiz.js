@@ -1,3 +1,5 @@
+import { readStoryBody } from './_story-body.js';
+
 const QUIZ_ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
@@ -259,9 +261,23 @@ export async function onRequestPost(context) {
 
   if (!story) return quizJson({ error: 'Story not found in CMS.' }, 404);
 
+  // ── THE BODY IS NO LONGER ON THE PUBLIC RECORD ─────────────────────────────
+  // Phase T1: content/extractedText live at story_bodies/<slug>, which is
+  // `.read: false`. The fetch above still reads cms_stories because TITLE and AUTHOR
+  // are public metadata and stay there; only the body needs a credential.
+  //
+  // NOT a second gate — see functions/api/_story-body.js. No tier, no window.
+  let storyBody;
+  try {
+    storyBody = await readStoryBody(env, slug);
+  } catch (e) {
+    console.error('[generate-quiz] story body read failed:', e.message);
+    return quizJson({ error: 'Could not read the story just now. Please try again.' }, 502);
+  }
+
   let storyText;
   if (mode === 'reader') {
-    storyText = (story.extractedText || '').trim();
+    storyText = (storyBody.extractedText || '').trim();
     console.log('[generate-quiz] reader-mode extractedText length:', storyText.length);
     if (storyText.length < 500) {
       return quizJson({
@@ -269,7 +285,7 @@ export async function onRequestPost(context) {
       }, 400);
     }
   } else {
-    storyText = stripHtml(story.content || '');
+    storyText = stripHtml(storyBody.content || '');
     console.log('[generate-quiz] story-mode storyText length:', storyText.length);
     if (!storyText) return quizJson({ error: 'Story has no content to generate from.' }, 400);
   }

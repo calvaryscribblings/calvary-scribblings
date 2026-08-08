@@ -20,6 +20,8 @@ import { getReaderId } from '../../lib/readerId';
 import { attachDropcap } from '../../lib/dropcap';
 import { proseCSS } from '../../lib/proseCSS';
 import SaveForOffline from '../../components/SaveForOffline';
+import { requestStory, bodyOf } from '../../lib/story';
+import StoryGate from '../../components/StoryGate';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
 
 const COMMENT_REACTIONS = buildReactions('heart');
@@ -843,13 +845,26 @@ export default function StoryPageClient({ params, initialStory = null }) {
     // Always refresh from the live single record. First paint already carries the
     // build-inlined prose (initialStory); this hydrate step keeps the author's
     // current display name, reads, and reactions fresh — exactly as before.
+    //
+    // ── WHAT CHANGED, AND WHY THE BODY IS NOW STRIPPED HERE ────────────────────
+    // cms_stories still carries `content` during phase T1 (STORY-SERVING-CONTRACT.md
+    // §7) so that already-deployed app versions do not lose their story text. This
+    // page must NOT take it from there: doing so would overwrite the build-inlined
+    // preview with the full body and hand every free reader the whole archive, on
+    // the one surface we control most directly. The record is read for METADATA;
+    // the body comes from /api/story below, which is the only thing that applies
+    // the gate.
     async function fetchFromCMS() {
       try {
         const db = await getDB();
         const { ref, get } = await import('firebase/database');
         const snap = await get(ref(db, 'cms_stories/' + slug));
         if (snap.exists()) {
-          const data = { id: slug, ...snap.val() };
+          // `content` is dropped on the way in, deliberately and by destructuring
+          // rather than by a later delete, so no code path between here and setStory
+          // can see it. extractedText goes with it for the same reason.
+          const { content: _publicBody, extractedText: _extracted, ...meta } = snap.val();
+          const data = { id: slug, ...meta };
           if ((data.category === 'poetry' && data.epubUrl) || data.category === 'novel' || data.readerMode) {
             window.location.replace(`/reader/${slug}`);
             return;
@@ -857,13 +872,17 @@ export default function StoryPageClient({ params, initialStory = null }) {
           // Show the author's CURRENT display name (live), not the frozen copy.
           const nameMap = await resolveAuthorNames([data]);
           data.author = currentAuthorName(data, nameMap);
-          setStory(data);
+          // Keep whatever body we already have — the build-inlined preview — until
+          // the endpoint answers. Replacing it with '' here would blank the prose
+          // for the length of a round-trip on every story open.
+          setStory(prev => ({ ...data, content: prev?.content || '', contentIsPreview: prev?.contentIsPreview !== false }));
           setStoryReady(true);
         }
       } catch (e) { console.error('CMS fetch error:', e); }
     }
     fetchFromCMS();
   }, [slug]);
+
 
   // 'hidden' → 'entering' → 'settled'. Fires exactly once per mount: the ref guard means
   // no later state change can replay it, and the class lands on the wrapper element, never
@@ -923,6 +942,39 @@ export default function StoryPageClient({ params, initialStory = null }) {
     })();
     return () => { if (unsub) unsub(); };
   }, []);
+
+  // ── THE BODY, FROM THE ONE PLACE THAT APPLIES THE GATE ───────────────────────
+  // Runs on mount and again whenever the reader's identity changes, which is the
+  // whole of "how the remainder arrives" (contract §4.3): there is no unlock call
+  // and no delta — signing in or buying a pass re-asks the same question and gets
+  // the whole body back.
+  //
+  // `access` is deliberately not cached anywhere. It is a property of this response,
+  // not of the story.
+  const [gate, setGate] = useState(null);
+  useEffect(() => {
+    if (!slug) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await requestStory(storyUser, slug);
+        if (cancelled) return;
+        if (data.access === 'reader') { window.location.replace(data.readerHref || `/reader/${slug}`); return; }
+        setGate(data);
+        const body = bodyOf(data);
+        if (body) {
+          setStory(prev => (prev ? { ...prev, content: body, contentIsPreview: data.access === 'preview' } : prev));
+          setStoryReady(true);
+        }
+      } catch (e) {
+        // NOT fatal, and this is the important half: first paint already carries the
+        // preview from the static HTML, so a failed fetch leaves the reader with the
+        // opening of the story rather than an error page. Logged, not surfaced.
+        if (!cancelled) console.error('[story] body fetch failed:', e.code || '', e.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [slug, storyUser]);
 
   useEffect(() => {
     if (slug !== PAYWALL_SLUG) {
@@ -1468,6 +1520,10 @@ useEffect(() => {
               ) : (
                 <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: story.content || '<p>Content coming soon.</p>' }} />
               )}
+              {/* Inside the article so the fade sits over the prose it is fading,
+                  and outside .prose so the drop-cap tagger — which scopes its query
+                  to `.prose.has-dropcap` — cannot see it. */}
+              <StoryGate gate={gate} signedIn={!!storyUser} onSignIn={() => setShowAuthModal(true)} />
             </article>
             <div ref={endSentinelRef} className="last-page" aria-hidden="true">
               <span className="lp-orn">✦</span>

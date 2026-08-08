@@ -1,3 +1,5 @@
+import { readStoryBody } from './_story-body.js';
+
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
 function evalJson(data, status = 200) {
@@ -154,7 +156,19 @@ export async function onRequestPost(context) {
   }
   if (!story) return evalJson({ error: 'Story not found.' }, 404);
 
-  const storyText = stripHtml(story.content || '');
+  // Phase T1: the body moved to story_bodies/<slug> (`.read: false`). The fetch above
+  // still reads cms_stories for TITLE and AUTHOR, which are public metadata and stay
+  // there. Only the body needs a credential, and this is NOT a second gate — no tier,
+  // no window. See functions/api/_story-body.js.
+  let storyBody;
+  try {
+    storyBody = await readStoryBody(env, slug);
+  } catch (e) {
+    console.error('[evaluate-quiz] story body read failed:', e.message);
+    return evalJson({ error: 'Could not read the story just now. Please try again.' }, 502);
+  }
+
+  const storyText = stripHtml(storyBody.content || '');
   if (!storyText) return evalJson({ error: 'Story has no content.' }, 400);
 
   const title = story.title || slug;

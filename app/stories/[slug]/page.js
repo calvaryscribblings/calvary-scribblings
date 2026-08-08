@@ -1,4 +1,5 @@
 import { stories } from '../../lib/stories';
+import { cutPreview } from '../../lib/previewCut';
 import StoryPageClient from './page-client';
 
 const FB = {
@@ -43,10 +44,29 @@ export async function generateStaticParams() {
 }
 
 // Server component (runs at build under output:export). It hands the client the
-// story record so the PROSE ships in the static HTML — first paint carries the
-// words without a Firebase round-trip. The client still fetches the single live
-// record on mount for freshness/reads/reactions (see page-client). extractedText
-// is dropped: the story page never renders it, and it is the one heavy field.
+// story record so words ship in the static HTML — first paint carries prose without
+// a Firebase round-trip. The client still fetches the live record on mount for
+// freshness/reads/reactions, and the BODY from /api/story (see page-client).
+//
+// ── THE SECOND DOOR, CLOSED HERE (STORY-SERVING-CONTRACT.md §7.1) ──────────────
+//
+// This function used to inline the WHOLE body of every story into its static page.
+// Gating the RTDB node while `view-source` still handed over the words would have
+// been theatre of exactly the kind §4.4 refuses elsewhere: the endpoint would answer
+// `access: 'preview'` to a free reader who already had the full text sitting in the
+// HTML they had just downloaded.
+//
+// So the build inlines THE PREVIEW for any story that could be gated, and the full
+// body only for stories that are free to everyone by policy (poetry). The preview is
+// public by definition, first paint still arrives with real words and no round-trip,
+// and the remainder — for a reader entitled to it — comes from /api/story after
+// hydration.
+//
+// `contentIsPreview` tells the client which it got. Always present as a boolean, so
+// the client branches on a fact rather than inferring from length.
+//
+// extractedText is dropped as it always was: the story page never renders it, and it
+// is the one heavy field.
 export default async function StoryPage({ params }) {
   const { slug } = await params;
   let initialStory = null;
@@ -54,8 +74,47 @@ export default async function StoryPage({ params }) {
     const all = await getAllStories();
     const rec = all[slug];
     if (rec) {
-      const { extractedText, ...rest } = rec;
-      initialStory = { id: slug, ...rest };
+      const { extractedText, content, ...rest } = rec;
+      let inlined = content || '';
+      let isPreview = false;
+
+      // ── WHY THIS IS NOT isGateable() ──────────────────────────────────────
+      // isGateable() answers a RUNTIME question — "could the endpoint ever gate
+      // this?" — and it says no for three different reasons: poetry (free by
+      // policy), reader-mode (served at /reader), and UNPUBLISHED. Only the first
+      // of those means "safe to ship in full".
+      //
+      // Reusing it here would have inlined the complete text of all 15 hidden
+      // stories into public static pages, because "not gateable" and "free to
+      // everyone" are not the same statement. generateStaticParams builds a page
+      // for every key in cms_stories, hidden ones included, so those pages exist
+      // and are fetchable by anyone who guesses the slug.
+      //
+      // The build's question is narrower and is asked directly: is this story free
+      // to EVERYONE, always? Poetry is (contract §3.3). Nothing else is.
+      const alwaysFree = rec.category === 'poetry' && !rec.epubUrl;
+
+      if (!alwaysFree) {
+        isPreview = true;
+        try {
+          inlined = cutPreview(content || '').html;
+        } catch (e) {
+          // A malformed body cannot be cut into a provably well-formed prefix, and
+          // the build must NOT fall back to the full text — that would make bad
+          // markup a paywall bypass in the static HTML, which is the one place we
+          // could never revoke it. Ship no prose for this story and shout: the page
+          // still renders (title, cover, byline) and the client fetches the body
+          // from /api/story, which applies the same gate with the same cutter.
+          //
+          // scripts/repair-malformed-bodies.mjs exists for this, the composer
+          // refuses to save a body that fails validation, and the corpus was clean
+          // as of 2026-08-08 — so this is a backstop, not a path.
+          console.error(`[build] PREVIEW FAILED for ${slug} — shipping no inline prose: ${e.message}`);
+          inlined = '';
+        }
+      }
+
+      initialStory = { id: slug, ...rest, content: inlined, contentIsPreview: isPreview };
     }
   } catch (e) {
     console.error('StoryPage build fetch error:', e);

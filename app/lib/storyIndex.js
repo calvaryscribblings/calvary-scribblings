@@ -51,8 +51,16 @@
 // reader actions and would force a public write path — the index stays
 // editorially-immutable, refreshed only on publish/edit/unpublish/delete).
 //
-// Pure ESM, zero imports: safe under the static-export build AND importable from
-// scripts/*.mjs (the backfill), so the projection is defined exactly once.
+// Pure ESM, safe under the static-export build AND importable from scripts/*.mjs
+// (the backfill), so the projection is defined exactly once.
+//
+// R11.9: this used to say "zero imports". It now takes exactly one — publishedAtMsFor
+// from app/lib/storyAccess.js, which is itself import-free — and the property that
+// mattered is unchanged: no React, no Firebase, no network, nothing that bare Node or
+// a Worker cannot load. The alternative was hand-copying the date derivation into the
+// projection, which is precisely the kind of second copy this file's own contract
+// header warns about three paragraphs up.
+import { publishedAtMsFor } from './storyAccess.js';
 
 export const INDEX_PATH = 'cms_stories_index';
 
@@ -97,6 +105,17 @@ export function buildIndexRecord(slug, story) {
     // (filtered-reality sets both), so nothing misroutes yet — this closes it before one does.
     bookReader: s.bookReader === true,
     readTime: indexReadTime(s.content),
+    // publishedAtMs is the ONE field on this projection that is load-bearing for
+    // ENTITLEMENT rather than for rendering, and it is worth knowing which. The
+    // story-serving endpoint resolves the most-recent-5 free floor with an ordered
+    // query on this node (orderBy="publishedAtMs"&limitToLast=N), so a record that
+    // lacks it is invisible to the floor — see STORY-SERVING-CONTRACT.md §3.2, §8.
+    // `"publishedAtMs"` is in .indexOn on cms_stories_index in database.rules.json;
+    // without it Firebase refuses the query outright rather than answering slowly.
+    //
+    // Derived here rather than copied from s.publishedAtMs so that a record written
+    // before the R11.8 backfill still projects a correct value instead of a hole.
+    publishedAtMs: publishedAtMsFor(s),
     url: s.url || `/stories/${slug}`,
   };
   if (s.publishAt) rec.publishAt = s.publishAt;
