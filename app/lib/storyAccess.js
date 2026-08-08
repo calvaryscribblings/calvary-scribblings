@@ -202,6 +202,31 @@ export function servesAsReader(story) {
 // behind each; the short version is recorded here so a reader of this file is not
 // left guessing why the numbers are the numbers.
 
+/**
+ * ⛔ THE KILL SWITCH. FALSE = NO STORY IS EVER GATED, FOR ANYONE.
+ *
+ * Set false 2026-08-08 ~20:00, in response to a reader-visible gate on production
+ * that was not supposed to be live. R11.9 (8a8b5872) shipped BOTH halves of the
+ * paywall at once — the static build stopped inlining full bodies and started
+ * inlining `cutPreview()` output, and /api/story began applying grantFor() — and
+ * the round's own report described that state as "gating live for nobody". It was
+ * live for every signed-out reader on the web, on every prose story older than the
+ * free window. See the R11.9 divergence note.
+ *
+ * WHY A CONSTANT AND NOT AN ENV VAR. Both halves of the gate must flip together and
+ * one of them is the STATIC BUILD (app/stories/[slug]/page.js), which bakes its
+ * decision into HTML at build time. An env var read at request time could not reach
+ * it — the deployed HTML would keep shipping previews no matter what the Function
+ * decided. A constant in the module both halves already import is the only thing
+ * that flips both with one edit, and it is greppable, diffable and reviewable, which
+ * a dashboard toggle is not.
+ *
+ * TO RE-ENABLE: set true, and read STORY-SERVING-CONTRACT.md §7 first — the phase
+ * order there has a deliberate step (P8) that turns the reader-visible gate on
+ * ONCE, on purpose, after the bodies are migrated. That step has not been taken.
+ */
+export const GATING_ENABLED = false;
+
 /** 7 days. The floor is the NEWSLETTER CYCLE — a story is free while its issue is
  *  the current issue — not a guess at reader tolerance. */
 export const FREE_WINDOW_DAYS = 7;
@@ -262,7 +287,30 @@ export function isGateable(story) {
  * the endpoint answers them before it gets this far — a function that returns an
  * access level should not also be the thing that says a story does not exist.
  */
-export function grantFor(story, { tier = 'free', floorSlugs = [], slug = '', now = Date.now() } = {}) {
+export function grantFor(story, opts = {}) {
+  const grant = policyGrantFor(story, opts);
+
+  // ⛔ THE KILL SWITCH, and note WHERE it sits: AFTER the policy has run, and it
+  // spares the 'reader' answer. A reader-mode record must still answer 'reader'
+  // with the switch off — its body is an EPUB, /api/story has no HTML to send for
+  // it, and forcing 'full' would make the endpoint read a body that isn't there and
+  // return 502 on every novel on the site. Turning the gate off must not break a
+  // surface that was never gated in the first place.
+  //
+  // Applied HERE rather than inside policyGrantFor so the policy stays testable
+  // while it is switched off — tests/ci/story-access.test.mjs asserts the policy
+  // through policyGrantFor and the switch through this function. A kill switch
+  // that also blinds the suite guarding what it kills is how you discover, on the
+  // day you flip it back, that the policy rotted while nobody was looking.
+  if (!GATING_ENABLED && grant.access !== 'reader') {
+    return { access: 'full', reason: 'gating_off', freeUntilMs: grant.freeUntilMs };
+  }
+  return grant;
+}
+
+/** The policy itself, with no kill switch. Exported for the tests; every PRODUCTION
+ *  caller wants grantFor above, which is this plus the switch. */
+export function policyGrantFor(story, { tier = 'free', floorSlugs = [], slug = '', now = Date.now() } = {}) {
   const s = story || {};
   const publishedAtMs = typeof s.publishedAtMs === 'number' && Number.isFinite(s.publishedAtMs)
     ? s.publishedAtMs

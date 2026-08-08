@@ -1,5 +1,6 @@
 import { stories } from '../../lib/stories';
 import { cutPreview } from '../../lib/previewCut';
+import { GATING_ENABLED } from '../../lib/storyAccess';
 import StoryPageClient from './page-client';
 
 const FB = {
@@ -92,7 +93,16 @@ export default async function StoryPage({ params }) {
       //
       // The build's question is narrower and is asked directly: is this story free
       // to EVERYONE, always? Poetry is (contract §3.3). Nothing else is.
-      const alwaysFree = rec.category === 'poetry' && !rec.epubUrl;
+      //
+      // ⛔ …AND WITH THE KILL SWITCH OFF, EVERY STORY IS FREE TO EVERYONE. That is
+      // not a special case bolted on here; it is the same sentence `alwaysFree`
+      // already asks, answered by the one constant that also turns the endpoint's
+      // gate off (app/lib/storyAccess.js). Both halves must flip together: leaving
+      // this one cutting previews while the Function serves full bodies would give
+      // every reader a preview at first paint and the rest a round-trip later —
+      // a flash of paywall on a site with no paywall, and nothing at all for a
+      // reader without JS.
+      const alwaysFree = !GATING_ENABLED || (rec.category === 'poetry' && !rec.epubUrl);
 
       if (!alwaysFree) {
         isPreview = true;

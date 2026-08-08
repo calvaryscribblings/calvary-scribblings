@@ -14,11 +14,21 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  grantFor, isGateable, resolveRecentFloor, isReaderMode, readerShapeError,
+  policyGrantFor as grantFor, grantFor as shippedGrantFor,
+  isGateable, resolveRecentFloor, isReaderMode, readerShapeError,
+  GATING_ENABLED,
   FREE_WINDOW_DAYS, FREE_WINDOW_MS, RECENT_FLOOR_COUNT, ARCHIVE_MIN_TIER,
 } from '../../app/lib/storyAccess.js';
 import { effectiveTier } from '../../app/lib/membership.js';
 
+// ── WHY `grantFor` HERE IS THE POLICY FUNCTION ───────────────────────────────────
+//
+// Everything below this line tests THE POLICY — free window, floor, tier, archive —
+// and it must keep doing so while the gate is switched off, or the policy quietly
+// rots and the day someone flips GATING_ENABLED back on is the day they find out.
+// So the policy suite binds `grantFor` to policyGrantFor, and the shipped function
+// (policy + switch) is imported under its own name and tested in exactly one place:
+// the block directly below. Those are the only two things that need saying about it.
 const NOW = Date.UTC(2026, 7, 8);              // 2026-08-08, the day the corpus was measured
 const DAY = 86400000;
 const ago = (days) => NOW - days * DAY;
@@ -26,6 +36,48 @@ const ago = (days) => NOW - days * DAY;
 const story = (over = {}) => ({
   title: 'A Story', category: 'short', published: true,
   publishedAtMs: ago(30), ...over,
+});
+
+// ── THE KILL SWITCH ──────────────────────────────────────────────────────────────
+//
+// Added 2026-08-08 after R11.9 put a reader-visible paywall on production without
+// meaning to. These tests are written so they PASS IN BOTH POSITIONS of the switch —
+// each one asserts what must be true given GATING_ENABLED, rather than assuming it
+// is off. A suite that has to be edited to flip the switch is a suite that will be
+// edited wrongly, at speed, on the bad day.
+describe('the kill switch', () => {
+  const archived = story({ publishedAtMs: ago(30) });
+
+  test('the shipped grantFor obeys GATING_ENABLED for a free reader on an old story', () => {
+    const g = shippedGrantFor(archived, { tier: 'free', slug: 'x', now: NOW });
+    if (GATING_ENABLED) {
+      assert.equal(g.access, 'preview', 'gate is ON — an old story is a preview to a free reader');
+      assert.equal(g.reason, 'archive');
+    } else {
+      assert.equal(g.access, 'full', 'gate is OFF — nobody may be shown a preview');
+      assert.equal(g.reason, 'gating_off');
+    }
+  });
+
+  test('the POLICY is unaffected by the switch, so it keeps being tested while off', () => {
+    const g = grantFor(archived, { tier: 'free', slug: 'x', now: NOW });
+    assert.equal(g.access, 'preview');
+    assert.equal(g.reason, 'archive');
+  });
+
+  test('reader-mode still answers reader with the switch off — it has no HTML body', () => {
+    // The one branch the switch must NOT overwrite. Forcing 'full' here would send
+    // /api/story looking for an HTML body that does not exist for an EPUB record,
+    // and 502 every novel on the site. Asserted unconditionally: true either way.
+    const g = shippedGrantFor(story({ readerMode: true }), { tier: 'free', slug: 'n', now: NOW });
+    assert.equal(g.access, 'reader');
+    assert.equal(g.reason, 'reader_mode');
+  });
+
+  test('freeUntilMs survives the switch, so the UI can still say when a story opened', () => {
+    const g = shippedGrantFor(archived, { tier: 'free', slug: 'x', now: NOW });
+    assert.equal(g.freeUntilMs, ago(30) + FREE_WINDOW_MS);
+  });
 });
 
 describe('the settled constants', () => {
