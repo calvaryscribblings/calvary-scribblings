@@ -6,8 +6,8 @@
 //                or NOTHING AT ALL — see below
 //   selector:    body { slug } (aliases: storySlug, id)
 //
-//   → 200 { slug, access, reason, publishedAtMs, freeUntilMs, degraded, readerHref,
-//           content? | preview?+previewOf? }
+//   → 200 { slug, access, reason, publishedAtMs, freeUntilMs, readTimeMinutes,
+//           degraded, readerHref, content? | preview?+previewOf? }
 //   → 400 { code: 'bad_request' }        401 { code: 'signed_out' }
 //   → 404 { code: 'not_found' }          405 { code: 'method_not_allowed' }
 //   → 500 { code: 'misconfigured' | 'preview_failed' }
@@ -49,9 +49,11 @@ import {
   FIREBASE_TIMEOUT_MS,
 } from './bookstore/_lib.js';
 import { effectiveTier } from '../../app/lib/membership.js';
-import { grantFor, resolveRecentFloor, RECENT_FLOOR_COUNT } from '../../app/lib/storyAccess.js';
+import { grantFor, resolveRecentFloor, readerShapeError } from '../../app/lib/storyAccess.js';
+import { indexReadTime } from '../../app/lib/storyIndex.js';
 import { cutPreview } from '../../app/lib/previewCut.js';
 import { MalformedHtmlError } from '../../app/lib/htmlBlocks.js';
+import { readTelemetry, recordClient } from './_telemetry.js';
 
 const STORIES_PATH = 'cms_stories';
 const BODIES_PATH = 'story_bodies';
@@ -150,10 +152,18 @@ async function handlePost(context) {
     return respond({ error: 'slug required.', code: 'bad_request' }, 400);
   }
 
-  // Telemetry only. NEVER an input to entitlement or to the response shape — it
-  // exists so that when the node is cut (T3) we can see who is still on the old path.
-  const client = typeof body?.client === 'string' ? body.client.slice(0, 64) : '';
-  const clientVersion = typeof body?.clientVersion === 'string' ? body.clientVersion.slice(0, 32) : '';
+  // ── TELEMETRY. NEVER an input to entitlement or to the response shape ──────
+  // It exists so that when the node is cut (T3) we can see who is still on the old
+  // path — "proceed on a number", not on a date.
+  //
+  // updateId AND runtime were added at the app session's request (R11.10) and they
+  // are the fields that make the number real. The fleet updates over the air, so
+  // clientVersion '1.2.0' is the same string on a device carrying today's OTA bundle
+  // and on one that has not fetched an update in a month — and the OTA lane is
+  // exactly what T2 has to count. Expo's Updates.updateId distinguishes them;
+  // `runtime` (the runtime version) separates a native rebuild from an OTA push.
+  const telemetry = readTelemetry(body);
+  const { client, clientVersion, updateId, runtime } = telemetry;
 
   // ── identity (optional) ────────────────────────────────────────────────────
   const idToken = readIdToken(request, body);
@@ -172,6 +182,13 @@ async function handlePost(context) {
   } catch (e) {
     console.error('[story] admin token mint failed:', e.message || e);
     return respond({ error: 'Could not open that story just now. Please try again.', code: 'unavailable' }, 502);
+  }
+
+  // Adoption counter, fired and forgotten. NEVER awaited on the response path — a
+  // slow counter must not cost a reader a story. See functions/api/_telemetry.js for
+  // why /api/hit carries the other half of this measurement.
+  if (context.waitUntil) {
+    context.waitUntil(recordClient({ dbUrl: dbBase(env), token, surface: 'story', tele: telemetry, now }));
   }
 
   // ── the story record ───────────────────────────────────────────────────────
@@ -237,13 +254,37 @@ async function handlePost(context) {
     publishedAtMs: typeof story.publishedAtMs === 'number' ? story.publishedAtMs : null,
     freeUntilMs: grant.freeUntilMs,
     readerHref: null,
+    // ── READ TIME FOR THE WHOLE STORY, NOT FOR WHAT WE SENT ──────────────────
+    // Added R11.10 at the app session's request. The app computed this client-side
+    // from whatever body it held, which understates on a preview (30% of the prose
+    // reads as 30% of the minutes) and collapses to "1 min read" on a T3 tombstone.
+    // Both are wrong in the direction that makes the story look slighter than it is.
+    //
+    // Filled in below, once the full body has been read. Always a NUMBER on a prose
+    // response and null on access:'reader', where the text is an EPUB this endpoint
+    // never opens — an explicit null the app can branch on, not an omission.
+    readTimeMinutes: null,
     degraded: entitlementDegraded || floorDegraded,
   };
 
   console.log(
     `[story] ${slug} access=${grant.access} reason=${grant.reason} uid=${uid || '-'} tier=${tier}`
-    + `${base.degraded ? ' DEGRADED' : ''}${client ? ` client=${client}/${clientVersion}` : ''}`,
+    + `${base.degraded ? ' DEGRADED' : ''}`
+    + `${client ? ` client=${client}/${clientVersion}${updateId ? `/${updateId}` : ''}${runtime ? ` rt=${runtime}` : ''}` : ''}`,
   );
+
+  // THE DATA ERROR, absorbed here and nowhere else. category says book, flags say
+  // prose — see readerShapeError() for the ruling. The story is still routed to
+  // /reader below so no reader is broken by a record they did not write, but it is
+  // logged loudly because clients are forbidden from carrying the fallback and this
+  // is therefore the only place the shape can be found.
+  if (readerShapeError(story)) {
+    console.error(
+      `[story] DATA ERROR ${slug}: category='${story.category}'`
+      + `${story.epubUrl ? ' with epubUrl' : ''} but readerMode/bookReader are not set.`
+      + ' Routed to /reader defensively. Set the flag on the record.',
+    );
+  }
 
   // ── reader-mode: the carve-out, stated rather than hidden ──────────────────
   // Its bytes are an EPUB at a public Firebase Storage URL. Withholding the HTML
@@ -269,6 +310,19 @@ async function handlePost(context) {
     console.error(`[story] NO BODY at ${BODIES_PATH}/${slug} — dual-write gap?`);
     return respond({ ...base, error: 'Could not open that story just now. Please try again.', code: 'unavailable' }, 502);
   }
+
+  // ⚠ indexReadTime, NOT a local word count, and ALWAYS over the full `content`
+  // even when only a preview is being sent. Two reasons, both load-bearing:
+  //
+  //   1. WHOLE-STORY. That is the entire point of the field — see base above.
+  //   2. THE SAME FUNCTION the index projection uses, which is itself a byte-for-byte
+  //      reimplementation of the app's lib/storyDerived.ts:37. It counts RAW HTML
+  //      TOKENS: markup counts as words. That is a PRESERVED QUIRK, not a bug to fix
+  //      here — the app's search, profile and author-list surfaces render the index's
+  //      number, and a story page that "corrected" it would disagree with every one
+  //      of them. Cross-platform parity outranks correctness; if it is ever fixed it
+  //      is fixed in all four places in one change.
+  base.readTimeMinutes = indexReadTime(content);
 
   if (grant.access === 'full') {
     return respond({ ...base, content });

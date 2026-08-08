@@ -21,6 +21,8 @@
 // server-side ServerValue increment, so concurrent reads never lose updates —
 // the same guarantee a runTransaction would give on the client SDK.
 
+import { readTelemetry, recordClient } from './_telemetry.js';
+
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
 function json(data, status = 200) {
@@ -109,15 +111,27 @@ async function handle(context) {
   // body) or as a JSON body { slug, readerId } (current web client). Query wins.
   let slug = (url.searchParams.get('slug') || '').trim();
   let readerId = (url.searchParams.get('readerId') || '').trim();
+  // ── T2: THIS ENDPOINT IS THE DENOMINATOR ───────────────────────────────────
+  // Every client version fires /api/hit on a story open — including the stale
+  // binaries this file's header already describes, which send no body at all. That
+  // is precisely what makes it measurable: a new client identifies itself and an old
+  // one cannot, so the unattributed share IS the un-migrated fleet.
+  //
+  // /api/story can never produce that number on its own; only clients that have
+  // already migrated ever call it. See functions/api/_telemetry.js.
+  let telemetry = readTelemetry(null);
   if (request.method === 'POST') {
     try {
       const body = await request.json();
       if (body && typeof body === 'object') {
         if (!slug && typeof body.slug === 'string') slug = body.slug.trim();
         if (!readerId && typeof body.readerId === 'string') readerId = body.readerId.trim();
+        telemetry = readTelemetry(body);
       }
     } catch (e) {
-      // No / non-JSON body — old app binaries send none. Fall through to query.
+      // No / non-JSON body — old app binaries send none. Fall through to query, and
+      // leave telemetry empty, which counts this call into the 'unknown' bucket.
+      // That is the intended reading, not a gap.
     }
   }
 
@@ -150,6 +164,11 @@ async function handle(context) {
 
   const auth = { Authorization: `Bearer ${accessToken}` };
   const hitsPath = `${fbDb}/stories/${encodeURIComponent(slug)}/hits.json`;
+
+  // Fire-and-forget, never awaited: a counter must not delay a read count.
+  if (context.waitUntil) {
+    context.waitUntil(recordClient({ dbUrl: fbDb, token: accessToken, surface: 'hit', tele: telemetry }));
+  }
 
   // Authoritative post-write total (ServerValue.increment is applied server-side).
   const readBackCount = async () => {

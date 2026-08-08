@@ -1,9 +1,12 @@
 # The story-serving contract
 
-**Status:** contract frozen, endpoint not yet built. Written to be built against
-*today* from both sides at once — the app session implements the client half
-against this document, this repo implements `functions/api/story.js` against the
-same document, and neither waits for the other.
+**Status:** LIVE. `functions/api/story.js` ships and phase T1 is complete — bodies
+are dual-written, the node is untouched, and gating is therefore active for nobody
+yet (§7). The app session implements the client half against this document.
+
+Revised R11.10 after the app-side recon: `readTimeMinutes` (§4.0b), the `updateId`
+/ `runtime` telemetry fields (§1.3), the flag-driven reader-mode ruling (§4.4) and
+the iOS platform note (§4.5).
 
 **Audience:** the Story Island app session (calvary-app repo) and this repo.
 
@@ -76,11 +79,30 @@ RTDB path. This is a path-traversal guard, not a taste check.
 
 ### 1.3 Telemetry fields (optional, and never load-bearing)
 
-Body `{ client, clientVersion }` — e.g. `{ client: 'story-island-ios',
-clientVersion: '2.4.0' }`. **Logged only.** No entitlement decision, no response
-shape, and no transition behaviour (§7) reads these. They exist so that when the
-node is finally cut we can see who is still on the old path — a question we will
-otherwise have to answer by guessing.
+Body `{ client, clientVersion, updateId, runtime }` — e.g.
+
+```jsonc
+{ "client": "story-island-ios", "clientVersion": "2.4.0",
+  "updateId": "8f1c…",           // Expo Updates.updateId — the OTA bundle
+  "runtime": "1.2.0" }           // runtime version — the native shell
+```
+
+**Logged and counted only.** No entitlement decision, no response shape, and no
+transition behaviour (§7) reads these.
+
+**`updateId` is the field that makes T2's number real, and it was added because
+`clientVersion` cannot do the job alone.** The fleet updates over the air, so
+`clientVersion: '2.4.0'` is the *same string* on a device carrying today's OTA
+bundle and on one that has not fetched an update in a month. T3 is gated on "what
+share of traffic is on the new path", and the OTA lane is exactly where that share
+moves — a version string would have counted a stale bundle as adopted and cut the
+node under it.
+
+`runtime` separates a native rebuild from an OTA push, so a change that requires an
+App Store round-trip is distinguishable from one that does not.
+
+All four are truncated server-side (64/32/64/32 chars) and are never interpolated
+into a path.
 
 ### 1.4 Full request example
 
@@ -298,6 +320,7 @@ field and it is the same ruling here.
   "reason":         "free_window",           // always: see §4.5
   "publishedAtMs":  1780531200000,           // always (number; null only if unparseable)
   "freeUntilMs":    1783123200000,           // always (number; null when publishedAtMs is null)
+  "readTimeMinutes": 6,                      // always (number; null on access:'reader')
   "content":        "<p>Dayo was afraid…",   // access:'full' only
   "preview":        "<p>Dayo was afraid…",   // access:'preview' only
   "previewOf":      { "paragraphs": 3, "of": 47 },  // access:'preview' only
@@ -305,6 +328,40 @@ field and it is the same ruling here.
   "degraded":       false                    // always (boolean; see §5.4)
 }
 ```
+
+### 4.0b `readTimeMinutes` — for the WHOLE story, never for what was sent
+
+**Always present. A number on any prose response; `null` on `access:'reader'`.**
+
+Added R11.10 because the app was computing it client-side from whatever body it
+held, and that is wrong in both of the ways it can be wrong:
+
+- **On a preview** it understates — 30% of the prose reads as 30% of the minutes,
+  so the one number that tells a reader whether they have time for this story is
+  derived from the part we deliberately withheld.
+- **On a T3 tombstone** (§7) it collapses to `1 min read`, because the tombstone is
+  one sentence.
+
+Both make the story look slighter than it is, at the exact moment we are asking
+someone to decide whether to read it. So the server sends it, computed from the
+full body it already has in hand. **One call, one truth** — deliberately not a
+second `cms_stories_index` read.
+
+> **⚠ IT PRESERVES THE RAW-HTML-TOKEN QUIRK, AND THAT IS NOT A BUG.**
+>
+> It is produced by `indexReadTime()` in `app/lib/storyIndex.js` — the same
+> function the index projection uses, itself a byte-for-byte reimplementation of
+> the app's `lib/storyDerived.ts:37`. It counts raw HTML tokens at 220 wpm, so
+> markup counts as words: `<p>` is one token, `<a href="…">` is two.
+>
+> A story page that "corrected" this would disagree with the app's own search,
+> profile → myStories and author-list surfaces, which render the index's number,
+> on **every** story. Cross-platform parity outranks correctness here. If it is
+> ever fixed it is fixed in `storyDerived.ts`, `storyIndex.js`, the Worker mirror
+> and this endpoint **in one change**.
+
+`null` on `access:'reader'` is a stated fact, not an omission: that body is an
+EPUB this endpoint never opens, so it has nothing to count.
 
 ### 4.1 `access: 'full'`
 
@@ -402,10 +459,30 @@ changed. Do not cache `access`. Do not persist it. Re-ask.
 
 ### 4.4 `access: 'reader'` — the carve-out, stated rather than hidden
 
-Reader-mode stories (`readerMode === true`, `bookReader === true`,
-`category === 'novel'`, or `category === 'poetry'` with an `epubUrl`) return
-`access:'reader'` with `readerHref: "/reader/<slug>"`, **no `content` and no
-`preview`**.
+**READER-MODE IS FLAG-DRIVEN. `readerMode === true || bookReader === true` is the
+whole definition.** Reader-mode stories return `access:'reader'` with
+`readerHref: "/reader/<slug>"`, **no `content` and no `preview`**.
+
+#### The ruling on `category: 'novel'` (R11.10)
+
+**`category: 'novel'` without a flag — and `category: 'poetry'` with an `epubUrl`
+and no flag — is a DATA ERROR, not a supported shape.** Clients must route on the
+flags alone and **must not** implement a category fallback.
+
+Measured across all 176 live records before ruling: **zero** carry the category-only
+shape, so the ruling breaks nothing. What the data showed instead is the argument
+*for* it — four published stories are `readerMode: true` with `category: 'short'`,
+so the category has never been the reliable signal and the flag has been doing the
+work all along. Against that, the cost of *not* ruling was six call sites in the app
+widening to carry a fallback no record needs.
+
+**The server still routes the erroneous shape to `/reader` anyway, and that is not a
+contradiction.** It logs `DATA ERROR` with the slug and then answers `'reader'`,
+because the alternative — serving a novel as prose, finding no HTML body, returning
+`502` — breaks a reader to make a point about a record they did not write. Server
+defensiveness is not contract support: absorbed in one place it is a repairable
+blip, but implemented on four codebases the shape becomes load-bearing and the
+ruling is dead. That is why the fallback belongs *here* and nowhere else.
 
 They are not gated by this endpoint and this endpoint does not pretend to gate
 them: their bytes are an EPUB at a **public Firebase Storage download URL** on the
@@ -442,6 +519,23 @@ date that has already gone.
 
 **The app must tolerate an unknown `reason` string** by falling back to `access`
 alone. New reasons will be added; `access` is the closed set, `reason` is not.
+
+#### Platform note: the iOS preview card is non-transactional
+
+Confirmed by the app session (R11.10). On iOS the preview card carries **no
+purchase path** — the external Stripe link was stripped for the v1 submission under
+App Review guideline 3.1.1, and it is not coming back.
+
+Two consequences worth writing down rather than rediscovering:
+
+- **`reason` is wording, not conversion, on that platform.** The vocabulary above
+  still earns its place — "free this week", "poetry is always free" and "your Gold
+  membership" are three different true sentences — but on iOS it is choosing how to
+  describe a state, not how to sell against it.
+- **The `degraded: true` no-upsell rule (§5.4) costs iOS nothing**, because there is
+  no upsell there to suppress. It remains a **hard rule for web**, where there is
+  one and where it does convert. A rule that is free to obey on one surface is not
+  thereby optional on the other.
 
 ### 4.6 Caching
 
@@ -710,8 +804,15 @@ records that lack them.
 For the app session, in one place:
 
 - [ ] `POST /api/story`, `Authorization: Bearer` header, `{ slug }` body.
-- [ ] Send `client` and `clientVersion`. They cost nothing and they are how we
-      learn when T3 is safe.
+- [ ] Send `client`, `clientVersion`, `updateId` and `runtime`. They cost nothing
+      and they are how we learn when T3 is safe — `updateId` especially, since an
+      OTA fleet makes `clientVersion` unable to tell an updated bundle from a
+      stale one. §1.3.
+- [ ] Render `readTimeMinutes` from the response. **Stop computing it from the
+      body you hold** — that understates on a preview and reads "1 min" on a
+      tombstone. §4.0b.
+- [ ] Route reader-mode on the FLAGS (`readerMode`/`bookReader`). Do not add a
+      `category: 'novel'` fallback; the server absorbs that shape. §4.4.
 - [ ] Branch on `access` (closed set: `full` | `preview` | `reader`). Tolerate an
       unknown `reason`.
 - [ ] **Do not print `freeUntilMs` as "free until …" without checking `reason`.**

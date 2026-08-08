@@ -25,8 +25,9 @@
 // body only ever comes from the endpoint, which decides on the SERVER clock — it
 // can only drift, and show a lock on a story a reader could actually open.
 //
-// So: one definition, imported by the Pages Function, by the index projection that
-// computes the `gated` badge, and by the tests that assert those two agree.
+// So: one definition, imported by the Pages Function, by the story page and by the
+// tests that assert the two agree. (An earlier draft also had it computing a stored
+// `gated` index field; that field was dropped — see the contract §8.)
 
 // ── THE DISPLAY DATE IS FREE TEXT, AND THAT IS WHY THIS PARSER IS TOLERANT ───────
 //
@@ -143,24 +144,57 @@ export function publishedAtMsFor(story) {
 }
 
 /**
- * Is this story served as a book rather than as prose?
+ * Is this story served as a book rather than as prose? FLAGS ONLY.
  *
- * Lifted verbatim from the four places that already ask it — the story page's
- * redirect, its build-time twin, reader-gate.js and the app's storyHref — so the
- * fifth caller (the serving endpoint, which must answer access:'reader' for these)
- * does not become a fifth spelling of the same condition.
- *
- * `bookReader === true || readerMode === true` is the app's own routing test; the
- * two category clauses are this repo's. Both are included because a story that
- * routes to /reader on ANY surface has its body in an EPUB, and the endpoint's
- * answer must not depend on which surface asked.
+ * `readerMode === true || bookReader === true` — the app's own routing test, and as
+ * of R11.10 the whole definition on both sides. See readerShapeError() below for the
+ * ruling, the measurement behind it, and why the category clauses that used to live
+ * here are now an error condition rather than a second way of saying yes.
  */
 export function isReaderMode(story) {
   const s = story || {};
-  return s.readerMode === true
-    || s.bookReader === true
-    || s.category === 'novel'
-    || (s.category === 'poetry' && !!s.epubUrl);
+  return s.readerMode === true || s.bookReader === true;
+}
+
+/**
+ * The inconsistent shape: CATEGORY says book, FLAGS say prose.
+ *
+ * ── THE RULING (R11.10, requested by the app session) ────────────────────────────
+ *
+ *   READER-MODE IS FLAG-DRIVEN. `readerMode === true || bookReader === true` is the
+ *   whole definition. `category: 'novel'` without a flag, or `category: 'poetry'`
+ *   with an epubUrl and no flag, is a DATA ERROR — not a supported shape.
+ *
+ * MEASURED BEFORE RULING, over all 176 live records on 2026-08-08: ZERO carry the
+ * category-only shape, so the ruling breaks nothing today. What the data showed
+ * instead is the argument FOR it — four published stories are `readerMode: true`
+ * with `category: 'short'`, so the category has never been a reliable indicator and
+ * the flag has been doing the real work all along.
+ *
+ * The cost of not ruling was six call sites in the app widening to carry a fallback
+ * that no record needs.
+ *
+ * ── WHY THE SERVER STILL ROUTES IT ANYWAY ────────────────────────────────────────
+ *
+ * This function DETECTS the shape; it does not bless it. The endpoint logs it as a
+ * data error and then answers access:'reader' regardless, because the alternative —
+ * serving a novel as prose, finding no HTML body and returning 502 — breaks a reader
+ * to make a point about a record they did not write.
+ *
+ * Server defensiveness is not contract support, and the distinction matters:
+ * CLIENTS MUST NOT IMPLEMENT THE CATEGORY FALLBACK. If they do, the shape becomes
+ * load-bearing on four codebases and the ruling is dead. The server absorbs it in
+ * one place, loudly, where it can be found and repaired.
+ */
+export function readerShapeError(story) {
+  const s = story || {};
+  if (isReaderMode(s)) return false;
+  return s.category === 'novel' || (s.category === 'poetry' && !!s.epubUrl);
+}
+
+/** Flags OR the erroneous category shape — what the endpoint actually routes on. */
+export function servesAsReader(story) {
+  return isReaderMode(story) || readerShapeError(story);
 }
 
 // ── THE POLICY ───────────────────────────────────────────────────────────────────
@@ -198,7 +232,9 @@ export const ARCHIVE_MIN_TIER = 'gold';
 export function isGateable(story) {
   const s = story || {};
   if (s.published === false) return false;
-  if (isReaderMode(s)) return false;
+  // servesAsReader, not isReaderMode: a record with the erroneous category-only
+  // shape is still routed to /reader, so it must not occupy a floor slot either.
+  if (servesAsReader(s)) return false;
   if (s.category === 'poetry') return false;
   return true;
 }
@@ -233,7 +269,7 @@ export function grantFor(story, { tier = 'free', floorSlugs = [], slug = '', now
     : publishedAtMsFor(s);
   const freeUntilMs = publishedAtMs === null ? null : publishedAtMs + FREE_WINDOW_MS;
 
-  if (isReaderMode(s)) return { access: 'reader', reason: 'reader_mode', freeUntilMs };
+  if (servesAsReader(s)) return { access: 'reader', reason: 'reader_mode', freeUntilMs };
   if (s.category === 'poetry') return { access: 'full', reason: 'poetry', freeUntilMs };
 
   // An unparseable publication date CANNOT open the window. Treating null as "just

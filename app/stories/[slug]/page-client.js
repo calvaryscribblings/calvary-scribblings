@@ -1137,7 +1137,11 @@ export default function StoryPageClient({ params, initialStory = null }) {
         fetch(`/api/hit${qs}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug, readerId }),
+          // `client: 'web'` so this call is ATTRIBUTED. Everything unattributed in
+          // story_clients is read as the un-migrated app fleet (T2, see
+          // functions/api/_telemetry.js) — web traffic landing in that bucket would
+          // make the adoption number read far worse than it is.
+          body: JSON.stringify({ slug, readerId, client: 'web' }),
         })
           .then((r) => r.json())
           .then((data) => { if (typeof data.count === 'number') setHitCount(data.count); })

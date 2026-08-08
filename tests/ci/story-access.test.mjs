@@ -14,7 +14,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  grantFor, isGateable, resolveRecentFloor,
+  grantFor, isGateable, resolveRecentFloor, isReaderMode, readerShapeError,
   FREE_WINDOW_DAYS, FREE_WINDOW_MS, RECENT_FLOOR_COUNT, ARCHIVE_MIN_TIER,
 } from '../../app/lib/storyAccess.js';
 import { effectiveTier } from '../../app/lib/membership.js';
@@ -121,6 +121,40 @@ describe('reader-mode is a carve-out, not a grant', () => {
   test('reader-mode wins over poetry — an EPUB poem is served at /reader', () => {
     const g = grantFor(story({ category: 'poetry', epubUrl: 'x' }), { tier: 'free', now: NOW });
     assert.equal(g.access, 'reader');
+  });
+});
+
+describe('reader-mode is FLAG-DRIVEN, and the category-only shape is a data error', () => {
+  // The ruling, R11.10. Measured before making it: zero of 176 live records carried
+  // the category-only shape, and four published stories were readerMode:true with
+  // category:'short' — so the flag was already the only reliable signal.
+  test('the flags define it', () => {
+    assert.equal(isReaderMode({ readerMode: true }), true);
+    assert.equal(isReaderMode({ bookReader: true }), true);
+    assert.equal(isReaderMode({ category: 'novel' }), false, 'category alone is NOT reader-mode');
+    assert.equal(isReaderMode({ category: 'poetry', epubUrl: 'x' }), false);
+  });
+
+  test('the category-only shape is detected as an error', () => {
+    assert.equal(readerShapeError({ category: 'novel' }), true);
+    assert.equal(readerShapeError({ category: 'poetry', epubUrl: 'x' }), true);
+  });
+
+  test('a flagged record is never an error, whatever its category', () => {
+    assert.equal(readerShapeError({ category: 'novel', readerMode: true }), false);
+    assert.equal(readerShapeError({ category: 'short', readerMode: true }), false,
+      'four live records are exactly this shape');
+    assert.equal(readerShapeError({ category: 'short' }), false);
+    assert.equal(readerShapeError({ category: 'poetry' }), false, 'poetry without an EPUB is prose');
+  });
+
+  test('the server still ROUTES the error to /reader — defence, not support', () => {
+    const g = grantFor({ category: 'novel', published: true }, { tier: 'free', now: NOW });
+    assert.equal(g.access, 'reader', 'breaking a reader to make a point about a bad record is worse');
+  });
+
+  test('an erroneous record does not occupy a floor slot either', () => {
+    assert.equal(isGateable({ category: 'novel', published: true }), false);
   });
 });
 

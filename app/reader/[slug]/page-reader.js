@@ -431,7 +431,7 @@ export default function StoryReaderClient({ params, initialStory = null }) {
     hitFired.current = true;
     getReaderId().then((readerId) => {
       const qs = `?slug=${encodeURIComponent(slug)}&readerId=${encodeURIComponent(readerId)}`;
-      fetch(`/api/hit${qs}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug, readerId }) })
+      fetch(`/api/hit${qs}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug, readerId, client: 'web' }) })  // attributed — see the note in the story page
         .then((r) => r.json())
         .then((d) => { if (typeof d.count === 'number') setHitCount(d.count); })
         .catch(() => {});
