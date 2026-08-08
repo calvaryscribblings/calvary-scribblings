@@ -70,6 +70,7 @@ const LINKS = {
   own: {
     library: '/public-library',
     bookstore: '/bookstore',
+    membership: '/membership',
     films: 'https://calvaryfilms.co.uk',
   },
 };
@@ -78,6 +79,19 @@ const LINKS = {
 // Flip this one boolean on launch day and the suffix goes; nothing else changes.
 const BOOKSTORE_LAUNCHED = false;
 const BOOKSTORE_LABEL = BOOKSTORE_LAUNCHED ? 'Book Store' : 'Book Store · opens 30 Sept';
+
+// The membership page is built and readable, so the link is live from today — only the wording
+// changes on launch day. Mirrors BOOKSTORE_LAUNCHED above deliberately: one boolean, flipped in
+// the SAME change that creates the live prices, and nothing else moves.
+//
+// ⚠ THIS IS NOT MEMBERSHIPS_ON_SALE. That flag (app/lib/membershipPrices.js) governs whether a
+// buy button exists anywhere; this one governs a sentence on /links. They flip on the same day
+// but they are not the same switch, and wiring this to that would mean a copy change could not
+// ship without a payments change.
+const MEMBERSHIP_LAUNCHED = false;
+const MEMBERSHIP_LABEL = MEMBERSHIP_LAUNCHED
+  ? <><strong>Membership</strong> — open the archive →</>
+  : <><strong>Membership</strong> — opens 30 September. Read the tiers →</>;
 
 /**
  * A destination is live only if it is unambiguously a destination: an absolute https:// URL or
@@ -130,12 +144,15 @@ const AT = {
   mark: '40ms',
   wordmark: '110ms',
   tagline: '210ms',
-  buttons: ['300ms', '360ms', '420ms'],
-  divider: '500ms',
-  appHead: '560ms',
-  badges: '620ms',
-  socials: '700ms',
-  footer: '780ms',
+  // FOUR now, still 60 ms apart — the membership row joined the stack. Everything below it
+  // shifts by one step so the divider does not land 20 ms after the last button and collapse
+  // the beat between the stack and the app section.
+  buttons: ['300ms', '360ms', '420ms', '480ms'],
+  divider: '560ms',
+  appHead: '620ms',
+  badges: '680ms',
+  socials: '760ms',
+  footer: '840ms',
 };
 
 // ── THE SOCIAL MARKS ─────────────────────────────────────────────────────────
@@ -638,7 +655,17 @@ export default function LinksPage() {
             href={LINKS.own.bookstore}
             at={AT.buttons[1]}
           />
-          <StackRow label="Calvary Films" href={LINKS.own.films} at={AT.buttons[2]} />
+          {/* Directly below the Book Store, above the socials (deck §10). It sits with the two
+              Calvary Scribblings destinations rather than after Calvary Films, which is a
+              different brand on a different domain — the three own-site rows read as a group
+              and the external one closes the stack. */}
+          <StackRow
+            ornament="&#10022;"
+            label={MEMBERSHIP_LABEL}
+            href={LINKS.own.membership}
+            at={AT.buttons[2]}
+          />
+          <StackRow label="Calvary Films" href={LINKS.own.films} at={AT.buttons[3]} />
         </nav>
 
         <div className="cs-lk-divider cs-lk-rise" aria-hidden="true" style={{ '--lk-at': AT.divider }}>
