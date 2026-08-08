@@ -29,19 +29,34 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 // A 1x1 transparent GIF: the image cases need a real <img> that lays out without a network.
 const PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
-function asClassicScript(relPath, exposes) {
-  const src = readFileSync(join(ROOT, relPath), 'utf8');
-  const exportCount = (src.match(/^export (const|function) /gm) || []).length;
-  if (exportCount === 0) {
-    throw new Error(`${relPath}: found no top-level exports to strip — has the module's shape changed?`);
-  }
-  const body = src
-    .replace(/^'use client';\s*$/m, '')
-    .replace(/^export (const|function) /gm, '$1 ');
+// R11.8: `deps` was added when dropcap.js stopped being self-contained. The exclusion
+// list, the front-matter heuristics and the walk moved to app/lib/prosePredicate.js so
+// the preview cutter could run the SAME rules rather than a second copy of them — see
+// that file's header. This spec still runs the real module against real DOM in a real
+// browser, which is its whole value, so the dependency is inlined ahead of it and the
+// `import` statement stripped rather than the test being rewritten against a mock.
+function asClassicScript(relPath, exposes, deps = []) {
+  const strip = (path) => {
+    const src = readFileSync(join(ROOT, path), 'utf8');
+    const exportCount = (src.match(/^export (const|function|class) /gm) || []).length;
+    if (exportCount === 0) {
+      throw new Error(`${path}: found no top-level exports to strip — has the module's shape changed?`);
+    }
+    return src
+      .replace(/^'use client';\s*$/m, '')
+      // Multi-line `import { … } from '…';` as well as single-line.
+      .replace(/^import\s+[\s\S]*?from\s+'[^']+';\s*$/gm, '')
+      .replace(/^export (const|function|class) /gm, '$1 ');
+  };
+  const body = [...deps, relPath].map(strip).join('\n');
   return `${body}\n${exposes.map((n) => `window.${n} = ${n};`).join('\n')}`;
 }
 
-const DROPCAP_JS = asClassicScript('app/lib/dropcap.js', ['tagDropcap', 'DROPCAP_EXCLUDED_SELECTORS']);
+const DROPCAP_JS = asClassicScript(
+  'app/lib/dropcap.js',
+  ['tagDropcap', 'DROPCAP_EXCLUDED_SELECTORS'],
+  ['app/lib/prosePredicate.js'],
+);
 const PROSECSS_JS = asClassicScript('app/lib/proseCSS.js', ['proseCSS']);
 
 // ── THE CORPUS ───────────────────────────────────────────────────────────────────────────

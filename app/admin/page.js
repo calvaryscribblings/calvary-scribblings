@@ -4,6 +4,7 @@ import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { extractEpubText } from '../lib/epubExtract';
 import { indexUpdatePaths } from '../lib/storyIndex';
+import { publishedAtMsFor } from '../lib/storyAccess';
 import { buildCoverDerivatives, COVER_CACHE_CONTROL } from '../lib/coverDerivatives';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
@@ -750,6 +751,32 @@ export default function AdminPage() {
       storyData.bookReader = form.bookReader ? true : null;
       storyData.publishAt = form.publishAt ? new Date(form.publishAt).toISOString() : null;
 
+      // ── publishedAtMs — the field the free-window gate stands on ────────────
+      // Epoch ms, UTC, a NUMBER. Derived by app/lib/storyAccess.js from the two
+      // fields just written above, so the composer, scripts/backfill-published-at.mjs
+      // and the serving endpoint all reach the same instant for the same story.
+      // See STORY-SERVING-CONTRACT.md §2.
+      //
+      // It is derived AFTER publishAt is normalised, deliberately: publishAt takes
+      // precedence over the hand-typed display date, and reading form.publishAt (a
+      // datetime-local string) instead of the ISO value would hand the parser a
+      // different string than the one the record ends up carrying.
+      //
+      // THE NEW-STORY FALLBACK. `date` is a free-text field whose only guidance is a
+      // placeholder, so a typo makes it unparseable and publishedAtMsFor answers
+      // null. For a story being created RIGHT NOW that is recoverable without a
+      // guess — it is being published now, so `now` is the fact, not an estimate.
+      // For an EDIT it is not: stamping an unparseable archive story with today's
+      // clock would drop it into the free window, so an edit keeps whatever it had
+      // and the admin is told below. That asymmetry is the whole reason this is not
+      // one line.
+      const derivedPublishedAt = publishedAtMsFor(storyData);
+      if (derivedPublishedAt !== null) {
+        storyData.publishedAtMs = derivedPublishedAt;
+      } else if (!editingId) {
+        storyData.publishedAtMs = Date.now();
+      }
+
       // ── Why this is a per-field write and not a node overwrite ──────────────
       // It used to be `cms_stories/${slug}: storyData` — a path→object value, which
       // replaces the node WHOLESALE. storyData is the editor's form, so every field
@@ -783,7 +810,12 @@ export default function AdminPage() {
       // invented yet, and a silent preserve is how the next one hides — so the
       // expected four are logged, and anything else is raised where an admin can
       // see it rather than left to a drift check months later.
-      const PRESERVED_EXPECTED = ['quizMeta', 'pdfUrl', 'reads', 'ageRestricted'];
+      // publishedAtMs joins the list because it is legitimately preserved on ONE path:
+      // an edit whose `date` no longer parses (see the derivation above) keeps the
+      // value it already had rather than being restamped with today's clock. That is
+      // the intended behaviour, so it must not read as an unrecognised field — but it
+      // does need saying out loud, which the dateWarning below does.
+      const PRESERVED_EXPECTED = ['quizMeta', 'pdfUrl', 'reads', 'ageRestricted', 'publishedAtMs'];
       const preserved = Object.keys(prev).filter(k => !(k in storyData));
       const unexpected = preserved.filter(k => !PRESERVED_EXPECTED.includes(k));
       if (preserved.length) console.info(`[admin/save] ${slug}: preserved ${preserved.length} field(s) the editor does not own — ${preserved.join(', ')}`);
@@ -823,9 +855,19 @@ export default function AdminPage() {
       // An unexpected preserved field is surfaced HERE, not just in the console —
       // the console is where the last silent field loss hid for three months.
       const preservedNote = unexpected.length ? `  ⚠ Preserved unrecognised field(s): ${unexpected.join(', ')} — confirm they belong on cms_stories.` : '';
+      // The date field is free text and nothing validates it. When it stops parsing,
+      // the story quietly keeps its old publication instant (or, on a new story, gets
+      // today's) — and the free-window gate runs off that number. Silent is exactly
+      // what this must not be, so it is said in the admin's own message, not a console
+      // line nobody opens.
+      const dateWarning = derivedPublishedAt === null
+        ? (editingId
+          ? `  ⚠ "${form.date}" could not be read as a date — publication instant left unchanged. Use "Mar 29, 2026".`
+          : `  ⚠ "${form.date}" could not be read as a date — publication instant set to now. Use "Mar 29, 2026".`)
+        : '';
       setMsg((isScheduled
         ? `⏰ Story scheduled for ${new Date(form.publishAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}.`
-        : editingId ? '✓ Story updated.' : '✓ Story published.') + preservedNote);
+        : editingId ? '✓ Story updated.' : '✓ Story published.') + preservedNote + dateWarning);
       setForm(emptyForm); setEditingId(null); setView('list');
       loadStories();
     } catch (e) { setMsg('Error saving: ' + e.message); }

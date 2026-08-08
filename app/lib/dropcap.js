@@ -26,94 +26,52 @@
 // CMS worked around CHAFF by switching the markers to <h3>; that revert is safe once this
 // ships, because querySelectorAll('p') never returns a heading either way.
 
-// ── EXCLUSIONS ───────────────────────────────────────────────────────────────────────────
-// Matched with .closest(), so ONE list covers both a class on the paragraph itself and a
-// container the paragraph sits inside. That is what makes `blockquote` and `figure` work:
-// querySelectorAll('p') happily returns `blockquote > p`, and an epigraph's inner paragraph
-// must not be the drop cap.
+// ── R11.8: THE RULES MOVED, THE BEHAVIOUR DID NOT ────────────────────────────────────────
+// The exclusion list, the front-matter heuristics and the walk now live in
+// app/lib/prosePredicate.js, over plain objects rather than DOM elements. Nothing about
+// what gets tagged changed; what changed is that the PREVIEW CUTTER runs the same rules.
+// A preview whose 30% budget is spent on two content warnings and an epigraph has shown
+// the reader nothing, and a second copy of this list would drift from this one silently.
 //
-// Headings are not listed because they cannot occur — querySelectorAll('p') does not return
-// them. Do not "helpfully" add h2/h3 here; it would read as though the list were doing work
-// it is not.
-//
-// EVERY CLASS HERE IS ASSERTED AGAINST LIVE CONTENT by tests/ci/dropcap-openers.test.mjs,
-// which cross-references this list with the opener inventory in
-// tests/fixtures/story-openers.json (emitted by scripts/audit-story-openers.mjs). A class
-// that starts appearing at the top of story bodies and is in neither this list nor that
-// test's PROSE set is a test failure, not a rendered surprise. That is the whole point: a
-// class-driven list goes stale silently, so the staleness is what gets tested.
+// This file keeps the DOM half — the querySelectorAll scope, the .closest() exclusion, the
+// MutationObserver, and blockFromElement() below, which is the adapter from an element to
+// the shape the predicate reads. See prosePredicate.js for the reasoning behind every rule,
+// including the measurements that fixed the word count and the exclusion list.
+import {
+  EXCLUDED_SELECTOR,
+  walkToProse,
+  OPENS_ON_LETTER,
+  EXCLUDED_TAGS,
+  EXCLUDED_CLASSES,
+} from './prosePredicate.js';
+
+// Kept as a named export because tests/ci/dropcap-openers.test.mjs imports it by this name
+// and asserts it against the live opener inventory. Rebuilt from the two lists rather than
+// re-typed, so it cannot drift from what isExcludedBlock() actually matches.
 export const DROPCAP_EXCLUDED_SELECTORS = [
-  'blockquote',            // epigraphs; `blockquote > p` is reachable from querySelectorAll
-  'figure',
-  'figcaption',
-  'li',
-  '.intro-note',           // observed live: CHAFF's section markers, content notes
-  '.section-break',
-  '.poem-numeral',         // observed live
-  '.poem-title',
-  '.poem-collection-intro',
-  '.poem-contents',
-  '.poem-stanza',          // verse lines are <p> children of the stanza block
-  '.image-caption',
-  '.inline-image-caption',
-  '.article-image',        // observed live
-  '.features-list',
+  ...EXCLUDED_TAGS,
+  ...EXCLUDED_CLASSES.map((c) => `.${c}`),
 ];
 
-const EXCLUDED_SELECTOR = DROPCAP_EXCLUDED_SELECTORS.join(', ');
-
-const FRONTMATTER_RE = /^(content note|content warning|cw|trigger warning|tw|author's note|note|dedication|epigraph)[:\s—–-]/i;
-// A line that ends on sentence-ending punctuation reads as prose, not a bare
-// label — closing quotes after the terminal mark still count as terminated.
-const TERMINATED_RE = /[.!?…]['"”’]*$/;
-// Anything left over after stripping ONE terminal mark. "Drip. Drip. Drip." has marks
-// inside it and is real prose; "I." and "My Dream Man" do not and are labels.
-const INTERNAL_TERMINAL_RE = /[.!?…]/;
-
-// ── THE FAIL-SAFE (R9.3, rider 2) ────────────────────────────────────────────────────────
-// The exclusion list above is class-driven, so it goes stale the day the CMS gains a marker
-// class nobody added here. This rule is the class-blind backstop: a very short paragraph of
-// no more than three words, carrying at most one terminal mark, is a label — a numeral, a
-// section marker, a title — whatever class it happens to wear.
-//
-// THE WORD COUNT IS LOAD-BEARING AND WAS MEASURED, NOT GUESSED. The rider as first
-// written was "under ~40 chars AND no sentence-ending punctuation beyond a single terminal
-// mark". Run against all 162 live story bodies that clause alone demotes five real prose
-// openers, because plenty of stories open on a short, properly-punctuated sentence:
-//
-//     "The scream ripped through the spa."      village-people          (34 chars)
-//     "Dayo was afraid of the number thirteen." the-number-thirteen     (39 chars)
-//     "There is a new anthem now."              red-white-red
-//     "People worship their 9-to-5s."           5-to-9
-//     "Nobody talks about the grief."           a-heart-trained-for-battle
-//
-// Adding `words <= 3` separates those from the labels cleanly. With it, the rule fires on
-// exactly six live paragraphs — "war", "Inspiration", "Him", "My Dream Man", "A prose poem.",
-// "Introduction" — every one of them a title or a note, and none of them a story's opening
-// line. Re-measure before widening the threshold; the margin here is two words.
-const isMarkerish = (t) => {
-  if (t.length >= 40) return false;
-  if (t.split(/\s+/).filter(Boolean).length > 3) return false;
-  return !INTERNAL_TERMINAL_RE.test(t.replace(TERMINATED_RE, ''));
-};
-
-const isEntirelyItalic = (p) => {
-  const t = (p.textContent || '').trim();
-  if (!t) return false;
+/**
+ * A DOM element → the plain block the predicate reads.
+ *
+ * `ancestors` is left EMPTY on purpose: this file still does its structural exclusion with
+ * .closest() against EXCLUDED_SELECTOR, before the walk, exactly as it always has. The
+ * ancestor chain exists for the cutter's adapter, which has no .closest() to call.
+ */
+const blockFromElement = (p) => {
   const kids = Array.from(p.children);
-  return kids.length === 1
-    && (kids[0].tagName === 'EM' || kids[0].tagName === 'I')
-    && (kids[0].textContent || '').trim().length >= t.length * 0.9;
-};
-
-const isFrontmatter = (p, next) => {
-  const t = (p.textContent || '').trim();
-  if (!t) return false;
-  if (FRONTMATTER_RE.test(t)) return true;
-  if (isEntirelyItalic(p)) return true;
-  if (isMarkerish(t)) return true;
-  if (t.length < 40 && !TERMINATED_RE.test(t) && next && (next.textContent || '').trim().length > t.length) return true;
-  return false;
+  return {
+    tag: p.tagName.toLowerCase(),
+    classes: Array.from(p.classList || []),
+    text: p.textContent || '',
+    hasImg: !!p.querySelector('img'),
+    ancestors: [],
+    soleChild: kids.length === 1
+      ? { tag: kids[0].tagName.toLowerCase(), textLength: (kids[0].textContent || '').trim().length }
+      : null,
+  };
 };
 
 // ── THE PUNCTUATION GUARD ────────────────────────────────────────────────────────────────
@@ -163,7 +121,11 @@ const isFrontmatter = (p, next) => {
 // All eight render a floated 4.2em quote mark or numeral TODAY; this guard is what stops
 // that. Re-run `node scripts/audit-story-openers.mjs` for the current list before building
 // the richer fix on top of it.
-const OPENS_ON_LETTER = /^\p{L}/u;
+//
+// OPENS_ON_LETTER itself now lives in prosePredicate.js and is imported above — it is part
+// of "what is opening prose", and the cutter's tests assert the two agree about exactly
+// these eight stories. The measurements stay here, next to the drop cap they were taken
+// for.
 
 // One tagging pass over an article element. Exported for callers that render prose once
 // and know it will not change; most callers want attachDropcap instead.
@@ -188,13 +150,10 @@ export function tagDropcap(article) {
   const candidates = paras.filter((p) => !p.closest(EXCLUDED_SELECTOR) && !p.querySelector('img'));
   if (!candidates.length) return;
 
-  const frontmatter = [];
-  let target = null;
-  for (let i = 0; i < candidates.length; i++) {
-    if (isFrontmatter(candidates[i], candidates[i + 1] || null)) { frontmatter.push(candidates[i]); continue; }
-    target = candidates[i];
-    break;
-  }
+  // The walk itself is prosePredicate.js:walkToProse, run over adapted blocks. Same
+  // heuristics, same order, same answer — the indices come back and map 1:1 onto
+  // `candidates` because the adapter preserves order and drops nothing.
+  const { frontmatter, targetIndex } = walkToProse(candidates.map(blockFromElement));
 
   // No qualifying paragraph — everything read as front-matter. No drop cap, and no
   // front-matter restyle either: greying out an entire body because the walk found nothing
@@ -202,9 +161,10 @@ export function tagDropcap(article) {
   //
   // The old code fell back to paras[0] here, which is precisely how a section numeral got
   // capped — the fallback re-introduced the bug the walk had just avoided.
-  if (!target) return;
+  if (targetIndex === null) return;
+  const target = candidates[targetIndex];
 
-  frontmatter.forEach((p) => p.classList.add('story-frontmatter'));
+  frontmatter.forEach((i) => candidates[i].classList.add('story-frontmatter'));
 
   // Opens on punctuation or a digit — see the guard's note above. No drop cap.
   if (!OPENS_ON_LETTER.test((target.textContent || '').trim())) return;
