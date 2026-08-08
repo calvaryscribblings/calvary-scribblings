@@ -682,13 +682,38 @@ is not negotiable.**
   for the index. A body that lands in one node and not the other is the failure
   this phase exists to avoid.
 - `/api/story` ships and serves from `story_bodies`.
-- **Gating is not live for anybody.** A new app calling `/api/story` gets a
-  correct `access`; an old app reading the node gets the whole body ungated.
+- **The RTDB node is not gated for anybody.** A new app calling `/api/story` gets
+  a correct `access`; an old app reading the node gets the whole body ungated.
 
 That gap is **accepted and time-boxed, not overlooked.** There is no way to gate an
 already-deployed client that reads a public node, and pretending otherwise would
 mean cutting the node before the new app ships and blanking every story on every
 old install.
+
+#### The web reading path in T1 — ONE statement, and it is the whole of it
+
+**T1 says nothing about whether the web story page gates its readers. That is
+§7.3's decision, taken once, per surface, deliberately.** T1 moves bodies and ships
+an endpoint; it does not change what a reader sees.
+
+> **An earlier version of this section said "Gating is not live for anybody" and
+> then, in §7.1, put the preview-only static render in this same phase. Both were
+> implemented. They contradict each other, and R11.9 shipped the contradiction: on
+> 2026-08-08 a signed-out reader on the web got a truncated body, "The rest of this
+> story is in the archive." and a SEE MEMBERSHIP button on 130 stories, for roughly
+> 4h50m, during a contest that pays out on 1 September.**
+>
+> The sentence was never false — it was **scoped to old app installs reading
+> `cms_stories` directly** and silently true only of them. The web story page is a
+> client too, and the one client T1 also changed to stop reading the node's body.
+> A phase-level claim of the form "not live for anybody" must therefore either name
+> every surface or not be made. This document now does not make it.
+
+The rule that replaces it, and it holds for every phase:
+
+**NO PHASE TURNS A GATE ON AS A SIDE EFFECT.** A change to what a reader sees is
+its own step, named as such, in §7.3 — never a consequence of a step whose stated
+purpose was to be invisible to readers.
 
 ### Phase T2 — the app ships and takes up
 
@@ -738,12 +763,31 @@ it has to be a string worth reading.
 and **inlines each story's prose into its static HTML**. Gating the RTDB node
 while `view-source` still hands over the words is theatre of the §4.4 kind.
 
-So in the same phase as T1, the build's inline changes: **the static HTML carries
-the preview, never the body.** The preview is public by definition, first paint
-still arrives with real words and no round-trip, and the full body always comes
-from `/api/story` after hydration. This is stated in an app-facing document
-because it is the reason the app should expect the *web* story page to behave
-identically to its own — same endpoint, same `access`, same re-fetch on upgrade.
+The fix, **when the web gate is turned on**: the static HTML carries the preview,
+never the body. The preview is public by definition, first paint still arrives with
+real words and no round-trip, and the full body comes from `/api/story` after
+hydration. This is stated in an app-facing document because it is the reason the
+app should expect the *web* story page to behave identically to its own — same
+endpoint, same `access`, same re-fetch on upgrade.
+
+**This is not a T1 step.** An earlier version of this section put it "in the same
+phase as T1", which contradicted T1's own text and is what shipped the 2026-08-08
+paywall. It belongs to §7.3, and it is the *second half* of that switch, not a
+separate decision:
+
+> **BOTH HALVES OF THE WEB GATE FLIP TOGETHER, OR NEITHER DOES.** The endpoint's
+> half is decided per request; the build's half is **baked into static HTML at
+> build time**. That asymmetry has two consequences and both are load-bearing:
+>
+> - **No request-time toggle can reach the build's half.** An environment variable
+>   or a dashboard switch cannot un-bake deployed HTML. The switch has to be a
+>   value the build itself reads — today `GATING_ENABLED` in
+>   `app/lib/storyAccess.js`, which the endpoint and `app/stories/[slug]/page.js`
+>   both import. Do not replace it with config that only the Worker can see.
+> - **Half-on is worse than either state.** Preview baked in with the endpoint
+>   serving full bodies gives every reader a flash of paywall on a site that has
+>   none, and gives a reader without JavaScript nothing but the preview, forever.
+>   Full bodies baked in with the endpoint gating is the leak §4.4 refuses.
 
 ### 7.2 The quiz endpoints move in the same phase
 
@@ -758,6 +802,67 @@ together.
 Quiz generation is **not** gated by the reader's tier: a quiz is about a story the
 reader has, by definition, just read. The move is about closing the public read,
 not about adding a second gate.
+
+### 7.3 Turning the reader-visible gate on — its own step, per surface
+
+**This step has never been taken.** As of R11.11 `GATING_ENABLED = false` and no
+reader on any surface is gated. That is the deliberate state, not an unfinished one.
+
+Taking it requires, in order:
+
+1. A decision **per surface** — web, iOS, Android — recorded here with its date.
+   The surfaces do not have to flip together and there is no reason to assume they
+   should; the app's adoption number (§7 T2) governs the app, and nothing about
+   web reading depends on it.
+2. Both halves of the web switch flipped in one change (§7.1).
+3. The §7.4 check run against production, asserting the gate is present **on
+   purpose** — the same command that proves it absent proves it present.
+4. A stated rollback: the switch is one constant, so the rollback is one edit and
+   one deploy. Roughly five minutes, measured on the R11.11 deploy.
+
+### 7.4 The standing verification term — every round that touches the reading path
+
+**Any round that changes the reading path ends with a signed-out fetch of a real
+story page on production, asserting the story's closing sentence is present or
+absent as intended.** Not a local build, not a unit test, not a code review: the
+deployed page, fetched with no credential, the way a reader gets it.
+
+This term exists because the round that shipped the 2026-08-08 paywall *did* verify
+its own work — its commit message reads "Verified over all 162 built pages: zero
+carry their story's ending" — and filed a working paywall under "closing a door".
+Every check it ran passed. None of them asked what a reader sees.
+
+The reading path means, at minimum: `/api/story`, `app/stories/[slug]/page.js`,
+`app/stories/[slug]/page-client.js`, `app/components/StoryGate.js`,
+`app/lib/storyAccess.js`, `app/lib/previewCut.js`.
+
+Two commands. Pick a story **older than `FREE_WINDOW_DAYS` and not on the
+most-recent-5 floor** — a story inside the free window passes whether the gate
+works or not, which is the one way to run this check and learn nothing:
+
+```sh
+# 1. the endpoint, signed out. `reason` is the tell.
+curl -s -X POST https://calvaryscribblings.co.uk/api/story \
+  -H 'content-type: application/json' -d '{"slug":"<old-slug>"}' \
+  | head -c 400
+
+# 2. the static page, signed out — this is the half a JS-less reader gets,
+#    and the half no unit test covers.
+curl -s https://calvaryscribblings.co.uk/stories/<old-slug> \
+  | grep -c 'The rest of this story is in the archive'
+```
+
+Expected with the gate **off**: `"access":"full","reason":"gating_off"`, a
+full-length `content`, and `0` from the grep. Expected with it **on**:
+`"access":"preview","reason":"archive"`, a short `content`, and `1`.
+
+`reason` is what makes this worth running: `gating_off` cannot appear unless the
+switch is actually deployed, so it distinguishes "the gate is off" from "my change
+did not deploy" — which a body-length check alone cannot do.
+
+Record the output in the round's commit message. `scripts/incident-quiz-impact.mjs`
+is the companion for the other question — whether a gate that *was* live changed
+what readers did — and it is read-only.
 
 ---
 
