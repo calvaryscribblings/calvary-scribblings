@@ -58,11 +58,22 @@ const LINKS = {
   // The social accounts. Paste the full profile URL, not the handle. YouTube is the one channel
   // that does not exist yet; it stays on its TODO value so the row renders it dimmed rather
   // than pointing at a handle nobody has claimed.
+  //
+  // WHATSAPP IS AN INVITE, NOT A PROFILE, and it takes NO FLAG — unlike the Book Store and
+  // Membership rows in the stack, the group exists and is open today, so there is no launch
+  // date to gate it behind and nothing to flip later.
+  //
+  // THE BARE INVITE URL. The link as handed over carried `?s=cl&p=a&ilr=4` — WhatsApp's own
+  // share-sheet telemetry, describing which sheet the sender copied it from, not which group a
+  // reader is joining. It is not part of the invite: the path segment is the whole key, and the
+  // tail travels to Meta with every tap. Stripped deliberately; do not paste it back when the
+  // link is next refreshed.
   social: {
     instagram: 'https://www.instagram.com/storyislanduk/',
     x: 'https://x.com/storyislanduk',
     tiktok: 'https://www.tiktok.com/@storyislanduk',
     youtube: 'TODO — https://www.youtube.com/@<handle>',
+    whatsapp: 'https://chat.whatsapp.com/FDsSSZtMT9L11nqr1DvFmr',
   },
   // Known today, so wired live today. Internal paths stay relative so they never need touching
   // if the domain changes — and relative is also what keeps them out of the external-link
@@ -152,7 +163,10 @@ const AT = {
   appHead: '620ms',
   badges: '680ms',
   socials: '760ms',
-  footer: '840ms',
+  // The group line lands one beat after the marks it belongs to, on the same 60 ms step as the
+  // buttons, and the footer moves down by that step rather than arriving alongside it.
+  group: '820ms',
+  footer: '880ms',
 };
 
 // ── THE SOCIAL MARKS ─────────────────────────────────────────────────────────
@@ -205,7 +219,41 @@ const SOCIALS = [
     size: 23,
     path: 'M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z',
   },
+  {
+    key: 'whatsapp',
+    label: 'WhatsApp',
+    href: LINKS.social.whatsapp,
+    // The only entry that overrides the row's naming formula, because the formula would lie
+    // here: the other four are Story Island's own profiles, and this is an invitation into a
+    // room. 'Story Island on WhatsApp' would announce a channel we broadcast on rather than a
+    // group a reader joins.
+    name: 'The Calvary Scribblings readers’ group on WhatsApp',
+    // 22, and this one was measured rather than judged, because the row finally contains a mark
+    // it can be measured AGAINST. WhatsApp's bubble is the same KIND of glyph as Instagram's
+    // square — outlined, and filling its box corner to corner — where X, TikTok and YouTube are
+    // solid marks that fill only part of theirs. Rendered ink at 3× (path bounding box × the
+    // box scale), across the row:
+    //
+    //   Instagram 22.0 × 22.0   area 484     ← the sibling: outlined, full box
+    //   WhatsApp  21.9 × 22.0   area 482     ← at size 22
+    //   YouTube   23.0 × 16.2   area 373     ) solid marks, and solid reads heavier per unit
+    //   TikTok    18.2 × 21.0   area 383     ) of ink — which is why their boxes are smaller
+    //   X         20.0 × 18.1   area 362     ) and their areas are not comparable to these two
+    //
+    // At 21 the ink comes to 439 and sits visibly short of the only mark built like it; at 23 it
+    // comes to 526 and becomes the largest ink box in the row. 22 lands within 2 units of
+    // Instagram, which is the match that matters. Judge any change against the row, never
+    // against the number — and against Instagram first.
+    size: 22,
+    path: 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z',
+  },
 ];
+
+// The invitation under the row. The five marks say WHERE we are; this says what the group is
+// FOR, which is the one thing a mark cannot. Kept in the socials' register — lower case, italic
+// Cormorant, an arrow — rather than the stack's Cinzel capitals, because it is a community
+// channel and not a product door.
+const GROUP_LINE = 'the readers’ group on WhatsApp →';
 
 // ── STYLE NOTES ──────────────────────────────────────────────────────────────
 //
@@ -449,14 +497,20 @@ const CSS = `
   .cs-lk-badge-google { height:calc(var(--lk-badge-ink) * 250 / 168); }
 
   /* ── The socials ────────────────────────────────────────────────────────── */
-  /* ONE ROW, AND NOW PROVABLY SO. Four 48px targets and three 16px gaps come to 240px — inside
-     the 288px left by a 320px viewport at this page's narrow padding, so the row cannot wrap at
-     any width this page is ever opened at. That is why the wrap has gone: with text labels the
-     row's width depended on how long the handles were and flex-wrap was the net under that
-     unknown; a row of squares has no such unknown, and nowrap says so rather than leaving a
-     rule that would only ever fire as a bug (YouTube alone on a second line).
-     The gap is the large step, not the small one — four bare glyphs at 8px apart read as one
-     smeared object, where four tracked words at 8px read as four words. */
+  /* ONE ROW, AND STILL PROVABLY SO — but the proof changed when WhatsApp made it five.
+     FIVE 48px targets and four 16px gaps come to 304px, and a 320px viewport at this page's
+     narrow padding leaves 288px. The four-mark arithmetic (240px, which cleared 288 easily) no
+     longer holds, and nowrap would have overflowed rather than wrapped — a silently clipped
+     mark, which is worse than the wrap this rule exists to prevent. So the gap steps down to
+     the small rhythm below 360px: 5×48 + 4×8 = 272px, inside 288px with 16px to spare. Above
+     360px the large gap fits with room (304px inside 328px) and nothing changes.
+     The gap stays the large step wherever it can, because five bare glyphs at 8px apart read as
+     one smeared object where five tracked words at 8px read as five words — the small step is a
+     concession to the narrowest phones, not the new default.
+     That is why the wrap has gone: with text labels the row's width depended on how long the
+     handles were and flex-wrap was the net under that unknown; a row of squares has no such
+     unknown, and nowrap says so rather than leaving a rule that would only ever fire as a bug
+     (YouTube alone on a second line). */
   .cs-lk-socials {
     display:flex; align-items:center; justify-content:center;
     flex-wrap:nowrap; gap:var(--lk-s2);
@@ -492,6 +546,25 @@ const CSS = `
     color:rgba(245,240,232,.6);
   }
 
+  /* ── The readers' group ─────────────────────────────────────────────────── */
+  /* The socials' register, not the stack's: lower case, italic, no glass, no border. A
+     community channel does not get a door. Cream rather than the row's gold so the five marks
+     stay the brightest thing in this block and the line reads as their caption; the gold
+     arrives on hover, which is the same trade the marks make in reverse. */
+  .cs-lk-group {
+    display:inline-block;
+    font-family:var(--lk-serif); font-style:italic; font-size:.95rem; line-height:1.4;
+    color:rgba(245,240,232,.78); text-decoration:none; text-align:center;
+    margin:var(--lk-s2) 0 0; padding:6px 10px; border-radius:10px;
+    transition:color 200ms ease-out;
+  }
+  @media (hover:hover) and (pointer:fine) {
+    .cs-lk-group:hover { color:var(--lk-gold); }
+  }
+  .cs-lk-group:active { color:var(--lk-gold); }
+  .cs-lk-group:focus-visible { outline:2px solid var(--lk-gold); outline-offset:2px; }
+  @media (prefers-reduced-motion:reduce) { .cs-lk-group { transition:none; } }
+
   .cs-lk-footer {
     font-family:var(--lk-serif); font-size:.8rem; letter-spacing:.02em;
     color:rgba(245,240,232,.42); text-align:center; margin:var(--lk-s4) 0 0;
@@ -514,6 +587,14 @@ const CSS = `
      the ink comes down 4px rather than the row wrapping. */
   @media (max-width:379px) {
     .cs-lk { --lk-badge-ink:36px; padding-left:16px; padding-right:16px; }
+  }
+
+  /* The five-mark row's own threshold, and deliberately NOT 379px. The badges stop fitting at
+     380px; the socials do not stop fitting until 360px (see the arithmetic above the row), and
+     tightening the gap 20px earlier than it is needed would cost spacing on a phone that has
+     the room for it. Two different constraints, two different numbers. */
+  @media (max-width:359px) {
+    .cs-lk-socials { gap:var(--lk-s1); }
   }
 `;
 
@@ -703,7 +784,7 @@ export default function LinksPage() {
 
         <ul className="cs-lk-socials cs-lk-rise" style={{ '--lk-at': AT.socials }}>
           {SOCIALS.map((s) => {
-            const name = `Story Island on ${s.label}`;
+            const name = s.name || `Story Island on ${s.label}`;
             return (
               <li key={s.key}>
                 {isLive(s.href) ? (
@@ -730,6 +811,26 @@ export default function LinksPage() {
           <p className="cs-lk-soon-line cs-lk-rise" style={{ '--lk-at': AT.socials }}>
             social accounts coming soon
           </p>
+        ) : null}
+
+        {/* Under the marks, above the footer — with the socials, not in the stack. It is a
+            community channel rather than a product door, which is why it is a line of italic
+            prose here instead of a fifth glass button up there beside Membership.
+
+            GUARDED BY isLive() like every other destination on this page: if the invite is ever
+            blanked or replaced with a note, this renders NOTHING rather than a dead link. There
+            is no 'coming soon' state for it — the group either exists or the line is absent,
+            and an unlive invite is a mistake to fix, not a date to announce. */}
+        {isLive(LINKS.social.whatsapp) ? (
+          <a
+            className="cs-lk-group cs-lk-rise"
+            href={LINKS.social.whatsapp}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ '--lk-at': AT.group }}
+          >
+            {GROUP_LINE}
+          </a>
         ) : null}
 
         <p className="cs-lk-footer cs-lk-rise" style={{ '--lk-at': AT.footer }}>

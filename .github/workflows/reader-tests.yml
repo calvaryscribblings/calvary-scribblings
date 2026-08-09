@@ -51,6 +51,26 @@ on:
       # the checkout or stream CLIENT — the two modules that carry a purchase — ran
       # nothing at all. The whole directory is in scope now.
       - 'app/lib/bookstore/**'
+      # R11.17 — MEMBERSHIP AND /links. Three suites existed under tests/membership/ and CI ran
+      # none of them: nothing under .github/workflows/ mentioned membership at all, so the deck
+      # parity check and both browser suites only ran when somebody remembered. They ride this
+      # workflow for the reason the gate suite already does — they need the same two expensive
+      # inputs, a Chromium install and a built out/, and a second workflow would mean a second
+      # `npx next build` on every push.
+      #
+      # THE DECK IS A TRIGGER PATH, not just an input. R11.16's parity check fails when the deck
+      # and the page disagree, which means an edit to the deck ALONE has to be able to start this
+      # job — that is the half of the guarantee a page-only path list would silently drop.
+      - 'app/membership/**'
+      - 'app/links/**'
+      - 'audit/membership-copy-deck.md'
+      # The modules the membership page renders from. A price table, a pass table or a shelf cap
+      # changing is a change to what the copy suites assert, even though no copy moved.
+      - 'app/lib/membership.js'
+      - 'app/lib/membershipPrices.js'
+      - 'app/lib/membershipPasses.js'
+      - 'app/lib/currency.js'
+      - 'app/lib/shelf.js'
       # R8.2 — the payment rails. tests/bookstore/paystack.test.mjs imports these modules
       # directly, so a change to either endpoint must re-run the suite that specifies them.
       - 'functions/api/bookstore/**'
@@ -167,6 +187,29 @@ jobs:
       # surface in the other — which is exactly why both names need to be visible.
       - name: Territory harness (rights, marks and the disabled button)
         run: npx playwright test -c tests/bookstore/playwright.territory.config.mjs
+
+      # ── R11.17 — MEMBERSHIP AND /links ────────────────────────────────────────────────────
+      #
+      # All three run against the out/ built above. Ordered cheapest first: the deck check is
+      # node-only and finishes in ~100 ms, so "the deck and the page disagree" should not cost
+      # two browser suites to hear. It is the same order as the test:membership-copy script,
+      # which is deliberate — one chain, two places to run it, no divergence in what runs first.
+      - name: Deck parity (the copy deck vs the shipped page)
+        run: node --test tests/membership/deck-parity.test.mjs
+
+      # Its own port (4327). It claimed 4325 until R11.17 and the territory suite above has held
+      # 4325 since R8.4 — a clash that could not bite while these suites never shared a job, and
+      # this step is what would have made it bite. See the header of the copy config.
+      - name: Membership copy matrix (3 currencies × 2 intervals × 3 cards)
+        run: npx playwright test -c tests/membership/playwright.copy.config.mjs
+
+      # MEMBERSHIP_STATE=pre, matching MEMBERSHIP_LAUNCHED=false in the build above. The flag is
+      # a build-time constant, so the post-launch wording cannot be exercised in the same run —
+      # on launch day the flag and this line move together, in one change.
+      - name: /links harness (membership entry, readers' group)
+        run: npx playwright test -c tests/membership/playwright.links.config.mjs
+        env:
+          MEMBERSHIP_STATE: pre
 
       - name: Upload traces and reports
         if: failure()

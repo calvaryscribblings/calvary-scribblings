@@ -68,6 +68,72 @@ test('it sits below the Book Store and above the socials', async ({ page }) => {
   expect(order & 4).toBeTruthy();   // DOCUMENT_POSITION_FOLLOWING
 });
 
+// ── R11.17 — THE READERS' GROUP ──────────────────────────────────────────────────────────
+//
+// It rides this spec rather than getting its own: same page, same server, same build, and the
+// assertions that matter are about where it sits RELATIVE to the two things already specified
+// here — the flagged stack above it and the socials row it belongs to.
+const INVITE = 'https://chat.whatsapp.com/FDsSSZtMT9L11nqr1DvFmr';
+
+test('the WhatsApp mark closes the socials row and points at the bare invite', async ({ page }) => {
+  await page.goto('/links');
+
+  const marks = page.locator('.cs-lk-socials a.cs-lk-social, .cs-lk-socials span.cs-lk-social');
+  await expect(marks).toHaveCount(5);
+
+  const whatsapp = page.locator(`.cs-lk-socials a[href="${INVITE}"]`);
+  await expect(whatsapp).toHaveCount(1);
+  // LAST in the row. The four profiles are the accounts we broadcast from; the group is a
+  // different kind of thing and closes the row rather than interleaving with them.
+  await expect(marks.nth(4)).toHaveAttribute('href', INVITE);
+
+  // Not the formula name. 'Story Island on WhatsApp' would announce a channel we broadcast on
+  // rather than a room a reader joins — see the override in the SOCIALS table.
+  await expect(whatsapp).toHaveAttribute('aria-label', /readers’ group on WhatsApp/);
+  await expect(whatsapp).toHaveAttribute('rel', /noopener/);
+
+  // NO TRACKING TAIL, anywhere on the page. `?s=cl&p=a&ilr=4` is WhatsApp's share-sheet
+  // telemetry, not part of the invite, and it travels to Meta on every tap. This is the
+  // assertion that stops it being pasted back the next time the link is refreshed.
+  const html = await page.content();
+  expect(html).not.toContain('chat.whatsapp.com/FDsSSZtMT9L11nqr1DvFmr?');
+  expect(html).not.toContain('ilr=4');
+});
+
+test('the group line sits with the socials, below the flagged stack', async ({ page }) => {
+  await page.goto('/links');
+
+  const line = page.locator('.cs-lk-group');
+  await expect(line).toHaveCount(1);
+  await expect(line).toHaveText('the readers’ group on WhatsApp →');
+  await expect(line).toHaveAttribute('href', INVITE);
+
+  // BELOW the socials row — it is their caption, not a sixth mark.
+  const socials = page.locator('.cs-lk-socials');
+  const afterSocials = await socials.evaluate((el, l) => el.compareDocumentPosition(l), await line.elementHandle());
+  expect(afterSocials & 4).toBeTruthy();          // DOCUMENT_POSITION_FOLLOWING
+
+  // And BELOW the whole flagged stack — Book Store, Membership, Calvary Films. A community
+  // channel is not a product door and must never drift up into that group.
+  const stack = page.locator('.cs-lk-stack');
+  const afterStack = await stack.evaluate((el, l) => el.compareDocumentPosition(l), await line.elementHandle());
+  expect(afterStack & 4).toBeTruthy();
+
+  // It is NOT in the stack, stated separately: document order alone would still be satisfied by
+  // a fifth button appended to the stack.
+  await expect(page.locator('.cs-lk-stack .cs-lk-group')).toHaveCount(0);
+  await expect(page.locator(`.cs-lk-stack a[href="${INVITE}"]`)).toHaveCount(0);
+});
+
+test('the group takes no flag — it is live today, unlike the Book Store and Membership', async ({ page }) => {
+  await page.goto('/links');
+  // The two flagged rows still carry their dates; the group carries none and is a live anchor.
+  await expect(page.locator('.cs-lk-stack .cs-lk-btn').filter({ hasText: 'Book Store' }))
+    .toHaveText(/opens 30 Sept/);
+  await expect(page.locator('.cs-lk-group')).not.toHaveText(/soon|opens/i);
+  await expect(page.locator('.cs-lk-socials .is-soon a[href*="whatsapp"]')).toHaveCount(0);
+});
+
 test('the Book Store entry is untouched by this round', async ({ page }) => {
   await page.goto('/links');
   // BOOKSTORE_LAUNCHED is false and this round must not have moved it.
