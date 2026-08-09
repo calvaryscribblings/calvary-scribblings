@@ -23,7 +23,7 @@
     "test:membership": "node --test \"tests/membership/*.test.mjs\"",
     "test:rules": "firebase emulators:exec --only database,storage --project demo-calvary-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",
-    "test:membership-copy": "next build && playwright test -c tests/membership/playwright.copy.config.mjs && playwright test -c tests/membership/playwright.links.config.mjs",
+    "test:membership-copy": "next build && node --test tests/membership/deck-parity.test.mjs && playwright test -c tests/membership/playwright.copy.config.mjs && playwright test -c tests/membership/playwright.links.config.mjs",
     "test:dropcap": "playwright test -c tests/dropcap/playwright.config.mjs",
     "test:verify-email": "playwright test -c tests/verify-email/playwright.config.mjs",
     "lint:ratchet": "node scripts/lint-ratchet.mjs"
