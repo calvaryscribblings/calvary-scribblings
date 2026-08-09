@@ -580,10 +580,31 @@ export default function MyLibraryPage() {
            why nothing below is dimmer than .55 — the old .32 captions measured ~2.5:1.
            tests/ci/my-library-contrast.test.mjs computes these from this stylesheet. */
 
+        /* THE COLUMN COUNT IS THE CARD SIZE. Nothing on a volume is sized in its own right —
+           the boards take their height from a 2/3 aspect on whatever width the column gives
+           them, and the plate, ribbon, seal and gilded label are fixed type on top. So the
+           only honest lever for "smaller cards" is more columns, and the only question worth
+           asking is how narrow a column may get before something on the card breaks.
+
+           THE BOOKPLATE IS THE FLOOR, at 103px. It is a flex row of two Cinzel runs that
+           cannot wrap — 'CS 001' against 'PURCHASED'/'WITHDRAWN', the longest pair the
+           catalogue can produce (formatCatalogueNumber pads to three digits) — plus 14px of
+           padding and a 6px gap. Measured in the browser at the real font, not estimated. A
+           column under 103px does not make the plate smaller; it makes the two runs collide.
+           Every breakpoint below is therefore chosen so the narrowest card it can produce
+           still clears that, with slack: the range runs 108px (a 380px phone) to 146px (any
+           desktop), against 170-235px before.
+
+           WHY 380px AND NOT 0. Three-up on a 360px phone computes to 101px, which is under
+           the floor — so the narrowest phones keep the two-up shelf rather than get a broken
+           bookplate. That is the one width this pass cannot improve without shrinking plate
+           type, which would be a redesign of the plate rather than a resize of the card. */
         .ml-grid { display: grid; gap: 18px 14px; margin-top: 20px; grid-template-columns: repeat(2, 1fr); }
-        @media (min-width: 600px) { .ml-grid { grid-template-columns: repeat(3, 1fr); gap: 22px 18px; } }
-        @media (min-width: 900px) { .ml-grid { grid-template-columns: repeat(4, 1fr); } }
-        @media (min-width: 1100px) { .ml-grid { grid-template-columns: repeat(5, 1fr); } }
+        @media (min-width: 380px) { .ml-grid { grid-template-columns: repeat(3, 1fr); gap: 16px 10px; } }
+        @media (min-width: 560px) { .ml-grid { grid-template-columns: repeat(4, 1fr); gap: 20px 14px; } }
+        @media (min-width: 720px) { .ml-grid { grid-template-columns: repeat(5, 1fr); } }
+        @media (min-width: 900px) { .ml-grid { grid-template-columns: repeat(6, 1fr); } }
+        @media (min-width: 1180px) { .ml-grid { grid-template-columns: repeat(7, 1fr); } }
 
         .ml-vol { min-width: 0; }
 
