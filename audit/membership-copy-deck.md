@@ -169,7 +169,7 @@ Three ship. A fourth is drafted below but held back — see the note.
 > New stories stay free to you, as they are to everyone. The archive closes. Anything you had saved stays saved.
 
 **Why is poetry free?**
-> Poetry is always free on the island. It is short, it is meant to be come across rather than sought out, and putting it behind anything felt wrong.
+> Poetry is always free on the island. It is short, it is better stumbled upon than sought out, and putting it behind anything felt wrong.
 
 **Does this change what writers are paid?**
 > *[HELD BACK — do not ship. Ikenna supplies this line.]*

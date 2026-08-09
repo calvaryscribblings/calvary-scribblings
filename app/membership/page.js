@@ -651,8 +651,8 @@ export default function MembershipPage() {
             </dd>
             <dt>Why is poetry free?</dt>
             <dd>
-              Poetry is always free on the island. It is short, it is meant to be come across
-              rather than sought out, and putting it behind anything felt wrong.
+              Poetry is always free on the island. It is short, it is better stumbled upon
+              than sought out, and putting it behind anything felt wrong.
             </dd>
           </dl>
         </section>
