@@ -34,6 +34,12 @@ on:
       - 'functions/**'
       - 'scripts/**'
       - 'public/sw.js'
+      # R11.18 — THE FOLIATE PIN. The vendored engine and the lock that pins it must BOTH be
+      # able to start this job: a vendor edit with no lock update is the drift being caught,
+      # and a lock edit with no vendor change is someone re-blessing a number by hand. A path
+      # list naming only one of them would let exactly one of those two through.
+      - 'public/vendor/**'
+      - 'FOLIATE.lock'
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/lint-baseline.json'
@@ -176,6 +182,18 @@ jobs:
       # nothing pinned to a floating tag, and no new action slipping in unrecorded.
       - name: Workflow hygiene (action runtimes)
         run: npm run test:ci
+
+      # R11.18 — THE FOLIATE PIN. "Both surfaces run the same engine" was a convention held by
+      # nobody: the app repo enforced it in its own test and this repo enforced nothing, so the
+      # two could drift apart in silence. It runs here rather than in reader-tests.yml because
+      # it needs neither Chromium nor a build — it is 231 file hashes, well under a second —
+      # and because reader-tests.yml does not watch public/vendor/** at all, so a vendor-only
+      # change would have started no job whatsoever.
+      #
+      # Failure names the FILES that moved, not just the number. A pin that can only say "the
+      # hash changed" tells you nothing you can act on.
+      - name: Foliate engine pin
+        run: npm run foliate:check
 
       # Gates on the DIRECTION, not on zero: 146 errors + 110 warnings stand
       # today and a zero gate would mean a permanently red pipeline. The count

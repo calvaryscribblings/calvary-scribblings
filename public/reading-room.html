@@ -10,8 +10,12 @@
   search, a ready-gated goTo queue, and an origin-locked postMessage bridge to the React chrome
   in app/reader/[slug]/page-reader.js.
 
-  It supersedes public/vendor/foliate-js-main/calvary-reader.html, which is now dead (see the R4a
-  report). We do not edit or delete that file because it sits in the forbidden vendored tree.
+  It superseded public/vendor/foliate-js-main/calvary-reader.html, which R11.18 DELETED. That file
+  had been dead since R4a and was left in place on the reasoning that the vendored tree is not ours
+  to edit — sound as far as it went, but it was a CALVARY file living inside the vendored engine
+  directory, which is what made it dead weight in the first place. It also sat inside the tree that
+  FOLIATE.lock now pins, so a Calvary file was contributing to a number whose whole purpose is to
+  compare two copies of somebody else's engine. One removal fixed both, once, deliberately.
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -115,13 +119,47 @@ function buildCSS(st) {
     body{ font-family:${face} !important; color:${st.fg} !important; background:${st.bg} !important; font-size:${px}px !important; }
     p, li, blockquote, dd { font-family:${face} !important; font-size:${px}px !important; line-height:${st.leading} !important;
       hyphens:auto !important; -webkit-hyphens:auto !important; }
-    /* R4a.3 fault 2: ALIGNMENT IS A DEFAULT, NOT A DECREE. These used to carry !important, which
+    /* R4a.3 fault 2: ALIGNMENT IS A DEFAULT, NOT A DECREE. This used to carry !important, which
        outranked the publisher's own stylesheet and flattened centred title pages, epigraphs and
        imprints to the left. :where() has zero specificity, so any author rule — even a bare
        element selector like p{text-align:center} — wins, while books that say nothing still get
        our reading default. Typeface/size/leading stay !important: those are the reader's choice.
-       Indent sits in the same layer, otherwise it shifts centred lines off-centre. */
-    :where(p, li, blockquote, dd) { text-align:${effectiveJustify(st) ? 'justify' : 'start'}; }
+       Indent sits in the same layer, otherwise it shifts centred lines off-centre.
+
+       R11.18: …AND THAT FIX WAS ONLY HALF OF IT. It made our rule lose the SPECIFICITY contest,
+       which is the only contest it was ever in. But zero specificity helps only when the publisher
+       styles the SAME ELEMENT we style. The commonest front-matter shape in the wild is a centred
+       ANCESTOR — <section epub:type="colophon">, a <header>, a titlepage div — whose <p> children
+       carry no alignment of their own and merely INHERIT the centring. An inherited value does not
+       compete in the cascade at all: a directly-applied declaration beats it regardless of
+       specificity, so a rule on 'p' won against a publisher who had genuinely chosen an alignment,
+       and flattened exactly the pages the R4a.3 note claims were fixed.
+
+       This is live on our own catalogue, not a hypothesis: Standard Ebooks centres the colophon on
+       'section.…colophon' and leaves the <p>s bare (se.css), and all three £1.99 titles are SE
+       books. Their colophons have been rendering left-aligned.
+
+       THE FIX: declare the default ONCE, on the root, and let it inherit. Then a publisher's
+       declaration on any element — leaf or ancestor — is the only directly-applied one in play and
+       simply wins, which is what "alignment is a default" was always supposed to mean.
+
+       REJECTED, and why, so they are not re-proposed:
+         · a heading reset (h1,h2,h3{text-align:start}) — RE-CREATES THE IDENTICAL BUG one level up:
+           the same defect relocated to headings inside centred front matter.
+         · text-align:inherit on the leaves — REDUNDANT: 'inherit' and no-declaration compute the
+           same value whenever the cascade is silent, which is the only case that reaches them.
+
+       THE COST, stated because it is real and small: h1/h2/h3 now inherit 'justify' at ≥640px. A
+       justified block never stretches its LAST line, so a single-line heading still renders
+       start-aligned; only a heading that wraps to two or more lines differs. Below 640px the value
+       is 'start' and nothing changes at all.
+
+       A SECOND THING THIS REPAIRS: respectAuthorAlignment() below reads the COMPUTED text-align.
+       While our rule applied directly to <p>, an ancestor-centred paragraph computed 'start' — so
+       the function could not see it was centred and left our indent on it. It now computes
+       'center', and the indent is correctly neutralised. The blind spot and the flattening were
+       the same bug seen from two directions. */
+    :where(body) { text-align:${effectiveJustify(st) ? 'justify' : 'start'}; }
     :where(p + p) { text-indent:1.4em; }
     h1, h2, h3 { font-family:${face} !important; color:${st.fg} !important; }
     blockquote { border-inline-start:2px solid #c9a44c; padding-inline-start:1em; font-style:italic; }
