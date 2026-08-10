@@ -1,10 +1,15 @@
 {
-  "_": "§6h — THE CROSS-SURFACE CFI FIXTURE PIN. Same book means same BYTES, verified. A copy that drifts by one byte makes the exchange answer a question about two different books while looking like it answered the right one. sha256 is null until the app side delivers the file AND its digest; the spec REFUSES to emit a single CFI while it is null, and refuses louder if the file is present and does not match.",
-  "fixture": "tests/fixtures/cross-surface/sample.epub",
-  "servedAt": "/__t/fixtures/cross-surface/sample.epub",
-  "sha256": null,
+  "_": "§6h — THE CROSS-SURFACE CFI FIXTURE PIN. Same book means same BYTES. The fixture is GENERATED here from the app's own generator, not copied, so byte-identity is derived rather than transferred: a copied binary can only be checked against a number somebody sent, a generated one is reproduced from the source that defines it. The spec rebuilds it on every run and refuses to emit a single CFI unless the digest matches.",
+
+  "NAMES": "THE SAME BYTES TRAVEL UNDER MORE THAN ONE NAME — do not hunt for a file that does not exist under the name you were given. Here: tests/fixtures/cross-surface/build/fixture.epub (generated, gitignored). App: assets/reader/sample.epub (committed, because Metro must bundle it into the binary). The generator emits 'fixture.epub'; the app ships it as 'sample.epub'. Both are byte-identical to the sha256 below, or something is wrong.",
+
+  "generator": "tests/fixtures/cross-surface/make-epub.mjs",
+  "fixture": "tests/fixtures/cross-surface/build/fixture.epub",
+  "servedAt": "/__t/fixtures/cross-surface/build/fixture.epub",
+  "sha256": "cb344c79f7e2abf2d9a6e872a31d81eebdef1c5c0b78518c1a2d5540e2fcbfff",
+  "bytes": 54981,
   "expectedSections": 4,
   "degenerateSectionIndex": 2,
-  "delivery": "Committed test asset. See docs/cfi-exchange-protocol.md for why, and for what to do when the file arrives.",
-  "source": "app repo, byte-pinned there. Delivered by Ikenna with its digest."
+  "degenerateSectionNote": "SECTIONS[2] is 'A Short Crossing', 2 paragraphs of 26 words — one screen at any sane font size. Read from the generator, not assumed.",
+  "verifiedHere": "2026-08-10, Node 24: regenerated from source and matched the app's published digest byte for byte."
 }

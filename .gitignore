@@ -80,3 +80,8 @@ tests/fixtures/harness-sample.epub
 # scripts/build-epub.mjs writes here by default. Built books are artefacts, not source —
 # the template that produces them is the thing under review, and it lives in scripts/.
 dist/
+
+# tests/fixtures/cross-surface/make-epub.mjs (the app's generator) writes here. The fixture is
+# GENERATED, not committed: byte-identity is derived from source on every run, and a binary in
+# git is a fixture nobody can review. See docs/cfi-exchange-protocol.md.
+tests/fixtures/cross-surface/build/

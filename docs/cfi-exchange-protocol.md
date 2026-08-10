@@ -4,53 +4,63 @@ Two surfaces read the same book. A position taken on one must mean the same plac
 other, or "continue reading" is a lie told by whichever device you picked up second. This is
 the web half of the protocol that proves it.
 
-## a. How the fixture is delivered — **a committed test asset**
+## a. How the fixture is delivered — **generated from source, not committed**
 
-`tests/fixtures/cross-surface/sample.epub`, committed, with its digest pinned in
-`tests/reader/cross-surface/fixture-pin.json`.
+> **This reverses an earlier answer in this document, and the reason is worth keeping.** The
+> first call was "a committed test asset", on the reasoning that *a fixture you have to obtain
+> is a fixture the test skips*. That was correct for a **delivered binary**. The app then sent
+> its **generator** instead, which removes the premise entirely: nothing has to be obtained, so
+> nothing skips — and a binary in git is a fixture nobody can review. The input changed, so the
+> answer did.
 
-Not a dev route, and not a local load, for one reason each:
+The app sends `make-epub.mjs` and `zip.mjs`. They live at `tests/fixtures/cross-surface/`,
+are committed (they are source, and reviewable in a diff), and the spec **runs them on every
+test run** and matches the app's published digest.
 
-- **A dev route** makes the book a thing the test *fetches*. Then the test depends on a
-  server being up and serving the version it expects, and the first time that drifts the
-  failure reads as a CFI bug. The bytes must be under the same review as the code that
-  asserts on them.
-- **A local load** (each developer drops the file in) is the state this repo already knows is
-  unreliable: `live-cfi.spec.mjs` skips whenever its licensed master is absent, which is
-  correct there because the book *cannot* be committed. This one can, so it should be — a
-  fixture you have to obtain is a fixture the test skips, and a test that skips is a test
-  that is not run.
+Byte-identity is therefore **derived, not transferred**. A copied binary can only be checked
+against a number somebody sent; a generated one is reproduced from the source that defines
+it, in this environment, on this run. Verified here 2026-08-10 on Node 24 — the generator is
+deterministic across both environments.
 
-The repo already commits `tests/fixtures/*.epub` for exactly this purpose, so this is the
-existing pattern rather than a new one. It is small, it is synthetic, and committing it gets
-byte-pinning from git for free — the digest assertion below is the belt to that braces.
+### ⚠ The same bytes travel under more than one name
 
-**When the file arrives:**
+Do not go hunting for a file that does not exist under the name you were given.
 
-1. Put it at `tests/fixtures/cross-surface/sample.epub`.
-2. Put the app's published digest — *theirs, not one you computed* — into `fixture-pin.json`.
-3. `npx playwright test -c tests/reader/playwright.config.mjs cross-surface-cfi`
+| where | path | committed? |
+|---|---|---|
+| web (here) | `tests/fixtures/cross-surface/build/fixture.epub` | no — gitignored, generated |
+| app | `assets/reader/sample.epub` | yes — Metro must bundle it into the binary |
+| app build output | `harness/reader/fixture/build/fixture.epub` | no |
 
-Step 2 is the one that matters. If you paste in whatever `sha256sum` says about the file on
-your disk, the pin certifies the copy against itself and proves nothing.
+The generator emits **`fixture.epub`**; the app ships it as **`sample.epub`**. All three are
+byte-identical to `cb344c79f7e2abf2d9a6e872a31d81eebdef1c5c0b78518c1a2d5540e2fcbfff`
+(54,981 bytes), or something is wrong. This table is also in `fixture-pin.json`, next to the
+digest, because that is where someone will actually be looking.
+
+**To run it:** `npx playwright test -c tests/reader/playwright.config.mjs cross-surface-cfi`.
+There is no fetch step and nothing to place by hand.
 
 ## b. The digest gate
 
-In place before a single CFI is emitted, with three states that behave differently:
+Runs in `beforeAll`, so it covers *every* test in the file rather than only the digest test:
+no CFI is emitted or sought against a book whose bytes have not been re-derived on this run.
 
 | state | behaviour |
 |---|---|
-| fixture absent, digest not pinned | **skip** — nothing delivered yet; the suite stays runnable by anyone |
-| fixture present, digest not pinned | **fail** — the file arrived and nobody pinned it |
-| digest mismatch | **fail loudly**, printing both digests |
+| digest matches | proceed |
+| digest differs | **fail loudly**, printing both digests |
+| generator missing | **skip**, naming the path — nothing to build from |
 
-The middle row is the dangerous one and the reason the gate is not a simple `existsSync`
-check: the tests would otherwise run, pass, and prove nothing about *which book* they ran
-against. Both failure paths were verified by making them happen, not by reading the code.
+A mismatch here would be a finding about **the generator's determinism across environments**
+— a Node version that orders something differently, a Buffer encoding that moved — not about
+the reader. It is worth knowing before it is worth fixing. It is never fixed by re-pinning:
+the pinned value is the app's published one, and a fixture that genuinely changed is a change
+both surfaces adopt together, in one move, or the exchange means nothing.
 
-A mismatch is never fixed by re-pinning. Either the copy is corrupt, or the fixture was
-revised — and a revised fixture is a change both surfaces adopt together, in one move, or the
-exchange means nothing.
+(An earlier revision of this gate handled a *received* binary and had a third state —
+"present but unpinned" — which was the dangerous one, because the tests would run, pass, and
+prove nothing about which book they ran against. Generating removes that state: there is no
+unpinned copy to be fooled by.)
 
 ## c. What is compared — **not the CFI string, and not the page**
 

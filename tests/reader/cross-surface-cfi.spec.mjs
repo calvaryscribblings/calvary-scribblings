@@ -3,26 +3,33 @@
 // Emits this surface's four positions, and verifies the app's four land where the app meant.
 //
 // ── THE DIGEST GATE COMES FIRST, ALWAYS ──────────────────────────────────────
-// "Same book" means SAME BYTES, verified here rather than assumed. A fixture that drifts by
-// one byte makes every assertion below answer a question about two different books while
-// looking exactly like it answered the right one — a green run that means nothing, which is
-// worse than a red one. So nothing in this file emits or seeks a CFI until the file on disk
-// has been hashed and matched.
+// "Same book" means SAME BYTES, and here they are GENERATED rather than received. The app
+// sends its generator — make-epub.mjs + zip.mjs — and this spec runs it and matches the
+// published digest. Byte-identity is therefore DERIVED, not transferred: a copied binary can
+// only be checked against a number somebody sent, a generated one is reproduced from the
+// source that defines it, in this environment, on every run.
 //
-// Three states, three different behaviours, and the difference between them matters:
+// That is why the fixture is NOT committed here, which reverses the earlier call in
+// docs/cfi-exchange-protocol.md. That call was right for a delivered binary — "a fixture you
+// have to obtain is a fixture the test skips" — and the generator removes its premise:
+// nothing has to be obtained, so nothing skips, and a binary in git is a fixture nobody can
+// review. The app side keeps a committed copy only because Metro must bundle one into the
+// binary, and asserts it byte-identical to a fresh build for exactly this reason.
 //
-//   fixture ABSENT, pin null   → SKIP. Nothing has been delivered yet. The suite has to stay
-//                                runnable by anyone (the same rule live-cfi.spec.mjs follows
-//                                for the licensed masters).
-//   fixture PRESENT, pin null  → FAIL. The file arrived and nobody pinned it. This is the
-//                                dangerous state: the tests would run, pass, and prove
-//                                nothing about which book they ran against.
-//   digest MISMATCH            → FAIL, loudly, with both digests. Do not "re-pin to make it
-//                                pass": a changed fixture is either a new fixture that both
-//                                sides must adopt together, or a corrupted copy.
+// The gate rebuilds and compares before anything below emits or seeks a CFI:
+//
+//   digest MATCHES    → proceed.
+//   digest DIFFERS    → FAIL, loudly, with both digests. This would be a finding about the
+//                       GENERATOR'S DETERMINISM ACROSS ENVIRONMENTS — a Node version that
+//                       orders something differently, a Buffer encoding that moved — and it
+//                       is worth knowing before it is worth fixing. Do NOT re-pin to make it
+//                       agree: the pin is the app's published value, and a fixture that has
+//                       genuinely changed is a change both surfaces adopt together, in one
+//                       move, or the exchange means nothing.
+//   generator MISSING → SKIP, with the path. Nothing to build from.
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { test, expect } from '@playwright/test';
 import { settle } from './helpers.mjs';
@@ -32,52 +39,27 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
 const PIN = JSON.parse(readFileSync(resolve(HERE, 'cross-surface/fixture-pin.json'), 'utf8'));
 
+const GENERATOR = resolve(ROOT, PIN.generator);
 const FIXTURE = resolve(ROOT, PIN.fixture);
 const OUR_LIST = resolve(ROOT, 'docs/cfi-web-list.json');
 const THEIR_LIST = resolve(ROOT, 'docs/cfi-app-list.json');
 
-// A rehearsal book, so the machinery can be exercised before the real fixture lands. It is
-// NEVER a substitute for it: the exchange itself refuses to run on anything unpinned, and
-// this only ever drives the emit path so we know the mechanism works.
+// A rehearsal book, so the machinery can be exercised without the real fixture. NEVER a
+// substitute for it: it only drives the emit path, and it never writes the exchange list.
 const REHEARSAL = process.env.CFI_REHEARSAL_BOOK || null;
 
 const sha256File = (p) => createHash('sha256').update(readFileSync(p)).digest('hex');
 
-/** The gate. Returns the reason to skip, or throws — never returns "fine" by accident. */
+/** Rebuild from source and match. Returns a skip reason, or throws — never "fine" by accident. */
 function gate() {
-  const present = existsSync(FIXTURE);
-  if (!present && !PIN.sha256) {
-    return `§6h fixture not delivered yet — expected at ${PIN.fixture}, digest not yet pinned.`;
-  }
-  if (present && !PIN.sha256) {
-    throw new Error(
-      `THE FIXTURE IS PRESENT AND ITS DIGEST IS NOT PINNED.\n`
-      + `  ${PIN.fixture}\n`
-      + `  sha256 on disk: ${sha256File(FIXTURE)}\n\n`
-      + `  Put that value in tests/reader/cross-surface/fixture-pin.json ONLY if it matches the\n`
-      + `  digest the app side published. Pinning whatever happens to be on disk defeats the\n`
-      + `  entire point of pinning: it would make any copy self-certifying.`);
-  }
-  if (!present && PIN.sha256) {
-    return `§6h fixture pinned but missing on disk — expected at ${PIN.fixture}.`;
-  }
-  const actual = sha256File(FIXTURE);
-  if (actual !== PIN.sha256) {
-    throw new Error(
-      `FIXTURE DIGEST MISMATCH — this is not the app's book.\n`
-      + `  file      ${PIN.fixture}\n`
-      + `  expected  ${PIN.sha256}\n`
-      + `  actual    ${actual}\n\n`
-      + `  Every CFI below would be about a different book. Do NOT re-pin to make this pass.\n`
-      + `  Either the copy is corrupt, or the fixture was revised — and a revised fixture is a\n`
-      + `  change both surfaces adopt together, in one move, or the exchange is meaningless.`);
+  if (!existsSync(GENERATOR)) {
+    return `§6h generator missing — expected at ${PIN.generator}`;
   }
   return null;
 }
 
-let skipReason = null;
-try { skipReason = gate(); } catch (e) { skipReason = null; test.beforeAll(() => { throw e; }); }
-test.skip(!!skipReason && !REHEARSAL, () => skipReason || 'not delivered');
+let skipReason = gate();
+test.skip(!!skipReason && !REHEARSAL, () => skipReason || 'generator missing');
 
 const BOOK_URL = REHEARSAL || PIN.servedAt;
 
@@ -92,10 +74,29 @@ async function open(page) {
   return page.frames().find((f) => f.url().includes('/reading-room.html'));
 }
 
-test('the fixture is the app\'s book, byte for byte', async () => {
+// Runs before every test in this file, not only the digest test: no CFI is emitted or sought
+// against a book whose bytes have not been re-derived in THIS environment on THIS run.
+test.beforeAll(async () => {
+  if (REHEARSAL) return;
+  const { buildFixture } = await import(pathToFileURL(GENERATOR).href);
+  const built = buildFixture();
+  if (built.sha256 !== PIN.sha256) {
+    throw new Error(
+      `FIXTURE DIGEST MISMATCH — the generator did not reproduce the app's book here.\n`
+      + `  generator  ${PIN.generator}\n`
+      + `  expected   ${PIN.sha256}  (${PIN.bytes} bytes, the app's published value)\n`
+      + `  built      ${built.sha256}  (${built.bytes} bytes)\n\n`
+      + `  This is a finding about the GENERATOR'S DETERMINISM ACROSS ENVIRONMENTS, not about\n`
+      + `  the reader. Report the difference; do NOT re-pin to make it agree. Every CFI below\n`
+      + `  would otherwise be about a different book while looking exactly right.`);
+  }
+});
+
+test('the fixture is the app\'s book, byte for byte, rebuilt from source', async () => {
   test.skip(!!REHEARSAL, 'rehearsal run — the real fixture is what gets pinned');
-  expect(PIN.sha256, 'digest must be pinned before any CFI is emitted').toBeTruthy();
+  expect(existsSync(FIXTURE), `${PIN.fixture} should exist after the build`).toBe(true);
   expect(sha256File(FIXTURE)).toBe(PIN.sha256);
+  expect(readFileSync(FIXTURE).length).toBe(PIN.bytes);
 });
 
 test('emit our four positions, and confirm each one round-trips on our own surface', async ({ page }) => {

@@ -1,0 +1,37 @@
+{
+  "_": "§6h — the web surface's four positions. The app SEEKS each cfi and reports the sectionIndex and resolvedText it lands on; pass is that they match the values here. Do NOT compare cfi strings — see tests/reader/cross-surface/exchange.mjs.",
+  "fixture": "tests/fixtures/cross-surface/build/fixture.epub",
+  "fixtureSha256": "cb344c79f7e2abf2d9a6e872a31d81eebdef1c5c0b78518c1a2d5540e2fcbfff",
+  "window": 60,
+  "digest": "6c9435a28526c4b79407d3946abb40dd4ce9189c4a41324f6fdee4db006f3a8d",
+  "records": [
+    {
+      "key": "mid-section-1",
+      "why": "an ordinary interior position — the case that must simply work",
+      "cfi": "epubcfi(/6/2!/4/44/1:2)",
+      "sectionIndex": 0,
+      "resolvedText": "rse cobble lichen loam chapel cobble kiln willow furrow nett"
+    },
+    {
+      "key": "last-page-section-2",
+      "why": "the far edge of a section: the offset most likely to normalise differently",
+      "cfi": "epubcfi(/6/4!/4/112/1:333)",
+      "sectionIndex": 1,
+      "resolvedText": "lichen furrow grackle elder loam umber."
+    },
+    {
+      "key": "first-page-section-3",
+      "why": "THE BOUNDARY. The position either surface is most likely to attribute to the previous section, because it is the first thing after one ends",
+      "cfi": "epubcfi(/6/6!/4/4/1:4)",
+      "sectionIndex": 2,
+      "resolvedText": "willow lichen fennel dovecote lichen bracken fennel chapel v"
+    },
+    {
+      "key": "inside-degenerate-section-3",
+      "why": "inside the one-screen section. Its first page and its last page are the same page, so a surface that derives position from pagination has nowhere to hide",
+      "cfi": "epubcfi(/6/6!/4/4/1:175)",
+      "sectionIndex": 2,
+      "resolvedText": "and. Cobble cinder nettle inkwell inkwell gorse chapel kestr"
+    }
+  ]
+}
