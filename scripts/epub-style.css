@@ -1,0 +1,338 @@
+/* ═════════════════════════════════════════════════════════════════════════════
+   CALVARY SCRIBBLINGS — THE HOUSE EPUB STYLESHEET
+   template version 1 · first versioned copy · 2026-08-10
+
+   Consumed by scripts/build-epub.mjs, which passes it to pandoc as --css and
+   embeds it in the package. Nothing else reads it. If you are about to hand-edit
+   a stylesheet inside a built .epub, stop: edit this file and rebuild, or the
+   next build silently reverts you.
+
+   ── WHAT THIS FILE IS ────────────────────────────────────────────────────────
+   A Calvary EPUB ships STRUCTURE; the reading surface sets the READING.
+   Structure is what the book IS — this is a chapter opening, this is the title
+   page, this is emphasis. Reading is how it is presented to one person on one
+   screen — the measure, the alignment, the size, the leading. A publisher who
+   legislates the reading has taken a decision that belongs to the reader, and
+   has taken it once, badly, for every device at once.
+
+   That division is the whole design of this file, and it is why the REFUSALS at
+   the bottom are as much a part of the template as the rules above them.
+
+   ── HOW TO CHANGE IT ─────────────────────────────────────────────────────────
+   Bump the version above and say what moved. A template change is NOT free: it
+   only reaches readers through a rebuild, a rebuild bumps every title's version,
+   and every reader's exact-position resume falls back to an approximate one plus
+   a silent re-download. Regeneration is priced and scheduled separately. Changing
+   this file and regenerating the catalogue are two different decisions.
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+
+/* ── THE PAGE ──────────────────────────────────────────────────────────────── */
+
+html {
+  line-height: 1.4;
+  font-family: Georgia, serif;
+  color: #1a1a1a;
+  background-color: #fdfdfd;
+}
+
+
+/* ── BODY TEXT ─────────────────────────────────────────────────────────────── */
+
+/* No text-align here. That is a refusal, not an omission — see REFUSAL 1. */
+p {
+  margin: 0;
+  widows: 2;
+  orphans: 2;
+}
+
+/* THE FIRST-LINE INDENT — one mechanism, chosen 2026-08-10.
+ *
+ * Until v1 this job was done by two rules pulling against each other:
+ *
+ *     p                  { text-indent: 1.5em }    indents EVERY paragraph,
+ *                                                  chapter openers included
+ *     h1 + p, h1 + p + p { text-indent: 0     }    then un-indents two of them
+ *
+ * The sibling form below does the same job with one rule and no un-setting: a
+ * paragraph is indented when a paragraph precedes it, which is exactly the
+ * typographic rule ("a first line is flush; a continuation is indented") stated
+ * directly instead of approximated positionally.
+ *
+ * WHY THIS ONE AND NOT THE h1 PAIR — three reasons, in order of weight:
+ *
+ *   1. SCENE BREAKS. This is the real difference and it is a typographic
+ *      choice, not a tidy-up. A `***` in the source becomes an <hr/>, so the
+ *      paragraph after a scene break is not adjacent to a paragraph and is left
+ *      FLUSH here. Under the h1 pair it was INDENTED — the bare `p` selector
+ *      caught it and `h1 + p` did not reach it. Flush after a break is the house
+ *      reading: a scene break and a chapter opening are the same event at
+ *      different scales, and they should look like it.
+ *
+ *   2. `h1 + p + p` de-indented the SECOND paragraph of every chapter too. If
+ *      that was ever deliberate it was for a front-matter shape (an epigraph
+ *      standing as the first <p>, the prose starting at the second); as a house
+ *      rule it flattens the opening of every chapter in the catalogue. See the
+ *      known cost below.
+ *
+ *   3. It is the same mechanism the Calvary reader already uses on its own
+ *      surface — public/reading-room.html:125, `:where(p + p){text-indent:1.4em}`.
+ *      One convention, both surfaces. (The MEASURE stays 1.5em here and 1.4em
+ *      there: the reader's is a reading default over other publishers' books and
+ *      is theirs to tune. Only the mechanism was in question.)
+ *
+ * KNOWN COST, stated so the next person does not discover it as a bug: where a
+ * chapter opens with an epigraph or a dateline set as a plain <p>, the prose
+ * paragraph that follows it IS indented, because a paragraph does precede it.
+ * The h1 pair happened to absorb that case. If a title needs it, mark the
+ * epigraph up as an epigraph (<blockquote>, or a <p class="epigraph">) rather
+ * than reintroducing a positional rule — structure is what this file styles.
+ */
+p + p { text-indent: 1.5em; }
+
+
+/* ── CHAPTER OPENINGS ──────────────────────────────────────────────────────── */
+
+h1 {
+  text-indent: 0;
+  text-align: left;
+  margin: 0 0 0.15em 0;
+  padding-top: 2.5em;
+  font-size: 1.7em;
+  font-weight: normal;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+/* NO page-break-before — see REFUSAL 2. That absence was bought with real
+ * debugging; it is not a rule someone forgot to write. */
+
+
+/* ── THE TITLE PAGE ────────────────────────────────────────────────────────── */
+
+/* Alignment IS the structure here — a title page is centred because it is a title
+ * page, not because anyone prefers centred text. This is the one place the template
+ * declares text-align, and REFUSAL 1 is written to permit exactly this and nothing
+ * wider: front matter whose alignment is its meaning, never body text.
+ *
+ * NOTE WHERE THE CENTRING IS DECLARED. It is on the LEAVES — h1.title, p.author,
+ * p.publisher, .rights — and not only on the section. That is load-bearing, and it
+ * is why a reading surface that applies text-align directly to <p> (as ours does at
+ * public/reading-room.html:124) does NOT flatten our title pages: an inherited value
+ * loses to a directly-applied one no matter the specificity, but these are
+ * declared, and at (0,2,2) they outrank the reader's zero-specificity :where().
+ * A book whose front matter is centred only on an ancestor gets flattened. Ours is
+ * not one, and this is the reason. Do not "simplify" these to the section alone. */
+section.titlepage {
+  text-align: center;
+  padding-top: 22%;
+}
+section.titlepage h1.title {
+  text-indent: 0;
+  text-align: center;
+  padding-top: 0;
+  margin: 0 0 1.6em 0;
+  font-size: 2.1em;
+  font-weight: normal;
+  line-height: 1.25;
+  letter-spacing: 0.03em;
+}
+section.titlepage p.author {
+  text-indent: 0;
+  text-align: center;
+  margin: 0 0 3.2em 0;
+  font-size: 1.15em;
+  font-style: italic;
+}
+section.titlepage p.publisher {
+  text-indent: 0;
+  text-align: center;
+  margin: 0 0 0.5em 0;
+  font-size: 0.95em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+section.titlepage .rights {
+  text-indent: 0;
+  text-align: center;
+  margin: 0;
+  font-size: 0.8em;
+  color: #55505a;
+}
+
+
+/* ── CONTENTS ──────────────────────────────────────────────────────────────── */
+
+/* Same reading as the title page: centred because a contents page is centred, and
+ * declared on the <li> itself rather than left to inherit from the <ol>. `li` is one
+ * of the four elements our reading surface aligns directly; an ancestor-only rule
+ * here would be flattened by it. (0,1,2) against :where()'s zero. */
+nav#toc h1,
+nav#toc h2 {
+  text-indent: 0;
+  text-align: center;
+  padding-top: 1.5em;
+  margin-bottom: 1.5em;
+  font-size: 1.4em;
+  font-weight: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+nav#toc ol {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+nav#toc li {
+  margin: 0 0 0.7em 0;
+  text-align: center;
+}
+nav#toc a {
+  text-decoration: none;
+}
+
+
+/* ── INLINE ───────────────────────────────────────────────────────────────── */
+
+a,
+a:visited {
+  color: #1a1a1a;
+}
+
+em {
+  font-style: italic;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   REFUSALS — what this template deliberately does NOT set, and why.
+
+   A template that records only what it sets gets "improved" by whoever next has
+   a good reason. One that records what it refuses argues back. Every entry below
+   is a rule someone will eventually propose in good faith. If you are that
+   person: the counter-argument is already here, and if it is wrong, replace it
+   in writing rather than deleting it in silence.
+
+   ── REFUSAL 0, WHICH GOVERNS ALL THE OTHERS ──────────────────────────────────
+   A REFUSAL ITS OWN FILE BREAKS IS WORSE THAN NO REFUSAL AT ALL.
+     Worse, not merely useless: a refusal contradicted by the rules above it
+     teaches the next reader that this section is decoration, and then the
+     entries that ARE load-bearing get skimmed with the same eye.
+
+     This is a live hazard here, not a maxim. REFUSAL 1 was first written as "no
+     text-align on `p`, `li`, `blockquote`, `dd`", and the title-page and contents
+     blocks then landed declaring `text-align: center` on `p.author` and on
+     `nav#toc li`. Both are correct; the refusal's WORDING was wrong, because it
+     had generalised from body text to every element that can hold a paragraph.
+     It was re-scoped to name its boundary rather than deleted to fit.
+
+     So, whenever a rule is added above: read every refusal below against it. If
+     one now reads as false, the choices are exactly two — the rule is wrong and
+     comes out, or the REFUSAL was drawn too wide and gets re-scoped IN WRITING,
+     with the case that forced it named. What is never acceptable is leaving a
+     refusal standing that the file beneath it already disproves.
+   ═════════════════════════════════════════════════════════════════════════════
+
+   REFUSAL 1 — NO `text-align` ON BODY TEXT.
+     `p { text-align: justify }` was removed in v1. Not because justification is
+     wrong, but because it is not ours to decide.
+
+     THE BOUNDARY, because this file does declare text-align in two places and a
+     refusal its own file breaks is worse than no refusal at all: alignment is
+     permitted where it IS the structure — the title page and the contents page,
+     both enumerated above, both front matter, neither of them prose. It is
+     refused on running text: a bare `p`, `li`, `blockquote` or `dd` selector, or
+     any selector that reaches the body of a chapter. The test is not "is it a
+     paragraph" but "would this decide how a chapter READS on a stranger's phone".
+
+     Our own reader turns justification OFF below 640px, because justified text
+     goes gappy at phone measures (public/reading-room.html:100-105). It does
+     that with a zero-specificity `:where()` rule, deliberately weak, so that a
+     publisher who has actually chosen an alignment keeps it. A house rule on `p`
+     here is an author rule applied DIRECTLY to the same element, and it beats
+     that. The consequence: a Calvary book would justify on a phone while every
+     third-party book on the same shelf, in the same reader, correctly would not,
+     and the reader's justify control would silently do nothing on our own
+     catalogue and only ours.
+
+     "Publisher wins" exists so that a publisher's DELIBERATE typography is not
+     overwritten by a reading default. It is not a licence for our boilerplate to
+     outrank our own reader. When we are both the publisher and the reading
+     surface, defaults that appear in both places must live in exactly one — and
+     the reading surface is the one that knows the screen width.
+
+     This refusal covers `text-align: left` and `start` equally. Setting a
+     "harmless" value is the same defect with a different value: it still applies
+     directly and still wins. The correct number of text-align declarations on a
+     body-text element in this file is zero.
+
+   REFUSAL 2 — NO `page-break-before` ON `h1`.
+     Pandoc puts every top-level section in its own XHTML file, and readers begin
+     a new page per file. Declaring the break as well produced a doubled break —
+     a blank page before every chapter, in every title. This is recorded because
+     the fix looks exactly like an omission: the natural instinct on seeing a
+     chapter heading with no page break declared is to add one back.
+
+   REFUSAL 3 — NO WEB FONT, NO `font-family` BEYOND THE ONE STACK ON `html`.
+     Embedding a face makes the reader's typeface control a no-op on our books
+     and only ours — REFUSAL 1's defect wearing a different hat — and adds
+     megabytes to a download the reader did not ask for.
+
+   REFUSAL 4 — NO `font-size` IN PIXELS, ANYWHERE.
+     Every size here is relative, so the reader's size control scales the whole
+     book proportionally. One px value pins one element and breaks the ladder.
+
+   REFUSAL 5 — NO BOOK'S STRUCTURE IN THE HOUSE TEMPLATE.
+     The stylesheet this one supersedes carried:
+
+         h1 + p { text-align: left; font-style: italic; color: #55505a;
+                  margin: 0 0 1.4em 0; }
+         …and its comment, quoted here without its delimiters because CSS
+         comments do not nest: "The italic timestamp line sitting under each
+         character name."
+
+     That is a correct rule for The Man Who Was Two Men, which has character-name
+     headings with a timestamp line beneath each. It is a catastrophic rule for a
+     house template, because `h1 + p` in every other book is the FIRST PARAGRAPH
+     OF THE CHAPTER: promoted to house, it italicises and greys the opening
+     paragraph of every chapter of every title, and left-aligns it besides.
+
+     It does not ship here, and the general form of the refusal is the point:
+     A RULE THAT EXISTS FOR ONE BOOK'S STRUCTURE IS NOT A HOUSE RULE. If a book
+     needs it, the book carries it — a per-title stylesheet passed alongside this
+     one, or markup that says what the line IS (a <p class="dateline">) rather
+     than where it sits. Positional selectors are how one book's typography gets
+     into everyone else's, because `h1 + p` reads as a house-shaped rule and is
+     not one.
+
+     This is also how the template came to exist in two versions: the drift was
+     book-specific rules accumulating in a file that had no home and no review.
+
+   REFUSAL 6 — NO INLINE STYLE STAMPING ON THE TITLE PAGE.
+     The build this template was recovered from post-processed the generated title
+     page with inline styles. That step is NOT reproduced, because the reason for
+     it could not be established and the measurement went the other way: pandoc's
+     generated title page links the embedded stylesheet, and the classes it emits
+     (titlepage / title / author / publisher / rights) are exactly the ones the
+     rules above target. The sheet reaches the element and the selector matches, so
+     an inline copy of the same declarations could only ever agree or go stale.
+
+     What replaced it is a CHECK, not a mutation: scripts/build-epub.mjs asserts
+     that parity on every build and fails if a pandoc upgrade renames a class or
+     stops linking the sheet. That converts an unexplained workaround into a
+     tripwire for the thing it was probably working around.
+
+     If a specific reading system is ever found that drops publisher CSS on front
+     matter, reinstate the stamp WITH THAT READER NAMED HERE.
+
+   ── AND IN THE BUILDER, NOT HERE ─────────────────────────────────────────────
+   Three refusals belong to the pandoc invocation rather than to CSS, and are
+   recorded and ENFORCED in scripts/build-epub.mjs (search REFUSAL):
+     · never `--epub-title-page=false`
+     · never `--toc` without `--toc-depth`
+     · never a build without an embedded cover image
+   ═════════════════════════════════════════════════════════════════════════════ */

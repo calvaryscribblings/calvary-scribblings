@@ -677,4 +677,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   main().catch((e) => { console.error(e); process.exit(1); });
 }
 
-export { readZip, parseEpub, countWords, chooseExcerpt, LIVE_TITLES, MAX_BYTES, TARGET_MIN_PCT, TARGET_MAX_PCT };
+// crc32 and zip are exported for scripts/build-epub.mjs, which needs the same checksum but a
+// writer that DEFLATES everything after the mimetype — see the note on its own zip(). Additive
+// only: nothing here changed, and the sample splitter's own output is byte-for-byte unaffected.
+export { readZip, parseEpub, countWords, chooseExcerpt, crc32, zip, LIVE_TITLES, MAX_BYTES, TARGET_MIN_PCT, TARGET_MAX_PCT };
