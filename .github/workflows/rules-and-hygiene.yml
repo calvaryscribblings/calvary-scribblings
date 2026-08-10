@@ -40,6 +40,9 @@ on:
       # list naming only one of them would let exactly one of those two through.
       - 'public/vendor/**'
       - 'FOLIATE.lock'
+      # The carried list the app repo diffs against. --check verifies it BYTE-for-byte, so a
+      # hand-edit or an editor's "add final newline" has to be able to start this job too.
+      - 'docs/foliate-web-list.txt'
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/lint-baseline.json'

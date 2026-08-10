@@ -55,7 +55,7 @@
 // the wrong reason. This side does not know the app's value yet, so it is recorded as null
 // and --diff REFUSES to declare parity while it is null. An unknown is not a pass.
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { resolve, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -63,6 +63,26 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const VENDOR_DIR = 'public/vendor/foliate-js-main';
 const LOCK_PATH = resolve(ROOT, 'FOLIATE.lock');
+
+// ── THE CARRIED LIST, AND WHY IT HAS NO TRAILING NEWLINE ─────────────────────
+// docs/foliate-web-list.txt is the artefact the app repo diffs against. It is committed
+// rather than regenerated, because a list you have to regenerate to compare is a list
+// nobody compares.
+//
+// Its bytes are EXACTLY the bytes that were hashed: sha256(file) === aggregate, with no
+// trailing newline. That is deliberate and it is the opposite of the POSIX convention.
+//
+// The reason is the same one behind every other detail in this file: the aggregate is
+// sha256 over the lines joined by '\n', and a trailing newline is one byte of difference
+// between "the file" and "the thing that was hashed". A consumer that parses the file into
+// lines never notices; a consumer that hashes the file verbatim gets a completely different
+// number and reports an engine mismatch that does not exist. Making the file self-verifying
+// removes the choice — BOTH consumers now get the right answer, and anyone can check the
+// artefact with `sha256sum docs/foliate-web-list.txt` and no code at all.
+//
+// If you ever add a header, a comment or a trailing blank line to that file, that property
+// dies silently. Do not.
+const LIST_PATH = resolve(ROOT, 'docs/foliate-web-list.txt');
 
 // Exempt from --diff, never from the pin. See the header.
 const SUBSTITUTIONS = ['pdf.js'];
@@ -95,6 +115,13 @@ export function entries() {
 
 export const lines = (es) => es.map(([n, d]) => `${n}:${d}`);
 export const aggregate = (es) => sha256(lines(es).join('\n'));
+
+/**
+ * The carried list's exact bytes. This is the SAME string the aggregate is taken over — not a
+ * serialisation of it — so `sha256(listBytes(es)) === aggregate(es)` holds by construction
+ * rather than by coincidence, and cannot drift apart under a later edit to one of them.
+ */
+export const listBytes = (es) => lines(es).join('\n');
 
 function buildLock() {
   const es = entries();
@@ -158,32 +185,71 @@ function main() {
   const agg = aggregate(es);
 
   if (argv[0] === '--list') {
-    // stdout is the artefact. Nothing else may print here.
-    process.stdout.write(lines(es).join('\n') + '\n');
+    // stdout IS the artefact — nothing else may print here, and no trailing newline. See the
+    // note on LIST_PATH: these bytes must hash to the aggregate.
+    process.stdout.write(listBytes(es));
     return;
   }
 
   if (argv[0] === '--write') {
     const lock = buildLock();
     writeFileSync(LOCK_PATH, JSON.stringify(lock, null, 2) + '\n');
-    console.log(`wrote FOLIATE.lock — ${lock.count} files, aggregate ${lock.aggregate}`);
+    mkdirSync(dirname(LIST_PATH), { recursive: true });
+    // Both, always, from one command. Writing the lock without the list is how the carried
+    // artefact goes stale, and a stale list is worse than none: the app would diff against
+    // an engine we no longer ship and get a confident, wrong answer.
+    writeFileSync(LIST_PATH, listBytes(es));
+    console.log(`wrote FOLIATE.lock and docs/foliate-web-list.txt — ${lock.count} files`);
+    console.log(`aggregate ${lock.aggregate}`);
+    console.log(`sha256(docs/foliate-web-list.txt) === aggregate: ${sha256(listBytes(es)) === lock.aggregate}`);
     return;
   }
 
   if (argv[0] === '--check') {
     const lock = readLock();
-    if (lock.aggregate === agg && lock.count === es.length) {
-      console.log(`foliate pin OK — ${es.length} files, ${agg}`);
-      return;
+    let failed = false;
+
+    if (lock.aggregate !== agg || lock.count !== es.length) {
+      console.log('FOLIATE PIN MISMATCH');
+      console.log(`  expected  ${lock.aggregate}  (${lock.count} files)`);
+      console.log(`  computed  ${agg}  (${es.length} files)`);
+      printDelta(compare(lock.entries, lines(es)), 'FOLIATE.lock', 'the working tree');
+      console.log('\n  The vendored engine changed. If that was deliberate, re-run with --write and');
+      console.log('  say in the commit message what moved and why. If it was not, this is the drift');
+      console.log('  the pin exists to catch.');
+      failed = true;
     }
-    console.log('FOLIATE PIN MISMATCH');
-    console.log(`  expected  ${lock.aggregate}  (${lock.count} files)`);
-    console.log(`  computed  ${agg}  (${es.length} files)`);
-    printDelta(compare(lock.entries, lines(es)), 'FOLIATE.lock', 'the working tree');
-    console.log('\n  The vendored engine changed. If that was deliberate, re-run with --write and');
-    console.log('  say in the commit message what moved and why. If it was not, this is the drift');
-    console.log('  the pin exists to catch.');
-    process.exit(1);
+
+    // The carried list is checked as BYTES, not as content. It is the artefact another repo
+    // hashes, so "equivalent" is not good enough — a trailing newline or a reordered line
+    // would leave it parseable and still make their recomputed aggregate disagree with ours,
+    // which reads as an engine mismatch and is not one.
+    const want = listBytes(es);
+    if (!existsSync(LIST_PATH)) {
+      console.log('\nCARRIED LIST MISSING — docs/foliate-web-list.txt');
+      console.log('  Run --write. The app repo diffs against this file; without it there is');
+      console.log('  nothing to carry across and the pin is web-side-only again.');
+      failed = true;
+    } else {
+      const have = readFileSync(LIST_PATH);
+      if (!have.equals(Buffer.from(want))) {
+        console.log('\nCARRIED LIST OUT OF STEP — docs/foliate-web-list.txt');
+        console.log(`  its sha256      ${sha256(have)}`);
+        console.log(`  should be       ${agg}   (= the aggregate; the file IS what gets hashed)`);
+        console.log(`  bytes           ${have.length} on disk, ${want.length} expected`);
+        if (have.length === want.length + 1 && have[have.length - 1] === 0x0a) {
+          console.log('  → it has a TRAILING NEWLINE that the emitter does not produce. A shell');
+          console.log('    redirect or an editor "add final newline" setting will do this.');
+        }
+        console.log('  Run --write. A stale carried list makes the app diff a version we do not ship.');
+        failed = true;
+      }
+    }
+
+    if (failed) process.exit(1);
+    console.log(`foliate pin OK — ${es.length} files, ${agg}`);
+    console.log(`carried list OK — docs/foliate-web-list.txt hashes to the aggregate`);
+    return;
   }
 
   if (argv[0] === '--diff') {
@@ -202,8 +268,14 @@ function main() {
     };
     const waived = [...delta.added, ...delta.removed, ...delta.changed].filter(exempt);
 
+    // Recompute THEIR aggregate from THEIR list, and say so. If their file does not hash to
+    // the number they published, that is a finding about the file — a stale export, a trailing
+    // newline, a line-ending conversion in transit — and not about the engines. Reporting it
+    // as an engine difference would be the single most expensive wrong answer this tool can
+    // give, because it sends two people to diff an engine that never moved.
+    const theirAgg = sha256(theirs.join('\n'));
     console.log(`ours   ${es.length} files, aggregate ${agg}`);
-    console.log(`theirs ${theirs.length} files`);
+    console.log(`theirs ${theirs.length} files, aggregate ${theirAgg} (recomputed from the list as given)`);
     if (waived.length) console.log(`\n  waived as substitutions: ${[...new Set(waived)].join(', ')}`);
 
     const clean = !real.added.length && !real.removed.length && !real.changed.length;
