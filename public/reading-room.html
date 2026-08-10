@@ -1168,6 +1168,31 @@ window.addEventListener('message', async (e) => {
       pendingWord = null
       hideChip()
       break
+    // ══ DO NOT REPLACE Overlayer.highlight WITH A <mark>-WRAPPING HIGHLIGHTER ══
+    //
+    // This is the load-bearing property of the whole search feature, and it is invisible in
+    // the code that depends on it — so it is written here, where a search change arrives.
+    //
+    // Overlayer owns its own <svg> layer and paints highlights on top of the section
+    // document. It NEVER TOUCHES THE CONTENT DOM. That is why a CFI emitted on this surface
+    // means the same thing on the mobile app: a CFI is a path through the document tree plus
+    // a character offset into a text node, so it is only stable while the tree and the text
+    // nodes are.
+    //
+    // The obvious "improvement" — wrap each hit in <mark> (or any span, or Range.surround-
+    // Contents, or innerHTML with the match tagged) — SPLITS THE TEXT NODE AT THE MATCH and
+    // inserts an element. Every CFI after that point in the section now resolves somewhere
+    // else: child indices shift by the inserted element, and the offset that used to land
+    // mid-sentence now lands in the wrong node entirely. Nothing throws. The reader simply
+    // resumes a few words or a few paragraphs off, and every bookmark taken while a search
+    // was active is quietly wrong — including ones already stored in readerBookmarks.
+    //
+    // It is silent, it is retroactive, and it breaks the cross-surface CFI exchange (§6h) by
+    // making the two surfaces disagree about a book they are both reading correctly.
+    //
+    // If you need a different highlight look, change drawOptions or write another draw
+    // function that also paints in an overlay. The constraint is not "use Overlayer"; it is
+    // THE CONTENT DOCUMENT IS READ-ONLY DURING SEARCH.
     case 'search': {
       const token = ++searchToken
       const query = (d.query || '').trim()

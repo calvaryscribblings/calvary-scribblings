@@ -1,0 +1,10 @@
+{
+  "_": "§6h — THE CROSS-SURFACE CFI FIXTURE PIN. Same book means same BYTES, verified. A copy that drifts by one byte makes the exchange answer a question about two different books while looking like it answered the right one. sha256 is null until the app side delivers the file AND its digest; the spec REFUSES to emit a single CFI while it is null, and refuses louder if the file is present and does not match.",
+  "fixture": "tests/fixtures/cross-surface/sample.epub",
+  "servedAt": "/__t/fixtures/cross-surface/sample.epub",
+  "sha256": null,
+  "expectedSections": 4,
+  "degenerateSectionIndex": 2,
+  "delivery": "Committed test asset. See docs/cfi-exchange-protocol.md for why, and for what to do when the file arrives.",
+  "source": "app repo, byte-pinned there. Delivered by Ikenna with its digest."
+}
