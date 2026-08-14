@@ -5,7 +5,7 @@
 //   → (stored) → goTo{cfi} → host → view.goTo → relocate
 // Each hop is asserted on its own, so a failure names the hop that died.
 import { test, expect } from '@playwright/test';
-import { openReader, settle, msgs, clearMsgs, post, gotoPage, currentFraction, roomFrame } from './helpers.mjs';
+import { openReader, settle, msgs, clearMsgs, post, gotoPage, currentFraction, roomFrame, turnNext } from './helpers.mjs';
 
 test('hop 1: requestBookmark returns a cfi, a fraction and a non-empty excerpt', async ({ page }) => {
   await openReader(page);
@@ -60,7 +60,7 @@ test('hop 3: goTo(cfi) from the parent lands back on the bookmarked page', async
   const [bm] = await msgs(page, 'bookmarkCFI');
 
   // Walk well away — several pages, into another chapter if possible.
-  for (let i = 0; i < 6; i++) { await post(page, { type: 'next' }); await settle(page, 220); }
+  for (let i = 0; i < 6; i++) await turnNext(page);
   const away = await currentFraction(page);
   expect(Math.abs(away - at), 'the test must actually have moved away').toBeGreaterThan(0.01);
 
@@ -91,7 +91,7 @@ test('hop 3 (legacy): an R4a-shape record — cfi only, no fraction — still ju
 
   const legacyRecord = { cfi: bm.cfi, label: 'Chapter', createdAt: 1700000000000 };
 
-  for (let i = 0; i < 5; i++) { await post(page, { type: 'next' }); await settle(page, 220); }
+  for (let i = 0; i < 5; i++) await turnNext(page);
   await clearMsgs(page);
   await post(page, { type: 'goTo', cfi: legacyRecord.cfi });
   await settle(page, 800);
@@ -132,7 +132,7 @@ test('parent sequence: goTo immediately followed by clearSearch still lands', as
   await page.waitForFunction(() => window.__msgs.some((m) => m.type === 'bookmarkCFI'));
   const [bm] = await msgs(page, 'bookmarkCFI');
 
-  for (let i = 0; i < 5; i++) { await post(page, { type: 'next' }); await settle(page, 220); }
+  for (let i = 0; i < 5; i++) await turnNext(page);
   await clearMsgs(page);
 
   // Exactly what jumpTo + closePanel put on the wire, in the same order, same tick.
@@ -163,7 +163,7 @@ test('a ribbon dropped before a re-typeset still jumps after it', async ({ page 
     face: 'literata', sizePct: 140, leading: 1.9, justify: true,
   });
   await settle(page, 1200);
-  for (let i = 0; i < 3; i++) { await post(page, { type: 'next' }); await settle(page, 220); }
+  for (let i = 0; i < 3; i++) await turnNext(page);
 
   await clearMsgs(page);
   await post(page, { type: 'goTo', cfi: bm.cfi });
@@ -219,7 +219,7 @@ test('fraction fallback: goToFraction lands within a page of the recorded fracti
   await settle(page, 500);
   await clearMsgs(page);
 
-  for (let i = 0; i < 5; i++) { await post(page, { type: 'next' }); await settle(page, 220); }
+  for (let i = 0; i < 5; i++) await turnNext(page);
   const away = await currentFraction(page);
   expect(Math.abs(away - at), 'the test must have moved away').toBeGreaterThan(oneStep);
 

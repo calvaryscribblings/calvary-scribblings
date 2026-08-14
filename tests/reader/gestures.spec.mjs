@@ -197,3 +197,115 @@ test('ownership matrix: no distance has two owners, none moves against itself', 
 
   expect(failures, failures.join(' | ')).toEqual([]);
 });
+
+// ── R11.21 — THE GLIDE, AND THE SECOND TAP THAT LANDS INSIDE IT ──────────────
+//
+// `animated` on the renderer buys a 300ms easeOutQuad instead of one scrollLeft assignment
+// (paginator.js:901), which is what removed the page-turn flash. It also puts the reader in a
+// state that could not exist before: the columns are MOVING while no finger is down.
+//
+// Two rules in reading-room.html were written when only a finger could move them, and the
+// defect this pins was measured, not predicted — two taps 40/60/80ms apart slid half a page
+// forward and rubber-banded back to the page they started on:
+//
+//   • the Band B scroll test read our own glide as "the paginator already acted", and
+//     disowned a tap the paginator had never seen;
+//   • foliate snaps on EVERY touchend in paginated flow (paginator.js:853). On a settled page
+//     that is a no-op — it targets the page already on screen and #scrollTo returns at the
+//     equality check. Mid-glide it reads the INTERPOLATED position, which in the first half of
+//     the glide rounds to the page behind, so it animated back to where the turn started.
+//
+// The sweep runs across the whole glide because the defect only appeared in its first half:
+// a fixed gap would have passed against the broken build.
+test('two fast taps: the second never fights the first, anywhere in the glide', async ({ page }) => {
+  await openReader(page);
+  await settle(page);
+
+  const still = () => roomFrame(page).evaluate(() => {
+    const r = document.querySelector('foliate-view').renderer;
+    return { start: Math.round(r.start), page: r.page, pages: r.pages, size: r.size };
+  });
+
+  const failures = [];
+  for (const gap of [20, 40, 60, 80, 100, 140, 200, 260]) {
+    // Back to a page with runway, by SEEK — never animated, so each trial starts identical.
+    await post(page, { type: 'goToFraction', fraction: 0 });
+    await settle(page, 500);
+    const before = await still();
+
+    // Sample the paginator's own scroll offset every frame, so the motion is observed rather
+    // than inferred from where it ended up.
+    await roomFrame(page).evaluate(() => {
+      const r = document.querySelector('foliate-view').renderer;
+      window.__trace = [];
+      const t0 = performance.now();
+      window.__tracing = true;
+      const tick = () => {
+        if (!window.__tracing) return;
+        window.__trace.push(Math.round(r.start));
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    await page.touchscreen.tap(340, MID_Y);
+    await page.waitForTimeout(gap);
+    await page.touchscreen.tap(340, MID_Y);
+    await settle(page, 1200);
+
+    const trace = await roomFrame(page).evaluate(() => { window.__tracing = false; return window.__trace; });
+    const after = await still();
+    const peak = Math.max(before.start, ...trace);
+    const moved = (after.start - before.start) / before.size;
+    const rem = after.start % before.size;
+    const offBoundary = Math.min(rem, before.size - rem);
+
+    console.log(`gap ${String(gap).padStart(3)}ms: ${before.start} → ${after.start} (${moved} page), peak ${peak}, off-boundary ${offBoundary}`);
+
+    // It must never come to rest behind the peak it reached — that IS the fight, whether it
+    // shows as a full revert or as a partial rubber-band.
+    if (peak - after.start > 1) failures.push(`gap ${gap}ms: slid to ${peak} then fell back to ${after.start}`);
+    // And it must rest ON a page, not part-way across two.
+    if (offBoundary > 1) failures.push(`gap ${gap}ms: rests ${offBoundary}px off a page boundary`);
+    // Forward, always: the two taps are worth one page while the lock is held, never zero.
+    if (moved < 1) failures.push(`gap ${gap}ms: moved ${moved} pages`);
+  }
+
+  expect(failures, failures.join(' | ')).toEqual([]);
+});
+
+// A seek is not a turn. The glide is reached only through `smooth` (set by #scrollPrev and
+// #scrollNext alone) and through reason==='snap'; goTo travels #display → scrollToAnchor,
+// which carries 'anchor'/'navigation'/'selection' and passes no `smooth`. Asserted rather
+// than assumed, because a resume that animated would show the reader a page they never
+// turned to.
+test('seeks do not glide: goToFraction and goTo(cfi) land in one step', async ({ page }) => {
+  await openReader(page);
+  await settle(page);
+
+  const steps = async (fn) => {
+    await roomFrame(page).evaluate(() => {
+      const r = document.querySelector('foliate-view').renderer;
+      window.__trace = [];
+      window.__tracing = true;
+      const tick = () => { if (!window.__tracing) return; window.__trace.push(Math.round(r.start)); requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+    });
+    await fn();
+    await settle(page, 1200);
+    const trace = await roomFrame(page).evaluate(() => { window.__tracing = false; return window.__trace; });
+    return trace.filter((v, i) => i && v !== trace[i - 1]).length;
+  };
+
+  await post(page, { type: 'requestBookmark' });
+  await page.waitForFunction(() => window.__msgs.some((m) => m.type === 'bookmarkCFI'));
+  const [bm] = await msgs(page, 'bookmarkCFI');
+
+  // A glide is ~18 changed frames across 300ms. A seek is one assignment; two allows for the
+  // relocate that follows re-measuring the same offset.
+  const frac = await steps(() => post(page, { type: 'goToFraction', fraction: 0.6 }));
+  expect(frac, `goToFraction moved through ${frac} positions — a seek must not animate`).toBeLessThanOrEqual(2);
+
+  const cfi = await steps(() => post(page, { type: 'goTo', cfi: bm.cfi }));
+  expect(cfi, `goTo(cfi) moved through ${cfi} positions — a resume must not animate`).toBeLessThanOrEqual(2);
+});

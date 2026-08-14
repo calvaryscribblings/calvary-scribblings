@@ -162,14 +162,56 @@ export async function currentFraction(page) {
   return rel.length ? rel[rel.length - 1].fraction : null;
 }
 
+/**
+ * Wait until the paginator has stopped moving.
+ *
+ * R11.21 — WHY A WALK CANNOT RUN ON A CADENCE ANY MORE. A turn now glides (300ms,
+ * paginator.js:901) and foliate holds its #locked for the length of it (:1060-1071), so a
+ * `next` posted sooner than that is DROPPED, in silence, with an ack-less bridge message and
+ * no error. The old 220/240ms walks were calibrated against the pre-glide lock, which was a
+ * flat `wait(100)` — they now under-walk, and a test that only compares distances reports it
+ * as "the reader did not move far enough" rather than as the dropped turn it is.
+ *
+ * Asking whether the reader is still asks the question the cadence was standing in for, and
+ * cannot drift if the duration is ever changed. `renderer.start` is the paginator's own scroll
+ * offset (paginator.js:781) — the exact quantity the glide interpolates.
+ */
+export async function waitForStill(page, { timeout = 5000, pollMs = 60, stableFor = 2 } = {}) {
+  const frame = roomFrame(page);
+  const deadline = Date.now() + timeout;
+  let last = null;
+  let stable = 0;
+  while (Date.now() < deadline) {
+    const now = await frame.evaluate(() => {
+      const r = document.querySelector('foliate-view')?.renderer;
+      return r ? Math.round(r.start) : null;
+    });
+    if (now !== null && now === last) {
+      if (++stable >= stableFor) return now;
+    } else {
+      stable = 0;
+    }
+    last = now;
+    await page.waitForTimeout(pollMs);
+  }
+  return last;
+}
+
+/**
+ * One page forward, waiting for the turn to LAND rather than for a fixed interval.
+ * The short lead-in lets the glide begin, so stillness means "finished", not "not started".
+ */
+export async function turnNext(page) {
+  await post(page, { type: 'next' });
+  await page.waitForTimeout(80);
+  await waitForStill(page);
+}
+
 /** Navigate to a 1-indexed page of the whole book and return the resting fraction. */
 export async function gotoPage(page, target) {
   await post(page, { type: 'goToFraction', fraction: 0 });
   await settle(page, 400);
-  for (let i = 1; i < target; i++) {
-    await post(page, { type: 'next' });
-    await settle(page, 240);
-  }
+  for (let i = 1; i < target; i++) await turnNext(page);
   await settle(page, 200);
   return currentFraction(page);
 }

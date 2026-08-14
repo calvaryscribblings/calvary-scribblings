@@ -449,6 +449,64 @@ function isScrolledFlow() {
   return state.flow === 'scrolled'
 }
 
+// ── R11.21 — WHAT THE GLIDE CHANGED UNDERNEATH THE OWNERSHIP BANDS ────────────
+//
+// `animated` (set after open, below) makes a turn take 300ms instead of landing in one
+// assignment. That is the whole point of it — but it also means `renderer.start` now moves
+// for TWO reasons: a finger dragging the columns, and our own turn easing to the next page.
+// Two rules in this file were written when only the first was possible, and both misread the
+// second. MEASURED, not reasoned: two taps 40/60/80ms apart left the reader on the page they
+// started on, having slid ~half a page forward and rubber-banded back.
+//
+//   1. THE BAND B SCROLL TEST (:1033). "Did the paginator move the page under this finger?"
+//      became "did anything move the page", and a tap landing mid-glide answered yes — so our
+//      layer disowned a gesture the paginator had not touched. Below, the test is skipped
+//      while a turn of ours is in flight: that motion is ours, and already accounted for. The
+//      TAP_SLOP distance test still separates a tap from a drag in that window, which is the
+//      test that was doing the work anyway.
+//
+//   2. THE PAGINATOR'S OWN SNAP. paginator.js:853 snaps on EVERY touchend in paginated flow,
+//      tap or drag. On a settled page that is a no-op — it targets the page already on screen
+//      and #scrollTo returns at the equality check (:894). Mid-glide it is not: it reads the
+//      interpolated position, and while the glide is in its first half that rounds to the page
+//      BEHIND, so it animates back to where the turn started. Two animate() loops then write
+//      the same scroll offset in the same frames and the later one wins. That is the fight.
+//
+// The fix is the R7.2.3 ownership rule extended from space into time: a gesture our layer
+// claimed is ours including its snap, so we mute exactly that one. A drag is untouched — it
+// never sets the flag, so its release still snaps, which is the only thing snap exists for.
+//
+// The mute is per-gesture and consumed immediately (the paginator schedules its snap in the
+// very next frame after touchend), and a new touchstart clears it, so a snap that never
+// arrives cannot leave the flag standing for the next reader's drag.
+let turnsInFlight = 0
+let muteNextSnap = false
+
+// Every turn goes through here so the count is complete: taps, swipes in scrolled flow, the
+// keyboard, and the chrome's own prev/next buttons all glide, and all of them move
+// `renderer.start` without a finger. A turn the paginator drops (its #locked is held for the
+// length of the glide) resolves immediately, so it increments and decrements without ever
+// masking the real one still in flight.
+function turnPage(dir) {
+  if (!view) return
+  turnsInFlight++
+  Promise.resolve(dir < 0 ? view.goLeft() : view.goRight())
+    .catch(() => {})
+    .finally(() => { turnsInFlight-- })
+}
+
+// Wrapped on the public method, once, after open. The vendored foliate tree is pinned and its
+// bytes are self-verifying (R11.18c), so the correction belongs on this side of the boundary.
+function guardSnap(r) {
+  if (!r || typeof r.snap !== 'function' || r.__calvarySnapGuarded) return
+  const original = r.snap.bind(r)
+  r.__calvarySnapGuarded = true
+  r.snap = (vx, vy) => {
+    if (muteNextSnap) { muteNextSnap = false; return }
+    return original(vx, vy)
+  }
+}
+
 // A release that ends a selection is not a tap (recon §8.4): no turn, no chrome.
 function hasLiveSelection(doc) {
   try {
@@ -506,8 +564,8 @@ function onTap(clientX, target, doc) {
   if (hasLiveSelection(doc)) return
   const x = toHostX(clientX, doc)
   const w = window.innerWidth   // the READER's width — the surface the reader is touching
-  if (x < w / 3) view?.goLeft()
-  else if (x > (w * 2) / 3) view?.goRight()
+  if (x < w / 3) turnPage(-1)
+  else if (x > (w * 2) / 3) turnPage(1)
   else post({ type: 'toggleChrome' })
 }
 
@@ -1014,6 +1072,7 @@ if (!url) {
       tx = t ? t.clientX : null
       ty = t ? t.clientY : null
       tScroll = view && view.renderer ? view.renderer.start : null
+      muteNextSnap = false   // R11.21 — a new gesture never inherits the last one's mute
     }, { passive: true })
     detail.doc.addEventListener('touchend', (e) => {
       // R7.2.1/R7.2.3: latch on EVERY touch end, BEFORE any guard — including the
@@ -1030,17 +1089,22 @@ if (!url) {
       const dy = startY - (t ? t.clientY : startY)
       if (hasLiveSelection(detail.doc)) return
       // BAND B, first test: did the paginator already move the page under this finger?
-      if (!isScrolledFlow() && startScroll !== null && view && view.renderer
+      // R11.21 — not asked while a turn of ours is gliding: the page moved because we are
+      // moving it, and reading that as the paginator acting disowns a gesture it never saw.
+      if (!isScrolledFlow() && !turnsInFlight && startScroll !== null && view && view.renderer
         && Math.abs(view.renderer.start - startScroll) > SCROLL_EPS) return
       if (isScrolledFlow()) {
         // Ours: the paginator did not act on this gesture.
         if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
-          dx > 0 ? view.goRight() : view.goLeft()
+          turnPage(dx > 0 ? 1 : -1)
           return
         }
       } else if (Math.abs(dx) > TAP_SLOP || Math.abs(dy) > TAP_SLOP) {
         return // BAND B by distance — the paginator owns it
       }
+      // BAND A, claimed. The snap the paginator schedules for this touchend is ours to
+      // cancel — see the R11.21 note above turnPage.
+      muteNextSnap = true
       onTap(startX, e.target, detail.doc)
     })
     detail.doc.addEventListener('click', (e) => {
@@ -1055,8 +1119,8 @@ if (!url) {
   })
 
   function handleKey(e) {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'h') view.goLeft()
-    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'l') view.goRight()
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'h') turnPage(-1)
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'l') turnPage(1)
   }
   document.addEventListener('keydown', handleKey)
   // Host-frame taps (margins outside the section doc) also route through the zone logic.
@@ -1088,6 +1152,27 @@ if (!url) {
     view.renderer?.setStyles?.(buildCSS(state))
     view.renderer?.setAttribute?.('flow', state.flow)
     view.renderer?.next()
+    // R11.21 — THE PAGE-TURN GLIDE. `animated` is foliate's own switch (paginator.js:901): it
+    // is what lets #scrollTo take the 300ms easeOutQuad branch instead of assigning
+    // scrollLeft outright. The hard assignment is where the flash comes from — the columns
+    // jump and the eye catches the seam, worst on the dark papers. This is the same
+    // one-attribute change the app shipped today, at the web's equivalent of applyPrefs: the
+    // renderer is created once, in view.open (view.js:256-267), so this block is the only
+    // place a renderer is guaranteed to exist and nothing ever recreates it.
+    //
+    // SET AFTER `next()`, DELIBERATELY. The line above is not a reader's turn — it is the
+    // open positioning off foliate's blank leading page, and it fires in the same tick as the
+    // loading overlay hiding on the line below. Animating it would glide the first page in
+    // from the right underneath a screen that is still disappearing. #turnPage reads
+    // hasAttribute('animated') synchronously before its first await, so the ordering here is
+    // exact, not hopeful: the open jump is instant and every turn after it glides.
+    //
+    // Only two paths reach the animated branch — `smooth` (set solely by #scrollPrev/
+    // #scrollNext, i.e. every prev/next turn) and reason==='snap' (the drag release). Seeks
+    // do not: goTo → #display → scrollToAnchor carries reason 'anchor'/'navigation'/
+    // 'selection' and never passes smooth, so resume and bookmark jumps stay instant.
+    view.renderer?.setAttribute?.('animated', '')
+    guardSnap(view.renderer)
     document.getElementById('loading').classList.add('hidden')
     ready = true
     const toc = flattenTOC(view.book?.toc || [])
@@ -1118,8 +1203,8 @@ window.addEventListener('message', async (e) => {
   switch (d.type) {
     case 'applyStyles': applyStyles(d); break
     case 'setFlow': setFlow(d.flow); break
-    case 'prev': view?.goLeft(); break
-    case 'next': view?.goRight(); break
+    case 'prev': turnPage(-1); break
+    case 'next': turnPage(1); break
     // R7.2.2: every navigation now ACKS. view.goTo is async, and the old synchronous
     // try/catch could not catch its rejection — a CFI that failed to resolve died in
     // silence, with nothing in the console and nothing for the parent to act on. The ack

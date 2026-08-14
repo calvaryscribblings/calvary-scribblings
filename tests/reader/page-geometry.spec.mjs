@@ -26,7 +26,7 @@
 import { test, expect } from '@playwright/test';
 import { findRibbonOnPage, ribbonEpsilonFor } from '../../app/lib/ribbonGeometry.js';
 import {
-  openReader, settle, msgs, clearMsgs, post, currentFraction,
+  openReader, settle, msgs, clearMsgs, post, currentFraction, turnNext,
   sectionGeometry, UNEVEN_BOOK_URL,
 } from './helpers.mjs';
 
@@ -51,8 +51,7 @@ async function walk(page, turns) {
   }
   for (let i = 0; i < turns; i++) {
     await clearMsgs(page);
-    await post(page, { type: 'next' });
-    await settle(page, 260);
+    await turnNext(page);
     const rel = await msgs(page, 'relocate');
     if (!rel.length) continue;
     const last = rel[rel.length - 1];
