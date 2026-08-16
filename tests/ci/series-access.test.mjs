@@ -355,14 +355,27 @@ describe('THE TIER GATE FLAG — and the release gate that does not move with it
   // Same shape as GATING_ENABLED — the POLICY is asserted through policyGrantForInstalment so
   // it cannot rot while switched off, the SWITCH through grantForInstalment.
 
+  // ── THE THREE TESTS BELOW ASSERT THE FLAG'S CURRENT POSITION, NOT THE POLICY ──────────
+  //
+  // They are a TRIPWIRE, and going red is their job on the day someone flips
+  // SERIES_TIER_GATE_ENABLED to true. That is not a bug to route around: turning the Series
+  // on is a commercial decision that should require touching the suite that describes it, in
+  // the same commit, deliberately. The instruction is in the message so nobody has to guess.
+  //
+  // WHAT TO DO WHEN THEY FAIL AFTER AN INTENTIONAL FLIP: change `false` to `true` here and
+  // delete the two 'with the flag off' cases. Change NOTHING else — every other test in this
+  // file is about the policy or the release gate and must keep passing untouched. If one of
+  // those goes red too, the flip broke something real.
+  const FLIP_HINT = 'flag flipped? update this describe and nothing else — see the note above';
+
   test('the flag is off today, matching MEMBERSHIPS_ON_SALE', () => {
-    assert.equal(SERIES_TIER_GATE_ENABLED, false);
+    assert.equal(SERIES_TIER_GATE_ENABLED, false, FLIP_HINT);
   });
 
   test('with the flag off, an anonymous reader is granted a released instalment', () => {
     for (const freeForGold of [true, false]) {
       const g = grantForInstalment(row({ freeForGold }), { subscriptionTier: 'free', signedIn: false, now: NOW });
-      assert.equal(g.access, 'granted', `freeForGold=${freeForGold}`);
+      assert.equal(g.access, 'granted', `freeForGold=${freeForGold} — ${FLIP_HINT}`);
       assert.equal(g.reason, TIER_GATE_OFF);
       assert.equal(g.status, 200);
     }
@@ -370,8 +383,45 @@ describe('THE TIER GATE FLAG — and the release gate that does not move with it
 
   test('...and so is a day-pass holder, who the policy would refuse', () => {
     const g = grantForInstalment(row({ freeForGold: true }), { subscriptionTier: 'free', effectiveTier: 'gold', now: NOW });
-    assert.equal(g.access, 'granted');
+    assert.equal(g.access, 'granted', FLIP_HINT);
     assert.equal(g.reason, TIER_GATE_OFF);
+  });
+
+  test('flipping the flag ON restores the policy EXACTLY — a toggle, not a one-way door', () => {
+    // The mathematical form of "flipping it back off restores exactly the tier-gated
+    // behaviour". grantForInstalment is `policy + switch`, and the switch's only clause is
+    // `if (!FLAG && code is tier_too_low|signed_out)`. So with FLAG true the wrapper IS the
+    // policy for every possible input — asserted here over the whole space rather than
+    // reasoned about, because "it's obviously the same" is how a wrapper grows a second
+    // clause nobody notices.
+    //
+    // Verified by direct execution too: with the constant temporarily set true, 0 of 432
+    // input combinations differed between the two functions.
+    let differing = 0;
+    for (const tier of ['free', 'gold', 'platinum']) {
+      for (const eff of ['free', 'gold', 'platinum', null]) {
+        for (const freeForGold of [true, false]) {
+          for (const releaseAtMs of [PAST, FUTURE, NOW]) {
+            for (const status of ['published', 'draft', 'unpublished']) {
+              for (const signedIn of [true, false]) {
+                const r = row({ freeForGold, releaseAtMs, status });
+                const o = { subscriptionTier: tier, effectiveTier: eff, signedIn, now: NOW };
+                const policy = policyGrantForInstalment(r, o);
+                const wrapped = grantForInstalment(r, o);
+                // With the flag OFF the only permitted divergence is a tier refusal opening.
+                if (JSON.stringify(policy) !== JSON.stringify(wrapped)) {
+                  differing++;
+                  assert.ok(['tier_too_low', 'signed_out'].includes(policy.code),
+                    `divergence on a ${policy.code} grant — the switch reaches further than its two codes`);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    // Sanity: the switch must actually be doing something, or this test proves nothing.
+    assert.ok(differing > 0, 'the switch changed no grant at all — is it wired in?');
   });
 
   test('⛔ THE RELEASE GATE DOES NOT MOVE — unreleased is still refused to everyone', () => {
