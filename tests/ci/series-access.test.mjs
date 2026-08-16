@@ -27,6 +27,7 @@ import {
 } from '../../app/lib/series/schema.js';
 import { formatRelease, shelfLine, instalmentLabel } from '../../app/lib/series/format.js';
 import { IMMERSIVE_ROUTES, isImmersive } from '../../app/lib/immersiveRoutes.js';
+import { hasStaticPage } from '../../app/lib/storyAccess.js';
 
 const ROOT = new URL('../../', import.meta.url);
 const NOW = Date.UTC(2026, 9, 20); // 20 Oct 2026
@@ -328,6 +329,41 @@ describe('copy', () => {
   test('two instalments is plural, one is not', () => {
     const two = [row({ ordinal: 1, releaseAtMs: PAST }), row({ ordinal: 2, releaseAtMs: PAST })];
     assert.equal(shelfLine(two, NOW), '2 instalments');
+  });
+});
+
+describe('a pulled story keeps no page at a URL a reader can type', () => {
+  // R12.1. The pull unpublishes; it does not delete. Before this predicate existed, all three
+  // generateStaticParams enumerated every cms_stories key, so hiding a story delisted it and
+  // left its page standing — 182 built pages against 158 published records on the deploy that
+  // found it. For a reader-mode record that page redirected to /reader/<slug>, which resolved
+  // a still-public epubUrl. Delisted was not gone.
+  test('an unpublished story with no schedule gets no page', () => {
+    assert.equal(hasStaticPage({ published: false }), false);
+    assert.equal(hasStaticPage({ published: false, publishAt: '' }), false);
+    assert.equal(hasStaticPage({ published: false, publishAt: null }), false);
+  });
+
+  test('a published story does', () => {
+    assert.equal(hasStaticPage({ published: true }), true);
+    assert.equal(hasStaticPage({}), true);           // absent means published, as everywhere else
+    assert.equal(hasStaticPage(null), true);
+  });
+
+  test('a SCHEDULED story still does — the cron flips a record, not a deploy', () => {
+    // The external calvary-newsletter Worker sets published:true when publishAt arrives. If
+    // the page were not already built, the story would go live to a 404 until someone
+    // deployed. Presence, not futurity: the page must survive the instant the schedule fires,
+    // when the record is briefly still published:false with a past publishAt.
+    assert.equal(hasStaticPage({ published: false, publishAt: '2027-01-01T09:00:00Z' }), true);
+    assert.equal(hasStaticPage({ published: false, publishAt: '2020-01-01T09:00:00Z' }), true);
+  });
+
+  test('all three route enumerations use it', () => {
+    for (const f of ['app/stories/[slug]/page.js', 'app/stories/[slug]/layout.js', 'app/reader/[slug]/page.js']) {
+      const src = readFileSync(fileURLToPath(new URL(f, ROOT)), 'utf8');
+      assert.ok(/hasStaticPage/.test(src), `${f} does not filter generateStaticParams`);
+    }
   });
 });
 

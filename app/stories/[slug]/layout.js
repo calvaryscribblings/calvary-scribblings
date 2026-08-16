@@ -1,4 +1,5 @@
 import { stories } from '../../lib/stories';
+import { hasStaticPage } from '../../lib/storyAccess';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -25,7 +26,12 @@ export async function generateStaticParams() {
     const snap = await get(ref(db, 'cms_stories'));
     if (snap.exists()) {
       const cmsData = snap.val();
-      const cmsSlugs = Object.keys(cmsData).map(slug => ({ slug }));
+      // hasStaticPage, not every key: an unpublished story must not keep a page at a URL a
+      // reader can still type. See app/lib/storyAccess.js for the measurement behind it and
+      // for why scheduled stories are deliberately still built.
+      const cmsSlugs = Object.entries(cmsData)
+        .filter(([, story]) => hasStaticPage(story))
+        .map(([slug]) => ({ slug }));
       return [...hardcoded, ...cmsSlugs];
     }
   } catch (e) {

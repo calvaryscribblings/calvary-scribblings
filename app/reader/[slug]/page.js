@@ -1,4 +1,5 @@
 import ReaderGate from './reader-gate';
+import { hasStaticPage } from '../../lib/storyAccess';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -25,10 +26,16 @@ export async function generateStaticParams() {
     const app = getApps().length ? getApps()[0] : initializeApp(FB);
     const db = getDatabase(app);
 
-    // cms_stories — free content, unchanged.
+    // cms_stories — free content. FILTERED on hasStaticPage: a hidden story must not keep a
+    // reader page either. This route is the sharper half of that hole — the story page at
+    // least renders prose a hidden record no longer has, while /reader/<slug> resolves the
+    // record's epubUrl, which for the whole Book Reader Collection was a permanent PUBLIC
+    // Storage URL. A delisted book with a live reader page was a delisted book anyone holding
+    // the link could still read end to end. See app/lib/storyAccess.js:hasStaticPage.
     const snap = await get(ref(db, 'cms_stories'));
     if (snap.exists()) {
-      Object.keys(snap.val()).forEach((slug) => {
+      Object.entries(snap.val()).forEach(([slug, story]) => {
+        if (!hasStaticPage(story)) return;
         if (!seen.has(slug)) { seen.add(slug); slugs.push({ slug }); }
       });
     }

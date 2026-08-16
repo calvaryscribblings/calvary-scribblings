@@ -192,8 +192,23 @@ async function verify(pulledSlugs) {
   ok(pulledSlugs.every((s) => !stories?.[s]?.quizMeta || stories[s].quizMeta.hasQuiz === true || stories[s].quizMeta.hasQuiz === undefined),
     'no quizMeta was altered');
   ok(Object.keys(quizzes || {}).length > 0, `cms_quizzes intact (${Object.keys(quizzes || {}).length} records)`);
-  ok(stories?.['beta-princess']?.published === true && stories?.['beta-princess-part-two']?.published === true,
-    'both Beta Princess parts untouched — they are the migration script\'s job');
+  // THIS PULL DID NOT TOUCH BETA PRINCESS — asserted against the update set, not against the
+  // records' current state.
+  //
+  // The first version of this check asserted `published === true` on both parts, and it went
+  // red on the real run for a reason worth keeping: the deployment order is MIGRATE THEN
+  // PULL, and the migration is what unpublishes those two. So by the time the pull verifies,
+  // `published` is correctly false and the old assertion was measuring the wrong thing — it
+  // silently assumed an order nobody had committed to, and would have gone green only if the
+  // scripts were run the other way round, which is the order that briefly leaves the content
+  // with no home at all.
+  //
+  // What actually matters is that THIS script left them alone, and the honest way to say that
+  // is to check the paths it wrote.
+  ok(!pulledSlugs.includes('beta-princess') && !pulledSlugs.includes('beta-princess-part-two'),
+    'neither Beta Princess part was in this pull — they are the migration script\'s job');
+  ok(stories?.['beta-princess']?.readerMode === true && stories?.['beta-princess-part-two']?.readerMode === true,
+    'both Beta Princess records still carry readerMode (nothing here un-ticked them)');
 
   console.log(bad ? `\n${bad} check(s) FAILED.` : '\nAll checks passed.');
   if (bad) process.exit(1);

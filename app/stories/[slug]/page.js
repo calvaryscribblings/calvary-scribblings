@@ -1,6 +1,6 @@
 import { stories } from '../../lib/stories';
 import { cutPreview } from '../../lib/previewCut';
-import { GATING_ENABLED } from '../../lib/storyAccess';
+import { GATING_ENABLED, hasStaticPage } from '../../lib/storyAccess';
 import StoryPageClient from './page-client';
 
 const FB = {
@@ -36,7 +36,11 @@ export async function generateStaticParams() {
   const staticSlugs = stories.map(s => ({ slug: s.id }));
   try {
     const all = await getAllStories();
-    const cmsSlugs = Object.keys(all).map(slug => ({ slug }));
+    // Same filter as the sibling layout — the two enumerate the same node and must agree, or
+    // one builds a page the other has no metadata for. See storyAccess.js:hasStaticPage.
+    const cmsSlugs = Object.entries(all)
+      .filter(([, story]) => hasStaticPage(story))
+      .map(([slug]) => ({ slug }));
     return [...staticSlugs, ...cmsSlugs].filter((s, i, arr) => arr.findIndex(x => x.slug === s.slug) === i);
   } catch (e) {
     console.error('generateStaticParams error:', e);

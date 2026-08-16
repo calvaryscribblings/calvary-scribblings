@@ -301,6 +301,45 @@ export function isGateable(story) {
 }
 
 /**
+ * Should the static export build a page for this record at all?
+ *
+ * ── THE HOLE THIS CLOSES (R12.1) ─────────────────────────────────────────────────
+ *
+ * `generateStaticParams` in app/stories/[slug]/page.js, app/stories/[slug]/layout.js
+ * and app/reader/[slug]/page.js all enumerated EVERY KEY of cms_stories with no
+ * published filter. So hiding a story removed it from every index-fed surface —
+ * library, search, category pages, /quizzes, Voices — and left its page standing at
+ * a URL anyone could still type or had already bookmarked.
+ *
+ * Measured on the deploy that found it: 182 static story pages against 158 published
+ * records. Twenty-four hidden stories had live pages carrying their real title, their
+ * trailer quote and, for reader-mode records, a client redirect to /reader/<slug>
+ * that resolved a still-public epubUrl. "Unpublished" meant "delisted", not "gone".
+ *
+ * ── WHY NOT JUST `published !== false` ───────────────────────────────────────────
+ *
+ * Because that would break SCHEDULED PUBLISHING, and quietly. A scheduled story sits
+ * at published:false with a future publishAt until the external calvary-newsletter
+ * Worker flips it — and the Worker writes a database record, not a deploy. Today the
+ * flip works without a rebuild precisely BECAUSE the page was already built. Filter
+ * on published alone and a scheduled story goes live to a 404 until someone happens
+ * to deploy.
+ *
+ * So a page is built when the story is published OR when it is waiting on a clock.
+ * `publishAt` is tested for PRESENCE, not for being in the future: a schedule that
+ * has just fired is momentarily still published:false with a past publishAt, and the
+ * page must exist across that boundary rather than only up to it.
+ *
+ * Measured at the time of writing: all 24 unpublished records carry no publishAt at
+ * all, so this drops exactly the hidden ones and nothing else.
+ */
+export function hasStaticPage(story) {
+  const s = story || {};
+  if (s.published !== false) return true;
+  return typeof s.publishAt === 'string' && !!s.publishAt;
+}
+
+/**
  * THE ENTITLEMENT DECISION, as one pure function.
  *
  *   grantFor(story, { tier, floorSlugs, slug, now }) → { access, reason, freeUntilMs }

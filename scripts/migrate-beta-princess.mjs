@@ -86,9 +86,25 @@ const PLAN = [
   { slug: 'beta-princess-part-two', ordinal: 2, freeForGold: false, title: 'Part Two' },
 ];
 
+// Anonymous read. Fine for the public nodes; NOT usable on series_instalments_detail.
 const grab = async (path) => {
   const res = await fetch(`${DB_URL}/${path}`);
   if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
+  return res.json();
+};
+
+// Authenticated read, for the one node an anonymous caller must NOT be able to list.
+//
+// This exists because the first --apply run wrote correctly and then died in verify() on
+// `series_instalments_detail.json → HTTP 401`. That 401 was the RULE WORKING: the detail node
+// has no top-level `.read`, only a per-child one gated on releaseAtMs, so the whole node is
+// deliberately un-listable and an anonymous GET of the parent is supposed to fail. The bug was
+// in the checker, not the gate. Left as a separate function rather than folding a token into
+// grab(), so that anything reading a PUBLIC node keeps reading it the way a reader would —
+// a verifier that authenticates everywhere cannot notice a node that stopped being public.
+const grabAuth = async (path, token) => {
+  const res = await fetch(`${DB_URL}/${path}?access_token=${token}`);
+  if (!res.ok) throw new Error(`${path} (auth) → HTTP ${res.status}`);
   return res.json();
 };
 
@@ -225,19 +241,28 @@ async function main() {
   }
 
   console.log('\nWritten. Verifying against a fresh read …\n');
-  await verify();
+  await verify(token);
 }
 
-async function verify() {
+async function verify(token) {
   const [stories, series, rows, details, index] = await Promise.all([
     grab('cms_stories.json'),
     grab(`${SERIES_PATH}/${SERIES_ID}.json`),
     grab(`${INSTALMENTS_PATH}.json`),
-    grab(`${INSTALMENTS_DETAIL_PATH}.json`),
+    // AUTHENTICATED, because the node is deliberately un-listable. See grabAuth.
+    grabAuth(`${INSTALMENTS_DETAIL_PATH}.json`, token),
     grab(`${INDEX_PATH}.json`),
   ]);
   let bad = 0;
   const ok = (cond, label) => { if (!cond) bad++; console.log(`   ${cond ? '✓' : '✗'} ${label}`); };
+
+  // THE GATE ITSELF, asserted against production rather than assumed. An anonymous caller
+  // must be refused the whole detail node and allowed a RELEASED child of it. If these two
+  // ever disagree, every other check below is measuring a wall that is not there.
+  const anonNode = await fetch(`${DB_URL}/${INSTALMENTS_DETAIL_PATH}.json`);
+  ok(anonNode.status === 401, `anonymous cannot list ${INSTALMENTS_DETAIL_PATH} (got ${anonNode.status})`);
+  const anonChild = await fetch(`${DB_URL}/${INSTALMENTS_DETAIL_PATH}/${SERIES_ID}-i1.json`);
+  ok(anonChild.status === 200, `anonymous CAN read a released instalment's detail (got ${anonChild.status})`);
 
   ok(series?.status === 'published', 'the series record is published');
   for (const p of PLAN) {
