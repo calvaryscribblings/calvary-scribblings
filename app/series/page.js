@@ -17,14 +17,20 @@ import Link from 'next/link';
 import TabBar from '../components/TabBar';
 import { getPublishedSeries, getInstalments } from '../lib/series/loader';
 import { shelfLine } from '../lib/series/format';
+import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 const BODY = "Cormorant Garamond, Georgia, serif";
 
-const KICKER = 'PLATINUM';
+// The kicker follows the flag rather than stating an ambition. Printing PLATINUM over a
+// section that is currently free to everyone would be the page telling a reader something the
+// endpoint disagrees with — and the reader would find out by tapping.
+const KICKER = SERIES_TIER_GATE_ENABLED ? 'PLATINUM' : 'FREE TO READ';
 const TITLE = 'The Series';
-const DESCRIPTION = 'Long-form fiction in instalments. Each one its own complete book, arriving on its own date.';
+const DESCRIPTION = SERIES_TIER_GATE_ENABLED
+  ? 'Long-form fiction in instalments. Each one its own complete book, arriving on its own date.'
+  : 'Long-form fiction in instalments. Each one its own complete book, arriving on its own date — and free to everyone until memberships open.';
 
 export default function SeriesLandingPage() {
   const [rows, setRows] = useState([]);

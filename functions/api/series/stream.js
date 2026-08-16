@@ -6,7 +6,7 @@
 //   selector:    body { instalmentId } — or ?instalmentId= in the query string
 //
 //   → 200 { url, expiresAt, version, md5, reason }
-//   → 401 { code: 'signed_out' }
+//   → 401 { code: 'signed_out' }          ← not reachable while the tier gate is off
 //   → 403 { code: 'not_released' }      ← checked FIRST, for everyone
 //   → 403 { code: 'tier_too_low', reason: 'needs_platinum' | 'needs_gold' | 'pass_excluded' }
 //   → 404 { code: 'not_found' }
@@ -17,6 +17,19 @@
 // short-lived signed URL, identity from a VERIFIED token, entitlement read with an ADMIN
 // token, and refusal codes distinct enough to word an honest sentence. Everything below that
 // differs from the bookstore differs for a stated reason, and the four reasons are these.
+//
+// ── 0. THE TIER GATE IS CURRENTLY OFF, AND THE RELEASE GATE IS NOT ───────────────────────
+//
+// SERIES_TIER_GATE_ENABLED (app/lib/series/access.js) is false while MEMBERSHIPS_ON_SALE is
+// false: nobody can buy Platinum before 30 September, so gating against it would refuse every
+// reader in the name of a tier the site will not sell them. While it is off this endpoint
+// asks for no credential and reads no membership, and answers 200 with reason 'tier_gate_off'
+// to anyone.
+//
+// THE RELEASE CHECK IS UNAFFECTED AND STILL RUNS FIRST, FOR EVERYONE. The two gates answer
+// different questions and only one of them is about money. Flipping the flag back to true
+// restores the tier behaviour exactly — nothing below is deleted, bypassed or stubbed, and
+// the policy it runs is still asserted by the suite while the switch is off.
 //
 // ── 1. RELEASE IS A GATE THE BOOKSTORE DOES NOT HAVE ─────────────────────────────────────
 //
@@ -88,7 +101,14 @@ import {
   PROVIDER_TIMEOUT_MS,
 } from '../bookstore/_lib.js';
 import { effectiveTier, normaliseTier } from '../../../app/lib/membership.js';
-import { grantForInstalment, refusalCopy, REFUSAL_STATUS } from '../../../app/lib/series/access.js';
+import {
+  grantForInstalment,
+  policyGrantForInstalment,
+  refusalCopy,
+  REFUSAL_STATUS,
+  SERIES_TIER_GATE_ENABLED,
+  TIER_GATE_OFF,
+} from '../../../app/lib/series/access.js';
 import { epubObjectPath, INSTALMENT_ID_RE, INSTALMENTS_PATH } from '../../../app/lib/series/schema.js';
 
 const SIGNED_URL_TTL_SECONDS = 300;
@@ -212,49 +232,73 @@ export async function onRequestPost(context) {
     }, releaseGrant.status);
   }
 
-  // ── identity ───────────────────────────────────────────────────────────────
-  if (!idToken) {
-    return json({ error: 'Sign in to read this instalment.', code: 'signed_out' }, REFUSAL_STATUS.signed_out);
-  }
-  const uid = await verifyIdToken(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
-  if (!uid) {
-    return json({ error: 'Your session has expired. Please sign in again.', code: 'signed_out' }, REFUSAL_STATUS.signed_out);
-  }
+  // ── GATE 2: entitlement — SKIPPED ENTIRELY WHILE THE TIER GATE IS OFF ──────
+  //
+  // Not "checked and forgiven": not asked at all. With SERIES_TIER_GATE_ENABLED false the
+  // Series is free to everyone, so there is no uid to establish and no membership to read —
+  // and doing either anyway would cost two RTDB round-trips per open to reach a conclusion
+  // the flag has already made. It would also break the promise: a reader with no account
+  // cannot be signed in, and "free to everyone" that still demands a sign-in is a smaller
+  // wall, not an open door.
+  //
+  // NOTE WHAT IS ABOVE THIS LINE AND STAYS THERE: the release check. It has already run, on
+  // the server clock, for everybody. An unreleased instalment is refused here exactly as it
+  // is when the gate is on. The flag is about money; the date is not.
+  let uid = null;
+  let grant;
 
-  // ── GATE 2: entitlement. Two reads, subscription decides. ──────────────────
-  let scalar;
-  let detail;
-  try {
-    [scalar, detail] = await Promise.all([
-      readJson(env, token, `users/${encodeURIComponent(uid)}/membership`),
-      readJson(env, token, `memberships/${encodeURIComponent(uid)}`),
-    ]);
-  } catch (e) {
-    // FAIL CLOSED, and 502 not 503 — see the ruling in app/lib/series/access.js. Unlike
-    // /api/story, which can still serve a preview when the membership read fails, there is
-    // no degraded thing to hand over here: an instalment is a whole file or nothing.
-    console.error(`[series/stream] membership read failed for ${uid}:`, e.message || e);
-    return json({ error: refusalCopy({ reason: 'unavailable' }), code: 'unavailable' }, REFUSAL_STATUS.unavailable);
-  }
+  if (!SERIES_TIER_GATE_ENABLED) {
+    grant = { access: 'granted', reason: TIER_GATE_OFF, code: null, status: 200 };
+    console.log(`[series/stream] tier gate OFF — granting instalmentId=${instalmentId} to an unauthenticated caller`);
+  } else {
+    // ── identity ─────────────────────────────────────────────────────────────
+    if (!idToken) {
+      return json({ error: 'Sign in to read this instalment.', code: 'signed_out' }, REFUSAL_STATUS.signed_out);
+    }
+    uid = await verifyIdToken(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
+    if (!uid) {
+      return json({ error: 'Your session has expired. Please sign in again.', code: 'signed_out' }, REFUSAL_STATUS.signed_out);
+    }
 
-  const subscriptionTier = normaliseTier(scalar);
-  const grant = grantForInstalment(row, {
-    subscriptionTier,
-    effectiveTier: effectiveTier(scalar, detail, now),
-    signedIn: true,
-    now,
-  });
+    // Two reads, subscription decides.
+    let scalar;
+    let detail;
+    try {
+      [scalar, detail] = await Promise.all([
+        readJson(env, token, `users/${encodeURIComponent(uid)}/membership`),
+        readJson(env, token, `memberships/${encodeURIComponent(uid)}`),
+      ]);
+    } catch (e) {
+      // FAIL CLOSED, and 502 not 503 — see the ruling in app/lib/series/access.js. Unlike
+      // /api/story, which can still serve a preview when the membership read fails, there is
+      // no degraded thing to hand over here: an instalment is a whole file or nothing.
+      console.error(`[series/stream] membership read failed for ${uid}:`, e.message || e);
+      return json({ error: refusalCopy({ reason: 'unavailable' }), code: 'unavailable' }, REFUSAL_STATUS.unavailable);
+    }
 
-  if (grant.access !== 'granted') {
-    console.log(
-      `[series/stream] refused uid=${uid} instalmentId=${instalmentId} code=${grant.code} reason=${grant.reason} sub=${subscriptionTier}`,
-    );
-    return json({
-      error: refusalCopy(grant),
-      code: grant.code,
-      reason: grant.reason,
-      requiredTier: grant.requiredTier || null,
-    }, grant.status);
+    const subscriptionTier = normaliseTier(scalar);
+    // policyGrantForInstalment, not grantForInstalment: this branch only runs when the flag is
+    // ON, so the flag has nothing left to say and calling the wrapped version would be asking
+    // a question already answered. It also keeps the two paths honest — the branch that
+    // enforces reads the POLICY, the branch that does not enforce never reaches it.
+    grant = policyGrantForInstalment(row, {
+      subscriptionTier,
+      effectiveTier: effectiveTier(scalar, detail, now),
+      signedIn: true,
+      now,
+    });
+
+    if (grant.access !== 'granted') {
+      console.log(
+        `[series/stream] refused uid=${uid} instalmentId=${instalmentId} code=${grant.code} reason=${grant.reason} sub=${subscriptionTier}`,
+      );
+      return json({
+        error: refusalCopy(grant),
+        code: grant.code,
+        reason: grant.reason,
+        requiredTier: grant.requiredTier || null,
+      }, grant.status);
+    }
   }
 
   // ── the bytes ──────────────────────────────────────────────────────────────
@@ -282,7 +326,7 @@ export async function onRequestPost(context) {
   const { version, md5 } = await readObjectVersion({ bucket, objectPath, token });
 
   console.log(
-    `[series/stream] signed uid=${uid} instalmentId=${instalmentId} reason=${grant.reason} ttl=${SIGNED_URL_TTL_SECONDS}s version=${version ?? 'null'}`,
+    `[series/stream] signed uid=${uid || '-'} instalmentId=${instalmentId} reason=${grant.reason} ttl=${SIGNED_URL_TTL_SECONDS}s version=${version ?? 'null'}`,
   );
   return json({ url: signed.url, expiresAt: signed.expiresAt, version, md5, reason: grant.reason });
 }

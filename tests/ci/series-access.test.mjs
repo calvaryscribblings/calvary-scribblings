@@ -12,6 +12,9 @@ import { fileURLToPath } from 'node:url';
 
 import {
   grantForInstalment,
+  policyGrantForInstalment,
+  SERIES_TIER_GATE_ENABLED,
+  TIER_GATE_OFF,
   isReleased,
   releasedCount,
   instalmentsOf,
@@ -91,20 +94,29 @@ describe('release is a gate before tier, for everyone', () => {
 });
 
 describe('the tier gate — subscription only', () => {
+  // ── THESE ASSERT THE POLICY, NOT THE SWITCH ────────────────────────────────────────────
+  // They call policyGrantForInstalment because SERIES_TIER_GATE_ENABLED is false today and
+  // grantForInstalment would answer 'granted' to every one of them. That is the switch
+  // working, not the policy changing — and a suite that let the switch blind it is exactly
+  // how you find, on the day you flip it back, that the policy rotted while nobody looked.
+  // The switch itself is asserted in its own describe below. Same split, same reason, as
+  // tests/ci/story-access.test.mjs draws around GATING_ENABLED.
+  const grant = (r, o) => policyGrantForInstalment(r, o);
+
   test('Platinum reads a released instalment', () => {
-    const g = grantForInstalment(row(), { subscriptionTier: 'platinum', now: NOW });
+    const g = grant(row(), { subscriptionTier: 'platinum', now: NOW });
     assert.equal(g.access, 'granted');
     assert.equal(g.reason, 'platinum');
   });
 
   test('Gold reads ONLY the freeForGold instalment', () => {
-    assert.equal(grantForInstalment(row({ freeForGold: true }), { subscriptionTier: 'gold', now: NOW }).access, 'granted');
-    assert.equal(grantForInstalment(row({ freeForGold: false }), { subscriptionTier: 'gold', now: NOW }).access, 'locked');
+    assert.equal(grant(row({ freeForGold: true }), { subscriptionTier: 'gold', now: NOW }).access, 'granted');
+    assert.equal(grant(row({ freeForGold: false }), { subscriptionTier: 'gold', now: NOW }).access, 'locked');
   });
 
   test('Free reads nothing, freeForGold included', () => {
     for (const f of [true, false]) {
-      const g = grantForInstalment(row({ freeForGold: f }), { subscriptionTier: 'free', now: NOW });
+      const g = grant(row({ freeForGold: f }), { subscriptionTier: 'free', now: NOW });
       assert.equal(g.access, 'locked', `freeForGold=${f}`);
       assert.equal(g.code, 'tier_too_low');
     }
@@ -112,57 +124,61 @@ describe('the tier gate — subscription only', () => {
 
   test('freeForGold is read as an explicit boolean, never inferred from ordinal', () => {
     // Instalment 1 with the flag OFF is locked to Gold; instalment 5 with it ON is open.
-    assert.equal(grantForInstalment(row({ ordinal: 1, freeForGold: false }), { subscriptionTier: 'gold', now: NOW }).access, 'locked');
-    assert.equal(grantForInstalment(row({ ordinal: 5, freeForGold: true }), { subscriptionTier: 'gold', now: NOW }).access, 'granted');
+    assert.equal(grant(row({ ordinal: 1, freeForGold: false }), { subscriptionTier: 'gold', now: NOW }).access, 'locked');
+    assert.equal(grant(row({ ordinal: 5, freeForGold: true }), { subscriptionTier: 'gold', now: NOW }).access, 'granted');
     // A missing flag is not truthy-tested into a grant.
-    const g = grantForInstalment({ ...row(), freeForGold: undefined }, { subscriptionTier: 'gold', now: NOW });
+    const g = grant({ ...row(), freeForGold: undefined }, { subscriptionTier: 'gold', now: NOW });
     assert.equal(g.access, 'locked');
   });
 
   test('a released instalment refuses a signed-out reader with signed_out, not tier_too_low', () => {
-    const g = grantForInstalment(row(), { subscriptionTier: 'free', signedIn: false, now: NOW });
+    const g = grant(row(), { subscriptionTier: 'free', signedIn: false, now: NOW });
     assert.equal(g.code, 'signed_out');
     assert.equal(g.status, 401);
   });
 });
 
 describe('THE £1 DAY PASS IS EXCLUDED — the one that will not fall out of copying', () => {
+  // POLICY again — see the note in the describe above. The exclusion has to survive the flag
+  // being flipped back on, which is the moment it starts mattering.
+  const grant = (r, o) => policyGrantForInstalment(r, o);
+
   // PASS_TIER is 'gold' (app/lib/membershipPasses.js), so effectiveTier() returns the SAME
   // string for a day-pass holder as for a paying Gold member. A gate written against
   // effectiveTier would hand every freeForGold instalment of every series to a £1 purchase.
   const dayPassHolder = { subscriptionTier: 'free', effectiveTier: 'gold' };
 
   test('a day-pass holder does NOT get the Gold taste', () => {
-    const g = grantForInstalment(row({ freeForGold: true }), { ...dayPassHolder, now: NOW });
+    const g = grant(row({ freeForGold: true }), { ...dayPassHolder, now: NOW });
     assert.equal(g.access, 'locked');
     assert.equal(g.code, 'tier_too_low');
   });
 
   test('and is told the actual reason, not a generic Platinum line', () => {
-    const g = grantForInstalment(row({ freeForGold: true }), { ...dayPassHolder, now: NOW });
+    const g = grant(row({ freeForGold: true }), { ...dayPassHolder, now: NOW });
     assert.equal(g.reason, 'pass_excluded');
     assert.match(refusalCopy(g), /passes do not include the Series/i);
   });
 
   test('a real Gold member with the same effective tier DOES get it', () => {
-    const g = grantForInstalment(row({ freeForGold: true }), { subscriptionTier: 'gold', effectiveTier: 'gold', now: NOW });
+    const g = grant(row({ freeForGold: true }), { subscriptionTier: 'gold', effectiveTier: 'gold', now: NOW });
     assert.equal(g.access, 'granted');
     assert.equal(g.reason, 'gold_taste');
   });
 
   test('a Gold member holding a pass is unaffected — the pass adds nothing and takes nothing', () => {
-    const g = grantForInstalment(row({ freeForGold: true }), { subscriptionTier: 'gold', effectiveTier: 'gold', now: NOW });
+    const g = grant(row({ freeForGold: true }), { subscriptionTier: 'gold', effectiveTier: 'gold', now: NOW });
     assert.equal(g.access, 'granted');
   });
 
   test('a pass could never reach Platinum content either', () => {
-    const g = grantForInstalment(row({ freeForGold: false }), { ...dayPassHolder, now: NOW });
+    const g = grant(row({ freeForGold: false }), { ...dayPassHolder, now: NOW });
     assert.equal(g.access, 'locked');
     assert.equal(g.reason, 'needs_platinum');
   });
 
   test('omitting effectiveTier falls back to the subscription and never over-grants', () => {
-    const g = grantForInstalment(row({ freeForGold: true }), { subscriptionTier: 'free', now: NOW });
+    const g = grant(row({ freeForGold: true }), { subscriptionTier: 'free', now: NOW });
     assert.equal(g.access, 'locked');
     assert.equal(g.reason, 'needs_gold');
   });
@@ -183,12 +199,13 @@ describe('refusal codes and statuses', () => {
   });
 
   test('every reason a grant can carry has copy behind it', () => {
+    // POLICY, so the sweep still reaches the tier refusals while the switch is off.
     const reasons = new Set();
     for (const tier of ['free', 'gold', 'platinum']) {
       for (const freeForGold of [true, false]) {
         for (const releaseAtMs of [PAST, FUTURE]) {
           for (const signedIn of [true, false]) {
-            const g = grantForInstalment(row({ freeForGold, releaseAtMs }), {
+            const g = policyGrantForInstalment(row({ freeForGold, releaseAtMs }), {
               subscriptionTier: tier, effectiveTier: 'gold', signedIn, now: NOW,
             });
             if (g.access === 'locked') reasons.add(g.reason);
@@ -329,6 +346,105 @@ describe('copy', () => {
   test('two instalments is plural, one is not', () => {
     const two = [row({ ordinal: 1, releaseAtMs: PAST }), row({ ordinal: 2, releaseAtMs: PAST })];
     assert.equal(shelfLine(two, NOW), '2 instalments');
+  });
+});
+
+describe('THE TIER GATE FLAG — and the release gate that does not move with it', () => {
+  // SERIES_TIER_GATE_ENABLED is false while MEMBERSHIPS_ON_SALE is false: gating against a
+  // tier nobody can buy refuses every reader in the name of a product the site will not sell.
+  // Same shape as GATING_ENABLED — the POLICY is asserted through policyGrantForInstalment so
+  // it cannot rot while switched off, the SWITCH through grantForInstalment.
+
+  test('the flag is off today, matching MEMBERSHIPS_ON_SALE', () => {
+    assert.equal(SERIES_TIER_GATE_ENABLED, false);
+  });
+
+  test('with the flag off, an anonymous reader is granted a released instalment', () => {
+    for (const freeForGold of [true, false]) {
+      const g = grantForInstalment(row({ freeForGold }), { subscriptionTier: 'free', signedIn: false, now: NOW });
+      assert.equal(g.access, 'granted', `freeForGold=${freeForGold}`);
+      assert.equal(g.reason, TIER_GATE_OFF);
+      assert.equal(g.status, 200);
+    }
+  });
+
+  test('...and so is a day-pass holder, who the policy would refuse', () => {
+    const g = grantForInstalment(row({ freeForGold: true }), { subscriptionTier: 'free', effectiveTier: 'gold', now: NOW });
+    assert.equal(g.access, 'granted');
+    assert.equal(g.reason, TIER_GATE_OFF);
+  });
+
+  test('⛔ THE RELEASE GATE DOES NOT MOVE — unreleased is still refused to everyone', () => {
+    // The whole point. A future instalment stays invisible whichever way the tier flag sits;
+    // "the paywall is down" has no reading that also means "next month's is out early".
+    for (const tier of ['free', 'gold', 'platinum']) {
+      for (const signedIn of [true, false]) {
+        const g = grantForInstalment(row({ releaseAtMs: FUTURE }), { subscriptionTier: tier, signedIn, now: NOW });
+        assert.equal(g.access, 'locked', `${tier}/${signedIn}`);
+        assert.equal(g.code, 'not_released');
+        assert.equal(g.reason, 'not_released');
+        assert.equal(g.releaseAtMs, FUTURE);
+      }
+    }
+  });
+
+  test('a draft or withdrawn instalment is still refused with the flag off', () => {
+    for (const status of ['draft', 'unpublished']) {
+      const g = grantForInstalment(row({ status }), { subscriptionTier: 'free', signedIn: false, now: NOW });
+      assert.equal(g.code, 'not_released', status);
+    }
+  });
+
+  test('the flag rewrites ONLY tier_too_low and signed_out', () => {
+    // Asserted as a property rather than by inspection: across the whole input space, every
+    // grant the switch changed must have been one of those two codes.
+    for (const tier of ['free', 'gold', 'platinum']) {
+      for (const freeForGold of [true, false]) {
+        for (const releaseAtMs of [PAST, FUTURE]) {
+          for (const status of ['published', 'draft']) {
+            for (const signedIn of [true, false]) {
+              const opts = { subscriptionTier: tier, effectiveTier: 'gold', signedIn, now: NOW };
+              const r = row({ freeForGold, releaseAtMs, status });
+              const policy = policyGrantForInstalment(r, opts);
+              const actual = grantForInstalment(r, opts);
+              if (policy.access === actual.access && policy.reason === actual.reason) continue;
+              assert.ok(['tier_too_low', 'signed_out'].includes(policy.code),
+                `the switch changed a ${policy.code} grant, which it must never do`);
+              assert.equal(actual.access, 'granted');
+            }
+          }
+        }
+      }
+    }
+  });
+
+  test('THE POLICY IS INTACT BENEATH THE SWITCH — flipping it back restores every refusal', () => {
+    // policyGrantForInstalment is exactly what grantForInstalment returns when the flag is
+    // true, so asserting the policy here IS asserting the flipped-on behaviour. These are the
+    // same expectations proven live against production with the gate up.
+    const p = (r, o) => policyGrantForInstalment(r, { now: NOW, ...o });
+    assert.equal(p(row(), { subscriptionTier: 'platinum' }).access, 'granted');
+    assert.equal(p(row({ freeForGold: true }), { subscriptionTier: 'gold' }).reason, 'gold_taste');
+    assert.equal(p(row({ freeForGold: false }), { subscriptionTier: 'gold' }).reason, 'needs_platinum');
+    assert.equal(p(row({ freeForGold: true }), { subscriptionTier: 'free' }).reason, 'needs_gold');
+    assert.equal(p(row(), { subscriptionTier: 'free', signedIn: false }).code, 'signed_out');
+    assert.equal(p(row({ freeForGold: true }), { subscriptionTier: 'free', effectiveTier: 'gold' }).reason, 'pass_excluded');
+  });
+
+  test('the endpoint skips identity and the membership reads while the flag is off', () => {
+    const src = readFileSync(fileURLToPath(new URL('functions/api/series/stream.js', ROOT)), 'utf8');
+    assert.ok(/if \(!SERIES_TIER_GATE_ENABLED\)/.test(src), 'the endpoint does not branch on the flag');
+    // The release check must sit ABOVE that branch, or an unreleased instalment could be
+    // handed out by the free path.
+    assert.ok(src.indexOf("reason === 'not_released'") < src.indexOf('if (!SERIES_TIER_GATE_ENABLED)'),
+      'the release check must run BEFORE the tier-gate branch');
+  });
+
+  test('the homepage row and the landing page follow the same flag', () => {
+    for (const f of ['app/public-library/page.js', 'app/series/page.js']) {
+      const src = readFileSync(fileURLToPath(new URL(f, ROOT)), 'utf8');
+      assert.ok(/SERIES_TIER_GATE_ENABLED/.test(src), `${f} does not read the flag`);
+    }
   });
 });
 

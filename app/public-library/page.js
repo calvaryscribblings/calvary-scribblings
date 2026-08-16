@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { useAuth } from '../lib/AuthContext';
 import AuthModal from '../components/AuthModal';
 import Navbar from '../components/Navbar';
@@ -13,6 +14,12 @@ import CoverImage from '../components/CoverImage';
 import { ref, get, onValue } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { normalizeGenre } from '../lib/openPages';
+// The Series row's chrome follows the tier flag, so the homepage and the endpoint cannot
+// disagree about whether the section is behind a wall. The loader itself is imported lazily
+// inside SeriesRow — it pulls in the Firebase database SDK, and the six category rows above
+// must not wait on a chunk they never use.
+import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
+import { shelfLine } from '../lib/series/format';
 import { useArrivalReady } from '../components/ArrivalVeil';
 import { SUMMER_2026, prizePool } from '../lib/leaderboards';
 import { useContestPhase } from '../lib/useContestPhase';
@@ -288,6 +295,99 @@ function JustAddedCard({ story, userTier = null, scorePct, ...rest }) {
         <div style={{ ...cardAuthorStyle, fontSize: '0.65rem', marginTop: 4 }}>{story.author}</div>
       </div>
     </a>
+  );
+}
+
+/**
+ * THE SERIES ROW — the homepage's window onto /series.
+ *
+ * Deliberately shaped like <Row> on the outside (same kicker, same title scale, same See-all,
+ * same horizontally-scrolling strip) and nothing like it on the inside, because the record is
+ * different: a series has a poster and a derived released-count, not a cover, an author, a
+ * quiz pill and a reader's quiz tier. Matching the chrome is what makes it read as a sibling
+ * of the five category rows; matching the internals would have meant faking a story.
+ *
+ * ── IT FETCHES ITS OWN DATA, AND ON PURPOSE ──────────────────────────────────────────────
+ *
+ * The category rows all slice `allStories`, which is one read of cms_stories_index. Series
+ * live in two other nodes entirely, so this row pays for its own two reads. They are NOT
+ * folded into the page's main load: this component renders nothing until they land, and if
+ * they never land it renders nothing forever. A slow or failed series read must not delay or
+ * blank the six rows above it — the homepage's job is the library, and the Series is a guest
+ * on it.
+ *
+ * ── IT HIDES ITSELF WHEN EMPTY, LIKE THE ROW IT REPLACED ────────────────────────────────
+ *
+ * The Book Reader row was `{... .length > 0 && <Row .../>}` — a bare conditional with no
+ * skeleton, unlike its five neighbours. That is kept: an empty Series section on the homepage
+ * would advertise a shelf with nothing on it, which is precisely what /serial did for months
+ * before it was retired.
+ */
+function SeriesRow() {
+  const [rows, setRows] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getPublishedSeries, getInstalments } = await import('../lib/series/loader');
+        const list = await getPublishedSeries();
+        if (!list.length) { if (!cancelled) setRows([]); return; }
+        const withRows = await Promise.all(
+          list.map(async (s) => ({ ...s, rows: await getInstalments(s.id) })),
+        );
+        if (!cancelled) setRows(withRows);
+      } catch {
+        // Silent, and it stays silent: the loader already logs, and this row failing is a
+        // missing section rather than a broken page.
+        if (!cancelled) setRows([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!rows || rows.length === 0) return null;
+
+  return (
+    <section style={{ padding: '0.75rem 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', padding: '0 4%' }}>
+        <div data-reveal="up">
+          <span style={kickerStyle}>{SERIES_TIER_GATE_ENABLED ? 'PLATINUM' : 'FREE TO READ'}</span>
+          <h3 style={sectionTitleStyle}>The Series</h3>
+        </div>
+        <Link href="/series" style={seeAllStyle}>
+          See all{seeAllChevron}
+        </Link>
+      </div>
+      <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
+        {rows.slice(0, 12).map((s, i) => (
+          <Link
+            key={s.id}
+            href={`/series/${s.slug}`}
+            data-reveal="up"
+            data-reveal-delay={(i % 6) + 1}
+            style={{ flex: '0 0 auto', width: 140, textDecoration: 'none', display: 'block' }}
+          >
+            <div
+              role="presentation"
+              style={{
+                width: 140, aspectRatio: '2 / 3', borderRadius: 8, overflow: 'hidden',
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: s.coverUrl
+                  ? `center / cover no-repeat url(${s.coverUrl})`
+                  : 'linear-gradient(160deg, #1a0f2e, #0d0a18)',
+              }}
+            />
+            <div style={{ marginTop: 10, padding: '0 2px' }}>
+              <div style={{ fontFamily: DISPLAY, fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.3, color: '#f5f0e8', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                {s.title}
+              </div>
+              <div style={{ ...cardAuthorStyle, fontSize: '0.65rem', marginTop: 4 }}>{shelfLine(s.rows || [])}</div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1408,6 +1508,19 @@ export default function Home() {
       ) : (
         <Row title="Inspiring Stories" kicker="THE LIGHT" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" userTiersMap={userTiersMap} />
       )}
+      {/* THE SERIES — in the slot the Book Reader Collection held, which was the last content
+          row, after Inspiring Stories and before Subscribe. That row was
+          `allStories.filter(s => s.readerMode === true)` with a "THE COLLECTION" kicker and a
+          See-all to /book-reader; it self-hid at zero, and the pull took it to zero, so this
+          replaces an empty slot rather than displacing anything.
+
+          It is NOT a <Row>. That component maps its `stories` through <StoryCard>, which reads
+          a cms_stories shape — s.url, s.id, the quiz pill, the reader's quiz tier. A series is
+          a different record in a different node: slug, poster, and a released count derived at
+          read time. Feeding one to the other would have needed a fake story object per series,
+          and the first field StoryCard gained would have broken it silently. */}
+      <SeriesRow />
+
       {allStories.filter(s => s.readerMode === true).length > 0 && (
         <Row title="Book Reader" kicker="THE COLLECTION" stories={allStories.filter(s => s.readerMode === true)} seeAll="/book-reader" userTiersMap={userTiersMap} />
       )}

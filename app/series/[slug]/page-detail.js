@@ -32,7 +32,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/AuthContext';
 import { useMembership } from '../../lib/MembershipContext';
 import { getSeriesPage } from '../../lib/series/loader';
-import { grantForInstalment, refusalCopy } from '../../lib/series/access';
+import { grantForInstalment, refusalCopy, SERIES_TIER_GATE_ENABLED } from '../../lib/series/access';
 import { formatRelease, shelfLine, instalmentLabel } from '../../lib/series/format';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
@@ -163,7 +163,11 @@ function InstalmentRow({ inst, subscriptionTier, effectiveTier, signedIn, onOpen
                 : refusalCopy(grant)}
             </span>
           )}
-          {open && inst.freeForGold && (
+          {/* The Gold badge is a statement about the TIER gate, so it only means anything
+              while that gate is up. With the flag off every instalment is open to everyone
+              and badging one of them "Open to Gold" would read as a restriction on the
+              others — the opposite of what is true. */}
+          {open && SERIES_TIER_GATE_ENABLED && inst.freeForGold && (
             <span style={{ display: 'block', fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: LABEL, color: '#c9a84c', marginTop: 4 }}>
               Open to Gold
             </span>
