@@ -9,7 +9,13 @@ export default async function sitemap() {
   // carries the content, so both sit at the top of the priority list.
   const staticRoutes = [
     '', '/public-library', '/ai-policy', '/voices', '/about', '/contact', '/flash', '/short',
-    '/poetry', '/news', '/inspiring', '/serial', '/square', '/search', '/rewards',
+    // '/series' replaced '/serial' when the Series shipped. The entry is only honest because
+    // the landing page is genuinely public — posters, synopses, instalment lists and visible
+    // locks all render signed out, and only the FILES are gated. If /series ever becomes
+    // members-only at the page level, this entry must come out in the same change and
+    // app/series/layout.js must gain robots:{index:false}. A sitemap entry pointing at a wall
+    // is a soft-404 signal; the two halves must not drift.
+    '/poetry', '/news', '/inspiring', '/series', '/square', '/search', '/rewards',
   ].map(route => ({
     url: `${BASE_URL}${route}`,
     lastModified: new Date(),

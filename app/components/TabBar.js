@@ -204,7 +204,10 @@ export const TABS = [
 
 // The category pages are children of HOME — landing on /flash should still light Home, not
 // leave the bar with nothing active.
-const HOME_ROUTES = ['/public-library', '/flash', '/short', '/serial', '/poetry', '/news', '/inspiring'];
+// '/series' sits here in the place '/serial' used to. It is not a category page like its
+// neighbours, but it is reached from the same Home dropdown and the same footer column, and
+// landing on it with nothing lit in the bar reads as though the reader had left the site.
+const HOME_ROUTES = ['/public-library', '/flash', '/short', '/series', '/poetry', '/news', '/inspiring'];
 
 export function activeTabFor(pathname) {
   if (!pathname) return null;
@@ -215,6 +218,10 @@ export function activeTabFor(pathname) {
   // and so does /bookstore/<nonsense>, which renders not-found.js with the bar still on it.
   if (p === '/bookstore' || p.startsWith('/bookstore/')) return 'store';
   if (p === '/my-library' || p.startsWith('/my-library/')) return 'library';
+  // A series and its instalment list are children of /series, the way /bookstore/basil is a
+  // child of the storefront above. Prefix-matched rather than enumerated because the slugs
+  // are editorial and there is no list here to keep in step with them.
+  if (p === '/series' || p.startsWith('/series/')) return 'home';
   if (HOME_ROUTES.includes(p)) return 'home';
   return null;
 }

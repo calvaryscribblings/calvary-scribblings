@@ -80,6 +80,45 @@ service firebase.storage {
                    && request.resource.size < 10 * 1024 * 1024
                    && request.resource.contentType == 'application/epub+zip';
     }
+    // THE SERIES — instalment master EPUBs.
+    //
+    // `read: if false`, exactly like bookstore_epubs/{titleId}/master.epub, and for a reason
+    // this project has already paid for once. The Book Reader Collection stored its EPUBs
+    // under `epubs/**`, which is `allow read: if true`, as permanent Firebase download URLs
+    // carrying their own access token. Every one of those files was fetchable, signed out,
+    // by anyone who read cms_stories — which is `.read: true`. That is why the collection
+    // could never be gated by anything, and it is the single fact this prefix exists to not
+    // repeat.
+    //
+    // The ONLY path to these bytes is a ~300-second signed URL minted by
+    // functions/api/series/stream.js after it has checked release, identity and membership.
+    // A signed URL is a Cloud-Storage-level grant evaluated BEFORE this rule layer, so the
+    // two coexist by design rather than by accident: if a download breaks, suspect the
+    // signature or the bucket CORS config, never this line.
+    //
+    // The admin can WRITE and cannot READ. That is correct and occasionally surprising —
+    // app/lib/series/admin-writes.js:uploadInstalmentEpub deliberately never calls
+    // getDownloadURL(), because a download URL for this object would be exactly the public,
+    // permanent, token-bearing link the prefix exists to prevent.
+    //
+    // CORS needs no work: scripts/bookstore-set-cors.mjs sets a BUCKET-level policy, so a
+    // new prefix in the same bucket inherits it.
+    match /series_epubs/{instalmentId}/master.epub {
+      allow read: if false;
+      allow write: if request.auth != null
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')
+                   && request.resource.size < 50 * 1024 * 1024
+                   && request.resource.contentType == 'application/epub+zip';
+    }
+    // Series and instalment artwork — the poster and any per-instalment cover. Public read,
+    // because a locked instalment still shows its art; only the FILE is gated.
+    match /series_covers/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
     match /bookstore_epubs/{titleId}/buyers/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if false;

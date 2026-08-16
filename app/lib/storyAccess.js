@@ -225,6 +225,30 @@ export function servesAsReader(story) {
  * ASKED FOR THAT AS A STEP, which is the actual defect here and the reason this
  * constant now exists.
  *
+ * ── WHAT THIS SWITCH DOES NOT COVER: THE SERIES ─────────────────────────────────
+ *
+ * This constant governs cms_stories PROSE and nothing else. The Series
+ * (app/lib/series/access.js, functions/api/series/stream.js) is deliberately outside
+ * it, and saying so here is the point — the switch's contract above is written as
+ * "FALSE = NO STORY IS EVER GATED, FOR ANYONE", and the Series is a gated thing on
+ * this platform to which that sentence does not apply.
+ *
+ * THE REASON IS THAT THE TWO SWITCHES WOULD MEAN OPPOSITE THINGS. This one exists to
+ * UNDO an accident: R11.9 paywalled 130 archive stories for signed-out readers that
+ * nobody had decided to paywall, and flipping it false restores a state the site had
+ * always been in. There is no equivalent state for the Series. It has never been
+ * ungated, its files have never been public, and "turn the Series gate off" does not
+ * restore anything — it gives away a Platinum benefit and, because the bytes leave the
+ * bucket, cannot be taken back.
+ *
+ * The mechanics differ too. This switch has to be a compile-time constant because one
+ * of the two halves it governs is the STATIC BUILD. The Series gate has no static half
+ * at all: every decision is made by a Pages Function at request time, against the
+ * server clock, and there is nothing baked into HTML for a constant to reach.
+ *
+ * If the Series ever needs a kill switch, it gets its own, in its own module, with its
+ * own written reason for existing. It must not be folded into this one.
+ *
  * §7 runs T1 (dual-write) → T2 (app adoption) → T3 (the node's bodies cut). Its T1
  * bullet says "Gating is not live for anybody." Three paragraphs later §7.1 puts the
  * preview-only static render in "the same phase as T1". BOTH WERE IMPLEMENTED, and

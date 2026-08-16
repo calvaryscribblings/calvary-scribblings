@@ -34,6 +34,19 @@ const STATIC_LEGACY_REDIRECTS = [
   // The route no longer builds, so this rule has no static asset shadowing it.
   ['/library',        '/my-library'],
   ['/library.html',   '/my-library'],
+  // /serial → /series. The old route was a hardcoded "Coming Soon — our first serial story
+  // is in the works" stub that shipped for months while three Serial-subcategory stories were
+  // live under /book-reader, and it was IN app/sitemap.js the whole time, so search engines
+  // were told a placeholder was a page. It is now retired rather than repointed: the section
+  // is called The Series and the old route said "Serial Stories", and letting the URL keep
+  // the discarded vocabulary is how the word "instalment" starts losing to "serial" again.
+  //
+  // A 301 rather than a delete because the route was linked from the navbar dropdown, the
+  // mobile drawer, the footer and the sitemap — four public surfaces, any of which a reader
+  // may have bookmarked from. Nothing shadows /serial in public/, and app/serial/page.js was
+  // removed in the same change, so this rule has no static asset competing with it.
+  ['/serial',         '/series'],
+  ['/serial.html',    '/series'],
   // Summer Reading Program — the shareable short form for the seasonal board.
   // The canonical route is /leaderboard/summer-2026 (a literal segment, so it
   // static-exports without generateStaticParams). Verified nothing shadows this

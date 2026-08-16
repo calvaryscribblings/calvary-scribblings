@@ -36,6 +36,7 @@ const APP = join(ROOT, 'app');
 const PATTERN_ROUTES = [
   ['/^\\/reader(\\/|$)/', 'app/reader'],
   ['/^\\/book-reader(\\/|$)/', 'app/book-reader'],
+  ['/^\\/series\\/read(\\/|$)/', 'app/series/read'],
   ['/^\\/my-library\\/read(\\/|$)/', 'app/my-library/read'],
   ['/^\\/$/', 'app/page.js'],
 ];

@@ -789,6 +789,50 @@
           ".validate": false
         }
       }
+    },
+
+    "series": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": ["status", "addedAt"],
+      "$seriesId": {
+        ".validate": "newData.hasChildren(['schemaVersion', 'slug', 'title', 'synopsis', 'status', 'addedAt', 'updatedAt'])"
+      }
+    },
+
+    "series_instalments": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": ["seriesId", "ordinal", "releaseAtMs", "status"],
+      "$instalmentId": {
+        ".validate": "newData.hasChildren(['schemaVersion', 'seriesId', 'ordinal', 'releaseAtMs', 'freeForGold', 'status', 'addedAt', 'updatedAt'])",
+        "releaseAtMs": { ".validate": "newData.isNumber() && newData.val() > 0" },
+        "ordinal": { ".validate": "newData.isNumber() && newData.val() >= 1" },
+        "freeForGold": { ".validate": "newData.isBoolean()" }
+      }
+    },
+
+    "series_instalments_detail": {
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$instalmentId": {
+        ".read": "(root.child('series_instalments').child($instalmentId).child('status').val() === 'published' && root.child('series_instalments').child($instalmentId).child('releaseAtMs').isNumber() && root.child('series_instalments').child($instalmentId).child('releaseAtMs').val() <= now) || (auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'))",
+        ".validate": "newData.hasChildren(['schemaVersion', 'title', 'author', 'authorUid', 'authorHandle', 'updatedAt'])"
+      }
+    },
+
+    "series_reading_progress": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        "$instalmentId": {
+          ".validate": "newData.hasChildren(['fraction', 'updatedAt'])",
+          "cfi": { ".validate": "newData.isString() && newData.val().length <= 1024" },
+          "epubVersion": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128" },
+          "fraction": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1" },
+          "updatedAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
     }
   }
 }

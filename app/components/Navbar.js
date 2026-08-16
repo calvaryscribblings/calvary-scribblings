@@ -1,5 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
+// next/link for the two Series entries only. The rest of this menu is plain <a> and stays
+// that way — converting the whole nav is a separate change with its own review, and mixing
+// one file's worth of half-migration is cheaper than an unrelated sweep inside this round.
+import Link from 'next/link';
 import { useAuth } from '../lib/AuthContext';
 import AuthModal from './AuthModal';
 import { TabLinks, isSquareOpenLondon } from './TabBar';
@@ -187,7 +191,7 @@ export default function Navbar() {
                 <div className="cs-dropdown-label">Creative Writing</div>
                 <a href="/flash"><span className="cs-dropdown-dot">·</span>Flash Fiction</a>
                 <a href="/short"><span className="cs-dropdown-dot">·</span>Short Stories</a>
-                <a href="/serial"><span className="cs-dropdown-dot">·</span>Serial Stories</a>
+                <Link href="/series"><span className="cs-dropdown-dot">·</span>The Series</Link>
                 <a href="/poetry"><span className="cs-dropdown-dot">·</span>Poetry</a>
                 <hr />
                 <a href="/news">News &amp; Updates</a>
@@ -260,7 +264,7 @@ export default function Navbar() {
               <div className="cs-drawer-sublabel">Creative Writing</div>
               <a className="cs-drawer-subnav-item" href="/flash" onClick={() => setMenuOpen(false)}><span className="cs-drawer-dot">·</span>Flash Fiction</a>
               <a className="cs-drawer-subnav-item" href="/short" onClick={() => setMenuOpen(false)}><span className="cs-drawer-dot">·</span>Short Stories</a>
-              <a className="cs-drawer-subnav-item" href="/serial" onClick={() => setMenuOpen(false)}><span className="cs-drawer-dot">·</span>Serial Stories</a>
+              <Link className="cs-drawer-subnav-item" href="/series" onClick={() => setMenuOpen(false)}><span className="cs-drawer-dot">·</span>The Series</Link>
               <a className="cs-drawer-subnav-item" href="/poetry" onClick={() => setMenuOpen(false)}><span className="cs-drawer-dot">·</span>Poetry</a>
               <div className="cs-drawer-subnav-divider" />
               <a className="cs-drawer-subnav-item" href="/news" onClick={() => setMenuOpen(false)}>News &amp; Updates</a>
