@@ -39,7 +39,18 @@ function stripXhtml(xml) {
     .trim();
 }
 
-export async function extractEpubText(blob) {
+/**
+ * Walk an EPUB's spine, yielding the stripped plain text of each section in reading order.
+ *
+ * Factored out of extractEpubText() in R12.4 so countEpubWords() below can reuse the container
+ * → OPF → manifest → spine walk without inheriting MAX_TEXT_LENGTH. The two callers want
+ * genuinely different things from the same walk: extractEpubText wants a bounded string to put
+ * in a textarea, and a word count wants the whole book or it is not a word count.
+ *
+ * A generator rather than an array because the count never needs two sections in memory at
+ * once, and an EPUB is the largest thing this app asks a browser to hold.
+ */
+async function* epubSections(blob) {
   const JSZip = await loadJSZip();
   const zip = await JSZip.loadAsync(blob);
 
@@ -73,21 +84,57 @@ export async function extractEpubText(blob) {
     spineRefs.push(m[1]);
   }
 
-  const parts = [];
-  let totalLength = 0;
   for (const idref of spineRefs) {
     const href = manifest[idref];
     if (!href) continue;
-    const filePath = opfDir + href;
-    const file = zip.file(filePath);
+    const file = zip.file(opfDir + href);
     if (!file) continue;
-    const xml = await file.async('string');
-    const text = stripXhtml(xml);
-    if (text) {
-      parts.push(text);
-      totalLength += text.length + 2;
-      if (totalLength >= MAX_TEXT_LENGTH) break;
-    }
+    const text = stripXhtml(await file.async('string'));
+    if (text) yield text;
+  }
+}
+
+/**
+ * How many words are in this EPUB. Whole book, no cap.
+ *
+ * ── WHY THIS RUNS IN THE ADMIN'S BROWSER AND NOWHERE ELSE ────────────────────────────────
+ *
+ * A series instalment's EPUB lives at series_epubs/{id}/master.epub, which storage.rules keeps
+ * at `allow read: if false` for EVERY client including the two admin UIDs. Nothing can open
+ * those bytes again except a ~300-second signed URL minted by functions/api/series/stream.js
+ * after it has checked release and entitlement. So there is exactly one moment in the life of
+ * an instalment at which the words are countable without defeating that: while the editor's
+ * browser still holds the File it is about to upload. app/lib/series/admin-writes.js:
+ * uploadInstalmentEpub calls this there, on the same bytes, in the same call.
+ *
+ * Counting is over PROSE, not markup — stripXhtml has already removed the tags — which is
+ * deliberately unlike app/lib/storyIndex.js:indexReadTime. See the note above WORDS_PER_MINUTE
+ * in app/lib/series/format.js for why that one's quirk is not inherited here.
+ */
+export async function countEpubWords(blob) {
+  let words = 0;
+  for await (const text of epubSections(blob)) {
+    words += text.split(/\s+/).filter(Boolean).length;
+  }
+  return words;
+}
+
+/**
+ * The whole book as one plain-text string, CAPPED at MAX_TEXT_LENGTH.
+ *
+ * The cap is unchanged from before the R12.4 refactor and so is the accumulation it guards:
+ * sections are joined with a blank line, the running total charges the two joining characters,
+ * and the walk stops on the first section that crosses the line. Callers put the result in a
+ * textarea (app/admin/page.js, app/admin/extract-text/page.js), which is why a bound exists at
+ * all — and is why countEpubWords() above does NOT share it.
+ */
+export async function extractEpubText(blob) {
+  const parts = [];
+  let totalLength = 0;
+  for await (const text of epubSections(blob)) {
+    parts.push(text);
+    totalLength += text.length + 2;
+    if (totalLength >= MAX_TEXT_LENGTH) break;
   }
 
   let result = parts.join('\n\n');

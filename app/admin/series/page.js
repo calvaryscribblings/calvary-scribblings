@@ -25,16 +25,31 @@
 // 4. The EPUB uploader never asks for a URL and never shows one. The object is written to a
 //    prefix that is `read: false` for every client including this one — see storage.rules —
 //    so there is nothing to display and displaying it would be the bug.
+//
+// 5. R12.4 — THERE IS NO READING-TIME INPUT ON THIS SCREEN AND THERE MUST NOT BE ONE. The
+//    figure is derived from the EPUB's own word count, taken by uploadInstalmentEpub() from
+//    the same File it is uploading, because that is the only moment those words are reachable
+//    (the object is `read: false` for this admin the instant it lands). It is shown here
+//    read-only, beside the count it came from. A typed number would be wrong from the first
+//    chapter revision onward and nothing in the record would say so; a derived one is wrong
+//    only for as long as somebody has revised a chapter without re-uploading it, which is a
+//    state this screen makes visible rather than hides.
+//
+// 6. The instalment's own COVER now has an uploader. It always had a field — createInstalment
+//    has accepted coverUrl since R12.0 — but no form control was ever bound to it, so the only
+//    art any instalment carried was whatever scripts/migrate-beta-princess.mjs copied across.
+//    The instalment page's hero band is that cover, so the gap had to close.
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import { getAllSeries, getAllInstalments, getInstalmentDetail } from '../../lib/series/loader';
 import {
   createSeries, updateSeries, setSeriesStatus,
   createInstalment, updateInstalment, setInstalmentStatus,
-  uploadInstalmentEpub, uploadSeriesImage, instalmentId as makeInstalmentId,
+  uploadInstalmentEpub, uploadInstalmentImage, uploadSeriesImage,
+  instalmentId as makeInstalmentId,
 } from '../../lib/series/admin-writes';
 import { isReleased, releasedCount } from '../../lib/series/access';
-import { formatRelease } from '../../lib/series/format';
+import { formatRelease, readingTimeLabel } from '../../lib/series/format';
 import { SERIES_STATUSES, INSTALMENT_STATUSES } from '../../lib/series/schema';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
@@ -211,7 +226,14 @@ function PosterUpload({ seriesId, onDone }) {
 function InstalmentRow({ row, onDone }) {
   const [detail, setDetail] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const released = isReleased(row);
+
+  // Its own reload rather than the page's refresh(): refresh() re-reads the SERIES and its
+  // rows, and the detail record hangs off this component's own effect, keyed on an id that has
+  // not changed. Saving a logline and seeing the old one is how an editor concludes the save
+  // failed and types it again.
+  const reload = useCallback(async () => setDetail(await getInstalmentDetail(row.id)), [row.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,48 +245,186 @@ function InstalmentRow({ row, onDone }) {
   }, [row.id]);
 
   return (
-    <div style={s.row}>
-      <span style={{ minWidth: 28, color: '#c9a84c' }}>{row.ordinal}</span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        {/* The detail node is admin-readable at any time, so a title shows here even before
-            release — the deny-until-release rule carves out the two admin UIDs precisely so
-            this screen can work. A reader would see nothing. */}
-        <div>{detail?.title || <em style={{ color: 'rgba(255,255,255,0.35)' }}>(detail unreadable)</em>}</div>
-        <div style={s.note}>
-          {row.id} · {row.status} · {released ? 'RELEASED' : `arrives ${formatRelease(row.releaseAtMs) || '—'}`}
-          {' · '}releaseAtMs {row.releaseAtMs}
-          {' · '}{row.freeForGold ? 'free for Gold' : 'Platinum only'}
-        </div>
-      </span>
-      <label style={{ ...s.btnSm, display: 'inline-block' }}>
-        {busy ? 'Uploading…' : 'EPUB'}
-        <input
-          type="file" accept=".epub,application/epub+zip" style={{ display: 'none' }}
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            setBusy(true);
-            const up = await uploadInstalmentEpub(row.id, file);
-            const r = up.ok ? await updateInstalment(row.id, { epubPath: up.epubPath }) : up;
-            setBusy(false);
-            onDone(toMsg(r));
-          }}
-        />
-      </label>
-      {INSTALMENT_STATUSES.filter((st) => st !== row.status).map((st) => (
-        <button key={st} type="button" style={s.btnSm}
-          onClick={async () => onDone(toMsg(await setInstalmentStatus(row.id, st)))}>
-          {st}
+    <div style={{ borderBottom: '1px solid #222' }}>
+      <div style={{ ...s.row, borderBottom: 'none' }}>
+        <span style={{ minWidth: 28, color: '#c9a84c' }}>{row.ordinal}</span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          {/* The detail node is admin-readable at any time, so a title shows here even before
+              release — the deny-until-release rule carves out the two admin UIDs precisely so
+              this screen can work. A reader would see nothing. */}
+          <div>{detail?.title || <em style={{ color: 'rgba(255,255,255,0.35)' }}>(detail unreadable)</em>}</div>
+          <div style={s.note}>
+            {row.id} · {row.status} · {released ? 'RELEASED' : `arrives ${formatRelease(row.releaseAtMs) || '—'}`}
+            {' · '}releaseAtMs {row.releaseAtMs}
+            {' · '}{row.freeForGold ? 'free for Gold' : 'Platinum only'}
+          </div>
+          <div style={s.note}>
+            {/* Everything on this line is behind the release rule for a reader. It shows here
+                because the rule carves out the admin UIDs, not because any of it is public. */}
+            cover {detail?.coverUrl ? '✓' : '—'}
+            {' · '}logline {detail?.logline ? '✓' : '—'}
+            {' · '}sponsor {detail?.sponsorName || '—'}{detail?.sponsorLogoUrl ? ' (logo ✓)' : ''}
+            {' · '}{detail?.wordCount
+              ? `${detail.wordCount.toLocaleString('en-GB')} words → ${readingTimeLabel(detail.wordCount)}`
+              : 'not counted — upload an EPUB'}
+          </div>
+        </span>
+        <label style={{ ...s.btnSm, display: 'inline-block' }}>
+          {busy ? 'Uploading…' : 'EPUB'}
+          <input
+            type="file" accept=".epub,application/epub+zip" style={{ display: 'none' }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setBusy(true);
+              const up = await uploadInstalmentEpub(row.id, file);
+              // wordCount travels WITH epubPath, in one write, because they describe the same
+              // bytes. Writing the path and leaving the old count would put a confident
+              // reading time on the page for a file that is no longer there.
+              const r = up.ok ? await updateInstalment(row.id, { epubPath: up.epubPath, wordCount: up.wordCount }) : up;
+              setBusy(false);
+              await reload();
+              onDone(r.ok && up.warnings?.length
+                ? { ok: true, text: `Saved. ${up.warnings.join(' ')}` }
+                : toMsg(r));
+            }}
+          />
+        </label>
+        <button type="button" style={s.btnSm} onClick={() => setEditing((v) => !v)}>
+          {editing ? 'Close' : 'Edit'}
         </button>
-      ))}
+        {INSTALMENT_STATUSES.filter((st) => st !== row.status).map((st) => (
+          <button key={st} type="button" style={s.btnSm}
+            onClick={async () => onDone(toMsg(await setInstalmentStatus(row.id, st)))}>
+            {st}
+          </button>
+        ))}
+      </div>
+      {editing && (detail
+        ? (
+          // key={detail.updatedAt} rather than a syncing effect: the form seeds itself from
+          // the record in its state initialiser, and a save — which bumps updatedAt — remounts
+          // it against what was actually stored. An effect that pushed the record into the
+          // form would fight the editor's own typing on every reload.
+          <InstalmentDetailEditor
+            key={detail.updatedAt}
+            row={row}
+            detail={detail}
+            onSaved={async (m) => { await reload(); onDone(m); }}
+          />
+        )
+        : <div style={{ ...s.note, padding: '0.5rem 0 1rem 40px' }}>Detail record still loading, or unreadable.</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The instalment page's own fields, editable after creation.
+ *
+ * SEPARATE FROM InstalmentForm ON PURPOSE. That form creates; this one edits, and the two live
+ * instalments predate every field on this panel — a create-only form would have left
+ * beta-princess i1 and i2 permanently without a logline or a sponsor, reachable only by a
+ * script. Everything here goes through updateInstalment(), which re-validates the whole merged
+ * detail record and writes the row and the detail as one atomic update.
+ *
+ * '' → null on save, never stored as an empty string. validateInstalmentDetail() rejects '',
+ * for the reason the bookstore's v1→v2 asset migration exists: an empty string is falsy
+ * everywhere it is tested and truthy where it is rendered, so it shows as a populated field in
+ * an admin and a blank italic line on the page.
+ */
+function InstalmentDetailEditor({ row, detail, onSaved }) {
+  // Seeded once, in the initialiser. The caller remounts this component on every saved change
+  // (see its key) so "seed once" and "always show what is stored" are the same thing here.
+  const [f, setF] = useState({ logline: detail.logline || '', sponsorName: detail.sponsorName || '' });
+  const [busy, setBusy] = useState(null);
+
+  const upload = async (kind, file, field) => {
+    setBusy(kind);
+    const up = await uploadInstalmentImage(row.id, kind, file);
+    const r = up.ok ? await updateInstalment(row.id, { [field]: up.url }) : up;
+    setBusy(null);
+    onSaved(toMsg(r));
+  };
+
+  return (
+    <div style={{ padding: '0.75rem 0 1.1rem 40px' }}>
+      <label style={s.label}>Logline</label>
+      <input
+        style={s.input} value={f.logline}
+        onChange={(e) => setF({ ...f, logline: e.target.value })}
+        placeholder="One sentence, plain text."
+      />
+      <div style={s.note}>
+        Rendered alone and in italic directly under the title. Plain text — it is set in the
+        page&apos;s own type and carries no markup.
+      </div>
+
+      <label style={s.label}>Sponsor name</label>
+      <input
+        style={s.input} value={f.sponsorName}
+        onChange={(e) => setF({ ...f, sponsorName: e.target.value })}
+        placeholder="Leave empty for no sponsor credit."
+      />
+      <div style={s.note}>
+        A name with no logo is fine — the credit renders as two lines with no tile. A logo with
+        no name is refused: it would sit over a blank second line and read as a fault.
+      </div>
+
+      <button type="button" style={s.btn}
+        onClick={async () => {
+          setBusy('save');
+          const r = await updateInstalment(row.id, {
+            logline: f.logline.trim() || null,
+            sponsorName: f.sponsorName.trim() || null,
+            // Clearing the NAME clears the LOGO with it, in the same write. Otherwise the
+            // record would hold a logo with no name, which the validator refuses — the save
+            // would fail with an error about a field the editor did not touch.
+            ...(f.sponsorName.trim() ? {} : { sponsorLogoUrl: null }),
+          });
+          setBusy(null);
+          onSaved(toMsg(r));
+        }}>
+        {busy === 'save' ? 'Saving…' : 'Save logline & sponsor'}
+      </button>
+
+      <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <label style={{ ...s.btnSm, display: 'inline-block' }}>
+          {busy === 'cover' ? 'Uploading…' : 'Upload instalment cover'}
+          <input
+            type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={(e) => { const file = e.target.files?.[0]; if (file) upload('cover', file, 'coverUrl'); }}
+          />
+        </label>
+        {/* Gated on the SAVED name, not the typed one. updateInstalment merges the new URL
+            into the STORED record and re-validates it, and validateInstalmentDetail refuses a
+            sponsorLogoUrl with no sponsorName — so allowing the upload against an unsaved
+            name would upload the file, fail the write, and report an error about a field the
+            editor had just filled in. */}
+        <label style={{ ...s.btnSm, display: 'inline-block', opacity: detail.sponsorName ? 1 : 0.45 }}>
+          {busy === 'sponsor' ? 'Uploading…' : 'Upload sponsor logo'}
+          <input
+            type="file" accept="image/*" style={{ display: 'none' }}
+            disabled={!detail.sponsorName}
+            onChange={(e) => { const file = e.target.files?.[0]; if (file) upload('sponsor', file, 'sponsorLogoUrl'); }}
+          />
+        </label>
+        {!detail.sponsorName && <span style={s.note}>Save a sponsor name to enable the logo upload.</span>}
+      </div>
+      <div style={s.note}>
+        Both go to series_covers/{row.id}/… — public-read objects with unguessable URLs, exactly
+        as the series poster already is. What keeps an unreleased instalment&apos;s cover and
+        sponsor hidden is that the URLs naming them live on the detail record, which the release
+        rule denies.
+      </div>
     </div>
   );
 }
 
 function InstalmentForm({ seriesId, nextOrdinal, onDone }) {
   const blank = {
-    ordinal: nextOrdinal, title: '', synopsis: '', author: '', authorUid: '', authorHandle: '',
-    coverUrl: '', release: '', freeForGold: '',
+    ordinal: nextOrdinal, title: '', synopsis: '', logline: '', author: '', authorUid: '',
+    authorHandle: '', sponsorName: '', coverUrl: '', release: '', freeForGold: '',
   };
   const [f, setF] = useState(blank);
 
@@ -278,13 +438,31 @@ function InstalmentForm({ seriesId, nextOrdinal, onDone }) {
       <input style={s.input} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
       <label style={s.label}>Synopsis (optional)</label>
       <input style={s.input} value={f.synopsis} onChange={(e) => setF({ ...f, synopsis: e.target.value })} />
+      <label style={s.label}>Logline (optional)</label>
+      <input style={s.input} value={f.logline} onChange={(e) => setF({ ...f, logline: e.target.value })}
+        placeholder="One sentence, plain text." />
+      <div style={s.note}>
+        Distinct from the synopsis: the logline is the one italic line under the title on the
+        instalment page. Editable afterwards from this row&apos;s Edit panel.
+      </div>
       <label style={s.label}>Author name / uid / handle</label>
       <div style={{ display: 'flex', gap: 8 }}>
         <input style={s.input} placeholder="name" value={f.author} onChange={(e) => setF({ ...f, author: e.target.value })} />
         <input style={s.input} placeholder="authorUid" value={f.authorUid} onChange={(e) => setF({ ...f, authorUid: e.target.value })} />
         <input style={s.input} placeholder="handle" value={f.authorHandle} onChange={(e) => setF({ ...f, authorHandle: e.target.value })} />
       </div>
-      <div style={s.note}>All three are required. Without authorUid the instalment is invisible to Voices, search and the app&apos;s myStories list.</div>
+      <div style={s.note}>
+        All three are required. Without authorUid the instalment is invisible to Voices, search
+        and the app&apos;s myStories list. `name` is what the instalment page prints as
+        &ldquo;written by&rdquo; — there is no separate writer field and there should not be
+        one, or a page would eventually credit somebody the record does not.
+      </div>
+      <label style={s.label}>Sponsor name (optional)</label>
+      <input style={s.input} value={f.sponsorName} onChange={(e) => setF({ ...f, sponsorName: e.target.value })} />
+      <div style={s.note}>
+        The logo is uploaded from this row&apos;s Edit panel once the instalment exists — the
+        object key is derived from its id, which does not exist until it is created.
+      </div>
 
       <label style={s.label}>Release (UTC)</label>
       <input style={s.input} type="datetime-local" value={f.release} onChange={(e) => setF({ ...f, release: e.target.value })} />
@@ -312,9 +490,11 @@ function InstalmentForm({ seriesId, nextOrdinal, onDone }) {
             ordinal: f.ordinal,
             title: f.title,
             synopsis: f.synopsis || null,
+            logline: f.logline.trim() || null,
             author: f.author,
             authorUid: f.authorUid,
             authorHandle: f.authorHandle,
+            sponsorName: f.sponsorName.trim() || null,
             coverUrl: f.coverUrl || null,
             releaseAtMs: localInputToMs(f.release),
             // '' stays undefined so the validator rejects it rather than defaulting to false.

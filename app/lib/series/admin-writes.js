@@ -42,6 +42,7 @@ import {
   SERIES_STATUSES,
   INSTALMENT_STATUSES,
   epubObjectPath,
+  instalmentImageKey,
   validateSeries,
   validateInstalment,
   validateInstalmentDetail,
@@ -188,6 +189,7 @@ export async function createInstalment(input) {
     schemaVersion: SCHEMA_VERSION,
     title: input.title || '',
     synopsis: input.synopsis ?? null,
+    logline: input.logline ?? null,
     author: input.author || '',
     authorUid: input.authorUid || '',
     authorHandle: input.authorHandle || '',
@@ -195,6 +197,13 @@ export async function createInstalment(input) {
     // Recorded, never read at serve time — the endpoint derives it. Written through the same
     // one definition the uploader uses so the two cannot disagree.
     epubPath: input.epubPath ?? null,
+    sponsorName: input.sponsorName ?? null,
+    sponsorLogoUrl: input.sponsorLogoUrl ?? null,
+    // Never from `input` at creation, and there is no path by which it could be: the count
+    // comes out of uploadInstalmentEpub(), which needs an id, which does not exist until this
+    // function returns. A new instalment is created uncounted and gains its count with its
+    // file — which is the correct order, since the count describes the file.
+    wordCount: null,
     updatedAt: now,
   };
 
@@ -258,7 +267,13 @@ export async function updateInstalment(id, partial) {
 
     const detail = {
       ...existingDetail,
-      ...pick(partial, ['title', 'synopsis', 'author', 'authorUid', 'authorHandle', 'coverUrl', 'epubPath']),
+      ...pick(partial, [
+        'title', 'synopsis', 'logline', 'author', 'authorUid', 'authorHandle',
+        'coverUrl', 'epubPath', 'sponsorName', 'sponsorLogoUrl',
+        // wordCount IS updatable, but only ever by uploadInstalmentEpub()'s caller passing
+        // what that function returned. No admin input is bound to it — see the schema note.
+        'wordCount',
+      ]),
       schemaVersion: existingDetail.schemaVersion ?? SCHEMA_VERSION,
       updatedAt: now,
     };
@@ -335,12 +350,46 @@ export async function uploadSeriesImage(key, file, onProgress) {
  *
  * Returns the object path so the caller can store it as epubPath. It is stored for the
  * admin's benefit and for a human reading the record; the endpoint never consults it.
+ *
+ * ── IT ALSO RETURNS wordCount, AND THIS IS THE ONLY PLACE IT CAN BE TAKEN ────────────────
+ *
+ * The reading time on the instalment page is derived from the EPUB's own words rather than
+ * typed by an editor, because a typed figure is wrong from the first chapter revision onward
+ * and nothing in the record admits it. Deriving it needs the words, and the words are
+ * reachable for exactly as long as this function holds the File: the moment those bytes land
+ * at series_epubs/{id}/master.epub they are `allow read: if false` to every client on the
+ * platform, this one included, and the only way back to them is a signed URL the stream
+ * endpoint mints for an entitled reader after release. So the count is taken HERE, from the
+ * same File, in the same call — and it is refreshed by the only event that can invalidate it,
+ * which is somebody uploading a new file.
+ *
+ * COUNT BEFORE UPLOAD. If the file is not a readable EPUB we would rather find out before
+ * 50 MB have gone into the bucket than after.
+ *
+ * A COUNT FAILURE IS NOT AN UPLOAD FAILURE. If the spine will not parse but the bytes are
+ * fine, the upload proceeds and wordCount comes back null with a warning in `warnings` — null
+ * means "not counted", the page drops the reading-time credit, and the editor is told. The
+ * alternative, refusing the upload, would make a cosmetic label a gate on publishing an
+ * instalment. What must NEVER happen is the third option: returning the previous count
+ * alongside new bytes, which is a number confidently describing a file that no longer exists.
  */
 export async function uploadInstalmentEpub(id, file, onProgress) {
   if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
   if (!id) return { ok: false, errors: ['instalmentId is required'] };
   if (!file) return { ok: false, errors: ['No file selected'] };
   if (file.size > MAX_EPUB_BYTES) return { ok: false, errors: [`EPUB exceeds ${MAX_EPUB_BYTES / 1024 / 1024} MB`] };
+
+  const warnings = [];
+  let wordCount = null;
+  try {
+    const { countEpubWords } = await import('../epubExtract');
+    const words = await countEpubWords(file);
+    wordCount = words > 0 ? words : null;
+    if (wordCount === null) warnings.push('The EPUB parsed but contained no words — no reading time will show.');
+  } catch (err) {
+    console.warn('[series.admin-writes] word count failed; uploading anyway', err);
+    warnings.push(`Could not count words (${err.message || 'unknown error'}) — no reading time will show.`);
+  }
 
   const objectPath = epubObjectPath(id);
   try {
@@ -357,9 +406,32 @@ export async function uploadInstalmentEpub(id, file, onProgress) {
     // No getDownloadURL(). A download URL for this object would be a public, permanent,
     // token-bearing link to a gated file — precisely the shape the Book Reader Collection
     // shipped with, and the reason none of it could ever be gated.
-    return { ok: true, epubPath: objectPath };
+    return { ok: true, epubPath: objectPath, wordCount, warnings };
   } catch (err) {
     console.error('[series.admin-writes] uploadInstalmentEpub failed', err);
     return { ok: false, errors: [`Upload failed: ${err.message || 'unknown error'}`] };
   }
+}
+
+/**
+ * An instalment's own cover art, or its sponsor's logo. Thin over uploadSeriesImage() — the
+ * value it adds is the KEY, which comes from instalmentImageKey() rather than from a call
+ * site, so the two kinds cannot end up sharing a folder or landing outside series_covers/**.
+ *
+ * The existing image path needed no extension to carry a sponsor logo: storage.rules matches
+ * `series_covers/{allPaths=**}` at public read, admin-only write, 5 MB, `image/*` — a nested
+ * key matches, an SVG or PNG or WebP all match, and the returned download URL is the same
+ * unguessable, token-bearing kind the instalment cover already stores. Which is the point: the
+ * sponsor logo's URL is protected exactly as the cover's is — by living on the detail node
+ * the release rule denies — and it inherits that rather than inventing it.
+ */
+export async function uploadInstalmentImage(id, kind, file, onProgress) {
+  if (!id) return { ok: false, errors: ['instalmentId is required'] };
+  let key;
+  try {
+    key = instalmentImageKey(id, kind);
+  } catch (err) {
+    return { ok: false, errors: [err.message] };
+  }
+  return uploadSeriesImage(key, file, onProgress);
 }

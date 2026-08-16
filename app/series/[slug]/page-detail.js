@@ -108,7 +108,13 @@ export default function SeriesDetailClient({ slug, sentinel }) {
             subscriptionTier={subscriptionTier}
             effectiveTier={membership.tier || 'free'}
             signedIn={!!user}
-            onOpen={() => router.push(`/series/read/${inst.id}`)}
+            // R12.4: the row now opens the INSTALMENT PAGE, not the reader. The file is one
+            // tap further away and that is the point — an instalment has a logline, a writer,
+            // a reading time and a sponsor credit, and a row that jumped straight into the
+            // EPUB gave none of them anywhere to live. The gate is unmoved either way: the
+            // page renders from the same denied detail node, and the reader route still asks
+            // functions/api/series/stream.js for every byte.
+            onOpen={() => router.push(`/series/instalment/${inst.id}`)}
           />
         ))}
         {instalments.length === 0 && (

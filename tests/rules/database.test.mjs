@@ -1504,3 +1504,178 @@ describe('R10.5 · paystack_membership_index — the renewal identity map', () =
     await assertFails(founder.ref('paystack_membership_index/SUB_abc').set(FOUNDER_A));
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('R12.4 · series_instalments_detail — the release gate, against the real rule', () => {
+  // THE GATE HAD NO EMULATOR TEST UNTIL NOW. R12.0 asserted the POLICY thoroughly in
+  // tests/ci/series-access.test.mjs — release before tier, passes excluded, the flag that
+  // does not move the release check — and it asserted the SHAPE of the rule by reading
+  // database.rules.json and grepping it for `releaseAtMs` and `<= now`. Neither of those
+  // runs the rule. This block does, which matters because the rule is the only thing
+  // standing between an unreleased instalment and `curl`: the pages are a static export
+  // and every read a reader makes is a direct client read of RTDB.
+  //
+  // R12.4 added logline, sponsorName and sponsorLogoUrl to this node. The claim being
+  // tested is that they are as invisible before release as `title` already was — and the
+  // reason they are is placement, not rendering, so it is provable here and nowhere else.
+
+  const FAR_FUTURE = 4102444800000; // 1 Jan 2100
+  const FAR_PAST = 1000000000000;   // 9 Sep 2001
+
+  const row = (over = {}) => ({
+    schemaVersion: 1,
+    seriesId: 'beta-princess',
+    ordinal: 4,
+    releaseAtMs: FAR_FUTURE,
+    freeForGold: false,
+    status: 'published',
+    addedAt: 1,
+    updatedAt: 1,
+    ...over,
+  });
+
+  // Everything a reveal could hide in. Deliberately populated — a denial test against a
+  // record whose sensitive fields are all null proves nothing.
+  const detail = (over = {}) => ({
+    schemaVersion: 1,
+    title: 'The Protocol',
+    synopsis: 'She has a week.',
+    logline: 'A princess, a protocol, and a week to decide.',
+    author: 'Monica Garcia',
+    authorUid: 'AAAAowner0000000000000000001',
+    authorHandle: 'monica',
+    coverUrl: 'https://example.test/cover.png',
+    epubPath: 'series_epubs/beta-princess-i4/master.epub',
+    sponsorName: 'Ada Type Foundry',
+    sponsorLogoUrl: 'https://example.test/sponsor.png',
+    wordCount: 12000,
+    updatedAt: 1,
+    ...over,
+  });
+
+  const ID = 'beta-princess-i4';
+  const seedPair = (rowOver = {}) => seed(env, {
+    [`series_instalments/${ID}`]: row(rowOver),
+    [`series_instalments_detail/${ID}`]: detail(),
+  });
+
+  // THE GATED FIELDS, named one by one. A per-field loop rather than one read of the
+  // record, because a future rule that opened a single child — "the logline is only
+  // marketing, surely that one can be public" — would pass a whole-record assertion.
+  const GATED = ['title', 'logline', 'sponsorName', 'sponsorLogoUrl', 'coverUrl', 'author', 'wordCount', 'epubPath'];
+
+  test('UNRELEASED: nobody outside the two admin UIDs can read the record', async () => {
+    await seedPair();
+    for (const [who, ctx] of [['anon', anon], ['stranger', stranger], ['owner', owner]]) {
+      await assertFails(ctx.ref(`series_instalments_detail/${ID}`).get(), `${who} read the whole record`);
+    }
+  });
+
+  test('UNRELEASED: nor any single field of it — logline and sponsor included', async () => {
+    await seedPair();
+    for (const field of GATED) {
+      await assertFails(anon.ref(`series_instalments_detail/${ID}/${field}`).get(),
+        `anon read ${field} of an unreleased instalment`);
+      await assertFails(stranger.ref(`series_instalments_detail/${ID}/${field}`).get(),
+        `a signed-in stranger read ${field} of an unreleased instalment`);
+    }
+  });
+
+  test('UNRELEASED: the node is not listable, so the ids cannot be swept either', async () => {
+    await seedPair();
+    await assertFails(anon.ref('series_instalments_detail').get());
+    await assertFails(stranger.ref('series_instalments_detail').get());
+    await assertFails(owner.ref('series_instalments_detail').get());
+  });
+
+  test('RELEASED: the same record opens to everyone, signed out included', async () => {
+    // Case 4, and it is as load-bearing as the three denials above it. A rule that denied
+    // everything would pass every test before this one while the Series showed nothing.
+    await seedPair({ releaseAtMs: FAR_PAST });
+    await assertSucceeds(anon.ref(`series_instalments_detail/${ID}`).get());
+    const snap = await anon.ref(`series_instalments_detail/${ID}`).get();
+    assert.equal(snap.val().logline, 'A princess, a protocol, and a week to decide.');
+    assert.equal(snap.val().sponsorName, 'Ada Type Foundry');
+    assert.equal(snap.val().sponsorLogoUrl, 'https://example.test/sponsor.png');
+    assert.equal(snap.val().wordCount, 12000);
+  });
+
+  test('the date is compared as a NUMBER — a past date as a string never releases', async () => {
+    // The whole gate rests on releaseAtMs being numeric: the rule requires isNumber() before
+    // it compares, so a record whose date arrived as a string is denied forever rather than
+    // sorting lexicographically against `now` and opening at random. See the schema header.
+    await seed(env, {
+      [`series_instalments/${ID}`]: { ...row(), releaseAtMs: FAR_PAST },
+      [`series_instalments_detail/${ID}`]: detail(),
+    });
+    await assertSucceeds(anon.ref(`series_instalments_detail/${ID}`).get());
+    await seed(env, { [`series_instalments/${ID}/releaseAtMs`]: String(FAR_PAST) });
+    await assertFails(anon.ref(`series_instalments_detail/${ID}`).get());
+  });
+
+  test('a PULLED instalment closes again, past date and all', async () => {
+    // status is checked alongside the date because they answer different questions. An
+    // instalment withdrawn after release must stop being readable, and must not announce
+    // that it once existed.
+    for (const status of ['draft', 'unpublished']) {
+      await seedPair({ releaseAtMs: FAR_PAST, status });
+      await assertFails(anon.ref(`series_instalments_detail/${ID}`).get(), status);
+      await assertFails(anon.ref(`series_instalments_detail/${ID}/logline`).get(), status);
+    }
+  });
+
+  test('a missing row denies the detail — no row, no release', async () => {
+    await seed(env, { [`series_instalments_detail/${ID}`]: detail() });
+    await assertFails(anon.ref(`series_instalments_detail/${ID}`).get());
+  });
+
+  test('THE ROW STAYS PUBLIC IN BOTH STATES — it is what a locked card prints', async () => {
+    await seedPair();
+    const snap = await anon.ref(`series_instalments/${ID}`).get();
+    assert.equal(snap.val().ordinal, 4);
+    assert.equal(snap.val().releaseAtMs, FAR_FUTURE);
+    // And it carries none of the reveals. If one ever migrated here it would be world-
+    // readable the moment it landed, with no rule change to notice in review.
+    for (const field of ['title', 'logline', 'sponsorName', 'sponsorLogoUrl', 'author']) {
+      assert.equal(snap.val()[field], undefined, `${field} is on the PUBLIC row`);
+    }
+  });
+
+  test('nobody but an admin writes either node, released or not', async () => {
+    await seedPair({ releaseAtMs: FAR_PAST });
+    for (const [who, ctx] of [['anon', anon], ['stranger', stranger], ['owner', owner]]) {
+      await assertFails(ctx.ref(`series_instalments_detail/${ID}/logline`).set('mine now'), `${who} wrote a logline`);
+      await assertFails(ctx.ref(`series_instalments_detail/${ID}/sponsorName`).set('Their Brand'), `${who} wrote a sponsor`);
+      // The sharpest one: bringing a release forward would open every gated field at once.
+      await assertFails(ctx.ref(`series_instalments/${ID}/releaseAtMs`).set(FAR_PAST), `${who} moved the release date`);
+    }
+  });
+
+  test('WIPE: neither node can be emptied, and a record cannot be deleted', async () => {
+    // .validate NEVER runs on a null write, so a write grant at a node root deletes the
+    // subtree. The two admin UIDs hold that grant on both nodes by design; nobody else does.
+    await seedPair();
+    for (const [who, ctx] of [['anon', anon], ['stranger', stranger], ['owner', owner]]) {
+      await assertFails(ctx.ref('series_instalments_detail').remove(), `${who} wiped the detail node`);
+      await assertFails(ctx.ref('series_instalments').remove(), `${who} wiped the row node`);
+      await assertFails(ctx.ref(`series_instalments_detail/${ID}`).remove(), `${who} deleted a record`);
+    }
+  });
+
+  test('the admin reads an unreleased record — the Series admin screen depends on it', async () => {
+    await seedPair();
+    const snap = await founder.ref(`series_instalments_detail/${ID}`).get();
+    assert.equal(snap.val().logline, 'A princess, a protocol, and a week to decide.');
+  });
+
+  test('and the admin can WRITE the R12.4 fields — the validator does not refuse them', async () => {
+    // The `.validate` on $instalmentId is a hasChildren([...]) of the required set, so new
+    // optional fields need no rules change. Asserted rather than assumed, because a record
+    // the admin cannot save is a feature that does not exist.
+    await seed(env, { [`series_instalments/${ID}`]: row() });
+    await assertSucceeds(founder.ref(`series_instalments_detail/${ID}`).set(detail()));
+    await assertSucceeds(founder.ref(`series_instalments_detail/${ID}`).set(
+      detail({ logline: null, sponsorName: null, sponsorLogoUrl: null, wordCount: null }),
+    ));
+  });
+});

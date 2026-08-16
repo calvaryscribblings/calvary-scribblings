@@ -161,6 +161,51 @@ export async function getSeriesPage(slug, now = Date.now()) {
   };
 }
 
+/** One public row by id. Direct read — the node is `.read: true` and the key is the id. */
+export async function getInstalmentRow(instalmentId) {
+  if (!instalmentId) return null;
+  try {
+    const snap = await get(ref(db, `${INSTALMENTS_PATH}/${instalmentId}`));
+    if (!snap.exists()) return null;
+    return { id: instalmentId, ...(snap.val() || {}) };
+  } catch (err) {
+    console.error(`[series.loader] getInstalmentRow failed for ${instalmentId}`, err);
+    return null;
+  }
+}
+
+/**
+ * One instalment, its parent series, and its detail — the whole input to an instalment page.
+ *
+ * ── THE detail READ IS SKIPPED, NOT ATTEMPTED-AND-CAUGHT, WHEN UNRELEASED ────────────────
+ *
+ * Same construction as getSeriesPage() above and for a sharper reason here. This page's entire
+ * upper half — logline, sponsor credit, cover, title — comes from `detail`. Firing the read
+ * and letting the rule refuse it would work, but it would put the gate's correctness on the
+ * far side of a network call: the page would be right because the server said no. Gating the
+ * CALL on isReleased() means an unreleased instalment's page has no code path that so much as
+ * asks for a logline, and the rule is the second of two independent refusals rather than the
+ * only one.
+ *
+ * `released` is returned alongside rather than left to the caller to recompute, so the page
+ * and the read agree about which clock they used.
+ *
+ * A row whose series is missing or unpublished resolves to null — the whole page, not a page
+ * with a blank eyebrow. An instalment of a withdrawn series is not a thing to show.
+ */
+export async function getInstalmentPage(instalmentId, now = Date.now()) {
+  const row = await getInstalmentRow(instalmentId);
+  if (!row || row.status !== 'published') return null;
+
+  const series = await getSeriesBySlug(row.seriesId);
+  if (!series) return null;
+
+  const released = isReleased(row, now);
+  const detail = released ? await getInstalmentDetail(instalmentId) : null;
+
+  return { row, series, detail, released };
+}
+
 /**
  * EVERY instalment row of a series, drafts and withdrawn ones included, in ordinal order.
  * ADMIN SURFACES ONLY — same split, same reason, as getAllSeries above.

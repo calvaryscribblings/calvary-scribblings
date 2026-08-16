@@ -26,9 +26,15 @@ import {
   validateInstalment,
   validateInstalmentDetail,
   epubObjectPath,
+  instalmentImageKey,
+  INSTALMENT_DETAIL_SCHEMA,
+  INSTALMENT_SCHEMA,
   INSTALMENT_ID_RE,
 } from '../../app/lib/series/schema.js';
-import { formatRelease, shelfLine, instalmentLabel } from '../../app/lib/series/format.js';
+import {
+  formatRelease, shelfLine, instalmentLabel, instalmentEyebrow, readActionLabel,
+  releaseCreditLabel, readingMinutes, readingTimeLabel, WORDS_PER_MINUTE, SPONSOR_PREAMBLE,
+} from '../../app/lib/series/format.js';
 import { IMMERSIVE_ROUTES, isImmersive } from '../../app/lib/immersiveRoutes.js';
 import { hasStaticPage } from '../../app/lib/storyAccess.js';
 
@@ -311,6 +317,12 @@ describe('copy', () => {
       'app/lib/series/schema.js', 'app/lib/series/access.js', 'app/lib/series/format.js',
       'app/lib/series/loader.js', 'app/lib/series/admin-writes.js', 'app/lib/series/stream.js',
       'functions/api/series/stream.js', 'docs/series.md', 'audit/membership-copy-deck.md',
+      // R12.4 — the instalment page and its admin fields. The word appears on this page more
+      // often than anywhere else on the site (eyebrow, button, sponsor preamble), so it is the
+      // likeliest place for "episode" to creep back in.
+      'app/series/instalment/[instalmentId]/page.js',
+      'app/series/instalment/[instalmentId]/page-instalment.js',
+      'app/admin/series/page.js',
     ];
     for (const f of files) {
       const src = readFileSync(fileURLToPath(new URL(f, ROOT)), 'utf8');
@@ -584,5 +596,259 @@ describe('wiring', () => {
     const src = readFileSync(fileURLToPath(new URL('storage.rules', ROOT)), 'utf8');
     const block = src.slice(src.indexOf('match /series_epubs/'));
     assert.ok(/allow read: if false;/.test(block.slice(0, 400)), 'series_epubs master.epub is not read:false');
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+describe('R12.4 · the instalment page — logline, sponsor, and a reading time nobody typed', () => {
+  const detail = (over = {}) => ({
+    schemaVersion: 1,
+    title: 'Part One',
+    synopsis: null,
+    logline: null,
+    author: 'Monica Garcia',
+    authorUid: 'u',
+    authorHandle: 'h',
+    coverUrl: null,
+    epubPath: 'p',
+    sponsorName: null,
+    sponsorLogoUrl: null,
+    wordCount: null,
+    updatedAt: 1,
+    ...over,
+  });
+
+  // ── THE GATE, ASSERTED WHERE IT IS ACTUALLY DECIDED ────────────────────────────────────
+  //
+  // "As invisible as its title" is not a rendering promise, it is a PLACEMENT one: the three
+  // new reveals are invisible before release because they sit on the node the rule denies. So
+  // the test is which schema they are on, not what some component does with them. A field that
+  // migrated to the public row would still render correctly on the page and would leak.
+  describe('the new fields are behind the release gate BY PLACEMENT', () => {
+    for (const field of ['logline', 'sponsorName', 'sponsorLogoUrl', 'wordCount']) {
+      test(`${field} is on the detail record, never on the public row`, () => {
+        assert.ok(field in INSTALMENT_DETAIL_SCHEMA, `${field} is missing from INSTALMENT_DETAIL_SCHEMA`);
+        assert.equal(field in INSTALMENT_SCHEMA, false,
+          `${field} is on the PUBLIC row — it would be readable before release by anyone with curl`);
+      });
+    }
+
+    test('and the row schema still carries only what a locked card may print', () => {
+      assert.deepEqual(
+        Object.keys(INSTALMENT_SCHEMA).sort(),
+        ['addedAt', 'freeForGold', 'ordinal', 'releaseAtMs', 'schemaVersion', 'seriesId', 'status', 'updatedAt'],
+      );
+    });
+
+    test('the loader does not even ASK for the detail of an unreleased instalment', () => {
+      const src = readFileSync(fileURLToPath(new URL('app/lib/series/loader.js', ROOT)), 'utf8');
+      const fn = src.slice(src.indexOf('export async function getInstalmentPage'));
+      assert.ok(/released \? await getInstalmentDetail\(instalmentId\) : null/.test(fn),
+        'getInstalmentPage fires the detail read unconditionally — the rule becomes the only refusal');
+    });
+
+    test('the unreleased branch of the page cannot name a single gated field', () => {
+      const src = readFileSync(fileURLToPath(new URL('app/series/instalment/[instalmentId]/page-instalment.js', ROOT)), 'utf8');
+      const notYet = src.slice(src.indexOf('function NotYet('), src.indexOf('function Missing('));
+      assert.ok(notYet.length > 200, 'NotYet was not found — this assertion is measuring nothing');
+      for (const field of ['detail', 'logline', 'sponsor', 'wordCount', 'coverUrl', 'author']) {
+        assert.equal(new RegExp(field, 'i').test(notYet), false,
+          `the pre-release page mentions ${field} — it renders from the public row and the parent series only`);
+      }
+    });
+
+    test('every gated field on the page is read off `detail`, with no fallback', () => {
+      const src = readFileSync(fileURLToPath(new URL('app/series/instalment/[instalmentId]/page-instalment.js', ROOT)), 'utf8');
+      const body = src.slice(src.indexOf('export default function'));
+      for (const field of ['logline', 'sponsorName', 'sponsorLogoUrl', 'wordCount', 'coverUrl']) {
+        // Every read of the field is `detail?.field`. A `row.logline` or a `|| something`
+        // fallback would be a second source for a fact that has exactly one.
+        const reads = [...body.matchAll(new RegExp(`[\\w?.]*\\.${field}\\b`, 'g'))].map((m) => m[0]);
+        assert.ok(reads.length > 0, `${field} is never read on the page`);
+        for (const r of reads) {
+          assert.equal(r, `detail?.${field}`, `${field} is read as ${r} — the only source is the denied node`);
+        }
+      }
+    });
+
+    test('the instalment route bakes no metadata — same ruling as the reader route', () => {
+      const src = readFileSync(fileURLToPath(new URL('app/series/instalment/[instalmentId]/page.js', ROOT)), 'utf8');
+      assert.equal(/export async function generateMetadata/.test(src), false,
+        'a build with a service credential would bake unreleased loglines into static HTML');
+      // It still enumerates from the PUBLIC row node, ids only. Comments are stripped first:
+      // the header explains at length why the detail node is not read here, and a naive grep
+      // would fail on the explanation.
+      const code = src.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+      assert.ok(/'series_instalments'/.test(code));
+      assert.equal(/series_instalments_detail/.test(code), false);
+    });
+  });
+
+  // ── THE VALIDATOR ──────────────────────────────────────────────────────────────────────
+  describe('the writer refuses what the page cannot render', () => {
+    test('all three new strings are optional, and null is how they are absent', () => {
+      assert.equal(validateInstalmentDetail(detail()).valid, true);
+      assert.equal(validateInstalmentDetail(detail({
+        logline: 'A princess, a protocol, and a week to decide.',
+        sponsorName: 'Ada Type Foundry',
+        sponsorLogoUrl: 'https://example.test/logo.png',
+      })).valid, true);
+    });
+
+    for (const field of ['logline', 'sponsorName', 'sponsorLogoUrl']) {
+      test(`${field} rejects the empty string — absent is null, as everywhere else`, () => {
+        const r = validateInstalmentDetail(detail({ sponsorName: 'X', [field]: '' }));
+        assert.equal(r.valid, false);
+        assert.ok(r.errors.some((e) => e.includes(field)), r.errors.join('; '));
+      });
+    }
+
+    test('a sponsor logo with no sponsor name is refused', () => {
+      const r = validateInstalmentDetail(detail({ sponsorLogoUrl: 'https://example.test/logo.png' }));
+      assert.equal(r.valid, false);
+      assert.ok(r.errors.some((e) => /sponsorLogoUrl requires sponsorName/.test(e)));
+    });
+
+    test('a sponsor name with no logo is fine — the credit drops the tile', () => {
+      assert.equal(validateInstalmentDetail(detail({ sponsorName: 'Ada Type Foundry' })).valid, true);
+    });
+
+    test('wordCount is a positive integer or null, and nothing else', () => {
+      assert.equal(validateInstalmentDetail(detail({ wordCount: 12345 })).valid, true);
+      assert.equal(validateInstalmentDetail(detail({ wordCount: null })).valid, true);
+      for (const bad of [0, -1, 12.5, '12345', true]) {
+        assert.equal(validateInstalmentDetail(detail({ wordCount: bad })).valid, false, String(bad));
+      }
+    });
+  });
+
+  // ── READING TIME ───────────────────────────────────────────────────────────────────────
+  describe('reading time is derived, and says nothing when it does not know', () => {
+    test('no count means NO CREDIT — never a zero, never a guess', () => {
+      for (const v of [null, undefined, 0, -5, NaN, '3000']) {
+        assert.equal(readingMinutes(v), null, String(v));
+        assert.equal(readingTimeLabel(v), null, String(v));
+      }
+    });
+
+    test('220 words is one minute, 221 is two — the platform pace, rounded up', () => {
+      assert.equal(readingMinutes(220), 1);
+      assert.equal(readingMinutes(221), 2);
+      assert.equal(readingMinutes(4400), 20);
+      assert.equal(readingTimeLabel(4400), '20 min');
+    });
+
+    test('one word still reads as a minute, not as nothing', () => {
+      assert.equal(readingTimeLabel(1), '1 min');
+    });
+
+    test('the pace matches indexReadTime — one platform, one number', () => {
+      assert.equal(WORDS_PER_MINUTE, 220);
+      const src = readFileSync(fileURLToPath(new URL('app/lib/storyIndex.js', ROOT)), 'utf8');
+      assert.ok(src.includes('.length / 220'),
+        'storyIndex.js no longer divides by 220 — the two surfaces now show different minutes for the same prose');
+    });
+
+    test('THE COUNT COMES FROM THE UPLOADER AND FROM NOWHERE ELSE', () => {
+      // A typed figure is stale the moment a chapter is revised, and the record cannot say so.
+      // The count is taken from the File in the same call that uploads it, which is the last
+      // moment those bytes are readable — series_epubs/** is `read: false` for this admin too.
+      const writes = readFileSync(fileURLToPath(new URL('app/lib/series/admin-writes.js', ROOT)), 'utf8');
+      const upload = writes.slice(writes.indexOf('export async function uploadInstalmentEpub'));
+      assert.ok(/countEpubWords/.test(upload), 'uploadInstalmentEpub does not count the words it is uploading');
+      assert.ok(upload.indexOf('countEpubWords') < upload.indexOf('uploadBytesResumable'),
+        'the count must be taken BEFORE the bytes are uploaded');
+
+      const admin = readFileSync(fileURLToPath(new URL('app/admin/series/page.js', ROOT)), 'utf8');
+      assert.equal(/wordCount: (Number|f\.|e\.target)/.test(admin), false,
+        'the admin binds an input to wordCount — reading time must never be typed');
+      assert.ok(/wordCount: up\.wordCount/.test(admin),
+        'the admin does not carry the uploader\'s count into the record');
+      // Path and count describe the same bytes, so they land in the same write.
+      assert.ok(/epubPath: up\.epubPath, wordCount: up\.wordCount/.test(admin),
+        'epubPath and wordCount are written separately — one can outlive the other');
+    });
+  });
+
+  // ── COPY ───────────────────────────────────────────────────────────────────────────────
+  describe('the page copy, in one place so it cannot drift', () => {
+    test('the eyebrow is the series title and the instalment label, joined', () => {
+      assert.equal(instalmentEyebrow('Beta Princess', 2), 'Beta Princess · Instalment 2');
+      assert.ok(instalmentEyebrow('X', 3).endsWith(instalmentLabel(3)));
+    });
+
+    test('the button names the instalment it opens', () => {
+      assert.equal(readActionLabel(2), 'Read Instalment 2');
+    });
+
+    test('the date credit is past tense once the date has passed', () => {
+      // "releases · 14 October" over a date four months gone is the one credit on the page a
+      // reader can check against a calendar, and it was wrong in the present tense.
+      assert.equal(releaseCreditLabel(PAST, NOW), 'released');
+      assert.equal(releaseCreditLabel(FUTURE, NOW), 'releases');
+      // The boundary matches isReleased(): equal to now HAS released.
+      assert.equal(releaseCreditLabel(NOW, NOW), 'released');
+      assert.equal(releaseCreditLabel(NOW + 1, NOW), 'releases');
+    });
+
+    test('a dateless credit takes the future tense — the safer of the two slips', () => {
+      for (const bad of [null, undefined, NaN, '2026-10-14']) {
+        assert.equal(releaseCreditLabel(bad, NOW), 'releases', String(bad));
+      }
+    });
+
+    test('the page derives the word rather than hardcoding it', () => {
+      const src = readFileSync(fileURLToPath(new URL('app/series/instalment/[instalmentId]/page-instalment.js', ROOT)), 'utf8');
+      assert.ok(/label=\{releaseCreditLabel\(row\.releaseAtMs\)\}/.test(src));
+      assert.equal(/label="releases"|label="released"/.test(src), false,
+        'the tense is hardcoded — it would be the wrong word on the other side of the date');
+    });
+
+    test('the sponsor preamble is sentence case, like the credits beside it', () => {
+      assert.equal(SPONSOR_PREAMBLE, 'this instalment made possible by');
+      assert.equal(SPONSOR_PREAMBLE, SPONSOR_PREAMBLE.toLowerCase());
+    });
+
+    test('CAPS APPEAR EXACTLY TWICE BELOW THE NAV, AND BOTH ARE THE EYEBROW', () => {
+      // The deliberate constraint of the approved design: small caps for the kicker and for
+      // nothing else, so the page does not read as five competing blocks of caps. The nav's
+      // own "Membership" link keeps its caps — it is site chrome shared with /series — which
+      // is why the count stops at Shell.
+      const src = readFileSync(fileURLToPath(new URL('app/series/instalment/[instalmentId]/page-instalment.js', ROOT)), 'utf8');
+      const body = src.slice(src.indexOf('export default function'), src.indexOf('function Shell('));
+      const caps = [...body.matchAll(/textTransform: 'uppercase'/g)];
+      assert.equal(caps.length, 2, 'the released page and the pre-release page each carry exactly one eyebrow');
+      const shell = src.slice(src.indexOf('function Shell('));
+      assert.equal([...shell.matchAll(/textTransform: 'uppercase'/g)].length, 1, 'the nav link');
+    });
+  });
+
+  // ── WIRING ─────────────────────────────────────────────────────────────────────────────
+  describe('wiring', () => {
+    test('a series row opens the instalment page, not the file', () => {
+      const src = readFileSync(fileURLToPath(new URL('app/series/[slug]/page-detail.js', ROOT)), 'utf8');
+      assert.ok(/router\.push\(`\/series\/instalment\/\$\{inst\.id\}`\)/.test(src));
+    });
+
+    test('the instalment page is a browsing surface, so the banner is welcome on it', () => {
+      assert.equal(isImmersive('/series/instalment/beta-princess-i1'), false);
+      // The READER is still immersive. The two must not be confused by the shared prefix.
+      assert.equal(isImmersive('/series/read/beta-princess-i1'), true);
+    });
+
+    test('instalment art keys are derived, and cannot walk out of series_covers/', () => {
+      assert.equal(instalmentImageKey('beta-princess-i1', 'cover'), 'beta-princess-i1/cover');
+      assert.equal(instalmentImageKey('beta-princess-i1', 'sponsor'), 'beta-princess-i1/sponsor');
+      assert.throws(() => instalmentImageKey('beta-princess-i1', 'poster'));
+    });
+
+    test('the sponsor logo reuses the image path the cover already uses', () => {
+      // No storage.rules change was needed and none was made: series_covers/{allPaths=**}
+      // already matches a nested key, at public read and admin-only write.
+      const src = readFileSync(fileURLToPath(new URL('storage.rules', ROOT)), 'utf8');
+      assert.ok(/match \/series_covers\/\{allPaths=\*\*\}/.test(src));
+      const writes = readFileSync(fileURLToPath(new URL('app/lib/series/admin-writes.js', ROOT)), 'utf8');
+      assert.ok(/uploadInstalmentImage[\s\S]{0,900}uploadSeriesImage\(key, file, onProgress\)/.test(writes));
+    });
   });
 });

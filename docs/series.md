@@ -17,8 +17,9 @@ exactly what it already opens. It is also why the position pin is per-instalment
 ```
 series/{seriesId}                       public   slug, title, synopsis, coverUrl (poster), status
 series_instalments/{instalmentId}       public   seriesId, ordinal, releaseAtMs, freeForGold, status
-series_instalments_detail/{id}          GATED    title, synopsis, author/authorUid/authorHandle,
-                                                 coverUrl, epubPath
+series_instalments_detail/{id}          GATED    title, synopsis, logline, author/authorUid/
+                                                 authorHandle, coverUrl, epubPath,
+                                                 sponsorName, sponsorLogoUrl, wordCount
 series_reading_progress/{uid}/{id}      owner    fraction, updatedAt, cfi?, epubVersion?
 series_epubs/{id}/master.epub           read:false
 ```
@@ -32,6 +33,69 @@ at a moment nothing writes to the database, so no stored integer can express it.
 by `releasedCount()` on every read. The bookstore's `titlesCount` was examined as a model and
 rejected: it increments on create and never decrements, because `deleteTitle()` is a soft
 status change.
+
+## The instalment page (R12.4)
+
+`/series/instalment/{instalmentId}`. A series row opens this; one gold button on it opens the
+reader. The file is one tap further away than it was, which is the point — an instalment has a
+logline, a writer, a reading time and a sponsor credit, and a row that jumped straight into the
+EPUB gave none of them anywhere to live.
+
+The date credit is tensed by `releaseCreditLabel()` — "released" once the date has passed,
+"releases" before it. Derived from the date against the same clock `formatRelease()` renders
+it with, never hardcoded: the credits only draw after the gate has opened, so a fixed word
+would be right today and quietly wrong the first time the label is reused somewhere that can
+see an unreleased row.
+
+**Everything on its upper half comes from the gated node.** Cover, title, logline, author,
+sponsor. There is no fallback for any of them and no second source, so an unreleased
+instalment's logline and sponsor are invisible for exactly the reason its title already was.
+Before release the page renders from the public row and the public parent series alone: an
+ordinal, a date, and the series' title. `getInstalmentPage()` does not even issue the detail
+read while `isReleased()` is false — a second, independent refusal in front of the rule.
+
+**No `generateMetadata`,** same ruling as the reader route. A share card would have to read the
+detail node at BUILD time and bake an unreleased logline into static HTML on a CDN. The build's
+Firebase client is anonymous today and the rule would refuse it; that is a reason to be calm,
+not a reason to ask. The **series** page is the shareable surface.
+
+### Reading time is derived, never typed
+
+There was **no clean way to compute it from what was already stored**, and there still is not.
+The only artefact holding an instalment's words is `series_epubs/{id}/master.epub`, which
+`storage.rules` keeps at `allow read: if false` for every client including the two admin UIDs;
+the only path back to those bytes is a ~300-second signed URL the stream endpoint mints for an
+entitled reader after release. Nothing on the record carried a count.
+
+So the count is taken at the one moment the words are reachable without defeating any of that:
+while the editor's browser still holds the File it is about to upload. `uploadInstalmentEpub()`
+calls `countEpubWords()` on those bytes, before the upload, and returns `wordCount` alongside
+`epubPath` so the two land in one write and cannot describe different files. `readingMinutes()`
+spends it at 220 wpm — the platform's number, matching `indexReadTime()` — and returns `null`
+when there is no count, which the page renders by dropping the credit rather than printing a
+zero. A revised chapter means a re-upload, which means a recount; a typed figure would have
+been stale from the first revision with nothing in the record to say so.
+
+`indexReadTime()`'s raw-HTML-token quirk is deliberately **not** inherited. That count is
+frozen for cross-platform parity with the app's `lib/storyDerived.ts`; nothing in the app
+renders an instalment's reading time, so there is nothing here to be in parity with.
+
+### Sponsor art
+
+`sponsorLogoUrl` and the instalment `coverUrl` both go to `series_covers/{instalmentId}/{cover
+|sponsor}/…`, keyed by `instalmentImageKey()`. **No storage rule changed**: `series_covers/
+{allPaths=**}` already matched a nested key, at public read and admin-only write, 5 MB,
+`image/*`. The object is public and the URL is unguessable — and what keeps an unreleased
+sponsor hidden is that the URL naming it lives on the denied detail node, which is precisely
+the posture the instalment cover has had since R12.0, inherited rather than invented.
+
+A logo with no name is refused by the validator: it renders as an unattributed mark over a
+blank line and is indistinguishable from a bug. A name with no logo is fine — the credit drops
+the tile.
+
+**Author needed no new field.** `author` / `authorUid` / `authorHandle` have been required on
+the detail record since R12.0; `author` is what the page prints as "written by". A separate
+writer field would eventually credit somebody the record does not.
 
 ## The two gates, in order
 

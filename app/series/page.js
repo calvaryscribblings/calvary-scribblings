@@ -1,6 +1,6 @@
 'use client';
 // THE SERIES — the landing page. Netflix-style: a poster opens a series, which lists its
-// instalments, each of which opens in the reader.
+// instalments, each of which opens its own page, from which one gold button opens the reader.
 //
 // PUBLIC BY CONSTRUCTION. Everything on this page renders for a signed-out reader: posters,
 // synopses, the instalment count so far, and the release date of whatever is next. Nothing

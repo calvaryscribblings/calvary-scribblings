@@ -107,15 +107,47 @@ export const INSTALMENT_SCHEMA = {
 // functions/api/bookstore/stream.js does and for the reason its header gives: "a second RTDB
 // round-trip to learn a constant would cost latency on every open". The field exists so the
 // admin surface can show what was uploaded and so a human reading the record can see it.
+//
+// ── R12.4: logline, sponsor, wordCount — AND WHY THEY ARE HERE AND NOT ON THE ROW ────────
+//
+// Run them through the header's one question — would a reader learn anything from this before
+// release that we did not choose to tell them? All four answer YES, so all four are behind
+// the rule alongside title.
+//
+//   logline          The one-sentence pitch. It is a smaller title, not a lesser one.
+//   sponsorName      A SPONSOR CREDIT IS STILL A REVEAL. "Instalment 5 is brought to you by
+//                    X" tells a reader, and a competitor, and X's competitor, something
+//                    nobody has announced. That it is a commercial line rather than an
+//                    editorial one does not make it public early; if anything the commercial
+//                    line is the one with a party who would rather choose the moment.
+//   sponsorLogoUrl   Same reveal, in a picture. The URL is the secret, exactly as coverUrl
+//                    already is: the OBJECT is public-read under series_covers/** (a locked
+//                    instalment still shows its art, see storage.rules), and what keeps an
+//                    unreleased sponsor hidden is that the unguessable download URL naming it
+//                    lives on this denied node. Identical posture to the instalment cover,
+//                    inherited on purpose rather than invented.
+//   wordCount        A number, but a number derived FROM THE PROSE. "Instalment 6 is 14,000
+//                    words" is a fact about an unpublished manuscript. It is also the input
+//                    to a reading time we print next to the title, so it belongs with it.
+//
+// wordCount IS WRITTEN BY THE EPUB UPLOADER, NEVER BY AN EDITOR. See readingMinutes() in
+// ./format.js for how it is spent and app/lib/series/admin-writes.js:uploadInstalmentEpub for
+// where it comes from — the same bytes, in the same call, so the count cannot describe a file
+// that is no longer there. There is deliberately no admin input bound to it: a typed figure
+// is stale the moment a chapter is revised, and nothing in the record would say so.
 export const INSTALMENT_DETAIL_SCHEMA = {
   schemaVersion: 'integer',
   title: 'string',
   synopsis: 'string|null',
+  logline: 'string|null',
   author: 'string',
   authorUid: 'string',
   authorHandle: 'string',
   coverUrl: 'string|null',
   epubPath: 'string|null',
+  sponsorName: 'string|null',
+  sponsorLogoUrl: 'string|null',
+  wordCount: 'integer|null',
   updatedAt: 'integer',
 };
 
@@ -138,6 +170,24 @@ const isPlainObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(
  */
 export function epubObjectPath(instalmentId) {
   return `series_epubs/${instalmentId}/master.epub`;
+}
+
+/**
+ * The series_covers/ key prefix for an instalment's own art, and for its sponsor's logo.
+ *
+ * TWO PREFIXES UNDER ONE INSTALMENT, so a bucket listing reads as itself. Both land under
+ * `series_covers/**`, which storage.rules already opens to public read and admin-only write at
+ * 5 MB and `image/*` — a NESTED path matches because that rule uses `{allPaths=**}`, so this
+ * needed no rules change and got none.
+ *
+ * These are the only two callers' definition of the key, for the same reason epubObjectPath()
+ * above is the only definition of the object path: the uploader writes it and the record
+ * stores what came back, and a second spelling somewhere would put a sponsor logo in a folder
+ * nobody looks in.
+ */
+export function instalmentImageKey(instalmentId, kind) {
+  if (kind !== 'cover' && kind !== 'sponsor') throw new Error(`unknown image kind: ${kind}`);
+  return `${instalmentId}/${kind}`;
 }
 
 export function validateSeries(doc) {
@@ -212,7 +262,12 @@ export function validateInstalmentDetail(doc, { publishing = false } = {}) {
   if (!isStr(doc.authorUid)) errors.push('authorUid is required (Voices, search and myStories key off it)');
   if (!isStr(doc.authorHandle)) errors.push('authorHandle is required (rendered by the app on three surfaces)');
 
-  for (const field of ['coverUrl', 'epubPath']) {
+  // The nullable strings, all under the SAME rule the bookstore's v1→v2 migration was needed
+  // to establish: absent is null, never ''. An empty string is truthy in none of the render
+  // paths and falsy in all of them, which means it renders as an empty italic line or an
+  // <img src=""> rather than as nothing, and the record looks populated in the admin while the
+  // page shows a hole.
+  for (const field of ['coverUrl', 'epubPath', 'logline', 'sponsorName', 'sponsorLogoUrl']) {
     const v = doc[field];
     if (publishing && field === 'epubPath') {
       if (!isStr(v)) errors.push("epubPath is required when the instalment is 'published'");
@@ -221,6 +276,24 @@ export function validateInstalmentDetail(doc, { publishing = false } = {}) {
     } else if (v !== null && v !== undefined && !isStr(v)) {
       errors.push(`${field} must be a non-empty string or null`);
     }
+  }
+
+  // A LOGO WITH NO NAME IS NOT A CREDIT. The sponsor line is a tile beside two lines of text,
+  // the second of which is the name; with a logo and no name it renders as an unattributed
+  // mark next to "this instalment made possible by" and a blank — which is worse than no
+  // sponsor line at all, and is indistinguishable from a bug. The reverse IS allowed: a name
+  // with no logo is a perfectly good magazine sponsor line, and the page drops the tile.
+  if (isStr(doc.sponsorLogoUrl) && !isStr(doc.sponsorName)) {
+    errors.push('sponsorLogoUrl requires sponsorName — a logo with no name is not a credit');
+  }
+
+  // DERIVED, NEVER TYPED. Written by uploadInstalmentEpub() from the bytes it is uploading;
+  // null means "no EPUB has been counted yet", which the page renders by dropping the reading
+  // time rather than by printing a zero. 0 is rejected for that reason — an instalment with no
+  // words is not a state we can describe, and it would print "0 min" under a real title.
+  if (doc.wordCount !== null && doc.wordCount !== undefined
+      && (!isInt(doc.wordCount) || doc.wordCount <= 0)) {
+    errors.push('wordCount must be a positive integer or null (it is derived from the EPUB, never entered)');
   }
 
   if (!isInt(doc.updatedAt) || doc.updatedAt <= 0) errors.push('updatedAt must be a positive integer (millisecond timestamp)');
