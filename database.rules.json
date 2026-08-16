@@ -767,6 +767,7 @@
         "$titleId": {
           ".validate": "newData.hasChildren(['fraction', 'updatedAt'])",
           "cfi": { ".validate": "newData.isString() && newData.val().length <= 1024" },
+          "epubVersion": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128" },
           "fraction": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1" },
           "updatedAt": { ".validate": "newData.isNumber()" },
           "$other": { ".validate": false }

@@ -51,6 +51,12 @@ export default function BookstoreReaderClient({ slug, title }) {
   const { user, loading: authLoading } = useAuth();
 
   const [epubUrl, setEpubUrl] = useState(null);
+  // R11.22 — which copy of the book this session is actually reading: the Cloud Storage
+  // generation of master.epub, minted alongside the signed URL. Held in state rather than
+  // read once, because the re-mint path below can legitimately return a DIFFERENT version
+  // (the object was replaced between the first fetch and the retry) and the position saved
+  // afterwards must be pinned to the copy on screen, not the one that failed to open.
+  const [epubVersion, setEpubVersion] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
@@ -70,8 +76,9 @@ export default function BookstoreReaderClient({ slug, title }) {
     setGate('checking');
     setGateMessage(null);
     try {
-      const { url } = await requestStreamUrl(user, title.id);
+      const { url, version } = await requestStreamUrl(user, title.id);
       setEpubUrl(url);
+      setEpubVersion(version || null);
       setGate('reading');
       return true;
     } catch (e) {
@@ -242,9 +249,16 @@ export default function BookstoreReaderClient({ slug, title }) {
   // PRIVATE reading position. bookstore_reading_progress/{uid}/{titleId} is owner-only and
   // shape-validated (R7.2 rules). Keyed by titleId — the bookstore_titles push key — not by
   // slug: a slug can be re-pointed by an editor, a purchase never can. Samples pass nothing.
+  //
+  // R11.22 — `pin` rides alongside the path: the version of the FILE this position was taken
+  // in. A CFI is coordinates into one document's byte layout, so it is only meaning-bearing
+  // to a reader holding those same bytes; the pin is what lets any surface — this one, or the
+  // app — tell "this position is mine to trust" from "this position belongs to a copy I do
+  // not have". Null while the URL is still being minted, and null forever if the metadata
+  // read failed; the Reading Room simply writes no pin then. See docs/reading-position-pin.md.
   const bookProgress = useMemo(
-    () => ({ path: (uid) => `bookstore_reading_progress/${uid}/${title.id}` }),
-    [title.id],
+    () => ({ path: (uid) => `bookstore_reading_progress/${uid}/${title.id}`, pin: epubVersion }),
+    [title.id, epubVersion],
   );
 
   // ── Sample mode ─────────────────────────────────────────────────────────────

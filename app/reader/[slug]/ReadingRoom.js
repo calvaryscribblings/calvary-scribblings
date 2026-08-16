@@ -34,6 +34,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { findRibbonOnPage, ribbonEpsilonFor, RIBBON_MIN_SPAN } from '../../lib/ribbonGeometry';
 import { lookupWord } from '../../lib/dictionary';
+// R11.22 — the two halves of a stored position: the shape written, and whether a stored CFI
+// belongs to the copy this session has open. Pure, and asserted in tests/bookstore/reading-pin.test.mjs.
+import { positionRecord, cfiIsOurs } from '../../lib/bookstore/reading-position';
 
 // R7.3: the ribbon-geometry rule moved to app/lib/ribbonGeometry.js — plain ESM, so the
 // harness can import it under Node and assert the decision against measured geometry. It is
@@ -668,7 +671,9 @@ export default function ReadingRoom({
   // as reads the owned copy's ribbons. Namespacing lands in R7.2.
   const ribbonsOn = ribbonsEnabled && !sample;
 
-  // R7.2 — progress is a NODE, not a flag: { path: (uid) => string }. One mechanism, two
+  // R7.2 — progress is a NODE, not a flag: { path: (uid) => string, pin?: string|null }. The
+  // optional pin (R11.22) says which copy of the file a position was taken in; a register
+  // that has no such fact simply omits it and neither writes nor checks one. One mechanism, two
   // destinations. The story register keeps users/{uid}/readerProgress/{slug}; a purchased
   // book goes to bookstore_reading_progress/{uid}/{titleId}, which is owner-only. Samples
   // pass nothing and neither read nor write. Held in a ref because an adapter's object
@@ -826,7 +831,9 @@ export default function ReadingRoom({
             if (snap.exists()) {
               const v = snap.val();
               if (typeof v === 'number') { restoreFractionRef.current = v; }
-              else if (v && typeof v.cfi === 'string' && v.cfi) { restoreTargetRef.current = v.cfi; }
+              else if (v && typeof v.cfi === 'string' && v.cfi && cfiIsOurs(v, progressRef.current?.pin)) {
+                restoreTargetRef.current = v.cfi;
+              }
               else if (v && typeof v.fraction === 'number') { restoreFractionRef.current = v.fraction; }
               if (restoreTargetRef.current || restoreFractionRef.current) setResumeToast(true);
             }
@@ -870,7 +877,7 @@ export default function ReadingRoom({
     return () => { if (unsub) unsub(); };
   }, [ribbonsOn, user?.uid, slug, dbg]);
 
-  // ── Auto-save the position (debounced ~2s). Shape: { cfi?, fraction, updatedAt }. ──
+  // ── Auto-save the position (debounced ~2s). Shape: { cfi?, epubVersion?, fraction, updatedAt }. ──
   // The destination is the register's own node: stories keep users/{uid}/readerProgress,
   // purchased books go to the owner-only bookstore_reading_progress. Samples pass no node
   // and this effect never runs for them.
@@ -885,9 +892,19 @@ export default function ReadingRoom({
         const path = progressRef.current?.path?.(user.uid);
         if (!path) return;
         // The bookstore node is shape-validated (fraction + updatedAt required, $other
-        // closed), so cfi is omitted rather than written as null when there isn't one.
-        const record = { fraction: currentFraction.current || pct / 100, updatedAt: Date.now() };
-        if (currentCFI.current) record.cfi = currentCFI.current;
+        // closed), so the record is built by the one function that knows that shape.
+        //
+        // R11.22 — the pin rides in from the register (stories supply none and are untouched).
+        // This is a plain `set`, so a session that could not learn its version drops any pin a
+        // previous session wrote. That is the SAFE direction and not a bug to fix: the record
+        // falls back to "unknown copy", every reader falls back to fraction, and nobody is
+        // handed a position certified by a version this write never verified.
+        const record = positionRecord({
+          fraction: currentFraction.current || pct / 100,
+          updatedAt: Date.now(),
+          cfi: currentCFI.current,
+          pin: progressRef.current?.pin,
+        });
         await set(ref(db, path), record);
       } catch (e) { console.warn('[reader] progress save failed:', e); }
     }, 2000);

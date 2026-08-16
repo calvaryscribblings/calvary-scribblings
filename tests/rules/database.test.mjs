@@ -495,6 +495,87 @@ describe('bookstore_purchases — money (owned by the bookstore session; asserte
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// R11.22 · bookstore_reading_progress — the position, and the pin that qualifies it.
+//
+// The node had NO coverage here before this round, which is why the block is the full
+// four-case template rather than only the new field: a rules change to an untested node is
+// two changes, and the second one is silent.
+//
+// WHAT THE PIN IS. `epubVersion` is the Cloud Storage generation of that title's master.epub
+// — the same string functions/api/bookstore/stream.js already returns as `version` and the
+// native app already keys its download cache by. It changes when and only when the object is
+// replaced. A CFI without it is coordinates with no statement of which document they index.
+//
+// WHY THE VALIDATOR IS SHAPE-ONLY, and this is the deliberate part: it is a string with a
+// length bound, NOT a digits-only match on a generation. Both surfaces write this record. A
+// tight validator would turn a foreign or future pin format into a REJECTED WRITE, which
+// fails the whole `set` and loses the reader's position outright. A permissive one turns the
+// same case into a pin that simply does not match, which every reader already handles by
+// falling back to fraction. Degrade, don't refuse — the loose rule is the safer rule here,
+// and the value's provenance is a contract (docs/reading-position-pin.md), not a regex.
+describe('R11.22 · bookstore_reading_progress — the reading position and its pin', () => {
+  const pos = (extra = {}) => ({ fraction: 0.42, updatedAt: now(), ...extra });
+  const VERSION = '1723459000123456';   // a GCS generation: decimal, and far past 2^53
+  const path = `bookstore_reading_progress/${OWNER}/a-title`;
+
+  test('unauthenticated can neither read nor write', async () => {
+    await seed(env, { [path]: pos({ cfi: 'epubcfi(/6/4!/4/2/2,/1:0,/1:12)' }) });
+    await assertFails(anon.ref(path).get());
+    await assertFails(anon.ref(path).set(pos()));
+  });
+
+  test('a stranger cannot read or write another reader\'s position', async () => {
+    await seed(env, { [path]: pos() });
+    await assertFails(stranger.ref(path).get());
+    await assertFails(stranger.ref(`bookstore_reading_progress/${OWNER}`).get());
+    await assertFails(stranger.ref(path).set(pos()));
+  });
+
+  test('WIPE: nobody but the owner may empty the node', async () => {
+    await seed(env, { [path]: pos() });
+    await assertFails(anon.ref('bookstore_reading_progress').remove());
+    await assertFails(stranger.ref(`bookstore_reading_progress/${OWNER}`).remove());
+  });
+
+  test('LEGITIMATE: the owner writes position + cfi + pin, and reads it back', async () => {
+    // Case 4 — exactly what the auto-save in app/reader/[slug]/ReadingRoom.js issues once
+    // book-reader.js has a version from the stream endpoint.
+    await assertSucceeds(owner.ref(path).set(pos({
+      cfi: 'epubcfi(/6/4!/4/2/2,/1:0,/1:12)',
+      epubVersion: VERSION,
+    })));
+    await assertSucceeds(owner.ref(path).get());
+  });
+
+  test('LEGITIMATE: the unpinned record still writes — the pin is optional, not required', async () => {
+    // The version lookup can fail (the endpoint states `version: null` rather than guessing),
+    // and every position stored before R11.22 is unpinned. Requiring the field would have
+    // rejected both, which is how a safety feature becomes an outage.
+    await assertSucceeds(owner.ref(path).set(pos({ cfi: 'epubcfi(/6/4!/4/2/2)' })));
+    await assertSucceeds(owner.ref(path).set(pos()));
+  });
+
+  test('the pin must be a non-empty string, and the record stays closed to strays', async () => {
+    await assertFails(owner.ref(path).set(pos({ cfi: 'epubcfi(/6/4)', epubVersion: 1723459000123456 })));
+    await assertFails(owner.ref(path).set(pos({ cfi: 'epubcfi(/6/4)', epubVersion: '' })));
+    await assertFails(owner.ref(path).set(pos({ cfi: 'epubcfi(/6/4)', epubVersion: 'x'.repeat(129) })));
+    // $other is still closed — the new field is an addition to the shape, not an opening of it.
+    await assertFails(owner.ref(path).set(pos({ epubGeneration: VERSION })));
+    await assertFails(owner.ref(path).set({ cfi: 'epubcfi(/6/4)', epubVersion: VERSION }));  // no fraction
+  });
+
+  test('a foreign pin format is ACCEPTED by the rules — it is the reader that must not trust it', async () => {
+    // The degrade-don't-refuse call, asserted so it cannot be "tightened" back into an
+    // outage by someone reading the validator without the reason. A pin this surface cannot
+    // match costs a fraction fallback; a rejected write costs the position itself.
+    await assertSucceeds(owner.ref(path).set(pos({
+      cfi: 'epubcfi(/6/4!/4/2/2)',
+      epubVersion: 'sha256:9f2c4ab1-not-a-generation',
+    })));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // R9.1 LB-9 · bookstore_waitlist — the pre-launch mailing list.
 //
 // WHAT WAS WRONG: `.write: true` sat at the NODE ROOT. A root write grant is not merely

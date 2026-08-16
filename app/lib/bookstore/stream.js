@@ -51,5 +51,20 @@ export async function requestStreamUrl(user, titleId) {
     );
   }
 
-  return { url: data.url, expiresAt: data.expiresAt || null };
+  // R11.22 — `version` is carried out of here now instead of being dropped on the floor.
+  // It is the Cloud Storage generation of master.epub (functions/api/bookstore/stream.js),
+  // which changes when and ONLY when the object is replaced, and it is the SAME value the
+  // native app already keys its on-device cache by. That makes it the one fact both surfaces
+  // hold about which bytes they are reading, so it is what pins a stored CFI —
+  // see docs/reading-position-pin.md.
+  //
+  // null is a stated fact and NOT an omission (the endpoint's own contract): the metadata read
+  // failed, so nothing here knows which copy this is. The reader writes no pin in that case,
+  // which lands a position back in the unpinned state that ships today — safe, and readable
+  // by fraction alone. Guessing a version would be the one genuinely dangerous move.
+  return {
+    url: data.url,
+    expiresAt: data.expiresAt || null,
+    version: typeof data.version === 'string' && data.version ? data.version : null,
+  };
 }

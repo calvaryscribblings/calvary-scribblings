@@ -29,6 +29,7 @@ on:
       - 'firebase.json'
       - 'tests/rules/**'
       - 'tests/newsletter/**'
+      - 'tests/bookstore/**'
       - 'tests/ci/**'
       - 'app/**'
       - 'functions/**'
@@ -180,6 +181,14 @@ jobs:
       # Five suites have existed under tests/newsletter/ and CI has never run one.
       - name: Newsletter suites
         run: npm run test:newsletter
+
+      # R11.22 — tests/bookstore/*.test.mjs was in exactly the same position: sixteen node-only
+      # suites, no secrets, no browser, ~3s, and no workflow ran a single one. It is added here
+      # rather than left for later because THE PIN LANDED IN IT. A cross-surface contract whose
+      # test never runs is not a contract — and the failure it guards is a reader resuming in
+      # confident, wrong prose, which nothing else in this repo would notice.
+      - name: Bookstore suites (purchases, streaming, the position pin)
+        run: npm run test:purchases
 
       # R9.2 (c). The workflows check themselves: action majors held above the node24 floor,
       # nothing pinned to a floating tag, and no new action slipping in unrecorded.

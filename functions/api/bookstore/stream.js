@@ -30,6 +30,14 @@
 //      finding. md5Hash rides along as `md5` for optional post-download integrity checking,
 //      since the metadata read is already paid for.
 //
+//      R11.22 — `version` NOW HAS A SECOND CONSUMER, and it is a sharper one than the cache.
+//      It is the pin written beside a stored CFI at bookstore_reading_progress/{uid}/{titleId},
+//      and a reader trusts a saved position only when its own version matches. A CFI is
+//      coordinates into one document's byte layout, so a position is only meaning-bearing to
+//      whoever holds those bytes; `generation` is what says so. If this field ever becomes
+//      request-derived, the failure is no longer a re-download — it is a reader resuming in
+//      plausible, wrong prose, with nothing logged. See docs/reading-position-pin.md.
+//
 //      `version: null` IS A STATED FACT, NOT AN OMISSION. If the metadata read fails, the url
 //      is still returned and version/md5 are explicitly null. An absent key is ambiguous — old
 //      build? error? not implemented? — where an explicit null is something the app can branch
