@@ -492,6 +492,68 @@ describe('bookstore_purchases — money (owned by the bookstore session; asserte
     await assertFails(owner.ref(`bookstore_purchases/${OWNER}/a-title/status`).set('active'));
     await assertFails(stranger.ref(`bookstore_purchases/${OWNER}/b-title`).set({ status: 'active' }));
   });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // R11.23 — THE WIPE, which is case 3 of the four-case template and was the one missing.
+  //
+  // The test above writes to CHILDREN. The Story Island app's account-deletion path does not:
+  // it attempts `bookstore_purchases/{uid} = null` on the NODE, deliberately outside its main
+  // atomic update and in its own try/catch, because nobody had ever confirmed which way the
+  // rules answer it. That gap matters more here than the shape of it suggests — `.validate`
+  // never runs on a null write, so a node-level grant deletes a subtree without a single
+  // validator firing, and a child-write test cannot see it. A rule of the form
+  // `auth.uid == $uid && !newData.exists()` passes every assertion above and hands a client
+  // the power to erase its own purchase history.
+  //
+  // THE ANSWER IS DENIED, in all three shapes the client can spell it. That is the intended
+  // ruling and these tests are what keep it: the node is written only by the webhooks, on a
+  // service-account token that bypasses rules entirely.
+  //
+  // The consequence is recorded here because it is the reason anyone will read this block:
+  // nothing deletes these records. Not the app (denied), not the web (its deletion flow only
+  // writes users/{uid}/pendingDeletion, which nothing in this repo consumes), not a sweep
+  // (there isn't one). Purchase records outlive the accounts that made them TODAY, and if that
+  // is ever changed it must be changed server-side — see the last two cases, which pin both
+  // halves of that: a client can enumerate but not erase, and an admin token can erase.
+  //
+  // Whether erasure is even the right outcome is an open question and not one this file
+  // answers: these are financial records, a late refund needs something to mark 'revoked'
+  // against, and retention obligations cut against deletion. Severing the identity while
+  // keeping the transaction is the likelier shape. Nothing here presumes either way.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('the WIPE — the account-deletion write, in every shape a client can spell it', () => {
+    const purchase = { status: 'active', purchasedAt: 1786000000000 };
+
+    test('the owner cannot set(null) their OWN purchases node', async () => {
+      await seed(env, { [`bookstore_purchases/${OWNER}/a-title`]: purchase });
+      await assertFails(owner.ref(`bookstore_purchases/${OWNER}`).set(null));
+    });
+
+    test('nor remove() it — the same denial, reached by the other method name', async () => {
+      await seed(env, { [`bookstore_purchases/${OWNER}/a-title`]: purchase });
+      await assertFails(owner.ref(`bookstore_purchases/${OWNER}`).remove());
+    });
+
+    test('nor smuggle it through a multi-path update at the root', async () => {
+      // The shape that would ride along inside an atomic account-deletion update. It is kept
+      // separate in the app precisely because it would fail the whole update — this asserts
+      // that reading of it, so the app is never tempted to fold it back in.
+      await seed(env, { [`bookstore_purchases/${OWNER}/a-title`]: purchase });
+      await assertFails(owner.ref().update({ [`bookstore_purchases/${OWNER}`]: null }));
+    });
+
+    test('but the owner CAN still read it — a client may enumerate what it cannot erase', async () => {
+      // Not a consolation prize: /my-library reads this node, so a denial here would be an
+      // outage. It is also what makes a client-side "what would be deleted" list possible.
+      await seed(env, { [`bookstore_purchases/${OWNER}/a-title`]: purchase });
+      await assertSucceeds(owner.ref(`bookstore_purchases/${OWNER}`).get());
+    });
+
+    test('an admin uid CAN wipe the node — a server-side sweep has a path when one is built', async () => {
+      await seed(env, { [`bookstore_purchases/${OWNER}/a-title`]: purchase });
+      await assertSucceeds(founder.ref(`bookstore_purchases/${OWNER}`).set(null));
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
