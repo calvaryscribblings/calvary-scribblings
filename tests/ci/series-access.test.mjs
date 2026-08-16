@@ -842,6 +842,45 @@ describe('R12.4 · the instalment page — logline, sponsor, and a reading time 
       assert.throws(() => instalmentImageKey('beta-princess-i1', 'poster'));
     });
 
+    test('THE SPONSOR LOGO WRITES ITS NAME WITH IT, IN ONE CALL', () => {
+      // The R12.4 bug. The control shipped gated on the SAVED sponsor name, so it was disabled
+      // on every live instalment and a <label> around a disabled input opens no file picker —
+      // dead on arrival, and reported as such. The fix is not a looser gate: it is writing the
+      // name and the URL in the one atomic update they always belonged in, which is what lets
+      // the gate read the TYPED value without the validator refusing the write.
+      //
+      // Driven end to end by tests/series/sponsor-logo.spec.mjs against the emulators. This is
+      // the cheap structural half, so a refactor that split the write cannot pass `test:ci`.
+      const src = readFileSync(fileURLToPath(new URL('app/admin/series/page.js', ROOT)), 'utf8');
+      assert.ok(/\(url\) => \(\{ sponsorName, sponsorLogoUrl: url \}\)/.test(src),
+        'the sponsor upload no longer writes sponsorName alongside the URL');
+      assert.ok(/disabled=\{!sponsorName\}/.test(src),
+        'the sponsor upload is gated on something other than the typed name');
+      assert.equal(/disabled=\{!detail\.sponsorName\}/.test(src), false,
+        'the gate is back on the SAVED name — this is the bug, exactly as it shipped');
+      assert.ok(/'Add a sponsor name first'/.test(src),
+        'the disabled button no longer says what to do about itself');
+    });
+
+    test('the emulator switch cannot fire anywhere but localhost', () => {
+      // app/lib/firebase.js gains a branch that repoints the whole client at 127.0.0.1 so the
+      // browser suite can drive a real upload without writing to production. Two conditions
+      // guard it and the SECOND is the one that matters: NEXT_PUBLIC_FB_EMULATOR is inlined at
+      // build time and could in principle be set by accident on a deploy, but the hostname
+      // check is evaluated in the reader's browser and no build flag can satisfy it.
+      const src = readFileSync(fileURLToPath(new URL('app/lib/firebase.js', ROOT)), 'utf8');
+      const guard = src.slice(src.indexOf('if (typeof window'), src.indexOf('connectAuthEmulator(auth'));
+      assert.ok(/NEXT_PUBLIC_FB_EMULATOR === '1'/.test(guard), 'the build flag is not required');
+      assert.ok(/hostname === 'localhost'/.test(guard) && /hostname === '127\.0\.0\.1'/.test(guard),
+        'the hostname fence is gone — a mis-set build flag could repoint production');
+      // AND, not OR. An `||` here would make the hostname check a second way IN rather than a
+      // second lock, and any localhost page would leave production.
+      assert.ok(/\)\s*&&\s*process\.env\.NEXT_PUBLIC_FB_EMULATOR/.test(guard.replace(/\n\s*/g, ' '))
+        || /window !== 'undefined'\s*&& process\.env/.test(guard.replace(/\n\s*/g, ' ')),
+        'the two conditions are not ANDed together');
+      assert.equal(/\|\|\s*process\.env\.NEXT_PUBLIC_FB_EMULATOR/.test(guard), false);
+    });
+
     test('the sponsor logo reuses the image path the cover already uses', () => {
       // No storage.rules change was needed and none was made: series_covers/{allPaths=**}
       // already matches a nested key, at public read and admin-only write.

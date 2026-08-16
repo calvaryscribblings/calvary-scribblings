@@ -93,6 +93,16 @@ A logo with no name is refused by the validator: it renders as an unattributed m
 blank line and is indistinguishable from a bug. A name with no logo is fine — the credit drops
 the tile.
 
+**The logo upload writes the sponsor's name with it, in one `updateInstalment` call.** It
+shipped in R12.4 gated on the *saved* name instead, which made the button disabled on every
+live instalment — and a `<label>` around a disabled input is inert, so no file picker opened,
+not even on a forced click. It was reported from the outside as "the upload button isn't
+working", which is exactly what it was. The gate now reads the name the editor can see
+themselves typing, and the validator is satisfied by the same atomic write that could have
+violated it — the argument `epubPath` and `wordCount` are written by. There is no save-first
+step. `tests/series/sponsor-logo.spec.mjs` drives the real control against the Firebase
+emulators and fails on the old code.
+
 **Author needed no new field.** `author` / `authorUid` / `authorHandle` have been required on
 the detail record since R12.0; `author` is what the page prints as "written by". A separate
 writer field would eventually credit somebody the record does not.

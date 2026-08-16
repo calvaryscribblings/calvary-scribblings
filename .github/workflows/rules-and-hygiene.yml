@@ -28,6 +28,9 @@ on:
       - 'storage.rules'
       - 'firebase.json'
       - 'tests/rules/**'
+      # R12.4 — the Series admin browser suite runs in the same job as the rules assertions.
+      # Without this line, editing the spec alone would not start the job that runs it.
+      - 'tests/series/**'
       - 'tests/newsletter/**'
       - 'tests/bookstore/**'
       - 'tests/ci/**'
@@ -67,7 +70,9 @@ jobs:
   rules:
     name: rules assertions (emulator)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Raised from 10 in R12.4: this job now also installs Chromium and boots `next dev` for
+    # the Series admin suite. The rules half alone still finishes in about two minutes.
+    timeout-minutes: 25
     steps:
       # R9.2 (c) — action majors pinned off the deprecated node20 runtime. The bump is
       # per-action, not uniform: see the note in reader-tests.yml for which version of which
@@ -89,6 +94,22 @@ jobs:
       - run: npm ci
       - name: Rules assertions — database.rules.json + storage.rules
         run: npm run test:rules
+
+      # R12.4 — THE SERIES ADMIN, DRIVEN IN A BROWSER AGAINST THE SAME EMULATORS.
+      #
+      # It rides this job rather than reader-tests.yml because of which expensive input it
+      # needs. reader-tests has Chromium; this job has the JVM, the emulators and the rule
+      # files already loaded, and Chromium is one `playwright install` away. The reverse —
+      # standing the emulators up inside the reader job — would mean a second JDK and a
+      # second emulator boot on every push for one suite.
+      #
+      # It exists because a control can be correctly wired, correctly keyed and correctly
+      # validated and still be DEAD on every record in the database. That is what shipped in
+      # R12.4 and no unit test on this platform could have seen it.
+      - name: Chromium for the Series admin suite
+        run: npx playwright install --with-deps chromium
+      - name: Series admin — the sponsor logo upload, end to end
+        run: npm run test:sponsor
 
   # ───────────────────────────────────────────────────────────────────────────
   # 2. DRIFT. Proves the console has not been edited behind the repo (RULES.md).

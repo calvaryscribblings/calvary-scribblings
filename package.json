@@ -25,6 +25,7 @@
     "test:purchases": "node --test \"tests/bookstore/*.test.mjs\"",
     "test:membership": "node --test \"tests/membership/*.test.mjs\"",
     "test:rules": "firebase emulators:exec --only database,storage --project demo-calvary-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
+    "test:sponsor": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.sponsor.config.mjs\"",
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",
     "test:membership-copy": "next build && node --test tests/membership/deck-parity.test.mjs && playwright test -c tests/membership/playwright.copy.config.mjs && playwright test -c tests/membership/playwright.links.config.mjs",
     "test:dropcap": "playwright test -c tests/dropcap/playwright.config.mjs",

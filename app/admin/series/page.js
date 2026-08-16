@@ -339,10 +339,20 @@ function InstalmentDetailEditor({ row, detail, onSaved }) {
   const [f, setF] = useState({ logline: detail.logline || '', sponsorName: detail.sponsorName || '' });
   const [busy, setBusy] = useState(null);
 
-  const upload = async (kind, file, field) => {
+  // What the editor has TYPED, which is what every control below reads. The saved value is
+  // only ever a seed for it — see the sponsor uploader for why that distinction was a bug.
+  const sponsorName = f.sponsorName.trim();
+
+  /**
+   * Upload an image and record it. `patchFor` builds the whole record patch from the returned
+   * URL, rather than this taking a single field name, because the sponsor logo has to write
+   * TWO fields and the cover writes one. One `updateInstalment` call either way — it applies a
+   * multi-path RTDB update, so everything in the patch lands atomically or none of it does.
+   */
+  const upload = async (kind, file, patchFor) => {
     setBusy(kind);
     const up = await uploadInstalmentImage(row.id, kind, file);
-    const r = up.ok ? await updateInstalment(row.id, { [field]: up.url }) : up;
+    const r = up.ok ? await updateInstalment(row.id, patchFor(up.url)) : up;
     setBusy(null);
     onSaved(toMsg(r));
   };
@@ -393,29 +403,52 @@ function InstalmentDetailEditor({ row, detail, onSaved }) {
           {busy === 'cover' ? 'Uploading…' : 'Upload instalment cover'}
           <input
             type="file" accept="image/*" style={{ display: 'none' }}
-            onChange={(e) => { const file = e.target.files?.[0]; if (file) upload('cover', file, 'coverUrl'); }}
+            onChange={(e) => { const file = e.target.files?.[0]; if (file) upload('cover', file, (url) => ({ coverUrl: url })); }}
           />
         </label>
-        {/* Gated on the SAVED name, not the typed one. updateInstalment merges the new URL
-            into the STORED record and re-validates it, and validateInstalmentDetail refuses a
-            sponsorLogoUrl with no sponsorName — so allowing the upload against an unsaved
-            name would upload the file, fail the write, and report an error about a field the
-            editor had just filled in. */}
-        <label style={{ ...s.btnSm, display: 'inline-block', opacity: detail.sponsorName ? 1 : 0.45 }}>
-          {busy === 'sponsor' ? 'Uploading…' : 'Upload sponsor logo'}
+
+        {/* ── THE SPONSOR LOGO, AND THE BUG THAT WAS HERE ────────────────────────────────
+            It shipped gated on the SAVED name (`detail.sponsorName`), so an editor who typed
+            a sponsor's name and reached for the logo button got a dead control: the input was
+            disabled, and a <label> wrapping a disabled input is inert — no file picker opens,
+            not even on a forced click. Every live instalment had an empty sponsorName, so the
+            button was dead on all of them. Reported from the outside as "it isn't working",
+            which is exactly what it looked like.
+
+            The reasoning behind the gate was half-right: updateInstalment merges the patch
+            into the STORED record and re-validates, and validateInstalmentDetail refuses a
+            sponsorLogoUrl with no sponsorName — so writing the URL alone against an unsaved
+            name really would have uploaded the file and then failed the write.
+
+            The answer to that is not to disable the button. It is to write the NAME AND THE
+            URL TOGETHER, in the one atomic update they always belonged in — the same argument
+            epubPath and wordCount are written by. Then the validator is satisfied by the same
+            write that could have violated it, the control gates on what the editor can see
+            themselves typing, and there is no save-first ritual to know about. */}
+        <label style={{
+          ...s.btnSm, display: 'inline-block',
+          opacity: sponsorName ? 1 : 0.45,
+          cursor: sponsorName ? 'pointer' : 'default',
+        }}>
+          {busy === 'sponsor'
+            ? 'Uploading…'
+            : (sponsorName ? 'Upload sponsor logo' : 'Add a sponsor name first')}
           <input
             type="file" accept="image/*" style={{ display: 'none' }}
-            disabled={!detail.sponsorName}
-            onChange={(e) => { const file = e.target.files?.[0]; if (file) upload('sponsor', file, 'sponsorLogoUrl'); }}
+            disabled={!sponsorName}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) upload('sponsor', file, (url) => ({ sponsorName, sponsorLogoUrl: url }));
+            }}
           />
         </label>
-        {!detail.sponsorName && <span style={s.note}>Save a sponsor name to enable the logo upload.</span>}
       </div>
       <div style={s.note}>
         Both go to series_covers/{row.id}/… — public-read objects with unguessable URLs, exactly
         as the series poster already is. What keeps an unreleased instalment&apos;s cover and
         sponsor hidden is that the URLs naming them live on the detail record, which the release
-        rule denies.
+        rule denies. The logo upload saves the sponsor name with it, in one write — there is no
+        need to press Save first.
       </div>
     </div>
   );
