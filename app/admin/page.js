@@ -7,6 +7,7 @@ import { indexUpdatePaths } from '../lib/storyIndex';
 import { publishedAtMsFor } from '../lib/storyAccess';
 import { validateBody } from '../lib/htmlBlocks';
 import { buildCoverDerivatives, COVER_CACHE_CONTROL } from '../lib/coverDerivatives';
+import { validateDescriptor, canonicalDescriptor, wordsEchoingTitle } from '../lib/coverDescriptor';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -571,6 +572,37 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
           <div style={s.hint}>One striking line from the story, quoted verbatim. Powers the featured-story trailer. 8–20 words. Leave empty to skip this story in the trailer rotation.</div>
         </div>
 
+        {/* COVER DESCRIPTOR — optional, and the hint says so twice on purpose. The generator
+            treats absence as a finished design (the fleuron takes the space), so an editor
+            with nothing good must feel free to leave it alone rather than pad it out. */}
+        <div style={s.fg}>
+          <label style={s.label}>Cover Descriptor <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+          <input style={s.input} value={form.descriptor}
+            placeholder="duty. sacrifice. ruin."
+            onChange={e => setForm(f => ({ ...f, descriptor: e.target.value }))} />
+          <div style={s.hint}>
+            Three punchy words for the cover, each followed by a full stop &mdash; <em>duty. sacrifice. ruin.</em> &middot;
+            {' '}<em>birth. rhythm. farewell.</em> &middot; <em>rain. repetition. dread.</em><br />
+            Drawn from the story&rsquo;s own themes, mostly abstract nouns with the occasional concrete one.
+            Never repeat a word from the title.<br />
+            <strong>Leave it empty and the cover is still finished</strong> &mdash; the fleuron takes the space. Empty is a design, not a gap.
+          </div>
+          {(() => {
+            const v = validateDescriptor(form.descriptor);
+            if (!v.ok) return <div style={{ ...s.hint, color: '#ff8080' }}>{v.error}</div>;
+            if (v.empty) return null;
+            const echo = wordsEchoingTitle(form.descriptor, form.title);
+            const canon = canonicalDescriptor(form.descriptor);
+            return (
+              <div style={{ ...s.hint, color: echo.length ? '#e8b64c' : 'rgba(255,255,255,0.45)' }}>
+                {echo.length
+                  ? `Heads up: ${echo.join(', ')} already appears in the title. The rubric says not to repeat one \u2014 you can still save.`
+                  : `Stored as \u201c${canon}\u201d, set on the cover as \u201c${canon.toUpperCase()}\u201d.`}
+              </div>
+            );
+          })()}
+        </div>
+
         <div style={s.formActions}>
           <button style={s.btnGhost} onClick={onCancel}>Cancel</button>
           <button style={{ ...s.btn, opacity: saving ? 0.6 : 1 }} onClick={onSave} disabled={saving}>
@@ -600,7 +632,7 @@ export default function AdminPage() {
     content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, bookReader: false, prosePoetry: false, featuredPin: false,
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
-    trailerQuote: '', published: true,
+    trailerQuote: '', descriptor: '', published: true,
   };
   const [form, setForm] = useState(emptyForm);
   const [filter, setFilter] = useState('all'); // all · published · hidden
@@ -742,6 +774,9 @@ export default function AdminPage() {
         featuredPin: form.featuredPin || false,
         extractedText: form.extractedText || '',
         trailerQuote: form.trailerQuote?.trim() || '',
+        // Canonicalised on the way in, so cms_stories only ever holds one spelling of a
+        // descriptor and the generator never has to guess at what an editor typed.
+        descriptor: canonicalDescriptor(form.descriptor),
       };
       // These three were previously written only when truthy, letting the wholesale
       // overwrite delete them when absent. The write is now per-field (below), so
@@ -1001,6 +1036,7 @@ export default function AdminPage() {
       selectedAuthor,
       handleInput: '', resolvedHandle: null, handleError: '',
       trailerQuote: story.trailerQuote || '',
+      descriptor: story.descriptor || '',
       published: story.published,
     });
     setEditingId(story.id); setView('edit'); setMsg('');

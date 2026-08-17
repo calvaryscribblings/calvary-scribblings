@@ -30,11 +30,17 @@
     "test:membership-copy": "next build && node --test tests/membership/deck-parity.test.mjs && playwright test -c tests/membership/playwright.copy.config.mjs && playwright test -c tests/membership/playwright.links.config.mjs",
     "test:dropcap": "playwright test -c tests/dropcap/playwright.config.mjs",
     "test:verify-email": "playwright test -c tests/verify-email/playwright.config.mjs",
-    "lint:ratchet": "node scripts/lint-ratchet.mjs"
+    "lint:ratchet": "node scripts/lint-ratchet.mjs",
+    "covers:generate": "node scripts/covers/generate.mjs",
+    "covers:sheet": "node scripts/covers/contact-sheet.mjs --out covers-contact-sheet",
+    "covers:verify": "node --test \"tests/covers/*.test.mjs\"",
+    "covers:migrate": "node scripts/covers/migrate.mjs",
+    "covers:descriptors": "node scripts/covers/descriptor-sheet.mjs"
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
+    "@napi-rs/canvas": "1.0.6",
     "@next/mdx": "^16.2.1",
     "blurhash": "^2.0.5",
     "firebase": "^12.11.0",
@@ -51,6 +57,7 @@
     "eslint-config-next": "16.2.1",
     "firebase-admin": "^14.2.0",
     "firebase-tools": "^15.24.0",
+    "opentype.js": "2.0.0",
     "tailwindcss": "^4"
   }
 }

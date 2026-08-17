@@ -85,3 +85,15 @@ dist/
 # GENERATED, not committed: byte-identity is derived from source on every run, and a binary in
 # git is a fixture nobody can review. See docs/cfi-exchange-protocol.md.
 tests/fixtures/cross-surface/build/
+
+# Cover generator OUTPUT. Both directories are reproducible from the repo alone —
+# `npm run covers:sheet` rebuilds the sheet, and the migration manifest is rebuilt by
+# re-running the migration, which resumes rather than restarts. Neither belongs in git:
+# the sheet is ~1.7 MB of PNG per build, and covers-migration/png holds ~150 more.
+# covers-migration/SIGNOFF.md is the ONE file here that is a decision rather than an
+# artefact, so it is explicitly un-ignored — a sign-off should be reviewable in the diff.
+covers-contact-sheet/
+covers-migration/
+!covers-migration/SIGNOFF.md
+covers-descriptors/
+!covers-descriptors/RATIFIED.md
