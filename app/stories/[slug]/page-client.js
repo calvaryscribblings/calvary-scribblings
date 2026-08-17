@@ -18,6 +18,11 @@ import ReadSeal from '../../components/ReadSeal';
 import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
 import { getReaderId } from '../../lib/readerId';
 import { attachDropcap } from '../../lib/dropcap';
+// Render-time subheading classifier. Applied HERE, in the render, rather than as a DOM pass
+// like attachDropcap — this component is what the static export renders at build time, so
+// tagging in the render is what keeps out/stories/<slug>.html identical to the hydrated
+// page. See app/lib/subheadTag.js.
+import { tagSubheads } from '../../lib/subheadTag';
 import { proseCSS } from '../../lib/proseCSS';
 import SaveForOffline from '../../components/SaveForOffline';
 import { requestStory, bodyOf } from '../../lib/story';
@@ -1522,7 +1527,7 @@ useEffect(() => {
                   )}
                 </>
               ) : (
-                <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: story.content || '<p>Content coming soon.</p>' }} />
+                <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: tagSubheads(story.content || '<p>Content coming soon.</p>') }} />
               )}
               {/* Inside the article so the fade sits over the prose it is fading,
                   and outside .prose so the drop-cap tagger — which scopes its query

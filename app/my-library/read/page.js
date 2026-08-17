@@ -30,6 +30,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import { getSaved, savedAgo } from '../../lib/shelf';
 import { attachDropcap } from '../../lib/dropcap';
+// Same render-time subheading classifier the story page applies, imported rather than
+// copied, so a saved offline copy renders its section titles exactly as the live page does.
+import { tagSubheads } from '../../lib/subheadTag';
 import { proseCSS } from '../../lib/proseCSS';
 import { registerShelfWorker } from '../../lib/shelfWorker';
 import { useOffline } from '../../lib/useOffline';
@@ -236,7 +239,7 @@ export default function ShelfReaderPage() {
             <div
               className={`prose${isPoetry ? '' : ' has-dropcap'}`}
               id="story-content"
-              dangerouslySetInnerHTML={{ __html: record.content || '<p>This saved copy has no text.</p>' }}
+              dangerouslySetInnerHTML={{ __html: tagSubheads(record.content || '<p>This saved copy has no text.</p>') }}
             />
             <div className="sr-end" aria-hidden="true">
               <span className="sr-end-orn">✦</span>

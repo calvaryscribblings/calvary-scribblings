@@ -57,7 +57,13 @@ const DROPCAP_JS = asClassicScript(
   ['tagDropcap', 'DROPCAP_EXCLUDED_SELECTORS'],
   ['app/lib/prosePredicate.js'],
 );
-const PROSECSS_JS = asClassicScript('app/lib/proseCSS.js', ['proseCSS']);
+// R12.5: proseCSS.js stopped being self-contained when the subheading colour was pinned to
+// house gold. The tone it uses is DERIVED (see app/lib/houseGold.js — it is the lightest
+// tone of the house hue that clears 4.5:1 on the cream reading surface), so the constant is
+// inlined ahead of the stylesheet exactly as prosePredicate.js is ahead of dropcap.js.
+// Without it the stripped script defines proseCSS over an undefined identifier and every
+// case in this file fails with a ReferenceError at first call.
+const PROSECSS_JS = asClassicScript('app/lib/proseCSS.js', ['proseCSS'], ['app/lib/houseGold.js']);
 
 // ── THE CORPUS ───────────────────────────────────────────────────────────────────────────
 // `expect` is the text the drop cap must land on, or null for "no drop cap at all".

@@ -22,6 +22,25 @@
 // .back-link-row and the hero/nav rules all stay on the story page. This module is the
 // typography of the words themselves — the part both readers genuinely share — and
 // deliberately not the page furniture around them, which the two surfaces do not share.
+// ── R12.5: THE SUBHEADING COLOUR IS NO LONGER THE CATEGORY ACCENT ────────────────────────
+// Subheadings were violet because they took ${accentColor}, the per-category UI accent.
+// The ruling: gold is the editorial-furniture colour, violet is a UI/brand accent, and a
+// section title is editorial furniture. So the subheading is pinned to house gold and no
+// longer varies by category.
+//
+// It takes the ON_LIGHT tone because THIS STYLESHEET IS ONLY EVER RENDERED ON CREAM. Both
+// callers put .prose on #f0ead8 — the story page's .story-body-wrap and the shelf reader's
+// .sr-page. House gold's dark tone would measure 1.90:1 here; see app/lib/houseGold.js for
+// the derivation of the tone that does not.
+//
+// NOTE the drop cap on line 30 below is left at its literal #c9a84c ON PURPOSE. It has the
+// same 1.90:1 problem on the same surface, and it was held back from this round for its own
+// ruling rather than swept along with the subheadings. It is not an oversight; do not
+// "finish the job" here without that ruling.
+// Extension included on purpose: this module is loaded by `node --test` tooling as well as
+// by the bundler, and bare Node ESM does not resolve extensionless specifiers.
+import { HOUSE_GOLD_ON_LIGHT } from './houseGold.js';
+
 export function proseCSS(accentColor = '#6b46c1') {
   return `
         .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cormorant Garamond, Georgia, serif; font-weight: 400; }
@@ -31,7 +50,15 @@ export function proseCSS(accentColor = '#6b46c1') {
         .prose.has-dropcap p.dropcap-target { text-indent: 0; }
         .prose.has-dropcap p.story-frontmatter { font-style: italic; font-size: 0.85em; color: rgba(26,26,26,0.55); margin-bottom: 1.5em; }
         .prose h2 { font-size: 1.45rem; font-weight: 700; color: #1a1a1a; margin: 2.2em 0 0.7em; font-family: Cormorant Garamond, Georgia, serif; line-height: 1.3; }
-        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${accentColor}; margin: 2em 0 0.5em; font-weight: 400; font-family: Cormorant Garamond, Georgia, serif; }
+        .prose h3 { font-size: 1.15rem; font-style: italic; color: ${HOUSE_GOLD_ON_LIGHT}; margin: 2em 0 0.5em; font-weight: 400; font-family: Cormorant Garamond, Georgia, serif; }
+        /* The <p><strong>Heading</strong></p> subheading form, tagged at render by
+           app/lib/subheadTag.js. COLOUR ONLY: the ruling is a colour ruling, so the bold
+           roman weight these have always had is left alone rather than quietly restyled to
+           match h3's italic 400. The two forms now agree on colour and still differ in
+           weight — deliberate, and flagged for a typography ruling of its own.
+           Specificity (0,2,2) clears the .prose strong rule at (0,1,1) below.
+           NB no backticks in this comment: it lives inside a template literal. */
+        .prose p.prose-subhead strong { color: ${HOUSE_GOLD_ON_LIGHT}; }
         .prose p[style*='text-align:center'], .prose p[style*='text-align: center'] { text-align: center; font-family: Cormorant Garamond, Georgia, serif; letter-spacing: 0.3em; color: rgba(26,26,26,0.4); margin: 2.5em auto; font-size: 0.9rem; }
         .prose h4 { font-size: 1rem; font-weight: 700; color: #1a1a1a; margin: 1.5em 0 0.4em; font-family: Cormorant Garamond, Georgia, serif; }
         .prose img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; margin: 2em 0 0.5em; min-height: 200px; background: #e8e0d4; }
