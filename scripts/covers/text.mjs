@@ -133,6 +133,26 @@ export function breakParts(word) {
  * cover is not a paragraph of justified body text where a reader forgives one.
  */
 export function wrapTracked(ctx, text, tracking, maxWidth) {
+  return wrapDetailed(ctx, text, tracking, maxWidth).lines;
+}
+
+/**
+ * The wrap, plus WHETHER TIER 3 HAD TO FIRE.
+ *
+ * `brokeWord` is true when a word had to be split between clusters because it could not fit
+ * the measure whole. That fact is not cosmetic bookkeeping — it is the signal fitTitle uses
+ * to reject a size, and it exists because of a live defect:
+ *
+ *   "unstoppaBBL" set at 186px is 1396px wide against a 1232px measure. The character
+ *   breaker split it into UNSTOPPAB / BL — two lines, which SATISFIED the 186px rung's
+ *   two-line cap, so the ladder stopped there and shipped a title broken mid-word across a
+ *   cover. At 140px the same word is 1080px and sets whole on one line.
+ *
+ * The line cap was doing its job; the problem was that a last-resort break was being counted
+ * as a fit. A rung that can only be reached by breaking a word has not fitted the title, and
+ * the ladder should keep walking.
+ */
+export function wrapDetailed(ctx, text, tracking, maxWidth) {
   // Tokens carry whether a space precedes them, so a hyphen-split rejoins without one.
   const tokens = [];
   for (const word of String(text ?? '').split(/\s+/).filter(Boolean)) {
@@ -141,9 +161,11 @@ export function wrapTracked(ctx, text, tracking, maxWidth) {
 
   const lines = [];
   let line = '';
+  let brokeWord = false;
   const fits = (s) => trackedWidth(ctx, s, tracking) <= maxWidth;
 
   const pushBroken = (word) => {
+    brokeWord = true;
     let chunk = '';
     for (const c of clusters(word)) {
       if (chunk && !fits(chunk + c)) { lines.push(chunk); chunk = c; }
@@ -161,5 +183,5 @@ export function wrapTracked(ctx, text, tracking, maxWidth) {
     line = pushBroken(tok.text);
   }
   if (line) lines.push(line);
-  return lines;
+  return { lines, brokeWord };
 }

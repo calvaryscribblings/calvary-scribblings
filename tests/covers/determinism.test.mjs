@@ -283,6 +283,38 @@ test('THE EDGE CASES THE GATE REQUIRES', async (t) => {
     assert.equal(plan({ ...BASE, title: '1967' }).title.size, 186);
   });
 
+  await t.test('a title is never split mid-word when a smaller size would set it whole', () => {
+    // THE DEFECT THIS LOCKS DOWN, found on the live grid after the first sweep and not by
+    // any test: "unstoppaBBL" is 1396px at 186px against a 1232px measure, so the character
+    // breaker split it into UNSTOPPAB / BL — two lines, which SATISFIED the 186px rung's
+    // two-line cap. The ladder stopped there and shipped a word broken across a line for no
+    // reason: at 140px it is 1080px and sets whole. Three other live titles had the same
+    // fault — Adadiorama, Disillusionment, Sapiosexual — all of them single long words.
+    //
+    // The rule now: a rung reached only by splitting a word has not fitted the title.
+    for (const title of ['unstoppaBBL', 'Adadiorama', 'Disillusionment', 'Sapiosexual']) {
+      const p = plan({ ...BASE, title });
+      assert.equal(p.title.lines.length, 1, `${title} should set whole on one line, got ${JSON.stringify(p.title.lines)}`);
+      assert.equal(p.title.lines[0], caps(title));
+    }
+
+    // THE LIMIT OF THE RULE, asserted so nobody mistakes it for a promise. A word that fits
+    // at NO size on the ladder must still be broken — "never split mid-word" means "not while
+    // a smaller size would help", not "never". Antidisestablishmentarianism is 28 characters
+    // and overruns the measure even at the 68px fallback, so it breaks there, at the smallest
+    // size, having exhausted every alternative first. That is the last resort behaving like
+    // one.
+    const impossible = plan({ ...BASE, title: 'Antidisestablishmentarianism' });
+    assert.ok(impossible.title.lines.length > 1, 'a word too long for any rung must still break');
+    assert.equal(impossible.title.size, 68, 'and it must break at the SMALLEST size, not the first');
+    assert.equal(impossible.title.lines.join(''), caps('Antidisestablishmentarianism'),
+      'breaking must lose no letters and invent no hyphen');
+    // …but a multi-word title still wraps at spaces, and a hyphen is still preferred to both.
+    assert.ok(plan({ ...BASE, title: 'Beyond Saving' }).title.lines.length <= 2);
+    assert.ok(plan({ ...BASE, category: 'poetry', title: 'Brown-Skinned Girl' })
+      .title.lines.some((l) => l.endsWith('-')));
+  });
+
   await t.test("an existing hyphen is a break opportunity — the BROWN-SKI/NNED GIRL regression", () => {
     assert.deepEqual(breakParts('BROWN-SKINNED'), ['BROWN-', 'SKINNED']);
     assert.deepEqual(breakParts('CHERNOBYL'), ['CHERNOBYL']);

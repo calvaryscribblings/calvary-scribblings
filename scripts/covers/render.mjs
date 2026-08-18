@@ -32,7 +32,7 @@ import { createCanvas, GlobalFonts, Path2D } from '@napi-rs/canvas';
 import { FLEURON_PATH, FLEURON_BBOX } from '../../assets/covers/fleuron-2766.mjs';
 import { liveryFor, eyebrowFor, isLight, IMPRINT_EYEBROW, LIVERIES } from './liveries.mjs';
 import { rngForSlug } from './random.mjs';
-import { caps, drawTracked, trackedWidth, wrapTracked } from './text.mjs';
+import { caps, drawTracked, trackedWidth, wrapDetailed } from './text.mjs';
 import {
   AUTHOR, BORDER, CANVAS, DESCRIPTOR, EYEBROW, FLEURON, FOOTER, GLOW, GRAIN,
   instalmentFooter, RULE, STACK, STACK_REGION, TITLE, VIGNETTE,
@@ -299,9 +299,12 @@ function fitTitle(ctx, title, extraBelow = 0) {
   let candidate = null;
   for (const rung of TITLE.ladder) {
     ctx.font = FONTS[TITLE.font](rung.size);
-    const lines = wrapTracked(ctx, text, TITLE.tracking, TITLE.maxWidth);
+    const { lines, brokeWord } = wrapDetailed(ctx, text, TITLE.tracking, TITLE.maxWidth);
     const stackHeight = lines.length * rung.size * TITLE.lineHeight + RULE.gapAboveFromTitle + extraBelow;
-    candidate = { size: rung.size, lines, rung, stackHeight };
+    candidate = { size: rung.size, lines, rung, stackHeight, brokeWord };
+    // A rung reached only by SPLITTING A WORD has not fitted the title — see wrapDetailed.
+    // Walk on. The last rung takes whatever it gets, because below it there is nothing.
+    if (brokeWord) continue;
     if (lines.length <= rung.maxLines && stackHeight <= region) return candidate;
   }
   return candidate;   // ladder exhausted — planCover reports overflow and renderCover raises
