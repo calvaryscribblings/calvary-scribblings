@@ -262,19 +262,49 @@ const capAscent = (ctx) => ctx.measureText('H').actualBoundingBoxAscent;
 /**
  * Choose the title size and wrap.
  *
- * The ladder is walked in order and the first rung whose wrap fits within its line cap wins.
- * The last rung has no cap and so always returns; a title that overflows the stack region
- * even there is raised on by the caller rather than shipped.
+ * The ladder is walked in order and the first rung that satisfies BOTH constraints wins:
+ *
+ *   1. the wrap fits within that rung's line cap — the horizontal question;
+ *   2. the resulting stack fits the region it floats in — the VERTICAL question.
+ *
+ * ── BE HONEST ABOUT CONSTRAINT 2: AS THE LADDER STANDS, IT CANNOT BIND ───────────────────
+ * It was added when the descriptor gate opened, on the assumption that a descriptor might
+ * push a long title down a rung. Measured, it does not — and it cannot. The region is 1556px
+ * and the worst case any CAPPED rung can produce, with a descriptor, is:
+ *
+ *     186px x 2 lines = 636px      112px x 3 = 595px      78px x 4 = 568px
+ *     140px x 2 lines = 532px       92px x 4 = 631px
+ *
+ * 636px of 1556px — 41% of the region. Every capped rung has more than twice the room it can
+ * possibly need, so constraint 2 never decides anything, and across all 158 published stories
+ * with every ratified descriptor applied, ZERO titles step down.
+ *
+ * Nor does it rescue the one case that CAN overflow. A title long enough to overflow does so
+ * at the 68px fallback rung, which is uncapped and last — there is nothing below it to step
+ * to, so an impossible cover still raises, exactly as it should.
+ *
+ * ── SO WHY KEEP IT ───────────────────────────────────────────────────────────────────────
+ * Because the arithmetic above is a property of the CURRENT line caps, not a law. Raise
+ * `maxLines` on a rung, shrink STACK_REGION, or grow the descriptor row, and constraint 2
+ * becomes live — silently, and in the right direction. tests/covers/determinism.test.mjs
+ * asserts the 41% headroom explicitly, so the day someone changes the ladder the test tells
+ * them this guard has woken up rather than leaving them to discover it in a cover.
+ *
+ * It is a guard that currently costs one comparison and decides nothing. That is a fine
+ * thing for it to be, as long as nobody believes it is doing more than it is.
  */
-function fitTitle(ctx, title) {
+function fitTitle(ctx, title, extraBelow = 0) {
   const text = caps(title);
+  const region = STACK_REGION.bottom - STACK_REGION.top;
+  let candidate = null;
   for (const rung of TITLE.ladder) {
     ctx.font = FONTS[TITLE.font](rung.size);
     const lines = wrapTracked(ctx, text, TITLE.tracking, TITLE.maxWidth);
-    if (lines.length <= rung.maxLines) return { size: rung.size, lines, rung };
+    const stackHeight = lines.length * rung.size * TITLE.lineHeight + RULE.gapAboveFromTitle + extraBelow;
+    candidate = { size: rung.size, lines, rung, stackHeight };
+    if (lines.length <= rung.maxLines && stackHeight <= region) return candidate;
   }
-  // Unreachable: the last rung's cap is Infinity.
-  throw new Error(`title ladder exhausted: ${title}`);
+  return candidate;   // ladder exhausted — planCover reports overflow and renderCover raises
 }
 
 /**
@@ -287,18 +317,21 @@ export function planCover(ctx, record) {
   const livery = record.liveryKey ? LIVERIES[record.liveryKey] : liveryFor(record.category);
   if (!livery) throw new Error(`unknown livery: ${record.liveryKey}`);
 
-  const fitted = fitTitle(ctx, record.title);
-  const lineHeight = fitted.size * TITLE.lineHeight;
-  ctx.font = FONTS[TITLE.font](fitted.size);
-  const titleBaselineOffset = (lineHeight + capAscent(ctx)) / 2;
-  const titleBlockHeight = fitted.lines.length * lineHeight;
-
+  // The descriptor is measured FIRST, because its height is an input to the size choice —
+  // see fitTitle. Measuring it after would mean picking a rung blind to the row beneath it.
   const descriptorText = formatDescriptor(record.descriptor);
   let descAscent = 0;
   if (descriptorText) {
     ctx.font = FONTS[DESCRIPTOR.font](DESCRIPTOR.size);
     descAscent = capAscent(ctx);
   }
+  const extraBelow = descriptorText ? DESCRIPTOR.gapBelowRule + descAscent : 0;
+
+  const fitted = fitTitle(ctx, record.title, extraBelow);
+  const lineHeight = fitted.size * TITLE.lineHeight;
+  ctx.font = FONTS[TITLE.font](fitted.size);
+  const titleBaselineOffset = (lineHeight + capAscent(ctx)) / 2;
+  const titleBlockHeight = fitted.lines.length * lineHeight;
 
   // Heights are all relative offsets from the stack top, so the stack's HEIGHT can be known
   // before its POSITION — which is what lets the 20% placement be computed in one pass.

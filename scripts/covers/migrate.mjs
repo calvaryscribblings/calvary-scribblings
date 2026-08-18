@@ -79,6 +79,12 @@ const SIGNOFF = join(WORK_DIR, 'SIGNOFF.md');
 const SHEET_MANIFEST = join(ROOT, 'covers-contact-sheet/manifest.json');
 const NEW_PREFIX = 'covers-typographic';
 
+// The ONE node this migration ever reads. Named as a constant so preflight can assert it and
+// so that widening the scope is a visible, deliberate edit rather than a quiet one. Series
+// posters live on `series` / `series_instalments` and are out of scope BY RULING, not by
+// omission — see CLAUDE.md, "Covers: two rules, and they are different rules".
+const SOURCE_NODE = 'cms_stories';
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 
@@ -190,16 +196,30 @@ export function preflight(stories, manifest) {
   // 4. no duplicates — a slug is the primary key AND the grain seed
   if (live.size !== stories.length) fail(`duplicate slugs in the set (${stories.length} records, ${live.size} distinct)`);
 
+  // 5. SERIES IS OUT OF SCOPE BY RULING, and the guard is here so the ruling survives a
+  //    well-meaning future edit. 18 Aug 2026: the story library is typographic by rule;
+  //    SERIES COVERS ARE CURATED ARTWORK BY RULE — "Let Series be the only category that
+  //    will explore actual arts." See CLAUDE.md. A sweep that "fixed" the Beta Princess
+  //    poster would be reverting an editorial decision, not tidying up an omission.
+  //
+  //    The set is drawn from cms_stories and nothing else, so a series record cannot arrive
+  //    here by accident. This asserts it anyway, because the cost of asserting is nothing
+  //    and the cost of a silent scope creep is a poster somebody chose being overwritten.
+  if (SOURCE_NODE !== 'cms_stories') fail(`the migration source must be cms_stories, not ${SOURCE_NODE}`);
+  const seriesish = stories.filter((s) => s.story?.seriesId || s.story?.instalmentId || s.story?.ordinal != null);
+  if (seriesish.length) fail(`${seriesish.length} record(s) look like series instalments: ${seriesish.slice(0, 4).map((s) => s.slug).join(', ')}`);
+
   console.log(
     `preflight OK — ${stories.length} published stories, all real, all published, all named.\n` +
+    `  source node: ${SOURCE_NODE} only — series/ and series_instalments/ out of scope by ruling\n` +
     `  ${synthetic.size} synthetic contact-sheet record(s) confirmed ABSENT: ${[...synthetic].join(', ')}\n`,
   );
   return live;
 }
 
 async function fetchStories() {
-  const res = await fetch(`${DB_URL}/cms_stories.json`);
-  if (!res.ok) throw new Error(`cms_stories read failed: HTTP ${res.status}`);
+  const res = await fetch(`${DB_URL}/${SOURCE_NODE}.json`);
+  if (!res.ok) throw new Error(`${SOURCE_NODE} read failed: HTTP ${res.status}`);
   const all = await res.json();
   return Object.entries(all)
     .filter(([, s]) => isIndexed(s))
@@ -249,6 +269,14 @@ async function accessToken(svc) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const APPLY = !!args.apply;
+  // Re-process stories that are already `flipped`. Without it a flipped story is skipped,
+  // which is exactly right for resuming an interrupted sweep and exactly wrong for a
+  // deliberate second pass — the descriptor backfill being the first of those.
+  const REGENERATE = !!args.regenerate;
+  // Descriptors to apply, as { slug: "three. punchy. words." }. Supplied by the descriptor
+  // ingest so that a story's descriptor and the cover that DISPLAYS it land in one patch —
+  // there is no instant at which a record claims a descriptor its cover does not show.
+  const descriptors = args.descriptors ? JSON.parse(readFileSync(String(args.descriptors), 'utf8')) : null;
   const RENDER = !!args.render || APPLY;
   const ROLLBACK = !!args.rollback;
   const manifest = loadManifest();
@@ -275,11 +303,15 @@ async function main() {
 
   mkdirSync(join(WORK_DIR, 'png'), { recursive: true });
   manifest.startedAt ??= new Date().toISOString();
-  let done = 0, skipped = 0, failed = 0, withDescriptor = 0;
+  let done = 0, skipped = 0, failed = 0, withDescriptor = 0, unchanged = 0;
 
   for (const { slug, story, record } of stories) {
     const entry = manifest.stories[slug] ??= { state: 'pending' };
-    if (entry.state === 'flipped') { skipped++; continue; }
+    if (entry.state === 'flipped' && !REGENERATE) { skipped++; continue; }
+    // A supplied descriptor overrides whatever the record currently holds — that is the
+    // point of an ingest. `?? record.descriptor` keeps a story the sheet did not mention
+    // exactly as it is rather than silently clearing it.
+    if (descriptors) record.descriptor = descriptors[slug] ?? record.descriptor;
     if (record.descriptor) withDescriptor++;
 
     try {
@@ -290,6 +322,13 @@ async function main() {
         continue;
       }
       const { png, plan } = renderCover(record);
+      // IDEMPOTENCE. A regeneration pass that produces the identical image has nothing to do:
+      // no upload, no new path, no flip, no cache churn. Because the renderer is
+      // deterministic this is a reliable test and not an optimisation guess — same record in,
+      // same bytes out, so an equal hash means an equal cover.
+      if (REGENERATE && APPLY && entry.state === 'flipped' && sha(png) === entry.sha256) {
+        unchanged++; continue;
+      }
       const pngPath = join(WORK_DIR, 'png', `${slug}.png`);
       writeFileSync(pngPath, png);
       Object.assign(entry, {
@@ -306,6 +345,18 @@ async function main() {
       entry.old ??= {
         cover: story.cover ?? '', coverSizes: story.coverSizes ?? null, coverHash: story.coverHash ?? '',
       };
+      // TWO ROLLBACK TARGETS, and they answer different questions.
+      //   `old`      — the ORIGINAL AI artwork, captured once and never overwritten (`??=`).
+      //                This is the promise made at the gate: rollback returns the library to
+      //                what it looked like before any of this.
+      //   `previous` — the state immediately before THIS flip, rewritten every pass. On a
+      //                descriptor regeneration that is the descriptor-less typographic cover,
+      //                which is the thing you would actually want back if the descriptors
+      //                turned out to be wrong. Undoing the words should not undo the system.
+      entry.previous = {
+        cover: story.cover ?? '', coverSizes: story.coverSizes ?? null,
+        coverHash: story.coverHash ?? '', descriptor: story.descriptor ?? '',
+      };
 
       // ── upload: PNG + both WebP rungs, all under the new prefix ──────────────────────
       const { sizes, hash } = await deriveFrom(png);
@@ -317,9 +368,23 @@ async function main() {
         });
         return downloadUrl(path, t);
       };
-      const coverUrl = await put(`${NEW_PREFIX}/${slug}/cover.png`, png, 'image/png');
+      // ── THE PATH IS CONTENT-ADDRESSED FROM GENERATION TWO ONWARDS ───────────────────
+      // Generation one sits flat at covers-typographic/{slug}/cover.png. Every regeneration
+      // goes to covers-typographic/{slug}/{sha12}/… instead, and the reason is the
+      // cache-control header this script sets: `immutable, max-age=31536000`. That promise
+      // is only honest if the bytes at a URL never change. Overwriting the flat path would
+      // break it — readers and the Cloudflare edge would hold the old cover for a year while
+      // the record insisted it had a new one.
+      //
+      // Keying on the render's own hash makes the path a function of the image: a changed
+      // cover always gets a fresh URL, an unchanged one would land on the same URL it
+      // already has (and is short-circuited above before reaching here anyway), and no
+      // generation ever overwrites another. It also means the whole history stays
+      // retrievable, which is what makes `previous` below worth recording.
+      const dir = REGENERATE ? `${NEW_PREFIX}/${slug}/${sha(png).slice(0, 12)}` : `${NEW_PREFIX}/${slug}`;
+      const coverUrl = await put(`${dir}/cover.png`, png, 'image/png');
       const newSizes = {};
-      for (const w of WIDTHS) newSizes[`w${w}`] = await put(`${NEW_PREFIX}/${slug}/w${w}.webp`, sizes[`w${w}`], 'image/webp');
+      for (const w of WIDTHS) newSizes[`w${w}`] = await put(`${dir}/w${w}.webp`, sizes[`w${w}`], 'image/webp');
       Object.assign(entry, { state: 'uploaded', new: { cover: coverUrl, coverSizes: newSizes, coverHash: hash } });
       saveManifest(manifest);
 
@@ -342,11 +407,17 @@ async function main() {
       // So the whole index record is RE-PROJECTED through buildIndexRecord from the merged
       // story: complete by construction, impossible to stub, and self-healing if the entry
       // was missing or stale to begin with.
+      const setDescriptor = descriptors ? (descriptors[slug] ?? '') : null;
       const merged = { ...story, cover: coverUrl, coverSizes: newSizes, coverHash: hash };
+      if (setDescriptor !== null) merged.descriptor = setDescriptor;
       await rtdbPatch(token, {
         [`cms_stories/${slug}/cover`]: coverUrl,
         [`cms_stories/${slug}/coverSizes`]: newSizes,
         [`cms_stories/${slug}/coverHash`]: hash,
+        // The descriptor rides in the SAME patch as the cover that displays it. Writing the
+        // words first and the picture second would leave a window — however short — in which
+        // a story claims three words no reader can see on its cover.
+        ...(setDescriptor !== null ? { [`cms_stories/${slug}/descriptor`]: setDescriptor } : {}),
         [`cms_stories_index/${slug}`]: buildIndexRecord(slug, merged),
       });
       entry.state = 'flipped';
@@ -367,6 +438,7 @@ async function main() {
 
   console.log(`\n── SUMMARY ────────────────────────────────────────────`);
   console.log(`  processed          ${done}`);
+  if (REGENERATE) console.log(`  unchanged          ${unchanged}  (identical render — nothing uploaded, nothing flipped)`);
   console.log(`  already flipped    ${skipped}  (resumed — not redone)`);
   console.log(`  failed             ${failed}`);
   console.log(`  with a descriptor  ${withDescriptor} / ${stories.length}`);

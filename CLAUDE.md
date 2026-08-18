@@ -52,3 +52,27 @@ Never edit anything under `calvary-scribblings-next/`, and never re-add it to gi
 ## Verification
 
 Before committing any new file, run `git status` and confirm the path is at the repo root (`app/…`, `emails/…`, `scripts/…`, `public/…`). If you see a path starting with `calvary-scribblings-next/` or `calvary-app/`, stop — that is a vestigial location, and nothing under it may be staged or committed.
+
+## Covers: two rules, and they are different rules
+
+**The story library is typographic BY RULE.** Every published `cms_stories` cover is generated
+by `scripts/covers/` — deterministic, offline, no artwork. R12.6/R12.6a swept all 158.
+
+**Series covers are curated artwork BY RULE.** `series/*` posters and `series_instalments/*`
+are *deliberately* not typographic. Ikenna's ruling, 18 Aug 2026, on seeing the Beta Princess
+poster survive the sweep:
+
+> "Beautiful accident. I like the way it sits on the page. Let Series be the only category
+> that will explore actual arts."
+
+Commissioned artists, or AI images picked carefully, one poster at a time, at small volume.
+That is a **standing editorial decision, not an oversight and not a backlog item.**
+
+So: **nothing under `series/` or `series_instalments/` is ever in scope for a cover sweep.**
+If you find yourself about to "fix" the Beta Princess poster, or to extend the migration to
+series, stop — you would be reverting a ruling. `scripts/covers/migrate.mjs` reads
+`cms_stories` and nothing else, and its preflight asserts that.
+
+The generator's **Series livery stays exactly as built** — it is proven on the contact sheet
+and costs nothing to keep. Whether it is ever *used* is a separate decision for a separate
+day; its existence is not a plan to migrate series.

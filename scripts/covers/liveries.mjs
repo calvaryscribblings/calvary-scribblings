@@ -28,6 +28,14 @@ export const LIVERIES = Object.freeze({
   flash:     Object.freeze({ key: 'flash',     name: 'Flash Fiction',   ground: '#3C101A', keyline: '#C9A84C', title: '#F5F0E8', glow: '#781E28' }),
   inspiring: Object.freeze({ key: 'inspiring', name: 'Inspiring',       ground: '#102E26', keyline: '#C9A84C', title: '#F5F0E8', glow: '#185C4A' }),
   news:      Object.freeze({ key: 'news',      name: 'News & Updates',  ground: '#0E1A2E', keyline: '#C9A84C', title: '#F5F0E8', glow: '#1E4478' }),
+  // ── SERIES IS BUILT, PROVEN, AND DELIBERATELY UNUSED ───────────────────────────────────
+  // Ruling, 18 Aug 2026: the story library is typographic by rule; SERIES COVERS ARE CURATED
+  // ARTWORK BY RULE — commissioned artists or carefully chosen images, one poster at a time.
+  // "Let Series be the only category that will explore actual arts."
+  //
+  // This livery is kept because it is proven and costs nothing to keep, NOT because a series
+  // migration is pending. There is no pending series migration. Nothing under series/ or
+  // series_instalments/ is ever in a cover sweep's scope — see CLAUDE.md.
   series:    Object.freeze({ key: 'series',    name: 'Series',          ground: '#E6E0D2', keyline: '#6E1424', title: '#1C1418', glow: null      }),
 });
 

@@ -44,6 +44,7 @@
 // generator treats absence as a finished design; a padded descriptor is worse than none, and
 // roughly half a library wearing no descriptor at all is the expected outcome, not a gap.
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateDescriptor, canonicalDescriptor, wordsEchoingTitle, DESCRIPTOR_EXAMPLES } from '../../app/lib/coverDescriptor.js';
@@ -203,15 +204,37 @@ async function ingest() {
   }
   const withDesc = rows.filter((r) => validateDescriptor(r.descriptor).empty === false);
   console.log(`ratified sheet parsed: ${rows.length} rows, ${withDesc.length} carry a descriptor.`);
-  console.log('\nTHE WRITE STEP IS DELIBERATELY NOT WIRED TO A DEFAULT RUN.');
-  console.log('Each of these would be: write cms_stories/{slug}/descriptor + cms_stories_index,');
-  console.log('re-render, upload under covers-typographic/{slug}/, and flip the six pointers in');
-  console.log('one atomic patch — the same mechanics as scripts/covers/migrate.mjs, which owns');
-  console.log('that code. Re-running the migration after the descriptors land does exactly this:');
-  console.log('  node scripts/covers/migrate.mjs --apply');
-  console.log('\nWould write descriptors for:');
-  for (const r of withDesc.slice(0, 10)) console.log(`  ${r.slug.padEnd(46)} ${canonicalDescriptor(r.descriptor)}`);
-  if (withDesc.length > 10) console.log(`  … and ${withDesc.length - 10} more`);
+
+  // The ratified sheet, canonicalised into the shape the migration consumes. Written to disk
+  // rather than passed in memory so that the exact input to the sweep is inspectable
+  // afterwards — "what did it actually write?" should never need re-deriving from a Markdown
+  // table. An EMPTY cell is preserved as '' and written as '': emptying a cell is a decision
+  // to remove a descriptor, and it must survive the trip.
+  const payload = Object.fromEntries(rows.map((r) => [r.slug, canonicalDescriptor(r.descriptor)]));
+  const payloadPath = join(WORK, 'ratified.json');
+  writeFileSync(payloadPath, JSON.stringify(payload, null, 1));
+  console.log(`  → ${payloadPath}`);
+
+  if (!args.apply) {
+    console.log('\nDRY RUN — nothing written. Re-run with --apply to action the ratification.');
+    console.log('It will: write each descriptor and the cover that displays it in ONE atomic');
+    console.log('patch per story, regenerate every cover, and flip through the same preflight,');
+    console.log('manifest and buildIndexRecord re-projection as the main sweep.\n');
+    for (const r of withDesc.slice(0, 8)) console.log(`  ${r.slug.padEnd(46)} ${canonicalDescriptor(r.descriptor)}`);
+    if (withDesc.length > 8) console.log(`  … and ${withDesc.length - 8} more`);
+    return;
+  }
+
+  // ── HAND OFF TO THE MIGRATION ──────────────────────────────────────────────────────────
+  // Deliberately NOT reimplemented here. migrate.mjs owns the preflight, the manifest, the
+  // atomic patch, the index re-projection and the rollback snapshots; a second copy of that
+  // logic living in the descriptor script is exactly how two subtly different migrations end
+  // up in one repo. This runs THE migration, with descriptors supplied and regeneration on.
+  console.log('\nhanding off to scripts/covers/migrate.mjs --apply --regenerate\n');
+  const migrate = fileURLToPath(new URL('./migrate.mjs', import.meta.url));
+  const r = spawnSync(process.execPath, [migrate, '--apply', '--regenerate', '--descriptors', payloadPath],
+    { stdio: 'inherit' });
+  process.exit(r.status ?? 1);
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -223,4 +246,5 @@ else {
   console.log('  --extract  pull every published story\'s full text into batches for reading');
   console.log('  --sheet    render covers-descriptors/REVIEW-SHEET.md from drafts.json');
   console.log('  --ingest   read the RATIFIED sheet back (refuses until RATIFIED.md exists)');
+  console.log('             add --apply to action it: descriptors + regenerated covers');
 }

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { createCanvas } from '@napi-rs/canvas';
 import { renderCover, planCover, registerFonts, measureCanaries, formatDescriptor } from '../../scripts/covers/render.mjs';
 import { LIVERIES, liveryFor, eyebrowFor, isKnownCategory, IMPRINT_EYEBROW } from '../../scripts/covers/liveries.mjs';
-import { AUTHOR, CANVAS, EYEBROW, FOOTER, STACK, STACK_REGION, TITLE, instalmentFooter } from '../../scripts/covers/layout.mjs';
+import { AUTHOR, CANVAS, DESCRIPTOR, EYEBROW, FOOTER, RULE, STACK, STACK_REGION, TITLE, instalmentFooter } from '../../scripts/covers/layout.mjs';
 import { breakParts, caps, clusters, wrapTracked } from '../../scripts/covers/text.mjs';
 import { rngForSlug, seedFrom } from '../../scripts/covers/random.mjs';
 import { FLEURON_PATH, FLEURON_PATH_SHA256 } from '../../assets/covers/fleuron-2766.mjs';
@@ -149,6 +149,39 @@ test('THE LAYOUT', async (t) => {
         assert.ok(p.title.lines.length <= chosen.maxLines,
           `${p.title.size}px allowed ${p.title.lines.length} lines, cap is ${chosen.maxLines}`);
       }
+    }
+  });
+
+  await t.test('the vertical constraint has headroom — if this fails, the ladder changed', () => {
+    // The title ladder is chosen on WIDTH. A second, vertical constraint exists in fitTitle
+    // and currently decides nothing, because every capped rung's worst-case stack — max
+    // lines at that size, plus the rule gap, plus a descriptor row — is far inside the
+    // region. This asserts that headroom rather than the inert behaviour it produces.
+    //
+    // WHEN THIS FAILS, nothing is broken: it means someone raised a line cap, shrank the
+    // stack region, or grew the descriptor, and the vertical constraint has become LIVE.
+    // Titles can now step down a rung for reasons of height. That is the ladder working —
+    // but it is a real behaviour change, and it should be noticed here rather than in a
+    // cover. Re-measure, and update the 0.5 below deliberately.
+    const region = STACK_REGION.bottom - STACK_REGION.top;
+    const descExtra = DESCRIPTOR.gapBelowRule + DESCRIPTOR.size * 0.72;
+    for (const rung of TITLE.ladder) {
+      if (rung.maxLines === Infinity) continue;   // the fallback: uncapped, nothing below it
+      const worst = rung.maxLines * rung.size * TITLE.lineHeight + RULE.gapAboveFromTitle + descExtra;
+      assert.ok(worst < region * 0.5,
+        `${rung.size}px x ${rung.maxLines} lines needs ${worst.toFixed(0)}px of ${region}px — the vertical constraint is now live`);
+    }
+  });
+
+  await t.test('a descriptor never pushes a cover out of its frame', () => {
+    // The property that actually matters, stated directly: adding three words must never
+    // produce a cover that cannot be drawn.
+    for (const title of ['Chaff', 'Beyond Saving', 'Arrival: Again', 'Brown-Skinned Girl',
+      'The Age of Agentic AI: when machines start hacking without permission — or a human']) {
+      const bare = plan({ ...BASE, title });
+      const withDesc = plan({ ...BASE, title, descriptor: 'duty. sacrifice. ruin.' });
+      assert.equal(withDesc.overflow, false, `${title} overflowed once it gained a descriptor`);
+      assert.ok(withDesc.title.size <= bare.title.size, `${title} grew its title when given a descriptor`);
     }
   });
 
