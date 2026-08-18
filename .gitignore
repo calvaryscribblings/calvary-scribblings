@@ -93,7 +93,11 @@ tests/fixtures/cross-surface/build/
 # covers-migration/SIGNOFF.md is the ONE file here that is a decision rather than an
 # artefact, so it is explicitly un-ignored — a sign-off should be reviewable in the diff.
 covers-contact-sheet/
-covers-migration/
+# NOTE the trailing /* rather than a bare directory. Git does not descend into an excluded
+# DIRECTORY, so a `!` negation inside one never gets a chance to match — `covers-migration/`
+# followed by `!covers-migration/SIGNOFF.md` silently ignored the sign-off too. Excluding the
+# directory's CONTENTS instead keeps the negation reachable. Same for RATIFIED.md below.
+covers-migration/*
 !covers-migration/SIGNOFF.md
-covers-descriptors/
+covers-descriptors/*
 !covers-descriptors/RATIFIED.md

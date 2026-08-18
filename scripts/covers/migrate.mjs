@@ -62,7 +62,8 @@ import sharp from 'sharp';
 import { encode as blurhashEncode } from 'blurhash';
 import { renderCover } from './render.mjs';
 import { toRecord, parseArgs } from './generate.mjs';
-import { isIndexed } from '../../app/lib/storyIndex.js';
+import { CASES } from './contact-sheet.mjs';
+import { isIndexed, buildIndexRecord } from '../../app/lib/storyIndex.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
@@ -149,6 +150,53 @@ function requireSignoff() {
   return sheetSha;
 }
 
+/**
+ * THE PREFLIGHT — proves the migration set before a single byte is uploaded.
+ *
+ * This exists because of a real question Ikenna asked of the contact sheet: three of the
+ * seventeen plates carry titles nobody recognised. They are the SYNTHETIC records — a
+ * Yorùbá-diacritic title, a story with no category at all, and a Series instalment — which
+ * exist only to prove the renderer against cases the live library does not currently
+ * contain. They are not stories. They have no cms_stories record, no slug anyone can visit,
+ * and they must never touch Storage or RTDB.
+ *
+ * "They aren't in the migration" is easy to say and easy to be wrong about, so it is
+ * ASSERTED rather than asserted-by-eye, and the synthetic set is DERIVED from the very
+ * array the contact sheet renders from — not retyped here, where it could drift out of
+ * agreement with the sheet it is supposed to describe.
+ *
+ * Every check below is a refusal, not a warning. A migration that writes to 157 of 158
+ * stories, or to 159, is not a migration that can be reasoned about afterwards.
+ */
+export function preflight(stories, manifest) {
+  const fail = (msg) => { console.error(`REFUSED — ${msg}`); process.exit(4); };
+  const live = new Set(stories.map((s) => s.slug));
+  const synthetic = new Set(CASES.filter((c) => c.synthetic).map((c) => c.slug));
+
+  // 1. the synthetic records are not in the set, and cannot be
+  const smuggled = [...synthetic].filter((s) => live.has(s));
+  if (smuggled.length) fail(`synthetic record(s) present in the migration set: ${smuggled.join(', ')}`);
+
+  // 2. nor are they lurking in a manifest carried over from an earlier run
+  const stale = Object.keys(manifest.stories).filter((s) => !live.has(s));
+  if (stale.length) fail(`manifest carries ${stale.length} slug(s) that are not live published stories: ${stale.slice(0, 5).join(', ')}`);
+
+  // 3. every member of the set is a real, published, renderable record
+  const unpublished = stories.filter((s) => !isIndexed(s.story));
+  if (unpublished.length) fail(`${unpublished.length} unpublished record(s) in the set`);
+  const nameless = stories.filter((s) => !s.slug || !String(s.record.title ?? '').trim());
+  if (nameless.length) fail(`${nameless.length} record(s) without a slug or title`);
+
+  // 4. no duplicates — a slug is the primary key AND the grain seed
+  if (live.size !== stories.length) fail(`duplicate slugs in the set (${stories.length} records, ${live.size} distinct)`);
+
+  console.log(
+    `preflight OK — ${stories.length} published stories, all real, all published, all named.\n` +
+    `  ${synthetic.size} synthetic contact-sheet record(s) confirmed ABSENT: ${[...synthetic].join(', ')}\n`,
+  );
+  return live;
+}
+
 async function fetchStories() {
   const res = await fetch(`${DB_URL}/cms_stories.json`);
   if (!res.ok) throw new Error(`cms_stories read failed: HTTP ${res.status}`);
@@ -176,8 +224,12 @@ async function deriveFrom(png) {
 const downloadUrl = (path, token) =>
   `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
 
+// `access_token=`, NOT `auth=`. The `auth` parameter is for legacy database secrets and
+// Firebase ID tokens; a Google OAuth2 access token presented there is rejected with a bare
+// HTTP 401 "Permission denied" that reads exactly like a rules problem and is not one.
+// Cost an entire 158-story run to learn. scripts/backfill-cover-derivatives.mjs had it right.
 async function rtdbPatch(token, updates) {
-  const res = await fetch(`${DB_URL}/.json?auth=${token}`, {
+  const res = await fetch(`${DB_URL}/.json?access_token=${token}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(updates),
@@ -205,6 +257,7 @@ async function main() {
   if (APPLY || ROLLBACK) requireSignoff();
 
   const stories = await fetchStories();
+  preflight(stories, manifest);
   console.log(
     `${ROLLBACK ? 'ROLLBACK' : APPLY ? 'APPLYING' : RENDER ? 'RENDER ONLY (no writes)' : 'PLAN ONLY (no renders, no writes)'}` +
     ` — ${stories.length} published stories\n`,
@@ -270,17 +323,31 @@ async function main() {
       Object.assign(entry, { state: 'uploaded', new: { cover: coverUrl, coverSizes: newSizes, coverHash: hash } });
       saveManifest(manifest);
 
-      // ── the flip: SIX FIELDS, TWO NODES, ONE ATOMIC PATCH ────────────────────────────
+      // ── the flip: ONE ATOMIC PATCH, TWO NODES ────────────────────────────────────────
       // A root-level PATCH with deep paths is applied by RTDB as a single transaction. That
       // is what makes a story atomic: there is no instant at which cms_stories points at the
       // new cover while cms_stories_index still points at the old one.
+      //
+      // NOTE THE ASYMMETRY, WHICH IS NOT A STYLE CHOICE.
+      //
+      // cms_stories takes deep paths — a merge that leaves every other field alone.
+      //
+      // cms_stories_index MUST NOT. A deep path (`<slug>/cover`) CREATES THE PARENT when the
+      // slug has no index entry, materialising a record containing only cover fields: a stub
+      // with no title, no authorUid, no date, that still counts as a member of the index.
+      // That is not hypothetical — it is exactly how cms_stories_index/your-money-cannot-
+      // save-you lost its authorUid and dropped a story off its author's Voices page, and
+      // scripts/backfill-cover-derivatives.mjs carries the scar in its own comments.
+      //
+      // So the whole index record is RE-PROJECTED through buildIndexRecord from the merged
+      // story: complete by construction, impossible to stub, and self-healing if the entry
+      // was missing or stale to begin with.
+      const merged = { ...story, cover: coverUrl, coverSizes: newSizes, coverHash: hash };
       await rtdbPatch(token, {
         [`cms_stories/${slug}/cover`]: coverUrl,
         [`cms_stories/${slug}/coverSizes`]: newSizes,
         [`cms_stories/${slug}/coverHash`]: hash,
-        [`cms_stories_index/${slug}/cover`]: coverUrl,
-        [`cms_stories_index/${slug}/coverSizes`]: newSizes,
-        [`cms_stories_index/${slug}/coverHash`]: hash,
+        [`cms_stories_index/${slug}`]: buildIndexRecord(slug, merged),
       });
       entry.state = 'flipped';
       entry.flippedAt = new Date().toISOString();
@@ -310,14 +377,16 @@ async function main() {
 async function rollback(manifest, token) {
   const flipped = Object.entries(manifest.stories).filter(([, e]) => e.state === 'flipped' && e.old);
   console.log(`rolling back ${flipped.length} storie(s) to their pre-migration covers\n`);
+  // The index is re-read so the rollback re-projects a CURRENT record rather than one this
+  // process remembers — same reason as the flip: never write a partial index entry.
+  const live = await (await fetch(`${DB_URL}/cms_stories.json`)).json();
   for (const [slug, e] of flipped) {
+    const merged = { ...(live[slug] || {}), cover: e.old.cover, coverSizes: e.old.coverSizes, coverHash: e.old.coverHash };
     await rtdbPatch(token, {
       [`cms_stories/${slug}/cover`]: e.old.cover,
       [`cms_stories/${slug}/coverSizes`]: e.old.coverSizes,
       [`cms_stories/${slug}/coverHash`]: e.old.coverHash,
-      [`cms_stories_index/${slug}/cover`]: e.old.cover,
-      [`cms_stories_index/${slug}/coverSizes`]: e.old.coverSizes,
-      [`cms_stories_index/${slug}/coverHash`]: e.old.coverHash,
+      [`cms_stories_index/${slug}`]: buildIndexRecord(slug, merged),
     });
     e.state = 'rolled-back';
     saveManifest(manifest);
