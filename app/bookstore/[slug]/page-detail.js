@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation';
 import { getTitleBySlug, getPublisherPublic } from '../../lib/bookstore/loader';
 // R13 — the taxonomy, read as data. This used to import sectionForGenre from the storefront
 // route AND keep its own byte-identical copy of GENRE_LABELS four lines below. Both are gone.
-import { getGenres } from '../../lib/bookstore/loader';
+import { getGenres, getReadership } from '../../lib/bookstore/loader';
+// R14 — the readership line. Pure, money-free and portable; see the module header.
+import { readershipFor } from '../../lib/bookstore/readership';
 import { genreLabel as labelOf, groupOf } from '../../lib/bookstore/genres';
 import Navbar from '../../components/Navbar';
 import TabBar from '../../components/TabBar';
@@ -86,6 +88,9 @@ export default function BookDetailClient({ params }) {
   const [curtain, setCurtain] = useState('checking'); // 'checking' | 'up' | 'gone'
   const [unlocked, setUnlocked] = useState(false);
   const [genres, setGenres] = useState([]);
+  // R14 — the public count. 0 until the read lands, and 0 renders nothing, so the line
+  // fades in a beat after the page rather than reserving an empty row for itself.
+  const [readership, setReadership] = useState(0);
   useEffect(() => {
     if (isStoreUnlocked()) { setUnlocked(true); setCurtain('gone'); }
     else setCurtain('up');
@@ -109,6 +114,11 @@ export default function BookDetailClient({ params }) {
       // long enough to read and is honest when it is.
       const g = await getGenres();
       if (!cancelled) setGenres(g);
+      // R14 — one key of a public node, keyed by the RECORD KEY (t.id), which is what
+      // bookstore_purchases is keyed by and therefore what the webhook counted against.
+      // Deliberately not gated on sign-in: this is public data and a guest sees it.
+      const r = await getReadership(t.id);
+      if (!cancelled) setReadership(r);
       if (t.publisherId) {
         // R9.2 PL-11 — the PUBLIC getter. Only `name` is ever used here, and the merged
         // getPublisher() also reached for bookstore_publishers_private, which is
@@ -161,6 +171,9 @@ export default function BookDetailClient({ params }) {
   const genreLabel = (g) => labelOf(genres, g);
   const sectionLabel = (g) => (groupOf(genres, g) === 'nonfiction' ? 'Non-Fiction' : 'Fiction');
   const sectionAnchor = (g) => (groupOf(genres, g) === 'nonfiction' ? 'nonfiction' : 'fiction');
+  // R14. The platform argument is left at its default here — this IS the web — and the
+  // register lives in the module, so this call site never learns why the answer was null.
+  const readershipLine = readershipFor(readership);
   const section = title ? sectionLabel(title.genre) : '';
   const cat = title ? formatCatalogueNumber(title.catalogueNumber) : null;
 
@@ -324,6 +337,38 @@ export default function BookDetailClient({ params }) {
                   <MetaItem label="Publisher" value={publisherName || null} />
                   {title.isbn ? <MetaItem label="ISBN" value={title.isbn} /> : null}
                 </div>
+
+                {/* ── R14 — THE READERSHIP LINE ────────────────────────────────────────────
+                    Ikenna's ruling, 19 Aug 2026: the genre principle again. Absent is absent.
+                    readershipFor() returns null below one, so there is no `count > 0` test
+                    here and no zero to format — the element simply is not rendered, exactly
+                    as MetaItem above returns null for a missing value.
+
+                    A TITLE'S LINE APPEARING FOR THE FIRST TIME NEEDS NO CODE CHANGE: the
+                    first purchase moves the counter inside the webhook's own write, and the
+                    next load of this page has a line where it had none.
+
+                    PLACEMENT. Under the credits strip, not beside the buy button. The strip
+                    is where this page states facts ABOUT the book — genre, pages, date,
+                    publisher, ISBN — and readership is one more of them, the only one that is
+                    about other people. Beside the button it would be a persuasion; here it is
+                    a credit.
+
+                    TYPE. The strip's own label face, verbatim — Cinzel .52rem, .24em, muted
+                    gold, uppercased by CSS — so it reads as a sixth line of the same block
+                    rather than a new kind of thing. It sits below the grid rather than inside
+                    it because it is a sentence, not a label over a value. */}
+                {readershipLine && (
+                  <div
+                    data-testid="readership-line"
+                    style={{
+                      fontFamily: "'Cinzel',serif", fontSize: '.52rem', letterSpacing: '.24em',
+                      textTransform: 'uppercase', color: 'rgba(201,164,76,.55)', marginTop: '1.6rem',
+                    }}
+                  >
+                    {readershipLine}
+                  </div>
+                )}
 
                 {/* From the book */}
                 {title.excerpt && (

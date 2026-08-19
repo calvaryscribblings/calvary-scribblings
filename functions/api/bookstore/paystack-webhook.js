@@ -50,6 +50,7 @@ import {
   buildRevokePayload,
   shouldSkipGrant,
   classifyRevocation,
+  PURCHASE_UNKNOWN,
   PAYSTACK_REF_FIELDS,
   PROVIDER_TIMEOUT_MS,
   parsePaystackReference,
@@ -249,7 +250,10 @@ async function handleGrant(env, data) {
   // The guard decides on the REFERENCE ALONE — a replay never re-grants, whatever the stored
   // status, and a different reference is a genuine repurchase that must go through. Both
   // rails share it since R8.2.1; the argument lives in _lib.js.
-  let existing = null;
+  // R14 — PURCHASE_UNKNOWN, not null. See the identical note on the Stripe rail: this read
+  // now feeds the readership delta as well as the idempotency guard, and the two want
+  // opposite postures on a failed read.
+  let existing = PURCHASE_UNKNOWN;
   try {
     existing = await readPurchase(env, token, uid, titleId);
   } catch (e) {
@@ -265,17 +269,18 @@ async function handleGrant(env, data) {
 
   const fields = denormalisedFields(titleRecord);
 
-  await patchPurchase(env, token, uid, titleId, buildGrantPayload({
+  const { delta } = await patchPurchase(env, token, uid, titleId, buildGrantPayload({
     amount: txn.amount,
     currency: 'NGN',
     refField: 'paystackRef',
     refValue: reference,
     fields,
-  }));
+  }), existing);
 
   console.log(
     `[${LABEL}] recorded uid=${uid} titleId=${titleId} ref=${reference} ` +
-    `${txn.amount} kobo${fields ? '' : ' (no denormalised fields)'}`,
+    `${txn.amount} kobo readership${delta >= 0 ? '+' : ''}${delta}` +
+    `${fields ? '' : ' (no denormalised fields)'}`,
   );
 }
 
@@ -335,8 +340,8 @@ async function handleRevoke(env, data, reason) {
     return;
   }
 
-  await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason));
-  console.log(`[${LABEL}] revoked uid=${uid} titleId=${titleId} reason=${reason} (matched stored ref)`);
+  const { delta } = await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason), existing);
+  console.log(`[${LABEL}] revoked uid=${uid} titleId=${titleId} reason=${reason} (matched stored ref) readership${delta >= 0 ? '+' : ''}${delta}`);
 }
 
 export async function onRequestPost(context) {

@@ -21,6 +21,7 @@ import { db } from '../firebase';
 import { SCHEMA_VERSION } from './schema';
 import { GENRES_PATH, GENRE_SEED, sortGenres, validateGenre } from './genres';
 import { SECTIONS_PATH, SIGNALS_PATH, buildWindowMigration, buildGenreMigration } from './sections';
+import { READERSHIP_PATH, readershipCountOf } from './readership';
 
 const TITLES_PATH = 'bookstore_titles';
 const PUBLISHERS_PATH = 'bookstore_publishers';
@@ -356,4 +357,31 @@ export async function getSignals() {
 /** The genre taxonomy as the migration would write it. Used by the CMS's seed button. */
 export function genreMigrationPayload(nowMs) {
   return buildGenreMigration(nowMs);
+}
+
+/**
+ * READERSHIP — the public count for one title. R14.
+ *
+ * A single-key read of a public node, and the ONLY way a browser is allowed to learn this
+ * number: bookstore_purchases is per-reader and gated to its owner, so there is no
+ * client-side derivation to fall back to and there must never be one.
+ *
+ * ⚠ EVERY FAILURE RETURNS 0, and 0 renders nothing. An absent node (nobody has bought it), a
+ * network drop, a permission surprise — all of them mean the line does not appear, which is
+ * the same thing the shop shows for a title with no purchases. That is the correct direction
+ * for a claim about other people: a shop that cannot verify how many libraries a book is in
+ * says nothing, rather than guessing or printing a stale figure.
+ *
+ * NO SIGNED-IN STATE IS INVOLVED. The node is `.read: true`, so a guest gets the same number
+ * as a founder — asserted in tests/rules/database.test.mjs.
+ */
+export async function getReadership(titleId) {
+  if (!titleId) return 0;
+  try {
+    const snap = await get(ref(db, `${READERSHIP_PATH}/${titleId}`));
+    return snap.exists() ? readershipCountOf(snap.val()) : 0;
+  } catch (err) {
+    console.error('[bookstore.loader] getReadership failed', err);
+    return 0;
+  }
 }

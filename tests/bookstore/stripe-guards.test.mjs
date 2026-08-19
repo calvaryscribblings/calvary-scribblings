@@ -55,8 +55,19 @@ const jsonResponse = (body, status = 200) =>
 /**
  * Records url + method + parsed body for every outbound call, and answers the happy path:
  * a minted admin token, no existing purchase, a catalogue record, and an accepted PATCH.
- * A grant is therefore visible as a PATCH to bookstore_purchases, and its ABSENCE is what
- * every PL-3 refusal asserts.
+ * A grant is therefore visible as a write, and its ABSENCE is what every PL-3 refusal
+ * asserts.
+ *
+ * ⚠ R14 CHANGED THE SHAPE OF THE GRANT WRITE, and this stub caught it — four tests here went
+ * red the moment the write moved, which is what a harness is for. The grant used to be a
+ * PATCH to `…/bookstore_purchases/{uid}/{titleId}.json`. It is now ONE multi-path PATCH at
+ * the database root carrying the purchase's fields AND the readership counter's delta, so
+ * that a grant and the public count it produces cannot exist without each other. The URL no
+ * longer names the node; the BODY's keys do.
+ *
+ * grantWrite() below is updated to match, and deliberately still recognises a grant by the
+ * purchase path rather than by "a PATCH happened" — a write that touched only the counter
+ * would not be a grant, and must not read as one.
  */
 function stubFetch() {
   const calls = [];
@@ -70,17 +81,36 @@ function stubFetch() {
     if (url.includes('bookstore_titles')) {
       return jsonResponse({ slug: TITLE, title: 'The Rescue', author: 'A. Writer', coverUrl: null });
     }
-    if (url.includes('bookstore_purchases')) {
-      // GET = the idempotency read: nothing there yet. PATCH = the grant.
-      return (init.method || 'GET') === 'GET' ? jsonResponse(null) : jsonResponse({ ok: true });
-    }
+    // The idempotency read, still a GET at the record's own URL.
+    if (url.includes('bookstore_purchases')) return jsonResponse(null);
+    // R14 — the atomic write: a PATCH at the database root, keys naming the paths.
+    if ((init.method || 'GET') === 'PATCH' && /\/\.json(\?|$)/.test(url)) return jsonResponse({ ok: true });
     return jsonResponse({}, 404);
   };
   return calls;
 }
 
-const grantWrite = (calls) =>
-  calls.find((c) => c.url.includes('bookstore_purchases') && c.method === 'PATCH');
+/** The purchase half of the atomic write, keyed off the body rather than the URL. */
+const grantWrite = (calls) => {
+  const c = calls.find((x) => x.method === 'PATCH' && x.body
+    && Object.keys(x.body).some((k) => k.startsWith(`bookstore_purchases/${UID}/${TITLE}/`)));
+  if (!c) return undefined;
+  // Re-present it in the shape the assertions below already expect: the record's fields.
+  const record = {};
+  for (const [k, v] of Object.entries(c.body)) {
+    const prefix = `bookstore_purchases/${UID}/${TITLE}/`;
+    if (k.startsWith(prefix)) record[k.slice(prefix.length)] = v;
+  }
+  return { ...c, body: record };
+};
+
+/** The counter half of the same write, if it moved. */
+const readershipWrite = (calls) => {
+  const c = calls.find((x) => x.method === 'PATCH' && x.body && Object.keys(x.body).some((k) => k.startsWith('bookstore_readership/')));
+  if (!c) return undefined;
+  const key = Object.keys(c.body).find((k) => k.startsWith('bookstore_readership/'));
+  return { key, value: c.body[key] };
+};
 
 // The signature the endpoint will accept, dated `t` (default: now).
 async function stripeSigned(body, secret, t = Math.floor(Date.now() / 1000)) {
@@ -206,8 +236,14 @@ describe('PL-3 · the grant waits for the money', () => {
       type: 'checkout.session.async_payment_succeeded',
       object: { payment_status: 'paid' },
     }));
-    const writes = calls.filter((c) => c.url.includes('bookstore_purchases') && c.method === 'PATCH');
+    // R14 — counted off the BODY, not the URL: the write is a root fan-out now.
+    const writes = calls.filter((c) => c.method === 'PATCH' && c.body
+      && Object.keys(c.body).some((k) => k.startsWith('bookstore_purchases/')));
     assert.equal(writes.length, 1, 'exactly one grant across the pair');
+    // …and exactly one readership increment, on the event that actually granted.
+    const counter = readershipWrite(calls);
+    assert.deepEqual(counter, { key: `bookstore_readership/${TITLE}/count`, value: { '.sv': { increment: 1 } } },
+      'the delayed payment must move the public count once, on the succeeded event');
   });
 
   test('a failed delayed payment revokes nothing and is not an error', async () => {
@@ -218,8 +254,10 @@ describe('PL-3 · the grant waits for the money', () => {
     }));
 
     assert.equal(res.status, 200);
-    const writes = calls.filter((c) => c.url.includes('bookstore_purchases') && c.method === 'PATCH');
+    const writes = calls.filter((c) => c.method === 'PATCH' && c.body
+      && Object.keys(c.body).some((k) => k.startsWith('bookstore_purchases/')));
     assert.equal(writes.length, 0, 'there was never a purchase to revoke');
+    assert.equal(readershipWrite(calls), undefined, 'and nothing to decrement');
   });
 });
 

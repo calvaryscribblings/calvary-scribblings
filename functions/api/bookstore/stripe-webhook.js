@@ -54,6 +54,7 @@ import {
   shouldSkipGrant,
   classifyRevocation,
   STRIPE_REF_FIELDS,
+  PURCHASE_UNKNOWN,
 } from './_lib.js';
 
 const LABEL = 'bookstore/stripe-webhook';
@@ -263,7 +264,13 @@ async function handleGrant(env, session) {
   // R8.2.1 removed a trailing `&& existing.status === 'active'` from this condition. It
   // inverted the guard in the one case the guard existed for: a replay against a revoked
   // record failed the test, fell through, and set status back to 'active'.
-  let existing = null;
+  //
+  // R14 — the initialiser is PURCHASE_UNKNOWN, not null, and the difference is a public
+  // number. This read now feeds two decisions: whether to grant (falls through on failure,
+  // because a duplicate grant beats a paying reader with no book) and how far to move the
+  // readership count (moves it by nothing on failure, because a guess that lands on an
+  // already-active record overstates the count forever). null means "read fine, no record".
+  let existing = PURCHASE_UNKNOWN;
   try {
     existing = await readPurchase(env, token, uid, titleId);
   } catch (e) {
@@ -302,10 +309,14 @@ async function handleGrant(env, session) {
     fields,
   });
 
-  await patchPurchase(env, token, uid, titleId, payload);
+  // ONE write, carrying the grant and the readership delta together — see the READERSHIP
+  // block in _lib.js. `existing` is handed over rather than re-read so the count and the
+  // idempotency guard cannot see different data.
+  const { delta } = await patchPurchase(env, token, uid, titleId, payload, existing);
   console.log(
     `[bookstore/stripe-webhook] recorded uid=${uid} titleId=${titleId} ` +
-    `session=${session.id}${fields ? '' : ' (no denormalised fields)'}`,
+    `session=${session.id} readership${delta >= 0 ? '+' : ''}${delta}` +
+    `${fields ? '' : ' (no denormalised fields)'}`,
   );
 }
 
@@ -399,10 +410,10 @@ async function handleRevoke(env, obj, reason) {
     return;
   }
 
-  await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason));
+  const { delta } = await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason), existing);
   console.log(
     `[bookstore/stripe-webhook] revoked uid=${uid} titleId=${titleId} reason=${reason} ` +
-    `(matched stored ref)`,
+    `(matched stored ref) readership${delta >= 0 ? '+' : ''}${delta}`,
   );
 }
 

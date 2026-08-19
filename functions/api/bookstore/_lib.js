@@ -313,6 +313,26 @@ export const TITLES_PATH = 'bookstore_titles';
 export const purchaseUrl = (env, uid, titleId) =>
   `${dbBase(env)}/${PURCHASES_PATH}/${encodeURIComponent(uid)}/${encodeURIComponent(titleId)}.json`;
 
+/**
+ * ⚠ THE READ FAILED — a value that is NOT "there is no purchase".
+ *
+ * The grant path deliberately falls through to the write when its idempotency read throws,
+ * because a duplicate grant beats a paying reader with no book. That posture is right for the
+ * GRANT and wrong for the COUNT: with the record unknown, +1 is a guess, and a guess that
+ * lands on an already-active record permanently overstates a public number.
+ *
+ * So the two decisions are told apart. `null` means the read succeeded and there is no
+ * record; this symbol means we do not know. readershipDelta returns 0 for it — the count
+ * fails CLOSED, and downward, while the grant still fails open. Under-counting is a quiet
+ * omission that `scripts/readership.mjs report` finds and reports; over-counting is the shop
+ * claiming more readers than exist, which is the error this feature cannot afford.
+ *
+ * It is a Symbol rather than a string so it can never be mistaken for a stored value.
+ * shouldSkipGrant() answers false for it (a symbol is not an object) and classifyRevocation()
+ * never sees it, because the revoke path returns on a failed read rather than continuing.
+ */
+export const PURCHASE_UNKNOWN = Symbol('bookstore.purchase.read-failed');
+
 export async function readPurchase(env, token, uid, titleId) {
   const res = await fetch(purchaseUrl(env, uid, titleId), {
     headers: { Authorization: `Bearer ${token}` },
@@ -322,16 +342,132 @@ export async function readPurchase(env, token, uid, titleId) {
   return res.json();
 }
 
-// PATCH so we never clobber sibling fields a later flow might add (fulfilment notes,
-// refund trails). A grant and a later revocation therefore layer on the same record.
-export async function patchPurchase(env, token, uid, titleId, payload) {
-  const res = await fetch(purchaseUrl(env, uid, titleId), {
+// ──────────────────────────────────────────────────────────────────────────
+// READERSHIP — the public count, and why it is written HERE and nowhere else.
+//
+// Ikenna's ruling, 19 Aug 2026. bookstore_readership/{titleId}/count is the only public fact
+// the shop states about who owns a book, and it must never be derivable in a browser:
+// bookstore_purchases is per-reader and stays unreadable to the storefront.
+//
+// ⭑ THE COUNTER RIDES THE PURCHASE'S OWN WRITE. Not a second request, not a follow-up, not a
+// queue — the SAME multi-path update. patchPurchase() below sends one PATCH to the database
+// root carrying both the purchase fields and the counter delta, so there is no window in
+// which a grant exists without its count or a count exists without its grant. Every writer of
+// a purchase record in this repo goes through that one function; both webhooks were audited
+// for it in R14, and nothing else writes the node at all (a client cannot — see the WIPE
+// block in tests/rules/database.test.mjs, which pins that the rules deny even the owner).
+//
+// ── THE RULING ON WHAT IS COUNTED ────────────────────────────────────────────────────────
+//
+//   THE COUNT IS THE NUMBER OF (uid, titleId) RECORDS WHOSE status IS 'active'.
+//
+// Not "records that exist", and not "purchases ever made". `status === 'active'` is the exact
+// test functions/api/bookstore/stream.js applies before it will hand over the file, and the
+// exact test app/my-library/page.js applies to decide whether a shelf row can be opened. The
+// public line is a present-tense claim — the book IS in this many libraries — so it counts
+// the set that can actually open it, using the same predicate both other surfaces already use
+// for that question. Three surfaces, one definition; there is nothing to drift.
+//
+//   A REVOCATION DECREMENTS. A refunded or disputed copy is not in anybody's library in the
+//   sense the sentence means: stream.js will 403 it. Counting it would make a "readership"
+//   figure that is really a lifetime-sales figure wearing better words, which is the one
+//   thing the ruling forbids.
+//
+// ⚠ AND THAT IS CONSISTENT WITH MY LIBRARY, not a contradiction of it, though it looks like
+// one at first. A revoked book stays on its owner's shelf, in place, marked "Access
+// Withdrawn" (R9.1 LB-8) — because THAT reader needs to see what became of THEIR purchase.
+// The row is a record of history addressed to one person. The shop's count is a claim about
+// the present addressed to everyone. Both surfaces use `status === 'active'` to mean "can be
+// opened", and neither uses record-existence to mean it.
+//
+// ── THE ARITHMETIC IS A DIFFERENCE, WHICH IS WHAT MAKES REPLAYS FREE ─────────────────────
+//
+// delta = (this write leaves it active ? 1 : 0) − (it was active before ? 1 : 0)
+//
+//   new purchase          absent  → active    +1
+//   replayed webhook      never reaches a write at all (shouldSkipGrant), and would be 0
+//   refund / dispute      active  → revoked   −1
+//   replayed refund       revoked → revoked    0
+//   repurchase after one  revoked → active    +1
+//   second grant, same reader, no refund between
+//                         active  → active     0   ← one library, counted once
+//
+// The last row is the reason this is a difference and not an increment. A reader who somehow
+// ends up granted twice without a revocation in between still has ONE library, and the
+// counter must say so. Every idempotency property the grant path already has is inherited
+// rather than restated: a write that does not happen cannot count, and a write that does not
+// change the entitlement contributes nothing.
+// ──────────────────────────────────────────────────────────────────────────
+
+export const READERSHIP_PATH = 'bookstore_readership';
+
+const isActiveRecord = (rec) =>
+  !!rec && typeof rec === 'object' && !Array.isArray(rec) && rec.status === 'active';
+
+/**
+ * How much this write moves the public count. Pure, so the harness can assert every
+ * transition above without a network — and it is asserted for all of them.
+ *
+ * `existing` is the record as read before the write: an object, `null` for "no record", or
+ * PURCHASE_UNKNOWN for "the read failed". `payload` is what is about to be PATCHed.
+ *
+ * A payload that carries no `status` key changes nothing about the entitlement — a later
+ * fulfilment note, a refund trail — and therefore moves the count by nothing. That is checked
+ * explicitly rather than inferred, because `isActiveRecord` on a status-less payload would
+ * silently read as "not active" and decrement.
+ */
+export function readershipDelta(existing, payload) {
+  if (existing === PURCHASE_UNKNOWN) return 0;
+  if (!payload || typeof payload !== 'object' || !('status' in payload)) return 0;
+  return (isActiveRecord(payload) ? 1 : 0) - (isActiveRecord(existing) ? 1 : 0);
+}
+
+// RTDB path keys may not contain '.', '$', '#', '[', ']' or '/'. A uid is [A-Za-z0-9] and a
+// titleId is a slug, so neither can — but the fan-out below puts them in the BODY of the
+// request rather than in a URL, where encodeURIComponent no longer protects anything. This
+// asserts what the URL form used to make moot.
+const PATH_SAFE = /^[^.$#[\]/\x00-\x1f\x7f]+$/;
+
+/**
+ * Write the purchase AND the readership delta in ONE atomic operation.
+ *
+ * ⚠ THIS IS STILL A PATCH, field by field, and that property is load-bearing. A multi-path
+ * update REPLACES each path it names and leaves every sibling alone, so expanding the payload
+ * to one key per field reproduces exactly what a PATCH to the record used to do: a grant and
+ * a later revocation layer on the same record, and nothing a later flow adds (fulfilment
+ * notes, refund trails) is clobbered. What must NOT happen is naming the record itself as one
+ * path — that would be a set(), and it would erase whatever else is there.
+ *
+ * `existing` is passed in rather than re-read here: the caller has already read it for its
+ * idempotency guard, and a second read would be both a wasted round trip and a chance for the
+ * two decisions to see different data.
+ */
+export async function patchPurchase(env, token, uid, titleId, payload, existing) {
+  if (!PATH_SAFE.test(String(uid)) || !PATH_SAFE.test(String(titleId))) {
+    throw new Error(`unsafe RTDB path segment (uid=${uid}, titleId=${titleId})`);
+  }
+
+  const update = {};
+  for (const [k, v] of Object.entries(payload || {})) {
+    update[`${PURCHASES_PATH}/${uid}/${titleId}/${k}`] = v;
+  }
+
+  const delta = readershipDelta(existing, payload);
+  if (delta !== 0) {
+    // RTDB's server-side increment: the database applies it, so two webhooks landing at once
+    // cannot read-modify-write over each other. On a path that does not exist yet it writes
+    // the delta itself, which is exactly right for the first purchase of a title.
+    update[`${READERSHIP_PATH}/${titleId}/count`] = { '.sv': { increment: delta } };
+  }
+
+  const res = await fetch(`${dbBase(env)}/.json`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(update),
     signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`RTDB PATCH failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  return { delta };
 }
 
 // The full title record, read with the admin token. The Paystack rail needs the stored NGN

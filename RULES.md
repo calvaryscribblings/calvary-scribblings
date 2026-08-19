@@ -47,3 +47,25 @@ kept only for provenance. Do not deploy or edit them.
 ## Shared project
 
 This Firebase project is shared with the Story Island app (`calvary-app` repo) — rules changes needed for app features are made HERE; the app repo never carries rules files.
+
+## `bookstore_readership` — the one public fact about who owns a book (R14)
+
+`bookstore_readership/{titleId}/count` is `.read: true`, and that must stay true.
+`bookstore_purchases` is per-reader and gated to its owner, so an anonymous storefront has no
+other way to learn this number and must never be given one — the count is what the shop
+prints as "In 12 readers' libraries", and deriving it in a browser would mean reading other
+people's purchases.
+
+It is written by exactly two things, both on a service-account token that bypasses rules:
+
+- the two payment webhooks, inside the **same multi-path update that records the purchase**
+  (`functions/api/bookstore/_lib.js` → `patchPurchase`), so a grant and its count cannot drift;
+- `scripts/readership.mjs backfill`, once, at ship time.
+
+The founder `.write` grant exists only so a drift reported by `scripts/readership.mjs report`
+can be repaired by hand. **No client may write it.** A client that could set this number could
+tell the shop a book is loved.
+
+`database.rules.json` carries no comments — RTDB parses an unknown key as a child path, so a
+`"_comment"` string is a syntax error, not documentation. The reasoning for every bookstore
+node lives beside the code that reads or writes it.

@@ -29,15 +29,23 @@
 // data unless pinned — so the same title could render ₦4,500 for one reader and ₦4.500 for
 // another with a European locale. The shop's prices are not a localised number; they are a
 // price tag, and they must be identical everywhere. Two lines of code buys that certainty.
+// R14 — THE GROUPING FUNCTION MOVED, and this is what is left behind.
+//
+// It used to be a private `group()` a few lines below. app/lib/bookstore/readership.js needs
+// the identical behaviour for "In 1,204 readers' libraries", and that module must stay free
+// of money vocabulary so the app can port it — so the shared function went to the money-free
+// side rather than this file exporting it upward. One implementation, and the argument for
+// hand-rolling it instead of Intl is unchanged and still written down, now where it lives.
+// The .js extension is explicit: this module is imported by `node --test`
+// (tests/bookstore/sections.test.mjs), and bare Node does not resolve extensionless
+// specifiers. Same as app/lib/series/access.js's import of ../membership.js.
+import { groupThousands } from '../../lib/bookstore/readership.js';
+
 const CURRENCY_FORMAT = {
   gbp: { symbol: '£', decimals: 2 },
   usd: { symbol: '$', decimals: 2 },
   ngn: { symbol: '₦', decimals: 0 },
 };
-
-function group(intPart) {
-  return String(intPart).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
 
 /**
  * A price tag from a currency code and an integer of minor units.
@@ -50,11 +58,11 @@ export function formatPrice(currency, minor) {
   if (typeof minor !== 'number' || !Number.isFinite(minor)) return null;
 
   const major = minor / 100;
-  if (fmt.decimals === 0) return `${fmt.symbol}${group(Math.round(major))}`;
+  if (fmt.decimals === 0) return `${fmt.symbol}${groupThousands(Math.round(major))}`;
   // toFixed first, so the grouping runs over the rounded integer part rather than over a
   // value that is about to round up into another digit.
   const [i, d] = major.toFixed(fmt.decimals).split('.');
-  return `${fmt.symbol}${group(i)}.${d}`;
+  return `${fmt.symbol}${groupThousands(i)}.${d}`;
 }
 
 export function formatGbp(minor) {
