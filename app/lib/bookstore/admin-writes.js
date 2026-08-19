@@ -25,6 +25,9 @@ import { assertTerritories, WORLDWIDE } from './territory';
 import { validateGenre } from './genres';
 import {
   validateSection,
+  PLACEMENTS,
+  DEFAULT_PLACEMENT,
+  isShelfPlacement,
   buildGenreMigration,
   buildWindowMigration,
   SECTION_TYPES,
@@ -897,6 +900,23 @@ function buildSectionDoc(input, spec, stamps) {
   // ⚠ A DATA-DRIVEN SECTION IS NEVER GIVEN SLUGS, whatever the form sent.
   doc.slugs = spec.dataDriven ? [] : (Array.isArray(input?.slugs) ? input.slugs.map((s) => String(s).trim()).filter(Boolean) : []);
   if (spec.dataDriven) delete doc.slugs;
+
+  // ── R15 — WHERE IT STANDS ─────────────────────────────────────────────────────────────
+  // The Window's placement is its type's, not the form's: placementLocked wins over anything
+  // the panel sends, which is the writer's half of the fence the panel draws by showing a
+  // sentence where the control would be. validateSection refuses a mismatch as well, so a
+  // hand-rolled write cannot move the Window either.
+  //
+  // A depth is written ONLY for a shelf placement. Same rule as the keys above: the absence of
+  // a field is how the record says the question does not apply, and set() genuinely removes
+  // what the merged doc leaves out — so moving a section from a shelf to the foot clears its
+  // depth rather than leaving a stale number to be resurrected by a later move back.
+  doc.placement = spec.placementLocked
+    || (PLACEMENTS.includes(input?.placement) ? input.placement : DEFAULT_PLACEMENT);
+  if (isShelfPlacement(doc.placement)) {
+    const depth = Number.isInteger(input?.placeAfter) ? input.placeAfter : (Number.parseInt(input?.placeAfter, 10) || 0);
+    doc.placeAfter = Math.max(0, depth);
+  }
 
   const line = String(input?.curatorLine || '').trim();
   if (line) doc.curatorLine = line;

@@ -21,6 +21,7 @@
     "test:gate": "next build && playwright test -c tests/bookstore/playwright.gate.config.mjs",
     "test:currency": "next build && playwright test -c tests/bookstore/playwright.currency.config.mjs",
     "test:territory": "next build && playwright test -c tests/bookstore/playwright.territory.config.mjs",
+    "test:placement": "next build && playwright test -c tests/bookstore/playwright.placement.config.mjs",
     "test:newsletter": "node --test \"tests/newsletter/*.test.mjs\"",
     "test:purchases": "node --test \"tests/bookstore/*.test.mjs\"",
     "test:membership": "node --test \"tests/membership/*.test.mjs\"",

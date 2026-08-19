@@ -27,6 +27,17 @@
 //     shows the type as text once saved.
 //   · NOTHING IS SEEDED HERE. The system is complete and the shelves are empty, and that is
 //     the correct launch state for a four-title catalogue. The claims are Ikenna's.
+//   · THE WINDOW CANNOT BE MOVED. Its placement control is absent rather than disabled, on
+//     the same principle as the missing slug field above.
+//
+// ── R15 — PLACEMENT, AND WHY THE PREVIEW GREW A SHELF AROUND IT ──────────────────────────
+//
+// Sections used to render in one band above the catalogue, and the panel's preview drew each
+// one in an empty frame. Both were the same mistake seen twice: a table has a PLACE, and a
+// picture of it with nothing around it answers the wrong question. The panel now carries the
+// placement control — a stop, plus a depth in books when the stop is a shelf — and previews a
+// placed table INSIDE the storefront's real CatalogueSection, cut at the depth the record
+// asks for, by the same planShopFlow() the shop calls.
 
 import { useState } from 'react';
 import {
@@ -41,8 +52,14 @@ import {
   monthExpired,
   monthPending,
   TYPE_WINDOW,
+  PLACEMENT_OPENING,
+  PLACEMENT_FOOT,
+  SHELF_PLACEMENTS,
+  isShelfPlacement,
+  placementOf,
+  planShopFlow,
 } from '../../lib/bookstore/sections';
-import { genreLabel as labelOf } from '../../lib/bookstore/genres';
+import { genreLabel as labelOf, groupLabel, titlesInGroup, genresPresentIn } from '../../lib/bookstore/genres';
 import {
   createSection,
   updateSection,
@@ -54,7 +71,7 @@ import {
 import CuratedSection, { CURATED_SECTION_CSS } from '../../bookstore/components/CuratedSection';
 import { SHOP_VERNACULAR_CSS } from '../../bookstore/components/shopVernacular';
 import { BOUND_BOOK_CSS } from '../../bookstore/components/BoundBook';
-import { ShelfEntry, TheWindow } from '../../bookstore/page';
+import { ShelfEntry, TheWindow, CatalogueSection } from '../../bookstore/page';
 
 const blankFor = (type) => ({
   type,
@@ -65,7 +82,75 @@ const blankFor = (type) => ({
   curatorLine: '',
   monthKey: '',
   ranked: false,
+  // R15 — A NEW TABLE STARTS IN THE SHELVES, not above them.
+  //
+  // The Window's lock wins here as it does everywhere. For everything else the form opens on
+  // the first shelf, at its top, because that is the ruling this round exists to implement:
+  // a reader should keep coming upon curated tables while walking the shelves, and a default
+  // of 'opening' would rebuild the pile of headers one new section at a time. The sentence
+  // under the control says exactly where it will land, and one dropdown moves it.
+  //
+  // ⚠ THIS IS THE FORM'S DEFAULT, NOT THE READER'S. A record already on file with no
+  // placement means 'opening' — see DEFAULT_PLACEMENT — because that is where it was actually
+  // rendering before this round. The two defaults answer different questions and it would be
+  // a bug to make them agree.
+  placement: SECTION_TYPES[type]?.placementLocked || SHELF_PLACEMENTS[0],
+  placeAfter: 0,
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R15 — WHERE IT SITS, IN SENTENCES
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// The panel already explains itself in plain sentences rather than in field names — "It hides
+// itself when the month ends", "Nothing claimed — this section will not render". Placement is
+// the field that most needs that treatment, because its two degradation rules are invisible
+// from the form: a curator who types 12 on a shelf of 4 has not made a mistake and must not be
+// told they have, but they do need to be told what will happen today.
+//
+// So every state of the control has a sentence, and the sentence is computed from the SAME
+// numbers the shop is about to use.
+
+const PLACEMENT_CHOICES = [
+  { key: PLACEMENT_OPENING, label: 'Opening the shop — above the shelves' },
+  ...SHELF_PLACEMENTS.map((g) => ({ key: g, label: `Into the ${groupLabel(g)} shelf` })),
+  { key: PLACEMENT_FOOT, label: 'At the foot of the catalogue' },
+];
+
+/**
+ * @param placement   one of PLACEMENTS
+ * @param placeAfter  the depth as typed, UNCLAMPED — the sentence's whole job is to say what
+ *                    happens to a number the shelf cannot honour yet
+ * @param counts      { [group]: how many published titles that half of the shop holds }
+ */
+function placementSentence(placement, placeAfter, counts) {
+  if (placement === PLACEMENT_OPENING) {
+    return 'It stands above the catalogue, under the title page, before the first shelf.';
+  }
+  if (placement === PLACEMENT_FOOT) {
+    return 'It stands after the last shelf, just above the colophon.';
+  }
+  const name = groupLabel(placement);
+  const count = counts[placement] || 0;
+  const wanted = Math.max(0, Number.parseInt(placeAfter, 10) || 0);
+
+  // Degradation rule 2, in the curator's terms. Not a warning — a schedule.
+  if (count === 0) {
+    return `Nothing is published in ${name} yet, so this will stand at the foot of the catalogue until something is. It moves into the shelf by itself the day that happens.`;
+  }
+  const books = (n) => `${n} ${n === 1 ? 'book' : 'books'}`;
+  if (wanted === 0) {
+    return `It stands at the top of the ${name} shelf, under its tabs, above the first ${books(count)}.`;
+  }
+  // Degradation rule 1, likewise: it waits at the end of the shelf, it does not disappear.
+  if (wanted > count) {
+    return `The ${name} shelf holds ${books(count)} today, so this stands at its foot for now — and moves up to sit after the ${wanted}th once there are that many.`;
+  }
+  if (wanted === count) {
+    return `It stands at the foot of the ${name} shelf, after all ${books(count)}.`;
+  }
+  return `A reader walking the ${name} shelf meets it after ${books(wanted)}, with ${books(count - wanted)} still below it.`;
+}
 
 /** 'YYYY-MM' for the month a Date falls in, UTC — the same calendar monthKey is parsed in. */
 function monthKeyOf(d) {
@@ -78,6 +163,9 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
   const [errors, setErrors] = useState([]);
   const [busy, setBusy] = useState(false);
   const [previewing, setPreviewing] = useState(null); // section id under preview
+  // The preview's own tab. It exists so a curator can SEE the filtered-tab ruling rather than
+  // read about it: narrow the shelf in the frame and the table steps out of the way.
+  const [previewTab, setPreviewTab] = useState('all');
 
   const published = (titles || []).filter((t) => t.status === 'published');
   const genreLabelFor = (g) => labelOf(genres || [], g);
@@ -101,14 +189,28 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
   const live = rebindSections(resolvedAll, bandedTitles);
   const liveIds = new Set(live.map((x) => x.id));
 
+  // ── R15 — THE SHELVES, AS THE SHOP COUNTS THEM ────────────────────────────────────────
+  // The same call the storefront makes, over the same taxonomy, so every sentence below is
+  // about the shop's actual shelves and not about an approximation of them. Published only —
+  // a draft is not on a shelf, so it cannot be a book a table stands after.
+  const shelfTitles = {};
+  const shelfCounts = {};
+  for (const g of SHELF_PLACEMENTS) {
+    shelfTitles[g] = titlesInGroup(genres, bandedTitles, g);
+    shelfCounts[g] = shelfTitles[g].length;
+  }
+
   function openNew(type) {
     setForm({ ...blankFor(type), order: rows.length });
     setEditingId('');
     setErrors([]);
   }
   function openEdit(sec) {
+    const { placement, placeAfter } = placementOf(sec);
     setForm({
       type: sec.type,
+      placement,
+      placeAfter,
       displayTitle: sec.displayTitle || '',
       order: sec.order ?? 0,
       status: sec.status || 'live',
@@ -127,6 +229,7 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
     const payload = {
       ...form,
       order: Number.parseInt(form.order, 10) || 0,
+      placeAfter: Number.parseInt(form.placeAfter, 10) || 0,
       curatorLine: form.curatorLine.trim() || null,
     };
     const res = editingId ? await updateSection(editingId, payload) : await createSection(payload);
@@ -180,6 +283,36 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
   }
 
   const spec = SECTION_TYPES[form.type];
+
+  /**
+   * Is this resolved section standing INSIDE a shelf the panel can draw?
+   *
+   * Both halves are required. A placement of 'fiction' on a shop with nothing published in
+   * fiction is a table at the foot of the catalogue — degradation rule 2 — and there is no
+   * shelf to preview it in, so it falls to the isolated frame plus the sentence.
+   */
+  function inShelf(resolvedSec) {
+    return !!resolvedSec && isShelfPlacement(resolvedSec.placement) && shelfCounts[resolvedSec.placement] > 0;
+  }
+
+  /** The isolated frame, unchanged from R13 — and the renderer the shelf frame injects. */
+  function renderPreviewSection(one) {
+    return (
+      <CuratedSection
+        section={one}
+        genreLabelFor={genreLabelFor}
+        renderWindow={(t) => (
+          <div style={{ padding: '2rem' }}>
+            <div style={{ textAlign: 'center', fontFamily: "'Cinzel',serif", fontSize: '.62rem', letterSpacing: '.3em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '1.6rem' }}>&#10086; In the Window &#10086;</div>
+            <TheWindow title={t} genreLabelFor={genreLabelFor} />
+          </div>
+        )}
+        renderEntry={(t, i, opts) => (
+          <ShelfEntry title={t} index={i} onOpen={() => {}} genreLabelFor={genreLabelFor} suppressMark={opts?.suppressMark} />
+        )}
+      />
+    );
+  }
 
   // Why a given section is not on the shop. Reported in the curator's terms — resolveSections
   // simply drops it, and a curator staring at a shelf that is not there needs the sentence.
@@ -262,9 +395,66 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
               <input style={s.input} value={form.displayTitle} onChange={(e) => setForm((f) => ({ ...f, displayTitle: e.target.value }))} />
             </div>
             <div style={s.fg}>
-              <label style={s.label}>Order</label>
+              <label style={s.label}>Order <span style={s.labelSoft}>— among the sections at the same place</span></label>
               <input style={s.input} type="number" value={form.order} onChange={(e) => setForm((f) => ({ ...f, order: e.target.value }))} />
             </div>
+          </div>
+
+          {/* ── R15 — WHERE IT SITS ─────────────────────────────
+              The one control this round exists to add. Order sits beside it deliberately: the
+              two answer different questions and used to be conflated in one number. Placement
+              says WHICH STOP, order says the sequence of tables standing at the SAME stop. */}
+          <div style={{ ...s.section, marginTop: '1.2rem' }}>
+            <div style={s.sectionTitle}>Where it sits</div>
+            {spec.placementLocked ? (
+              /* ⚠ NO CONTROL. Absent, not disabled — the same shape as a data-driven section's
+                 missing slug field, and for the same reason: a greyed-out dropdown invites the
+                 question of how to un-grey it. */
+              <div style={s.hint}>
+                The Window opens the shop. It stands directly under the title page, above every
+                shelf, and it does not move — a display case three-quarters of the way down a
+                shelf is not a window. To feature a book further down the scroll, use
+                Editor&rsquo;s Choice or Book of the Month; both draw a case and both go anywhere.
+              </div>
+            ) : (
+              <>
+                <div style={s.row2}>
+                  <div style={s.fg}>
+                    <label style={s.label}>Its place in the shop&rsquo;s scroll</label>
+                    <select
+                      style={s.select}
+                      value={form.placement}
+                      onChange={(e) => setForm((f) => ({ ...f, placement: e.target.value }))}
+                    >
+                      {PLACEMENT_CHOICES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                    </select>
+                  </div>
+                  {isShelfPlacement(form.placement) && (
+                    <div style={s.fg}>
+                      <label style={s.label}>
+                        After how many books <span style={s.labelSoft}>— 0 puts it at the top</span>
+                      </label>
+                      <input
+                        style={s.input}
+                        type="number"
+                        min={0}
+                        value={form.placeAfter}
+                        onChange={(e) => setForm((f) => ({ ...f, placeAfter: e.target.value }))}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div style={{ ...s.hint, marginTop: '0.8rem' }}>{placementSentence(form.placement, form.placeAfter, shelfCounts)}</div>
+                {isShelfPlacement(form.placement) && (
+                  <div style={{ ...s.hint, marginTop: '0.5rem' }}>
+                    Books, not rows — a row is four covers on a laptop and one on a phone, so
+                    counting books is what puts the table after the same book on every screen.
+                    While a reader has a single genre selected the shelf is theirs: the tables step
+                    out, and come back when they choose All {groupLabel(form.placement)}.
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div style={{ ...s.fg, marginTop: '1.1rem' }}>
@@ -364,6 +554,7 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
         const sp = SECTION_TYPES[sec.type];
         const rendering = liveIds.has(sec.id);
         const resolved = live.find((x) => x.id === sec.id);
+        const placed = placementOf(sec);
         return (
           <div key={sec.id} style={s.section}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
@@ -379,14 +570,22 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
                 </div>
                 <div style={{ ...s.h2sub, marginTop: 6 }}>
                   {rendering
-                    ? `${resolved.titles.length} ${resolved.titles.length === 1 ? 'title' : 'titles'} · position ${sec.order}`
+                    ? `${resolved.titles.length} ${resolved.titles.length === 1 ? 'title' : 'titles'}`
                     : silenceReason(sec)}
                 </div>
+                {/* WHERE IT SITS, ON EVERY ROW — including the silent ones. A retired table
+                    keeps its place; that is the difference between retiring and deleting, and
+                    a curator bringing one back should already know where it will land. */}
+                <div style={{ ...s.h2sub, marginTop: 4 }}>{placementSentence(placed.placement, placed.placeAfter, shelfCounts)}</div>
               </div>
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                 <button style={s.btnSm} type="button" disabled={busy} onClick={() => move(sec.id, -1)}>↑</button>
                 <button style={s.btnSm} type="button" disabled={busy} onClick={() => move(sec.id, 1)}>↓</button>
-                <button style={s.btnSm} type="button" onClick={() => setPreviewing(previewing === sec.id ? null : sec.id)}>{previewing === sec.id ? 'Hide preview' : 'Preview'}</button>
+                {/* The tab resets with every open. A genre selected while previewing a fiction
+                    table is not a genre the non-fiction shelf has, so carrying it across would
+                    show the next preview an empty shelf and no table — a picture of nothing,
+                    caused by the panel rather than by the claim. */}
+                <button style={s.btnSm} type="button" onClick={() => { setPreviewTab('all'); setPreviewing(previewing === sec.id ? null : sec.id); }}>{previewing === sec.id ? 'Hide preview' : 'Preview'}</button>
                 <button style={s.btnSm} type="button" onClick={() => openEdit(sec)}>Edit</button>
                 <button style={s.btnSm} type="button" disabled={busy} onClick={() => toggleStatus(sec)}>{sec.status === 'live' ? 'Retire' : 'Make live'}</button>
                 <button style={s.btnDanger} type="button" disabled={busy} onClick={() => remove(sec)}>Delete</button>
@@ -395,22 +594,39 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
 
             {previewing === sec.id && (
               <div style={{ marginTop: '1.2rem' }}>
-                <div style={{ ...s.filterLabel, marginBottom: '0.5rem' }}>Preview — the shop&rsquo;s own components, over this claim</div>
+                <div style={{ ...s.filterLabel, marginBottom: '0.5rem' }}>
+                  {inShelf(resolved) ? 'Preview — the table in its place, on the shelf it stands in' : 'Preview — the shop’s own components, over this claim'}
+                </div>
                 {resolved ? (
                   <div className="cms-preview">
-                    <CuratedSection
-                      section={resolved}
-                      genreLabelFor={genreLabelFor}
-                      renderWindow={(t) => (
-                        <div style={{ padding: '2rem' }}>
-                          <div style={{ textAlign: 'center', fontFamily: "'Cinzel',serif", fontSize: '.62rem', letterSpacing: '.3em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '1.6rem' }}>&#10086; In the Window &#10086;</div>
-                          <TheWindow title={t} genreLabelFor={genreLabelFor} />
-                        </div>
-                      )}
-                      renderEntry={(t, i, opts) => (
-                        <ShelfEntry title={t} index={i} onOpen={() => {}} genreLabelFor={genreLabelFor} suppressMark={opts?.suppressMark} />
-                      )}
-                    />
+                    {/* ── R15 — IN CONTEXT, NOT IN ISOLATION ─────────────────────────────
+                        A curated table in an empty frame told the curator what it looks like
+                        and nothing about where it lands, which is precisely the question this
+                        round is about. So a table placed into a shelf is previewed INSIDE THE
+                        REAL CatalogueSection — the storefront's own component, over the
+                        storefront's own shelf, cut at the depth the record asks for by the
+                        same planShopFlow() the shop calls. The head, the tabs, the books above
+                        it and the books below it are all the shop's.
+
+                        The tabs are live in here on purpose: narrowing the shelf shows the
+                        filtered-tab ruling happening rather than describing it. */}
+                    {inShelf(resolved)
+                      ? (
+                        <CatalogueSection
+                          id={`preview-${sec.id}`}
+                          sectionLabel={groupLabel(resolved.placement)}
+                          allLabel={`All ${groupLabel(resolved.placement)}`}
+                          titles={shelfTitles[resolved.placement]}
+                          genresPresent={genresPresentIn(genres, shelfTitles[resolved.placement], resolved.placement)}
+                          active={previewTab}
+                          setActive={setPreviewTab}
+                          onOpen={() => {}}
+                          genreLabelFor={genreLabelFor}
+                          interleaves={planShopFlow([resolved], [{ group: resolved.placement, count: shelfCounts[resolved.placement] }]).shelves[resolved.placement]}
+                          renderSection={(one) => renderPreviewSection(one)}
+                        />
+                      )
+                      : renderPreviewSection(resolved)}
                   </div>
                 ) : (
                   /* THE PREVIEW OBEYS THE RULE. Nothing is drawn, because nothing will be. */
@@ -418,6 +634,12 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
                     <div style={{ color: '#fff', fontWeight: 600 }}>Nothing renders.</div>
                     <div style={{ fontSize: '0.85rem' }}>{silenceReason(sec)}</div>
                   </div>
+                )}
+                {/* The context a frame cannot draw. 'opening' and 'foot' stand OUTSIDE any
+                    shelf, so there is no shelf to draw them into — the sentence is the honest
+                    picture, and the panel already puts its words outside the frame. */}
+                {resolved && !inShelf(resolved) && (
+                  <div style={{ ...s.hint, marginTop: '0.6rem' }}>{placementSentence(placed.placement, placed.placeAfter, shelfCounts)}</div>
                 )}
               </div>
             )}

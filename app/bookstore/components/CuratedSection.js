@@ -199,12 +199,18 @@ export const CURATED_SECTION_CSS = `
      books left-justified beneath a centred head read as a row that failed to load the rest.
      So the element keeps .shelf for the entry styling that comes with it, and this overrides
      the layout to a centred wrap.
+     R15 — the gap is the shelf's own two tokens rather than the literals that were here. The
+     element carries .shelf as well as .curated-shelf, so the tokens resolve off itself and the
+     phone override in the vernacular reaches it exactly as it always did. Before the tokens
+     existed that only worked by accident of source order: the storefront's media query set
+     .shelf{gap:2.75rem 1rem} AFTER this rule, so a curated shelf on a handset was being
+     narrowed by a rule aimed at the catalogue grid. Same result now, on purpose.
      NOTE FOR ANYONE EDITING THIS BLOCK: it is inside a template literal. A backtick here
      terminates the string, and what survives is not a syntax error — it is a broken export
      that throws at render. This comment used to quote class names in backticks; the admin
      preview went blank and the page error was the stylesheet itself. */
   .curated-shelf{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;
-    gap:3.5rem 1.5rem;max-width:920px;margin:0 auto}
+    gap:var(--shelf-row-gap) var(--shelf-col-gap);max-width:920px;margin:0 auto}
   .curated-slot{display:flex;flex-direction:column;align-items:center;width:200px}
   .curated-slot .no-divider{margin-bottom:.85rem}
   @media(max-width:640px){

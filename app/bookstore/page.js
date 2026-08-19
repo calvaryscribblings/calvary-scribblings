@@ -20,8 +20,8 @@ import { isStoreUnlocked } from '../lib/bookstore/gate';
 // deliberately opposite: an unclaimed section renders nothing, an unwritten vocabulary
 // bootstraps to the seed.
 import { getGenres, getSections, getSignals } from '../lib/bookstore/loader';
-import { genreLabel as labelOf, genresPresentIn, titlesInGroup } from '../lib/bookstore/genres';
-import { resolveSections, bandsFor, applyBands, rebindSections, nextExpiryMs } from '../lib/bookstore/sections';
+import { genreLabel as labelOf, genresPresentIn, titlesInGroup, groupLabel } from '../lib/bookstore/genres';
+import { resolveSections, bandsFor, applyBands, rebindSections, nextExpiryMs, planShopFlow, shelfRuns } from '../lib/bookstore/sections';
 import CuratedSection, { CURATED_SECTION_CSS } from './components/CuratedSection';
 import { SHOP_VERNACULAR_CSS } from './components/shopVernacular';
 
@@ -108,13 +108,54 @@ export function ShelfEntry({ title, index, onOpen, genreLabelFor, suppressMark }
 }
 
 // ── Genre-tabbed catalogue section (R2 logic preserved: tabs, filter, hide rules) ──
-function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPresent, active, setActive, onOpen, genreLabelFor }) {
-  const grid = titles.filter((t) => active === 'all' || t.genre === active);
+//
+// R15 — THE SHELF IS NOW CUT, and everything else about this component is untouched.
+//
+// `interleaves` is one shelf's slice of planShopFlow(): a list of cuts, each a depth and the
+// curated tables standing at it. shelfRuns() turns the books plus the cuts into runs, and a run
+// draws a grid only if it HAS books — which is what makes a cut at depth 0 render as a table
+// above the first row rather than as an empty grid with a row's worth of margin.
+//
+// ── THE FILTERED-TAB RULING ────────────────────────────────────────────────────────────────
+//
+// A genre tab is a QUESTION THE READER ASKED. A curated table is a CLAIM THE CURATOR MADE
+// about the shop. When the reader narrows the shelf to Historical, the shop stops merchandising
+// and answers: no tables, one continuous grid of exactly the books they asked for. Touch "All
+// Fiction" again and the tables are back where they were.
+//
+// It is not a shortcut, it is the only version that is honest, and three separate things go
+// wrong without it:
+//
+//   · THE TABLE CONTRADICTS THE TAB. Editor's Choice names four books across four genres. Under
+//     "Historical" it would put three non-historical covers on a shelf the reader has just told
+//     the shop to restrict — an answer that ignores the question, in the middle of the answer.
+//   · THE PLACEMENT STOPS MEANING ANYTHING. `placeAfter` counts books. A filtered shelf holds
+//     different books, so "after the 6th" would land in a different place on every tab, and on
+//     a two-book tab it would clamp to the foot. The table would appear to jump around as the
+//     reader browsed.
+//   · THE CURATOR CANNOT SEE IT. There is one shop to arrange, not one per tab.
+//
+// The Window, and anything else placed at 'opening' or 'foot', is OUTSIDE this component and
+// therefore outside the tab. That is the same rule, not an exception to it: a tab filters the
+// shelf it belongs to, so what is inside the shelf answers to it and what stands between
+// shelves does not.
+//
+// Exported for the CMS preview — see the panel's placed-context frame.
+export function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPresent, active, setActive, onOpen, genreLabelFor, interleaves, renderSection }) {
+  const filtered = active !== 'all';
+  const grid = filtered ? titles.filter((t) => t.genre === active) : titles;
   // R13 — genresPresent is now taxonomy RECORDS rather than slugs, so the tab carries the
   // curator's label and the curator's order. The rule it encodes is unchanged and is now
   // stated once, in genres.js: All Fiction first, then only genres holding a published title.
   // An empty genre is absent, not an empty tab.
   const tabs = [{ key: 'all', label: allLabel }, ...genresPresent.map((g) => ({ key: g.slug, label: g.label }))];
+  // Under a filter this is [{ titles: grid, sections: [] }] — one run, no cuts, byte-identical
+  // to what the shop drew before this round.
+  const runs = filtered || !renderSection ? [{ titles: grid, sections: [] }] : shelfRuns(grid, interleaves);
+  // The entry index runs across the WHOLE shelf, not per run: it drives the shelf-card tilt,
+  // which alternates, and restarting it at each cut would put two cards at the same angle
+  // either side of a table.
+  let seen = 0;
   return (
     <section id={id} className="catalogue-section">
       <div className="section-head">
@@ -130,7 +171,28 @@ function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPresent, a
         ))}
       </div>
       {grid.length > 0
-        ? <div className="shelf">{grid.map((t, i) => <ShelfEntry key={t.id} title={t} index={i} onOpen={onOpen} genreLabelFor={genreLabelFor} />)}</div>
+        ? runs.map((run, r) => {
+          const from = seen;
+          seen += run.titles.length;
+          return (
+            <div key={`run-${r}`}>
+              {/* ⛔ NO GRID FOR AN EMPTY RUN. A cut at the very top of the shelf, and any two
+                  cuts that clamped to the same depth, leave a run with nothing in it — and an
+                  empty .shelf is a row gap with no row, which is the hole this round is
+                  required not to open. */}
+              {run.titles.length > 0 && (
+                <div className="shelf">
+                  {run.titles.map((t, i) => (
+                    <ShelfEntry key={t.id} title={t} index={from + i} onOpen={onOpen} genreLabelFor={genreLabelFor} />
+                  ))}
+                </div>
+              )}
+              {run.sections.map((sec) => (
+                <div className="catalogue-interleave" key={sec.id}>{renderSection(sec)}</div>
+              ))}
+            </div>
+          );
+        })
         : <p className="shelf-empty">Nothing on this shelf yet.</p>}
     </section>
   );
@@ -430,6 +492,33 @@ export default function BookStorePage() {
   const nonfictionTitles = titlesInGroup(genres, banded, 'nonfiction');
   const fictionGenresPresent = genresPresentIn(genres, fictionTitles, 'fiction');
   const nonfictionGenresPresent = genresPresentIn(genres, nonfictionTitles, 'nonfiction');
+
+  // ── R15 — THE SCROLL ────────────────────────────────────────────────────────────────────
+  //
+  // Every resolved claim, distributed across the shop's own stops. The shelves handed in are
+  // ONLY the ones about to be drawn — a half of the shop with no published titles is not on
+  // the page, and a table placed into it degrades to the foot of the catalogue rather than
+  // waiting somewhere invisible.
+  //
+  // ⚠ THE COUNTS ARE THE UNFILTERED SHELVES, always, and they are the same numbers the tabs
+  // filter down from. `placeAfter` is a depth into the catalogue, not into whatever the reader
+  // is currently looking at — see THE FILTERED-TAB RULING on CatalogueSection above.
+  const shelvesOnPage = [];
+  if (fictionTitles.length > 0) shelvesOnPage.push({ group: 'fiction', count: fictionTitles.length });
+  if (nonfictionTitles.length > 0) shelvesOnPage.push({ group: 'nonfiction', count: nonfictionTitles.length });
+  const flow = planShopFlow(curatedBanded, shelvesOnPage);
+
+  const renderCurated = (sec) => (
+    <CuratedSection
+      key={sec.id}
+      section={sec}
+      genreLabelFor={genreLabelFor}
+      renderWindow={(t) => <TheWindow title={t} genreLabelFor={genreLabelFor} />}
+      renderEntry={(t, i, opts) => (
+        <ShelfEntry title={t} index={i} onOpen={openModal} genreLabelFor={genreLabelFor} suppressMark={opts?.suppressMark} />
+      )}
+    />
+  );
   // Opening Lines pool: published titles with a resolvable opening line (field or excerpt).
   const linesPool = loading ? [] : banded.filter((t) => resolveOpeningLine(t));
   const totalCount = loading ? 0 : titles.length;
@@ -505,16 +594,10 @@ export default function BookStorePage() {
           .rail-btn{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:#c9a44c;background:none;border:1px solid rgba(201,164,76,.3);border-radius:3px;padding:.7rem 1.6rem;cursor:pointer;transition:all .2s}
           .rail-btn:hover{background:rgba(201,164,76,.08);border-color:rgba(201,164,76,.55)}
 
-          .catalogue-section{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:4rem 2.5rem}
-          .genre-tabs{display:flex;overflow-x:auto;margin-bottom:3rem;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.06)}
-          .genre-tabs::-webkit-scrollbar{display:none}
-          .genre-tab{padding:.7rem 1.3rem;white-space:nowrap;font-family:'Cormorant Garamond',Georgia,serif;font-size:.75rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:rgba(240,234,216,.45);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
-          .genre-tab:hover{color:#f0ead8}
-          .genre-tab.active{color:#c9a44c;border-bottom-color:#c9a44c}
-          /* R8.3 — the mark. Lowercase, small, italic, muted, and NOTHING else: no border,
-             no background, no colour that could be read as a warning. It states a fact about
-             which money the price is in. */
-          .shelf-empty{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.05rem;color:rgba(240,234,216,.4);text-align:center;padding:2rem 0}
+          /* R15 — .catalogue-section, .genre-tabs, .genre-tab and .shelf-empty moved to
+             SHOP_VERNACULAR_CSS, interpolated above. The CMS preview now draws the real
+             CatalogueSection around a placed table, so these are shared classes and the
+             vernacular is where a shared class is described. Nothing about them changed. */
 
           .curation-band{position:relative;z-index:2;max-width:640px;margin:2rem auto;padding:2.5rem 2rem;text-align:center;display:flex;flex-direction:column;align-items:center;gap:1rem}
           .curation-band p{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.15rem;line-height:1.6;color:rgba(240,234,216,.6)}
@@ -524,12 +607,13 @@ export default function BookStorePage() {
           .colophon-mark{margin-top:1.5rem;color:rgba(201,164,76,.5)}
 
           @media(max-width:640px){
-            .shelf{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2.75rem 1rem}
+            /* The shelf grid and the catalogue's phone padding moved with their rules; the
+               handset gap is now the vernacular's --shelf-row-gap / --shelf-col-gap, which is
+               what the interleave's air is derived from. */
             .window-inner{grid-template-columns:1fr;gap:2rem;text-align:center}
             .window-book{padding:0}
             .window-pull{border-left:none;padding-left:0}
             .window-actions{justify-content:center}
-            .catalogue-section{padding:3rem 1.25rem}
           }
         `}</style>
 
@@ -542,46 +626,45 @@ export default function BookStorePage() {
             <SkeletonShelf />
           ) : (
             <>
-              {/* ── R13 — THE CURATED BAND ──────────────────────────────────────────────
-                  In CMS ORDER, and nothing else decides it. The Window is one of these when
-                  a WINDOW section claims a book, and at order 0 it lands exactly where it
-                  has always been: first thing under the hero.
+              {/* ── THE OPENING ────────────────────────────────────────────────────────
+                  R13 rendered EVERY resolved claim here, in CMS order, and R15 is Ikenna's
+                  ruling on what that looked like once there were two of them: "they stack up
+                  above the shop and it reads as a run of headers followed by the shop." So
+                  this slot now holds only what is PLACED at the opening — the Window, and
+                  whatever else a curator deliberately stands above the catalogue.
 
-                  There is no `curated.length > 0 &&` guard and there must not be one. An
-                  empty list maps to nothing, which is the correct output of a shop nobody
-                  has curated — and a guard here would be somewhere for an empty state to
+                  There is still no `flow.opening.length > 0 &&` guard and there still must not
+                  be one. An empty list maps to nothing, which is the correct output of a shop
+                  nobody has curated, and a guard here would be somewhere for an empty state to
                   grow later. */}
-              {curatedBanded.map((sec) => (
-                <CuratedSection
-                  key={sec.id}
-                  section={sec}
-                  genreLabelFor={genreLabelFor}
-                  renderWindow={(t) => <TheWindow title={t} genreLabelFor={genreLabelFor} />}
-                  renderEntry={(t, i, opts) => (
-                    <ShelfEntry title={t} index={i} onOpen={openModal} genreLabelFor={genreLabelFor} suppressMark={opts?.suppressMark} />
-                  )}
-                />
-              ))}
+              {flow.opening.map(renderCurated)}
 
               {linesPool.length >= 2 && <OpeningLinesRail pool={linesPool} />}
 
               {fictionTitles.length > 0 && (
                 <CatalogueSection
-                  id="fiction" sectionLabel="Fiction" allLabel="All Fiction"
+                  id="fiction" sectionLabel={groupLabel('fiction')} allLabel={`All ${groupLabel('fiction')}`}
                   titles={fictionTitles} genresPresent={fictionGenresPresent}
                   active={activeFiction} setActive={setActiveFiction} onOpen={openModal}
                   genreLabelFor={genreLabelFor}
+                  interleaves={flow.shelves.fiction} renderSection={renderCurated}
                 />
               )}
 
               {nonfictionTitles.length > 0 && (
                 <CatalogueSection
-                  id="nonfiction" sectionLabel="Non-Fiction" allLabel="All Non-Fiction"
+                  id="nonfiction" sectionLabel={groupLabel('nonfiction')} allLabel={`All ${groupLabel('nonfiction')}`}
                   titles={nonfictionTitles} genresPresent={nonfictionGenresPresent}
                   active={activeNonfiction} setActive={setActiveNonfiction} onOpen={openModal}
                   genreLabelFor={genreLabelFor}
+                  interleaves={flow.shelves.nonfiction} renderSection={renderCurated}
                 />
               )}
+
+              {/* THE FOOT — after the last shelf, above the curation band. Where a table
+                  placed into a half of the shop that has not opened yet waits, and where a
+                  curator can deliberately close the catalogue with one. */}
+              {flow.foot.map(renderCurated)}
 
               <Colophon count={totalCount} />
             </>

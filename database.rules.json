@@ -774,6 +774,8 @@
         "curatorLine": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
         "monthKey": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-(0[1-9]|1[0-2])$/)" },
         "ranked": { ".validate": "newData.isBoolean()" },
+        "placement": { ".validate": "newData.isString() && newData.val().matches(/^(opening|fiction|nonfiction|foot)$/)" },
+        "placeAfter": { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "slugs": {
           "$i": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]+(-[a-z0-9]+)*$/)" }
         }

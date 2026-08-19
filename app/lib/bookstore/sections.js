@@ -97,13 +97,116 @@
 // survives as the migration's input and as the record of what the shop used to think.
 // tests/bookstore/sections.test.mjs asserts that no rendering path reads it.
 
-import { GENRE_SEED } from './genres.js';
+import { GENRE_SEED, GENRE_GROUPS } from './genres.js';
 
 export const SECTION_SCHEMA_VERSION = 1;
 export const SECTIONS_PATH = 'bookstore_sections';
 export const SIGNALS_PATH = 'bookstore_signals';
 
 export const SECTION_STATUSES = ['live', 'retired'];
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R15 — PLACEMENT. WHERE A SECTION SITS IN THE SCROLL, AND WHO DECIDES IT
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// Ikenna's ruling, 19 Aug 2026, on seeing the first live claim land:
+//
+//   "The system works. The placement is wrong. They stack up above the shop and it reads as a
+//    run of headers followed by the shop. I want a reader walking the shelves to keep coming
+//    upon a curated table."
+//
+// R13 gave every section an `order` and rendered them all, in that order, in one band under
+// the hero. `order` was doing two jobs badly: it was the only way to say WHERE, and all it
+// could say was "how far down the pile". This round splits the two questions apart.
+//
+//   PLACEMENT says WHICH STOP in the shop's scroll a section stands at.
+//   `order` keeps its old job and only its old job: the sequence of sections AT THE SAME STOP.
+//
+// Nothing about `order` changes, which is why no record had to be rewritten to ship this.
+//
+// ── THE STOPS, AND WHY THEY ARE THESE FOUR ───────────────────────────────────────────────
+//
+// The shop's own flow, read top to bottom, is: the title page, then whatever the curator has
+// put above the shelves, then the Fiction shelf, then the Non-Fiction shelf, then the
+// colophon. There are exactly four places a table can stand in that, and a shelf is the only
+// one you can stand INSIDE:
+//
+//   'opening'     under the hero, above the catalogue. The Window's home, and R13's only stop.
+//   'fiction'     inside the Fiction shelf, after `placeAfter` of its books.
+//   'nonfiction'  inside the Non-Fiction shelf, likewise.
+//   'foot'        after the last shelf, above the curation band and the colophon.
+//
+// ⚠ THE SHELF PLACEMENTS ARE GENRE_GROUPS, not a second list of the same two words. The two
+// halves of the shop are named once, in genres.js, and a third half added there is a stop
+// here without an edit.
+//
+// ── WHY NOT "AFTER GENRE X" ──────────────────────────────────────────────────────────────
+//
+// It was the obvious anchor and it is not one. A genre is a TAB — a filter over a shelf, not
+// a position in the scroll. Historical and Romance do not occupy different heights on the
+// page; they occupy the same shelf, one at a time, at the reader's choosing. An anchor that
+// resolved to a scroll position only while a particular tab was active would move whenever
+// the reader touched a tab, which is not a placement, it is a side effect.
+//
+// ── WHY NOT "AFTER THE Nth ROW" ──────────────────────────────────────────────────────────
+//
+// It was the brief's first suggestion and it fails on the first phone. `.shelf` is
+// `repeat(auto-fill,minmax(180px,1fr))`: a row is four books on a laptop and one on a
+// handset. "After the second row" would be after the eighth book on one device and the second
+// on another — the curator would be placing a table at a height they cannot see and cannot
+// predict. `placeAfter` counts BOOKS, which is a fact about the catalogue, not about the
+// viewport, so the table lands after the same book on every screen.
+//
+// ── THE DEGRADATION RULES, WHICH ARE THE WHOLE POINT OF A GROWING CATALOGUE ───────────────
+//
+// A curator plans for a shop that does not exist yet. Both ways of overshooting resolve to a
+// sensible position, and NEITHER of them is an error, an empty state, or a gap:
+//
+//   1. `placeAfter` runs past the end of its shelf → the table sits at the FOOT of that shelf.
+//      A claim placed "after 12 books" on a shelf of 4 waits at the end of the 4 until the
+//      other 8 arrive, and then it is where it was always going to be. Clamped, never dropped.
+//   2. The named shelf is not on the page at all — no published title belongs to that half —
+//      → the table falls to 'foot', after the whole catalogue. Still in the scroll, still
+//      read, and it moves into the shelf by itself the day that half of the shop opens.
+//
+// ⚠ A PLACEMENT PROBLEM NEVER SILENCES A CLAIM. Silence is reserved, absolutely, for an
+// unmade or unresolvable claim — that is the constitutional rule above and it is about
+// WHETHER a curator said something, never about where they wanted it said. A section that
+// resolves renders; placement only decides where.
+export const PLACEMENT_OPENING = 'opening';
+export const PLACEMENT_FOOT = 'foot';
+
+/** The stops you can stand INSIDE. Named once, in genres.js. */
+export const SHELF_PLACEMENTS = [...GENRE_GROUPS];
+
+/** Every stop, IN SCROLL ORDER. planShopFlow walks the shop in this sequence. */
+export const PLACEMENTS = [PLACEMENT_OPENING, ...SHELF_PLACEMENTS, PLACEMENT_FOOT];
+
+/**
+ * WHAT A RECORD WITH NO PLACEMENT MEANS: 'opening'.
+ *
+ * Not a guess — a statement of what R13 shipped. Every section written before this round
+ * rendered in the band under the hero, so reading an absent field as 'opening' is reading it
+ * as what the shop was actually doing. The two live claims on file carry no placement and
+ * must not move because a deploy happened; they move when Ikenna moves them.
+ */
+export const DEFAULT_PLACEMENT = PLACEMENT_OPENING;
+
+export function isShelfPlacement(p) {
+  return SHELF_PLACEMENTS.includes(p);
+}
+
+/**
+ * A raw record's placement, normalised. Absent, unknown or malformed → the default, and a
+ * type whose placement is locked (the Window) gets its lock whatever the record says.
+ */
+export function placementOf(raw) {
+  const spec = SECTION_TYPES[raw?.type];
+  if (spec?.placementLocked) return { placement: spec.placementLocked, placeAfter: 0 };
+  const placement = PLACEMENTS.includes(raw?.placement) ? raw.placement : DEFAULT_PLACEMENT;
+  const after = isInt(raw?.placeAfter) && raw.placeAfter >= 0 ? raw.placeAfter : 0;
+  return { placement, placeAfter: isShelfPlacement(placement) ? after : 0 };
+}
 
 export const TYPE_WINDOW = 'window';
 export const TYPE_EDITORS_CHOICE = 'editors-choice';
@@ -140,6 +243,22 @@ export const SECTION_TYPES = {
     // component, same classes, same markup, same plate reading "In the Window". Folding it
     // into the system changed WHETHER it is called, never what it draws.
     renders: 'window',
+    // ⚠ THE WINDOW DOES NOT MOVE, AND THAT IS CONFIRMED AGAINST THE SHIPPED SHOP, NOT ASSUMED.
+    // The live record is `window`, order 0, and page.js has drawn it as the first thing under
+    // the hero since R4b — before the section system existed, when it was one line reading
+    // `{windowTitle && <TheWindow/>}` immediately after <Hero/>. R13 folded it in at order 0
+    // and changed nothing about where it landed.
+    //
+    // So the exception is not a carve-out for legacy behaviour, it is what the thing IS. A
+    // shop window is the pane you look through from the street; a window three-quarters of the
+    // way down the Fiction shelf is not a window, it is a table. If a curator wants a featured
+    // book mid-scroll they already have Editor's Choice and Book of the Month, both of which
+    // render a case and both of which move freely.
+    //
+    // Enforced in three places for the same reason the data-driven types have no slug field:
+    // placementOf() forces it, validateSection refuses anything else, and the CMS shows a
+    // sentence where the control would be — absent, not disabled.
+    placementLocked: PLACEMENT_OPENING,
     note: 'The display case. One book. The oldest claim in the shop.',
   },
   [TYPE_EDITORS_CHOICE]: {
@@ -333,6 +452,23 @@ export function validateSection(doc) {
     errors.push(`${doc.type} does not carry a month`);
   }
 
+  // ── PLACEMENT ──────────────────────────────────────────────────────────────────────────
+  // OPTIONAL, and deliberately so. The records R13 wrote carry no placement and are not
+  // invalid; they mean 'opening', which is where they were rendering. buildSectionDoc always
+  // writes one from now on, so the absence is a fact about history, not a hole in the form.
+  if (doc.placement !== undefined && doc.placement !== null) {
+    if (!PLACEMENTS.includes(doc.placement)) errors.push(`placement must be one of: ${PLACEMENTS.join(', ')}`);
+    else if (spec.placementLocked && doc.placement !== spec.placementLocked) {
+      errors.push(`${doc.type} always opens the shop and cannot be placed anywhere else`);
+    }
+  }
+  if (doc.placeAfter !== undefined && doc.placeAfter !== null) {
+    if (!isInt(doc.placeAfter) || doc.placeAfter < 0) errors.push('placeAfter must be a non-negative integer');
+    // A depth on a stop that has no depth is not harmless, it is a curator who thinks they
+    // placed something into a shelf. Refused rather than ignored.
+    else if (!isShelfPlacement(doc.placement)) errors.push('placeAfter belongs to a shelf placement only');
+  }
+
   if (doc.ranked !== undefined && doc.ranked !== null) {
     if (typeof doc.ranked !== 'boolean') errors.push('ranked must be a boolean');
     else if (doc.ranked && !spec.rankable) errors.push(`${doc.type} cannot be ranked`);
@@ -469,6 +605,10 @@ export function resolveSections(sections, titles, opts = {}) {
       monthLabel: spec.dated ? monthLabel(raw.monthKey) : null,
       ranked: !!(spec.rankable && raw.ranked),
       order: isInt(raw.order) ? raw.order : 0,
+      // WHERE IT STANDS. Carried out of resolution rather than read off the raw record later,
+      // so that everything downstream — the shop, the CMS preview, the tests — is looking at
+      // one normalisation of one field. planShopFlow() below turns these into the scroll.
+      ...placementOf(raw),
       titles: resolved,
       // 'window' | 'case' | 'shelf' — the geometry adapts, the grammar does not.
       layout: spec.renders === 'auto' ? (resolved.length === 1 ? 'case' : 'shelf') : spec.renders,
@@ -478,6 +618,98 @@ export function resolveSections(sections, titles, opts = {}) {
   // RENDER ORDER IS CMS ORDER. The tiebreak is the id, so two sections sharing an order still
   // sort the same way on every device rather than in whatever order RTDB handed them over.
   return out.sort((a, b) => (a.order - b.order) || String(a.id).localeCompare(String(b.id)));
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// THE SCROLL — resolved claims, distributed through the shop's own flow
+// ═════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * PLAN THE SHOP.
+ *
+ * @param resolved  resolveSections() output — ALREADY sorted by order, and already stripped of
+ *                  everything that does not render. Nothing in here re-decides that: a section
+ *                  reaching this function is a section the shop is drawing, and this only says
+ *                  where.
+ * @param shelves   [{ group, count }] IN RENDER ORDER, and ONLY the shelves the shop is
+ *                  actually drawing. A half of the shop with no published titles is not in
+ *                  this list, because it is not on the page — see degradation rule 2 above.
+ *
+ * @returns { opening: [section], shelves: { [group]: [{ after, sections }] }, foot: [section] }
+ *
+ * The per-shelf entries are CUTS: `after` is the number of books that precede them, already
+ * clamped to the shelf, and `sections` is everything standing at that cut in CMS order. Cuts
+ * come back ascending, and two sections placed at the same depth share one cut rather than
+ * opening two.
+ */
+export function planShopFlow(resolved, shelves) {
+  const present = (shelves || []).filter((sh) => sh && isShelfPlacement(sh.group) && sh.count > 0);
+  const sizes = new Map(present.map((sh) => [sh.group, sh.count]));
+
+  const plan = { opening: [], shelves: {}, foot: [] };
+  for (const sh of present) plan.shelves[sh.group] = [];
+
+  // group → Map(clamped depth → sections). A Map keeps insertion order within a depth, which
+  // is CMS order, because `resolved` arrived sorted.
+  const cuts = new Map();
+
+  for (const sec of resolved || []) {
+    const at = sec.placement;
+    if (at === PLACEMENT_OPENING) { plan.opening.push(sec); continue; }
+    // 'foot' asks for the foot; a shelf that is not on the page DEGRADES to the same place.
+    if (!sizes.has(at)) { plan.foot.push(sec); continue; }
+
+    const size = sizes.get(at);
+    const wanted = isInt(sec.placeAfter) && sec.placeAfter > 0 ? sec.placeAfter : 0;
+    const depth = Math.min(wanted, size);   // ⛔ degradation rule 1 — clamped, never dropped
+    if (!cuts.has(at)) cuts.set(at, new Map());
+    const perDepth = cuts.get(at);
+    if (!perDepth.has(depth)) perDepth.set(depth, []);
+    perDepth.get(depth).push(sec);
+  }
+
+  for (const [group, perDepth] of cuts) {
+    plan.shelves[group] = [...perDepth.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([after, sections]) => ({ after, sections }));
+  }
+
+  return plan;
+}
+
+/**
+ * CUT A SHELF INTO RUNS.
+ *
+ * @param titles  the shelf's books, in catalogue order
+ * @param cuts    plan.shelves[group] — ascending, already clamped
+ * @returns [{ titles, sections }] — a run of books, then whatever stands after it
+ *
+ * ⚠ THE SHELF CLOSES OVER A SILENT SECTION, and it does so HERE, by never being told to open.
+ * planShopFlow is fed resolved sections only, so an unclaimed, retired, dormant or expired
+ * section contributes no cut, this function makes no split, and what renders is one unbroken
+ * grid — the same grid the shop drew before anybody planned a table there. There is no branch
+ * for it and there is nothing to leave behind, which is the only way a hole in the middle of a
+ * scroll can be guaranteed not to appear. A hole at the top of a page is a slightly loose
+ * margin; a hole between two rows of books is a shelf with a missing plank.
+ *
+ * A cut at 0 yields a leading run of NO books. It is returned as such rather than swallowed —
+ * the caller draws a grid only for a run that has something in it, which is one condition in
+ * one place instead of a special case in two.
+ */
+export function shelfRuns(titles, cuts) {
+  const list = titles || [];
+  const runs = [];
+  let i = 0;
+  for (const cut of cuts || []) {
+    const at = Math.min(Math.max(isInt(cut?.after) ? cut.after : 0, 0), list.length);
+    runs.push({ titles: list.slice(i, at), sections: cut?.sections || [] });
+    i = at;
+  }
+  // The tail. Present whenever anything is left, absent when the last cut was at the foot.
+  if (i < list.length) runs.push({ titles: list.slice(i), sections: [] });
+  // A shelf nobody cut is one run, which is the shape the shop has always drawn.
+  if (runs.length === 0) runs.push({ titles: list, sections: [] });
+  return runs;
 }
 
 /**

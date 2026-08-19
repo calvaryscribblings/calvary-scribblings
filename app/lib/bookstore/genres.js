@@ -55,6 +55,25 @@ export const GENRES_PATH = 'bookstore_genres';
 export const GENRE_GROUPS = ['fiction', 'nonfiction'];
 
 /**
+ * WHAT THE SHOP CALLS EACH HALF.
+ *
+ * R15 — a fourth place was about to spell these. The storefront had "Fiction" / "Non-Fiction"
+ * as literals on its two catalogue heads and "All Fiction" / "All Non-Fiction" as two more on
+ * their first tabs, and the Sections panel needed the same words to say where a table sits.
+ * That is exactly the shape of the drift this file was written to end: three spellings of
+ * twelve genres, one of them derived from the slug and disagreeing on four.
+ *
+ * So the halves are named ONCE, here, beside the slugs they group. `All ${groupLabel(g)}` is
+ * how the tab is built — the tab cannot say "All Non-Fiction" while the head says "Nonfiction".
+ */
+export const GROUP_LABELS = { fiction: 'Fiction', nonfiction: 'Non-Fiction' };
+
+/** The label for a half, falling back to the raw group for the same reason genreLabel does. */
+export function groupLabel(group) {
+  return GROUP_LABELS[group] || String(group || '');
+}
+
+/**
  * THE MIGRATION PAYLOAD. Reproduces, exactly, what the shop rendered before R13:
  *   label  — verbatim from app/bookstore/page.js's GENRE_LABELS (and the detail page's copy
  *            of it, which was byte-identical; both are deleted by this round)

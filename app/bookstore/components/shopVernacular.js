@@ -52,7 +52,16 @@ export const SHOP_VERNACULAR_CSS = `
   .window-shelfcard span{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:#c9a44c}
   .btn-details{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.55);text-decoration:none;border-bottom:1px solid rgba(201,164,76,.25);padding-bottom:2px}
 
-  .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:3.5rem 1.5rem;justify-items:center}
+  /* ── THE SHELF'S RHYTHM, AS TWO TOKENS ────────────────────────────────────────────────
+     R15 — the grid's gaps were two literals here and two more inside the storefront's phone
+     media query. They are now named, because the interleave below has to be a MULTIPLE of the
+     row gap and a multiple of a literal you cannot see is an eyeballed number wearing a calc().
+     Declared on BOTH selectors in one rule: .shelf so any shelf anywhere carries its own
+     rhythm, .catalogue-section so a curated table standing BETWEEN two shelf runs — a sibling
+     of the grid, not a child of it — can still read the same value. One declaration, one pair
+     of numbers, two places that need them. */
+  .shelf,.catalogue-section{--shelf-row-gap:3.5rem;--shelf-col-gap:1.5rem}
+  .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:var(--shelf-row-gap) var(--shelf-col-gap);justify-items:center}
   .shelf-entry{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:200px;animation:fadeUp .5s ease forwards}
   .shelf-book-wrap{margin-bottom:1.1rem}
   .no-divider{display:flex;align-items:center;gap:.6rem;width:100%;margin-bottom:1rem}
@@ -67,4 +76,45 @@ export const SHOP_VERNACULAR_CSS = `
   .shelf-card{margin-top:1rem;background:#ece4cf;color:#2a2318;padding:.75rem .9rem;border-radius:1px;box-shadow:0 6px 18px rgba(0,0,0,.4);font-size:.72rem;line-height:1.5;max-width:190px}
   .shelf-card-body{display:block;font-style:italic}
   .shelf-card-sign{display:block;margin-top:.4rem;font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.12em;color:#7a5f24}
+
+  /* ═══ THE CATALOGUE ═════════════════════════════════════════════════════════════════════
+     R15 — these four moved out of app/bookstore/page.js's inline stylesheet for exactly the
+     reason .shelf moved in R13: the CMS preview now draws the REAL CatalogueSection around a
+     placed table, so a preview that got its own copy of these rules would be a picture of a
+     shop that does not exist. Same string, both surfaces, nothing retyped. */
+  .catalogue-section{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:4rem 2.5rem}
+  .genre-tabs{display:flex;overflow-x:auto;margin-bottom:3rem;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.06)}
+  .genre-tabs::-webkit-scrollbar{display:none}
+  .genre-tab{padding:.7rem 1.3rem;white-space:nowrap;font-family:'Cormorant Garamond',Georgia,serif;font-size:.75rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:rgba(240,234,216,.45);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+  .genre-tab:hover{color:#f0ead8}
+  .genre-tab.active{color:#c9a44c;border-bottom-color:#c9a44c}
+  .shelf-empty{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.05rem;color:rgba(240,234,216,.4);text-align:center;padding:2rem 0}
+
+  /* ── THE INTERLEAVE, AND ITS AIR ────────────────────────────────────────────────────────
+     A curated table standing in the middle of a shelf has one job to do before it says
+     anything: it has to read as a CHANGE OF KIND rather than as another row of books. On a
+     phone the failure mode is specific and ugly — the shelf is one book wide, so a head
+     arriving between two covers with a row's worth of air above it looks like a caption that
+     lost its cover, or a row that failed to load.
+
+     The shelf already states what a change of ROW is worth: --shelf-row-gap. So the table
+     takes exactly TWICE it, above and below. That is the smallest multiple that cannot be
+     mistaken for the gap it sits beside, it is derived from the grid rather than chosen
+     against a screenshot, and it shrinks with the grid on a handset (3.5rem → 2.75rem, so
+     7rem → 5.5rem) without a second breakpoint being written anywhere.
+
+     The section's OWN vertical padding is zeroed, not added to. .curated-section's 3.5rem was
+     calibrated for a table standing alone between other standalone sections; inside the shelf
+     flow the run above is the neighbour, and stacking both paddings would push the table so
+     far from the books that it stops reading as part of the same shelf. Its horizontal padding
+     and max-width go too, so the head's rules span the same width as the grid above them —
+     a narrower table reads as an embed, not as part of the shop. */
+  .catalogue-interleave{padding:calc(var(--shelf-row-gap) * 2) 0}
+  .catalogue-interleave > .curated-section{max-width:none;margin:0;padding:0}
+
+  @media(max-width:640px){
+    .shelf,.catalogue-section{--shelf-row-gap:2.75rem;--shelf-col-gap:1rem}
+    .shelf{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+    .catalogue-section{padding:3rem 1.25rem}
+  }
 `;

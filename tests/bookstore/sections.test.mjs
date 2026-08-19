@@ -29,6 +29,15 @@ import {
   requireRealSignal,
   buildWindowMigration,
   buildGenreMigration,
+  PLACEMENTS,
+  PLACEMENT_OPENING,
+  PLACEMENT_FOOT,
+  SHELF_PLACEMENTS,
+  DEFAULT_PLACEMENT,
+  isShelfPlacement,
+  placementOf,
+  planShopFlow,
+  shelfRuns,
   TYPE_WINDOW,
   TYPE_EDITORS_CHOICE,
   TYPE_BOOK_OF_THE_MONTH,
@@ -553,6 +562,9 @@ describe('THE PREVIEW IS THE SHOP — one stylesheet, not a copy of one', () => 
     '.window-pull', '.window-shelfcard', '.btn-details',
     '.shelf', '.shelf-entry', '.no-divider', '.no-label',
     '.entry-genre', '.entry-title', '.entry-author', '.shelf-card',
+    // R15 — the catalogue's own classes joined the vernacular when the CMS preview started
+    // drawing the real CatalogueSection around a placed table.
+    '.catalogue-section', '.genre-tabs', '.genre-tab', '.shelf-empty', '.catalogue-interleave',
   ];
 
   test('the vernacular defines every shared class exactly once', () => {
@@ -595,6 +607,8 @@ describe('THE PREVIEW IS THE SHOP — one stylesheet, not a copy of one', () => 
     // canary: if the literal closed early, it is absent.
     const vern = /export const SHOP_VERNACULAR_CSS = `([\s\S]*?)`;/.exec(VERNACULAR)[1];
     assert.ok(vern.includes('.shelf-card-sign'), 'SHOP_VERNACULAR_CSS is truncated');
+    assert.ok(vern.includes('.catalogue-interleave'), 'SHOP_VERNACULAR_CSS lost its catalogue block');
+    assert.ok(/@media\(max-width:640px\)/.test(vern), 'SHOP_VERNACULAR_CSS lost its responsive block');
     const cur = /export const CURATED_SECTION_CSS = `([\s\S]*?)`;/.exec(CURATED)[1];
     assert.ok(cur.includes('.curated-actions'), 'CURATED_SECTION_CSS is truncated');
     assert.ok(cur.includes('@media(max-width:640px)'), 'CURATED_SECTION_CSS lost its responsive block');
@@ -612,5 +626,439 @@ describe('THE PREVIEW IS THE SHOP — one stylesheet, not a copy of one', () => 
       assert.ok(PANEL.includes(fn), `the CMS panel skips ${fn} — its covers would wear no obi where the shop’s do`);
       assert.ok(SHOP.includes(fn), `the storefront skips ${fn}`);
     }
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+describe('R15 — PLACEMENT: where a section stands in the scroll', () => {
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// Ikenna, 19 Aug 2026, on the first live claim: "The system works. The placement is wrong.
+// They stack up above the shop and it reads as a run of headers followed by the shop."
+//
+// Everything below is about the ONE decision this round adds — which stop a resolved section
+// stands at — and about the guarantees R13 made that placement had to leave untouched.
+
+  const sec = (id, over = {}) => ({
+    id, schemaVersion: 1, type: TYPE_EDITORS_CHOICE, displayTitle: id,
+    order: 0, status: 'live', slugs: ['basil'], addedAt: 1, updatedAt: 1,
+    ...over,
+  });
+  // A shelf of ten, so a depth has somewhere to land.
+  const SHELF = Array.from({ length: 10 }, (_, i) => title(`book-${i + 1}`));
+  const resolveOn = (rows, cat = CATALOGUE) => resolveSections(rows, cat, { now: NOW, signals: {} });
+
+  test('the stops are the shop’s own flow, and the shelves are GENRE_GROUPS', () => {
+    // Not a second list of the same two words — the halves of the shop are named in genres.js
+    // and a third half added there becomes a stop here without an edit.
+    assert.deepEqual(SHELF_PLACEMENTS, ['fiction', 'nonfiction']);
+    assert.deepEqual(PLACEMENTS, ['opening', 'fiction', 'nonfiction', 'foot']);
+    assert.equal(isShelfPlacement('fiction'), true);
+    assert.equal(isShelfPlacement(PLACEMENT_OPENING), false);
+    assert.equal(isShelfPlacement(PLACEMENT_FOOT), false);
+  });
+
+  test('a record written before this round means ‘opening’ — which is where it was rendering', () => {
+    // The two live claims on file carry no placement field. Reading the absence as anything
+    // else would move somebody's shop because a deploy happened.
+    assert.equal(DEFAULT_PLACEMENT, PLACEMENT_OPENING);
+    const [out] = resolveOn([sec('legacy')]);
+    assert.equal(out.placement, PLACEMENT_OPENING);
+    assert.equal(out.placeAfter, 0);
+  });
+
+  test('a malformed placement falls to the default rather than to an error', () => {
+    for (const bad of ['sideways', '', null, 7, undefined]) {
+      assert.equal(placementOf({ type: TYPE_EDITORS_CHOICE, placement: bad }).placement, PLACEMENT_OPENING);
+    }
+    assert.equal(placementOf({ type: TYPE_EDITORS_CHOICE, placement: 'fiction', placeAfter: -3 }).placeAfter, 0);
+    assert.equal(placementOf({ type: TYPE_EDITORS_CHOICE, placement: 'fiction', placeAfter: 2.5 }).placeAfter, 0);
+  });
+
+  test('a depth on a stop with no depth is dropped, not carried', () => {
+    // 'opening' and 'foot' have no interior. A stale depth left on the record after a move
+    // would resurface the moment the curator moved it back into a shelf.
+    assert.equal(placementOf({ type: TYPE_EDITORS_CHOICE, placement: PLACEMENT_FOOT, placeAfter: 9 }).placeAfter, 0);
+  });
+
+  test('the section is DISTRIBUTED, not stacked — the whole complaint, in one assertion', () => {
+    const rows = [
+      sec('a', { placement: PLACEMENT_OPENING }),
+      sec('b', { placement: 'fiction', placeAfter: 2 }),
+      sec('c', { placement: PLACEMENT_FOOT }),
+    ];
+    const plan = planShopFlow(resolveOn(rows), [{ group: 'fiction', count: 10 }]);
+    assert.deepEqual(plan.opening.map((x) => x.id), ['a']);
+    assert.deepEqual(plan.shelves.fiction.map((c) => c.after), [2]);
+    assert.deepEqual(plan.shelves.fiction[0].sections.map((x) => x.id), ['b']);
+    assert.deepEqual(plan.foot.map((x) => x.id), ['c']);
+  });
+
+  test('a cut splits the shelf into runs, and the books either side are all still there', () => {
+    const plan = planShopFlow(resolveOn([sec('b', { placement: 'fiction', placeAfter: 4 })]), [{ group: 'fiction', count: 10 }]);
+    const runs = shelfRuns(SHELF, plan.shelves.fiction);
+    assert.equal(runs.length, 2);
+    assert.equal(runs[0].titles.length, 4);
+    assert.equal(runs[1].titles.length, 6);
+    assert.deepEqual(runs[0].sections.map((x) => x.id), ['b']);
+    assert.deepEqual(runs[1].sections, []);
+    // NOT ONE BOOK LOST OR REPEATED. A cut re-arranges the shelf; it does not edit it.
+    assert.deepEqual(runs.flatMap((r) => r.titles.map((t) => t.slug)), SHELF.map((t) => t.slug));
+  });
+
+  test('two tables at the same depth share one cut rather than opening two', () => {
+    const rows = [
+      sec('first', { placement: 'fiction', placeAfter: 3, order: 0 }),
+      sec('second', { placement: 'fiction', placeAfter: 3, order: 1 }),
+    ];
+    const plan = planShopFlow(resolveOn(rows), [{ group: 'fiction', count: 10 }]);
+    assert.equal(plan.shelves.fiction.length, 1);
+    // AND CMS ORDER STILL DECIDES WHICH IS FIRST. `order` kept its old job; it simply stopped
+    // being the only way to say where.
+    assert.deepEqual(plan.shelves.fiction[0].sections.map((x) => x.id), ['first', 'second']);
+  });
+
+  test('cuts come back in shelf order however the curator ordered the sections', () => {
+    const rows = [
+      sec('deep', { placement: 'fiction', placeAfter: 8, order: 0 }),
+      sec('shallow', { placement: 'fiction', placeAfter: 1, order: 1 }),
+    ];
+    const plan = planShopFlow(resolveOn(rows), [{ group: 'fiction', count: 10 }]);
+    assert.deepEqual(plan.shelves.fiction.map((c) => c.after), [1, 8]);
+    const runs = shelfRuns(SHELF, plan.shelves.fiction);
+    assert.deepEqual(runs.map((r) => r.titles.length), [1, 7, 2]);
+  });
+
+  test('a depth of 0 puts the table above the first book, and draws NO empty grid', () => {
+    const plan = planShopFlow(resolveOn([sec('top', { placement: 'fiction', placeAfter: 0 })]), [{ group: 'fiction', count: 10 }]);
+    const runs = shelfRuns(SHELF, plan.shelves.fiction);
+    assert.equal(runs[0].titles.length, 0);          // the leading run is EMPTY…
+    assert.deepEqual(runs[0].sections.map((x) => x.id), ['top']);
+    assert.equal(runs[1].titles.length, 10);
+    // …and it is returned as empty rather than swallowed, so the ONE condition that suppresses
+    // a grid lives in the renderer and not in two places. An empty .shelf is a row gap with no
+    // row in it, which is the hole this round must not open.
+  });
+
+  test('an uncut shelf is ONE run — byte-identical to the shop before this round', () => {
+    assert.deepEqual(shelfRuns(SHELF, []).map((r) => r.titles.length), [10]);
+    assert.deepEqual(shelfRuns(SHELF, undefined).map((r) => r.sections), [[]]);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+describe('R15 — DEGRADATION: an anchor that outran the catalogue', () => {
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// A curator plans for a shop that does not exist yet. Neither way of overshooting may produce
+// an error, a dropped claim, or a gap.
+
+  const sec = (id, over = {}) => ({
+    id, schemaVersion: 1, type: TYPE_EDITORS_CHOICE, displayTitle: id,
+    order: 0, status: 'live', slugs: ['basil'], addedAt: 1, updatedAt: 1,
+    ...over,
+  });
+  const SHELF = Array.from({ length: 4 }, (_, i) => title(`book-${i + 1}`));
+  const resolveOn = (rows) => resolveSections(rows, CATALOGUE, { now: NOW, signals: {} });
+
+  test('a depth past the end of the shelf CLAMPS to its foot — it is never dropped', () => {
+    const plan = planShopFlow(resolveOn([sec('waiting', { placement: 'fiction', placeAfter: 12 })]), [{ group: 'fiction', count: 4 }]);
+    assert.equal(plan.shelves.fiction.length, 1);
+    assert.equal(plan.shelves.fiction[0].after, 4);
+    const runs = shelfRuns(SHELF, plan.shelves.fiction);
+    assert.deepEqual(runs.map((r) => r.titles.length), [4]);
+    assert.deepEqual(runs[0].sections.map((x) => x.id), ['waiting']);
+    // ⚠ AND IT IS STILL RENDERING. Silence belongs to an unmade claim, never to a placement
+    // the catalogue has not grown into.
+    assert.equal(plan.opening.length + plan.foot.length, 0);
+  });
+
+  test('the same claim moves up by itself once the shelf is long enough', () => {
+    const rows = resolveOn([sec('waiting', { placement: 'fiction', placeAfter: 12 })]);
+    assert.equal(planShopFlow(rows, [{ group: 'fiction', count: 4 }]).shelves.fiction[0].after, 4);
+    assert.equal(planShopFlow(rows, [{ group: 'fiction', count: 20 }]).shelves.fiction[0].after, 12);
+  });
+
+  test('a shelf that is not on the page at all sends its tables to the FOOT of the catalogue', () => {
+    // Today's shop: every published title is fiction, so Non-Fiction is not drawn.
+    const plan = planShopFlow(
+      resolveOn([sec('orphan', { placement: 'nonfiction', placeAfter: 3 })]),
+      [{ group: 'fiction', count: 4 }],
+    );
+    assert.deepEqual(plan.foot.map((x) => x.id), ['orphan']);
+    assert.deepEqual(plan.shelves.fiction, []);
+    assert.equal(plan.shelves.nonfiction, undefined);   // not on the page, so not a stop
+  });
+
+  test('…and it moves into that shelf by itself the day the half of the shop opens', () => {
+    const rows = resolveOn([sec('orphan', { placement: 'nonfiction', placeAfter: 3 })]);
+    const plan = planShopFlow(rows, [{ group: 'fiction', count: 4 }, { group: 'nonfiction', count: 5 }]);
+    assert.equal(plan.foot.length, 0);
+    assert.deepEqual(plan.shelves.nonfiction.map((c) => c.after), [3]);
+  });
+
+  test('an EMPTY shop plans an empty scroll, and throws at nothing', () => {
+    const plan = planShopFlow([], []);
+    assert.deepEqual(plan.opening, []);
+    assert.deepEqual(plan.foot, []);
+    assert.deepEqual(plan.shelves, {});
+    assert.deepEqual(planShopFlow(undefined, undefined).opening, []);
+    assert.deepEqual(shelfRuns([], []).map((r) => r.titles.length), [0]);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+describe('R15 — THE WINDOW IS THE EXCEPTION, and the exception is enforced three times', () => {
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// CONFIRMED AGAINST THE SHIPPED SHOP, not assumed: the live record is `window`, order 0, and
+// page.js has drawn it as the first thing under the hero since R4b — when it was one line
+// reading `{windowTitle && <TheWindow/>}` immediately after <Hero/>.
+
+  const win = (over = {}) => ({
+    id: 'window', schemaVersion: 1, type: TYPE_WINDOW, displayTitle: 'In the Window',
+    order: 0, status: 'live', slugs: ['the-rescue'], addedAt: 1, updatedAt: 1, ...over,
+  });
+
+  test('the type table locks it to the opening', () => {
+    assert.equal(SECTION_TYPES[TYPE_WINDOW].placementLocked, PLACEMENT_OPENING);
+    // …and nothing else is locked. Every other type goes anywhere.
+    for (const k of SECTION_TYPE_KEYS.filter((x) => x !== TYPE_WINDOW)) {
+      assert.equal(SECTION_TYPES[k].placementLocked, undefined, `${k} must not be pinned`);
+    }
+  });
+
+  test('a record that asks to move the Window is overruled at resolution', () => {
+    const [out] = resolveSections([win({ placement: 'fiction', placeAfter: 6 })], CATALOGUE, { now: NOW, signals: {} });
+    assert.equal(out.placement, PLACEMENT_OPENING);
+    assert.equal(out.placeAfter, 0);
+    const plan = planShopFlow([out], [{ group: 'fiction', count: 10 }]);
+    assert.deepEqual(plan.opening.map((x) => x.id), ['window']);
+    assert.deepEqual(plan.shelves.fiction, []);
+  });
+
+  test('…and refused at the writer, so a hand-rolled write cannot move it either', () => {
+    const bad = validateSection({ ...win({ placement: 'fiction' }), id: undefined });
+    assert.equal(bad.valid, false);
+    assert.ok(bad.errors.some((e) => /cannot be placed/.test(e)), bad.errors.join(' | '));
+    assert.equal(validateSection({ ...win({ placement: PLACEMENT_OPENING }) }).valid, true);
+  });
+
+  test('the Window still opens the shop with tables placed all through the shelves', () => {
+    const rows = [
+      win(),
+      { id: 'ec', schemaVersion: 1, type: TYPE_EDITORS_CHOICE, displayTitle: 'EC', order: 1,
+        status: 'live', slugs: ['basil'], placement: 'fiction', placeAfter: 2, addedAt: 1, updatedAt: 1 },
+    ];
+    const plan = planShopFlow(resolveSections(rows, CATALOGUE, { now: NOW, signals: {} }), [{ group: 'fiction', count: 4 }]);
+    assert.deepEqual(plan.opening.map((x) => x.id), ['window']);
+    assert.equal(plan.opening[0].layout, 'window');
+    assert.deepEqual(plan.shelves.fiction[0].sections.map((x) => x.id), ['ec']);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+describe('R15 — EVERY R13 GUARANTEE HOLDS, WITH THE TABLES NOW MID-SCROLL', () => {
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// A hole at the top of a page is a loose margin. A hole between two rows of books is a shelf
+// with a missing plank — so each of R13's silences is re-asserted here IN PLACE, and every one
+// of them additionally asserts that the shelf closed over it.
+
+  const SHELF = Array.from({ length: 6 }, (_, i) => title(`book-${i + 1}`));
+  const at = (id, over) => ({
+    id, schemaVersion: 1, displayTitle: id, order: 0, status: 'live',
+    placement: 'fiction', placeAfter: 3, addedAt: 1, updatedAt: 1,
+    type: TYPE_EDITORS_CHOICE, slugs: ['basil'], ...over,
+  });
+  const planFor = (rows, opts = {}) => planShopFlow(
+    resolveSections(rows, CATALOGUE, { now: NOW, signals: {}, ...opts }),
+    [{ group: 'fiction', count: SHELF.length }],
+  );
+  /** What the shelf actually draws: one number per grid, in order. */
+  const gridsOf = (plan) => shelfRuns(SHELF, plan.shelves.fiction)
+    .map((r) => r.titles.length).filter((n) => n > 0);
+
+  // The shape of an uncut shelf, computed rather than typed, so this file cannot drift from
+  // the fixture above it.
+  const WHOLE = [SHELF.length];
+
+  test('AN UNCLAIMED SECTION renders nothing AND the shelf closes over it', () => {
+    const plan = planFor([at('empty', { slugs: [] })]);
+    assert.equal(plan.shelves.fiction.length, 0);
+    assert.deepEqual(gridsOf(plan), WHOLE);            // ⛔ one grid. No cut, no gap.
+  });
+
+  test('A CLAIM THAT NO LONGER RESOLVES renders nothing, and leaves no cut behind', () => {
+    const plan = planFor([at('gone', { slugs: ['a-book-that-was-unpublished'] })]);
+    assert.equal(plan.shelves.fiction.length, 0);
+    assert.deepEqual(gridsOf(plan), WHOLE);
+  });
+
+  test('A RETIRED SECTION renders nothing, and leaves no cut behind', () => {
+    const plan = planFor([at('retired', { status: 'retired' })]);
+    assert.equal(plan.shelves.fiction.length, 0);
+    assert.deepEqual(gridsOf(plan), WHOLE);
+  });
+
+  test('A DORMANT DATA-DRIVEN SECTION renders nothing mid-shelf, even fed a real signal', () => {
+    const signals = {
+      readers_choice: { computedAt: NOW, windowDays: 30, entries: [{ slug: 'basil' }, { slug: 'the-rescue' }] },
+    };
+    const plan = planFor([at('dormant', { type: TYPE_READERS_CHOICE, slugs: undefined })], { signals });
+    assert.equal(READERS_CHOICE_ENABLED, false);
+    assert.equal(plan.shelves.fiction.length, 0);
+    assert.deepEqual(gridsOf(plan), WHOLE);
+  });
+
+  test('THE MONTH GATE still hides an expired claim, and hides it IN PLACE', () => {
+    const july = at('botm', { type: TYPE_BOOK_OF_THE_MONTH, monthKey: JUL, slugs: ['basil'] });
+    // Live in July: the shelf is cut in two.
+    const inMonth = planShopFlow(
+      resolveSections([july], CATALOGUE, { now: Date.UTC(2026, 6, 15), signals: {} }),
+      [{ group: 'fiction', count: SHELF.length }],
+    );
+    assert.deepEqual(shelfRuns(SHELF, inMonth.shelves.fiction).map((r) => r.titles.length), [3, 3]);
+    // August: the month ended, so the table is gone AND the plank is back.
+    const after = planFor([july]);
+    assert.equal(after.shelves.fiction.length, 0);
+    assert.deepEqual(gridsOf(after), WHOLE);
+  });
+
+  test('…and a claim for NEXT month does not appear early, mid-shelf or anywhere', () => {
+    const plan = planFor([at('botm', { type: TYPE_BOOK_OF_THE_MONTH, monthKey: SEP, slugs: ['basil'] })]);
+    assert.equal(plan.shelves.fiction.length, 0);
+    assert.deepEqual(gridsOf(plan), WHOLE);
+  });
+
+  test('SEVERAL SILENT SECTIONS at several depths still leave exactly one grid', () => {
+    const plan = planFor([
+      at('a', { slugs: [], placeAfter: 1 }),
+      at('b', { status: 'retired', placeAfter: 2 }),
+      at('c', { type: TYPE_BOOK_OF_THE_MONTH, monthKey: JUL, placeAfter: 4 }),
+      at('d', { type: TYPE_POPULAR_IN_NOTES, slugs: undefined, placeAfter: 5 }),
+    ]);
+    assert.equal(plan.shelves.fiction.length, 0);
+    assert.deepEqual(gridsOf(plan), WHOLE);
+  });
+
+  test('THE OBI comes only from a live Editor’s Choice — placing it changes nothing', () => {
+    for (const where of [{ placement: PLACEMENT_OPENING }, { placement: 'fiction', placeAfter: 2 }, { placement: PLACEMENT_FOOT }]) {
+      const resolved = resolveSections([at('ec', { slugs: ['basil'], ...where })], CATALOGUE, { now: NOW, signals: {} });
+      const bands = bandsFor(resolved);
+      assert.equal(bands.get('basil'), 'Editor’s Choice', `band lost at ${where.placement}`);
+      assert.equal(bands.size, 1);
+    }
+  });
+
+  test('…and a section that placement sent to the foot still grants its band', () => {
+    // Degradation must not become a second way to lose a claim's effects.
+    const resolved = resolveSections([at('ec', { placement: 'nonfiction', placeAfter: 9 })], CATALOGUE, { now: NOW, signals: {} });
+    const plan = planShopFlow(resolved, [{ group: 'fiction', count: SHELF.length }]);
+    assert.equal(plan.foot.length, 1);
+    assert.equal(bandsFor(resolved).get('basil'), 'Editor’s Choice');
+  });
+
+  test('a SILENT section grants no band wherever it was placed', () => {
+    for (const where of [{ placement: PLACEMENT_OPENING }, { placement: 'fiction', placeAfter: 2 }]) {
+      const resolved = resolveSections([at('ec', { status: 'retired', ...where })], CATALOGUE, { now: NOW, signals: {} });
+      assert.equal(bandsFor(resolved).size, 0);
+    }
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+describe('R15 — THE FILTERED-TAB RULING, as the storefront implements it', () => {
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// THE RULING: a genre tab is a question the reader asked; a curated table is a claim the
+// curator made about the shop. Under a filter the shop stops merchandising and answers — one
+// continuous grid of exactly the genre asked for. Under "All", the tables are back.
+//
+// Asserted against the storefront's SOURCE rather than a copy of its logic, because the rule
+// is one expression in one component and a re-implementation here would prove only that the
+// test agrees with itself. tests/bookstore/placement.spec.mjs drives the real page.
+
+  const SHOP = src('app/bookstore/page.js');
+
+  test('the filter still selects exactly the genre it names', () => {
+    const grid = CATALOGUE.filter((t) => t.genre === 'historical');
+    assert.deepEqual(grid.map((t) => t.slug), ['basil']);
+    // The expression the shop uses, quoted from the component so a rewrite is caught here.
+    assert.ok(/const grid = filtered \? titles\.filter\(\(t\) => t\.genre === active\) : titles;/.test(SHOP));
+  });
+
+  test('a filtered shelf takes NO cuts — one run, exactly as before this round', () => {
+    assert.ok(/const runs = filtered \|\| !renderSection \? \[\{ titles: grid, sections: \[\] \}\] : shelfRuns\(grid, interleaves\)/.test(SHOP),
+      'the filtered shelf no longer short-circuits to a single uncut run');
+  });
+
+  test('the depth is counted against the UNFILTERED shelf', () => {
+    // planShopFlow is handed fictionTitles/nonfictionTitles — the whole halves — never the
+    // filtered grid. A depth measured against a tab would move whenever a reader touched one.
+    assert.ok(/shelvesOnPage\.push\(\{ group: 'fiction', count: fictionTitles\.length \}\)/.test(SHOP));
+    assert.ok(/shelvesOnPage\.push\(\{ group: 'nonfiction', count: nonfictionTitles\.length \}\)/.test(SHOP));
+    assert.ok(/planShopFlow\(curatedBanded, shelvesOnPage\)/.test(SHOP));
+  });
+
+  test('a run with no books draws no grid', () => {
+    assert.ok(/run\.titles\.length > 0 && \(\s*<div className="shelf">/.test(SHOP),
+      'the empty-run guard is gone — a cut at depth 0 would draw an empty grid');
+  });
+
+  test('the opening and the foot are OUTSIDE the tabbed shelves', () => {
+    // Same rule, not an exception to it: a tab filters the shelf it belongs to.
+    const body = SHOP.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+    const opening = body.indexOf('{flow.opening.map(renderCurated)}');
+    const fiction = body.indexOf('id="fiction"');
+    const foot = body.indexOf('{flow.foot.map(renderCurated)}');
+    const colophon = body.indexOf('<Colophon');
+    assert.ok(opening > 0 && fiction > opening, 'the opening no longer precedes the catalogue');
+    assert.ok(foot > fiction && colophon > foot, 'the foot no longer sits after the shelves and before the colophon');
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+describe('R15 — THE CMS CARRIES THE CONTROL, AND THE PREVIEW SHOWS THE PLACE', () => {
+// ═════════════════════════════════════════════════════════════════════════════════════════
+
+  const PANEL = src('app/admin/bookstore/SectionsPanel.js');
+  const WRITES = src('app/lib/bookstore/admin-writes.js');
+  const RULES = JSON.parse(src('database.rules.json'));
+
+  test('a curator, not a developer, sets it', () => {
+    assert.ok(/Where it sits/.test(PANEL), 'the panel has no placement control');
+    assert.ok(/PLACEMENT_CHOICES/.test(PANEL));
+    assert.ok(/placeAfter: e\.target\.value/.test(PANEL), 'the depth is not editable');
+    assert.ok(/placementSentence\(/.test(PANEL), 'the control has no plain-sentence explanation');
+  });
+
+  test('the Window’s control is ABSENT, not disabled', () => {
+    assert.ok(/spec\.placementLocked \?/.test(PANEL), 'the panel no longer branches on the lock');
+    assert.equal(/disabled=\{[^}]*placementLocked/.test(PANEL), false, 'a greyed-out control invites the question of how to un-grey it');
+  });
+
+  test('the preview draws the placed table inside the shop’s real catalogue', () => {
+    assert.ok(/CatalogueSection/.test(PANEL), 'the preview does not use the storefront’s catalogue component');
+    assert.ok(/from '\.\.\/\.\.\/bookstore\/page'/.test(PANEL));
+    assert.ok(/planShopFlow\(\[resolved\]/.test(PANEL), 'the preview cuts the shelf by some other means than the shop’s');
+    // The BRANCH, not merely the import: a preview that still names CatalogueSection but can
+    // never reach it is the isolated frame back again, wearing the right vocabulary.
+    assert.ok(/\{inShelf\(resolved\)\s*\n\s*\? \(/.test(PANEL),
+      'the placed-context branch is no longer reachable — the preview draws in isolation again');
+  });
+
+  test('the writer stores the placement, and clears a depth that no longer applies', () => {
+    assert.ok(/doc\.placement = spec\.placementLocked/.test(WRITES), 'the writer does not enforce the lock');
+    assert.ok(/if \(isShelfPlacement\(doc\.placement\)\) \{/.test(WRITES), 'a depth is written for a stop that has none');
+  });
+
+  test('the database refuses a placement it has never heard of', () => {
+    const node = RULES.rules.bookstore_sections.$sectionId;
+    assert.ok(node.placement, 'bookstore_sections has no placement rule');
+    for (const p of PLACEMENTS) {
+      assert.ok(node.placement['.validate'].includes(p), `the rule does not allow ${p}`);
+    }
+    assert.equal(node.placeAfter['.validate'], 'newData.isNumber() && newData.val() >= 0');
   });
 });
