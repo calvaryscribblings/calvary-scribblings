@@ -15,34 +15,28 @@ import { useCurrency, useRegionCountry, priceLine } from '../lib/currency';
 import CurrencySelector, { CURRENCY_SELECTOR_CSS } from './components/CurrencySelector';
 import LaunchGate from './components/LaunchGate';
 import { isStoreUnlocked } from '../lib/bookstore/gate';
+// R13 — the curation system and the taxonomy. Both are DATA now; neither is a table in this
+// file any more. See app/lib/bookstore/sections.js and genres.js for the two rules, which are
+// deliberately opposite: an unclaimed section renders nothing, an unwritten vocabulary
+// bootstraps to the seed.
+import { getGenres, getSections, getSignals } from '../lib/bookstore/loader';
+import { genreLabel as labelOf, genresPresentIn, titlesInGroup } from '../lib/bookstore/genres';
+import { resolveSections, bandsFor, applyBands, rebindSections, nextExpiryMs } from '../lib/bookstore/sections';
+import CuratedSection, { CURATED_SECTION_CSS } from './components/CuratedSection';
+import { SHOP_VERNACULAR_CSS } from './components/shopVernacular';
 
-// Fiction/non-fiction split, derived from genre. Exported so the detail page (R3) can reuse
-// the exact same mapping without re-deriving it. Every slug here is a member of GENRES in
-// app/lib/bookstore/schema.js — keep the two in step.
-export const FICTION_GENRES = ['literary-fiction', 'romance', 'thriller-suspense', 'sci-fi-fantasy', 'historical', 'short-story-collection', 'poetry'];
-export const NONFICTION_GENRES = ['memoir-biography', 'essays', 'self-development', 'business-finance', 'politics-society'];
-
-export function sectionForGenre(genre) {
-  if (FICTION_GENRES.includes(genre)) return 'fiction';
-  if (NONFICTION_GENRES.includes(genre)) return 'nonfiction';
-  return null;
-}
-
-const GENRE_LABELS = {
-  'literary-fiction': 'Literary Fiction',
-  'romance': 'Romance',
-  'thriller-suspense': 'Thriller & Suspense',
-  'sci-fi-fantasy': 'Sci-Fi & Fantasy',
-  'historical': 'Historical',
-  'short-story-collection': 'Short Story Collections',
-  'poetry': 'Poetry',
-  'memoir-biography': 'Memoir & Biography',
-  'essays': 'Essays',
-  'self-development': 'Self-Development',
-  'business-finance': 'Business & Finance',
-  'politics-society': 'Politics & Society',
-};
-const genreLabel = (g) => GENRE_LABELS[g] || g;
+// R13 — WHAT USED TO BE HERE, AND WHERE IT WENT.
+//
+// Three constants stood at the top of this file: FICTION_GENRES, NONFICTION_GENRES and a
+// twelve-row GENRE_LABELS map, with sectionForGenre() exported so the detail page could
+// "reuse the exact same mapping without re-deriving it". The detail page did not reuse the
+// map — it kept a byte-identical copy of its own — and /admin/bookstore kept a THIRD version
+// that derived labels from the slug and disagreed with both on four of the twelve. An editor
+// picked "Thriller Suspense" from a dropdown and the shop printed "Thriller & Suspense".
+//
+// All three are gone. Labels, display order and the fiction/non-fiction split now come from
+// bookstore_genres, read once below and threaded through as data. genreLabel is a call
+// against that list, not a lookup in a table this file owns.
 
 // ── Small ornaments ──────────────────────────────────────────────────────────
 function Fleuron({ style }) {
@@ -55,14 +49,27 @@ function ShelfBook({ title, width, onOpen }) {
   return <BoundBook title={title} variant="shelf" width={width} flipped={flipped} bind={bind} bookRef={bookRef} />;
 }
 
-function ShelfEntry({ title, index, onOpen }) {
+// R13 — EXPORTED, and it takes two new props.
+//
+// `genreLabelFor` is the taxonomy's labeller, passed in rather than closed over, so this
+// component holds no opinion about how a genre is spelled.
+//
+// `suppressMark` hides the catalogue divider for a RANKED curated shelf, where the same slot
+// carries the rank numeral instead. Both marks in one slot would be two orderings arguing —
+// "CS 003" is where a book sits in the catalogue and "II" is where the curator put it, and a
+// shelf that shows both is telling the reader neither.
+//
+// The export is for the CMS preview, following the precedent page-detail.js set when it
+// imported sectionForGenre from this route file: the panel must draw the shop with the shop's
+// own components or it is drawing a mock-up.
+export function ShelfEntry({ title, index, onOpen, genreLabelFor, suppressMark }) {
   const [currency] = useCurrency();
   // R8.4 — the country from the SAME one-shot probe the currency default already uses; no
   // second request. priceLine applies the precedence rule (territory outranks currency), so
   // this component makes no decision about which mark to show.
   const country = useRegionCountry();
   const { price, note, isTerritoryNote } = priceLine(title, currency, country);
-  const mark = formatCatalogueNumber(title.catalogueNumber);
+  const mark = suppressMark ? null : formatCatalogueNumber(title.catalogueNumber);
   const tilt = index % 2 === 0 ? -0.7 : 0.7;
   return (
     <div className="shelf-entry">
@@ -72,7 +79,7 @@ function ShelfEntry({ title, index, onOpen }) {
       <div className="shelf-book-wrap">
         <ShelfBook title={title} width={150} onOpen={onOpen} />
       </div>
-      <div className="entry-genre">{genreLabel(title.genre)}</div>
+      <div className="entry-genre">{genreLabelFor(title.genre)}</div>
       <div className="entry-title">{title.title}</div>
       <div className="entry-author">{title.author}</div>
       {price && <div className="entry-price">{price}</div>}
@@ -101,9 +108,13 @@ function ShelfEntry({ title, index, onOpen }) {
 }
 
 // ── Genre-tabbed catalogue section (R2 logic preserved: tabs, filter, hide rules) ──
-function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPresent, active, setActive, onOpen }) {
+function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPresent, active, setActive, onOpen, genreLabelFor }) {
   const grid = titles.filter((t) => active === 'all' || t.genre === active);
-  const tabs = [{ key: 'all', label: allLabel }, ...genresPresent.map((g) => ({ key: g, label: genreLabel(g) }))];
+  // R13 — genresPresent is now taxonomy RECORDS rather than slugs, so the tab carries the
+  // curator's label and the curator's order. The rule it encodes is unchanged and is now
+  // stated once, in genres.js: All Fiction first, then only genres holding a published title.
+  // An empty genre is absent, not an empty tab.
+  const tabs = [{ key: 'all', label: allLabel }, ...genresPresent.map((g) => ({ key: g.slug, label: g.label }))];
   return (
     <section id={id} className="catalogue-section">
       <div className="section-head">
@@ -119,14 +130,27 @@ function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPresent, a
         ))}
       </div>
       {grid.length > 0
-        ? <div className="shelf">{grid.map((t, i) => <ShelfEntry key={t.id} title={t} index={i} onOpen={onOpen} />)}</div>
+        ? <div className="shelf">{grid.map((t, i) => <ShelfEntry key={t.id} title={t} index={i} onOpen={onOpen} genreLabelFor={genreLabelFor} />)}</div>
         : <p className="shelf-empty">Nothing on this shelf yet.</p>}
     </section>
   );
 }
 
 // ── The Window: the featured title in the display case ────────────────────────
-function TheWindow({ title }) {
+//
+// R13 FOLDED THIS INTO THE SECTION SYSTEM AND CHANGED NOTHING ABOUT IT.
+//
+// Same component, same classes, same markup, same plate reading "In the Window", same
+// ribbon, same buy button. What changed is WHO DECIDES IT RENDERS: it used to be
+// `titles.find(t => t.featured)` at the foot of this file, and it is now a WINDOW section in
+// bookstore_sections whose claim resolved. The no-fallback behaviour that one line encoded —
+// no featured title, no display case, never a case with a substitute book in it — is the
+// template every other section type now obeys, which is why this component needed no
+// argument to make: it had already made it.
+//
+// The only edit below is genreLabelFor, for the same reason as everywhere else in this file.
+// Exported for the CMS preview.
+export function TheWindow({ title, genreLabelFor }) {
   // The price label moved into BuyButton, so the button's face and the currency it charges
   // in can never drift apart.
   const pull = resolveOpeningLine(title);
@@ -145,7 +169,7 @@ function TheWindow({ title }) {
             <BoundBook title={title} variant="window" width={190} ribbon />
           </div>
           <div className="window-copy">
-            <div className="window-kicker">{mark ? `${mark} · ` : ''}{genreLabel(title.genre)}</div>
+            <div className="window-kicker">{mark ? `${mark} · ` : ''}{genreLabelFor(title.genre)}</div>
             <h3 className="window-title">{title.title}</h3>
             <p className="window-author">by {title.author}</p>
             {pull && <p className="window-pull">&ldquo;{pull}&rdquo;</p>}
@@ -246,6 +270,19 @@ function Colophon({ count }) {
 export default function BookStorePage() {
   const [gateState, setGateState] = useState('checking');
   const [titles, setTitles] = useState(null); // null until the catalogue load resolves
+  // R13 — the taxonomy and the claims. Both null until their load resolves, for the same
+  // reason `titles` is: a shop that renders tabs before it knows their names, or a section
+  // before it knows whether it is claimed, would flash a wrong screen at every reader.
+  const [genres, setGenres] = useState(null);
+  const [sectionRows, setSectionRows] = useState(null);
+  const [signals, setSignals] = useState(null);
+  // THE CLOCK, HELD IN STATE AND NOT READ DURING RENDER.
+  //
+  // React refuses Date.now() in a render body (react-hooks/purity) and it is right to: this
+  // component is PRERENDERED into the static export, so a clock read during render is a
+  // value the build has and the browser does not agree with. It is set once at mount, and
+  // re-set exactly once more at the next month boundary — see the effect below.
+  const [now, setNow] = useState(0);
   const [activeFiction, setActiveFiction] = useState('all');
   const [activeNonfiction, setActiveNonfiction] = useState('all');
   const [modal, setModal] = useState(null); // { title, rect }
@@ -294,10 +331,49 @@ export default function BookStorePage() {
     let cancelled = false;
     (async () => {
       const list = await getAllPublishedTitles();
-      if (!cancelled) setTitles(list);
+      if (cancelled) return;
+      setTitles(list);
+      // R13 — THREE MORE READS, AND THEY ARE ALL SMALL. bookstore_genres is twelve records of
+      // four fields. bookstore_sections is however many shelves the curator has planned, and
+      // at launch that is one or two. bookstore_signals does not exist, so it is an absent-node
+      // read that returns nothing — see getSignals()'s note on why it is wired anyway.
+      //
+      // The catalogue is awaited FIRST because getSections needs it: the bootstrap builds the
+      // Window's claim out of the published titles, and asking for the same list twice to
+      // avoid one await would be the round trip this file's header says it avoids.
+      const [g, s, sig] = await Promise.all([getGenres(), getSections(list), getSignals()]);
+      if (cancelled) return;
+      setGenres(g);
+      setSectionRows(s);
+      setSignals(sig);
+      // The clock, taken once, beside the claims it dates. See THE CLOCK above.
+      setNow(Date.now());
     })();
     return () => { cancelled = true; };
   }, [gateState]);
+
+  // The clock, and its one alarm.
+  //
+  // The catalogue effect above sets it, in the same async callback that lands the sections —
+  // deliberately, and not in a mount effect of its own. A synchronous setState in an effect
+  // body is what react-hooks/set-state-in-effect refuses and what the lint ratchet counts;
+  // reading the clock beside the data it dates is also simply where it belongs. Then a SINGLE
+  // timeout is armed at the next instant a dated claim changes
+  // state — the start of a pending month or the end of a live one, whichever comes first —
+  // and firing it re-reads the clock, which re-resolves the sections, which is the whole
+  // mechanism by which a Book of the Month hides itself when its month ends without anybody
+  // reloading the page. No polling: nextExpiryMs returns null when nothing is dated, and the
+  // effect arms nothing at all.
+  useEffect(() => {
+    if (!now || !sectionRows) return undefined;
+    const at = nextExpiryMs(sectionRows, now);
+    if (at === null) return undefined;
+    // setTimeout's delay is a signed 32-bit int; a claim months away overflows it and fires
+    // immediately, which would spin. Clamp to a day and let the next tick re-arm.
+    const delay = Math.min(at - now, 24 * 60 * 60 * 1000);
+    const id = setTimeout(() => setNow(Date.now()), Math.max(delay, 1000));
+    return () => clearTimeout(id);
+  }, [now, sectionRows]);
 
   const openModal = (title, rect, reset) => { modalReset.current = reset; setModal({ title, rect }); };
   const closeModal = () => { if (modalReset.current) modalReset.current(); modalReset.current = null; setModal(null); };
@@ -322,16 +398,40 @@ export default function BookStorePage() {
   // document, one answer.
   const [currency, chooseCurrency, currencyChosen] = useCurrency();
 
-  const loading = titles === null;
-  const fictionTitles = loading ? [] : titles.filter((t) => FICTION_GENRES.includes(t.genre));
-  const nonfictionTitles = loading ? [] : titles.filter((t) => NONFICTION_GENRES.includes(t.genre));
-  const fictionGenresPresent = FICTION_GENRES.filter((g) => fictionTitles.some((t) => t.genre === g));
-  const nonfictionGenresPresent = NONFICTION_GENRES.filter((g) => nonfictionTitles.some((t) => t.genre === g));
-  // The Window = the featured title, derived from the single fetch (equivalent to
-  // getFeaturedTitles()[0] over the published set — no extra round trip).
-  const windowTitle = loading ? null : titles.find((t) => t.featured) || null;
+  // The skeleton stands until ALL FOUR reads have landed AND the clock has been set, not just
+  // the catalogue. A shop that painted its shelves and then grew a curated section a beat
+  // later would be two different pages in the same scroll position.
+  const loading = titles === null || genres === null || sectionRows === null || signals === null || now === 0;
+
+  const genreLabelFor = (slug) => labelOf(genres || [], slug);
+
+  // ── R13 — THE CLAIMS, RESOLVED ──────────────────────────────────────────────────────────
+  //
+  // Every hide-it decision in the shop now happens inside this one call: retired sections,
+  // unclaimed sections, claims that no longer resolve, months that have ended, and the two
+  // data-driven types that are dormant and have no data anyway. What comes back is what
+  // renders — there is no empty state to handle and nothing for this component to decide.
+  //
+  // RESOLVED ONCE, against the clock in state.
+  const curated = loading ? [] : resolveSections(sectionRows, titles, { now, signals });
+
+  // ── THE BAND ────────────────────────────────────────────────────────────────────────────
+  //
+  // Stamped onto the title objects the WHOLE PAGE renders from, so the cover in the curated
+  // section, the cover on the shelf below and the cover inside Quick Look are literally the
+  // same object. That is what makes "the band and the section cannot disagree" a structural
+  // fact rather than a promise: there is one input, and it came from the resolved claim.
+  const banded = loading ? [] : applyBands(titles, bandsFor(curated));
+  // The sections are re-POINTED at the banded objects rather than resolved a second time —
+  // see rebindSections' note on why a second decision is not the same as a cheaper one.
+  const curatedBanded = loading ? [] : rebindSections(curated, banded);
+
+  const fictionTitles = titlesInGroup(genres, banded, 'fiction');
+  const nonfictionTitles = titlesInGroup(genres, banded, 'nonfiction');
+  const fictionGenresPresent = genresPresentIn(genres, fictionTitles, 'fiction');
+  const nonfictionGenresPresent = genresPresentIn(genres, nonfictionTitles, 'nonfiction');
   // Opening Lines pool: published titles with a resolvable opening line (field or excerpt).
-  const linesPool = loading ? [] : titles.filter((t) => resolveOpeningLine(t));
+  const linesPool = loading ? [] : banded.filter((t) => resolveOpeningLine(t));
   const totalCount = loading ? 0 : titles.length;
 
   return (
@@ -351,6 +451,8 @@ export default function BookStorePage() {
           body{background:#070707;color:#f0ead8;font-family:'Cormorant Garamond',Georgia,serif;overflow-x:hidden}
           ${BOUND_BOOK_CSS}
           ${CURRENCY_SELECTOR_CSS}
+          ${SHOP_VERNACULAR_CSS}
+          ${CURATED_SECTION_CSS}
           @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.75}}
           @keyframes lampPulse{0%,100%{opacity:.5}50%{opacity:.9}}
@@ -373,19 +475,13 @@ export default function BookStorePage() {
 
           .the-window{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:4rem 2rem 3rem}
           .window-plate{text-align:center;font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.6rem}
-          .window-case{position:relative;border:1px solid rgba(201,164,76,.2);background:radial-gradient(ellipse 70% 60% at 50% 0%,rgba(201,164,76,.06),transparent 70%),rgba(255,255,255,.015);padding:3.5rem 3rem}
-          .window-lamp{position:absolute;top:-1px;left:20%;right:20%;height:120px;background:radial-gradient(ellipse 60% 100% at 50% 0%,rgba(201,164,76,.18),transparent 72%);pointer-events:none}
-          .fleuron-corner{position:absolute;color:rgba(201,164,76,.4);font-size:.9rem}
-          .fleuron-corner.tl{top:.7rem;left:.9rem}.fleuron-corner.tr{top:.7rem;right:.9rem}
-          .fleuron-corner.bl{bottom:.7rem;left:.9rem}.fleuron-corner.br{bottom:.7rem;right:.9rem}
+          /* R13 — .curated-case and .curated-lamp are GROUPED ONTO these rules rather than
+             described again in CuratedSection.js. The display case is one look and it has
+             one description; two cases that must be identical and are written down twice
+             will eventually be written down differently. The curated case differs only in
+             its interior padding, which is the one line that follows. */
           .window-inner{position:relative;display:grid;grid-template-columns:auto 1fr;gap:3.5rem;align-items:center}
           .window-book{display:flex;justify-content:center;padding:1rem 1.4rem}
-          .window-kicker{font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.22em;text-transform:uppercase;color:#c9a44c;margin-bottom:.8rem}
-          .window-title{font-family:'Cinzel',serif;font-size:clamp(1.5rem,3vw,2.2rem);font-weight:600;color:#f0ead8;line-height:1.12;margin-bottom:.35rem}
-          .window-author{font-size:1.05rem;font-style:italic;color:rgba(240,234,216,.5);margin-bottom:1.3rem}
-          .window-pull{font-size:1.05rem;font-style:italic;line-height:1.6;color:rgba(240,234,216,.78);border-left:2px solid rgba(201,164,76,.35);padding-left:1.1rem;margin-bottom:1.2rem}
-          .window-shelfcard{font-size:.92rem;line-height:1.6;color:rgba(240,234,216,.6);background:rgba(236,228,207,.06);border:1px solid rgba(201,164,76,.15);padding:.85rem 1.1rem;margin-bottom:1.5rem}
-          .window-shelfcard span{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:#c9a44c}
           .window-actions{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center}
 
           .btn-buy{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:pointer;transition:filter .25s,opacity .25s}
@@ -398,7 +494,6 @@ export default function BookStorePage() {
           .btn-buy[data-unavailable]{cursor:not-allowed;opacity:.55;background:none;border:1px solid rgba(201,164,76,.28);color:rgba(240,234,216,.55)}
           .btn-sample{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:1px solid rgba(201,164,76,.4);border-radius:3px;background:rgba(201,164,76,.04);color:#c9a44c;font-weight:600;text-decoration:none}
           .btn-sample:hover{background:rgba(201,164,76,.1)}
-          .btn-details{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(240,234,216,.55);text-decoration:none;border-bottom:1px solid rgba(201,164,76,.25);padding-bottom:2px}
 
           .rail{position:relative;z-index:2;max-width:760px;margin:0 auto;padding:3.5rem 2rem;text-align:center}
           .rail-eyebrow{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.5rem}
@@ -411,33 +506,14 @@ export default function BookStorePage() {
           .rail-btn:hover{background:rgba(201,164,76,.08);border-color:rgba(201,164,76,.55)}
 
           .catalogue-section{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:4rem 2.5rem}
-          .section-head{display:flex;align-items:center;gap:1.2rem;margin-bottom:2.5rem}
-          .section-rule{flex:1;height:1px;background:rgba(201,164,76,.12)}
-          .section-mark{font-size:.7rem}
-          .section-title{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;font-weight:600}
           .genre-tabs{display:flex;overflow-x:auto;margin-bottom:3rem;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.06)}
           .genre-tabs::-webkit-scrollbar{display:none}
           .genre-tab{padding:.7rem 1.3rem;white-space:nowrap;font-family:'Cormorant Garamond',Georgia,serif;font-size:.75rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:rgba(240,234,216,.45);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
           .genre-tab:hover{color:#f0ead8}
           .genre-tab.active{color:#c9a44c;border-bottom-color:#c9a44c}
-          .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:3.5rem 1.5rem;justify-items:center}
-          .shelf-entry{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:200px;animation:fadeUp .5s ease forwards}
-          .shelf-book-wrap{margin-bottom:1.1rem}
-          .no-divider{display:flex;align-items:center;gap:.6rem;width:100%;margin-bottom:1rem}
-          .no-line{flex:1;height:1px;background:rgba(201,164,76,.14)}
-          .no-label{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(201,164,76,.6)}
-          .entry-genre{font-family:'Cormorant Garamond',Georgia,serif;font-size:.55rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#c9a44c;margin-bottom:.3rem}
-          .entry-title{font-size:.92rem;font-weight:600;color:#f0ead8;line-height:1.28;margin-bottom:.15rem}
-          .entry-author{font-family:'Cormorant Garamond',Georgia,serif;font-size:.76rem;font-style:italic;color:rgba(240,234,216,.45);margin-bottom:.4rem}
-          .entry-price{font-family:'Cormorant Garamond',Georgia,serif;font-size:.85rem;font-weight:600;color:#f0ead8}
           /* R8.3 — the mark. Lowercase, small, italic, muted, and NOTHING else: no border,
              no background, no colour that could be read as a warning. It states a fact about
              which money the price is in. */
-          .entry-price-note{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;
-            font-size:.72rem;line-height:1.4;color:rgba(240,234,216,.42);margin-top:.1rem}
-          .shelf-card{margin-top:1rem;background:#ece4cf;color:#2a2318;padding:.75rem .9rem;border-radius:1px;box-shadow:0 6px 18px rgba(0,0,0,.4);font-size:.72rem;line-height:1.5;max-width:190px}
-          .shelf-card-body{display:block;font-style:italic}
-          .shelf-card-sign{display:block;margin-top:.4rem;font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.12em;color:#7a5f24}
           .shelf-empty{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.05rem;color:rgba(240,234,216,.4);text-align:center;padding:2rem 0}
 
           .curation-band{position:relative;z-index:2;max-width:640px;margin:2rem auto;padding:2.5rem 2rem;text-align:center;display:flex;flex-direction:column;align-items:center;gap:1rem}
@@ -466,7 +542,27 @@ export default function BookStorePage() {
             <SkeletonShelf />
           ) : (
             <>
-              {windowTitle && <TheWindow title={windowTitle} />}
+              {/* ── R13 — THE CURATED BAND ──────────────────────────────────────────────
+                  In CMS ORDER, and nothing else decides it. The Window is one of these when
+                  a WINDOW section claims a book, and at order 0 it lands exactly where it
+                  has always been: first thing under the hero.
+
+                  There is no `curated.length > 0 &&` guard and there must not be one. An
+                  empty list maps to nothing, which is the correct output of a shop nobody
+                  has curated — and a guard here would be somewhere for an empty state to
+                  grow later. */}
+              {curatedBanded.map((sec) => (
+                <CuratedSection
+                  key={sec.id}
+                  section={sec}
+                  genreLabelFor={genreLabelFor}
+                  renderWindow={(t) => <TheWindow title={t} genreLabelFor={genreLabelFor} />}
+                  renderEntry={(t, i, opts) => (
+                    <ShelfEntry title={t} index={i} onOpen={openModal} genreLabelFor={genreLabelFor} suppressMark={opts?.suppressMark} />
+                  )}
+                />
+              ))}
+
               {linesPool.length >= 2 && <OpeningLinesRail pool={linesPool} />}
 
               {fictionTitles.length > 0 && (
@@ -474,6 +570,7 @@ export default function BookStorePage() {
                   id="fiction" sectionLabel="Fiction" allLabel="All Fiction"
                   titles={fictionTitles} genresPresent={fictionGenresPresent}
                   active={activeFiction} setActive={setActiveFiction} onOpen={openModal}
+                  genreLabelFor={genreLabelFor}
                 />
               )}
 
@@ -482,6 +579,7 @@ export default function BookStorePage() {
                   id="nonfiction" sectionLabel="Non-Fiction" allLabel="All Non-Fiction"
                   titles={nonfictionTitles} genresPresent={nonfictionGenresPresent}
                   active={activeNonfiction} setActive={setActiveNonfiction} onOpen={openModal}
+                  genreLabelFor={genreLabelFor}
                 />
               )}
 

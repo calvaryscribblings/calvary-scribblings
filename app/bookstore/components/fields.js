@@ -131,9 +131,32 @@ export function formatCatalogueNumber(n) {
   return `CS ${String(n).padStart(3, '0')}`;
 }
 
-// Obi band label: featured wins over bestseller when both are set.
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// THE OBI BAND — R13 gave it ONE input, and that is the whole change
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// It used to read `title.featured`, which was also what put a book in the Window
+// (app/bookstore/page.js's old `titles.find(t => t.featured)`). One boolean carrying two
+// editorial meanings: there was no way to put a book in the display case without also
+// banding it, and no way to band a book without also putting it in the case. The band and
+// the section could not be made to disagree because they could not be told apart.
+//
+// Now the band comes from the CLAIM. A live EDITORS_CHOICE section in bookstore_sections
+// grants it, sections.js's bandsFor()/applyBands() stamp it onto the title object as `band`,
+// and this function prints what it is handed. The band and the section cannot disagree
+// because there is exactly one input and it IS the section.
+//
+// ⚠ `featured` IS DELIBERATELY NOT READ HERE ANY MORE. The field survives — it is
+// schema-required in TITLE_SCHEMA v2 and indexed in database.rules.json — as the migration's
+// input and as the record of what the shop used to think. Nothing renders from it.
+// tests/bookstore/sections.test.mjs asserts that, by reading this file as text.
+//
+// `bestseller` stays as it was. It is a different claim ("Reader Favourite"), it was never
+// entangled with the Window, and R13 was not asked to touch it. When READERS_CHOICE wakes up
+// this is the flag it will replace — a boolean an editor ticks, standing in for a fact about
+// readers — but it will be replaced by real data, not by another boolean.
 export function obiLabel(title) {
-  if (title?.featured) return 'Editor’s Choice';
+  if (title?.band) return title.band;
   if (title?.bestseller) return 'Reader Favourite';
   return null;
 }

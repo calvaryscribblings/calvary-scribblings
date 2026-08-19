@@ -4,7 +4,7 @@
 //   - validates via validateTitle / validatePublisher and refuses to write on validation errors
 //   - never throws — returns { ok: true, ... } or { ok: false, errors: [...] }
 
-import { ref, get, set, update, increment } from 'firebase/database';
+import { ref, get, set, update, remove, increment, query, orderByChild, equalTo } from 'firebase/database';
 import { db, auth, storage } from '../firebase';
 import {
   validatePublisher,
@@ -19,6 +19,17 @@ import { validateGlossary } from '../dictionary';
 // R8.4 — same precedent: the rule about what a licence may LOOK like lives beside the rule
 // about what one MEANS, so the till and the till's editor cannot disagree.
 import { assertTerritories, WORLDWIDE } from './territory';
+// R13 — the taxonomy and the curation system. Same discipline as the two imports above: the
+// rule about what a section may LOOK like lives beside the rule about what one MEANS, so the
+// panel and the shop cannot disagree about which claims exist.
+import { validateGenre } from './genres';
+import {
+  validateSection,
+  buildGenreMigration,
+  buildWindowMigration,
+  SECTION_TYPES,
+  SECTION_STATUSES,
+} from './sections';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const PUBLISHERS_PATH = 'bookstore_publishers';
@@ -607,4 +618,291 @@ export async function uploadSampleEpub(titleId, file, onProgress) {
     console.error('[bookstore.admin-writes] uploadSampleEpub failed', err);
     return { ok: false, errors: [`Sample EPUB upload failed: ${err.message || 'unknown error'}`] };
   }
+}
+
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R13 — THE GENRE TAXONOMY
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// Same three guarantees as every writer above: admin-checked, validated, never throws.
+//
+// THE ONE EXTRA RULE IS AT DELETION. A genre with titles on it cannot be deleted, and the
+// refusal names them. RTDB has no foreign keys, and a deleted genre does not orphan a title —
+// it orphans a SHELF: the title keeps its slug, genreLabel() prints the raw slug because the
+// taxonomy no longer knows the word, and the tab it used to sit under disappears while the
+// book stays in the catalogue below. That is a screen nobody would read as "a genre was
+// deleted", so the deletion is refused where it can still be explained.
+
+const GENRES_PATH = 'bookstore_genres';
+const SECTIONS_PATH = 'bookstore_sections';
+
+/** Create or overwrite one genre. The slug IS the key, so this is an upsert by slug. */
+export async function saveGenre(input) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  const slug = String(input?.slug || '').trim();
+  const now = Date.now();
+
+  let addedAt = now;
+  try {
+    const existing = await get(ref(db, `${GENRES_PATH}/${slug}`));
+    if (existing.exists() && Number.isInteger(existing.val()?.addedAt)) addedAt = existing.val().addedAt;
+  } catch {
+    // A read failure here costs an addedAt that says "now" on a record that is older. The
+    // alternative is refusing the edit, which is worse: the field is provenance, not data
+    // anybody renders.
+  }
+
+  const doc = {
+    schemaVersion: 1,
+    slug,
+    label: String(input?.label || '').trim(),
+    group: input?.group,
+    order: Number.isInteger(input?.order) ? input.order : Number.parseInt(input?.order, 10),
+    addedAt,
+    updatedAt: now,
+  };
+
+  const { valid, errors } = validateGenre(doc);
+  if (!valid) return { ok: false, errors };
+
+  try {
+    await set(ref(db, `${GENRES_PATH}/${doc.slug}`), doc);
+    return { ok: true, slug: doc.slug };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] saveGenre failed', err);
+    return { ok: false, errors: [err.message || 'Genre save failed'] };
+  }
+}
+
+/** Refuses while any title — of any status — still carries the slug. See the note above. */
+export async function deleteGenre(slug) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!slug) return { ok: false, errors: ['slug is required'] };
+  try {
+    const snap = await get(query(ref(db, TITLES_PATH), orderByChild('genre'), equalTo(slug)));
+    if (snap.exists()) {
+      const names = [];
+      snap.forEach((c) => { names.push(c.val()?.title || c.key); return false; });
+      return { ok: false, errors: [`${names.length} ${names.length === 1 ? 'title is' : 'titles are'} on this genre: ${names.join(', ')}. Move them first.`] };
+    }
+    await remove(ref(db, `${GENRES_PATH}/${slug}`));
+    return { ok: true };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] deleteGenre failed', err);
+    return { ok: false, errors: [err.message || 'Genre delete failed'] };
+  }
+}
+
+/**
+ * THE MIGRATION, AS A BUTTON. Writes every record buildGenreMigration produces, and writes
+ * them with update() against the node root so a genre the curator has already edited by hand
+ * is overwritten by the seed only for the keys the seed carries — which is all of them, and
+ * is why the panel asks first. It exists so the taxonomy can be established without a
+ * service-account key on somebody's laptop.
+ */
+export async function seedGenres() {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  const payload = buildGenreMigration(Date.now());
+  const patch = {};
+  for (const g of payload) {
+    const { valid, errors } = validateGenre(g);
+    if (!valid) return { ok: false, errors: [`seed record ${g.slug} is invalid: ${errors.join('; ')}`] };
+    patch[g.slug] = g;
+  }
+  try {
+    await update(ref(db, GENRES_PATH), patch);
+    return { ok: true, count: payload.length };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] seedGenres failed', err);
+    return { ok: false, errors: [err.message || 'Genre seed failed'] };
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R13 — THE CURATED SECTIONS
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// ⚠ THE WRITER IS WHERE "NEVER SIMULATE IT" IS ENFORCED. validateSection refuses a hand-typed
+// `slugs` list on a data-driven type, and this function refuses to fabricate one. A dormant
+// section can be created, ordered, titled and retired; it cannot be given books. The only
+// thing that can put a book in a Readers' Choice is an aggregate written by a job that read
+// what readers actually did.
+
+/** Create a section. `id` is generated from the type so the node reads as a shelf plan. */
+export async function createSection(input) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  const spec = SECTION_TYPES[input?.type];
+  if (!spec) return { ok: false, errors: [`Unknown section type: ${input?.type}`] };
+
+  const now = Date.now();
+  const id = String(input?.id || '').trim() || `${spec.key}-${now.toString(36)}`;
+  const doc = buildSectionDoc(input, spec, { addedAt: now, updatedAt: now });
+
+  const { valid, errors } = validateSection(doc);
+  if (!valid) return { ok: false, errors };
+
+  try {
+    const existing = await get(ref(db, `${SECTIONS_PATH}/${id}`));
+    if (existing.exists()) return { ok: false, errors: [`A section with id "${id}" already exists`] };
+    await set(ref(db, `${SECTIONS_PATH}/${id}`), doc);
+    return { ok: true, id };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] createSection failed', err);
+    return { ok: false, errors: [err.message || 'Section create failed'] };
+  }
+}
+
+/** Full overwrite, like updateTitle — so clearing a month genuinely removes the key. */
+export async function updateSection(id, input) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!id) return { ok: false, errors: ['id is required'] };
+  const spec = SECTION_TYPES[input?.type];
+  if (!spec) return { ok: false, errors: [`Unknown section type: ${input?.type}`] };
+
+  let addedAt = Date.now();
+  try {
+    const existing = await get(ref(db, `${SECTIONS_PATH}/${id}`));
+    if (!existing.exists()) return { ok: false, errors: [`No section with id "${id}"`] };
+    // THE TYPE IS LOCKED AFTER CREATION, mirroring updateTitle's treatment of publisherId and
+    // updateInstalment's of seriesId. A section that changes type carries a claim whose size,
+    // date and rank all mean something different, and there is no honest way to reinterpret
+    // one as the other — a Book of the Month becoming a Top of the Shelf takes its month with
+    // it into a type that has none.
+    const prevType = existing.val()?.type;
+    if (prevType && prevType !== input.type) {
+      return { ok: false, errors: [`A section's type cannot change (${prevType} → ${input.type}). Retire it and create the new one.`] };
+    }
+    if (Number.isInteger(existing.val()?.addedAt)) addedAt = existing.val().addedAt;
+  } catch (err) {
+    console.error('[bookstore.admin-writes] updateSection read failed', err);
+    return { ok: false, errors: [err.message || 'Section read failed'] };
+  }
+
+  const doc = buildSectionDoc(input, spec, { addedAt, updatedAt: Date.now() });
+  const { valid, errors } = validateSection(doc);
+  if (!valid) return { ok: false, errors };
+
+  try {
+    await set(ref(db, `${SECTIONS_PATH}/${id}`), doc);
+    return { ok: true, id };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] updateSection failed', err);
+    return { ok: false, errors: [err.message || 'Section save failed'] };
+  }
+}
+
+/**
+ * Retire / restore. A SOFT SWITCH and never a delete, matching setTitleStatus: a retired
+ * section keeps its claim, so putting last month's shelf back is one click and not a
+ * re-typing of what the curator chose. resolveSections drops anything not 'live'.
+ */
+export async function setSectionStatus(id, status) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!SECTION_STATUSES.includes(status)) return { ok: false, errors: [`status must be one of: ${SECTION_STATUSES.join(', ')}`] };
+  try {
+    await update(ref(db, `${SECTIONS_PATH}/${id}`), { status, updatedAt: Date.now() });
+    return { ok: true };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] setSectionStatus failed', err);
+    return { ok: false, errors: [err.message || 'Status change failed'] };
+  }
+}
+
+/** Genuine removal, for a section created by mistake. */
+export async function deleteSection(id) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!id) return { ok: false, errors: ['id is required'] };
+  try {
+    await remove(ref(db, `${SECTIONS_PATH}/${id}`));
+    return { ok: true };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] deleteSection failed', err);
+    return { ok: false, errors: [err.message || 'Section delete failed'] };
+  }
+}
+
+/** Re-order in one write, so the shop never renders a half-applied ordering. */
+export async function reorderSections(idsInOrder) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!Array.isArray(idsInOrder) || idsInOrder.length === 0) return { ok: false, errors: ['Nothing to order'] };
+  const now = Date.now();
+  const patch = {};
+  idsInOrder.forEach((id, i) => {
+    patch[`${id}/order`] = i;
+    patch[`${id}/updatedAt`] = now;
+  });
+  try {
+    await update(ref(db, SECTIONS_PATH), patch);
+    return { ok: true };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] reorderSections failed', err);
+    return { ok: false, errors: [err.message || 'Reorder failed'] };
+  }
+}
+
+/**
+ * FOLD THE WINDOW IN — the migration, by hand, from the panel.
+ *
+ * Reads the published catalogue, asks buildWindowMigration what the Window's claim is today,
+ * and writes it. Refuses if bookstore_sections already holds anything, because the second
+ * press of this button would silently overwrite whatever the curator has since arranged.
+ */
+export async function migrateWindowSection() {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  try {
+    const existing = await get(ref(db, SECTIONS_PATH));
+    if (existing.exists()) return { ok: false, errors: ['Sections already exist — the Window has been folded in already.'] };
+
+    const snap = await get(query(ref(db, TITLES_PATH), orderByChild('status'), equalTo('published')));
+    const titles = [];
+    snap.forEach((c) => { titles.push({ id: c.key, ...c.val() }); return false; });
+
+    const payload = buildWindowMigration(titles, Date.now());
+    if (payload.length === 0) {
+      return { ok: false, errors: ['No published title carries `featured`, so there is no Window claim to fold in.'] };
+    }
+    const patch = {};
+    for (const sec of payload) {
+      const { id, ...doc } = sec;
+      const { valid, errors } = validateSection(doc);
+      if (!valid) return { ok: false, errors };
+      patch[id] = doc;
+    }
+    await update(ref(db, SECTIONS_PATH), patch);
+    return { ok: true, count: payload.length, slug: payload[0].slugs[0] };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] migrateWindowSection failed', err);
+    return { ok: false, errors: [err.message || 'Window migration failed'] };
+  }
+}
+
+/**
+ * The form's shape → the record's shape. One place, so create and update cannot store two
+ * different documents for the same screen. Keys the type does not carry are OMITTED rather
+ * than nulled, for the reason normaliseTerritoryFields gives above: the absence of a claim is
+ * said by the absence of a field, and set() genuinely removes what the merged doc leaves out.
+ */
+function buildSectionDoc(input, spec, stamps) {
+  const doc = {
+    schemaVersion: 1,
+    type: spec.key,
+    displayTitle: String(input?.displayTitle || '').trim(),
+    order: Number.isInteger(input?.order) ? input.order : (Number.parseInt(input?.order, 10) || 0),
+    status: input?.status === 'retired' ? 'retired' : 'live',
+    addedAt: stamps.addedAt,
+    updatedAt: stamps.updatedAt,
+  };
+
+  // ⚠ A DATA-DRIVEN SECTION IS NEVER GIVEN SLUGS, whatever the form sent.
+  doc.slugs = spec.dataDriven ? [] : (Array.isArray(input?.slugs) ? input.slugs.map((s) => String(s).trim()).filter(Boolean) : []);
+  if (spec.dataDriven) delete doc.slugs;
+
+  const line = String(input?.curatorLine || '').trim();
+  if (line) doc.curatorLine = line;
+
+  if (spec.dated) doc.monthKey = String(input?.monthKey || '').trim();
+  if (spec.rankable) doc.ranked = !!input?.ranked;
+
+  return doc;
 }

@@ -2,7 +2,10 @@
 import { use, useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
 import { getTitleBySlug, getPublisherPublic } from '../../lib/bookstore/loader';
-import { sectionForGenre } from '../page';
+// R13 — the taxonomy, read as data. This used to import sectionForGenre from the storefront
+// route AND keep its own byte-identical copy of GENRE_LABELS four lines below. Both are gone.
+import { getGenres } from '../../lib/bookstore/loader';
+import { genreLabel as labelOf, groupOf } from '../../lib/bookstore/genres';
 import Navbar from '../../components/Navbar';
 import TabBar from '../../components/TabBar';
 import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
@@ -27,24 +30,14 @@ const BUY_ASIDE_STYLE = {
 import LaunchGate from '../components/LaunchGate';
 import { isStoreUnlocked } from '../../lib/bookstore/gate';
 
-// Presentation labels for genre slugs — kept local (the storefront's map isn't exported).
-// Every slug here is a member of GENRES in schema.js.
-const GENRE_LABELS = {
-  'literary-fiction': 'Literary Fiction',
-  'romance': 'Romance',
-  'thriller-suspense': 'Thriller & Suspense',
-  'sci-fi-fantasy': 'Sci-Fi & Fantasy',
-  'historical': 'Historical',
-  'short-story-collection': 'Short Story Collections',
-  'poetry': 'Poetry',
-  'memoir-biography': 'Memoir & Biography',
-  'essays': 'Essays',
-  'self-development': 'Self-Development',
-  'business-finance': 'Business & Finance',
-  'politics-society': 'Politics & Society',
-};
-const genreLabel = (g) => GENRE_LABELS[g] || g;
-const sectionLabel = (g) => (sectionForGenre(g) === 'nonfiction' ? 'Non-Fiction' : 'Fiction');
+// R13 — WHAT WAS HERE. A twelve-row GENRE_LABELS map whose comment read "kept local (the
+// storefront's map isn't exported)", byte-identical to the storefront's and separately
+// maintained. It is now a read of bookstore_genres, and the label the detail page prints is
+// the same string the shelf it links back to prints, because it is the same record.
+//
+// The half-fallback in sectionLabel is preserved on purpose: groupOf() returns null for a
+// genre missing from the taxonomy, and this page has always called that case Fiction rather
+// than showing a broken breadcrumb. That is a link label, not a claim about the book.
 
 // ISO date (YYYY-MM-DD) → long British form. Falls back to the raw string on parse failure.
 function formatDate(iso) {
@@ -92,6 +85,7 @@ export default function BookDetailClient({ params }) {
   // friend — meets the same curtain as the front door, which is the point of gating both.
   const [curtain, setCurtain] = useState('checking'); // 'checking' | 'up' | 'gone'
   const [unlocked, setUnlocked] = useState(false);
+  const [genres, setGenres] = useState([]);
   useEffect(() => {
     if (isStoreUnlocked()) { setUnlocked(true); setCurtain('gone'); }
     else setCurtain('up');
@@ -108,6 +102,13 @@ export default function BookDetailClient({ params }) {
       if (!t || t.status !== 'published') { setState('missing'); return; }
       setTitle(t);
       setState('ready');
+      // R13 — the taxonomy. Twelve records of four fields, and it is fetched AFTER the title
+      // rather than beside it: the page's whole reason to exist is on screen the moment `t`
+      // lands, and a genre label that arrives a beat later is a word filling in, not a page
+      // waiting. genreLabel falls back to the slug in the meantime, which is never seen for
+      // long enough to read and is honest when it is.
+      const g = await getGenres();
+      if (!cancelled) setGenres(g);
       if (t.publisherId) {
         // R9.2 PL-11 — the PUBLIC getter. Only `name` is ever used here, and the merged
         // getPublisher() also reached for bookstore_publishers_private, which is
@@ -157,6 +158,9 @@ export default function BookDetailClient({ params }) {
   const { priced, sellable } = priceLine(title, currency, country);
   const fallbackLine = fallbackSentence(priced, currency);
 
+  const genreLabel = (g) => labelOf(genres, g);
+  const sectionLabel = (g) => (groupOf(genres, g) === 'nonfiction' ? 'Non-Fiction' : 'Fiction');
+  const sectionAnchor = (g) => (groupOf(genres, g) === 'nonfiction' ? 'nonfiction' : 'fiction');
   const section = title ? sectionLabel(title.genre) : '';
   const cat = title ? formatCatalogueNumber(title.catalogueNumber) : null;
 
@@ -253,7 +257,7 @@ export default function BookDetailClient({ params }) {
                 <nav style={{ fontFamily: "'Cinzel',serif", fontSize: '.56rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'rgba(201,164,76,.5)', marginBottom: '2.5rem', display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <a href="/bookstore" style={{ color: 'rgba(201,164,76,.7)', textDecoration: 'none' }}>Book Store</a>
                   <span style={{ opacity: .5 }}>&middot;</span>
-                  <a href={`/bookstore#${sectionForGenre(title.genre) || 'fiction'}`} style={{ color: 'rgba(201,164,76,.7)', textDecoration: 'none' }}>{section}</a>
+                  <a href={`/bookstore#${sectionAnchor(title.genre)}`} style={{ color: 'rgba(201,164,76,.7)', textDecoration: 'none' }}>{section}</a>
                   <span style={{ opacity: .5 }}>&middot;</span>
                   <span style={{ color: 'rgba(240,234,216,.55)' }}>{title.title}</span>
                 </nav>

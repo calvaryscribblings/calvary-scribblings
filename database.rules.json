@@ -742,6 +742,59 @@
         }
       }
     },
+    "bookstore_genres": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": [
+        "order",
+        "group"
+      ],
+      "$genreSlug": {
+        ".validate": "newData.hasChildren(['schemaVersion', 'slug', 'label', 'group', 'order'])",
+        "slug": { ".validate": "newData.isString() && newData.val() === $genreSlug" },
+        "label": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+        "group": { ".validate": "newData.isString() && (newData.val() === 'fiction' || newData.val() === 'nonfiction')" },
+        "order": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+      }
+    },
+    "bookstore_sections": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".indexOn": [
+        "order",
+        "type",
+        "status"
+      ],
+      "$sectionId": {
+        ".validate": "newData.hasChildren(['schemaVersion', 'type', 'displayTitle', 'order', 'status'])",
+        "type": { ".validate": "newData.isString() && newData.val().matches(/^(window|editors-choice|book-of-the-month|top-of-the-shelf|readers-choice|popular-in-notes)$/)" },
+        "displayTitle": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+        "order": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "status": { ".validate": "newData.isString() && (newData.val() === 'live' || newData.val() === 'retired')" },
+        "curatorLine": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
+        "monthKey": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-(0[1-9]|1[0-2])$/)" },
+        "ranked": { ".validate": "newData.isBoolean()" },
+        "slugs": {
+          "$i": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]+(-[a-z0-9]+)*$/)" }
+        }
+      }
+    },
+    "bookstore_signals": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$signalKey": {
+        ".validate": "newData.hasChildren(['computedAt', 'entries'])",
+        "computedAt": { ".validate": "newData.isNumber() && newData.val() > 0" },
+        "windowDays": { ".validate": "newData.isNumber() && newData.val() > 0" },
+        "entries": {
+          "$i": {
+            ".validate": "newData.hasChildren(['slug'])",
+            "slug": { ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]+(-[a-z0-9]+)*$/)" },
+            "$count": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+          }
+        }
+      }
+    },
     "bookstore_publishers": {
       ".read": true,
       ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",

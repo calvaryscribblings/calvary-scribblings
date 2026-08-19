@@ -13,22 +13,24 @@
 // (₦4,500 = 450000). Display layer divides all currencies by 100. NGN-as-kobo matches Paystack
 // API convention.
 
+import { GENRE_SEED_SLUGS } from './genres.js';
+
 export const SCHEMA_VERSION = 2;
 
-export const GENRES = [
-  'literary-fiction',
-  'romance',
-  'thriller-suspense',
-  'sci-fi-fantasy',
-  'historical',
-  'short-story-collection',
-  'poetry',
-  'memoir-biography',
-  'essays',
-  'self-development',
-  'business-finance',
-  'politics-society',
-];
+// R13 — THE LIST MOVED, THE MEANING DID NOT.
+//
+// This was twelve string literals. It is now a projection of GENRE_SEED in
+// app/lib/bookstore/genres.js, which is the single place a genre is written down in this
+// tree — see that file's header for what the three copies had already cost. The export
+// stays, byte-identical in content and order, because validateTitle and every caller of
+// GENRES are asking a question this list still answers: which slugs may a title carry.
+//
+// ⚠ THIS IS THE SEED, NOT THE TAXONOMY. It is the assignable VOCABULARY, fixed in code
+// because a title's `genre` is a schema enum and a validator cannot await a database read.
+// LABELS, ORDER AND THE FICTION/NON-FICTION SPLIT are none of those things: they are
+// editorial, they are Ikenna's, and they come from bookstore_genres at runtime. Nothing
+// here decides how a genre is spelled on a screen.
+export const GENRES = GENRE_SEED_SLUGS;
 
 export const TITLE_STATUSES = ['draft', 'published', 'unpublished'];
 export const PUBLISHER_STATUSES = ['active', 'pending', 'suspended'];

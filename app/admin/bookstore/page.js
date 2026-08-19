@@ -10,7 +10,15 @@ import {
   uploadEpub,
   uploadSampleEpub,
 } from '../../lib/bookstore/admin-writes';
-import { GENRES, TITLE_STATUSES } from '../../lib/bookstore/schema';
+import { TITLE_STATUSES } from '../../lib/bookstore/schema';
+// R13 — the taxonomy and the curation system. The genre dropdown used to be built from
+// schema.js's GENRES with labels DERIVED from the slug, and it disagreed with the shop on
+// four of the twelve ("Thriller Suspense" here, "Thriller & Suspense" on the shelf). It now
+// reads the same records the shop reads.
+import { getGenres, getSections } from '../../lib/bookstore/loader';
+import { genreLabel as labelOf, sortGenres } from '../../lib/bookstore/genres';
+import SectionsPanel from './SectionsPanel';
+import GenresPanel from './GenresPanel';
 // R7.4 — the same parser the reader's lookup is built on, so what an editor types here
 // and what a long-press finds cannot drift apart.
 import { parseGlossary, serialiseGlossary } from '../../lib/dictionary';
@@ -35,8 +43,6 @@ import { formatPrice } from '../../bookstore/components/fields';
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const TITLES_PATH = 'bookstore_titles';
-
-const GENRE_OPTIONS = GENRES.map((g) => ({ value: g, label: g.split('-').map((p) => p[0].toUpperCase() + p.slice(1)).join(' ') }));
 
 function slugify(input) {
   return String(input || '')
@@ -158,7 +164,10 @@ const emptyForm = {
   publisherId: '',
   slug: '',
   isbn: '',
-  genre: GENRES[0],
+  // R13 — was GENRES[0], a constant. The form now takes its default from the live taxonomy
+  // (see openNew), and '' here means "nothing chosen yet" rather than a genre picked by
+  // whichever slug happened to sort first in a file.
+  genre: '',
   tagsRaw: '',
   pageCount: '',
   publishedDate: '',
@@ -211,6 +220,15 @@ export default function AdminBookstorePage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPublisher, setFilterPublisher] = useState('all');
   const [filterGenre, setFilterGenre] = useState('all');
+  // R13 — the taxonomy and the shelf plan, loaded beside the titles they describe.
+  const [genres, setGenres] = useState([]);
+  const [sections, setSections] = useState([]);
+  // 'titles' | 'sections' | 'genres' — the panel showing. The title form still lives in
+  // `view` ('list' | 'new' | 'edit') so nothing about the existing screen moved.
+  const [panel, setPanel] = useState('titles');
+  // The clock the Sections panel judges dated claims against. Set in loadAll, beside the
+  // records it dates — see the note at the head of SectionsPanel.
+  const [now, setNow] = useState(0);
 
   const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
   const activePublishers = useMemo(() => publishers.filter((p) => p.status === 'active'), [publishers]);
@@ -247,6 +265,12 @@ export default function AdminBookstorePage() {
       }
       out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       setTitles(out);
+      // R13. getSections is handed the published subset because that is what its bootstrap
+      // reads — the same argument the storefront passes, for the same reason.
+      const [g, secs] = await Promise.all([getGenres(), getSections(out.filter((t) => t.status === 'published'))]);
+      setGenres(g);
+      setSections(secs);
+      setNow(Date.now());
     } catch (e) {
       console.error('[admin/bookstore] load failed', e);
     }
@@ -275,7 +299,7 @@ export default function AdminBookstorePage() {
       publisherId: title.publisherId || '',
       slug: title.slug || title.id || '',
       isbn: title.isbn || '',
-      genre: title.genre || GENRES[0],
+      genre: title.genre || (sortGenres(genres)[0]?.slug || ''),
       tagsRaw: Array.isArray(title.tags) ? title.tags.join(', ') : '',
       pageCount: typeof title.pageCount === 'number' ? String(title.pageCount) : '',
       publishedDate: title.publishedDate || '',
@@ -553,6 +577,50 @@ export default function AdminBookstorePage() {
         </div>
       </header>
       <div style={s.body}>
+        {/* R13 — THE PANEL BAR. Three panels, one screen. Hidden while the title form is open,
+            because a nav that navigates away from a half-filled upload is a nav that loses
+            work; Cancel puts it back. */}
+        {view === 'list' && (
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #242424' }}>
+            {[['titles', 'Titles'], ['sections', 'Sections'], ['genres', 'Genres']].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setPanel(key)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  padding: '0.7rem 1.1rem', marginBottom: -1,
+                  fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  color: panel === key ? '#c4b5fd' : 'rgba(255,255,255,0.4)',
+                  borderBottom: `2px solid ${panel === key ? '#7c3aed' : 'transparent'}`,
+                }}
+              >{label}</button>
+            ))}
+          </div>
+        )}
+
+        {view === 'list' && panel === 'sections' && (
+          <SectionsPanel
+            s={s}
+            sections={sections}
+            titles={titles}
+            genres={genres}
+            now={now}
+            onChanged={loadAll}
+            showToast={showToast}
+          />
+        )}
+
+        {view === 'list' && panel === 'genres' && (
+          <GenresPanel
+            s={s}
+            genres={genres}
+            titles={titles}
+            onChanged={loadAll}
+            showToast={showToast}
+          />
+        )}
+
         {(view === 'new' || view === 'edit') && (
           <TitleForm
             form={form}
@@ -561,6 +629,7 @@ export default function AdminBookstorePage() {
             saving={saving}
             errors={errors}
             publishers={activePublishers}
+            genres={genres}
             coverProgress={coverProgress}
             epubProgress={epubProgress}
             sampleProgress={sampleProgress}
@@ -570,7 +639,7 @@ export default function AdminBookstorePage() {
             onTitleBlur={handleTitleBlur}
           />
         )}
-        {view === 'list' && (
+        {view === 'list' && panel === 'titles' && (
           <div>
             <div style={s.topBar}>
               <div>
@@ -606,7 +675,7 @@ export default function AdminBookstorePage() {
                   <label style={s.filterLabel}>Genre</label>
                   <select style={s.select} value={filterGenre} onChange={(e) => setFilterGenre(e.target.value)}>
                     <option value="all">All</option>
-                    {GENRE_OPTIONS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+                    {sortGenres(genres).map((g) => <option key={g.slug} value={g.slug}>{g.label}</option>)}
                   </select>
                 </div>
               </div>
@@ -687,7 +756,7 @@ export default function AdminBookstorePage() {
   );
 }
 
-function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, coverProgress, epubProgress, sampleProgress, catalogueInUse, onSave, onCancel, onTitleBlur }) {
+function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, genres, coverProgress, epubProgress, sampleProgress, catalogueInUse, onSave, onCancel, onTitleBlur }) {
   const slugInvalid = form.slug && !SLUG_RE.test(form.slug);
 
   // Non-blocking duplicate-catalogue-number warning: flag when another title already uses it.
@@ -826,8 +895,12 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
           <div style={s.fg}>
             <label style={s.label}>Genre</label>
             <select style={s.select} value={form.genre} onChange={(e) => setForm((f) => ({ ...f, genre: e.target.value }))}>
-              {GENRE_OPTIONS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+              {/* R13 — the shop's own labels, in the shop's own order. An editor now reads the
+                  same words on this dropdown that a reader reads on the shelf. */}
+              <option value="">Choose a genre…</option>
+              {sortGenres(genres).map((g) => <option key={g.slug} value={g.slug}>{g.label}</option>)}
             </select>
+            {genres.length === 0 && <div style={s.hintWarn}>The taxonomy is empty — open the Genres tab and write the seed.</div>}
           </div>
         </div>
 

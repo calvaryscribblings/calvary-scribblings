@@ -19,6 +19,8 @@
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 import { db } from '../firebase';
 import { SCHEMA_VERSION } from './schema';
+import { GENRES_PATH, GENRE_SEED, sortGenres, validateGenre } from './genres';
+import { SECTIONS_PATH, SIGNALS_PATH, buildWindowMigration, buildGenreMigration } from './sections';
 
 const TITLES_PATH = 'bookstore_titles';
 const PUBLISHERS_PATH = 'bookstore_publishers';
@@ -256,4 +258,102 @@ export async function getAllPublishers() {
     console.error('[bookstore.loader] getAllPublishers failed', err);
     return [];
   }
+}
+
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R13 — THE TAXONOMY AND THE CLAIMS
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// Two nodes, both `.read: true`, both admin-write, and they are governed by OPPOSITE rules
+// for reasons argued in full at the head of genres.js and sections.js:
+//
+//   bookstore_genres    VOCABULARY.  An unwritten node bootstraps to the seed, because a
+//                       shop with no shelf labels is a broken screen.
+//   bookstore_sections  CURATION.    An unwritten node bootstraps to the WINDOW MIGRATION and
+//                       to nothing else, because a missing claim is an editorial silence —
+//                       and the Window's existing claim is the one thing this round is
+//                       required not to drop.
+//
+// Both bootstraps are keyed on the node being ABSENT ENTIRELY. One saved record retires each
+// of them permanently; neither ever fills a gap in a populated node.
+
+/**
+ * The genre taxonomy, in display order.
+ *
+ * A record that fails validateGenre is DROPPED, not repaired. A half-written genre is a
+ * missing tab, which is visible; a repaired one is a tab spelled by this function rather
+ * than by the curator, which is the exact failure the old CMS GENRE_OPTIONS shipped.
+ */
+export async function getGenres() {
+  try {
+    const snap = await get(ref(db, GENRES_PATH));
+    if (!snap.exists()) return sortGenres(GENRE_SEED);          // ⚠ bootstrap — see header
+    const out = [];
+    snap.forEach((child) => {
+      const doc = { slug: child.key, ...child.val() };
+      if (validateGenre(doc).valid) out.push(doc);
+      else console.warn('[bookstore.loader] genre record dropped (invalid)', child.key);
+      return false;
+    });
+    return out.length ? sortGenres(out) : sortGenres(GENRE_SEED);
+  } catch (err) {
+    console.error('[bookstore.loader] getGenres failed', err);
+    // A read failure is not an editorial decision. The shop still needs labels, and the seed
+    // is what it had before this node existed.
+    return sortGenres(GENRE_SEED);
+  }
+}
+
+/**
+ * The raw curated sections, unresolved. resolveSections() in sections.js turns these into
+ * what renders — this function only fetches, exactly as getAllPublishedTitles only fetches.
+ *
+ * `titles` is taken as an argument solely to build the bootstrap, and is unused once the node
+ * exists. Pass the published catalogue you already loaded; do not fetch it again for this.
+ *
+ * ⚠ A READ FAILURE RETURNS [] AND NOT THE BOOTSTRAP. The bootstrap answers "this node has
+ * never been written"; a network drop answers nothing at all, and a shop that draws a Window
+ * from `featured` whenever a request fails would keep the old behaviour alive indefinitely
+ * behind an intermittent fault. Silence is the correct output of a failed read here, because
+ * silence is what an unclaimed section renders anyway.
+ */
+export async function getSections(titles) {
+  try {
+    const snap = await get(ref(db, SECTIONS_PATH));
+    if (!snap.exists()) return buildWindowMigration(titles, Date.now());   // ⚠ bootstrap
+    const out = [];
+    snap.forEach((child) => {
+      out.push({ id: child.key, ...child.val() });
+      return false;
+    });
+    return out;
+  } catch (err) {
+    console.error('[bookstore.loader] getSections failed', err);
+    return [];
+  }
+}
+
+/**
+ * The aggregates the dormant pair would read. There is no aggregator and therefore no node,
+ * so this returns {} today and both data-driven sections resolve to nothing.
+ *
+ * IT IS WIRED ANYWAY, deliberately. A contract that is defined but never called is a contract
+ * nobody has tried; this one is called on every load, costs one absent-node read, and means
+ * the day the aggregator first writes there is no client change to remember. The switches in
+ * sections.js still hold the section closed until Ikenna opens it.
+ */
+export async function getSignals() {
+  try {
+    const snap = await get(ref(db, SIGNALS_PATH));
+    return snap.exists() ? (snap.val() || {}) : {};
+  } catch (err) {
+    console.error('[bookstore.loader] getSignals failed', err);
+    return {};
+  }
+}
+
+/** The genre taxonomy as the migration would write it. Used by the CMS's seed button. */
+export function genreMigrationPayload(nowMs) {
+  return buildGenreMigration(nowMs);
 }
