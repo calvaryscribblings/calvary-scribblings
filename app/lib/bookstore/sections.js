@@ -150,12 +150,17 @@ export const SECTION_STATUSES = ['live', 'retired'];
 //
 // ── WHY NOT "AFTER THE Nth ROW" ──────────────────────────────────────────────────────────
 //
-// It was the brief's first suggestion and it fails on the first phone. `.shelf` is
-// `repeat(auto-fill,minmax(180px,1fr))`: a row is four books on a laptop and one on a
-// handset. "After the second row" would be after the eighth book on one device and the second
-// on another — the curator would be placing a table at a height they cannot see and cannot
-// predict. `placeAfter` counts BOOKS, which is a fact about the catalogue, not about the
-// viewport, so the table lands after the same book on every screen.
+// It was the brief's first suggestion and it failed on the first phone. `.shelf` WAS
+// `repeat(auto-fill,minmax(180px,1fr))`: a row was four books on a laptop and one on a
+// handset, so "after the second row" would have been after the eighth book on one device and
+// the second on another.
+//
+// ⚠ R16 RETIRED THAT GRID FOR THREE COLUMNS AT EVERY VIEWPORT, so the premise above is now
+// historical: a row is three books everywhere, and rows and books are interconvertible. The
+// CONCLUSION is unchanged and this stays counted in books — a book is the finer unit, it is
+// what a curator names when they say where a table goes, and it survives the next ruling about
+// how many fit across. Not one stored record or one line of planShopFlow moved when the grid
+// did; tests/bookstore/placement.spec.mjs re-proves it against the three-across shelf.
 //
 // ── THE DEGRADATION RULES, WHICH ARE THE WHOLE POINT OF A GROWING CATALOGUE ───────────────
 //

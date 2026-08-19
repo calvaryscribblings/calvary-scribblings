@@ -84,7 +84,16 @@ test.describe('the flag', () => {
         const full = join(dir, name);
         if (statSync(full).isDirectory()) { walk(full); continue; }
         if (!/\.jsx?$/.test(name)) continue;
-        if (readFileSync(full, 'utf8').includes('GATE_ENABLED')) hits.push(relative(ROOT, full));
+        // ⚠ A SUBSTRING SEARCH WAS WRONG, and it went red on main without being noticed —
+        // found by R16's full sweep, broken since R13. `GATE_ENABLED` is a substring of
+        // SERIES_TIER_GATE_ENABLED, which is a different flag with a different owner
+        // (app/lib/series/access.js) read by three series surfaces, and it is also quoted in
+        // prose by the two bookstore modules that argue about the platform's four flags.
+        // Six false positives, none of them a second reader of THIS flag.
+        //
+        // The lookbehind is the fix and it is the whole fix: a real second reader would import
+        // `GATE_ENABLED` under exactly that name, so the character before it is never [A-Z_].
+        if (/(?<![A-Z_])GATE_ENABLED/.test(readFileSync(full, 'utf8'))) hits.push(relative(ROOT, full));
       }
     })(join(ROOT, 'app'));
 

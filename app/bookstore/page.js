@@ -44,6 +44,8 @@ function Fleuron({ style }) {
 }
 
 // ── One shelf book: the gesture lives here, the modal is opened page-level ─────
+// R16 — `width` is a CSS length now, and the shelf passes 100%: the book is its column. See
+// the note on .shelf-book-wrap in shopVernacular.js and on .bb-persp in BoundBook.js.
 function ShelfBook({ title, width, onOpen }) {
   const { flipped, bind, bookRef, reset } = useBookGesture({ onOpen: (rect) => onOpen(title, rect, reset) });
   return <BoundBook title={title} variant="shelf" width={width} flipped={flipped} bind={bind} bookRef={bookRef} />;
@@ -77,7 +79,7 @@ export function ShelfEntry({ title, index, onOpen, genreLabelFor, suppressMark }
         <div className="no-divider"><span className="no-line" /><span className="no-label">{mark}</span><span className="no-line" /></div>
       )}
       <div className="shelf-book-wrap">
-        <ShelfBook title={title} width={150} onOpen={onOpen} />
+        <ShelfBook title={title} width="100%" onOpen={onOpen} />
       </div>
       <div className="entry-genre">{genreLabelFor(title.genre)}</div>
       <div className="entry-title">{title.title}</div>

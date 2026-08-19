@@ -193,12 +193,17 @@ export const CURATED_SECTION_CSS = `
   .curated-case-inner{position:relative;display:grid;grid-template-columns:auto 1fr;gap:3rem;align-items:center}
   .curated-case-book{display:flex;justify-content:center;padding:.5rem 1rem}
   .curated-actions{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center;margin-top:.4rem}
-  /* NOT the catalogue's auto-fill grid, and the difference is the head above it.
+  /* NOT the catalogue's grid, and the difference is the head above it.
      .shelf fills a row from the left because it is a CATALOGUE — everything the shop has, in
      rows. A curated section is a small set under a centred, fleuron-flanked head, and two
      books left-justified beneath a centred head read as a row that failed to load the rest.
      So the element keeps .shelf for the entry styling that comes with it, and this overrides
      the layout to a centred wrap.
+     R16 — the catalogue went to three fixed columns and this did NOT follow it. The slot keeps
+     its 200px, so a curated book is 200px wide: the same as a catalogue book at the widest the
+     shelf goes, and on a handset a single large book per row rather than a third of one. That
+     is the distinction, drawn deliberately — the catalogue is a shelf you walk past, a table is
+     something you stop at. The ruling named the auto-fill grid; this was never it.
      R15 — the gap is the shelf's own two tokens rather than the literals that were here. The
      element carries .shelf as well as .curated-shelf, so the tokens resolve off itself and the
      phone override in the vernacular reaches it exactly as it always did. Before the tokens

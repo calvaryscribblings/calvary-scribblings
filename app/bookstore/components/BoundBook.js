@@ -1,6 +1,6 @@
 'use client';
 // BoundBook — renders a title as a physical book object: front cover, spine hinge,
-// fore-edge page block, printed back cover, obi band, optional ribbon, shelf shadow.
+// RIGHT fore-edge page block, printed back cover, obi band, optional ribbon, contact shadow.
 // Presentational + a `flipped` prop; all motion lives in CSS (BOUND_BOOK_CSS) so a
 // consuming page injects the stylesheet ONCE and every instance shares it — no N copies.
 //
@@ -11,10 +11,121 @@ import Image from 'next/image';
 import { resolveOpeningLine, resolveBackBlurb, gradientFor, obiLabel, formatCatalogueNumber } from './fields';
 import { useCurrency, useRegionCountry, priceLine } from '../../lib/currency';
 
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R16 — FEET OFF THE BOOK
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// Ikenna's ruling, 19 August 2026, ratifying the app's storefront refinements as the house
+// design:
+//
+//   "The book is a clean graphic object. Take the feet off — the bottom page block goes,
+//    everywhere it renders, the Window included. That is the Masobe direction."
+//
+// ⚠ "REMOVE THE BOTTOM BLOCK" IS ONE EDIT AWAY FROM "REMOVE THE PAGE BLOCK", and that is why
+// this constant exists rather than a deleted line and a silence. There were two page-edge
+// elements and only one of them went. Everything in `keeps` below is still drawn, and
+// tests/bookstore/boundbook.test.mjs asserts this record in BOTH directions: the removed one
+// is gone from the stylesheet and from the DOM, and every kept one is still in both.
+export const BOTTOM_PAGE_BLOCK_REMOVED = {
+  ruledBy: 'Ikenna',
+  on: '2026-08-19',
+  ruling: 'The book is a clean graphic object. Take the feet off — the bottom page block goes, everywhere it renders, the Window included.',
+  // The element as it stood, kept verbatim so the shadow derivation below can be read against
+  // it and so a restoration is a copy rather than a reconstruction.
+  removedClass: 'bb-foreedge-b',
+  removedCss: 'position:absolute;left:2.5%;right:2.5%;bottom:-8px;height:8px;transform:translateZ(-5px);z-index:1;background:repeating-linear-gradient(0deg,#e6dfc8 0,#e6dfc8 1px,#d3caae 1px,#d3caae 2px);border-radius:0 0 3px 3px',
+  // THE NUMBER THE SHADOW MOVED BY. The feet hung exactly this far below the book's box, and
+  // CONTACT_SHADOW_REBASE below is the same 8px travelling in the opposite direction. If the
+  // feet are ever restored, these two move back together or the pool doubles.
+  removedDropPx: 8,
+  // Everything the ruling did NOT touch. Asserted present, individually, by name.
+  keeps: [
+    'bb-foreedge',   // the RIGHT fore-edge — the page block that stays, and its 12px minimum
+    'bb-spine',      // the spine hinge, on both faces
+    'bb-obi',        // the obi band, granted only by a live Editor's Choice claim
+    'bb-ribbon',     // the gilt ribbon
+    'bb-back',       // the printed back face
+    'bb-book',       // the flip itself
+  ],
+  // The right fore-edge's width is part of the silhouette the ruling kept, so it is pinned
+  // here rather than left to be "tidied" alongside the removal.
+  foreEdgeMinWidthPx: 12,
+};
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R16 — THE CONTACT SHADOW, REBASED BY DERIVATION
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// THE THING THE EYE READS is the pool of shadow visible BELOW the object's silhouette. Not
+// the shadow's box, and not the front face's own drop shadow (8px 14px 46px), which paints
+// some fifty pixels further down, is attached to the face, and does not move when the feet do.
+//
+// BEFORE the removal, the silhouette's lowest paint WAS the feet, and the contact shadow was
+// positioned against them: `bottom:-16px` on a book whose feet ended at -8px, so the pool
+// extended 8px past the lowest thing the book put on the ground.
+//
+// Removing the feet raises the silhouette by that 8px. Leaving the shadow where it was would
+// have left the pool 8px deeper — measured at 17.1px against 9.5px on the 150px shelf book —
+// and the book would read as hovering. So the shadow moves up by exactly the drop the feet
+// occupied, and the pool it leaves is the pool it always left.
+//
+// MEASURED, both sides, on the real page at deviceScaleFactor 4, with the contact shadow
+// isolated DIFFERENTIALLY — the identical frame rendered twice, once with .bb-shadow
+// suppressed, and the difference read down the book's centre. That isolation is the whole
+// method: without it the probe reads the front face's drop shadow, which paints some fifty
+// pixels below the book, does not move when the feet do, and would drown the signal.
+//
+// The two call sites whose SIZE did not change this round are the controlled comparison:
+//
+//                       silhouette below box     visible pool below the silhouette
+//   window      190px   +9.00  →  +1.55          8.86px  →  8.31px    (−0.55)
+//   curated case 170px  +8.75  →  +1.24          8.79px  →  9.43px    (+0.64)
+//
+// (The 150px shelf book is not in that table on purpose: the same round resized it to its
+// column, so its before and after are not the same object. Its BEFORE is where the 8px came
+// from — silhouette +8.54, pool 9.52px.)
+//
+// The residual is the one honest imperfection and it is written down rather than rounded
+// away. The feet sat at translateZ(-5px) and the shadow sits at translateZ(-40px), so under
+// the 1600px perspective the same 8px of CSS travel renders as 7.98px there and 7.81px here;
+// and the required travel is itself size-dependent — 7.58px at 150, 7.45px at 190, 7.35px at
+// 220 — because the perspective origin sits at 42% of a height that changes. No single CSS
+// rule is exact at every size. Both measured residuals are inside two thirds of one CSS pixel,
+// which is the price of a number that can be re-derived from the ruling rather than fitted to
+// a screenshot.
+export const CONTACT_SHADOW_REBASE = {
+  wasBottomPx: -16,
+  isBottomPx: -8,
+  // …because the silhouette rose by exactly this, which is BOTTOM_PAGE_BLOCK_REMOVED.removedDropPx.
+  raisedByPx: 8,
+  measuredPoolBefore: { window190: 8.86, curatedCase170: 8.79, shelf150: 9.52 },
+  measuredPoolAfter: { window190: 8.31, curatedCase170: 9.43 },
+  // The guard tests/bookstore/boundbook.spec.mjs uses: the pool may not drift further than
+  // this from its pre-removal depth on a call site whose size did not change.
+  tolerancePx: 1,
+};
+
 // Injected once per page (storefront, detail, modal). Keyed classes only — no dynamic values.
 export const BOUND_BOOK_CSS = `
-  .bb-persp{perspective:1600px;perspective-origin:50% 42%}
-  .bb-book{position:relative;transform-style:preserve-3d;transform:rotateY(-9deg);
+  /* R16 — THE BOOK IS SIZED BY ITS CONTAINER, NOT BY A NUMBER PASSED IN.
+     --bb-w is the one input: a length from the caller (the Window's 190px, the detail page's
+     220px) or 100% for a shelf book, which then takes the width of its column. Everything the
+     component used to derive in JS from that number — the height, the ribbon, two font sizes —
+     is derived here instead, in container-query units against this element's own width, so a
+     percentage works exactly as a pixel value does.
+     THE RATIOS ARE THE OLD ONES, unchanged:
+       height    = w * 1.5           → aspect-ratio 2/3
+       ribbon    = height * .32      = w * .48    → 48cqw
+       obi type  = max(.42rem, w/320 rem)         → 5cqw  (16px at w=320)
+       cover type= max(.62rem, w/190 rem)         → 8.421cqw (16px at w=190)
+     The floors stay in rem so a reader who scales their type still gets the floor; the fluid
+     half is in cqw and does not scale with it. That asymmetry is deliberate — a floor is a
+     legibility promise, a ratio is a drawing. */
+  .bb-persp{--bb-w:160px;container-type:inline-size;position:relative;
+    width:var(--bb-w);aspect-ratio:2/3;
+    perspective:1600px;perspective-origin:50% 42%;
+    touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  .bb-book{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateY(-9deg);
     transition:transform .95s cubic-bezier(.2,.72,.16,1);will-change:transform}
   .bb-book.bb-flipped{transform:rotateY(-178deg) translateY(-16px) scale(1.045)}
   .bb-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
@@ -28,21 +139,27 @@ export const BOUND_BOOK_CSS = `
   .bb-foreedge{position:absolute;top:2.5%;bottom:2.5%;right:-11px;width:12px;transform:translateZ(-7px);z-index:1;
     border-radius:0 2px 2px 0;background:repeating-linear-gradient(90deg,#e6dfc8 0,#e6dfc8 1px,#d3caae 1px,#d3caae 2px);
     box-shadow:1px 2px 6px rgba(0,0,0,.5)}
-  .bb-foreedge-b{position:absolute;left:2.5%;right:2.5%;bottom:-8px;height:8px;transform:translateZ(-5px);z-index:1;
-    background:repeating-linear-gradient(0deg,#e6dfc8 0,#e6dfc8 1px,#d3caae 1px,#d3caae 2px);border-radius:0 0 3px 3px}
+  /* .bb-foreedge-b — THE FEET — is gone. See BOTTOM_PAGE_BLOCK_REMOVED at the head of this
+     file for the ruling, the element verbatim, and the 8px the shadow below moved by. The
+     RIGHT fore-edge one line above it stays, and stays 12px wide. */
   .bb-grain{position:absolute;inset:0;pointer-events:none;opacity:.06;mix-blend-mode:overlay;
     background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.5) 0,rgba(0,0,0,.5) 1px,transparent 1px,transparent 2px),
       repeating-linear-gradient(90deg,rgba(255,255,255,.4) 0,rgba(0,0,0,.4) 1px,transparent 1px,transparent 3px)}
   .bb-sheen{position:absolute;inset:0;pointer-events:none;
     background:linear-gradient(122deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,.04) 26%,transparent 46%)}
-  .bb-shadow{position:absolute;left:7%;right:7%;bottom:-16px;height:24px;z-index:0;filter:blur(5px);
+  /* R16 — bottom was -16px, against a silhouette whose lowest paint was the feet at -8px.
+     The feet went, so it rises by the same 8px and the pool it leaves below the book is the
+     pool it always left. Nothing else about it changes: same size, same blur, same falloff,
+     same z. See CONTACT_SHADOW_REBASE for the measurement on both sides. */
+  .bb-shadow{position:absolute;left:7%;right:7%;bottom:-8px;height:24px;z-index:0;filter:blur(5px);
     transform:translateZ(-40px);background:radial-gradient(ellipse at center,rgba(0,0,0,.6) 0%,transparent 72%)}
   .bb-obi{position:absolute;left:0;right:0;bottom:9%;z-index:5;pointer-events:none;
+    font-size:max(.42rem,5cqw);
     background:linear-gradient(180deg,#ece4cf,#ddd2b4);color:#2a2318;
     border-top:1px solid rgba(0,0,0,.14);border-bottom:1px solid rgba(0,0,0,.14);
     box-shadow:0 3px 10px rgba(0,0,0,.35);padding:.34em .1em;text-align:center;
     font-family:'Cinzel',serif;text-transform:uppercase;letter-spacing:.14em;font-weight:600}
-  .bb-ribbon{position:absolute;top:-4px;right:15%;width:15px;z-index:6;pointer-events:none;
+  .bb-ribbon{position:absolute;top:-4px;right:15%;width:15px;height:48cqw;z-index:6;pointer-events:none;
     background:linear-gradient(180deg,#e8c877,#a8842f);box-shadow:0 3px 8px rgba(0,0,0,.5)}
   .bb-ribbon::after{content:'';position:absolute;left:0;right:0;bottom:-7px;height:8px;
     background:linear-gradient(180deg,#c9a44c,#a8842f);clip-path:polygon(0 0,100% 0,100% 100%,50% 55%,0 100%)}
@@ -52,6 +169,10 @@ export const BOUND_BOOK_CSS = `
   @media (hover:hover){
     .bb-hoverable .bb-book:not(.bb-flipped):hover{transform:rotateY(-9deg) translateY(-9px)}
   }
+  /* The fallback cover's foil title. Was Math.max(0.62, width/190) in rem, computed per
+     instance; the same curve, in the container's own units. */
+  .bb-cover-title{font-family:'Cinzel',serif;font-weight:600;font-size:max(.62rem,8.421cqw);
+    line-height:1.2;margin-bottom:.5rem;letter-spacing:.02em}
   .bb-barcode{display:flex;gap:1px;align-items:flex-end;height:26px}
   .bb-barcode i{display:block;width:2px;background:#2a2318}
   @media (prefers-reduced-motion: reduce){
@@ -77,15 +198,15 @@ const BAR_WIDTHS = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 1, 2, 3, 1, 2, 1, 3, 
 // IF A FOURTH CALL SITE EVER RENDERS A COVER WITH NO TITLE BESIDE IT, this has to change with
 // it: alt="" on the only carrier of the name is a silent image, which is worse than the
 // duplicate. tests/bookstore/gate.spec.mjs pins both halves for the shelf and the detail page.
-function FrontFace({ title, width }) {
+function FrontFace({ title, sizes }) {
   const hasCover = !!title.coverUrl;
   return (
     <div className="bb-face bb-front">
       {hasCover ? (
-        <Image src={title.coverUrl} alt="" fill unoptimized sizes={`${width}px`} style={{ objectFit: 'cover' }} />
+        <Image src={title.coverUrl} alt="" fill unoptimized sizes={sizes} style={{ objectFit: 'cover' }} />
       ) : (
         <div style={{ position: 'absolute', inset: 0, background: gradientFor(title.slug || title.title), display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.4rem 1rem', textAlign: 'center' }}>
-          <div className="bb-foil" style={{ fontFamily: "'Cinzel',serif", fontWeight: 600, fontSize: `${Math.max(0.62, width / 190)}rem`, lineHeight: 1.2, marginBottom: '.5rem', letterSpacing: '.02em' }}>{title.title}</div>
+          <div className="bb-foil bb-cover-title">{title.title}</div>
           <div style={{ width: '30px', height: '1px', background: 'rgba(232,200,119,.5)', margin: '.2rem 0 .5rem' }} />
           <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '.62rem', letterSpacing: '.08em', color: 'rgba(240,234,216,.5)' }}>{title.author}</div>
         </div>
@@ -154,28 +275,34 @@ function BackFace({ title }) {
   );
 }
 
+/**
+ * @param width  a CSS length. A NUMBER is pixels, exactly as it always was — the Window's 190,
+ *               the curated case's 170, the detail page's 220 all pass one and render at the
+ *               same size they always have. A STRING is used verbatim, which is how a shelf
+ *               book takes the width of its column: `width="100%"`. Everything the component
+ *               used to compute off the number is now derived in CSS from the element's own
+ *               width, so the two forms cannot diverge. See the note on .bb-persp.
+ */
 export default function BoundBook({ title, variant = 'shelf', width = 160, flipped = false, ribbon, bind = {}, bookRef, hoverable }) {
-  const height = Math.round(width * 1.5);
+  const cssWidth = typeof width === 'number' ? `${width}px` : width;
   const showRibbon = ribbon ?? variant === 'window';
   const obi = obiLabel(title);
   const canHover = hoverable ?? (variant === 'shelf' || variant === 'detail');
+  // Inert while next/image is `unoptimized` (no srcset is emitted), and correct the moment it
+  // is not. A fixed book states its pixels; a column-width one states the columns.
+  const sizes = typeof width === 'number' ? `${width}px` : '(max-width:640px) 33vw, 200px';
 
   return (
-    <div
-      className={'bb-persp' + (canHover ? ' bb-hoverable' : '')}
-      style={{ width, height, position: 'relative', touchAction: 'manipulation', WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }}
-      {...bind}
-    >
+    <div className={'bb-persp' + (canHover ? ' bb-hoverable' : '')} style={{ '--bb-w': cssWidth }} {...bind}>
       <div className="bb-shadow" />
-      <div ref={bookRef} className={'bb-book' + (flipped ? ' bb-flipped' : '')} style={{ width, height }}>
+      <div ref={bookRef} className={'bb-book' + (flipped ? ' bb-flipped' : '')}>
+        {/* The RIGHT fore-edge. The bottom one was removed by R16 — see
+            BOTTOM_PAGE_BLOCK_REMOVED at the head of this file. */}
         <div className="bb-foreedge" />
-        <div className="bb-foreedge-b" />
-        <FrontFace title={title} width={width} />
+        <FrontFace title={title} sizes={sizes} />
         <BackFace title={title} />
-        {showRibbon && <div className="bb-ribbon" style={{ height: Math.round(height * 0.32) }} />}
-        {obi && (
-          <div className="bb-obi" style={{ fontSize: `${Math.max(0.42, width / 320)}rem` }}>{obi}</div>
-        )}
+        {showRibbon && <div className="bb-ribbon" />}
+        {obi && <div className="bb-obi">{obi}</div>}
       </div>
     </div>
   );

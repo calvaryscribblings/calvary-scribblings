@@ -61,9 +61,30 @@ export const SHOP_VERNACULAR_CSS = `
      of the grid, not a child of it — can still read the same value. One declaration, one pair
      of numbers, two places that need them. */
   .shelf,.catalogue-section{--shelf-row-gap:3.5rem;--shelf-col-gap:1.5rem}
-  .shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:var(--shelf-row-gap) var(--shelf-col-gap);justify-items:center}
+  /* ── THREE ACROSS, EVERYWHERE ──────────────────────────────────────────────────────────
+     R16, Ikenna's ruling of 19 Aug 2026 ratifying the app's storefront as the house design:
+     three books per row at every viewport, and the book sized from the column it lands in.
+
+     ⚠ WHAT WAS HERE, AND IT WAS NOT AN ACCIDENT. The rule this replaces was
+         repeat(auto-fill,minmax(180px,1fr))   with minmax(150px,1fr) under 640px
+     — a MEASURED rule: 180px was the point at which a 150px book plus its shelf card stopped
+     crowding, and the handset override existed because 180 would have given a 390px phone one
+     book per row. It worked and it is being replaced, not corrected. What it could not do is
+     hold a count: it gave two on a phone, four on a laptop and five on a wide desktop, so the
+     shelf had a different rhythm on every machine and no fixed unit for a curator to think in.
+     Three is now that unit, and it is the same three everywhere.
+
+     minmax(0,1fr) rather than 1fr: a bare 1fr floors at min-content, and a long unbroken title
+     in .entry-title would then push a column wider than its third and put four-across geometry
+     on a three-across shelf. */
+  .shelf{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--shelf-row-gap) var(--shelf-col-gap);justify-items:center}
   .shelf-entry{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:200px;animation:fadeUp .5s ease forwards}
-  .shelf-book-wrap{margin-bottom:1.1rem}
+  /* THE BOOK IS THE COLUMN. BoundBook takes a CSS length, so the shelf hands it 100% and the
+     cover is whatever a third of the shelf is — about 106px on a 390px handset, and 200px on a
+     laptop, where .shelf-entry's own long-standing cap stops a third of 1040px from becoming a
+     330px book that would out-scale the display case. No number is introduced here: the cap is
+     the one the entry has carried since R4b. */
+  .shelf-book-wrap{margin-bottom:1.1rem;width:100%}
   .no-divider{display:flex;align-items:center;gap:.6rem;width:100%;margin-bottom:1rem}
   .no-line{flex:1;height:1px;background:rgba(201,164,76,.14)}
   .no-label{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(201,164,76,.6)}
@@ -73,9 +94,34 @@ export const SHOP_VERNACULAR_CSS = `
   .entry-price{font-family:'Cormorant Garamond',Georgia,serif;font-size:.85rem;font-weight:600;color:#f0ead8}
   .entry-price-note{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;
     font-size:.72rem;line-height:1.4;color:rgba(240,234,216,.42);margin-top:.1rem}
-  .shelf-card{margin-top:1rem;background:#ece4cf;color:#2a2318;padding:.75rem .9rem;border-radius:1px;box-shadow:0 6px 18px rgba(0,0,0,.4);font-size:.72rem;line-height:1.5;max-width:190px}
-  .shelf-card-body{display:block;font-style:italic}
-  .shelf-card-sign{display:block;margin-top:.4rem;font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.12em;color:#7a5f24}
+  /* ── THE SLIM SHELF TICKET ─────────────────────────────────────────────────────────────
+     R16 — the app's ratified ticket, in the web's own measurements. It was a 190px-capped card
+     that ran to whatever length the curator wrote; it is now 92% of the column, centred and
+     tucked under the book, with the note clamped to two lines.
+
+     ⚠ THE CLAMP IS A SHELF DECISION AND ONLY A SHELF DECISION. The full note is printed
+     untruncated on the title's own page (.bd-shelfcard) and in the Window (.window-shelfcard),
+     and tests/bookstore/shelf-ticket.test.mjs fails if either surface starts clamping the
+     other's copy. A shelf shows you there is a card; the page shows you what is on it.
+
+     TYPE, FROM THE BOARD'S OWN HIERARCHY — no new sizes were invented:
+       the note        .72rem — the rung the back cover's opening quote sits on
+       the attribution .5rem  — the rung the catalogue mark sits on
+       the floor       .42rem — the smallest floor the storefront already uses (the obi's)
+     Both runs are fluid against the ticket's own width, so the ratio holds as the column
+     changes: .72rem at the 184px ticket a 200px column gives is 6.26cqw, .5rem is 4.35cqw.
+
+     ⚠ ON A PHONE BOTH RUNS SIT ON THE FLOOR and are therefore the SAME SIZE — a 106px column
+     gives a 97px ticket, where 6.26cqw and 4.35cqw are both below .42rem. That is accepted,
+     not overlooked: at that width the hierarchy is carried by FACE AND COLOUR instead — the
+     note in italic Cormorant on the card's own ink, the attribution in Cinzel small-caps,
+     letter-spaced, in the muted gold-brown. Size is one signal and it is the first to run out. */
+  .shelf-card{width:92%;margin:1rem auto 0;container-type:inline-size;background:#ece4cf;color:#2a2318;
+    padding:.5rem .6rem;border-radius:1px;box-shadow:0 6px 18px rgba(0,0,0,.4);line-height:1.42}
+  .shelf-card-body{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    font-style:italic;font-size:max(.42rem,6.26cqw)}
+  .shelf-card-sign{display:block;margin-top:.35rem;font-family:'Cinzel',serif;
+    font-size:max(.42rem,4.35cqw);letter-spacing:.12em;color:#7a5f24}
 
   /* ═══ THE CATALOGUE ═════════════════════════════════════════════════════════════════════
      R15 — these four moved out of app/bookstore/page.js's inline stylesheet for exactly the
@@ -113,8 +159,10 @@ export const SHOP_VERNACULAR_CSS = `
   .catalogue-interleave > .curated-section{max-width:none;margin:0;padding:0}
 
   @media(max-width:640px){
+    /* R16 — the grid-template-columns override that lived here is gone with the auto-fill rule
+       it corrected: three columns need no handset variant, which was half the point of fixing
+       the count. The gap tokens stay, and R15's doubled interleave air still derives from them. */
     .shelf,.catalogue-section{--shelf-row-gap:2.75rem;--shelf-col-gap:1rem}
-    .shelf{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
     .catalogue-section{padding:3rem 1.25rem}
   }
 `;

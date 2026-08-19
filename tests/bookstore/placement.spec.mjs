@@ -98,8 +98,9 @@ test.describe('the scroll', () => {
 
     for (const t of tables) {
       // ⛔ A table is a SIBLING of the shelf runs, never a cell in the grid. A full-width child
-      // of an auto-fill grid pushes itself to a new row and leaves the trailing cells of the
+      // of the shelf grid pushes itself to a new row and leaves the trailing cells of the
       // previous one empty — a ragged hole, which is exactly what interleaving must not cost.
+      // (R16 made the grid three fixed columns; that makes the ragged hole smaller, not gone.)
       expect(t.insideAGrid, `a ${t.type || t.kind} is inside a .shelf grid`).toBe(false);
     }
 
