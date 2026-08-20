@@ -9,7 +9,6 @@ import TabBar from '../components/TabBar';
 import BoundBook, { BOUND_BOOK_CSS } from './components/BoundBook';
 import BuyButton from './components/BuyButton';
 import QuickLookModal from './components/QuickLookModal';
-import { useBookGesture } from './components/useBookGesture';
 import { resolveOpeningLine, formatCatalogueNumber } from './components/fields';
 import { useCurrency, useRegionCountry, priceLine } from '../lib/currency';
 import CurrencySelector, { CURRENCY_SELECTOR_CSS } from './components/CurrencySelector';
@@ -43,13 +42,13 @@ function Fleuron({ style }) {
   return <span style={{ color: 'rgba(201,164,76,.5)', ...style }}>&#10086;</span>;
 }
 
-// ── One shelf book: the gesture lives here, the modal is opened page-level ─────
-// R16 — `width` is a CSS length now, and the shelf passes 100%: the book is its column. See
-// the note on .shelf-book-wrap in shopVernacular.js and on .bb-persp in BoundBook.js.
-function ShelfBook({ title, width, onOpen }) {
-  const { flipped, bind, bookRef, reset } = useBookGesture({ onOpen: (rect) => onOpen(title, rect, reset) });
-  return <BoundBook title={title} variant="shelf" width={width} flipped={flipped} bind={bind} bookRef={bookRef} />;
-}
+// ⚠ ShelfBook USED TO STAND HERE, and its removal is the whole of R17.3. It called
+// useBookGesture and spread the result into BoundBook as flipped/bind/bookRef — which meant
+// the shelf was the ONLY surface with a live book, because it was the only surface that went
+// through this wrapper. The Window and the curated case rendered BoundBook directly and got
+// a book that ignored a tap. The gesture now lives inside BoundBook and those three props no
+// longer exist, so there is nothing left for a new surface to forget to pass. See
+// BOOK_SURFACES in app/bookstore/components/BoundBook.js.
 
 // R13 — EXPORTED, and it takes two new props.
 //
@@ -79,7 +78,9 @@ export function ShelfEntry({ title, index, onOpen, genreLabelFor, suppressMark }
         <div className="no-divider"><span className="no-line" /><span className="no-label">{mark}</span><span className="no-line" /></div>
       )}
       <div className="shelf-book-wrap">
-        <ShelfBook title={title} width="100%" onOpen={onOpen} />
+        {/* R16 — a CSS length, and the shelf passes 100%: the book is its column. See the note
+            on .shelf-book-wrap in shopVernacular.js and on .bb-persp in BoundBook.js. */}
+        <BoundBook title={title} variant="shelf" width="100%" onOpen={onOpen} />
       </div>
       <div className="entry-genre">{genreLabelFor(title.genre)}</div>
       <div className="entry-title">{title.title}</div>
@@ -214,7 +215,10 @@ export function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPre
 //
 // The only edit below is genreLabelFor, for the same reason as everywhere else in this file.
 // Exported for the CMS preview.
-export function TheWindow({ title, genreLabelFor }) {
+// R17.3 — `onOpen` IS THE ONLY ADDITION, and it is threaded rather than closed over for the
+// same reason genreLabelFor is: the CMS preview mounts this component too, and it has no Quick
+// Look to open. Omitted, the book turns back instead of standing face-down.
+export function TheWindow({ title, genreLabelFor, onOpen }) {
   // The price label moved into BuyButton, so the button's face and the currency it charges
   // in can never drift apart.
   const pull = resolveOpeningLine(title);
@@ -230,7 +234,7 @@ export function TheWindow({ title, genreLabelFor }) {
         <div className="window-lamp" />
         <div className="window-inner">
           <div className="window-book">
-            <BoundBook title={title} variant="window" width={190} ribbon />
+            <BoundBook title={title} variant="window" width={190} ribbon onOpen={onOpen} />
           </div>
           <div className="window-copy">
             <div className="window-kicker">{mark ? `${mark} · ` : ''}{genreLabelFor(title.genre)}</div>
@@ -562,7 +566,8 @@ export default function BookStorePage() {
       key={sec.id}
       section={sec}
       genreLabelFor={genreLabelFor}
-      renderWindow={(t) => <TheWindow title={t} genreLabelFor={genreLabelFor} />}
+      onOpen={openModal}
+      renderWindow={(t) => <TheWindow title={t} genreLabelFor={genreLabelFor} onOpen={openModal} />}
       renderEntry={(t, i, opts) => (
         <ShelfEntry title={t} index={i} onOpen={openModal} genreLabelFor={genreLabelFor} suppressMark={opts?.suppressMark} />
       )}

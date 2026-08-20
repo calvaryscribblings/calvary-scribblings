@@ -16,6 +16,9 @@
 //
 // IRON RULE: no timer may open the modal while a finger is down. Every open path here is
 // reached only from touchend / pointerup / click — never from a timer that fires mid-touch.
+//
+// R17.3 — `onOpen` IS OPTIONAL, and omitting it does not disable the gesture. The book still
+// flips; the end of the gesture becomes "turn back" instead of "open". See openNow below.
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export const HOLD_ENABLED = true;
@@ -45,9 +48,17 @@ export function useBookGesture({ onOpen }) {
     return el ? el.getBoundingClientRect() : null;
   }, []);
 
+  // R17.3 — A BOOK IS NEVER LEFT FACE-DOWN. Every surface on the shop now carries this
+  // gesture, and not every surface has somewhere for it to lead: the detail page IS the quick
+  // look, and the CMS preview has no modal at all. Without this, those books flipped on tap
+  // and stayed flipped forever, because the only thing that ever called `reset` was the modal
+  // closing. So the end of the gesture is "open, or turn back" — the flip is the same
+  // everywhere, its destination is the only thing that differs. See BOOK_SURFACES in
+  // BoundBook.js for which surface does which, and why.
   const openNow = useCallback(() => {
     armedSecondTap.current = false;
-    onOpen?.(rect());
+    if (!onOpen) { setFlipped(false); return; }
+    onOpen(rect());
   }, [onOpen, rect]);
 
   const reset = useCallback(() => {

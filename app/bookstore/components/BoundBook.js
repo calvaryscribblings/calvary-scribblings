@@ -1,13 +1,17 @@
 'use client';
 // BoundBook — renders a title as a physical book object: front cover, spine hinge,
 // RIGHT fore-edge page block, printed back cover, obi band, optional ribbon, contact shadow.
-// Presentational + a `flipped` prop; all motion lives in CSS (BOUND_BOOK_CSS) so a
-// consuming page injects the stylesheet ONCE and every instance shares it — no N copies.
+// All motion lives in CSS (BOUND_BOOK_CSS) so a consuming page injects the stylesheet ONCE
+// and every instance shares it — no N copies. Reduced motion is handled entirely in CSS via
+// prefers-reduced-motion (no resting angle, no transitions).
 //
-// The gesture (tap/hold/scroll) lives in useBookGesture; this component only renders and
-// exposes a `bind` spread + a `bookRef` for rect measurement. Reduced motion is handled
-// entirely in CSS via prefers-reduced-motion (no resting angle, no transitions).
+// R17.3 — THE BOOK CARRIES ITS OWN GESTURE. It used to be presentational, taking `flipped`,
+// `bind` and `bookRef` from whatever wrapped it, and exactly one surface wrapped it: the
+// shelf's ShelfBook. The Window's book and the book in a curated case were rendered directly
+// and had no handler at all, so they were dead objects on a shop where every other book turns
+// over on tap. See BOOK_SURFACES below for the whole argument and the register.
 import Image from 'next/image';
+import { useBookGesture } from './useBookGesture';
 import { resolveOpeningLine, resolveBackBlurb, gradientFor, obiLabel, formatCatalogueNumber } from './fields';
 import { useCurrency, useRegionCountry, priceLine } from '../../lib/currency';
 
@@ -165,7 +169,9 @@ export const BOUND_BOOK_CSS = `
     background:linear-gradient(180deg,#c9a44c,#a8842f);clip-path:polygon(0 0,100% 0,100% 100%,50% 55%,0 100%)}
   .bb-foil{background:linear-gradient(135deg,#f4e2a6 0%,#c9a44c 42%,#8f6d24 62%,#e8c877 100%);
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
-  .bb-hoverable .bb-book{cursor:pointer}
+  /* R17.3 — the cursor is on EVERY book, because every book now answers a press. The LIFT is
+     still only on the surfaces that always had it: that is a look, and no ruling moved it. */
+  .bb-book{cursor:pointer}
   @media (hover:hover){
     .bb-hoverable .bb-book:not(.bb-flipped):hover{transform:rotateY(-9deg) translateY(-9px)}
   }
@@ -275,18 +281,94 @@ function BackFace({ title }) {
   );
 }
 
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R17.3 — EVERY BOOK ON THE SHOP TURNS OVER, AND THE HANDLER LIVES WHERE THEY SHARE IT
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// THE DEFECT, from the walk of the live site: a book on the shop grid flipped on tap; the book
+// in the Window and the book in a curated case did not. One shop, two grammars, and no reason
+// a reader could infer — the same object, drawn by the same component, answering a tap on one
+// shelf and ignoring it on another.
+//
+// THE CAUSE was not a missing handler at those two sites. It was WHERE the handler lived. The
+// gesture sat in a wrapper — `ShelfBook` in app/bookstore/page.js — that called useBookGesture
+// and spread the result into BoundBook as `flipped` / `bind` / `bookRef`. Exactly one surface
+// used that wrapper. Every other surface rendered BoundBook directly and therefore got a book
+// with no listeners, which looks completely correct in review: the props were optional and the
+// JSX read fine.
+//
+// ⚠ SO THE FIX IS NOT "CALL useBookGesture IN THREE MORE PLACES". Three copies of a gesture is
+// three places for a fourth surface to be forgotten, and forgetting is exactly what happened.
+// The handler moved INTO THIS COMPONENT, and the three props that let a caller supply its own
+// were REMOVED rather than left as an override. That is the whole guarantee: there is no way
+// to render a BoundBook without a gesture, because there is no longer a prop that turns one
+// off. A fourth surface added next year gets the flip whether or not anyone remembers to.
+//
+// ── WHAT A TAP LEADS TO, PER SURFACE ─────────────────────────────────────────────────────
+//
+// The FLIP is universal. What the flip leads INTO is the surface's own way in, and there are
+// only two answers: the storefront's Quick Look, or back to the front cover. A surface passes
+// `onOpen` when it has a modal to open; useBookGesture turns the book back when it has not, so
+// a book is never left face-down with nothing to press.
+//
+// ── ACCESSIBILITY, STATED PLAINLY BECAUSE IT IS A GAP AND NOT A DESIGN ───────────────────
+//
+// The grid's gesture was pointer-only — touchstart/move/end, contextmenu, click, on a plain
+// <div> with no tabIndex, no role and no key handler. Moving it here carries that to the other
+// surfaces IDENTICALLY, which is what was asked, and identically is also the honest word for
+// it: keyboard users could not flip a book before this change and cannot flip one now.
+//
+// What saves it from being a content gap is that THE FLIP IS DECORATIVE FOR ASSISTIVE TECH.
+// Both faces are in the DOM at all times — backface-visibility hides a face from the eye, not
+// from the accessibility tree — so the back cover's opening line, blurb, catalogue mark and
+// price are announced on every surface whether or not the book has been turned. The flip shows
+// a sighted reader something a screen reader already had.
+//
+// tests/bookstore/flip.spec.mjs asserts the parity as a PROPERTY rather than a level: every
+// surface's book carries the same attribute set. If the grid ever gains a real keyboard
+// affordance, the suite fails until the others have it too.
+export const BOOK_SURFACES = {
+  ruledOn: '2026-08-20',
+  ruling: 'One interaction grammar: every BoundBook on the shop flips on tap, whatever surface holds it.',
+  // The register. A `<BoundBook` call site anywhere in the tree that is not listed here fails
+  // tests/bookstore/flip.test.mjs — which is how a fourth surface is stopped from shipping a
+  // dead book quietly. `opens` is what a completed tap leads to.
+  surfaces: [
+    { key: 'shelf',        file: 'app/bookstore/page.js',                    component: 'ShelfEntry',   opens: 'quick-look' },
+    { key: 'window',       file: 'app/bookstore/page.js',                    component: 'TheWindow',    opens: 'quick-look' },
+    { key: 'curated-case', file: 'app/bookstore/components/CuratedSection.js', component: 'CuratedCase', opens: 'quick-look' },
+    // The detail page IS the quick look. A modal repeating the page you are standing on is not
+    // a way in, so the book turns back instead — the gesture is the same, its destination is
+    // the only honest difference.
+    { key: 'detail',       file: 'app/bookstore/[slug]/page-detail.js',      component: 'BookDetailClient', opens: 'turns-back' },
+  ],
+  // The props that USED to let a caller own the gesture. Their absence is the guarantee, so
+  // they are named here and asserted absent rather than simply deleted and forgotten.
+  retiredProps: ['flipped', 'bind', 'bookRef'],
+};
+
 /**
- * @param width  a CSS length. A NUMBER is pixels, exactly as it always was — the Window's 190,
- *               the curated case's 170, the detail page's 220 all pass one and render at the
- *               same size they always have. A STRING is used verbatim, which is how a shelf
- *               book takes the width of its column: `width="100%"`. Everything the component
- *               used to compute off the number is now derived in CSS from the element's own
- *               width, so the two forms cannot diverge. See the note on .bb-persp.
+ * @param width   a CSS length. A NUMBER is pixels, exactly as it always was — the Window's 190,
+ *                the curated case's 170, the detail page's 220 all pass one and render at the
+ *                same size they always have. A STRING is used verbatim, which is how a shelf
+ *                book takes the width of its column: `width="100%"`. Everything the component
+ *                used to compute off the number is now derived in CSS from the element's own
+ *                width, so the two forms cannot diverge. See the note on .bb-persp.
+ * @param onOpen  (title, rect, reset) => void. The surface's way in, called after the back
+ *                cover has breathed. OMIT IT and the book turns back instead — see
+ *                BOOK_SURFACES. It is not a switch for the gesture; there isn't one.
  */
-export default function BoundBook({ title, variant = 'shelf', width = 160, flipped = false, ribbon, bind = {}, bookRef, hoverable }) {
+export default function BoundBook({ title, variant = 'shelf', width = 160, ribbon, onOpen, hoverable }) {
+  // `reset` is referenced by the callback before the destructuring completes, and that is fine:
+  // the callback cannot run until a finger has been on the glass. Same shape ShelfBook used.
+  const { flipped, bind, bookRef, reset } = useBookGesture({ onOpen: onOpen ? (rect) => onOpen(title, rect, reset) : undefined });
   const cssWidth = typeof width === 'number' ? `${width}px` : width;
   const showRibbon = ribbon ?? variant === 'window';
   const obi = obiLabel(title);
+  // The HOVER LIFT stays where it already was — it is a look, and no ruling moved it. The
+  // POINTER CURSOR is a different thing and now applies to every book, because every book is
+  // now pressable and a pressable object that says otherwise is the discoverability bug this
+  // round exists to fix. See .bb-book / .bb-hoverable in the stylesheet.
   const canHover = hoverable ?? (variant === 'shelf' || variant === 'detail');
   // Inert while next/image is `unoptimized` (no srcset is emitted), and correct the moment it
   // is not. A fixed book states its pixels; a column-width one states the columns.

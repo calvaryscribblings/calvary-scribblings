@@ -190,7 +190,12 @@ describe('R16 — THREE ACROSS, AND THE BOOK IS ITS COLUMN', () => {
 
   test('the book takes the width of its column, and BoundBook accepts a CSS length', () => {
     assert.match(VERN_RULES, /\.shelf-book-wrap\{[^}]*width:100%/);
-    assert.match(src('app/bookstore/page.js'), /<ShelfBook title=\{title\} width="100%"/,
+    // R17.3 — THIS USED TO NAME `<ShelfBook`, the shelf-only wrapper that carried the gesture.
+    // R17.3 retired that wrapper (the gesture moved into BoundBook so no surface could render
+    // a dead book) and the shelf now renders the book directly. The PROPERTY R16 was proving is
+    // untouched and is still proved here: the shelf hands its book a CSS length, not a pixel
+    // number. The assertion follows the code rather than being deleted with it.
+    assert.match(src('app/bookstore/page.js'), /<BoundBook title=\{title\} variant="shelf" width="100%"/,
       'the shelf still passes a fixed pixel width');
     // The component's own contract: a number is pixels, a string is used verbatim.
     assert.match(JSX, /typeof width === 'number' \? `\$\{width\}px` : width/);

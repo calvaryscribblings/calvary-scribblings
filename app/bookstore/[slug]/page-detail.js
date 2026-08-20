@@ -278,6 +278,10 @@ export default function BookDetailClient({ params }) {
                 {/* Book header */}
                 <div className="bd-header" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '3.5rem', alignItems: 'start' }}>
                   <div className="bd-cover-wrap" style={{ display: 'flex', justifyContent: 'center', paddingTop: '.5rem' }}>
+                    {/* R17.3 — it flips on tap like every other book on the shop. NO `onOpen`:
+                        this page IS the quick look, and a modal repeating the page you are
+                        standing on is not a way in, so the book turns back instead. That is a
+                        registered surface, not an omission — see BOOK_SURFACES in BoundBook.js. */}
                     <BoundBook title={title} variant="detail" width={220} />
                   </div>
                   <div>

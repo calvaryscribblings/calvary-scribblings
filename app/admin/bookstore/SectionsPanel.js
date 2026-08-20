@@ -298,6 +298,11 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
   /** The isolated frame, unchanged from R13 — and the renderer the shelf frame injects. */
   function renderPreviewSection(one) {
     return (
+      /* R17.3 — NO onOpen ANYWHERE IN THE PREVIEW, and it used to be `() => {}`. The
+         distinction is load-bearing now: a book with no onOpen turns itself back after the
+         breathe, whereas one handed a no-op flips and stands face-down forever — the only
+         thing that ever un-flips it is the Quick Look closing, and there is no Quick Look in
+         the CMS. The preview has no modal to open, so it says so by saying nothing. */
       <CuratedSection
         section={one}
         genreLabelFor={genreLabelFor}
@@ -308,7 +313,7 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
           </div>
         )}
         renderEntry={(t, i, opts) => (
-          <ShelfEntry title={t} index={i} onOpen={() => {}} genreLabelFor={genreLabelFor} suppressMark={opts?.suppressMark} />
+          <ShelfEntry title={t} index={i} genreLabelFor={genreLabelFor} suppressMark={opts?.suppressMark} />
         )}
       />
     );
@@ -620,7 +625,6 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
                           genresPresent={genresPresentIn(genres, shelfTitles[resolved.placement], resolved.placement)}
                           active={previewTab}
                           setActive={setPreviewTab}
-                          onOpen={() => {}}
                           genreLabelFor={genreLabelFor}
                           interleaves={planShopFlow([resolved], [{ group: resolved.placement, count: shelfCounts[resolved.placement] }]).shelves[resolved.placement]}
                           renderSection={(one) => renderPreviewSection(one)}

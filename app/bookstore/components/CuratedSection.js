@@ -85,7 +85,7 @@ function SectionHead({ title, curatorLine, monthLabel }) {
  * component which this round did not touch. This is the plate treatment generalised for a
  * section that features one book — and it stops at the door of the money.
  */
-function CuratedCase({ section, title, genreLabelFor }) {
+function CuratedCase({ section, title, genreLabelFor, onOpen }) {
   const pull = resolveOpeningLine(title);
   const mark = formatCatalogueNumber(title.catalogueNumber);
   return (
@@ -97,7 +97,13 @@ function CuratedCase({ section, title, genreLabelFor }) {
       <div className="curated-lamp" />
       <div className="curated-case-inner">
         <div className="curated-case-book">
-          <BoundBook title={title} variant="window" width={170} ribbon={false} />
+          {/* R17.3 — the book in a case turns over on tap exactly as a book on a shelf does.
+              `onOpen` is INJECTED, like renderEntry and renderWindow beside it and for the
+              same reason: the Quick Look is the storefront's, this module has no business
+              holding one, and the CMS preview mounts this component with no modal at all. See
+              THE MONEY WALL at the foot of this file — a callback the storefront supplies is
+              the established shape here, and it is what keeps the wall standing. */}
+          <BoundBook title={title} variant="window" width={170} ribbon={false} onOpen={onOpen} />
         </div>
         <div className="curated-case-copy">
           <div className="window-kicker">{mark ? `${mark} · ` : ''}{genreLabelFor(title.genre)}</div>
@@ -144,8 +150,12 @@ function CuratedShelf({ section, renderEntry }) {
  *                       reason as renderEntry: folding the Window into the system must not
  *                       mean redrawing it here.
  * @param genreLabelFor  (slug) => string, from the taxonomy. Never a local table.
+ * @param onOpen         (title, rect, reset) => void — the storefront's Quick Look, for the
+ *                       book a CASE displays. A SHELF's books get theirs through renderEntry,
+ *                       which already carries it. Omit and the book turns back on tap, which
+ *                       is what the CMS preview wants.
  */
-export default function CuratedSection({ section, renderEntry, renderWindow, genreLabelFor }) {
+export default function CuratedSection({ section, renderEntry, renderWindow, genreLabelFor, onOpen }) {
   // ⛔ THE RULE, restated at the last possible moment. resolveSections has already dropped
   // every section that must not render; this is the belt to that brace, and it is here so
   // that a caller which builds a section object by hand — the CMS preview does — cannot put
@@ -161,7 +171,7 @@ export default function CuratedSection({ section, renderEntry, renderWindow, gen
     <section className="curated-section" data-section-type={section.type} data-testid={`curated-${section.type}`}>
       <SectionHead title={section.displayTitle} curatorLine={section.curatorLine} monthLabel={section.monthLabel} />
       {section.layout === 'case'
-        ? <CuratedCase section={section} title={section.titles[0]} genreLabelFor={genreLabelFor} />
+        ? <CuratedCase section={section} title={section.titles[0]} genreLabelFor={genreLabelFor} onOpen={onOpen} />
         : <CuratedShelf section={section} renderEntry={renderEntry} />}
     </section>
   );
