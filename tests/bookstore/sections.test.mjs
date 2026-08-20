@@ -545,6 +545,57 @@ describe('NOTHING IS SEEDED IN CODE', () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
+describe('R17.2 — THE SECTIONS BOOTSTRAP IS GONE, and the builder it used is not', () => {
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// The branch was retired because bookstore_sections is written in production. A suite that
+// merely stopped exercising it would let it come back silently, so this asserts its ABSENCE
+// by name — and, in the other direction, asserts that everything the deletion was NOT allowed
+// to take with it is still there. R16's BOTTOM_PAGE_BLOCK_REMOVED set the precedent: a removal
+// that is a deleted line and a silence is a removal nobody can check.
+
+  test('loader.getSections no longer answers an absent node with the migration', () => {
+    const loader = src('app/lib/bookstore/loader.js');
+    const fn = /export async function getSections\(([^)]*)\) \{([\s\S]*?)\n\}/.exec(loader);
+    assert.ok(fn, 'loader.js no longer declares getSections');
+
+    // The branch itself, and the builder call that WAS the branch.
+    assert.equal(/snap\.exists\(\)/.test(fn[2]), false,
+      'getSections still branches on the node existing — the bootstrap is back');
+    assert.equal(/buildWindowMigration/.test(fn[2]), false,
+      'getSections still calls buildWindowMigration — the bootstrap is back');
+
+    // And the parameter that existed only to feed it.
+    assert.equal(fn[1].trim(), '',
+      'getSections still takes an argument; the only thing that ever needed one was the bootstrap');
+
+    // The whole module: no importer of the builder is left behind to be re-wired by accident.
+    assert.equal(/^import .*buildWindowMigration/m.test(loader), false,
+      'loader.js still imports buildWindowMigration');
+  });
+
+  test('no caller still passes getSections the catalogue', () => {
+    for (const f of ['app/bookstore/page.js', 'app/admin/bookstore/page.js']) {
+      const calls = src(f).match(/getSections\([^)]*\)/g) || [];
+      assert.ok(calls.length > 0, `${f} no longer calls getSections at all`);
+      for (const c of calls) {
+        assert.equal(c, 'getSections()', `${f} still hands getSections an argument: ${c}`);
+      }
+    }
+  });
+
+  test('THE BUILDER STAYS — the migration and the CMS button both still need it', () => {
+    // The deletion was allowed to take the loader's branch and nothing else. Consumers (1) and
+    // (2) are the migration proper and "Fold the Window in", and both must still work.
+    const out = buildWindowMigration(CATALOGUE, 1);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].type, TYPE_WINDOW);
+    assert.match(src('scripts/migrate-bookstore-taxonomy.mjs'), /buildWindowMigration/);
+    assert.match(src('app/admin/bookstore/SectionsPanel.js'), /buildWindowMigration|foldTheWindowIn/);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
 describe('THE PREVIEW IS THE SHOP — one stylesheet, not a copy of one', () => {
 // ═════════════════════════════════════════════════════════════════════════════════════════
 

@@ -165,7 +165,11 @@ async function main() {
   }
   console.log('[migrate] done.');
   console.log('[migrate] NEXT: load /bookstore and confirm the tabs and the Window are unchanged.');
-  console.log('[migrate] THEN: delete the bootstrap branches in app/lib/bookstore/loader.js (getGenres, getSections).');
+  // The follow-up this used to print — "delete the bootstrap branches in loader.js" — was done
+  // in R17.2, on 20 Aug 2026, once both nodes were verified written in production. There are no
+  // bootstrap branches left to delete, so the instruction is retired rather than left printing
+  // advice about code that no longer exists.
+  console.log('[migrate] (loader.js\'s getGenres/getSections bootstraps were retired in R17.2 — nothing further to remove.)');
 }
 
 main().catch((err) => {

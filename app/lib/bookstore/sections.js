@@ -791,33 +791,30 @@ export function rebindSections(resolved, titles) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
-// THE MIGRATION — one builder, three consumers
+// THE MIGRATION — one builder, two consumers (it had three)
 // ═════════════════════════════════════════════════════════════════════════════════════════
 //
-// The Window's live claim has to survive this round unchanged, and three separate things have
-// to produce the identical record for that to be true:
+// The Window's live claim had to survive R13 unchanged, and separate things have to produce
+// the identical record for that to be true:
 //
 //   1. scripts/migrate-bookstore-taxonomy.mjs   — the migration proper, run with a key
 //   2. /admin/bookstore → Sections → "Fold the Window in"  — the same migration, by hand
-//   3. getSections()'s bootstrap                — the deploy-to-migration window
 //
-// (3) is the one worth explaining. A static export is live the instant Cloudflare finishes;
-// the node is written by a human at some point afterwards. If the shop read an unwritten node
-// as "no claims", the Window would go dark for that interval — which is precisely the
-// regression this round is required not to cause. So when bookstore_sections has never been
-// written, the loader returns THIS FUNCTION'S OUTPUT rather than an empty list.
+// ── AND THE THIRD, WHICH IS RETIRED ──────────────────────────────────────────────────────
 //
-// ⚠ THAT IS A BOOTSTRAP, NOT A FALLBACK, and the distinction is load-bearing:
-//   · It is keyed on the node being ABSENT ENTIRELY, never on a section being unclaimed. One
-//     saved record — any record, of any type — retires it permanently.
-//   · It produces the migration's own output, from the same builder, so it cannot drift into
-//     being a second opinion about what the Window is.
-//   · It fills nothing. If no title carries `featured`, it returns [] and the shop renders no
-//     Window, which is exactly what today's `{windowTitle && …}` does.
+// There was a (3): getSections()'s BOOTSTRAP, covering the deploy-to-migration window. A
+// static export is live the instant Cloudflare finishes and the node is written by a human at
+// some point afterwards, so an unwritten node read as "no claims" would have taken the Window
+// dark for that interval — the one regression R13 was required not to cause.
 //
-// DELETE IT once the migration has run in production: remove the bootstrap branch in
-// loader.getSections() and this function's third consumer. Keep the builder — (1) and (2)
-// still need it.
+// THAT INTERVAL IS OVER. bookstore_sections holds `window` and `editors-choice-mt0c0n6f` in
+// production, verified 20 Aug 2026, and R17.2 removed the branch. This note is kept rather
+// than deleted because the ARGUMENT is what a future migration will want: a bootstrap answers
+// "this node has never been written", it is keyed on the node being absent ENTIRELY, it
+// produces the migration's own output from this same builder so it cannot become a second
+// opinion, and it fills nothing.
+//
+// THE BUILDER STAYS. (1) and (2) still need it, and this function was never the branch.
 export function buildWindowMigration(titles, nowMs) {
   const featured = (titles || []).find((t) => t.featured && t.status === 'published');
   if (!featured) return [];

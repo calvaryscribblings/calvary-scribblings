@@ -20,7 +20,7 @@ import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 import { db } from '../firebase';
 import { SCHEMA_VERSION } from './schema';
 import { GENRES_PATH, GENRE_SEED, sortGenres, validateGenre } from './genres';
-import { SECTIONS_PATH, SIGNALS_PATH, buildWindowMigration, buildGenreMigration } from './sections';
+import { SECTIONS_PATH, SIGNALS_PATH, buildGenreMigration } from './sections';
 import { READERSHIP_PATH, readershipCountOf } from './readership';
 
 const TITLES_PATH = 'bookstore_titles';
@@ -263,21 +263,38 @@ export async function getAllPublishers() {
 
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
-// R13 — THE TAXONOMY AND THE CLAIMS
+// R13 — THE TAXONOMY AND THE CLAIMS.  R17.2 — AND THE TWO BOOTSTRAPS ARE RETIRED.
 // ═════════════════════════════════════════════════════════════════════════════════════════
 //
 // Two nodes, both `.read: true`, both admin-write, and they are governed by OPPOSITE rules
 // for reasons argued in full at the head of genres.js and sections.js:
 //
-//   bookstore_genres    VOCABULARY.  An unwritten node bootstraps to the seed, because a
-//                       shop with no shelf labels is a broken screen.
-//   bookstore_sections  CURATION.    An unwritten node bootstraps to the WINDOW MIGRATION and
-//                       to nothing else, because a missing claim is an editorial silence —
-//                       and the Window's existing claim is the one thing this round is
-//                       required not to drop.
+//   bookstore_genres    VOCABULARY.  A shop with no shelf labels is a broken screen.
+//   bookstore_sections  CURATION.    A missing claim is an editorial silence.
 //
-// Both bootstraps are keyed on the node being ABSENT ENTIRELY. One saved record retires each
-// of them permanently; neither ever fills a gap in a populated node.
+// ── WHAT WAS HERE, AND WHY IT IS NOT ─────────────────────────────────────────────────────
+//
+// Each reader carried a BOOTSTRAP keyed on its node being ABSENT ENTIRELY — getGenres()
+// returned the seed, getSections() returned buildWindowMigration(titles, Date.now()). Both
+// existed for ONE INTERVAL and said so at the time: a static export goes live the moment
+// Pages finishes, and the node is written by a human at some point afterwards. Between those
+// two moments the shop would otherwise have had no tabs, or a dark display case.
+//
+// THAT INTERVAL IS OVER. Verified against production on 20 Aug 2026, unauthenticated, before
+// the branches were touched:
+//
+//   bookstore_genres     12 records, orders 1-12, contiguous, no duplicates, matching
+//                        GENRE_SEED slug-for-slug and label-for-label
+//   bookstore_sections   2 records — `window` and `editors-choice-mt0c0n6f`
+//
+// So both branches were unreachable, and a bootstrap nobody can reach is not a safety net —
+// it is a second opinion about what the shop contains, sitting next to the real one. They are
+// gone. tests/bookstore/genres.test.mjs and sections.test.mjs assert their ABSENCE by name.
+//
+// ⚠ WHAT SURVIVES, AND IT IS NOT THE BOOTSTRAP. getGenres() still answers a READ FAILURE with
+// the seed. That is a different question with a different answer already argued at the catch
+// site: a network drop is not an editorial decision, and the shop still needs shelf labels.
+// Do not delete that one on the strength of this note.
 
 /**
  * The genre taxonomy, in display order.
@@ -289,7 +306,6 @@ export async function getAllPublishers() {
 export async function getGenres() {
   try {
     const snap = await get(ref(db, GENRES_PATH));
-    if (!snap.exists()) return sortGenres(GENRE_SEED);          // ⚠ bootstrap — see header
     const out = [];
     snap.forEach((child) => {
       const doc = { slug: child.key, ...child.val() };
@@ -297,6 +313,13 @@ export async function getGenres() {
       else console.warn('[bookstore.loader] genre record dropped (invalid)', child.key);
       return false;
     });
+    // ⚠ NOT THE BOOTSTRAP, AND IT WAS LEFT STANDING ON PURPOSE. This fires when the node
+    // was READ SUCCESSFULLY and yielded no usable genre — every record dropped by
+    // validateGenre above, or the node emptied. Its consequence is that an absent
+    // bookstore_genres still answers with the seed even now the branch above is gone, so
+    // deleting that branch changed no behaviour, which is exactly what "unreachable" meant.
+    // Whether the vocabulary should instead go silent when a curator empties it is an
+    // EDITORIAL question, not a migration one, and it has not been asked. Left as it was.
     return out.length ? sortGenres(out) : sortGenres(GENRE_SEED);
   } catch (err) {
     console.error('[bookstore.loader] getGenres failed', err);
@@ -310,19 +333,18 @@ export async function getGenres() {
  * The raw curated sections, unresolved. resolveSections() in sections.js turns these into
  * what renders — this function only fetches, exactly as getAllPublishedTitles only fetches.
  *
- * `titles` is taken as an argument solely to build the bootstrap, and is unused once the node
- * exists. Pass the published catalogue you already loaded; do not fetch it again for this.
+ * R17.2 — IT TAKES NO ARGUMENT NOW. It used to be handed the published catalogue, solely so
+ * that an absent node could be answered with buildWindowMigration(titles, Date.now()). That
+ * branch is retired (see the header), so the parameter went with it rather than being left
+ * behind as a thing every caller has to keep supplying for no reason.
  *
- * ⚠ A READ FAILURE RETURNS [] AND NOT THE BOOTSTRAP. The bootstrap answers "this node has
- * never been written"; a network drop answers nothing at all, and a shop that draws a Window
- * from `featured` whenever a request fails would keep the old behaviour alive indefinitely
- * behind an intermittent fault. Silence is the correct output of a failed read here, because
- * silence is what an unclaimed section renders anyway.
+ * A READ FAILURE RETURNS [], and so now does an absent node — the same answer, which is the
+ * point. Silence is the correct output here, because silence is what an unclaimed section
+ * renders anyway.
  */
-export async function getSections(titles) {
+export async function getSections() {
   try {
     const snap = await get(ref(db, SECTIONS_PATH));
-    if (!snap.exists()) return buildWindowMigration(titles, Date.now());   // ⚠ bootstrap
     const out = [];
     snap.forEach((child) => {
       out.push({ id: child.key, ...child.val() });

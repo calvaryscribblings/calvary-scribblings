@@ -442,10 +442,17 @@ export default function BookStorePage() {
       // at launch that is one or two. bookstore_signals does not exist, so it is an absent-node
       // read that returns nothing — see getSignals()'s note on why it is wired anyway.
       //
-      // The catalogue is awaited FIRST because getSections needs it: the bootstrap builds the
-      // Window's claim out of the published titles, and asking for the same list twice to
-      // avoid one await would be the round trip this file's header says it avoids.
-      const [g, s, sig] = await Promise.all([getGenres(), getSections(list), getSignals()]);
+      // ⚠ THE REASON THIS CATALOGUE READ IS AWAITED FIRST HAS BEEN RETIRED, and the comment
+      // that gave it is corrected here rather than left standing. It read: "the catalogue is
+      // awaited FIRST because getSections needs it — the bootstrap builds the Window's claim
+      // out of the published titles". R17.2 deleted that bootstrap and getSections now takes
+      // no argument, so nothing below depends on `list` any more.
+      //
+      // The serialisation is therefore no longer necessary — these three could join the
+      // catalogue in one Promise.all and save a round trip. NOT DONE HERE: that is a change to
+      // how the shop loads, and this round's job was to remove dead code, not to re-time the
+      // page behind it. It is left as a named, deliberate opportunity rather than an accident.
+      const [g, s, sig] = await Promise.all([getGenres(), getSections(), getSignals()]);
       if (cancelled) return;
       setGenres(g);
       setSectionRows(s);

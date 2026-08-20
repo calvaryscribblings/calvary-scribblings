@@ -322,3 +322,57 @@ describe('THE TAXONOMY’S OWN RULES', () => {
     assert.equal(GENRE_SEED.every((g) => GENRE_GROUPS.includes(g.group)), true);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+describe('R17.2 — THE GENRE BOOTSTRAP IS GONE, and the seed is not', () => {
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// bookstore_genres holds all twelve records in production (verified 20 Aug 2026: orders 1-12,
+// contiguous, matching GENRE_SEED slug-for-slug), so getGenres()'s absent-node branch was
+// unreachable and was removed. Asserted in BOTH directions, as R16's removal record was: the
+// branch is gone, and the three things the deletion was not allowed to touch are still here.
+
+  test('getGenres no longer answers an absent node with the seed', () => {
+    const loader = src('app/lib/bookstore/loader.js');
+    const fn = /export async function getGenres\(\) \{([\s\S]*?)\n\}/.exec(loader);
+    assert.ok(fn, 'loader.js no longer declares getGenres');
+    const body = fn[1];
+    // The branch was `if (!snap.exists()) return sortGenres(GENRE_SEED)`. Nothing in this
+    // function may test the node's existence any more.
+    assert.equal(/snap\.exists\(\)/.test(body), false,
+      'getGenres still branches on the node existing — the bootstrap is back');
+  });
+
+  test('THE READ-FAILURE ANSWER STAYS — it was never the bootstrap', () => {
+    // A network drop is not an editorial decision, and the shop still needs shelf labels. This
+    // is the one seed return the deletion was explicitly not allowed to take, and the note at
+    // the code site says so in as many words.
+    const loader = src('app/lib/bookstore/loader.js');
+    const fn = /export async function getGenres\(\) \{([\s\S]*?)\n\}/.exec(loader)[1];
+    const katch = /catch \(err\) \{([\s\S]*)$/.exec(fn);
+    assert.ok(katch, 'getGenres no longer has a catch block');
+    assert.match(katch[1], /sortGenres\(GENRE_SEED\)/,
+      'a failed read no longer answers with the seed — the shop would lose its shelf labels');
+  });
+
+  test('THE SEED STAYS, and both writers still emit it', () => {
+    // The seed is the migration payload, not the runtime source. Two things write it and they
+    // must not disagree; removing a reader must not have removed either writer.
+    assert.equal(GENRE_SEED.length, 12);
+    assert.match(src('scripts/migrate-bookstore-taxonomy.mjs'), /buildGenreMigration/);
+    assert.match(src('app/lib/bookstore/loader.js'), /export function genreMigrationPayload/);
+  });
+
+  test('the live taxonomy this deletion relied on is reproduced by the seed, in order', () => {
+    // The verification that made the branch dead: production carries these twelve slugs at
+    // these twelve orders. If the seed ever stops agreeing with what was read, the premise of
+    // the deletion has changed and this fails rather than the shop failing quietly.
+    const LIVE_20_AUG_2026 = [
+      'literary-fiction', 'romance', 'thriller-suspense', 'sci-fi-fantasy', 'historical',
+      'short-story-collection', 'poetry', 'memoir-biography', 'essays', 'self-development',
+      'business-finance', 'politics-society',
+    ];
+    assert.deepEqual(sortGenres(GENRE_SEED).map((g) => g.slug), LIVE_20_AUG_2026);
+    assert.deepEqual(sortGenres(GENRE_SEED).map((g) => g.order), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  });
+});

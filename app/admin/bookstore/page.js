@@ -265,9 +265,10 @@ export default function AdminBookstorePage() {
       }
       out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       setTitles(out);
-      // R13. getSections is handed the published subset because that is what its bootstrap
-      // reads — the same argument the storefront passes, for the same reason.
-      const [g, secs] = await Promise.all([getGenres(), getSections(out.filter((t) => t.status === 'published'))]);
+      // R17.2 — getSections takes no argument now. It used to be handed the published subset,
+      // because that is what its bootstrap read; the bootstrap is gone and so is the filter
+      // that existed only to feed it.
+      const [g, secs] = await Promise.all([getGenres(), getSections()]);
       setGenres(g);
       setSections(secs);
       setNow(Date.now());

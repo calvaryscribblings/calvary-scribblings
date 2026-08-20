@@ -26,20 +26,23 @@
 //
 // ── WHY A SEED AT ALL, AND WHY IT IS NOT A FALLBACK ──────────────────────────────────────
 //
-// A seed is the migration's own output, expressed once so that the three things which must
-// produce identical records cannot disagree: scripts/migrate-bookstore-taxonomy.mjs, the
-// "Seed the taxonomy" button in /admin/bookstore → Genres, and getGenres()'s bootstrap for
-// the window between the deploy and the migration. That window is real — a static export
-// goes live the moment Pages finishes, and the node is written by a human afterwards — and
-// an unseeded node would mean a shop with no tabs and no shelf labels until somebody
-// noticed. Compare the sections system next door, which is governed by the opposite rule
-// (an unclaimed section renders NOTHING) and for the opposite reason: a missing curator's
-// claim is an editorial silence and must stay silent, where a missing genre label is a
-// broken screen. Curation may be absent. Vocabulary may not.
+// A seed is the migration's own output, expressed once so that the things which must produce
+// identical records cannot disagree: scripts/migrate-bookstore-taxonomy.mjs and the "Seed the
+// taxonomy" button in /admin/bookstore → Genres.
 //
-// The bootstrap dies on its own the moment the node holds one record. It is not consulted
-// per-genre and it never fills a gap in a populated node: a genre the curator deleted stays
-// deleted.
+// It had a third consumer — getGenres()'s BOOTSTRAP, for the window between the deploy and
+// the migration. That window was real: a static export goes live the moment Pages finishes
+// and the node is written by a human afterwards, so an unseeded node would have meant a shop
+// with no tabs and no shelf labels until somebody noticed. Compare the sections system next
+// door, governed by the opposite rule (an unclaimed section renders NOTHING) and for the
+// opposite reason: a missing curator's claim is an editorial silence and must stay silent,
+// where a missing genre label is a broken screen. Curation may be absent. Vocabulary may not.
+//
+// ⚠ R17.2 — THE BOOTSTRAP IS GONE. bookstore_genres holds all twelve records in production
+// (verified 20 Aug 2026: orders 1-12, contiguous, matching this seed slug-for-slug), so the
+// branch was unreachable and was removed. The seed itself stays: it is still the payload both
+// writers emit, and getGenres() still answers a READ FAILURE with it, which is a different
+// question — a network drop is not an editorial decision.
 //
 // ── slug IS THE KEY ──────────────────────────────────────────────────────────────────────
 //
