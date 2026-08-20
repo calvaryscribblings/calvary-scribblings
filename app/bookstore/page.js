@@ -276,6 +276,46 @@ function OpeningLinesRail({ pool }) {
   );
 }
 
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// THE MASTHEAD LOCKUP'S AIR — a derivation, not a nudge
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// .hero-title sets line-height:.9 over Cormorant Garamond, whose natural line box is 1.211em.
+// CSS pays for a compressed line-height out of HALF-LEADING — half from the top of the line
+// box, half from the bottom — so the shortfall taken from ABOVE the display line is
+//
+//     air = (naturalLineBox - requestedLineHeight) / 2 = (1.211 - .9) / 2 = .1555em
+//
+// which is what made "The" sit on "Book Store"'s ink with the same air pooling underneath.
+//
+// The rule at .hero-store hands that back with `margin-top: .1555em` and pays for it with
+// `margin-bottom: -.1555em`, so the transfer is net zero to the flow beneath. Both halves are
+// derived from the two numbers below and neither is typed twice — tests/bookstore/masthead.
+// spec.mjs recomputes the arithmetic from this record and fails if the stylesheet disagrees.
+//
+// THE APP REPO CARRIES THE IDENTICAL CONSTANT AS HERO_LOCKUP_AIR. Same name on both sides on
+// purpose: .1555 on its own reads as a fitted number in either repo, and it is not one.
+export const HERO_LOCKUP_AIR = {
+  // Cormorant Garamond's natural line box, in em — the value the face reports when no
+  // line-height is asked for. Everything below is derived from this and `requestedLineHeight`.
+  naturalLineBoxEm: 1.211,
+  requestedLineHeight: 0.9,   // .hero-title
+  get em() { return +(((this.naturalLineBoxEm - this.requestedLineHeight) / 2).toFixed(4)); },
+  selector: '.hero-store',
+  appConstant: 'HERO_LOCKUP_AIR',
+  // The measurement the fix is accountable to, at 390px where .hero-store clamps to its
+  // 3.6rem floor (57.6px) and the air is therefore .1555 x 57.6 = 8.96px.
+  //
+  // ⚠ THE ABSOLUTE `above` DIFFERS FROM THE APP LANE'S FIGURE AND THAT IS NOT A DISAGREEMENT.
+  // The app harness reported ~8px above / ~42px below; this repo's probe reads 5.00 / 43.67.
+  // `below` agrees to within 1.7px; `above` does not, because the two instruments do not draw
+  // the top edge of an ink run the same way. What BOTH agree on is the DELTA, which is the
+  // only thing the derivation predicts: +8.96 above, -8.96 below, and zero net. Measured here
+  // as +9.00 / -9.00 at a 0.33px instrument resolution. Do not "reconcile" the 5 to an 8 by
+  // moving the margin — that would break the transfer, which is the property under test.
+  measuredAt390: { fontSizePx: 57.6, aboveBefore: 5.00, belowBefore: 43.67, aboveAfter: 14.00, belowAfter: 34.67 },
+};
+
 // ── Hero: the title-page treatment ────────────────────────────────────────────
 function Hero({ count, currency, onCurrency, chosen }) {
   return (
@@ -559,7 +599,30 @@ export default function BookStorePage() {
           .hero-eyebrow{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;color:#c9a44c;margin-bottom:2rem}
           .hero-title{line-height:.9;margin-bottom:1.8rem}
           .hero-the{display:block;font-family:'Cinzel',serif;font-weight:400;font-size:clamp(1.6rem,4vw,2.6rem);letter-spacing:.06em;color:rgba(240,234,216,.72)}
-          .hero-store{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:300;font-size:clamp(3.6rem,10vw,7.6rem);color:#c9a44c}
+          /* ── THE MASTHEAD MIRROR ────────────────────────────────────────────────────
+             The lockup asks for line-height:.9 on a face whose natural line box is 1.211em.
+             CSS pays for that compression with HALF-LEADING, which means it is taken equally
+             from both ends of the line — so (1.211 - .9) / 2 = .1555em came off ABOVE the
+             display line. "The" ended up sitting on "Book Store"'s ink while the same air
+             pooled underneath: measured at 390px, 5.00px above and 43.67px below.
+
+             The fix HANDS THAT AIR BACK AND PAYS FOR IT FROM UNDERNEATH. It is one movement,
+             not two: the top margin lets the display line down by exactly what the compression
+             took, and the bottom margin gives the identical amount back to the flow, so the
+             colophon and the edition line do not move at all. THAT IS THE TEST — if anything
+             below the masthead moves, air was ADDED rather than TRANSFERRED and this is wrong
+             however the title itself looks. tests/bookstore/masthead.spec.mjs measures the two
+             lines below in absolute page coordinates for exactly that reason.
+
+             ⚠ em, DELIBERATELY, AND NOT rem OR px. .hero-store is a clamp(), so its size is a
+             different number at every viewport; an em is the display line's OWN size, so the
+             air tracks the clamp with no media query and no second number to keep in step.
+
+             The app repo carries the identical constant as HERO_LOCKUP_AIR — each site names
+             the other, because the derivation is the shared thing and .1555 alone reads like a
+             magic number in either repo. */
+          .hero-store{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-weight:300;font-size:clamp(3.6rem,10vw,7.6rem);color:#c9a44c;
+            margin-top:.1555em;margin-bottom:-.1555em}
           .hero-colophon{font-size:1.05rem;font-style:italic;color:rgba(240,234,216,.5);line-height:1.7;max-width:520px;margin:0 auto 2.2rem}
           .hero-edition{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.28em;text-transform:uppercase;color:rgba(201,164,76,.6)}
           .hero-currency{margin-top:1.6rem}
