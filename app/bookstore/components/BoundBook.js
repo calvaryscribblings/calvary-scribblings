@@ -44,16 +44,25 @@ export const BOTTOM_PAGE_BLOCK_REMOVED = {
   removedDropPx: 8,
   // Everything the ruling did NOT touch. Asserted present, individually, by name.
   keeps: [
-    'bb-foreedge',   // the RIGHT fore-edge — the page block that stays, and its 12px minimum
+    'bb-foreedge',   // the RIGHT fore-edge — the page block that stays. Its WIDTH moved in R17.4
     'bb-spine',      // the spine hinge, on both faces
     'bb-obi',        // the obi band, granted only by a live Editor's Choice claim
     'bb-ribbon',     // the gilt ribbon
     'bb-back',       // the printed back face
     'bb-book',       // the flip itself
   ],
-  // The right fore-edge's width is part of the silhouette the ruling kept, so it is pinned
-  // here rather than left to be "tidied" alongside the removal.
-  foreEdgeMinWidthPx: 12,
+  // ⚠ R17.4 — THIS KEY USED TO BE `foreEdgeMinWidthPx: 12`, AND THE NAME WAS ALREADY WRONG.
+  // R16 pinned it so the feet-removal could not "tidy" the right fore-edge away with the
+  // bottom one, which was the correct instinct — but the CSS it guarded was `width:12px`, a
+  // FIXED width, and the record called it a minimum. Nothing in the tree ever treated it as a
+  // floor: its two consumers were both assertions that the width was exactly 12.
+  //
+  // So there was no "the book must exceed a shelf book by one visible edge" rule to re-express
+  // — there was a fixed number wearing the word "min". R17.4 makes the width proportional and
+  // gives it a REAL floor, and both now live in FORE_EDGE below. The 12 is kept here as
+  // provenance, because the ratio that replaced it is derived from this very number.
+  foreEdgeWasFixedPx: 12,
+  foreEdgeNowGovernedBy: 'FORE_EDGE',
 };
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
@@ -109,6 +118,109 @@ export const CONTACT_SHADOW_REBASE = {
   tolerancePx: 1,
 };
 
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R17.4 — THE SIDE PAPER, AS A PROPORTION
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// THE DEFECT, from the iPad walk: the web book's right fore-edge read as a wide slab of
+// striated paper where the app's reads as a slim sliver.
+//
+// ⚠ AND THERE WAS NO SEPARATE APP GEOMETRY TO COPY. The app's lib/bookDepth.ts transcribed
+// this element FROM THIS REPO's stylesheet at da3b53d — FORE_EDGE_W = 12 fixed, right:-11,
+// 2.5% top/bottom insets, radius 0/2/2/0, the two paper tones in 1px vertical bands, and a
+// shadow on the side edge only. Both platforms carry the identical fixed 12px. So the two
+// books do not differ in their CSS at all; they differ in what a fixed 12px MEANS on the board
+// each one happens to draw:
+//
+//     app, iPad          245.33pt board   12 / 245.33  =  4.891%      the look Ikenna ruled for
+//     web, laptop shelf  200px  board     12 / 200     =  6.02%
+//     web, Window        190px  board     12 / 190     =  6.33%
+//     web, curated case  170px  board     12 / 170     =  7.07%
+//     web, 390px handset 106px  board     12 / 106     = 11.26%       the slab
+//
+// A fixed width on a board that changes size is a different drawing at every size. THE RULING
+// IS A PROPORTION, so that is what the width is now: the app's ratified iPad ratio, applied to
+// whatever board the book is actually drawing.
+//
+// ── THE DERIVATION LIVES IN THE STYLESHEET, NOT IN A ROUNDED NUMBER ──────────────────────
+//
+// The rule below reads `calc(100cqw * 12 / 245.33)`, with BOTH SOURCE NUMBERS VERBATIM and the
+// division done by CSS. It is deliberately not `4.891cqw`: a pre-multiplied constant is a
+// number nobody can check, and the two facts it came from — the app's fixed width and the
+// board it was ratified on — stop being visible the moment they are multiplied together. Same
+// discipline as HERO_LOCKUP_AIR, which stores 1.211 and .9 and derives .1555 rather than
+// storing .1555. The suites recompute the arithmetic from this record and fail if the
+// stylesheet disagrees with it.
+//
+// ── THE FLOOR, AND ITS ONE JUSTIFICATION ─────────────────────────────────────────────────
+//
+// A proportion has no lower bound, and this drawing does: the paper is TWO TONES IN 1px BANDS,
+// so a strip narrower than two bands cannot show the alternation that makes it read as stacked
+// pages rather than as a beige line. 2px is that width — one band of each tone — and it is
+// therefore the smallest stroke this design can draw and still be the thing it is drawing.
+// It binds below a 41px board, which no surface on the shop renders; it exists so that a future
+// one cannot make the edge vanish into anti-aliasing without noticing.
+//
+// ── THE TUCK IS 1px AT EVERY SIZE, AND DOES NOT SCALE ────────────────────────────────────
+//
+// The strip's left edge sits 1px inside the cover's right edge so the two never separate into
+// a hairline gap. That is a SEAM, not a proportion — a seam is a seam at any size — so it stays
+// a fixed pixel while the width around it moves: right = -(width - 1px).
+//
+// ⚠ THE RENDERED TUCK IS SMALLER THAN 1px AND THAT IS NOT AN ERROR. The strip sits at
+// translateZ(-7px) inside a book rotated -9deg under a 1600px perspective, so 1px of CSS
+// projects to 0.13-0.34px on the glass depending on the board's size. Measured, both sides,
+// and written down rather than "corrected" — the same foreshortening CONTACT_SHADOW_REBASE
+// records for the shadow's 8px. Correcting it would mean scaling a seam.
+//
+// ── THE APP IS NOT CHANGED BY THIS, YET ──────────────────────────────────────────────────
+//
+// The app still carries FORE_EDGE_W = 12 fixed, and therefore carries the SAME LATENT SLAB at
+// phone sizes — its board is not 245.33pt on an iPhone either. The web leads here deliberately;
+// the app mirrors this rule in a later round. Nothing below was copied from it, because there
+// was nothing there to copy that did not start here.
+export const FORE_EDGE = {
+  ruledOn: '2026-08-20',
+  ruling: 'Bring the web fore-edge to the app\'s iPad proportion exactly: a fraction of the board, not a fixed width.',
+  // The two numbers the fraction is made of. NEVER pre-multiply these into a percentage — see
+  // the note above, and `pct` below, which does the multiplication so nothing else has to.
+  appFixedWidthPt: 12,
+  appBoardWidthPt: 245.33,
+  get ratio() { return this.appFixedWidthPt / this.appBoardWidthPt; },
+  get pct() { return +(this.ratio * 100).toFixed(4); },
+  // The smallest stroke this drawing can make and still be two tones — one 1px band of each.
+  floorPx: 2,
+  bandPx: 1,
+  tones: ['#e6dfc8', '#d3caae'],
+  // A seam, fixed at every size. right = -(width - tuckPx).
+  tuckPx: 1,
+  // The construction R17.4 did NOT change, asserted present by tests/bookstore/foreedge.test.mjs
+  // so that "make it thinner" cannot quietly become "make it a plain stripe".
+  insetPct: 2.5,                                  // shorter than the board, top and bottom
+  radius: '0 2px 2px 0',
+  bandAngleDeg: 90,                               // vertical bands down the side edge
+  sideShadow: '1px 2px 6px rgba(0,0,0,.5)',
+  // Regenerate both halves of the proof with `node scripts/capture-foreedge.mjs` (after a
+  // build). It shoots the shipped page, then re-shoots it with THIS rule overridden by the one
+  // R17.4 replaced, so the pair differs in exactly one declaration. Frames and the JSON they
+  // were captioned from land in docs/r17-foreedge/.
+  capturedBy: 'scripts/capture-foreedge.mjs',
+  // MEASURED on the real page at deviceScaleFactor 3, both sides. `pct` is the fraction of the
+  // board the strip actually occupied; `tuck` and `height` are the construction, which had to
+  // survive unchanged. The height figures also answer a question the walk raised — whether the
+  // block was reaching full board height somewhere. It was not: 95.2-95.6% everywhere, which
+  // is the 2.5% insets doing their job at every size.
+  measured: {
+    'window-190':  { book: 190, before: { w: 12.04, pct: 6.33,  tuck: 0.31, h: 95.55 }, after: { w: 9.31, pct: 4.90, tuck: 0.31, h: 95.55 } },
+    'curated-170': { book: 170, before: { w: 12.01, pct: 7.07,  tuck: 0.27, h: 95.48 }, after: { w: 8.32, pct: 4.89, tuck: 0.27, h: 95.45 } },
+    'shelf-200':   { book: 200, before: { w: 12.05, pct: 6.02,  tuck: 0.34, h: 95.62 }, after: { w: 9.82, pct: 4.91, tuck: 0.34, h: 95.60 } },
+    'shelf-106':   { book: 106, before: { w: 11.94, pct: 11.26, tuck: 0.13, h: 95.19 }, after: { w: 5.14, pct: 4.85, tuck: 0.13, h: 95.13 } },
+  },
+  // The band the suite holds the rendered fraction to. Sub-pixel: the strip is projected under
+  // the perspective, so its painted width is never exactly the fraction of the flat board.
+  tolerancePct: 0.25,
+};
+
 // Injected once per page (storefront, detail, modal). Keyed classes only — no dynamic values.
 export const BOUND_BOOK_CSS = `
   /* R16 — THE BOOK IS SIZED BY ITS CONTAINER, NOT BY A NUMBER PASSED IN.
@@ -140,12 +252,29 @@ export const BOUND_BOOK_CSS = `
   .bb-spine{position:absolute;top:0;bottom:0;left:0;width:13px;z-index:4;pointer-events:none;
     background:linear-gradient(90deg,rgba(0,0,0,.62) 0%,rgba(0,0,0,.2) 34%,rgba(255,255,255,.09) 50%,rgba(0,0,0,.22) 66%,rgba(0,0,0,.34) 100%)}
   .bb-back .bb-spine{left:auto;right:0;transform:scaleX(-1)}
-  .bb-foreedge{position:absolute;top:2.5%;bottom:2.5%;right:-11px;width:12px;transform:translateZ(-7px);z-index:1;
+  /* R17.4 — THE WIDTH IS A PROPORTION OF THE BOARD, and the two numbers it is made of are
+     written here rather than multiplied together first: 12 is the app's fixed fore-edge, 245.33
+     the iPad board it was ratified on, and CSS does the division. A pre-multiplied 4.891cqw
+     would be the same drawing and an uncheckable number.
+
+     ⚠ NO BACKTICKS IN THIS COMMENT. It is inside a template literal, and a backtick here does
+     not raise a syntax error you can read — it ends the string and leaves a broken export that
+     throws at render. CuratedSection.js carries the same warning for the same reason, having
+     blanked the admin preview once. This comment quoted a class name in backticks and cost a
+     build.
+
+     The 2px floor is one band of each paper tone — the
+     smallest stroke this drawing can make and still read as stacked pages. The 1px tuck under
+     the cover is a SEAM and stays fixed while the width moves around it. See FORE_EDGE. */
+  .bb-foreedge{--bb-fe-w:max(2px,calc(100cqw * 12 / 245.33));
+    position:absolute;top:2.5%;bottom:2.5%;right:calc(1px - var(--bb-fe-w));width:var(--bb-fe-w);
+    transform:translateZ(-7px);z-index:1;
     border-radius:0 2px 2px 0;background:repeating-linear-gradient(90deg,#e6dfc8 0,#e6dfc8 1px,#d3caae 1px,#d3caae 2px);
     box-shadow:1px 2px 6px rgba(0,0,0,.5)}
   /* .bb-foreedge-b — THE FEET — is gone. See BOTTOM_PAGE_BLOCK_REMOVED at the head of this
      file for the ruling, the element verbatim, and the 8px the shadow below moved by. The
-     RIGHT fore-edge one line above it stays, and stays 12px wide. */
+     RIGHT fore-edge one line above it stays. Its WIDTH stopped being 12px in R17.4 — see
+     FORE_EDGE — but the element itself is exactly as kept. */
   .bb-grain{position:absolute;inset:0;pointer-events:none;opacity:.06;mix-blend-mode:overlay;
     background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.5) 0,rgba(0,0,0,.5) 1px,transparent 1px,transparent 2px),
       repeating-linear-gradient(90deg,rgba(255,255,255,.4) 0,rgba(0,0,0,.4) 1px,transparent 1px,transparent 3px)}

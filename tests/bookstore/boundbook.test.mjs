@@ -89,13 +89,26 @@ describe('R16 — FEET OFF THE BOOK', () => {
     assert.match(JSX, /bb-flipped/, 'the flip is gone');
   });
 
-  test('the right fore-edge keeps its width — the silhouette the ruling did not touch', () => {
+  // R17.4 RE-DERIVED THIS TEST, and it is worth saying what it used to assert and why the
+  // change is not a weakening. It read `width:12px` and `right:-11px` off the rule, lifting the
+  // 12 from BOTTOM_PAGE_BLOCK_REMOVED.foreEdgeMinWidthPx. Both numbers are gone: the width is
+  // now a fraction of the board and the offset is derived from it. But R16's CLAIM was never
+  // about 12 — it was that the feet-removal took the FEET and not the page block, so the right
+  // fore-edge is still drawn and still hangs off the RIGHT rather than the bottom. That claim
+  // is intact and is what this test asserts. The width's own correctness moved to
+  // tests/bookstore/foreedge.test.mjs, which owns the proportion, the floor and the seam.
+  test('the right fore-edge is still drawn, and still hangs off the RIGHT — R16\'s claim', () => {
     const rule = /\.bb-foreedge\{([^}]*)\}/.exec(BOOK_RULES);
     assert.ok(rule, '.bb-foreedge has no rule');
-    assert.match(rule[1], new RegExp(`width:${BOTTOM_PAGE_BLOCK_REMOVED.foreEdgeMinWidthPx}px`),
-      `the right fore-edge is no longer ${BOTTOM_PAGE_BLOCK_REMOVED.foreEdgeMinWidthPx}px wide`);
-    // It is the RIGHT edge and it hangs off the right, not the bottom.
-    assert.match(rule[1], /right:-11px/);
+    // It hangs off the right edge and is inset from top and bottom — not a bottom block.
+    assert.match(rule[1], /(^|;)right:/, 'the right fore-edge stopped hanging off the right');
+    assert.equal(/(^|;)bottom:-/.test(rule[1]), false, 'the right fore-edge now hangs off the BOTTOM — that is the element R16 removed');
+    // And it still has SOME width. Which one is FORE_EDGE's business, not R16's.
+    assert.match(rule[1], /(^|;)width:/, 'the right fore-edge lost its width entirely');
+    // The retired pin is retired by name, and the 12 it held survives as provenance: it is the
+    // numerator of the ratio that replaced it. See BOTTOM_PAGE_BLOCK_REMOVED's note.
+    assert.equal('foreEdgeMinWidthPx' in BOTTOM_PAGE_BLOCK_REMOVED, false);
+    assert.equal(BOTTOM_PAGE_BLOCK_REMOVED.foreEdgeWasFixedPx, 12);
   });
 
   test('the back face still carries its own printed matter', () => {

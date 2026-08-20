@@ -40,6 +40,7 @@ function record(name) {
 }
 const REBASE = record('CONTACT_SHADOW_REBASE');
 const REMOVED = record('BOTTOM_PAGE_BLOCK_REMOVED');
+const FORE_EDGE = record('FORE_EDGE');
 
 async function enterShop(page, path = '/bookstore') {
   await page.addInitScript((k) => {
@@ -139,8 +140,21 @@ test.describe('the book has no feet', () => {
     await expect(win.locator('.bb-ribbon')).toHaveCount(1);
     await expect(win.locator('.bb-back')).toHaveCount(1);
     await expect(win.locator('.bb-spine').first()).toBeAttached();
-    expect(await win.locator('.bb-foreedge').evaluate((e) => getComputedStyle(e).width))
-      .toBe(`${REMOVED.foreEdgeMinWidthPx}px`);
+    // R17.4 — this line used to read `.toBe(`${REMOVED.foreEdgeMinWidthPx}px`)`, i.e. exactly
+    // 12px. The width is now a FRACTION of the board the book actually draws, so the check is
+    // the fraction: measure the container the cqw resolves against (.bb-persp), and assert the
+    // painted strip is that board times the app's ratified iPad ratio, floored. Asserting a
+    // constant here would re-pin the slab from the test side.
+    const fe = win.locator('.bb-foreedge').first();
+    const got = await fe.evaluate((e) => {
+      const board = e.closest('.bb-persp').getBoundingClientRect().width;
+      return { board, w: parseFloat(getComputedStyle(e).width) };
+    });
+    const want = Math.max(FORE_EDGE.floorPx, got.board * FORE_EDGE.appFixedWidthPt / FORE_EDGE.appBoardWidthPt);
+    // Chrome quantises container-relative lengths to 1/64px (0.0156), hence the tolerance —
+    // it is rounding, not slack. Anything wider than this is a different rule, not a rounding.
+    expect(Math.abs(got.w - want), `fore-edge is ${got.w}px on a ${got.board}px board; the ratio wants ${want.toFixed(3)}px`)
+      .toBeLessThan(0.05);
   });
 
   test('the detail page’s book lost them too', async ({ page }) => {
