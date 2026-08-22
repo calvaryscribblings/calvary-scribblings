@@ -638,7 +638,7 @@ export default function AdminPage() {
     content: '', publishAt: '', epubUrl: '', epubUpdatedAt: null, readerMode: false, bookReader: false, prosePoetry: false, featuredPin: false,
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
-    trailerQuote: '', descriptor: '', published: true,
+    trailerQuote: '', descriptor: '', published: true, coverHold: false,
   };
   const [form, setForm] = useState(emptyForm);
   const [filter, setFilter] = useState('all'); // all · published · hidden
@@ -827,9 +827,25 @@ export default function AdminPage() {
       // title changed keeps its own last-good typographic cover until the next
       // reconcile. The one thing that never waits with it is the descriptor, which
       // is the only field that can be stale ON THE COVER ITSELF — see below.
+      // ── WHO GETS HELD, AND THE THREE CASES THAT MUST NOT ──────────────────
+      //   HELD      a story with no generated cover that is meant to be seen.
+      //   NOT HELD  one already LIVE — un-publishing it over a cosmetic edit is
+      //             worse than the staleness it prevents;
+      //   NOT HELD  one an editor deliberately HID — holding it would hand the
+      //             reconciler a story to publish that a person took down;
+      //   STILL HELD a story that is ALREADY held and is being edited again. It
+      //             also has published:false, which is why the hold has to be
+      //             read off the record rather than inferred from that flag.
+      //
+      // A SCHEDULED new story IS held, and that is not a contradiction: the hold
+      // is about the cover, not the clock. The reconciler gives it a cover and
+      // releases the hold WITHOUT publishing (see extraFields in on-publish.mjs),
+      // so the external scheduled-publish Worker flips it on time onto a cover
+      // that already exists.
       const hasGeneratedCover = /covers-typographic/.test(coverPath);
-      const alreadyLive = !!editingId && form.published !== false;
-      const holdForCover = !hasGeneratedCover && !alreadyLive;
+      const isLive = !!editingId && form.published !== false;
+      const deliberatelyHidden = !!editingId && form.published === false && !form.coverHold;
+      const holdForCover = !hasGeneratedCover && !isLive && !deliberatelyHidden;
       if (holdForCover) {
         storyData.published = false;
         storyData.coverHold = true;
@@ -1144,6 +1160,10 @@ export default function AdminPage() {
       // queued edit as if it had been discarded, and re-saving would then revert it.
       descriptor: story.descriptorPending ?? story.descriptor ?? '',
       published: story.published,
+      // Carried so the save path can tell a story WAITING for its cover from one an
+      // editor deliberately hid. Both have published:false; only one may be published
+      // by a robot.
+      coverHold: story.coverHold === true,
     });
     setEditingId(story.id); setView('edit'); setMsg('');
   }

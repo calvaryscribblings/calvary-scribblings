@@ -181,16 +181,27 @@ async function notifyFollowers(token, slug, story) {
   return followers.length;
 }
 
-/** The extra fields that must not be allowed to travel separately from the cover. */
-function extraFields({ pending, held }) {
+/**
+ * The extra fields that must not be allowed to travel separately from the cover.
+ *
+ * THE HOLD IS ABOUT THE COVER, NOT THE CLOCK. A story scheduled for next Tuesday is held the
+ * same way a story published now is — it has no cover, and it must not acquire one late. But
+ * releasing its hold must NOT publish it: that is the scheduled-publish Worker's job, and
+ * doing it here would put a story on the site five days early.
+ *
+ * So a future publishAt clears the hold and leaves `published` exactly alone. By the time the
+ * Worker flips it, the cover is already there.
+ */
+function extraFields({ pending, held, story }) {
   const extra = {};
   if (pending !== null) {
     extra.descriptor = pending;
     extra.descriptorPending = null;
   }
   if (held) {
-    extra.published = true;
     extra.coverHold = null;
+    const scheduledAhead = story.publishAt && new Date(story.publishAt).getTime() > Date.now();
+    if (!scheduledAhead) extra.published = true;
   }
   return extra;
 }
@@ -264,15 +275,20 @@ async function main() {
       // ── THE FLIP: ONE ATOMIC PATCH, TWO NODES ──────────────────────────────────────────
       // Six fields — cover, coverSizes.w360, coverSizes.w720, coverHash, and the whole
       // re-projected cms_stories_index record — plus whatever must not travel without them.
-      await rtdbPatch(token, coverFlipPaths(a.slug, a.story, { ...urls, coverHash: hash }, extraFields(a)));
+      const extras = extraFields(a);
+      await rtdbPatch(token, coverFlipPaths(a.slug, a.story, { ...urls, coverHash: hash }, extras));
       flipped++;
       console.log(
         `✓ ${a.slug.padEnd(46)} ${a.plan.livery.key.padEnd(10)} ${a.plan.title.size}px×${a.plan.title.lines.length}` +
-        `  ${sha12(a.png)}${a.pending !== null ? '  +descriptor' : ''}${a.held ? '  PUBLISHED' : ''}`,
+        `  ${sha12(a.png)}${a.pending !== null ? '  +descriptor' : ''}` +
+        `${extras.published === true ? '  PUBLISHED' : a.held ? '  cover only (scheduled)' : ''}`,
       );
-      if (a.held) {
+      // Only when this patch actually PUBLISHED the story. A scheduled story just got its
+      // cover; announcing it now would point followers at something not yet on the site,
+      // which is the same mistake the admin stopped making.
+      if (extras.published === true) {
         try {
-          const n = await notifyFollowers(token, a.slug, { ...a.story, ...extraFields(a) });
+          const n = await notifyFollowers(token, a.slug, { ...a.story, ...extras });
           if (n) console.log(`  ↳ notified ${n} follower(s)`);
         } catch (e) {
           console.log(`  ⚠ ${a.slug} is live and correct, but follower notifications failed: ${e.message}`);

@@ -41,7 +41,7 @@
 // the caller's business. It only knows how to put one somewhere without lying about it.
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { buildIndexRecord } from '../../app/lib/storyIndex.js';
+import { indexUpdatePaths } from '../../app/lib/storyIndex.js';
 
 export const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 export const BUCKET = 'calvary-scribblings.firebasestorage.app';
@@ -161,6 +161,13 @@ export async function uploadCoverSet(bucket, dir, png, sizes) {
  *
  * Both are merged into the record before the index is projected, so the index says the same
  * thing as the record in the same instant.
+ *
+ * THE INDEX GOES THROUGH indexUpdatePaths, NOT buildIndexRecord DIRECTLY, and the difference
+ * is not cosmetic: indexUpdatePaths writes NULL when the merged record is not index-eligible.
+ * A story that is still unpublished after this patch — one scheduled for next week, getting
+ * its cover early — must not acquire an index entry, or every index-fed surface (the home
+ * page, the category pages, search, the gateway build, Voices) would list a story that is not
+ * on the site yet. Caught by the suite, not by eye.
  */
 export function coverFlipPaths(slug, story, { cover, coverSizes, coverHash }, extra = {}) {
   const merged = { ...story, cover, coverSizes, coverHash, ...extra };
@@ -169,7 +176,7 @@ export function coverFlipPaths(slug, story, { cover, coverSizes, coverHash }, ex
     [`${SOURCE_NODE}/${slug}/coverSizes`]: coverSizes,
     [`${SOURCE_NODE}/${slug}/coverHash`]: coverHash,
     ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [`${SOURCE_NODE}/${slug}/${k}`, v])),
-    [`cms_stories_index/${slug}`]: buildIndexRecord(slug, merged),
+    ...indexUpdatePaths(slug, merged),
   };
 }
 

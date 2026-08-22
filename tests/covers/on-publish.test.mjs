@@ -107,6 +107,17 @@ test('THE FIELDS THAT MUST NOT TRAVEL WITHOUT THE COVER', async (t) => {
     assert.equal(paths['cms_stories_index/odeluwa'].title, 'Odeluwa');
   });
 
+  await t.test('a SCHEDULED held story gets its cover WITHOUT being published early', () => {
+    // The hold is about the cover, not the clock. Releasing a scheduled story's hold must not
+    // publish it — that is the external scheduled-publish Worker's job, and doing it here
+    // would put a story on the site days early. By the time the Worker flips it, the cover is
+    // already there.
+    const paths = coverFlipPaths('odeluwa', { ...STORY, published: false }, NEW, { coverHold: null });
+    assert.equal(paths[`${SOURCE_NODE}/odeluwa/coverHold`], null, 'the hold is released');
+    assert.ok(!(`${SOURCE_NODE}/odeluwa/published` in paths), 'publication is left exactly alone');
+    assert.equal(paths['cms_stories_index/odeluwa'], null, 'and an unpublished story has no index entry');
+  });
+
   await t.test('without extras, publication and the descriptor are left exactly alone', () => {
     const paths = coverFlipPaths('odeluwa', STORY, NEW);
     assert.ok(!(`${SOURCE_NODE}/odeluwa/published` in paths));
