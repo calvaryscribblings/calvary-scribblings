@@ -52,41 +52,37 @@
 // not part of this. Two things follow: the Cloudflare edge cache is never a factor, because
 // these URLs have never existed before and cannot be stale; and rollback is restoring six
 // scalars from the manifest, because the bytes they point at were never touched.
+//
+// ── THE WRITE LAYER IS SHARED, NOT COPIED ────────────────────────────────────────────────
+// Everything below that actually PUTS a cover somewhere — the six-field atomic patch, the
+// whole-record index re-projection, the content-addressed paths, the derivatives, and the
+// `access_token=` lesson — now lives in scripts/covers/store.mjs, because there is a second
+// caller: scripts/covers/on-publish.mjs, the standing reconciler that runs unattended. Each
+// of those rules was learned here, from a live incident; a copy in the reconciler would be a
+// copy that stops agreeing with this one.
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHash, randomUUID } from 'node:crypto';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
-import sharp from 'sharp';
-import { encode as blurhashEncode } from 'blurhash';
 import { renderCover } from './render.mjs';
 import { toRecord, parseArgs } from './generate.mjs';
 import { CASES } from './contact-sheet.mjs';
 import { isIndexed, buildIndexRecord } from '../../app/lib/storyIndex.js';
+import {
+  BUCKET, DB_URL, NEW_PREFIX, SOURCE_NODE, WIDTHS,
+  accessToken, assertStoryScope, deriveFrom, rtdbPatch, sha, sha12, uploadCoverSet,
+} from './store.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
-const BUCKET = 'calvary-scribblings.firebasestorage.app';
-const CACHE = 'public, max-age=31536000, immutable';
-const WIDTHS = [360, 720];
-const WEBP_QUALITY = 82;
 const DELAY_MS = 120;
 
 const WORK_DIR = join(ROOT, 'covers-migration');
 const MANIFEST = join(WORK_DIR, 'manifest.json');
 const SIGNOFF = join(WORK_DIR, 'SIGNOFF.md');
 const SHEET_MANIFEST = join(ROOT, 'covers-contact-sheet/manifest.json');
-const NEW_PREFIX = 'covers-typographic';
-
-// The ONE node this migration ever reads. Named as a constant so preflight can assert it and
-// so that widening the scope is a visible, deliberate edit rather than a quiet one. Series
-// posters live on `series` / `series_instalments` and are out of scope BY RULING, not by
-// omission — see CLAUDE.md, "Covers: two rules, and they are different rules".
-const SOURCE_NODE = 'cms_stories';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const sha = (b) => createHash('sha256').update(b).digest('hex');
 
 // ── THE MANIFEST ─────────────────────────────────────────────────────────────────────────
 // One JSON file, rewritten after EVERY story. That is deliberately more IO than necessary:
@@ -205,9 +201,10 @@ export function preflight(stories, manifest) {
   //    The set is drawn from cms_stories and nothing else, so a series record cannot arrive
   //    here by accident. This asserts it anyway, because the cost of asserting is nothing
   //    and the cost of a silent scope creep is a poster somebody chose being overwritten.
-  if (SOURCE_NODE !== 'cms_stories') fail(`the migration source must be cms_stories, not ${SOURCE_NODE}`);
-  const seriesish = stories.filter((s) => s.story?.seriesId || s.story?.instalmentId || s.story?.ordinal != null);
-  if (seriesish.length) fail(`${seriesish.length} record(s) look like series instalments: ${seriesish.slice(0, 4).map((s) => s.slug).join(', ')}`);
+  //    The check itself is store.mjs's assertStoryScope, shared with the reconciler so that
+  //    the ruling has ONE implementation and cannot be honoured in one writer and forgotten
+  //    in the other.
+  try { assertStoryScope(SOURCE_NODE, stories); } catch (e) { fail(e.message); }
 
   console.log(
     `preflight OK — ${stories.length} published stories, all real, all published, all named.\n` +
@@ -224,46 +221,6 @@ async function fetchStories() {
   return Object.entries(all)
     .filter(([, s]) => isIndexed(s))
     .map(([slug, s]) => ({ slug, story: s, record: toRecord(slug, s) }));
-}
-
-/** Derivatives + blurhash from the rendered PNG. Same widths, quality and 4×3 components
- *  the CMS upload path uses (app/admin/page.js computeBlurhash), so a migrated cover is
- *  indistinguishable from one uploaded through the door. */
-async function deriveFrom(png) {
-  const sizes = {};
-  for (const w of WIDTHS) {
-    sizes[`w${w}`] = await sharp(png).resize({ width: w, withoutEnlargement: true }).webp({ quality: WEBP_QUALITY }).toBuffer();
-  }
-  const small = await sharp(png).resize({ width: 64 }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  const hash = blurhashEncode(
-    new Uint8ClampedArray(small.data), small.info.width, small.info.height, 4, 3,
-  );
-  return { sizes, hash };
-}
-
-const downloadUrl = (path, token) =>
-  `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
-
-// `access_token=`, NOT `auth=`. The `auth` parameter is for legacy database secrets and
-// Firebase ID tokens; a Google OAuth2 access token presented there is rejected with a bare
-// HTTP 401 "Permission denied" that reads exactly like a rules problem and is not one.
-// Cost an entire 158-story run to learn. scripts/backfill-cover-derivatives.mjs had it right.
-async function rtdbPatch(token, updates) {
-  const res = await fetch(`${DB_URL}/.json?access_token=${token}`, {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(updates),
-  });
-  if (!res.ok) throw new Error(`RTDB PATCH failed: HTTP ${res.status} ${await res.text()}`);
-}
-
-async function accessToken(svc) {
-  const { GoogleAuth } = await import('google-auth-library');
-  const auth = new GoogleAuth({
-    credentials: svc,
-    scopes: ['https://www.googleapis.com/auth/firebase.database', 'https://www.googleapis.com/auth/userinfo.email'],
-  });
-  return (await (await auth.getClient()).getAccessToken()).token;
 }
 
 async function main() {
@@ -360,14 +317,6 @@ async function main() {
 
       // ── upload: PNG + both WebP rungs, all under the new prefix ──────────────────────
       const { sizes, hash } = await deriveFrom(png);
-      const put = async (path, buf, contentType) => {
-        const t = randomUUID();
-        await bucket.file(path).save(buf, {
-          contentType,
-          metadata: { cacheControl: CACHE, metadata: { firebaseStorageDownloadTokens: t } },
-        });
-        return downloadUrl(path, t);
-      };
       // ── THE PATH IS CONTENT-ADDRESSED FROM GENERATION TWO ONWARDS ───────────────────
       // Generation one sits flat at covers-typographic/{slug}/cover.png. Every regeneration
       // goes to covers-typographic/{slug}/{sha12}/… instead, and the reason is the
@@ -381,10 +330,8 @@ async function main() {
       // already has (and is short-circuited above before reaching here anyway), and no
       // generation ever overwrites another. It also means the whole history stays
       // retrievable, which is what makes `previous` below worth recording.
-      const dir = REGENERATE ? `${NEW_PREFIX}/${slug}/${sha(png).slice(0, 12)}` : `${NEW_PREFIX}/${slug}`;
-      const coverUrl = await put(`${dir}/cover.png`, png, 'image/png');
-      const newSizes = {};
-      for (const w of WIDTHS) newSizes[`w${w}`] = await put(`${dir}/w${w}.webp`, sizes[`w${w}`], 'image/webp');
+      const dir = REGENERATE ? `${NEW_PREFIX}/${slug}/${sha12(png)}` : `${NEW_PREFIX}/${slug}`;
+      const { cover: coverUrl, coverSizes: newSizes } = await uploadCoverSet(bucket, dir, png, sizes);
       Object.assign(entry, { state: 'uploaded', new: { cover: coverUrl, coverSizes: newSizes, coverHash: hash } });
       saveManifest(manifest);
 

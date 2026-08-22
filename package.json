@@ -39,6 +39,9 @@
     "covers:sheet": "node scripts/covers/contact-sheet.mjs --out covers-contact-sheet",
     "covers:verify": "node --test \"tests/covers/*.test.mjs\"",
     "covers:migrate": "node scripts/covers/migrate.mjs",
+    "covers:reconcile": "node scripts/covers/on-publish.mjs",
+    "covers:lock": "node scripts/covers/design-lock.mjs --write",
+    "covers:lock:check": "node scripts/covers/design-lock.mjs",
     "covers:descriptors": "node scripts/covers/descriptor-sheet.mjs"
   },
   "dependencies": {

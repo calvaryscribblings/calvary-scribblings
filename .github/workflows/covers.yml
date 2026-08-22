@@ -1,0 +1,177 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# COVERS ON PUBLISH — the worker that makes the cover generator automatic.
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# WHY A WORKFLOW AND NOT A HOOK IN THE CMS
+# ────────────────────────────────────────
+# The renderer is @napi-rs/canvas, a native N-API addon, pinned exactly at 1.0.6
+# because the title auto-sizer measures with the same engine that draws. Neither
+# place CMS-publish code runs can host it: app/admin/page.js is a browser client
+# (Blink's Skia measures differently, so a cover rendered there is a DIFFERENT
+# image from the 158 in Storage), and every live endpoint is a Cloudflare Pages
+# Function on workerd, which runs no native addons at all. There is no Node
+# server in this architecture. The full argument is at the top of
+# scripts/covers/on-publish.mjs.
+#
+# So the generator runs here, on a Node runner, and the publish path holds a new
+# story back — `published: false`, `coverHold: true` — until this job gives it a
+# cover and publishes it in the same atomic patch. A story is therefore never
+# visible with no cover, and never with a descriptor its cover does not show.
+#
+# WHAT HAPPENS WHEN GENERATION FAILS
+# ──────────────────────────────────
+# Nothing ships wrong; something is late, loudly. A held story stays a draft, a
+# live story keeps its own last-good typographic cover, `descriptorPending` stays
+# pending, and this run goes red. There is no partial state to clean up, because
+# a flip is one atomic patch.
+#
+# THE LATENCY, STATED HONESTLY
+# ────────────────────────────
+# GitHub's schedule has a five-minute floor and is best-effort, so a story
+# published from the CMS appears when the next run fires — typically within
+# fifteen minutes, occasionally longer when GitHub is busy. `workflow_dispatch`
+# is the button that makes it immediate.
+#
+# Getting this down to seconds needs ONE thing that does not exist yet: a
+# fine-grained PAT with `actions: write`, stored as a Cloudflare Pages secret, so
+# a Pages Function can fire `repository_dispatch` when the CMS saves. That is a
+# credential decision, not a code one, which is why it is written here rather
+# than shipped half-done.
+name: covers
+
+on:
+  schedule:
+    # Every 15 minutes. The run costs a minute of rendering and three RTDB reads
+    # when nothing is stale, which is almost always.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: 'One slug only (blank = the whole library)'
+        required: false
+        type: string
+      apply:
+        description: 'Write. Unticked, this only reports what would change.'
+        required: false
+        default: true
+        type: boolean
+  # A change to the cover system itself gets CHECKED and never applied — see the
+  # design-lock note on the reconcile job below.
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/covers/**'
+      - 'assets/covers/**'
+      - 'app/lib/storyIndex.js'
+      - 'tests/covers/**'
+      - '.github/workflows/covers.yml'
+  pull_request:
+    paths:
+      - 'scripts/covers/**'
+      - 'assets/covers/**'
+      - 'app/lib/storyIndex.js'
+      - 'tests/covers/**'
+      - '.github/workflows/covers.yml'
+
+# Two scheduled runs overlapping would both render, both find the same story
+# stale, and both upload to the same content-addressed path. The write is
+# idempotent so that is survivable, but it is pointless. `cancel-in-progress` is
+# deliberately FALSE: cancelling a run mid-flip is exactly the thing not to do.
+concurrency:
+  group: covers
+  cancel-in-progress: false
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # The suite, and the design lock. Runs on every trigger, including before a
+  # reconcile: a renderer that cannot prove its own determinism must not write.
+  # ─────────────────────────────────────────────────────────────────────────────
+  verify:
+    name: covers suite + design lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: covers:verify — determinism, layout, the edge cases
+        run: npm run covers:verify
+      - name: covers:lock — the renderer still matches DESIGN-LOCK.json
+        # A moved probe hash means the DESIGN changed. That is allowed — but it
+        # has to be approved by committing the new lock, and until it is, the
+        # reconciler below refuses to push it over 158 live covers.
+        run: node scripts/covers/design-lock.mjs
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # The reconciler. Only ever writes on a schedule or a deliberate dispatch —
+  # NEVER on a push or a pull request, because a push is how an unreviewed design
+  # change would arrive, and auto-applying one would make this path weaker than
+  # the hand-run migration's sign-off gate.
+  # ─────────────────────────────────────────────────────────────────────────────
+  reconcile:
+    name: reconcile covers
+    needs: verify
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Materialise the service account
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set — the reconciler cannot write."
+            exit 1
+          fi
+          printf '%s' "$KEY" > "$RUNNER_TEMP/serviceAccountKey.json"
+
+      - name: on-publish
+        env:
+          COVERS_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.slug }}" ]; then
+            ARGS="--slug ${{ github.event.inputs.slug }}"
+          fi
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event.inputs.apply }}" = "true" ]; then
+            ARGS="$ARGS --apply"
+          fi
+          echo "node scripts/covers/on-publish.mjs $ARGS"
+          node scripts/covers/on-publish.mjs $ARGS
+
+      - name: Shred the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/serviceAccountKey.json"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # On a push or a PR touching the cover system, report what the change WOULD do
+  # to the live library. Read-only, and it needs no credential.
+  # ─────────────────────────────────────────────────────────────────────────────
+  impact:
+    name: what would this change to the library
+    needs: verify
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: on-publish (plan only — nothing is written)
+        # NOT --check: staleness is not a failure on a PR. A design change that
+        # moves covers is legitimate; this is here so the number is in the diff's
+        # own log, where a reviewer sees it before approving the lock.
+        run: node scripts/covers/on-publish.mjs
