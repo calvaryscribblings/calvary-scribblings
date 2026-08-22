@@ -292,6 +292,55 @@ const capAscent = (ctx) => ctx.measureText('H').actualBoundingBoxAscent;
  *
  * It is a guard that currently costs one comparison and decides nothing. That is a fine
  * thing for it to be, as long as nobody believes it is doing more than it is.
+ *
+ * ── THE THIRD CONSTRAINT: A BREAK THAT WIDOWS IS NOT A FIT ───────────────────────────────
+ * Found 22 Aug 2026 rendering a proof for "My Life at 39". Caps, tracked 12, the title runs
+ * 1319.7px at the 186px rung against the 1232px measure — 88px over — so the wrap does the
+ * only thing it can and breaks at the last space:
+ *
+ *     MY LIFE AT
+ *     39
+ *
+ * Two lines, which SATISFIES the 186px rung's two-line cap, so the ladder stopped there. The
+ * result reads as a rendering fault rather than a setting: a numeral marooned on its own line,
+ * and a rule and a descriptor shoved down over an empty lower frame. At 140px the whole title
+ * sets on ONE line at 1028.9px, with 203px of measure to spare.
+ *
+ * This is the SAME CLASS as the UNSTOPPAB/BL defect one paragraph up, and it gets the same
+ * treatment: a last-resort break no longer satisfies a rung, and now neither does a break
+ * that widows. What the two have in common is that both were counted as fits because the
+ * ladder only ever asked HOW MANY lines came back, never WHAT THEY WERE.
+ *
+ * ── DERIVING "SHORT", RATHER THAN PICKING IT ─────────────────────────────────────────────
+ * A threshold chosen by eye is a threshold that will be re-chosen by the next pair of eyes,
+ * so it is derived from a number the layout already carries:
+ *
+ *     A TRAILING LINE MUST BE AT LEAST AS WIDE AS THE BLOCK'S OWN LEADING.
+ *
+ * Leading is `rung.size × TITLE.lineHeight` — the vertical step between the title's lines,
+ * the block's own unit of measure. A final line narrower than that is literally TALLER THAN
+ * IT IS WIDE: a vertical splinter hanging under a horizontal block. That shape is what the
+ * eye reads as breakage, and it needs no new constant, no new tuning knob, and no opinion —
+ * it compares the block against itself.
+ *
+ * MEASURED AGAINST THE LIVE LIBRARY, and the threshold lands in an empty band. Of the 158
+ * published stories, 122 titles wrap to more than one line. Their last-line-to-leading ratios
+ * run from 1.79 to 15.5; the narrowest live trailing line is "ASK" in "You Didn't Ask", at
+ * 372px against a 208px leading — 1.79×, nearly twice the bar. "39" sits at 171px against the
+ * same 208px leading: 0.82×. So there is better than 2× clearance on either side of 1.0, and
+ * the rule fires on exactly the case it was written for and on nothing else in the library.
+ * The consequence is asserted below in the suite and proved by regeneration: all 158 covers
+ * render byte-identical after this change.
+ *
+ * TWO THINGS IT DELIBERATELY IS NOT:
+ *   • It is not a word count. "IS ON" and "BE ME" are two-word trailing lines that sit at
+ *     2.6× and 2.8× and are perfectly good lines; a single word is not a widow by being one.
+ *   • It cannot apply to a one-line title. A widow is a property of a BREAK, and a title that
+ *     did not break has none — hence the `lines.length > 1` guard, without which "1967" would
+ *     be rejected off the top rung for the crime of being short.
+ *
+ * And, like the mid-word rule, it is a preference and not a promise: the uncapped 68px
+ * fallback still takes whatever it gets, because below it there is nothing.
  */
 function fitTitle(ctx, title, extraBelow = 0) {
   const text = caps(title);
@@ -299,12 +348,16 @@ function fitTitle(ctx, title, extraBelow = 0) {
   let candidate = null;
   for (const rung of TITLE.ladder) {
     ctx.font = FONTS[TITLE.font](rung.size);
-    const { lines, brokeWord } = wrapDetailed(ctx, text, TITLE.tracking, TITLE.maxWidth);
-    const stackHeight = lines.length * rung.size * TITLE.lineHeight + RULE.gapAboveFromTitle + extraBelow;
-    candidate = { size: rung.size, lines, rung, stackHeight, brokeWord };
-    // A rung reached only by SPLITTING A WORD has not fitted the title — see wrapDetailed.
-    // Walk on. The last rung takes whatever it gets, because below it there is nothing.
-    if (brokeWord) continue;
+    const { lines, brokeWord, lastWidth } = wrapDetailed(ctx, text, TITLE.tracking, TITLE.maxWidth);
+    const leading = rung.size * TITLE.lineHeight;
+    // See the derivation above. A break is only a break when there is more than one line.
+    const widowed = lines.length > 1 && lastWidth < leading;
+    const stackHeight = lines.length * leading + RULE.gapAboveFromTitle + extraBelow;
+    candidate = { size: rung.size, lines, rung, stackHeight, brokeWord, widowed };
+    // A rung reached only by SPLITTING A WORD, or only by WIDOWING the last line, has not
+    // fitted the title — see wrapDetailed and the derivation above. Walk on. The last rung
+    // takes whatever it gets, because below it there is nothing.
+    if (brokeWord || widowed) continue;
     if (lines.length <= rung.maxLines && stackHeight <= region) return candidate;
   }
   return candidate;   // ladder exhausted — planCover reports overflow and renderCover raises

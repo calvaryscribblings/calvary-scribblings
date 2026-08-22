@@ -137,7 +137,7 @@ export function wrapTracked(ctx, text, tracking, maxWidth) {
 }
 
 /**
- * The wrap, plus WHETHER TIER 3 HAD TO FIRE.
+ * The wrap, plus the two facts the ladder needs in order to REJECT a rung it nominally fits.
  *
  * `brokeWord` is true when a word had to be split between clusters because it could not fit
  * the measure whole. That fact is not cosmetic bookkeeping — it is the signal fitTitle uses
@@ -151,6 +151,12 @@ export function wrapTracked(ctx, text, tracking, maxWidth) {
  * The line cap was doing its job; the problem was that a last-resort break was being counted
  * as a fit. A rung that can only be reached by breaking a word has not fitted the title, and
  * the ladder should keep walking.
+ *
+ * `lastWidth` is the INKED width of the final line, and it is here for the second member of
+ * that same family — the WIDOW. It is measured here rather than re-measured by the caller so
+ * that the number the ladder judges is the number this wrap actually produced, at this ctx,
+ * at this tracking: the same reason tracking is applied per-glyph in the first place. The
+ * judgement itself lives in fitTitle, next to the leading it is compared against.
  */
 export function wrapDetailed(ctx, text, tracking, maxWidth) {
   // Tokens carry whether a space precedes them, so a hyphen-split rejoins without one.
@@ -183,5 +189,6 @@ export function wrapDetailed(ctx, text, tracking, maxWidth) {
     line = pushBroken(tok.text);
   }
   if (line) lines.push(line);
-  return { lines, brokeWord };
+  const lastWidth = lines.length ? trackedWidth(ctx, lines[lines.length - 1], tracking) : 0;
+  return { lines, brokeWord, lastWidth };
 }

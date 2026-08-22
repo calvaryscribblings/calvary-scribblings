@@ -17,7 +17,7 @@ import { createCanvas } from '@napi-rs/canvas';
 import { renderCover, planCover, registerFonts, measureCanaries, formatDescriptor } from '../../scripts/covers/render.mjs';
 import { LIVERIES, liveryFor, eyebrowFor, isKnownCategory, IMPRINT_EYEBROW } from '../../scripts/covers/liveries.mjs';
 import { AUTHOR, CANVAS, DESCRIPTOR, EYEBROW, FOOTER, RULE, STACK, STACK_REGION, TITLE, instalmentFooter } from '../../scripts/covers/layout.mjs';
-import { breakParts, caps, clusters, wrapTracked } from '../../scripts/covers/text.mjs';
+import { breakParts, caps, clusters, wrapDetailed, wrapTracked } from '../../scripts/covers/text.mjs';
 import { rngForSlug, seedFrom } from '../../scripts/covers/random.mjs';
 import { FLEURON_PATH, FLEURON_PATH_SHA256 } from '../../assets/covers/fleuron-2766.mjs';
 
@@ -313,6 +313,58 @@ test('THE EDGE CASES THE GATE REQUIRES', async (t) => {
     assert.ok(plan({ ...BASE, title: 'Beyond Saving' }).title.lines.length <= 2);
     assert.ok(plan({ ...BASE, category: 'poetry', title: 'Brown-Skinned Girl' })
       .title.lines.some((l) => l.endsWith('-')));
+  });
+
+  await t.test('a rung is not satisfied by a break that WIDOWS the last line', () => {
+    // THE DEFECT THIS LOCKS DOWN, found 22 Aug 2026 rendering a proof for "My Life at 39".
+    // The title is 1319.7px at the 186px rung against the 1232px measure, so it breaks at the
+    // last space into MY LIFE AT / 39 — two lines, which satisfied the rung's two-line cap.
+    // A marooned numeral reads as a rendering fault, and at 140px the title sets whole.
+    //
+    // Same class as UNSTOPPAB/BL above: the ladder was asking how many lines came back and
+    // never what they were.
+    const p = plan({ ...BASE, title: 'My Life at 39' });
+    assert.equal(p.title.lines.length, 1, `should set on one line, got ${JSON.stringify(p.title.lines)}`);
+    assert.equal(p.title.size, 140, 'and one rung down, not two — 140 is the first rung that sets it whole');
+
+    // ── THE DERIVATION, ASSERTED RATHER THAN DESCRIBED ──────────────────────────────────
+    // "Short" is not a number someone picked: a trailing line must be at least as wide as
+    // the block's own LEADING (size x TITLE.lineHeight). Narrower than that and the line is
+    // taller than it is wide — a splinter under a block. Nothing new is introduced; the rule
+    // compares the block against itself.
+    const ctx = createCanvas(CANVAS.w, CANVAS.h).getContext('2d');
+    registerFonts();
+    ctx.font = `186px "Cormorant Garamond SemiBold"`;
+    const widow = wrapDetailed(ctx, caps('My Life at 39'), TITLE.tracking, TITLE.maxWidth);
+    assert.deepEqual(widow.lines, ['MY LIFE AT', '39'], 'the 186px wrap is still what it was');
+    assert.ok(widow.lastWidth < 186 * TITLE.lineHeight,
+      `"39" (${widow.lastWidth.toFixed(1)}px) must be narrower than the 186px leading (${(186 * TITLE.lineHeight).toFixed(1)}px)`);
+
+    // ── AND THE CLEARANCE, so the threshold is known to sit in a gap and not on a live edge.
+    // The narrowest trailing line in the published library is "ASK" in "You Didn't Ask", at
+    // 1.79x its leading. The widow sits at 0.82x. Better than 2x either side of the bar.
+    ctx.font = `186px "Cormorant Garamond SemiBold"`;
+    const narrowest = wrapDetailed(ctx, caps("You Didn't Ask"), TITLE.tracking, TITLE.maxWidth);
+    assert.equal(narrowest.lines.length, 2);
+    assert.ok(narrowest.lastWidth / (186 * TITLE.lineHeight) > 1.7,
+      'the narrowest live trailing line must clear the bar comfortably, not scrape it');
+    assert.equal(plan({ ...BASE, title: "You Didn't Ask" }).title.size, 186, 'and must not be moved by this rule');
+  });
+
+  await t.test('the widow rule is about BREAKS, not about short titles or word counts', () => {
+    // A title that did not break cannot have a widow — a widow is a property of a BREAK.
+    // The lines.length > 1 guard is what stops the question being asked of a single line at
+    // all, and it is asserted here because dropping it looks like a harmless simplification
+    // and would quietly reject every short title off the top rung.
+    assert.equal(plan({ ...BASE, title: '1967' }).title.lines.length, 1);
+    assert.equal(plan({ ...BASE, title: '1967' }).title.size, 186);
+
+    // Nor is it a word count. Two-word trailing lines are lines, however short the words.
+    for (const [title, size] of [['Your Camera Is On', 140], ['It Can Never Be Me', 140]]) {
+      const p = plan({ ...BASE, title });
+      assert.equal(p.title.size, size, `${title} must keep the rung it had`);
+      assert.ok(p.title.lines.length > 1);
+    }
   });
 
   await t.test("an existing hyphen is a break opportunity — the BROWN-SKI/NNED GIRL regression", () => {
