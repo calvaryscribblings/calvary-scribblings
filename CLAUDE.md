@@ -73,6 +73,25 @@ If you find yourself about to "fix" the Beta Princess poster, or to extend the m
 series, stop — you would be reverting a ruling. `scripts/covers/migrate.mjs` reads
 `cms_stories` and nothing else, and its preflight asserts that.
 
+### Covers are generated automatically now — by a worker, never in the publish path
+
+R18 (22 Aug 2026). `.github/workflows/covers.yml` runs `scripts/covers/on-publish.mjs --apply`
+on a `*/15` cron. The CMS does **not** generate: a story with no generated cover is saved
+`published:false` + `coverHold:true` and the reconciler publishes it in the *same atomic patch*
+that gives it a cover. Descriptor edits go to `descriptorPending` and land with the cover that
+prints them.
+
+**Do not try to move generation into the publish path.** The renderer is `@napi-rs/canvas`
+pinned exact at 1.0.6 *because measurement must come from the drawing engine*. `app/admin/page.js`
+is a browser client (Blink's Skia measures differently — a cover rendered there is a different
+image from the 158 in Storage and breaks the sha-based idempotence test), and every live
+endpoint is a Pages Function on workerd, which loads no native N-API addons. There is no Node
+server in this architecture.
+
+Both writers share `scripts/covers/store.mjs`. `scripts/covers/DESIGN-LOCK.json` is the
+reconciler's sign-off — change the design and `--apply` refuses until `npm run covers:lock` is
+committed alongside it.
+
 The generator's **Series livery stays exactly as built** — it is proven on the contact sheet
 and costs nothing to keep. Whether it is ever *used* is a separate decision for a separate
 day; its existence is not a plan to migrate series.
