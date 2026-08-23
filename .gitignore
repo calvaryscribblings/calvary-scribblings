@@ -101,3 +101,8 @@ covers-migration/*
 !covers-migration/SIGNOFF.md
 covers-descriptors/*
 !covers-descriptors/RATIFIED.md
+
+# scripts/backup/export.mjs writes here. NEVER commit: these archives contain every
+# reader's email address and password hash, plus the master EPUBs. Keep them off this
+# machine entirely — see scripts/backup/RESTORE.md.
+backups/
