@@ -8,7 +8,7 @@ export const metadata = {
   metadataBase: new URL(BASE_URL),
   title: 'Our AI Policy — Calvary Scribblings',
   description:
-    'Every story, poem and essay on Calvary Scribblings is written by a human being. Read our full policy on AI, human authorship, and how cover artwork is made.',
+    'Every word published on Calvary Scribblings is written by a human being, and every cover in the story library is typeset by the house. Read our full policy on AI, human authorship, and artwork.',
   alternates: { canonical: '/ai-policy' },
   openGraph: {
     type: 'article',
@@ -16,13 +16,13 @@ export const metadata = {
     siteName: 'Calvary Scribblings',
     title: 'Our AI Policy — Calvary Scribblings',
     description:
-      'Every story, poem and essay on Calvary Scribblings is written by a human being. Read our full policy.',
+      'Every word published on Calvary Scribblings is written by a human being, and every cover in the story library is typeset by the house. Read our full policy.',
     images: [{ url: OG_IMAGE, width: 1206, height: 1168, alt: 'Calvary Scribblings' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Our AI Policy — Calvary Scribblings',
-    description: 'Every story, poem and essay on Calvary Scribblings is written by a human being.',
+    description: 'Every word published on Calvary Scribblings is written by a human being.',
     images: [OG_IMAGE],
   },
 };
@@ -62,21 +62,20 @@ export default function AiPolicyPage() {
         <div className="cs-ai-rule" />
         <div className="cs-ai-prose">
           <p>
-            Every story, poem, and essay on Calvary Scribblings is written by a human being. Our
+            Every word published on Calvary Scribblings is written by a human being. Our
             contributors are real writers — named, contracted, and paid — and no AI-generated
-            writing is published on the island, in the Public Library, in Open Pages, or anywhere
+            writing appears on the island, in the Public Library, in Open Pages, or anywhere
             else. That is permanent.
           </p>
           <p>
-            Some cover artwork in the Public Library is created with the assistance of AI image
-            tools, always under the direction of our editorial team. We disclose this openly
-            because we believe readers deserve to know how the things they love are made.
+            Every cover in the story library is typeset by the house. They are not artwork and
+            not generated images — each one is set in our own type, by our own hand, from the
+            story&rsquo;s title and its own words.
           </p>
           <p>
-            The Book Store is different by design. It is a separate shelf with a stricter rule:
-            every cover in the Book Store is human-made, supplied by the publisher or commissioned
-            from an artist. No AI-generated imagery sits beside a publisher&rsquo;s book. This is a
-            promise we make to the publishers and authors who trust us with their work — and to you.
+            Where artwork is used — the covers in the Book Store, the posters that carry a
+            Series — it is chosen deliberately, title by title, by the editorial team. Nothing
+            arrives by default and nothing goes up unlooked at.
           </p>
           <p>
             Questions about this policy are welcome:{' '}
