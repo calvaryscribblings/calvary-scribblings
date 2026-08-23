@@ -8,6 +8,7 @@ import HeaderAdjuster from '../components/HeaderAdjuster';
 import OpenPagesProfileSection from '../components/OpenPagesProfileSection';
 import { BADGES, RARITY_STYLES, getStreakDisplay } from '../lib/badges';
 import { checkAndAwardBadges } from '../lib/badgeEngine';
+import { USER_COMMENTS_PATH, loadCommentsFor, commentCountOf } from '../lib/userComments';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -359,16 +360,9 @@ function CommentHistoryModal({ uid, onClose, allStoriesMerged }) {
     (async () => {
       const db = await getDB();
       const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, 'comments'));
-      if (!snap.exists()) { setLoading(false); return; }
-      const all = [];
-      Object.entries(snap.val()).forEach(([slug, sc]) => {
-        Object.entries(sc).forEach(([id, c]) => {
-          if (c.authorUid === uid) all.push({ id, slug, ...c });
-        });
-      });
-      all.sort((a, b) => b.createdAt - a.createdAt);
-      setComments(all);
+      // Was: download every comment on the site and filter it down to one reader's.
+      // Now: that reader's index, then only the threads it names. See app/lib/userComments.js.
+      setComments(await loadCommentsFor({ db, ref, get }, uid));
       setLoading(false);
     })();
   }, [uid]);
@@ -566,11 +560,12 @@ export default function ProfilePage() {
         }));
         unsubDB.push(onValue(ref(db, `followers/${u.uid}`), snap => { const uids = snap.exists() ? Object.keys(snap.val()) : []; setFollowerCount(uids.length); setFollowerUids(uids); }));
         unsubDB.push(onValue(ref(db, `following/${u.uid}`), snap => { const uids = snap.exists() ? Object.keys(snap.val()) : []; setFollowingCount(uids.length); setFollowingUids(uids); }));
-        unsubDB.push(onValue(ref(db, 'comments'), snap => {
-          if (!snap.exists()) return;
-          let count = 0;
-          for (const sc of Object.values(snap.val())) for (const c of Object.values(sc)) if (c.authorUid === u.uid) count++;
-          setCommentCount(count);
+        // THE LISTENER THE AUDIT NAMED. This held a live subscription on the ENTIRE
+        // comments node — 494 KB, every comment by every reader — for the whole session,
+        // to compute one integer. It now watches this reader's own index node: a few
+        // hundred bytes, and flat with respect to how many other readers exist.
+        unsubDB.push(onValue(ref(db, `${USER_COMMENTS_PATH}/${u.uid}`), snap => {
+          setCommentCount(commentCountOf(snap.val()));
         }));
         try {
           const [ps, ws, badgesSnap, streakSnap] = await Promise.all([

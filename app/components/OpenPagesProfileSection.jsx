@@ -19,7 +19,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
-import { normalizeGenre } from '../lib/openPages';
+import { normalizeGenre, USER_OPEN_PAGES_NODE, OPEN_PAGES_NODE } from '../lib/openPages';
 
 // Brand palette.
 const GOLD = '#c9a84c';
@@ -63,31 +63,56 @@ export default function OpenPagesProfileSection({ profileUid, isOwner = false, p
     (async () => {
       try {
         const { ref, get } = await import('firebase/database');
-        const [opSnap, followersSnap, commentsSnap] = await Promise.all([
-          get(ref(db, 'open_pages')),
+        // TWO whole-node reads used to happen here — `open_pages` (every post on the site)
+        // and `comments` (every comment on the site) — to describe ONE author. Both are now
+        // bounded by that author's own output:
+        //
+        //   · posts come from user_open_pages/{uid}, the per-author index that already
+        //     existed for exactly this purpose (app/lib/openPages.js);
+        //   · received comments are counted per post, so the cost scales with how many
+        //     posts THIS author has written, not with how many comments everyone has left.
+        const [idxSnap, followersSnap] = await Promise.all([
+          get(ref(db, `${USER_OPEN_PAGES_NODE}/${profileUid}`)),
           get(ref(db, `followers/${profileUid}`)),
-          get(ref(db, 'comments')),
         ]);
 
-        const posts = opSnap.exists()
-          ? Object.entries(opSnap.val())
-              .map(([id, p]) => ({ id, ...p }))
-              .filter((p) => p && p.status === 'live' && p.authorUid === profileUid && p.title)
-              .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-          : [];
+        // ⚠ THE INDEX NAMES CANDIDATES; open_pages DECIDES WHAT IS PUBLISHED.
+        //
+        // user_open_pages carries a full copy of each post, and it is tempting to read
+        // `status` straight off it and skip the second read. That would be wrong, and it is
+        // wrong TODAY, not hypothetically: post -OvgFIJxGYOPnvV8Io7a is `status: 'live'` in
+        // the per-author index while being absent from open_pages altogether. Trusting the
+        // copy would put a removed post back on its author's profile — a moderation bypass
+        // introduced by an optimisation.
+        //
+        // So the index supplies the id list and nothing else. Each candidate is confirmed
+        // against the public feed, which is the only node that decides what is live. Still
+        // bounded by ONE author's own output rather than by every post on the site.
+        const candidateIds = idxSnap.exists() ? Object.keys(idxSnap.val() || {}) : [];
+        const confirmed = await Promise.all(
+          candidateIds.map((id) =>
+            get(ref(db, `${OPEN_PAGES_NODE}/${id}`))
+              .then((s) => (s.exists() ? { id, ...s.val() } : null))
+              .catch(() => null)
+          )
+        );
+        const posts = confirmed
+          .filter((p) => p && p.status === 'live' && p.authorUid === profileUid && p.title)
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
         const followers = followersSnap.exists() ? Object.keys(followersSnap.val()).length : 0;
 
         // Received comments: comments on THIS author's open_pages posts, written
         // by someone else (excludes self-comments).
-        const postIds = new Set(posts.map((p) => p.id));
+        const threads = await Promise.all(
+          posts.map((p) => get(ref(db, `comments/${p.id}`)).catch(() => null))
+        );
         let received = 0;
-        if (commentsSnap.exists()) {
-          for (const [pid, thread] of Object.entries(commentsSnap.val())) {
-            if (!postIds.has(pid) || !thread || typeof thread !== 'object') continue;
-            for (const c of Object.values(thread)) {
-              if (c && c.authorUid && c.authorUid !== profileUid) received++;
-            }
+        for (const snap of threads) {
+          const thread = snap && snap.exists() ? snap.val() : null;
+          if (!thread || typeof thread !== 'object') continue;
+          for (const c of Object.values(thread)) {
+            if (c && c.authorUid && c.authorUid !== profileUid) received++;
           }
         }
 

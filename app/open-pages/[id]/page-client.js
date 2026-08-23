@@ -18,6 +18,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
 import { OPEN_PAGES_NODE, normalizeGenre } from '../../lib/openPages';
 import { renderMarkdown } from '../../lib/openPagesMarkdown';
+import { indexedCommentWrite } from '../../lib/userComments';
 
 const REPORT_REASONS = ['Harmful content', 'Spam', 'Plagiarism', 'Other'];
 
@@ -391,14 +392,21 @@ export default function OpenPageDetailClient({ params }) {
     const data = { text: trimmed, authorName: user.displayName || 'Reader', authorUid: user.uid, createdAt };
     let cid;
     try {
-      const { ref, push, set } = await import('firebase/database');
+      const { ref, push, update } = await import('firebase/database');
       // Generate the key up front so the optimistic node carries its real path.
       const newRef = push(ref(db, `comments/${id}`));
       cid = newRef.key;
       const optimistic = { id: cid, path: cid, ...data, replies: [], _optimistic: true };
       setComments((prev) => [optimistic, ...(prev || [])]);
       setCommentText('');
-      await set(newRef, data);
+      // Indexed like every other top-level comment: the per-author count has always
+      // included open-pages threads (the old whole-node scan walked comments/* without
+      // caring what the parent was), so leaving these out would silently lower it.
+      // Nested replies are NOT indexed, and were never counted either — the old scan
+      // iterated comments/{parent} one level deep and never descended into `replies`.
+      await update(ref(db, '/'), indexedCommentWrite({
+        uid: user.uid, slug: id, commentId: cid, comment: data,
+      }));
     } catch (err) {
       console.error('[open-pages] comment post failed:', err);
       if (cid) setComments((prev) => (prev || []).filter((c) => c.id !== cid));

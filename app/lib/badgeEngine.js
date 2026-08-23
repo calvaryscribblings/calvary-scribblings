@@ -1,4 +1,5 @@
 import { BADGES, computeStats, computeReaderScore } from './badges';
+import { USER_COMMENTS_PATH, commentedSlugCountOf } from './userComments';
 
 export async function checkAndAwardBadges(uid, db) {
   const { ref, get, update } = await import('firebase/database');
@@ -7,7 +8,11 @@ export async function checkAndAwardBadges(uid, db) {
     get(ref(db, `userStreaks/${uid}`)),
     get(ref(db, `userBadges/${uid}`)),
     get(ref(db, `users/${uid}`)),
-    get(ref(db, `comments`)),
+    // Was `comments` whole — every comment on the site — to count the distinct stories
+    // ONE reader had commented on. The index answers it directly and is bounded by that
+    // reader's own activity. This runs after every comment posted, so it was one of the
+    // hottest whole-node reads on the site.
+    get(ref(db, `${USER_COMMENTS_PATH}/${uid}`)),
   ]);
   const submissions = subsSnap.exists() ? subsSnap.val() : null;
   const streakData  = streakSnap.exists() ? streakSnap.val() : null;
@@ -16,7 +21,7 @@ export async function checkAndAwardBadges(uid, db) {
   const storiesReadCount = userData.readStories ? Object.keys(userData.readStories).length : 0;
   // Comment points: count distinct slugs where this user left at least one
   // comment (the practical 1-per-slug cap). Retroactive — all history counts.
-  const cappedComments = countCommentedSlugs(commentsSnap.exists() ? commentsSnap.val() : null, uid);
+  const cappedComments = commentedSlugCountOf(commentsSnap.val());
 
   const stats = computeStats(submissions, streakData);
   const newBadges = [];
@@ -48,19 +53,6 @@ export async function checkAndAwardBadges(uid, db) {
 // Count distinct top-level comment threads (one per story slug / post id) where
 // this user authored at least one comment. This is the capped comment count fed
 // into the reader-score formula (1 point-earning comment per slug).
-function countCommentedSlugs(commentsData, uid) {
-  if (!commentsData || typeof commentsData !== 'object') return 0;
-  let count = 0;
-  for (const slug of Object.keys(commentsData)) {
-    const thread = commentsData[slug];
-    if (thread && typeof thread === 'object'
-        && Object.values(thread).some(c => c && c.authorUid === uid)) {
-      count++;
-    }
-  }
-  return count;
-}
-
 function getMilestone(id, stats) {
   switch (id) {
     case 'first_quiz':     return 1;

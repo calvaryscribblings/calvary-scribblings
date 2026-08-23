@@ -10,6 +10,10 @@ import { updateStreak } from '../../lib/streakEngine';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
+import {
+  USER_COMMENTS_PATH, indexedCommentWrite, indexedCommentRemoval,
+  commentCountOf, commentMilestoneFor,
+} from '../../lib/userComments';
 import QuizCard from '../../components/QuizCard';
 import { quizAllowed, advertisesQuiz } from '../../lib/readerCollection';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
@@ -654,14 +658,23 @@ function CommentsSection({ slug, onSignIn }) {
       const db = await getDB();
       const { ref, push, get, update } = await import('firebase/database');
       try {
-        await push(ref(db, `comments/${slug}`), {
-          text: trimmed,
-          authorName: user.displayName || 'Reader',
-          authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
-          authorUid: user.uid,
-          parentId: parentId || null,
-          createdAt: Date.now(),
-        });
+        // ONE atomic multi-path update carries the comment AND its index entry, so the two
+        // cannot land separately. A comment written without its entry would be invisible to
+        // every counter on the site. See app/lib/userComments.js.
+        const commentId = push(ref(db, `comments/${slug}`)).key;
+        await update(ref(db, '/'), indexedCommentWrite({
+          uid: user.uid,
+          slug,
+          commentId,
+          comment: {
+            text: trimmed,
+            authorName: user.displayName || 'Reader',
+            authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
+            authorUid: user.uid,
+            parentId: parentId || null,
+            createdAt: Date.now(),
+          },
+        }));
       } catch (e) {
         setComments(prev => prev.filter(c => c.id !== tempId));
         if (parentId) setReplyText(trimmed);
@@ -694,26 +707,25 @@ function CommentsSection({ slug, onSignIn }) {
           } catch (e) {}
         }
       }
+      // THE MILESTONE. This used to download the ENTIRE comments node — every comment on
+      // every story by every reader, 494 KB and growing with the readership — to count one
+      // reader's own comments. It now reads that reader's own index node: a few hundred
+      // bytes, and flat with respect to how many other readers exist.
       try {
-        const commentsSnap = await get(ref(db, 'comments'));
-        let userCommentCount = 0;
-        if (commentsSnap.exists()) {
-          Object.values(commentsSnap.val()).forEach(slugComments => {
-            Object.values(slugComments).forEach(c => { if (c.authorUid === user.uid) userCommentCount++; });
-          });
-        }
-        if (userCommentCount > 0 && userCommentCount % 50 === 0) {
+        const idxSnap = await get(ref(db, `${USER_COMMENTS_PATH}/${user.uid}`));
+        const milestone = commentMilestoneFor(commentCountOf(idxSnap.val()));
+        if (milestone) {
           const pointsSnap = await get(ref(db, `points/${user.uid}/total`));
           const current = pointsSnap.exists() ? pointsSnap.val() : 0;
-          await update(ref(db, `points/${user.uid}`), { total: current + 10 });
+          await update(ref(db, `points/${user.uid}`), { total: current + milestone.amount });
           await push(ref(db, `points/${user.uid}/history`), {
-            type: 'comment', amount: 10,
-            description: `${userCommentCount} comments milestone`,
+            type: 'comment', amount: milestone.amount,
+            description: milestone.description,
             createdAt: Date.now(),
           });
           await push(ref(db, `library_notifications/${user.uid}`), {
             type: 'reward', fromName: 'Calvary Scribblings',
-            message: `You earned 10 Scribbles — ${userCommentCount} comments milestone!`,
+            message: `You earned ${milestone.amount} Scribbles — ${milestone.description}!`,
             read: false, createdAt: Date.now(),
           });
         }
@@ -741,10 +753,14 @@ function CommentsSection({ slug, onSignIn }) {
     if (!user) return;
     try {
       const db = await getDB();
-      const { ref, remove } = await import('firebase/database');
-      await remove(ref(db, `comments/${slug}/${commentId}`));
+      const { ref, update } = await import('firebase/database');
+      // The comment and its index entry go in one operation — see indexedCommentRemoval.
+      // The AUTHOR's entry is cleared, not the actor's: a founder deleting somebody else's
+      // comment must clear that author's index, not their own.
+      const author = comments.find(c => c.id === commentId)?.authorUid || user.uid;
+      await update(ref(db, '/'), indexedCommentRemoval({ uid: author, slug, commentId }));
     } catch (e) {}
-  }, [user, slug]);
+  }, [user, slug, comments]);
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
   // Hide comments from soft-deleted users. The CommentThread also reads

@@ -401,6 +401,24 @@
         ".validate": "newData.isBoolean() || newData.isNumber()"
       }
     },
+    "user_comments": {
+      "$uid": {
+        ".read": true,
+        "$commentId": {
+          ".write": "auth != null && (auth.uid === $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+          ".validate": "!newData.exists() || newData.hasChildren(['slug', 'createdAt'])",
+          "slug": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
     "user_square_posts": {
       "$uid": {
         ".read": true,

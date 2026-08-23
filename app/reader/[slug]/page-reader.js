@@ -5,6 +5,10 @@ import { quizAllowed } from '../../lib/readerCollection';
 import { resolveAuthorNames, currentAuthorName } from '../../lib/resolveAuthorNames';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
+import {
+  USER_COMMENTS_PATH, indexedCommentWrite, indexedCommentRemoval,
+  commentCountOf, commentMilestoneFor,
+} from '../../lib/userComments';
 import { updateStreak } from '../../lib/streakEngine';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import QuizCard from '../../components/QuizCard';
@@ -268,14 +272,22 @@ function CommentsSection({ slug, onSignIn }) {
     try {
       const db = await getDB();
       const { ref, push, get, update } = await import('firebase/database');
-      await push(ref(db, `comments/${slug}`), {
-        text: commentText.trim(),
-        authorName: user.displayName || 'Reader',
-        authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
-        authorUid: user.uid,
-        parentId: parentId || null,
-        createdAt: Date.now(),
-      });
+      // ONE atomic multi-path update carries the comment AND its index entry, so the two
+      // cannot land separately. See app/lib/userComments.js.
+      const commentId = push(ref(db, `comments/${slug}`)).key;
+      await update(ref(db, '/'), indexedCommentWrite({
+        uid: user.uid,
+        slug,
+        commentId,
+        comment: {
+          text: commentText.trim(),
+          authorName: user.displayName || 'Reader',
+          authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
+          authorUid: user.uid,
+          parentId: parentId || null,
+          createdAt: Date.now(),
+        },
+      }));
       try {
         await notifyMentions({
           text: commentText.trim(), slug,
@@ -294,21 +306,18 @@ function CommentsSection({ slug, onSignIn }) {
         }
         setReplyText(''); setReplyTo(null);
       } else setText('');
+      // THE MILESTONE — was a full download of the comments node to count one reader's own
+      // comments; now one read of that reader's own index. See app/lib/userComments.js.
       try {
-        const commentsSnap = await get(ref(db, 'comments'));
-        let userCommentCount = 0;
-        if (commentsSnap.exists()) {
-          Object.values(commentsSnap.val()).forEach(slugComments => {
-            Object.values(slugComments).forEach(c => { if (c.authorUid === user.uid) userCommentCount++; });
-          });
-        }
-        if (userCommentCount > 0 && userCommentCount % 50 === 0) {
+        const idxSnap = await get(ref(db, `${USER_COMMENTS_PATH}/${user.uid}`));
+        const milestone = commentMilestoneFor(commentCountOf(idxSnap.val()));
+        if (milestone) {
           const pointsSnap = await get(ref(db, `points/${user.uid}/total`));
           const current = pointsSnap.exists() ? pointsSnap.val() : 0;
-          await update(ref(db, `points/${user.uid}`), { total: current + 10 });
+          await update(ref(db, `points/${user.uid}`), { total: current + milestone.amount });
           await push(ref(db, `points/${user.uid}/history`), {
-            type: 'comment', amount: 10,
-            description: `${userCommentCount} comments milestone`,
+            type: 'comment', amount: milestone.amount,
+            description: milestone.description,
             createdAt: Date.now(),
           });
         }
@@ -335,10 +344,13 @@ function CommentsSection({ slug, onSignIn }) {
     if (!user) return;
     try {
       const db = await getDB();
-      const { ref, remove } = await import('firebase/database');
-      await remove(ref(db, `comments/${slug}/${commentId}`));
+      const { ref, update } = await import('firebase/database');
+      // The AUTHOR's index entry is cleared, not the actor's — a founder deleting somebody
+      // else's comment must clear that author's index.
+      const author = comments.find(c => c.id === commentId)?.authorUid || user.uid;
+      await update(ref(db, '/'), indexedCommentRemoval({ uid: author, slug, commentId }));
     } catch (e) {}
-  }, [user, slug]);
+  }, [user, slug, comments]);
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
   const deletedCommentAuthors = useDeletedUids(comments.map(c => c.authorUid));

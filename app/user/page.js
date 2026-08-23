@@ -5,6 +5,7 @@ import { stories as allStories } from '../lib/stories';
 import { BADGES, RARITY_STYLES, getStreakDisplay } from '../lib/badges';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import OpenPagesProfileSection from '../components/OpenPagesProfileSection';
+import { USER_COMMENTS_PATH, loadCommentsFor, commentCountOf } from '../lib/userComments';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -237,16 +238,9 @@ function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
     (async () => {
       const db = await getDB();
       const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, 'comments'));
-      if (!snap.exists()) { setLoading(false); return; }
-      const all = [];
-      Object.entries(snap.val()).forEach(([slug, sc]) => {
-        Object.entries(sc).forEach(([id, c]) => {
-          if (c.authorUid === uid) all.push({ id, slug, ...c });
-        });
-      });
-      all.sort((a, b) => b.createdAt - a.createdAt);
-      setComments(all);
+      // Was: download every comment on the site and filter it down to one reader's.
+      // Now: that reader's index, then only the threads it names. See app/lib/userComments.js.
+      setComments(await loadCommentsFor({ db, ref, get }, uid));
       setLoading(false);
     })();
   }, [uid]);
@@ -357,7 +351,8 @@ export default function UserPage() {
         try {
           const fetches = [
             get(ref(db, `users/${uid}`)),
-            get(ref(db, 'comments')),
+            // The reader's own index, not every comment on the site.
+            get(ref(db, `${USER_COMMENTS_PATH}/${uid}`)),
             get(ref(db, `followers/${uid}`)),
             get(ref(db, `following/${uid}`)),
             get(ref(db, `userBadges/${uid}`)),
@@ -376,13 +371,7 @@ export default function UserPage() {
             setReadCount(d.readCount || 0);
             if (d.readStories) setReadStorySlugs(Object.keys(d.readStories));
           }
-          if (commentsSnap.exists()) {
-            let count = 0;
-            for (const sc of Object.values(commentsSnap.val()))
-              for (const c of Object.values(sc))
-                if (c.authorUid === uid) count++;
-            setCommentCount(count);
-          }
+          setCommentCount(commentCountOf(commentsSnap.val()));
           const followerUidList = followersSnap.exists() ? Object.keys(followersSnap.val()) : [];
           setFollowerCount(followerUidList.length); setFollowerUids(followerUidList);
           const followingUidList = followingSnap.exists() ? Object.keys(followingSnap.val()) : [];
