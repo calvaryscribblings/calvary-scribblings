@@ -22,8 +22,57 @@
 // the same guarantee a runTransaction would give on the client SDK.
 
 import { readTelemetry, recordClient } from './_telemetry.js';
+import { consume, limitResponse, clientIp, capFromEnv } from './_ratelimit.js';
 
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// THE CAPS, AND WHERE THE NUMBERS CAME FROM
+// ═══════════════════════════════════════════════════════════════════════════════════════
+//
+// This is the endpoint the Fortress Audit rated highest, and not because it is expensive:
+// it is UNAUTHENTICATED, and every request becomes a database write made with
+// administrative credentials that bypass the `stories: .write false` rule. RTDB's
+// documented ceiling is 1,000 writes/second for the whole database, so a flood here does
+// not merely inflate a counter — it takes write capacity away from purchases, sign-ups and
+// comments. The existing readerId ledger is a DEDUPLICATOR, not a limiter: readerId is
+// supplied by the caller, so varying it defeats the ledger entirely, and omitting it takes
+// the back-compat branch that increments unconditionally.
+//
+// ── THE DERIVATION ─────────────────────────────────────────────────────────────────────
+//
+// Measured against the live database on 23 Aug 2026, from the hitsByDay buckets:
+//
+//   hits per day, whole platform     median 23 · MAX EVER 52   (10 days of buckets)
+//   cumulative hits, all time        17,080 across 193 stories
+//
+// This is a low-volume endpoint, which makes generous caps cheap.
+//
+//   PER ADDRESS, PER MINUTE — 30
+//   PER ADDRESS, PER DAY — 500
+//     Deliberately loose, because the address is NOT a person. Many readers reach this
+//     site through carrier-grade NAT — a whole mobile network can share one address — and
+//     a cap tight enough to bind on one reader would lock out a city. 500 opens a day from
+//     a single address is roughly ten times the ENTIRE platform's busiest day, so it can
+//     only be reached by something that is not a reading population.
+//
+//   PLATFORM, PER MINUTE — 300
+//     The one that actually protects the database. Five writes a second: about 6,000×
+//     today's rate, and still less than one percent of RTDB's 1,000/second ceiling, so
+//     even a fully saturated minute here cannot starve the writes that matter.
+//
+//   PLATFORM, PER DAY — 5,000
+//     ~96× the busiest day ever recorded. A backstop against a slow flood that stays under
+//     the per-minute bar.
+//
+// A hit that is refused is a hit that is not counted. That is the right trade: an
+// undercounted story is a cosmetic loss, and an exhausted write budget is an outage.
+const HIT_CAPS = (env, ip) => ([
+  { scope: 'hit', period: 'minute', id: ip, limit: capFromEnv(env, 'HIT_IP_MINUTE_CAP', 30) },
+  { scope: 'hit', period: 'day', id: ip, limit: capFromEnv(env, 'HIT_IP_DAY_CAP', 500) },
+  { scope: 'hit', period: 'minute', limit: capFromEnv(env, 'HIT_GLOBAL_MINUTE_CAP', 300) },
+  { scope: 'hit', period: 'day', limit: capFromEnv(env, 'HIT_GLOBAL_DAY_CAP', 5000) },
+]);
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -106,6 +155,22 @@ async function getAccessToken(clientEmail, privateKeyPem) {
 async function handle(context) {
   const { request, env } = context;
   const url = new URL(request.url);
+
+  // THE CEILING, charged before anything else — before the body is parsed, before a
+  // credential is minted, before the ledger is read. A refused caller costs four database
+  // increments and nothing else.
+  //
+  // An unattributable caller is refused outright. CF-Connecting-IP is set by the edge and
+  // cannot be forged by the client; if it is missing, this request cannot be counted
+  // against any bucket, and on an endpoint that anyone may call, "cannot be attributed" is
+  // indistinguishable from the thing the cap exists to stop.
+  const ip = clientIp(request);
+  if (!ip) {
+    console.warn('[hit] refused: no CF-Connecting-IP on the request');
+    return json({ error: 'Could not process that request.' }, 429);
+  }
+  const verdict = await consume(context, HIT_CAPS(env, ip));
+  if (!verdict.ok) return limitResponse(verdict);
 
   // slug + readerId may arrive via query (old app binaries POST ?slug=…, no
   // body) or as a JSON body { slug, readerId } (current web client). Query wins.

@@ -87,6 +87,10 @@
       ".read": false,
       ".write": false
     },
+    "rate_limits": {
+      ".read": false,
+      ".write": false
+    },
     "readerBookmarks": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",

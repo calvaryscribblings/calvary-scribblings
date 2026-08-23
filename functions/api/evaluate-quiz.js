@@ -1,6 +1,57 @@
 import { readStoryBody } from './_story-body.js';
+import { consume, limitResponse, capFromEnv } from './_ratelimit.js';
 
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// THE CAPS, AND WHERE THE NUMBERS CAME FROM
+// ═══════════════════════════════════════════════════════════════════════════════════════
+//
+// This endpoint turns a signed-in reader's request into a paid Anthropic call. Before the
+// Fortress Audit there was NO ceiling of any kind: `attemptIndex` arrives in the request
+// body and only selects which system prompt to use, so one account in a loop was an
+// unbounded bill. These caps close that.
+//
+// ── THE DERIVATION ─────────────────────────────────────────────────────────────────────
+//
+// Measured against the live database on 23 Aug 2026 — 1,398 submissions by 78 readers
+// across 84 days, against the 160 quizzes that exist:
+//
+//   submissions per reader per day    median 3 · p90 11 · p99 32 · MAX EVER 46
+//   submissions per day, platform     median 7 · MAX EVER 119
+//   attempts per quiz                 1,248 first attempts, 144 second — never a third
+//
+// A submission costs at most TWO calls here: one `hardball`, one `essays` batch. So the
+// busiest reader-day ever recorded is 46 × 2 = 92 calls, and the busiest platform-day ever
+// is 119 × 2 = 238 calls.
+//
+//   PER READER, PER DAY — 200
+//     2.2× the busiest reader-day ever recorded. Also below the ceiling the catalogue
+//     itself imposes: 160 quizzes × 2 attempts × 2 calls = 640 calls is the most a reader
+//     could EVER generate, and nobody has come within a quarter of that in a day.
+//
+//   PER READER, PER MINUTE — 12
+//     Six submissions a minute. A submission means reading a story and writing essay
+//     answers; the busiest reader-day on record averages one submission every thirty
+//     minutes. This is an order of magnitude above human pace and it stops a tight loop
+//     within seconds rather than within a day.
+//
+//   PLATFORM, PER DAY — 1,000
+//     4.2× the busiest platform-day ever recorded. This is the circuit breaker, not the
+//     working limit: at roughly $0.015–0.02 a call (claude-sonnet-4-6 at $3/$15 per Mtok,
+//     ~3k input tokens for a median story plus up to 1,024 output), it bounds this
+//     endpoint at about $15–20 on its very worst day, against no bound at all before.
+//
+// ⚠ A LEGITIMATE READER MUST NEVER HIT THE WALL. That is the property these numbers are
+// chosen for, and it is why every one of them is a MULTIPLE of the observed maximum rather
+// than a percentage above the average. If the library grows past 160 quizzes, or a reading
+// contest changes what "busy" means, raise them by env rather than removing them — see
+// capFromEnv(), which cannot be set to zero or disabled.
+export const EVAL_CAPS = (env, uid) => ([
+  { scope: 'evalq', period: 'minute', id: uid, limit: capFromEnv(env, 'QUIZ_EVAL_MINUTE_CAP', 12) },
+  { scope: 'evalq', period: 'day', id: uid, limit: capFromEnv(env, 'QUIZ_EVAL_DAY_CAP', 200) },
+  { scope: 'evalq', period: 'day', limit: capFromEnv(env, 'QUIZ_EVAL_GLOBAL_DAY_CAP', 1000) },
+]);
 
 function evalJson(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -134,6 +185,18 @@ export async function onRequestPost(context) {
 
   const uid = await verifyToken(token, env.NEXT_PUBLIC_FIREBASE_API_KEY);
   if (!uid) return evalJson({ error: 'Unauthorised.' }, 401);
+
+  // THE CEILING, charged before any work is done — before the story is read and long
+  // before Anthropic is called. A refused caller costs one database increment and nothing
+  // else. See EVAL_CAPS above for where the numbers come from; consume() fails closed, so
+  // a limiter that cannot reach its counter store refuses rather than waving the call
+  // through. There is deliberately no `catch` around this: consume() never throws, and a
+  // try/catch here is exactly how a fail-closed limiter becomes a fail-open one.
+  const verdict = await consume(context, EVAL_CAPS(env, uid));
+  if (!verdict.ok) {
+    console.warn('[evaluate-quiz] refused | uid:', uid, '|', verdict.reason, verdict.scope ?? '');
+    return limitResponse(verdict);
+  }
 
   let body;
   try { body = await request.json(); }
