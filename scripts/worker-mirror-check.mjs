@@ -33,9 +33,21 @@ const ROOT = resolve(__dirname, '..');
 // Every dashboard-managed Worker that has a mirror here. Add a row when a Worker is
 // mirrored; the whole point of the mirrors is that this list is the complete set of
 // Workers running outside version control.
+// R19.3: the list is now the COMPLETE set of Workers running outside version control, not
+// only the ones that happen to have been mirrored. Three of these five have no mirror yet,
+// and naming them here is the point — an absent row made them invisible to this script and
+// therefore invisible to anyone auditing what is deployed. A named row with a missing file
+// reports "no mirror yet"; an unnamed Worker reports nothing at all.
+//
+// The Fortress Audit found calvary-auth by reading the code that CALLS it. calvary-og-image
+// and calvary-age-verify were found afterwards, the same way — /api/og-image is a four-line
+// proxy to one of them. There is no inventory anywhere else; this is it.
 const WORKERS = {
   newsletter: 'workers-external/calvary-newsletter.worker.js',
   'hit-counter': 'workers-external/calvary-hit-counter.worker.js',
+  auth: 'workers-external/calvary-auth.worker.js',
+  'og-image': 'workers-external/calvary-og-image.worker.js',
+  'age-verify': 'workers-external/calvary-age-verify.worker.js',
 };
 
 const livePath = process.argv[2];
