@@ -49,6 +49,12 @@ export function migrateTitle(doc) {
   if (out.glossary && (typeof out.glossary !== 'object' || Array.isArray(out.glossary) || !Object.keys(out.glossary).length)) {
     out = { ...out, glossary: null };
   }
+  // R18 — the author block (authorName / authorBio / authorPhotoPath / authorPhotoAlt) rides
+  // through the spread above untouched, like the glossary and the Bookseller's Fields.
+  // Schema-external, so there is nothing to migrate and nothing to strip, and NOTHING TO FILL
+  // IN: a title with no author block is a normal title, not a v2 record awaiting a v3 default.
+  // authorBlockOf() in ./author.js is the only thing that decides whether one exists, and it
+  // handles every absent spelling — undefined, null, '' — without help from here.
   return out;
 }
 

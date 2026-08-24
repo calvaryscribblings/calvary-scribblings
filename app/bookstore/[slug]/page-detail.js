@@ -8,6 +8,7 @@ import { getGenres, getReadership } from '../../lib/bookstore/loader';
 // R14 — the readership line. Pure, money-free and portable; see the module header.
 import { readershipFor } from '../../lib/bookstore/readership';
 import { genreLabel as labelOf, groupOf } from '../../lib/bookstore/genres';
+import AuthorBlock, { AUTHOR_BLOCK_CSS } from '../components/AuthorBlock';
 import Navbar from '../../components/Navbar';
 import TabBar from '../../components/TabBar';
 import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
@@ -188,6 +189,7 @@ export default function BookDetailClient({ params }) {
           @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Cinzel:wght@400;600&family=Inter:wght@300;400;500;600&display=swap');
           body{background:#070707;color:#f0ead8;font-family:'Cormorant Garamond',Georgia,serif;overflow-x:hidden}
           ${BOUND_BOOK_CSS}
+          ${AUTHOR_BLOCK_CSS}
           @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.7}}
           @keyframes grainShift{0%{transform:translate(0,0)}10%{transform:translate(-3%,-2%)}20%{transform:translate(-8%,4%)}30%{transform:translate(3%,-8%)}40%{transform:translate(-2%,9%)}50%{transform:translate(-8%,3%)}60%{transform:translate(4%,-2%)}70%{transform:translate(-4%,6%)}80%{transform:translate(6%,3%)}90%{transform:translate(-2%,-4%)}}
@@ -293,6 +295,20 @@ export default function BookDetailClient({ params }) {
                     <p style={{ fontSize: '1.15rem', fontStyle: 'italic', fontWeight: 400, color: 'rgba(240,234,216,.55)', marginBottom: '2rem' }}>by {title.author}</p>
 
                     {title.synopsis && <p className="bd-synopsis" dangerouslySetInnerHTML={{ __html: title.synopsis }} />}
+
+                    {/* ── R18 — THE AUTHOR ─────────────────────────────────────────────
+                        AFTER the synopsis, BEFORE the editor's note. The note is the last
+                        beat before the button and stays that way; a biography wedged between
+                        the curator's sentence and the thing it recommends is the one place
+                        this section must never stand.
+
+                        UNCONDITIONAL HERE ON PURPOSE. There is no `title.authorBio &&` guard
+                        in front of it, because the decision is not this file's to make and a
+                        condition here would be a second copy of it. AuthorBlock returns null
+                        when there is no bio and no photograph, and null renders NOTHING — no
+                        label, no placeholder, no empty frame. See app/lib/bookstore/author.js
+                        for why absence is the normal state rather than a missing one. */}
+                    <AuthorBlock title={title} />
 
                     {title.shelfCard && (
                       <div className="bd-shelfcard">{title.shelfCard}<span>&mdash; Calvary</span></div>

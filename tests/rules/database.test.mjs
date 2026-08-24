@@ -29,6 +29,12 @@ import {
 // R9.1 LB-9: the client half of the waitlist email check, asserted against the rule half in
 // the same test so the two cannot drift. See the note above the ACCEPTED/REJECTED tables.
 import { isEmailShaped } from '../../app/lib/bookstore/gate.js';
+// R18 — same discipline, one round later: the author block's caps and its path shape are read
+// out of the module the CMS validates with, so the rule half and the writer half are asserted
+// against each other rather than against two copies of the same numbers.
+import {
+  AUTHOR_CAPS, isAuthorPhotoPath, normaliseAuthorFields, validateAuthorFields,
+} from '../../app/lib/bookstore/author.js';
 
 let env, owner, stranger, anon, founder;
 
@@ -1677,5 +1683,244 @@ describe('R12.4 · series_instalments_detail — the release gate, against the r
     await assertSucceeds(founder.ref(`series_instalments_detail/${ID}`).set(
       detail({ logline: null, sponsorName: null, sponsorLogoUrl: null, wordCount: null }),
     ));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R18 · bookstore_titles — THE AUTHOR BLOCK.
+//
+// Four schema-external fields on a title: authorName, authorBio, authorPhotoPath,
+// authorPhotoAlt. TITLE_SCHEMA stays locked at v2, so validateTitle never sees them; the
+// writer's half is validateAuthorFields in app/lib/bookstore/author.js and the rules' half is
+// four `.validate` lines under $titleId.
+//
+// ── TIGHTENED TO THE EXACT SHAPE, NOT `isString() || hasChildren()` ──────────────────────
+// R9.2 (a) above is the standing lesson: territoriesAllowed was validated loosely, so '' and
+// 'worldwide' and 'no' were all storable, and every one of them read as WORLDWIDE downstream.
+// A bio has less at stake than a licence, but the same failure is available — an 800-character
+// cap that exists only in the CMS is not a cap, because a console edit skips the CMS. So each
+// field here is a STRING WITH A LENGTH BOUND, and authorPhotoPath is a string matching one
+// flat key under the public-read cover prefix.
+//
+// ── ABSENCE MUST STAY EXPRESSIBLE, AND THAT IS WHY THE RULES CAN BE STRICT ───────────────
+// All four fields are optional, and a title with no author block is a NORMAL title — an
+// anthology has no single author. `.validate` NEVER runs on a null write, so `length > 0` in
+// every rule does not make the fields mandatory: it makes an EMPTY STRING unstorable while
+// leaving the field's removal untouched. The writer relies on exactly that — normaliseAuthorFields
+// turns '' into null, RTDB drops a null key, and the field leaves the record. Both halves of
+// that are asserted below.
+//
+// ── PARITY, PROVEN BOTH DIRECTIONS ──────────────────────────────────────────────────────
+// The last block in this section walks one table twice: everything validateAuthorFields
+// ACCEPTS must be storable, and everything it REJECTS must be refused. A table checked in one
+// direction only is how a rule ends up stricter than the CMS and silently breaks a curator.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('R18 · bookstore_titles author block', () => {
+  const chars = (n) => 'a'.repeat(n);
+  const PHOTO = 'bookstore_covers/the-quiet-house_author.jpg';
+
+  test('CASE 4 FIRST — the shapes a curator actually saves', async () => {
+    // A full block.
+    await assertSucceeds(founder.ref('bookstore_titles/t1').set(titleWith({
+      territoriesAllowed: '*',
+      authorName: 'Ada Nwachukwu',
+      authorBio: 'Ada writes from Enugu. The Quiet House is her second novel.',
+      authorPhotoPath: PHOTO,
+      authorPhotoAlt: 'Ada Nwachukwu at her desk',
+    })));
+    // Bio only.
+    await assertSucceeds(founder.ref('bookstore_titles/t2').set(titleWith({
+      territoriesAllowed: '*', authorName: 'Ada Nwachukwu', authorBio: 'Ada writes from Enugu.',
+    })));
+    // Photograph only.
+    await assertSucceeds(founder.ref('bookstore_titles/t3').set(titleWith({
+      territoriesAllowed: '*', authorPhotoPath: PHOTO, authorPhotoAlt: 'The author',
+    })));
+    // NONE OF THEM — the anthology, and the shape every one of the live titles is in today.
+    await assertSucceeds(founder.ref('bookstore_titles/t4').set(titleWith({ territoriesAllowed: '*' })));
+  });
+
+  test('ABSENCE stays expressible — a null removes the field and is never validated', async () => {
+    await seed(env, {
+      'bookstore_titles/t1': titleWith({
+        territoriesAllowed: '*', authorName: 'Ada', authorBio: 'A life.', authorPhotoPath: PHOTO, authorPhotoAlt: 'Ada',
+      }),
+    });
+    // Clearing the block is what an editor emptying the textareas must be able to do.
+    await assertSucceeds(founder.ref('bookstore_titles/t1').update({
+      authorName: null, authorBio: null, authorPhotoPath: null, authorPhotoAlt: null,
+    }));
+    const after = (await founder.ref('bookstore_titles/t1').get()).val();
+    for (const k of ['authorName', 'authorBio', 'authorPhotoPath', 'authorPhotoAlt']) {
+      assert.equal(after[k], undefined, `${k} must be gone from the record, not stored empty`);
+    }
+    // And the writer's own way of saying it: a full set() with nulls, which is what
+    // updateTitle does. RTDB drops the keys on the way in.
+    await assertSucceeds(founder.ref('bookstore_titles/t1').set(titleWith({
+      territoriesAllowed: '*', authorName: null, authorBio: null, authorPhotoPath: null, authorPhotoAlt: null,
+    })));
+  });
+
+  test('authorBio — 800 saves, 801 does not, and the empty string is unstorable', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/ok').set(titleWith({
+      territoriesAllowed: '*', authorBio: chars(AUTHOR_CAPS.authorBio),
+    })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({
+      territoriesAllowed: '*', authorBio: chars(AUTHOR_CAPS.authorBio + 1),
+    })), 'an 801-character bio must not be storable');
+    // The empty string is the shape the CMS turns into null. Reaching the rule at all means a
+    // console edit, and an empty husk is exactly what the writer refuses to create.
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({
+      territoriesAllowed: '*', authorBio: '',
+    })), 'an empty bio must not be storable — absence is said with null');
+  });
+
+  test('authorName — 120 saves, 121 does not, and the empty string is unstorable', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/ok').set(titleWith({
+      territoriesAllowed: '*', authorName: chars(AUTHOR_CAPS.authorName), authorBio: 'A life.',
+    })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({
+      territoriesAllowed: '*', authorName: chars(AUTHOR_CAPS.authorName + 1),
+    })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({
+      territoriesAllowed: '*', authorName: '',
+    })));
+  });
+
+  test('authorPhotoAlt — 160 saves, 161 does not', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/ok').set(titleWith({
+      territoriesAllowed: '*', authorPhotoPath: PHOTO, authorPhotoAlt: chars(AUTHOR_CAPS.authorPhotoAlt),
+    })));
+    await assertFails(founder.ref('bookstore_titles/bad').set(titleWith({
+      territoriesAllowed: '*', authorPhotoPath: PHOTO, authorPhotoAlt: chars(AUTHOR_CAPS.authorPhotoAlt + 1),
+    })));
+  });
+
+  test('every field is a STRING — a number or an object is not one', async () => {
+    // The R9.2 failure mode in miniature: `isString() || hasChildren()` would have let all of
+    // these through, and a bio that is an object renders as nothing while looking present.
+    for (const [field, value] of [
+      ['authorName', 42], ['authorBio', 42], ['authorPhotoAlt', 42],
+      ['authorName', { first: 'Ada' }], ['authorBio', { text: 'A life.' }],
+      ['authorBio', true], ['authorPhotoPath', 7],
+    ]) {
+      await assertFails(
+        founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: '*', [field]: value })),
+        `${field} = ${JSON.stringify(value)} must not be storable`,
+      );
+    }
+  });
+
+  test('authorPhotoPath is ONE FLAT KEY under the public-read cover prefix', async () => {
+    await assertSucceeds(founder.ref('bookstore_titles/ok').set(titleWith({
+      territoriesAllowed: '*', authorPhotoPath: PHOTO,
+    })));
+    for (const value of [
+      'bookstore_covers/the-quiet-house/author.jpg',  // NESTED — matches no storage rule at all
+      'bookstore_epubs/t_author.jpg',                 // the PRIVATE prefix; read: if false
+      'covers/t_author.jpg',                          // the platform's story covers, not the shop's
+      '/bookstore_covers/t_author.jpg',
+      'bookstore_covers/',
+      'https://firebasestorage.googleapis.com/v0/b/x/o/y',
+      '',
+      'bookstore_covers/' + 'a'.repeat(AUTHOR_CAPS.authorPhotoPath),
+    ]) {
+      await assertFails(
+        founder.ref('bookstore_titles/bad').set(titleWith({ territoriesAllowed: '*', authorPhotoPath: value })),
+        `authorPhotoPath ${JSON.stringify(value)} must not be storable`,
+      );
+    }
+  });
+
+  test('THE BYLINE AND THE NAME MAY DISAGREE, and the rules do not care that they do', async () => {
+    // The anthology: the byline says the house, the author block says the person. Neither the
+    // rules nor the writer may reconcile them.
+    const anthology = titleWith({
+      territoriesAllowed: '*',
+      author: 'Calvary Scribblings',
+      authorName: 'Ada Nwachukwu',
+      authorBio: 'One of eight writers in this collection.',
+    });
+    await assertSucceeds(founder.ref('bookstore_titles/anthology').set(anthology));
+    const stored = (await founder.ref('bookstore_titles/anthology').get()).val();
+    assert.equal(stored.author, 'Calvary Scribblings', 'the byline was altered on the way in');
+    assert.equal(stored.authorName, 'Ada Nwachukwu', 'the author name was altered on the way in');
+    assert.deepEqual(validateAuthorFields(anthology), [], 'the writer must not correct the pair either');
+  });
+
+  test('a stranger cannot write an author block, and cannot wipe one', async () => {
+    await seed(env, { 'bookstore_titles/t1': titleWith({ territoriesAllowed: '*', authorBio: 'A life.' }) });
+    for (const [who, ctx] of [['anon', anon], ['stranger', stranger], ['owner', owner]]) {
+      await assertFails(ctx.ref('bookstore_titles/t1/authorBio').set('I wrote this book'), `${who} wrote a bio`);
+      await assertFails(ctx.ref('bookstore_titles/t1/authorBio').remove(), `${who} wiped a bio`);
+      await assertFails(ctx.ref('bookstore_titles/t1/authorPhotoPath').set('bookstore_covers/x_author.jpg'), `${who} set a photo`);
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PARITY, BOTH DIRECTIONS.
+  // ─────────────────────────────────────────────────────────────────────────
+  const PARITY = [
+    // [label, fields as the CMS would hand them over]
+    ['nothing at all', {}],
+    ['a full block', { authorName: 'Ada Nwachukwu', authorBio: 'A life.', authorPhotoPath: PHOTO, authorPhotoAlt: 'Ada' }],
+    ['bio only', { authorBio: 'A life.' }],
+    ['photo only', { authorPhotoPath: PHOTO }],
+    ['name only', { authorName: 'Ada Nwachukwu' }],
+    ['bio at the cap', { authorBio: chars(AUTHOR_CAPS.authorBio) }],
+    ['name at the cap', { authorName: chars(AUTHOR_CAPS.authorName) }],
+    ['alt at the cap', { authorPhotoAlt: chars(AUTHOR_CAPS.authorPhotoAlt) }],
+    ['bio over the cap', { authorBio: chars(AUTHOR_CAPS.authorBio + 1) }],
+    ['name over the cap', { authorName: chars(AUTHOR_CAPS.authorName + 1) }],
+    ['alt over the cap', { authorPhotoAlt: chars(AUTHOR_CAPS.authorPhotoAlt + 1) }],
+    ['a nested photo path', { authorPhotoPath: 'bookstore_covers/t/author.jpg' }],
+    ['a private-prefix photo path', { authorPhotoPath: 'bookstore_epubs/t_author.jpg' }],
+    ['a numeric bio', { authorBio: 42 }],
+    ['an object name', { authorName: { first: 'Ada' } }],
+  ];
+
+  test('WRITER → RULES: everything validateAuthorFields accepts is storable', async () => {
+    let n = 0;
+    for (const [label, raw] of PARITY) {
+      const doc = normaliseAuthorFields({ ...raw });
+      if (validateAuthorFields(doc).length) continue;
+      // The write path drops nulls exactly as RTDB does, so the rule sees what the CMS sends.
+      const fields = Object.fromEntries(Object.entries(doc).filter(([, v]) => v !== null));
+      await assertSucceeds(
+        founder.ref(`bookstore_titles/p${n}`).set(titleWith({ territoriesAllowed: '*', ...fields })),
+        `the CMS accepts "${label}" but the rules refuse it — a curator would be broken`,
+      );
+      n += 1;
+    }
+    assert.ok(n >= 8, `expected the accepted half of the table to be substantial, got ${n}`);
+  });
+
+  test('RULES → WRITER: everything validateAuthorFields refuses is unstorable', async () => {
+    let n = 0;
+    for (const [label, raw] of PARITY) {
+      const doc = normaliseAuthorFields({ ...raw });
+      if (!validateAuthorFields(doc).length) continue;
+      const fields = Object.fromEntries(Object.entries(doc).filter(([, v]) => v !== null));
+      await assertFails(
+        founder.ref('bookstore_titles/pbad').set(titleWith({ territoriesAllowed: '*', ...fields })),
+        `the CMS refuses "${label}" but the rules would store it — the console is the hole`,
+      );
+      n += 1;
+    }
+    assert.ok(n >= 6, `expected the refused half of the table to be substantial, got ${n}`);
+  });
+
+  test('the photo-path rule and isAuthorPhotoPath agree, character for character', async () => {
+    const CASES = [
+      'bookstore_covers/a_author.jpg', 'bookstore_covers/A-B_author.JPEG', 'bookstore_covers/x.png',
+      'bookstore_covers/a/b.jpg', 'bookstore_covers/', 'bookstore_covers/a b.jpg',
+      'bookstore_covers/a?b.jpg', 'bookstore_epubs/a.jpg', 'a_author.jpg', '',
+    ];
+    for (const p of CASES) {
+      const write = founder.ref('bookstore_titles/px').set(titleWith({ territoriesAllowed: '*', authorPhotoPath: p }));
+      if (isAuthorPhotoPath(p)) await assertSucceeds(write, `isAuthorPhotoPath allows ${JSON.stringify(p)}, the rule does not`);
+      else await assertFails(write, `isAuthorPhotoPath refuses ${JSON.stringify(p)}, the rule stores it`);
+    }
   });
 });

@@ -23,6 +23,15 @@ import { assertTerritories, WORLDWIDE } from './territory';
 // rule about what a section may LOOK like lives beside the rule about what one MEANS, so the
 // panel and the shop cannot disagree about which claims exist.
 import { validateGenre } from './genres';
+// R18 — THE AUTHOR BLOCK. Same precedent as the four imports above: the rule about what an
+// author block may LOOK like lives beside the rule about what one MEANS, so the CMS form and
+// the detail page cannot disagree about whether a title has one.
+import {
+  normaliseAuthorFields,
+  validateAuthorFields,
+  authorPhotoPathFor,
+  MAX_AUTHOR_PHOTO_BYTES,
+} from './author';
 import {
   validateSection,
   PLACEMENTS,
@@ -346,6 +355,17 @@ export async function createTitle(input) {
     // the editor left the field empty, never {} — an empty object would ride into RTDB as
     // a key with nothing under it, which RTDB drops anyway, so null says it plainly.
     glossary: normaliseGlossaryField(input.glossary),
+    // R18 — THE AUTHOR BLOCK. Schema-external, like every field above it; normalised by
+    // normaliseAuthorFields below (empty string → null) and checked by validateAuthorFields.
+    //
+    // ⚠ authorName IS NOT `author`. `author` is the BYLINE — an editorial decision about whose
+    // name sits under the title, which on an anthology deliberately reads "Calvary Scribblings"
+    // even though the book has eight writers. authorName is a PERSON, for the block under the
+    // synopsis. They may disagree, and nothing here derives, syncs or warns about the two.
+    authorName: input.authorName,
+    authorBio: input.authorBio,
+    authorPhotoPath: input.authorPhotoPath,
+    authorPhotoAlt: input.authorPhotoAlt,
     prices: input.prices || {},
     genre: input.genre,
     publishedDate: input.publishedDate,
@@ -370,6 +390,9 @@ export async function createTitle(input) {
   if (Array.isArray(input.tags) && input.tags.length) doc.tags = input.tags.filter((t) => typeof t === 'string' && t.length > 0);
   if (Number.isInteger(input.pageCount) && input.pageCount > 0) doc.pageCount = input.pageCount;
 
+  // R18 — trim, and reduce every "there isn't one" spelling to null, before anything reads them.
+  normaliseAuthorFields(doc);
+
   // R8.4 — BEFORE validateTitle, because it tidies territoriesAllowed into the shape
   // validateTitle then checks, and because a contradictory pair must be reported as the
   // licence problem it is rather than as whatever validateTitle happens to say about the half
@@ -387,6 +410,8 @@ export async function createTitle(input) {
   if (bfErrors.length) return { ok: false, errors: bfErrors };
   const glErrors = validateGlossary(doc.glossary);
   if (glErrors.length) return { ok: false, errors: glErrors };
+  const auErrors = validateAuthorFields(doc);
+  if (auErrors.length) return { ok: false, errors: auErrors };
 
   try {
     const existing = await get(ref(db, `${TITLES_PATH}/${slug}`));
@@ -459,6 +484,15 @@ export async function updateTitle(titleId, partial) {
     merged.glossary = normaliseGlossaryField(merged.glossary);
     const glErrors = validateGlossary(merged.glossary);
     if (glErrors.length) return { ok: false, errors: glErrors };
+
+    // R18 — the author block rides through the spread like the glossary, and for the same
+    // reason must be able to be CLEARED: an edit that empties the bio textarea has to REMOVE
+    // the bio, so '' / undefined become null rather than being skipped as "no change". set()
+    // below is a full overwrite, and RTDB drops a null key, so the field genuinely leaves the
+    // record — which is also what keeps `.validate` (it never runs on a null) off it.
+    normaliseAuthorFields(merged);
+    const auErrors = validateAuthorFields(merged);
+    if (auErrors.length) return { ok: false, errors: auErrors };
 
     // R8.4 — the territory pair rides through the spread like the glossary. An edit that
     // switches a title back to "Sold worldwide" must be able to REMOVE the exclusions, so ''
@@ -549,6 +583,63 @@ export async function uploadCover(titleId, file, onProgress) {
   } catch (err) {
     console.error('[bookstore.admin-writes] uploadCover failed', err);
     return { ok: false, errors: [`Cover upload failed: ${err.message || 'unknown error'}`] };
+  }
+}
+
+// R18 — THE AUTHOR PHOTOGRAPH.
+//
+// It follows the COVER's path, not the EPUB's: image/*, per-title, and stored where a public
+// page can fetch it. `bookstore_covers/{titleId}` is `allow read: if true` in storage.rules,
+// which is what a photograph printed under a synopsis needs; `bookstore_epubs/*/master.epub`
+// is `read: if false`, which is what a purchasable file needs. They are opposite rules for
+// opposite jobs and this is firmly on the cover's side.
+//
+// ⚠ FLAT, NOT NESTED. The storage match is SINGLE-SEGMENT — `{titleId}` captures one path
+// segment — so `bookstore_covers/<id>/author.jpg` matches no rule at all and is denied both
+// ways. authorPhotoPathFor puts the photo beside the cover as a sibling KEY, with an
+// underscore suffix a title slug can never produce. See app/lib/bookstore/author.js.
+//
+// 3 MB rather than the cover's 5: the storage rule's ceiling is the COVER's, and the tighter
+// number is applied here so every writer gets the same refusal with the same wording.
+//
+// RETURNS THE PATH, and the caller stores the path. A download URL would be a permanent,
+// token-bearing public link to the object, and the block does not need one — the prefix is
+// already public-read, so publicPhotoUrl() in author.js builds a plain ?alt=media URL from the
+// path at render time. The url is returned too, purely so the admin form can show a preview
+// without a second round trip.
+export async function uploadAuthorPhoto(titleId, file, onProgress) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!titleId) return { ok: false, errors: ['titleId is required'] };
+  if (!file) return { ok: false, errors: ['No file selected'] };
+  if (file.size > MAX_AUTHOR_PHOTO_BYTES) {
+    return { ok: false, errors: [`Author photo must be under 3 MB (got ${(file.size / 1024 / 1024).toFixed(1)} MB)`] };
+  }
+  if (!file.type || !file.type.startsWith('image/')) return { ok: false, errors: ['Author photo must be an image file'] };
+
+  try {
+    const { ref: sref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
+    const path = authorPhotoPathFor(titleId, extOf(file));
+    const storageRef = sref(storage, path);
+    const task = uploadBytesResumable(storageRef, file, { contentType: file.type });
+
+    await new Promise((resolve, reject) => {
+      task.on(
+        'state_changed',
+        (snap) => {
+          if (typeof onProgress === 'function' && snap.totalBytes) {
+            onProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
+          }
+        },
+        (err) => reject(err),
+        () => resolve()
+      );
+    });
+
+    const url = await getDownloadURL(task.snapshot.ref);
+    return { ok: true, path, url };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] uploadAuthorPhoto failed', err);
+    return { ok: false, errors: [`Author photo upload failed: ${err.message || 'unknown error'}`] };
   }
 }
 

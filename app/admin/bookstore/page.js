@@ -7,10 +7,14 @@ import {
   updateTitle,
   setTitleStatus,
   uploadCover,
+  uploadAuthorPhoto,
   uploadEpub,
   uploadSampleEpub,
 } from '../../lib/bookstore/admin-writes';
 import { TITLE_STATUSES } from '../../lib/bookstore/schema';
+// R18 — the author block's bounds and its 3 MB photo cap, read from the one module the write
+// path and the RTDB .validate rules are both pinned to. Never re-typed here.
+import { AUTHOR_CAPS, MAX_AUTHOR_PHOTO_BYTES, publicPhotoUrl } from '../../lib/bookstore/author';
 // R13 — the taxonomy and the curation system. The genre dropdown used to be built from
 // schema.js's GENRES with labels DERIVED from the slug, and it disagreed with the shop on
 // four of the twelve ("Thriller Suspense" here, "Thriller & Suspense" on the shelf). It now
@@ -149,6 +153,9 @@ const s = {
   progressBar: { height: 4, background: '#2a2a2a', borderRadius: 999, overflow: 'hidden' },
   progressFill: { height: '100%', background: 'linear-gradient(90deg, #7c3aed, #a855f7)', transition: 'width 0.2s' },
   checkbox: { display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.88rem', cursor: 'pointer', color: '#e8e8e8' },
+  // R18 — a text button for a destructive-but-trivial action (dropping a photograph from a
+  // draft). Deliberately not a `btn`: this is one step, undone by picking another file.
+  linkBtn: { background: 'none', border: 'none', padding: 0, color: '#a78bfa', fontSize: '0.72rem', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' },
 };
 
 function statusPill(status) {
@@ -179,6 +186,12 @@ const emptyForm = {
   shelfCard: '',
   glossary: '',            // R7.4 — authored as text, saved as a map
   catalogueNumber: '',
+  // R18 — THE AUTHOR BLOCK. authorName is NOT the byline above; see the note by the fields.
+  authorName: '',
+  authorBio: '',
+  authorPhotoAlt: '',
+  authorPhotoFile: null,
+  authorPhotoPath: '',   // existing storage path when editing
   priceGbp: '',
   priceNgn: '',
   priceUsd: '',
@@ -215,6 +228,7 @@ export default function AdminBookstorePage() {
   const [coverProgress, setCoverProgress] = useState(null);
   const [epubProgress, setEpubProgress] = useState(null);
   const [sampleProgress, setSampleProgress] = useState(null);
+  const [authorPhotoProgress, setAuthorPhotoProgress] = useState(null);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState('all');
@@ -312,6 +326,14 @@ export default function AdminBookstorePage() {
       // R7.4 — the stored map back into the editor's line-per-entry form.
       glossary: serialiseGlossary(title.glossary),
       catalogueNumber: Number.isInteger(title.catalogueNumber) ? String(title.catalogueNumber) : '',
+      // R18 — never seeded from title.author. The byline and the author's name are different
+      // claims and are allowed to disagree; pre-filling one from the other would quietly make
+      // them agree on the next save.
+      authorName: title.authorName || '',
+      authorBio: title.authorBio || '',
+      authorPhotoAlt: title.authorPhotoAlt || '',
+      authorPhotoFile: null,
+      authorPhotoPath: title.authorPhotoPath || '',
       priceGbp: minorToMajor(title.prices?.gbp),
       priceNgn: minorToMajor(title.prices?.ngn),
       priceUsd: minorToMajor(title.prices?.usd),
@@ -398,6 +420,14 @@ export default function AdminBookstorePage() {
     if (!Object.keys(payload.glossary).length) payload.glossary = null;
     const catNum = form.catalogueNumber.trim() === '' ? null : Number(form.catalogueNumber);
     payload.catalogueNumber = Number.isInteger(catNum) && catNum > 0 ? catNum : null;
+    // R18 — always included (null when empty), for the same reason as every field above: the
+    // write path spreads the existing record, so an omitted key would keep the old value and
+    // a curator could never CLEAR a bio. authorPhotoPath is set by the upload step in
+    // handleSave, which runs after this, so it is not written here.
+    payload.authorName = form.authorName.trim() || null;
+    payload.authorBio = form.authorBio.trim() || null;
+    payload.authorPhotoAlt = form.authorPhotoAlt.trim() || null;
+    payload.authorPhotoPath = form.authorPhotoPath.trim() || null;
 
     return payload;
   }
@@ -428,6 +458,14 @@ export default function AdminBookstorePage() {
       const n = Number(form.catalogueNumber);
       if (!Number.isInteger(n) || n <= 0) local.push('Catalogue number must be a positive whole number');
     }
+    // R18 — the caps, read from the module the write path and the RTDB rules are both pinned
+    // to, so the counter under the textarea can never promise more room than the database has.
+    if (form.authorName.length > AUTHOR_CAPS.authorName) local.push(`Author name must be ${AUTHOR_CAPS.authorName} characters or fewer`);
+    if (form.authorBio.length > AUTHOR_CAPS.authorBio) local.push(`Author bio must be ${AUTHOR_CAPS.authorBio} characters or fewer`);
+    if (form.authorPhotoAlt.length > AUTHOR_CAPS.authorPhotoAlt) local.push(`Author photo alt text must be ${AUTHOR_CAPS.authorPhotoAlt} characters or fewer`);
+    if (form.authorPhotoFile && form.authorPhotoFile.size > MAX_AUTHOR_PHOTO_BYTES) {
+      local.push('Author photo must be under 3 MB');
+    }
     // Schema v2: cover + EPUB required only for status === 'published'. Drafts and unpublished
     // titles may save with null assets.
     if (form.status === 'published') {
@@ -452,6 +490,7 @@ export default function AdminBookstorePage() {
     let nextCoverUrl = form.coverUrl;
     let nextEpubPath = form.epubPath;
     let nextSamplePath = form.samplePath;
+    let nextAuthorPhotoPath = form.authorPhotoPath;
 
     // Upload cover first (cheaper to retry, public-readable). If it fails, abort before EPUB upload
     // and before the title doc write — no orphaned title rows pointing at missing storage.
@@ -498,7 +537,28 @@ export default function AdminBookstorePage() {
       setSampleProgress(100);
     }
 
+    // R18 — the author photograph follows the COVER's path, not the EPUB's: image/*, under
+    // 3 MB, stored beside the cover under the public-read `bookstore_covers/` prefix. Uploaded
+    // before the doc write, like the cover, so a failure never leaves a title row pointing at
+    // a photograph that is not there.
+    if (form.authorPhotoFile) {
+      setAuthorPhotoProgress(0);
+      const ph = await uploadAuthorPhoto(titleId, form.authorPhotoFile, (p) => setAuthorPhotoProgress(p));
+      if (!ph.ok) {
+        setErrors(ph.errors);
+        setSaving(false);
+        setAuthorPhotoProgress(null);
+        return;
+      }
+      nextAuthorPhotoPath = ph.path;
+      setAuthorPhotoProgress(100);
+    }
+
     const payload = buildPayload();
+    // NOT `if (nextAuthorPhotoPath)`. Clearing the photograph must write null, and buildPayload
+    // already put the form's current value (null when the field was cleared) in the payload —
+    // this only OVERRIDES it when an upload actually produced a new path.
+    if (form.authorPhotoFile && nextAuthorPhotoPath) payload.authorPhotoPath = nextAuthorPhotoPath;
     if (nextCoverUrl) payload.coverUrl = nextCoverUrl;
     if (nextEpubPath) payload.epubPath = nextEpubPath;
     if (nextSamplePath) payload.samplePath = nextSamplePath;
@@ -511,6 +571,7 @@ export default function AdminBookstorePage() {
     setCoverProgress(null);
     setEpubProgress(null);
     setSampleProgress(null);
+    setAuthorPhotoProgress(null);
 
     if (!result.ok) {
       setErrors(result.errors || ['Save failed']);
@@ -632,6 +693,7 @@ export default function AdminBookstorePage() {
             publishers={activePublishers}
             genres={genres}
             coverProgress={coverProgress}
+            authorPhotoProgress={authorPhotoProgress}
             epubProgress={epubProgress}
             sampleProgress={sampleProgress}
             catalogueInUse={catalogueInUse}
@@ -757,7 +819,7 @@ export default function AdminBookstorePage() {
   );
 }
 
-function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, genres, coverProgress, epubProgress, sampleProgress, catalogueInUse, onSave, onCancel, onTitleBlur }) {
+function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, genres, coverProgress, authorPhotoProgress, epubProgress, sampleProgress, catalogueInUse, onSave, onCancel, onTitleBlur }) {
   const slugInvalid = form.slug && !SLUG_RE.test(form.slug);
 
   // Non-blocking duplicate-catalogue-number warning: flag when another title already uses it.
@@ -979,6 +1041,83 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
           <div style={catDup ? s.hintWarn : s.hint}>
             The No. on everything. Admin-controlled, not auto-assigned.
             {catDup && <> &mdash; ⚠ No. {catNumParsed} is already used by &ldquo;{catDup.title}&rdquo;.</>}
+          </div>
+        </div>
+      </div>
+
+      {/* b3. THE AUTHOR (R18) — the Book Store's OWN author record.
+           ⚠ NOT the platform's /admin contributor records. Different product, different
+           infrastructure, its own fields. Nothing here reads or writes `users` or `authors`. */}
+      <div style={s.section}>
+        <div style={s.sectionTitle}>The Author</div>
+        <div style={s.hint}>
+          Prints under the synopsis on the detail page, above the shelf card.
+          NO fallback: leave the bio and the photograph empty and the section does not appear at all —
+          which is the right answer for an anthology. A photograph alone, or a bio alone, both render.
+        </div>
+        <div style={{ ...s.fg, marginTop: '1.1rem' }}>
+          <label style={s.label}>Author name <span style={s.labelSoft}>(optional, &le; {AUTHOR_CAPS.authorName})</span></label>
+          <input style={s.input} maxLength={AUTHOR_CAPS.authorName} value={form.authorName} onChange={(e) => setForm((f) => ({ ...f, authorName: e.target.value }))} placeholder="The person, e.g. Ada Nwachukwu" />
+          {/* THE BYLINE AND THE NAME ARE DIFFERENT CLAIMS, and are allowed to disagree. This
+              hint is the whole reason the field is separate — a curator who does not know that
+              will type the byline in again. */}
+          <div style={s.hint}>
+            A PERSON, for the author block. This is <strong>not</strong> the byline above &mdash; the byline is
+            an editorial decision about whose name sits under the title, and on an anthology it reads
+            &ldquo;Calvary Scribblings&rdquo; on purpose. The two may differ, and nothing corrects them when they do.
+            {form.authorName.trim() && form.author.trim() && form.authorName.trim() !== form.author.trim() && (
+              <span style={{ color: 'rgba(255,255,255,0.35)' }}> &mdash; byline &ldquo;{form.author.trim()}&rdquo;, author block &ldquo;{form.authorName.trim()}&rdquo;. Both kept.</span>
+            )}
+          </div>
+        </div>
+        <div style={{ ...s.fg, marginTop: '1.1rem' }}>
+          <label style={s.label}>Author bio <span style={s.labelSoft}>(optional, &le; {AUTHOR_CAPS.authorBio})</span></label>
+          <textarea style={{ ...s.textarea, minHeight: 130 }} maxLength={AUTHOR_CAPS.authorBio} value={form.authorBio} onChange={(e) => setForm((f) => ({ ...f, authorBio: e.target.value }))} placeholder="Two or three sentences, publisher-supplied or written in house." />
+          <div style={s.hint}>
+            Set in Cormorant at body size, under the photograph. Publisher-supplied for Linea House titles.
+            <span style={{ color: form.authorBio.length > AUTHOR_CAPS.authorBio ? '#fcd34d' : 'rgba(255,255,255,0.35)' }}> {form.authorBio.length}/{AUTHOR_CAPS.authorBio}</span>
+          </div>
+        </div>
+        <div style={{ ...s.fileBlock, marginTop: '1.25rem' }}>
+          <label style={s.label}>Author photograph <span style={s.labelSoft}>(image, &lt; 3 MB, optional)</span></label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setForm((f) => ({ ...f, authorPhotoFile: e.target.files?.[0] || null }))}
+            style={{ color: '#fff', fontSize: '0.85rem' }}
+          />
+          {form.authorPhotoFile && (
+            <div style={form.authorPhotoFile.size > MAX_AUTHOR_PHOTO_BYTES ? s.hintWarn : s.fileMeta}>
+              {form.authorPhotoFile.name} &middot; {(form.authorPhotoFile.size / 1024).toFixed(0)} KB
+              {form.authorPhotoFile.size > MAX_AUTHOR_PHOTO_BYTES && <> &mdash; ⚠ over 3 MB</>}
+            </div>
+          )}
+          {authorPhotoProgress !== null && (
+            <div>
+              <div style={s.progressBar}><div style={{ ...s.progressFill, width: `${authorPhotoProgress}%` }} /></div>
+              <div style={s.fileMeta}>{authorPhotoProgress < 100 ? `Uploading… ${authorPhotoProgress}%` : 'Done ✓'}</div>
+            </div>
+          )}
+          {!form.authorPhotoFile && form.authorPhotoPath && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
+              {/* The stored PATH resolved to a URL exactly the way the public page resolves it —
+                  same helper, same anonymous ?alt=media fetch. If it fails to load here it will
+                  fail to load there, which is the point of previewing it this way. */}
+              <img src={publicPhotoUrl(form.authorPhotoPath)} alt="" style={{ width: 54, height: 68, objectFit: 'cover', borderRadius: 2, border: '1px solid rgba(255,255,255,0.15)' }} />
+              <div>
+                <div style={s.hintGreen}>✓ Photograph on file. Pick a new file to replace.</div>
+                <button type="button" onClick={() => setForm((f) => ({ ...f, authorPhotoPath: '', authorPhotoFile: null }))} style={{ ...s.linkBtn, marginTop: '0.25rem' }}>Remove photograph</button>
+              </div>
+            </div>
+          )}
+          <div style={s.hint}>Stored beside the cover, in the same public-read place. Set as a portrait plate, not a circle.</div>
+        </div>
+        <div style={{ ...s.fg, marginTop: '1.1rem' }}>
+          <label style={s.label}>Photograph alt text <span style={s.labelSoft}>(optional, &le; {AUTHOR_CAPS.authorPhotoAlt})</span></label>
+          <input style={s.input} maxLength={AUTHOR_CAPS.authorPhotoAlt} value={form.authorPhotoAlt} onChange={(e) => setForm((f) => ({ ...f, authorPhotoAlt: e.target.value }))} placeholder="e.g. Ada Nwachukwu at her desk in Enugu" />
+          <div style={s.hint}>
+            For screen readers. Left empty it becomes &ldquo;Photograph of {form.authorName.trim() || 'the author'}&rdquo;.
+            <span style={{ color: form.authorPhotoAlt.length > AUTHOR_CAPS.authorPhotoAlt ? '#fcd34d' : 'rgba(255,255,255,0.35)' }}> {form.authorPhotoAlt.length}/{AUTHOR_CAPS.authorPhotoAlt}</span>
           </div>
         </div>
       </div>

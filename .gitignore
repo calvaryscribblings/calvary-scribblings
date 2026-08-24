@@ -106,3 +106,7 @@ covers-descriptors/*
 # reader's email address and password hash, plus the master EPUBs. Keep them off this
 # machine entirely — see scripts/backup/RESTORE.md.
 backups/
+
+# R18 — the JSX render harness in tests/bookstore/author-render.test.mjs transforms a component
+# beside its source and imports it. after() removes it; this is the safety net for a crashed run.
+app/**/.*.test-build.mjs

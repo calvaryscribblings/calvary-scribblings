@@ -761,7 +761,11 @@
           "$i": {
             ".validate": "newData.isString() && newData.val().matches(/^[A-Z]{2}$/)"
           }
-        }
+        },
+        "authorName": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 120" },
+        "authorBio": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 800" },
+        "authorPhotoAlt": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 160" },
+        "authorPhotoPath": { ".validate": "newData.isString() && newData.val().length <= 200 && newData.val().matches(/^bookstore_covers[/][A-Za-z0-9._-]+$/)" }
       }
     },
     "bookstore_genres": {
