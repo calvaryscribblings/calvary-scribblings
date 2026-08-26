@@ -68,6 +68,16 @@ export default function AuthorBlock({ title }) {
           the column's full width rather than indenting past an empty box. */}
       <div className="bd-author-body">
         {photoUrl && (
+          /* eslint-disable-next-line @next/next/no-img-element --
+             26 Aug 2026. The rule advises next/image. next.config.mjs sets
+             `images: { unoptimized: true }` under `output: 'export'`, which is what a static
+             export requires — there is no Next server to run the optimizer, so <Image /> emits
+             a plain <img> with the same src and adds a client component for nothing. The alt
+             text is the editor's own authorPhotoAlt (app/lib/bookstore/author.js), so the
+             accessibility half the rule is sometimes a proxy for is already covered and
+             jsx-a11y/alt-text passes here. Suppressed at the site rather than repo-wide: the
+             day this app stops being a static export the other 78 occurrences should all light
+             up again. */
           <img className="bd-author-plate" data-testid="author-photo" src={photoUrl} alt={alt} loading="lazy" decoding="async" />
         )}
         {(name || bio) && (

@@ -11,6 +11,11 @@ import {
   uploadEpub,
   uploadSampleEpub,
 } from '../../lib/bookstore/admin-writes';
+// R19.6 — THE PUBLISH → DEPLOY HANDSHAKE. A static export serves files, so a published record
+// has no pages until a build runs. See app/lib/bookstore/rebuild.js and
+// functions/api/bookstore/rebuild.js; the deploy-hook URL is server-side only and is not
+// reachable from this file.
+import { rebuildNeeded, requestRebuild } from '../../lib/bookstore/rebuild';
 import { TITLE_STATUSES } from '../../lib/bookstore/schema';
 // R18 — the author block's bounds and its 3 MB photo cap, read from the one module the write
 // path and the RTDB .validate rules are both pinned to. Never re-typed here.
@@ -138,6 +143,11 @@ const s = {
   hintGreen: { fontSize: '0.7rem', color: '#86efac', lineHeight: 1.5 },
   errorBox: { background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 6, padding: '0.85rem 1rem', color: '#fca5a5', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: '0.3rem', marginBottom: '1.25rem' },
   formActions: { display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', padding: '0.5rem 0' },
+  // R19.6 — THE DEPLOY NOTICE. Above the toast and outliving it: the toast says what just
+  // happened (1.5s), this says what is about to (two minutes). Two different tenses, so two
+  // different pieces of furniture rather than one that has to be both.
+  rebuild: { position: 'fixed', bottom: '4.6rem', left: '50%', transform: 'translateX(-50%)', maxWidth: 'min(92vw, 30rem)', background: '#171717', border: '1px solid #2a2a2a', borderRadius: 8, padding: '0.85rem 1.1rem', fontSize: '0.82rem', lineHeight: 1.5, boxShadow: '0 12px 32px rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', gap: '0.7rem' },
+  rebuildDismiss: { background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', fontSize: '0.95rem', lineHeight: 1, padding: 0, marginLeft: 'auto' },
   toast: { position: 'fixed', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)', background: '#171717', border: '1px solid #2a2a2a', borderRadius: 8, padding: '0.85rem 1.4rem', color: '#86efac', fontSize: '0.85rem', fontWeight: 600, boxShadow: '0 12px 32px rgba(0,0,0,0.6)', zIndex: 1000 },
   gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
   radioGroup: { display: 'flex', gap: '1rem', flexWrap: 'wrap' },
@@ -225,6 +235,13 @@ export default function AdminBookstorePage() {
   const [toast, setToast] = useState('');
   const [form, setForm] = useState(emptyForm);
   const [editingTitleId, setEditingTitleId] = useState(null);
+  // The status the open title was LOADED at. The form's own `status` is what the editor has
+  // selected, which is not the same question: "did publishedness change" needs both ends.
+  const [editingStatusWas, setEditingStatusWas] = useState(null);
+  // R19.6 — the deploy notice. NOT the toast: the toast retires after 1.5s and this sentence
+  // is a promise about the next two minutes, which a reader has to be able to still be reading
+  // when they navigate. { tone: 'ok' | 'bad', text } or null.
+  const [rebuildNotice, setRebuildNotice] = useState(null);
   const [coverProgress, setCoverProgress] = useState(null);
   const [epubProgress, setEpubProgress] = useState(null);
   const [sampleProgress, setSampleProgress] = useState(null);
@@ -297,9 +314,34 @@ export default function AdminBookstorePage() {
     setTimeout(() => setToast(''), 1500);
   }
 
+  // ── R19.6 — SUMMON THE DEPLOY, ONCE PER FLIP ────────────────────────────────────────────
+  //
+  // Called after a status change has ALREADY SUCCEEDED, and never before one. Three rules, and
+  // all three are the difference between this helping and this hurting:
+  //
+  //   1. ONLY WHEN PUBLISHEDNESS CHANGED. rebuildNeeded() decides; a draft→unpublished flip
+  //      changes nothing anyone can see and does not spend a build on saying so.
+  //   2. EXACTLY ONCE. One call site per flip — handleQuickStatus for the table's control,
+  //      handleSave for the form's — and neither falls through to the other.
+  //   3. THE PUBLISH IS NEVER ROLLED BACK. requestRebuild() cannot throw; a failure becomes a
+  //      notice that says the book is published anyway and names the manual way to deploy.
+  //      A record that is public with stale pages is recoverable in one click in Cloudflare.
+  //      Un-publishing a book because its BUILD did not start would be the worse of the two
+  //      by a distance.
+  async function summonDeploy(was, now) {
+    if (!rebuildNeeded(was, now)) return;
+    setRebuildNotice(null);
+    const verdict = await requestRebuild({ getIdToken: () => user?.getIdToken() });
+    setRebuildNotice({ tone: verdict.ok ? 'ok' : 'bad', text: verdict.message });
+    if (!verdict.ok) console.error('[admin/bookstore] rebuild not started:', verdict.status, verdict.message);
+  }
+
   function openNew() {
     setForm(emptyForm);
     setEditingTitleId(null);
+    // A title that does not exist yet is not published. So "new, saved as published" is a flip
+    // and does owe a build; "new, saved as draft" is not and does not.
+    setEditingStatusWas(null);
     setErrors([]);
     setCoverProgress(null);
     setEpubProgress(null);
@@ -352,6 +394,7 @@ export default function AdminBookstorePage() {
       bestseller: !!title.bestseller,
     });
     setEditingTitleId(title.id);
+    setEditingStatusWas(title.status || 'draft');
     setErrors([]);
     setCoverProgress(null);
     setEpubProgress(null);
@@ -579,19 +622,28 @@ export default function AdminBookstorePage() {
     }
 
     showToast(editingTitleId ? 'Title updated' : 'Title created');
+    // The form's own flip. `editingStatusWas` is what the record held when it was opened —
+    // null for a new title, which rebuildNeeded() reads as "not published", so saving a new
+    // title straight to published owes a build and saving one as a draft does not.
+    await summonDeploy(editingStatusWas, form.status);
     setView('list');
     setForm(emptyForm);
     setEditingTitleId(null);
+    setEditingStatusWas(null);
     loadAll();
   }
 
   async function handleQuickStatus(title, nextStatus) {
+    const was = title.status || 'draft';
     const result = await setTitleStatus(title.id, nextStatus);
     if (!result.ok) {
       alert((result.errors || ['Status change failed']).join('\n'));
       return;
     }
     showToast(`Title ${nextStatus}`);
+    // AFTER the flip has succeeded, and only then. A rebuild summoned for a write that failed
+    // would deploy the world exactly as it already is.
+    await summonDeploy(was, nextStatus);
     loadAll();
   }
 
@@ -814,6 +866,18 @@ export default function AdminBookstorePage() {
           </div>
         )}
       </div>
+      {/* R19.6 — the deploy, said in the admin's own register. It is DISMISSIBLE and does not
+          expire: "in about two minutes" is a claim the reader must be able to still be looking
+          at when the two minutes are up. A failure keeps the same furniture and changes only
+          the colour and the sentence — a separate error surface would teach the eye that this
+          box is always good news. */}
+      {rebuildNotice && (
+        <div style={{ ...s.rebuild, borderColor: rebuildNotice.tone === 'ok' ? '#2a2a2a' : '#7f1d1d', color: rebuildNotice.tone === 'ok' ? '#86efac' : '#fca5a5' }}>
+          <span aria-hidden="true">{rebuildNotice.tone === 'ok' ? '⟳' : '⚠'}</span>
+          <span data-testid="rebuild-notice">{rebuildNotice.text}</span>
+          <button type="button" onClick={() => setRebuildNotice(null)} style={s.rebuildDismiss} aria-label="Dismiss">×</button>
+        </div>
+      )}
       {toast && <div style={s.toast}>{toast}</div>}
     </div>
   );
@@ -1103,6 +1167,11 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
               {/* The stored PATH resolved to a URL exactly the way the public page resolves it —
                   same helper, same anonymous ?alt=media fetch. If it fails to load here it will
                   fail to load there, which is the point of previewing it this way. */}
+              {/* eslint-disable-next-line @next/next/no-img-element --
+                  26 Aug 2026. Same reason as app/bookstore/components/AuthorBlock.js: this is a
+                  static export (next.config.mjs, `images: { unoptimized: true }`), so <Image />
+                  would render this exact <img> and buy nothing. alt="" is deliberate — the
+                  thumbnail is decorative beside the "Photograph on file" label that names it. */}
               <img src={publicPhotoUrl(form.authorPhotoPath)} alt="" style={{ width: 54, height: 68, objectFit: 'cover', borderRadius: 2, border: '1px solid rgba(255,255,255,0.15)' }} />
               <div>
                 <div style={s.hintGreen}>✓ Photograph on file. Pick a new file to replace.</div>

@@ -3,38 +3,83 @@
 // It drives the real /reader/{slug} route out of the static export, so ReadingRoom.js,
 // its chrome state and the postMessage bridge are all the production ones.
 //
-// THE SLUG: beta-princess. Chosen because it is a published cms_story with
-// readerMode === true, an epubUrl and a cover — so it exercises the story register's full
-// opening (splash → frame → chrome) — and because reading it needs no account. Ribbons and
-// progress do need one, and are deliberately out of scope here: this file is about chrome,
-// which every reader gets, signed in or not.
+// ── THE SUBJECT IS RESOLVED, NOT WRITTEN DOWN (R19.6) ────────────────────────────────────
+//
+// This file pinned the literal slug `beta-princess` until R19.6. R12 moved that story into
+// the Series and unpublished both its parts, the static export stopped emitting a page for
+// it, and all ten specs below failed at `dismissCover` with a 30-second timeout on every run
+// from R17.4 onward. tests/reader/fixture-story.mjs now resolves the subject from the live
+// catalogue at suite start — tier 1 the story register, tier 2 a bookstore sample — and prints
+// which tier fired. Read that file's header before changing anything here; in particular it
+// records WHY tier 1 is currently empty and why that is editorial, not drift.
+//
+// ⚠ WHICH REGISTER IS UNDER TEST DEPENDS ON THE FIXTURE. Everything owned by ReadingRoom —
+// chrome, the tap zones, Contents, the definition modal — is register-agnostic and asserted
+// identically either way. The two specs that are NOT are marked BOOK-REGISTER or
+// STORY-REGISTER at their own site, with a note recording what they used to cover.
 //
 // Firebase is live. A failure to resolve the story is a network or data problem, and the
 // first assertion names it rather than letting a later one fail mysteriously.
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { resolveFixture } from './fixture-story.mjs';
 
-// THE ONE SUBSTITUTION. Firebase Storage's bucket CORS allows the production origins, not
-// 127.0.0.1 — measured: the reader's fetch fails with net::ERR_FAILED and the room shows
-// its "could not open this book" state. Rather than widen a production CORS policy for a
-// test, the EPUB BYTES are served from the harness fixture. Everything else is real: the
-// route, the gate, the cms_stories lookup, ReadingRoom and the whole chrome state machine.
-// This file tests the React boundary, not whether Storage is configured.
-const FIXTURE = readFileSync(fileURLToPath(new URL('../fixtures/harness-book.epub', import.meta.url)));
+// Top-level await: Playwright awaits a spec module while collecting it, so this runs once,
+// before any test body, and its log lands at the head of the run output. A throw here fails
+// the whole file by name instead of leaving ten specs to time out on a slug that is not there.
+const FIXTURE = await resolveFixture();
+
+// ── THE SUBSTITUTIONS, AND THE SECOND ONE IS NEW IN R19.6 ───────────────────────────────
+//
+// Firebase Storage's bucket CORS allows the production origins, not 127.0.0.1 — measured: the
+// reader's fetch fails with net::ERR_FAILED and the room shows its "could not open this book"
+// state. Rather than widen a production CORS policy for a test, the EPUB is served from the
+// harness fixture. Everything else is real: the route, the gate, the bookstore_titles /
+// cms_stories lookup, ReadingRoom and the whole chrome state machine.
+//
+// TWO ROUTES, NOT ONE, because the book register needs a round trip the story register does
+// not. A cms_story carries a permanent download URL on the record, so one stub on the BYTES
+// was enough. A bookstore sample carries a Storage PATH and calls getDownloadURL(), which GETs
+// the object's METADATA first and reads `downloadTokens` out of it to build the byte URL. Both
+// requests go to firebasestorage.googleapis.com and both have `.epub` in the path, so the old
+// single matcher swallowed the metadata call as well and handed the SDK an EPUB where it
+// expected JSON. The two are told apart by `alt=media`, which only the byte fetch carries.
+const FIXTURE_EPUB = readFileSync(fileURLToPath(new URL('../fixtures/harness-book.epub', import.meta.url)));
+
+const STORAGE_HOST = 'firebasestorage.googleapis.com';
+const CORS = { 'Access-Control-Allow-Origin': '*' };
+const HARNESS_TOKEN = 'harness-download-token';
+
+const isEpubBytes = (url) =>
+  url.hostname === STORAGE_HOST && /\.epub/i.test(url.pathname) && url.searchParams.get('alt') === 'media';
+const isEpubMetadata = (url) =>
+  url.hostname === STORAGE_HOST && /\.epub/i.test(url.pathname) && url.searchParams.get('alt') !== 'media';
+
+/** The metadata getDownloadURL() reads. `downloadTokens` is what it turns into ?token=. */
+const metadataBody = (url) => JSON.stringify({
+  name: decodeURIComponent(url.pathname.split('/o/')[1] || 'sample.epub'),
+  bucket: url.pathname.split('/b/')[1]?.split('/')[0] || 'calvary-scribblings.firebasestorage.app',
+  contentType: 'application/epub+zip',
+  downloadTokens: HARNESS_TOKEN,
+});
 
 async function stubEpub(page) {
-  await page.route(
-    (url) => url.hostname === 'firebasestorage.googleapis.com' && /\.epub/i.test(url.pathname),
-    (route) => route.fulfill({
-      status: 200,
-      headers: { 'Content-Type': 'application/epub+zip', 'Access-Control-Allow-Origin': '*' },
-      body: FIXTURE,
-    }),
-  );
+  await page.route(isEpubMetadata, (route) => route.fulfill({
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...CORS },
+    body: metadataBody(new URL(route.request().url())),
+  }));
+  await page.route(isEpubBytes, (route) => route.fulfill({
+    status: 200,
+    headers: { 'Content-Type': 'application/epub+zip', ...CORS },
+    body: FIXTURE_EPUB,
+  }));
 }
 
-const SLUG = 'beta-princess';
+const SLUG = FIXTURE.slug;
+const READER_PATH = FIXTURE.path;
+
 const VIEWPORT = { width: 400, height: 800 };
 
 // The frame is inset by the ribbon lane (--rr-lane: 30px), so the reader's own viewport is
@@ -74,16 +119,22 @@ const RETIRE_BUDGET = 8000;
 
 // OPEN THE BOOK — and not by clicking the middle of the cover.
 //
-// The splash is a full-screen div whose onClick is the only way past it, but it CONTAINS
-// `<div className="rr-cabout" onClick={e => e.stopPropagation()}>` — the About-the-Author
-// block, deliberately swallowing taps so a reader can expand a bio without accidentally
-// opening the book (page-reader.js:554). Playwright's .click() aims at the centre of the
-// target's box, and the centre of a full-screen flex-column cover is wherever the content
-// happens to land. Locally that missed the bio; on a CI runner, where the display webfonts
-// are absent and every block is a different height, it landed square on it — the click was
-// swallowed, the cover never lifted, and all six specs failed 30 s later complaining about
-// the iframe. Diagnosed off the CI trace, which shows "Open to begin reading" still on
+// The splash is a full-screen div whose onClick is the only way past it. On the STORY register
+// it CONTAINS `<div className="rr-cabout" onClick={e => e.stopPropagation()}>` — the
+// About-the-Author block, deliberately swallowing taps so a reader can expand a bio without
+// accidentally opening the book (page-reader.js:554). Playwright's .click() aims at the centre
+// of the target's box, and the centre of a full-screen flex-column cover is wherever the
+// content happens to land. Locally that missed the bio; on a CI runner, where the display
+// webfonts are absent and every block is a different height, it landed square on it — the
+// click was swallowed, the cover never lifted, and all six specs failed 30 s later complaining
+// about the iframe. Diagnosed off the CI trace, which shows "Open to begin reading" still on
 // screen at failure time.
+//
+// R19.6 — the BOOK register's splash (book-reader.js:237) has no such swallowing child: it is
+// an ornament, a cover plate, a title, a byline and a CTA, none of which stop propagation. So
+// under a tier-2 fixture the corner click is belt and braces rather than the fix it was. It
+// stays exactly as it is regardless of register, because the day tier 1 comes back the hazard
+// comes back with it, and a click helper that is only correct for one register is a trap.
 //
 // So: click a fixed offset in the cover's top-left corner, which is the cover itself under
 // any layout (.rr-cover::before is pointer-events:none), and then PROVE the cover lifted.
@@ -98,7 +149,7 @@ async function dismissCover(page) {
 /** Open the reader, dismiss the splash, and wait until the book has actually painted. */
 async function openStory(page) {
   await stubEpub(page);
-  await page.goto(`/reader/${SLUG}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(READER_PATH, { waitUntil: 'domcontentloaded' });
 
   // The gate resolves the slug against bookstore_titles and cms_stories. If this times out
   // the story did not resolve — data or network, not chrome.
@@ -264,23 +315,108 @@ test('Contents marks the chapter the reader is actually in', async ({ page }) =>
   console.log(`\n=== Contents current chapter ===\nbefore: ${JSON.stringify(currentBefore)}\nafter:  "${CHAPTER_3}"\n`);
 });
 
+// ── THE SPLASH AND THE WAY OUT ───────────────────────────────────────────────
+//
+// ⚠ REGISTER-SPECIFIC. Which of the two bodies below runs is decided by the fixture's tier —
+// see tests/reader/fixture-story.mjs. Only one of them is live on any given run, and today
+// that is the BOOK one, because tier 1 has no subject.
+//
+// WHAT THIS USED TO COVER, AND WHY IT MOVED. Until R19.6 the splash was only ever exercised
+// through dismissCover(), against the STORY register's cover — its About-the-Author block, its
+// "Open to begin reading" CTA, its /public-library door. That register has no published
+// readerMode story left to drive, so the assertion is made against the BOOK register's splash
+// instead: the sample CTA and the /bookstore/{slug} door. It is a BOOK-REGISTER TEST NOW. It
+// is not the story-register test with a different fixture, and nobody should read it as one.
+test(`the cover splash names the book and carries the way out (${FIXTURE.register} register)`, async ({ page }) => {
+  await stubEpub(page);
+  await page.goto(READER_PATH, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.rr-cover', { timeout: 45000 });
+
+  const splash = page.locator('.rr-cover');
+  if (FIXTURE.register === 'book') {
+    // book-reader.js:237. A sample says so on the cover — the reader must know before the
+    // first page which of the two things they are holding.
+    await expect(page.locator('.rr-ctitle'), 'the splash must name the book').not.toBeEmpty();
+    await expect(page.locator('.rr-cauthor')).toContainText('by ');
+    await expect(page.locator('.rr-ccta'), 'a sample must say it is a sample on the cover')
+      .toHaveText('Open the sample');
+  } else {
+    await expect(page.locator('.rr-ctitle, .rr-cover'), 'the splash must name the story').not.toBeEmpty();
+  }
+
+  await dismissCover(page);
+
+  // THE DOOR. The top bar's back control is the register's own escape hatch, and it is the
+  // one control a reader who wants out will look for. Both registers supply one; they point
+  // at different places, and the fixture knows which.
+  await expect(page.locator(`.rr-back[href="${FIXTURE.escapeHref}"]`),
+    `the ${FIXTURE.register} register must offer its own way out (${FIXTURE.escapeHref})`)
+    .toHaveCount(1);
+
+  console.log(`\n=== splash (${FIXTURE.register}) ===\n${(await splash.count()) === 0 ? 'lifted' : 'still up'} · back → ${FIXTURE.escapeHref}\n`);
+});
+
 // ── R7.3 §B — the forever-spinner, closed across the React boundary ──────────
+//
 // load-fence.spec.mjs proves the HOST turns a book that will not arrive into a reported
 // fact. This proves the other half: that the register above renders a reader-facing state
 // off that report instead of leaving the room dressed for reading with nothing in it.
-// Before R7.3 the story register never passed onError at all, so the message arrived
-// nowhere and the spinner ran until the reader gave up.
 //
-// A 404 rather than a hang: the fence is the host's business and is already measured
-// against real silence next door. Here the only question is what the READER sees, and 404
-// is the cheapest dead URL that asks it.
-test('a book that will not open shows the failure state, with a way out', async ({ page }) => {
-  await page.route(
-    (url) => url.hostname === 'firebasestorage.googleapis.com' && /\.epub/i.test(url.pathname),
-    (route) => route.fulfill({ status: 404, headers: { 'Access-Control-Allow-Origin': '*' }, body: 'gone' }),
-  );
+// ⚠ REGISTER-SPECIFIC, AND THE TWO REGISTERS DO NOT HAVE THE SAME STATE.
+//
+// WHAT THIS USED TO COVER. Against the STORY register it asserted R7.3 §B directly: a dead
+// EPUB URL ends in `.rr-fail`, the kicker reads "The Reading Room", the note says the book
+// "would not open", the `/stories/{slug}` door is there, and `.rr-booting` is gone. Before
+// R7.3 the story register never passed onError at all, so the message arrived nowhere and the
+// spinner ran until the reader gave up.
+//
+// WHY IT MOVED. The story register has no published readerMode story left to drive (see
+// fixture-story.mjs), so under a tier-2 fixture the subject is a bookstore sample and the
+// assertion is made against the BOOK register's failure surface instead: book-reader.js's own
+// `loadError` shell, reached when the sample's download URL cannot be resolved. THAT IS A
+// DIFFERENT MECHANISM, not the same one with a different fixture, and it is worth being exact
+// about the gap it leaves:
+//
+//   ⚠ `.rr-fail` IS CURRENTLY UNEXERCISED. R7.3 §B's overlay only renders when a register
+//     supplies `renderFailure`, and ONLY page-reader.js does. Sample mode passes neither
+//     `renderFailure` nor `onError` (book-reader.js:279-296), so a book sample whose bytes
+//     404 AFTER the URL resolves has no reader-facing failure state at all — the room stays
+//     dressed and the spinner runs. That is a real hole in the book register, it is not what
+//     this spec asserts, and it will not be closed by anything in this file. Recorded here so
+//     the next reader does not mistake a green run for coverage of it.
+//
+// A 404 rather than a hang: the fence is the host's business and is already measured against
+// real silence next door. Here the only question is what the READER sees, and 404 is the
+// cheapest dead URL that asks it.
+test(`a book that will not open shows a failure state with a way out (${FIXTURE.register} register)`, async ({ page }) => {
+  if (FIXTURE.register === 'book') {
+    // Kill the METADATA call, not the bytes: that is the request getDownloadURL() makes, and
+    // its rejection is what book-reader.js turns into `loadError`. Killing the bytes instead
+    // would land in the hole named above and assert nothing.
+    await page.route(isEpubMetadata, (route) => route.fulfill({
+      status: 404, headers: { 'Content-Type': 'application/json', ...CORS }, body: '{"error":{"code":404}}',
+    }));
 
-  await page.goto(`/reader/${SLUG}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(READER_PATH, { waitUntil: 'domcontentloaded' });
+
+    const out = page.locator(`.br-center a[href="/bookstore/${SLUG}"]`);
+    await expect(out, 'a sample that cannot be resolved must route the reader back to the store')
+      .toHaveCount(1, { timeout: 30000 });
+    await expect(page.locator('.br-center')).toContainText('load this sample');
+    // And it must be a STATE, not a spinner that happens to have text next to it.
+    await expect(page.locator('.br-spin'), 'the spinner must be gone').toHaveCount(0);
+
+    console.log(`\n=== failure state (book) ===\n${(await page.locator('.br-center').innerText()).replace(/\n+/g, ' / ')}\n`);
+    return;
+  }
+
+  await page.route(isEpubBytes, (route) => route.fulfill({ status: 404, headers: CORS, body: 'gone' }));
+  await page.route(isEpubMetadata, (route) => route.fulfill({
+    status: 200, headers: { 'Content-Type': 'application/json', ...CORS },
+    body: metadataBody(new URL(route.request().url())),
+  }));
+
+  await page.goto(READER_PATH, { waitUntil: 'domcontentloaded' });
   await dismissCover(page);                    // the frame only mounts once the cover is dismissed
 
   const fail = page.locator('.rr-fail');
@@ -299,7 +435,7 @@ test('a book that will not open shows the failure state, with a way out', async 
   // And the spinner must be gone — the defect was never "no error", it was "spins forever".
   await expect(page.locator('.rr-booting')).toHaveCount(0);
 
-  console.log(`\n=== failure state ===\n${(await fail.innerText()).replace(/\n+/g, ' / ')}\n`);
+  console.log(`\n=== failure state (story) ===\n${(await fail.innerText()).replace(/\n+/g, ' / ')}\n`);
 });
 
 // ── R7.4 — THE DICTIONARY, across the React boundary ─────────────────────────

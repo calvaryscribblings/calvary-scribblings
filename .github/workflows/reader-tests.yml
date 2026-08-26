@@ -14,9 +14,13 @@
 #
 #   APP   tests/reader/playwright.app.config.mjs — the real /reader/{slug} route out of
 #         out/, so ReadingRoom.js, the gate and the postMessage bridge are production ones.
-#         It reads a published story from LIVE cms_stories: the one external dependency in
-#         this workflow, and a deliberate one, because a gate that cannot resolve a slug is
-#         exactly the failure worth hearing about.
+#         Its subject is RESOLVED from the live catalogue at suite start, not written down —
+#         tier 1 a published readerMode cms_story, tier 2 a published bookstore title's
+#         sample — and the tier that fired is printed in the run output. That live read is the
+#         one external dependency in this workflow, and a deliberate one, because a gate that
+#         cannot resolve a slug is exactly the failure worth hearing about. It replaces a
+#         hardcoded `beta-princess`, which the Series migration retired in R12 and which then
+#         failed every run for eleven rounds. See tests/reader/fixture-story.mjs.
 #
 # RETRIES ARE 0 HERE, and 1 locally. That asymmetry is the whole point of moving off the
 # codespace: `retries: 1` exists in the local config to absorb "Target crashed", which is a
@@ -145,11 +149,35 @@ jobs:
       - name: Payment rail specs (Stripe + Paystack)
         run: npm run test:purchases
 
+      # ── R19.6 — EVERY SUITE REPORTS ITS OWN RESULT ────────────────────────────────────────
+      #
+      # THE FAILURE THIS CLOSES. Steps in a job are sequential AND conditional by default: the
+      # first non-zero exit skips every step after it. So when the app harness began failing on
+      # a retired fixture slug in R12, the run did not report "the app suite is broken" — it
+      # reported nothing at all about the gate, currency, territory, deck-parity, membership-copy
+      # or /links suites, because none of them ran. Six suites went dark behind one, for eleven
+      # rounds, and the summary looked identical to a run in which they had all passed and one
+      # had not. That is worse than a red suite: it is a red suite wearing five silences.
+      #
+      # `if: always()` on every suite from here down means each one runs and reports whatever it
+      # finds, whatever the step before it did. The job still goes red on any failure — nothing
+      # is being tolerated, only made visible.
+      #
+      # ⚠ THE TRADE, STATED. always() ALSO runs when the workflow is cancelled, and this workflow
+      # sets cancel-in-progress (see the concurrency block above), so a superseded run now
+      # carries on through its remaining suites instead of stopping. `if: ${{ !cancelled() }}`
+      # would buy back that half while keeping the whole point of this change; it is one word,
+      # and it is the first thing to reach for if runner minutes ever start to matter here.
+      #
+      # SETUP STEPS ARE DELIBERATELY NOT GUARDED. npm ci, the Chromium install and the fixture
+      # build are inputs, not answers: if one of them fails there is nothing to report, only
+      # eleven identical infrastructure errors to read.
       # R9.3 — the drop-cap tagger. Needs no server and no EPUB (every case is a string of
       # prose HTML in page.setContent), so it costs seconds and runs before the geometry
       # suites: "which paragraph gets the cap" should not wait on a build to be answered.
       - name: Drop-cap targeting
         run: npx playwright test -c tests/dropcap/playwright.config.mjs
+        if: always()
 
       # R9.5 — the verification resend goes to the branded sender. Same shape as above: no
       # server, no build, the endpoint is intercepted. It asserts the REQUEST (URL, bearer
@@ -158,28 +186,34 @@ jobs:
       # failing.
       - name: Verification resend
         run: npx playwright test -c tests/verify-email/playwright.config.mjs
+        if: always()
 
       - name: Host harness (reading-room.html)
         run: npx playwright test -c tests/reader/playwright.config.mjs
+        if: always()
 
       # §H's build gate, and the app suite's input in one step: out/ IS the artifact
       # Cloudflare Pages serves, and it is what the app config drives.
       - name: Build the static export
         run: npx next build
+        if: always()
 
       - name: App harness (the React boundary)
         run: npx playwright test -c tests/reader/playwright.app.config.mjs
+        if: always()
 
       # R8.1 — the pre-launch gate, against the same out/ the step above built. Its own port
       # (4323), so it neither waits for nor collides with the reader suite's server.
       - name: Gate harness (the pre-launch curtain)
         run: npx playwright test -c tests/bookstore/playwright.gate.config.mjs
+        if: always()
 
       # R8.3. Separate step rather than folded into the gate config: the two suites drive
       # different surfaces on different ports, and a currency failure should not read as a
       # gate failure in the run summary.
       - name: Currency harness (selection, marks and rails)
         run: npx playwright test -c tests/bookstore/playwright.currency.config.mjs
+        if: always()
 
       # R8.4. Its own port (4325) and its own step, for the same reason as the currency suite:
       # a territory failure should read as a territory failure in the run summary, not as a
@@ -187,6 +221,7 @@ jobs:
       # surface in the other — which is exactly why both names need to be visible.
       - name: Territory harness (rights, marks and the disabled button)
         run: npx playwright test -c tests/bookstore/playwright.territory.config.mjs
+        if: always()
 
       # ── R11.17 — MEMBERSHIP AND /links ────────────────────────────────────────────────────
       #
@@ -196,20 +231,37 @@ jobs:
       # which is deliberate — one chain, two places to run it, no divergence in what runs first.
       - name: Deck parity (the copy deck vs the shipped page)
         run: node --test tests/membership/deck-parity.test.mjs
+        if: always()
 
       # Its own port (4327). It claimed 4325 until R11.17 and the territory suite above has held
       # 4325 since R8.4 — a clash that could not bite while these suites never shared a job, and
       # this step is what would have made it bite. See the header of the copy config.
       - name: Membership copy matrix (3 currencies × 2 intervals × 3 cards)
         run: npx playwright test -c tests/membership/playwright.copy.config.mjs
+        if: always()
 
       # MEMBERSHIP_STATE=pre, matching MEMBERSHIP_LAUNCHED=false in the build above. The flag is
       # a build-time constant, so the post-launch wording cannot be exercised in the same run —
       # on launch day the flag and this line move together, in one change.
       - name: /links harness (membership entry, readers' group)
         run: npx playwright test -c tests/membership/playwright.links.config.mjs
+        if: always()
         env:
           MEMBERSHIP_STATE: pre
+
+      # R19.6 — THE DEPLOY HOOK, PROVEN ABSENT FROM WHAT WE SERVE.
+      #
+      # It runs HERE, after the build, and not in the hygiene job with the rest of test:ci,
+      # because the half of this suite that matters scans out/ — the sources can be perfectly
+      # clean and a bundler can still emit the value. Without a built out/ the suite says so
+      # loudly and asserts only the source half; this step is what makes it assert both.
+      #
+      # ⚠ It is currently a RATCHET, not a clean pass: two live deploy-hook URLs were already
+      # hardcoded in client components when it was written, and are already in the deployed
+      # bundle. Read the header of tests/ci/deploy-hook-secrecy.test.mjs before touching it.
+      - name: Deploy hook secrecy (sources + the built export)
+        run: node --test tests/ci/deploy-hook-secrecy.test.mjs
+        if: always()
 
       - name: Upload traces and reports
         if: failure()
