@@ -48,11 +48,27 @@ const GATE_STORAGE_KEY = stringConst('GATE_STORAGE_KEY');
 const GATE_ENABLED = boolConst('GATE_ENABLED');
 
 // A published slug, so the detail route has something real behind the curtain.
-// R20 — STILL A LITERAL, AND ONLY FOR THE TWO GATED CASES. Behind the curtain there is no
-// shelf to read a slug from, and those cases only assert that the curtain is down — which it is
-// for any /bookstore/* route, whether that title exists or not. Every case that opens the
-// detail page INSIDE the shop uses gotoDetail below. See tests/bookstore/live-slug.mjs.
-const DETAIL_SLUG = 'basil';
+// R20 — THE GATED CASES READ THEIR SLUG FROM THE BUILT EXPORT, not from the shop and not from
+// a literal.
+//
+// Behind the curtain there is no shelf to read a slug from, so liveDetailSlug() cannot help
+// here. The first attempt at this kept the literal 'basil' and argued that the curtain is down
+// for any /bookstore/* route whether the title exists or not. THAT WAS WRONG, and CI caught it:
+// a curator had unpublished that title, so generateStaticParams stopped emitting the route, the
+// static export 404s at the file level, and the site's 404 page is not wrapped by LaunchGate —
+// no gate, no curtain, failed assertion. It passed locally only because the local out/ still
+// held a page built while the title was published.
+//
+// out/bookstore/*.html IS the set of detail routes that exist in the thing being served, which
+// is exactly the question a route-gating case is asking. Reading it here means the case cannot
+// drift from the build again.
+const EXPORT_DETAIL_SLUGS = readdirSync(join(ROOT, 'out/bookstore'))
+  .filter((f) => f.endsWith('.html'))
+  .map((f) => f.replace(/\.html$/, ''));
+if (!EXPORT_DETAIL_SLUGS.length) {
+  throw new Error('out/bookstore holds no detail pages — build the export before running this suite.');
+}
+const DETAIL_SLUG = EXPORT_DETAIL_SLUGS[0];
 
 // The storefront's own DOM, by class rather than by text: the gate says "The Book Store" too,
 // and a text selector would pass while the curtain was still down.
