@@ -1596,7 +1596,14 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
       <div style={s.section}>
         <div style={s.sectionTitle}>Status</div>
         <div style={s.radioGroup}>
-          {TITLE_STATUSES.map((st) => (
+          {/* R21 — 'withdrawn' IS IN THE ENUM AND DELIBERATELY NOT IN THIS LIST. Withdrawal is
+              an ACT: it records who made it and when, it may carry a licence-end date, and it
+              owes a deploy. A radio button knows none of that, so updateTitle refuses a status
+              typed into the form (in both directions) and the row's Withdraw / Restore buttons
+              are the only doors. Offering an option that always errors would be worse than not
+              offering it. The FILTER dropdown above still lists it — filtering by a status is
+              not setting one. */}
+          {TITLE_STATUSES.filter((st) => st !== WITHDRAWN).map((st) => (
             <label key={st} style={s.radioOption}>
               <input type="radio" name="status" checked={form.status === st} onChange={() => setForm((f) => ({ ...f, status: st }))} />
               <span style={{ textTransform: 'capitalize' }}>{st}</span>
@@ -1605,6 +1612,7 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
         </div>
         <div style={{ ...s.hint, marginTop: '0.5rem' }}>
           'Published' is gated on a cover + EPUB being uploaded. Save as 'draft' to keep working without those.
+          {form.status === WITHDRAWN && ' This title is withdrawn — use Restore on the list to put it back on the shelf.'}
         </div>
       </div>
 
