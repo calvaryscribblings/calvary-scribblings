@@ -21,6 +21,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { liveDetailSlug } from './live-slug.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const BOOK_SRC = readFileSync(join(ROOT, 'app/bookstore/components/BoundBook.js'), 'utf8');
@@ -42,15 +43,24 @@ const REBASE = record('CONTACT_SHADOW_REBASE');
 const REMOVED = record('BOTTOM_PAGE_BLOCK_REMOVED');
 const FORE_EDGE = record('FORE_EDGE');
 
+// R20 — `path` may be the string 'detail', which resolves a slug from the shop rather than
+// naming one. This file used to open '/bookstore/basil'; a curator unpublished that title
+// mid-round and these cases began driving the site's 404. See tests/bookstore/live-slug.mjs.
 async function enterShop(page, path = '/bookstore') {
   await page.addInitScript((k) => {
     try { localStorage.setItem('cs_cookie_consent', 'accepted'); localStorage.setItem(k, '1'); } catch { /* private mode */ }
   }, GATE_STORAGE_KEY);
   await page.route('**/api/bookstore/region', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ country: 'GB' }) }));
-  await page.goto(path);
+  let target = path;
+  if (path === 'detail') {
+    await page.goto('/bookstore');
+    await expect(page.locator('.entry-title').first()).toBeVisible({ timeout: 30000 });
+    target = `/bookstore/${await liveDetailSlug(page)}`;
+  }
+  await page.goto(target);
   // NOT `.shelf-entry` — the loading skeleton wears that class. See placement.spec.mjs.
-  await expect(page.locator(path === '/bookstore' ? '.entry-title' : '.bb-front').first()).toBeVisible({ timeout: 30000 });
+  await expect(page.locator(target === '/bookstore' ? '.entry-title' : '.bb-front').first()).toBeVisible({ timeout: 30000 });
   await page.addStyleTag({ content: '*{animation:none!important;transition:none!important}' });
 }
 
@@ -158,7 +168,7 @@ test.describe('the book has no feet', () => {
   });
 
   test('the detail page’s book lost them too', async ({ page }) => {
-    await enterShop(page, '/bookstore/basil');
+    await enterShop(page, 'detail');
     await expect(page.locator('.bd-cover-wrap .bb-foreedge-b')).toHaveCount(0);
     await expect(page.locator('.bd-cover-wrap .bb-foreedge')).toHaveCount(1);
   });
@@ -341,7 +351,7 @@ test.describe('the ticket, and the copy it must not swallow', () => {
   test('⛔ THE DETAIL PAGE PRINTS THE WHOLE NOTE, unclamped', async ({ page }) => {
     // The shelf may clamp only because this is true. If it stops being true, the curator's
     // sentence exists nowhere in full and nothing else would notice.
-    await enterShop(page, '/bookstore/basil');
+    await enterShop(page, 'detail');
     const card = page.locator('.bd-shelfcard');
     test.skip(await card.count() === 0, 'this title carries no shelf card');
     const s = await card.evaluate((e) => ({

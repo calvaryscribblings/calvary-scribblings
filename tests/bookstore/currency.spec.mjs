@@ -27,6 +27,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { liveDetailSlug } from './live-slug.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const GATE_SRC = readFileSync(join(ROOT, 'app/lib/bookstore/gate.js'), 'utf8');
@@ -42,7 +43,7 @@ const GATE_STORAGE_KEY = stringConst('GATE_STORAGE_KEY');
 const CURRENCY_KEY = 'cs_bookstore_currency';
 const SYMBOL = { gbp: '£', ngn: '₦', usd: '$' };
 
-const DETAIL_SLUG = 'basil';
+// DETAIL_SLUG is gone — see gotoDetail below.
 
 // Past the curtain, past the cookie banner, and with no region opinion. Everything this suite
 // asserts is about currency; nothing about it should depend on the gate or on geography.
@@ -105,6 +106,21 @@ function assertShownAndMarked(rows, selected) {
       expect(row.note).toBe(`in ${names[shown]} only`);
     }
   }
+}
+
+
+// R20 — THE DETAIL SLUG IS RESOLVED FROM THE SHOP, NOT NAMED.
+//
+// This file used to open `/bookstore/basil`. Mid-way through R20 a curator set that title to
+// `status: unpublished` — an ordinary thing to do to a shop — and every case here began
+// rendering the site's 404 and failing on a selector, with nothing wrong in the code under
+// test. See tests/bookstore/live-slug.mjs.
+async function gotoDetail(page) {
+  await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
+  await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
+  const slug = await liveDetailSlug(page);
+  await page.goto(`/bookstore/${slug}`);
+  return slug;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -298,7 +314,7 @@ test.describe('persistence and region', () => {
 test.describe('the buy button names the charged sum', () => {
   test('the detail page button and its sentence agree about the currency', async ({ page }) => {
     await enterShop(page, { currency: 'ngn' });
-    await page.goto(`/bookstore/${DETAIL_SLUG}`);
+    await gotoDetail(page);
 
     const buy = page.locator('.bd-buy');
     await expect(buy).toBeVisible({ timeout: 30000 });
@@ -334,14 +350,14 @@ test.describe('the buy button names the charged sum', () => {
 
   test('the sentence sits BENEATH the button, not above the price', async ({ page }) => {
     await enterShop(page, { currency: 'ngn' });
-    await page.goto(`/bookstore/${DETAIL_SLUG}`);
+    const slug = await gotoDetail(page);
     await expect(page.locator('.bd-buy')).toBeVisible({ timeout: 30000 });
 
     // Same situation as the shelf mark above: skips only while the catalogue prices this
     // title in every currency, and begins running the day it does not.
     const sentence = page.getByTestId('price-fallback-sentence');
     if (await sentence.count() === 0) {
-      test.skip(true, `${DETAIL_SLUG} is priced in naira — there is no fallback sentence to place`);
+      test.skip(true, `${slug} is priced in naira — there is no fallback sentence to place`);
     }
 
     const buyBox = await page.locator('.bd-buy').boundingBox();

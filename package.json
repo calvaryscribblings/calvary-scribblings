@@ -26,6 +26,8 @@
     "test:masthead": "next build && playwright test -c tests/bookstore/playwright.masthead.config.mjs",
     "test:flip": "next build && playwright test -c tests/bookstore/playwright.flip.config.mjs",
     "test:pair": "next build && playwright test -c tests/bookstore/playwright.pair.config.mjs",
+    "test:payload": "next build && playwright test -c tests/bookstore/playwright.payload.config.mjs",
+    "covers:backfill": "node scripts/backfill-bookstore-cover-derivatives.mjs",
     "test:newsletter": "node --test \"tests/newsletter/*.test.mjs\"",
     "test:purchases": "node --test \"tests/bookstore/*.test.mjs\"",
     "test:membership": "node --test \"tests/membership/*.test.mjs\"",

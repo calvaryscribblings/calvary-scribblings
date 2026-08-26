@@ -32,6 +32,8 @@ const BUY_ASIDE_STYLE = {
 };
 import LaunchGate from '../components/LaunchGate';
 import { isStoreUnlocked } from '../../lib/bookstore/gate';
+// R20 — the grain, its ruling and its one definition. See the header of that file.
+import { GRAIN_CSS, GRAIN_CLASS } from '../components/grain';
 
 // R13 — WHAT WAS HERE. A twelve-row GENRE_LABELS map whose comment read "kept local (the
 // storefront's map isn't exported)", byte-identical to the storefront's and separately
@@ -192,11 +194,8 @@ export default function BookDetailClient({ params }) {
           ${AUTHOR_BLOCK_CSS}
           @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.7}}
-          @keyframes grainShift{0%{transform:translate(0,0)}10%{transform:translate(-3%,-2%)}20%{transform:translate(-8%,4%)}30%{transform:translate(3%,-8%)}40%{transform:translate(-2%,9%)}50%{transform:translate(-8%,3%)}60%{transform:translate(4%,-2%)}70%{transform:translate(-4%,6%)}80%{transform:translate(6%,3%)}90%{transform:translate(-2%,-4%)}}
           .bd-skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
-          .bookstore-grain{position:fixed;inset:-50%;z-index:1;pointer-events:none;opacity:.05;
-            background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0,rgba(0,0,0,.6) 1px,transparent 1px,transparent 2px),repeating-linear-gradient(90deg,rgba(255,255,255,.5) 0,rgba(0,0,0,.5) 1px,transparent 1px,transparent 3px);
-            animation:grainShift 8s steps(10) infinite}
+          ${GRAIN_CSS}
           .bd-synopsis{font-size:1.02rem;line-height:1.8;color:rgba(240,234,216,.72)}
           .bd-synopsis::first-letter{float:left;font-family:'Cinzel',serif;font-size:3.4rem;line-height:.82;font-weight:600;color:#c9a44c;padding:.1rem .6rem .1rem 0;margin-top:.1rem}
           .bd-shelfcard{margin-top:1.6rem;background:#ece4cf;color:#2a2318;padding:1rem 1.2rem;border-radius:1px;box-shadow:0 8px 22px rgba(0,0,0,.4);font-size:.9rem;line-height:1.6;font-style:italic;max-width:440px}
@@ -283,9 +282,15 @@ export default function BookDetailClient({ params }) {
           @media(max-width:720px){.bd-header{grid-template-columns:1fr !important;justify-items:center;text-align:center}.bd-header .bd-cover-wrap{margin-bottom:1rem}.bd-synopsis::first-letter{float:none;font-size:inherit;color:inherit;padding:0;margin:0}.bd-actions{justify-content:center;gap:.6rem}.bd-cta{padding-inline:clamp(.6rem,3.2vw,2.2rem)}.bd-cta-slot{align-items:center}.bd-actions-notes{align-items:center;text-align:center}.bd-shelfcard{margin-left:auto;margin-right:auto}}
         `}</style>
 
-        <div className="bookstore-grain" aria-hidden="true" />
-
         <main style={{ background: '#070707', color: '#f0ead8', minHeight: '100vh', paddingTop: '68px', position: 'relative' }}>
+          {/* R20 — INSIDE <main>, AND THAT IS THE WHOLE OF THE UN-FIXING. It used to sit
+              here as a SIBLING, which was fine while it was position:fixed and would be
+              silently broken now: an absolutely positioned element with no positioned
+              ancestor resolves against the viewport-sized initial containing block, so the
+              grain would cover the first screenful and then stop. <main> is already
+              position:relative, so it is the containing block and the grain is as tall as the
+              document. See GRAIN_PARENT_RULE in ../components/grain.js. */}
+          <div className={GRAIN_CLASS} aria-hidden="true" />
           <div style={{ maxWidth: '920px', margin: '0 auto', padding: '3.5rem 2rem 4rem', position: 'relative', zIndex: 2 }}>
             {state === 'loading' && (
               <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '3.5rem' }}>

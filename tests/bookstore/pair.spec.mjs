@@ -42,6 +42,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { liveDetailSlug } from './live-slug.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const GATE_SRC = readFileSync(join(ROOT, 'app/lib/bookstore/gate.js'), 'utf8');
@@ -58,7 +59,11 @@ const GATE_STORAGE_KEY = stringConst(GATE_SRC, 'GATE_STORAGE_KEY', 'app/lib/book
 const UNAVAILABLE_LABEL = stringConst(TERRITORY_SRC, 'UNAVAILABLE_LABEL', 'app/lib/bookstore/territory.js');
 
 const CURRENCY_KEY = 'cs_bookstore_currency';
-const DETAIL_SLUG = 'basil';
+// R20 — THIS USED TO BE `const DETAIL_SLUG = 'basil'`, and it stopped being true mid-round when
+// a curator unpublished that title. Every case here then opened the site's 404 and failed on a
+// selector, with nothing wrong in the code under test. The slug is now read from a link the
+// storefront itself renders, so it is always a book the shop is currently showing.
+// See tests/bookstore/live-slug.mjs.
 
 // The ruling's own tolerance for the vertical centres. Heights are compared exactly, because
 // two boxes built from one declaration block have no reason to differ by a fraction.
@@ -106,11 +111,15 @@ async function enterShop(page, { currency = 'gbp', country = 'GB' } = {}) {
 async function openPair(page, { width, height }, opts = {}) {
   await page.setViewportSize({ width, height });
   await enterShop(page, opts);
-  await page.goto(`/bookstore/${DETAIL_SLUG}`);
+  // Via the shop, so the slug is one it is actually offering.
+  await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
+  await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
+  const slug = await liveDetailSlug(page);
+  await page.goto(`/bookstore/${slug}`);
   await expect(page.locator('.bd-buy')).toBeVisible({ timeout: 30000 });
   const sample = page.locator('.bd-sample');
   if (await sample.count() === 0) {
-    test.skip(true, `${DETAIL_SLUG} no longer carries a samplePath — this suite needs a title with both controls`);
+    test.skip(true, `${slug} no longer carries a samplePath — this suite needs a title with both controls`);
   }
   await expect(sample).toBeVisible({ timeout: 30000 });
   // Cinzel arriving late changes the line box and therefore the height of BOTH controls, and a
@@ -124,6 +133,7 @@ async function openPair(page, { width, height }, opts = {}) {
       i.addEventListener('error', res, { once: true });
     })),
   ));
+  return slug;
 }
 
 /**
@@ -324,9 +334,9 @@ test.describe('behaviour survived the restructure', () => {
   });
 
   test('the sample control still points at the sample reader', async ({ page }) => {
-    await openPair(page, VIEWPORTS[2]);
+    const slug = await openPair(page, VIEWPORTS[2]);
     const href = await page.locator('.bd-sample').getAttribute('href');
-    expect(href).toBe(`/reader/${DETAIL_SLUG}?sample=1`);
+    expect(href).toBe(`/reader/${slug}?sample=1`);
   });
 
   test('the qualifying sentences are still read after the button, in the block beneath', async ({ page }) => {

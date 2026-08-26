@@ -30,6 +30,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { liveDetailSlug } from './live-slug.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const GATE_SRC = readFileSync(join(ROOT, 'app/lib/bookstore/gate.js'), 'utf8');
@@ -48,7 +49,7 @@ const TERRITORY_SENTENCE = stringConst(TERRITORY_SRC, 'TERRITORY_SENTENCE', 'app
 const UNAVAILABLE_LABEL = stringConst(TERRITORY_SRC, 'UNAVAILABLE_LABEL', 'app/lib/bookstore/territory.js');
 
 const CURRENCY_KEY = 'cs_bookstore_currency';
-const DETAIL_SLUG = 'basil';
+// DETAIL_SLUG is gone — see gotoDetail below.
 
 /** Past the curtain and the cookie banner, with the edge's answer pinned. */
 async function enterShop(page, { currency = 'gbp', country = 'GB' } = {}) {
@@ -106,6 +107,21 @@ async function shelfEntries(page) {
         titleOpacity: getComputedStyle(titleEl).opacity,
       };
     }).filter(Boolean));
+}
+
+
+// R20 — THE DETAIL SLUG IS RESOLVED FROM THE SHOP, NOT NAMED.
+//
+// This file used to open `/bookstore/basil`. Mid-way through R20 a curator set that title to
+// `status: unpublished` — an ordinary thing to do to a shop — and every case here began
+// rendering the site's 404 and failing on a selector, with nothing wrong in the code under
+// test. See tests/bookstore/live-slug.mjs.
+async function gotoDetail(page) {
+  await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
+  await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
+  const slug = await liveDetailSlug(page);
+  await page.goto(`/bookstore/${slug}`);
+  return slug;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -185,7 +201,7 @@ test.describe('the shelf', () => {
 test.describe('the detail page', () => {
   test('the buy button and the sentence agree about whether the book can be bought', async ({ page }) => {
     await enterShop(page, { country: 'US' });
-    await page.goto(`/bookstore/${DETAIL_SLUG}`);
+    await gotoDetail(page);
 
     const buy = page.locator('.bd-buy');
     await expect(buy).toBeVisible({ timeout: 30000 });
@@ -220,11 +236,11 @@ test.describe('the detail page', () => {
     // The live case, asserted from four countries and both a matching and a fallback currency.
     for (const country of ['GB', 'NG', 'US', 'JP']) {
       await enterShop(page, { country, currency: 'usd' });
-      await page.goto(`/bookstore/${DETAIL_SLUG}`);
+      const slug = await gotoDetail(page);
       await expect(page.locator('.bd-buy')).toBeVisible({ timeout: 30000 });
 
       const restricted = await page.getByTestId('territory-sentence').count() > 0;
-      test.skip(restricted, `${DETAIL_SLUG} has acquired territory restrictions — this case now needs a worldwide slug`);
+      test.skip(restricted, `${slug} has acquired territory restrictions — this case now needs a worldwide slug`);
 
       await expect(page.locator('.bd-buy')).toBeEnabled();
       await expect(page.locator('.bd-buy')).not.toHaveAttribute('data-unavailable', /.*/);
@@ -245,7 +261,7 @@ test.describe('an undetermined country', () => {
 
     await expect(page.locator('[data-testid="territory-note"]')).toHaveCount(0);
 
-    await page.goto(`/bookstore/${DETAIL_SLUG}`);
+    await gotoDetail(page);
     await expect(page.locator('.bd-buy')).toBeVisible({ timeout: 30000 });
     await expect(page.getByTestId('territory-sentence')).toHaveCount(0);
     await expect(page.locator('.bd-buy')).toBeEnabled();

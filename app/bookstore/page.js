@@ -23,6 +23,8 @@ import { genreLabel as labelOf, genresPresentIn, titlesInGroup, groupLabel } fro
 import { resolveSections, bandsFor, applyBands, rebindSections, nextExpiryMs, planShopFlow, shelfRuns } from '../lib/bookstore/sections';
 import CuratedSection, { CURATED_SECTION_CSS } from './components/CuratedSection';
 import { SHOP_VERNACULAR_CSS } from './components/shopVernacular';
+// R20 — the grain, its ruling and its one definition. See the header of that file.
+import { GRAIN_CSS, GRAIN_CLASS } from './components/grain';
 
 // R13 — WHAT USED TO BE HERE, AND WHERE IT WENT.
 //
@@ -599,11 +601,8 @@ export default function BookStorePage() {
           @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.75}}
           @keyframes lampPulse{0%,100%{opacity:.5}50%{opacity:.9}}
-          @keyframes grainShift{0%{transform:translate(0,0)}10%{transform:translate(-3%,-2%)}20%{transform:translate(-8%,4%)}30%{transform:translate(3%,-8%)}40%{transform:translate(-2%,9%)}50%{transform:translate(-8%,3%)}60%{transform:translate(4%,-2%)}70%{transform:translate(-4%,6%)}80%{transform:translate(6%,3%)}90%{transform:translate(-2%,-4%)}}
           .skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
-          .bookstore-grain{position:fixed;inset:-50%;z-index:1;pointer-events:none;opacity:.05;
-            background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0,rgba(0,0,0,.6) 1px,transparent 1px,transparent 2px),repeating-linear-gradient(90deg,rgba(255,255,255,.5) 0,rgba(0,0,0,.5) 1px,transparent 1px,transparent 3px);
-            animation:grainShift 8s steps(10) infinite}
+          ${GRAIN_CSS}
 
           .hero{min-height:88vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;text-align:center;padding:2rem}
           .hero-lamp{position:absolute;inset:0;background:radial-gradient(ellipse 60% 44% at 50% 40%,rgba(201,164,76,.16) 0%,transparent 66%);animation:lampPulse 5.5s ease-in-out infinite}
@@ -694,9 +693,15 @@ export default function BookStorePage() {
           }
         `}</style>
 
-        <div className="bookstore-grain" aria-hidden="true" />
-
         <main style={{ background: '#070707', color: '#f0ead8', position: 'relative' }}>
+          {/* R20 — INSIDE <main>, AND THAT IS THE WHOLE OF THE UN-FIXING. It used to sit
+              here as a SIBLING, which was fine while it was position:fixed and would be
+              silently broken now: an absolutely positioned element with no positioned
+              ancestor resolves against the viewport-sized initial containing block, so the
+              grain would cover the first screenful and then stop. <main> is already
+              position:relative, so it is the containing block and the grain is as tall as the
+              document. See GRAIN_PARENT_RULE in ../components/grain.js. */}
+          <div className={GRAIN_CLASS} aria-hidden="true" />
           <Hero count={totalCount} currency={currency} onCurrency={chooseCurrency} chosen={currencyChosen} />
 
           {loading ? (

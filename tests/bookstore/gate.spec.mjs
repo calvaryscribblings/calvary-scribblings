@@ -26,6 +26,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
+import { liveDetailSlug } from './live-slug.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const GATE_MODULE = join(ROOT, 'app/lib/bookstore/gate.js');
@@ -47,6 +48,10 @@ const GATE_STORAGE_KEY = stringConst('GATE_STORAGE_KEY');
 const GATE_ENABLED = boolConst('GATE_ENABLED');
 
 // A published slug, so the detail route has something real behind the curtain.
+// R20 — STILL A LITERAL, AND ONLY FOR THE TWO GATED CASES. Behind the curtain there is no
+// shelf to read a slug from, and those cases only assert that the curtain is down — which it is
+// for any /bookstore/* route, whether that title exists or not. Every case that opens the
+// detail page INSIDE the shop uses gotoDetail below. See tests/bookstore/live-slug.mjs.
 const DETAIL_SLUG = 'basil';
 
 // The storefront's own DOM, by class rather than by text: the gate says "The Book Store" too,
@@ -70,6 +75,21 @@ async function expectNoShelfDom(page) {
   for (const sel of SHELF_DOM) {
     await expect(page.locator(sel), `${sel} must not exist while the gate is up`).toHaveCount(0);
   }
+}
+
+
+// R20 — THE DETAIL SLUG IS RESOLVED FROM THE SHOP, NOT NAMED.
+//
+// This file used to open `/bookstore/basil`. Mid-way through R20 a curator set that title to
+// `status: unpublished` — an ordinary thing to do to a shop — and every case here began
+// rendering the site's 404 and failing on a selector, with nothing wrong in the code under
+// test. See tests/bookstore/live-slug.mjs.
+async function gotoDetail(page) {
+  await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
+  await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
+  const slug = await liveDetailSlug(page);
+  await page.goto(`/bookstore/${slug}`);
+  return slug;
 }
 
 test.describe('the flag', () => {
@@ -480,7 +500,7 @@ test.describe('cover images are decorative', () => {
 
   test('the detail page names the book once in the heading, not twice', async ({ page }) => {
     await enterShop(page);
-    await page.goto(`/bookstore/${DETAIL_SLUG}`);
+    await gotoDetail(page);
 
     const cover = page.locator('.bd-cover-wrap .bb-front img');
     await expect(cover).toBeAttached({ timeout: 30000 });

@@ -80,7 +80,19 @@ async function encodeBest(canvas) {
 // Returns { w360, w720 } download URLs (partial or {} on failure). Never throws:
 // a cover that uploads without derivatives simply falls back to the original in
 // srcset — heavier, but a failed derivative must never block publishing.
-export async function buildCoverDerivatives(storage, file, slug, onProgress) {
+// R20 — `opts` was added so the BOOKSTORE could reuse this encoder instead of becoming a
+// third copy of it. The voices copy carries a note saying it exists "so the working voices
+// path is never touched"; that argument justifies two copies, not three, and a third would be
+// the same repeated-halving downscale and the same WebP/JPEG fallback maintained in yet
+// another place.
+//
+// BOTH OPTIONS DEFAULT TO EXACTLY WHAT THIS FUNCTION ALREADY DID, so the stories CMS calls it
+// unchanged and lands on the same `covers/{slug}/w{width}.webp` objects it always has. The
+// bookstore passes its own because storage.rules matches `bookstore_covers/{titleId}` on a
+// SINGLE path segment — a nested derivative there matches no rule and is denied both ways.
+export async function buildCoverDerivatives(storage, file, slug, onProgress, opts = {}) {
+  const widths = opts.widths || COVER_DERIVATIVE_WIDTHS;
+  const pathFor = opts.pathFor || ((w, ext) => `covers/${slug}/${coverSizeKey(w)}.${ext}`);
   const out = {};
   let handle;
   try {
@@ -91,12 +103,12 @@ export async function buildCoverDerivatives(storage, file, slug, onProgress) {
   }
   try {
     const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-    for (const w of COVER_DERIVATIVE_WIDTHS) {
+    for (const w of widths) {
       try {
         if (onProgress) onProgress(w);
         const encoded = await encodeBest(drawScaled(handle.bitmap, w));
         if (!encoded) { console.warn(`cover derivatives: no WebP/JPEG encoder for ${w}w`); continue; }
-        const dRef = ref(storage, `covers/${slug}/${coverSizeKey(w)}.${encoded.ext}`);
+        const dRef = ref(storage, pathFor(w, encoded.ext));
         await uploadBytes(dRef, encoded.blob, { contentType: encoded.type, cacheControl: COVER_CACHE_CONTROL });
         out[coverSizeKey(w)] = await getDownloadURL(dRef);
       } catch (e) {

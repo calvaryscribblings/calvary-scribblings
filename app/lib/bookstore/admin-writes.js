@@ -32,6 +32,8 @@ import {
   authorPhotoPathFor,
   MAX_AUTHOR_PHOTO_BYTES,
 } from './author';
+// R20 — the cover rungs: the widths, the key shape and the flat Storage path. See covers.js.
+import { COVER_DERIVATIVE_WIDTHS, coverSizeKey, coverDerivativePath } from './covers';
 import {
   validateSection,
   PLACEMENTS,
@@ -344,6 +346,12 @@ export async function createTitle(input) {
     // samplePath is optional and lives OUTSIDE schema.js's TITLE_SCHEMA (schema.js is locked).
     // validateTitle ignores it, so we type-check it inline below. null when no sample is uploaded.
     samplePath: typeof input.samplePath === 'string' && input.samplePath.trim() ? input.samplePath.trim() : null,
+    // R20 — the cover's sized rungs: { w360, w720 } of Storage download URLs. Schema-external,
+    // exactly like samplePath and the R18 author block, so schema.js stays locked and the
+    // loader spreads it through untouched. An EMPTY MAP NORMALISES TO NULL rather than {} so a
+    // caller can test `title.coverSizes` without also testing Object.keys().length — the same
+    // shape decision the glossary already made in loader.js.
+    coverSizes: normaliseCoverSizes(input.coverSizes),
     // The Bookseller's Fields (R4b) — schema-external; normalised here, checked below.
     backCoverBlurb: typeof input.backCoverBlurb === 'string' && input.backCoverBlurb.trim() ? input.backCoverBlurb.trim() : null,
     openingLine: typeof input.openingLine === 'string' && input.openingLine.trim() ? input.openingLine.trim() : null,
@@ -466,6 +474,11 @@ export async function updateTitle(titleId, partial) {
       return { ok: false, errors: ['samplePath must be a string or null'] };
     }
 
+    // R20 — coverSizes rides through the spread the same way, and is re-normalised here rather
+    // than trusted: an update whose payload omits it must KEEP the existing rungs (the spread
+    // does that), and one that sends a half-built map must not store a rung that is not a URL.
+    merged.coverSizes = normaliseCoverSizes(merged.coverSizes);
+
     // The Bookseller's Fields (R4b) — normalise empty/undefined → null, coerce a stray float
     // catalogueNumber to an integer, then validate inline (schema.js is locked).
     for (const k of ['backCoverBlurb', 'openingLine', 'shelfCard']) {
@@ -551,6 +564,50 @@ function extOf(file) {
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
 const MAX_EPUB_BYTES = 50 * 1024 * 1024;
 const MAX_SAMPLE_BYTES = 10 * 1024 * 1024;
+
+// R20 — THE RUNGS, NORMALISED IN ONE PLACE.
+//
+// Only the widths covers.js names are kept, and only when the value is a non-empty string. A
+// stray key, a number, or a half-finished upload that stored `undefined` would otherwise reach
+// coverSrcSet() and become a srcset rung pointing at nothing — which is a BLANK BOOK on the
+// shelf, a worse outcome than the heavy original this round exists to replace.
+function normaliseCoverSizes(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const out = {};
+  for (const w of COVER_DERIVATIVE_WIDTHS) {
+    const k = coverSizeKey(w);
+    if (typeof v[k] === 'string' && v[k].trim()) out[k] = v[k].trim();
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// R20 — THE DOOR DOES THE SIZING.
+//
+// Every cover in this shop arrives through the CMS, so the CMS is where a cover gets sized
+// from birth and the backfill only ever has to catch what predates this function. That is the
+// technique already proven on /admin/voices and the stories CMS; buildCoverDerivatives is the
+// stories' own encoder, reused rather than copied a third time.
+//
+// DELIBERATELY NEVER THROWS, and deliberately not awaited into the publish gate. A cover that
+// uploads without rungs is heavy and correct — coverSrcSet returns undefined and the board
+// serves the original, which is exactly what shipped before this round. A cover that fails to
+// upload at all is a title that cannot be published. Weight is not worth that trade, and the
+// same sentence is written at the top of buildCoverDerivatives for the same reason.
+export async function uploadCoverDerivatives(titleId, file, onProgress) {
+  if (!isAdmin()) return {};
+  if (!titleId || !file) return {};
+  try {
+    const { buildCoverDerivatives } = await import('../coverDerivatives');
+    return await buildCoverDerivatives(storage, file, titleId, onProgress, {
+      // The flat sibling path the single-segment storage rule requires — see covers.js.
+      pathFor: (width, ext) => coverDerivativePath(titleId, width, ext),
+      widths: COVER_DERIVATIVE_WIDTHS,
+    });
+  } catch (err) {
+    console.warn('[bookstore.admin-writes] cover derivatives failed; serving the original', err);
+    return {};
+  }
+}
 
 export async function uploadCover(titleId, file, onProgress) {
   if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };

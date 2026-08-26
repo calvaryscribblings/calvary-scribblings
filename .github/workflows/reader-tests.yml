@@ -284,6 +284,23 @@ jobs:
         run: npx playwright test -c tests/bookstore/playwright.pair.config.mjs
         if: ${{ !cancelled() }}
 
+      # R20 — THE SHELF'S WEIGHT. A budget on what a cover may weigh, on how much larger than
+      # its board it may be served, and a ratchet on how many layers a full shelf composites —
+      # plus the grain's attachment, which is Ikenna's ruling of 26 Aug 2026 and is one word in
+      # a stylesheet away from being reversed.
+      #
+      # THIS IS THE ONLY THING IN CI THAT CAN SEE A WEIGHT REGRESSION. Nothing else goes red
+      # when a curator uploads a 4 MB cover through a browser that could not encode WebP: the
+      # page still renders, the build still passes, and the shop is simply slower forever. The
+      # budgets fail on pre-R20 HEAD — 14.5 MiB against a 2 MiB ceiling — which was checked
+      # rather than assumed.
+      #
+      # It runs last of the bookstore suites because it is the slowest: every case loads the
+      # whole shop and two of them scroll it to the foot so the lazy covers are really asked for.
+      - name: Payload harness (cover budgets, layer ratchet, the grain's attachment)
+        run: npx playwright test -c tests/bookstore/playwright.payload.config.mjs
+        if: ${{ !cancelled() }}
+
       # ── R11.17 — MEMBERSHIP AND /links ────────────────────────────────────────────────────
       #
       # All three run against the out/ built above. Ordered cheapest first: the deck check is

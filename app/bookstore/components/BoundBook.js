@@ -10,7 +10,10 @@
 // shelf's ShelfBook. The Window's book and the book in a curated case were rendered directly
 // and had no handler at all, so they were dead objects on a shop where every other book turns
 // over on tap. See BOOK_SURFACES below for the whole argument and the register.
-import Image from 'next/image';
+// R20 — next/image is gone from this file. It was `unoptimized` (output:'export' has no
+// optimiser), which means it emitted no srcset, which is the whole of the payload problem this
+// round measured. See FrontFace.
+import { coverSrcSet, coverSrc } from '../../lib/bookstore/covers';
 import { useBookGesture } from './useBookGesture';
 import { resolveOpeningLine, resolveBackBlurb, gradientFor, obiLabel, formatCatalogueNumber } from './fields';
 import { useCurrency, useRegionCountry, priceLine } from '../../lib/currency';
@@ -375,12 +378,53 @@ const BAR_WIDTHS = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 1, 2, 3, 1, 2, 1, 3, 
 // IF A FOURTH CALL SITE EVER RENDERS A COVER WITH NO TITLE BESIDE IT, this has to change with
 // it: alt="" on the only carrier of the name is a silent image, which is worse than the
 // duplicate. tests/bookstore/gate.spec.mjs pins both halves for the shelf and the detail page.
-function FrontFace({ title, sizes }) {
+function FrontFace({ title, sizes, eager }) {
   const hasCover = !!title.coverUrl;
+  // R20 — THE RUNGS, AND WHY THIS IS A PLAIN <img> NOW.
+  //
+  // next/image was rendering `unoptimized` because output:'export' leaves no optimiser to
+  // render through. In that mode it emits the src it was handed and NO srcset — which is how
+  // a 3931x5156, 4567 KiB PNG came to be painted into a 104.7px board, and how a first paint
+  // of this shop came to be 92.3% cover bytes. The `sizes` prop three lines below was already
+  // commented "inert while next/image is unoptimized", and it was: measured, every cover on the
+  // shipped page carried srcset="(none)".
+  //
+  // next/image has no srcSet prop — it derives one from a loader, and there is no loader in a
+  // static export. So the rungs can only be reached through the element itself. next/image with
+  // `fill` renders an <img> with position:absolute;inset:0;width:100%;height:100% and the
+  // object-fit from `style`; that is reproduced EXACTLY below, and the pair harness asserts the
+  // drawn box is unchanged at both widths. Every existing selector still matches: the tests,
+  // gate.spec and the flip suite all query `.bb-front img`, which is what this still is.
+  //
+  // alt="" is unchanged and still deliberate — see the long note above.
+  const srcSet = coverSrcSet(title);
+  const src = coverSrc(title);
   return (
     <div className="bb-face bb-front">
       {hasCover ? (
-        <Image src={title.coverUrl} alt="" fill unoptimized sizes={sizes} style={{ objectFit: 'cover' }} />
+        /* eslint-disable-next-line @next/next/no-img-element --
+           The rule's advice is to use next/image "to automatically optimize images". There is
+           no optimiser to use: next.config.mjs sets output:'export', which forces
+           images.unoptimized and makes next/image emit the src it was handed with no srcset at
+           all. Following the rule here is what produced a 4567 KiB cover in a 104.7px board.
+           The rungs are cut at upload time instead — see app/lib/bookstore/covers.js — and
+           tests/bookstore/payload.spec.mjs budgets the result. */
+        <img
+          src={src}
+          srcSet={srcSet}
+          // `sizes` is only meaningful alongside a srcset; without rungs it would tell the
+          // browser about a choice it does not have.
+          sizes={srcSet ? sizes : undefined}
+          alt=""
+          // THE SHELF STAYS LAZY. Only a board that IS the largest paint on its page loads
+          // eagerly, which is the detail page's board and nothing else — the Window's book sits
+          // below an 88vh hero, so eager-loading it would buy a slower first paint, not a
+          // faster one.
+          loading={eager ? 'eager' : 'lazy'}
+          fetchPriority={eager ? 'high' : undefined}
+          decoding="async"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        />
       ) : (
         <div style={{ position: 'absolute', inset: 0, background: gradientFor(title.slug || title.title), display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.4rem 1rem', textAlign: 'center' }}>
           <div className="bb-foil bb-cover-title">{title.title}</div>
@@ -541,8 +585,15 @@ export default function BoundBook({ title, variant = 'shelf', width = 160, ribbo
   // now pressable and a pressable object that says otherwise is the discoverability bug this
   // round exists to fix. See .bb-book / .bb-hoverable in the stylesheet.
   const canHover = hoverable ?? (variant === 'shelf' || variant === 'detail');
-  // Inert while next/image is `unoptimized` (no srcset is emitted), and correct the moment it
-  // is not. A fixed book states its pixels; a column-width one states the columns.
+  // R20 — THIS LINE IS NO LONGER INERT. It was written against the day next/image stopped
+  // being `unoptimized`; that day never came (a static export has no optimiser), so FrontFace
+  // now carries the rungs itself and this is what tells the browser which one to take.
+  //
+  // A fixed book states its pixels; a column-width one states the columns. Both were already
+  // right and neither number moved: measured on the shipped page, the shelf column renders
+  // 104.7px at 390 (33vw = 128.7, over-stated, which picks the same 360w rung) and 197.6px at
+  // 1280 (200px, over-stated by 2.4). Over-stating costs nothing; under-stating would pick a
+  // rung too small and the eye would see it.
   const sizes = typeof width === 'number' ? `${width}px` : '(max-width:640px) 33vw, 200px';
 
   return (
@@ -552,7 +603,7 @@ export default function BoundBook({ title, variant = 'shelf', width = 160, ribbo
         {/* The RIGHT fore-edge. The bottom one was removed by R16 — see
             BOTTOM_PAGE_BLOCK_REMOVED at the head of this file. */}
         <div className="bb-foreedge" />
-        <FrontFace title={title} sizes={sizes} />
+        <FrontFace title={title} sizes={sizes} eager={variant === 'detail'} />
         <BackFace title={title} />
         {showRibbon && <div className="bb-ribbon" />}
         {obi && <div className="bb-obi">{obi}</div>}

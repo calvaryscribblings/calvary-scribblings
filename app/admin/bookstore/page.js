@@ -7,6 +7,7 @@ import {
   updateTitle,
   setTitleStatus,
   uploadCover,
+  uploadCoverDerivatives,
   uploadAuthorPhoto,
   uploadEpub,
   uploadSampleEpub,
@@ -215,6 +216,9 @@ const emptyForm = {
   territorySearch: '',
   coverFile: null,
   coverUrl: '',          // existing URL when editing
+  // R20 — carried on the form so editing a synopsis cannot silently strip a title's rungs.
+  // Same reason /admin/voices carries cardSizes; see the note on nextCoverSizes in onSave.
+  coverSizes: {},
   epubFile: null,
   epubPath: '',          // existing path when editing
   sampleFile: null,
@@ -243,6 +247,9 @@ export default function AdminBookstorePage() {
   // when they navigate. { tone: 'ok' | 'bad', text } or null.
   const [rebuildNotice, setRebuildNotice] = useState(null);
   const [coverProgress, setCoverProgress] = useState(null);
+  // R20 — the sizing pass reports separately from the upload: they are two different waits and
+  // a single bar that restarted would read as a stall.
+  const [derivProgress, setDerivProgress] = useState(null);
   const [epubProgress, setEpubProgress] = useState(null);
   const [sampleProgress, setSampleProgress] = useState(null);
   const [authorPhotoProgress, setAuthorPhotoProgress] = useState(null);
@@ -385,6 +392,7 @@ export default function AdminBookstorePage() {
       ...territoriesToFormState(title),
       coverFile: null,
       coverUrl: title.coverUrl || '',
+      coverSizes: title.coverSizes || {},
       epubFile: null,
       epubPath: title.epubPath || '',
       sampleFile: null,
@@ -534,6 +542,11 @@ export default function AdminBookstorePage() {
     let nextEpubPath = form.epubPath;
     let nextSamplePath = form.samplePath;
     let nextAuthorPhotoPath = form.authorPhotoPath;
+    // R20 — undefined, NOT {}. An edit that does not touch the cover must leave the existing
+    // rungs alone, and the payload line below only overrides when an upload actually made new
+    // ones. Writing {} here would strip a title's derivatives every time someone fixed a typo
+    // in its synopsis — the same trap the voices form documents for cardSizes.
+    let nextCoverSizes;
 
     // Upload cover first (cheaper to retry, public-readable). If it fails, abort before EPUB upload
     // and before the title doc write — no orphaned title rows pointing at missing storage.
@@ -548,6 +561,21 @@ export default function AdminBookstorePage() {
       }
       nextCoverUrl = cov.url;
       setCoverProgress(100);
+
+      // R20 — THE DOOR DOES THE SIZING. Cut w360 + w720 WebP from the file already in memory
+      // and upload them beside the original, so every cover from here on is sized from birth
+      // and the backfill only ever has to catch what predates this line.
+      //
+      // AFTER the original and never in front of it: the original is what `coverUrl` points at
+      // and what every fallback path serves, so it is the upload that must not be delayed by
+      // an optimisation. And NOT gated — uploadCoverDerivatives never throws and returns {} on
+      // any failure, which leaves the title serving the full-size original exactly as it did
+      // before this round. A cover that will not shrink is heavy; a cover that will not publish
+      // is a book the shop does not have.
+      setCoverProgress(null);
+      setDerivProgress('sizing…');
+      nextCoverSizes = await uploadCoverDerivatives(titleId, form.coverFile, (w) => setDerivProgress(`sizing ${w}w…`));
+      setDerivProgress(null);
     }
 
     if (form.epubFile) {
@@ -603,6 +631,8 @@ export default function AdminBookstorePage() {
     // this only OVERRIDES it when an upload actually produced a new path.
     if (form.authorPhotoFile && nextAuthorPhotoPath) payload.authorPhotoPath = nextAuthorPhotoPath;
     if (nextCoverUrl) payload.coverUrl = nextCoverUrl;
+    // Only when this save actually cut new rungs. See the note on nextCoverSizes above.
+    if (nextCoverSizes) payload.coverSizes = nextCoverSizes;
     if (nextEpubPath) payload.epubPath = nextEpubPath;
     if (nextSamplePath) payload.samplePath = nextSamplePath;
 
@@ -745,6 +775,7 @@ export default function AdminBookstorePage() {
             publishers={activePublishers}
             genres={genres}
             coverProgress={coverProgress}
+            derivProgress={derivProgress}
             authorPhotoProgress={authorPhotoProgress}
             epubProgress={epubProgress}
             sampleProgress={sampleProgress}
@@ -883,7 +914,7 @@ export default function AdminBookstorePage() {
   );
 }
 
-function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, genres, coverProgress, authorPhotoProgress, epubProgress, sampleProgress, catalogueInUse, onSave, onCancel, onTitleBlur }) {
+function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, genres, coverProgress, derivProgress, authorPhotoProgress, epubProgress, sampleProgress, catalogueInUse, onSave, onCancel, onTitleBlur }) {
   const slugInvalid = form.slug && !SLUG_RE.test(form.slug);
 
   // Non-blocking duplicate-catalogue-number warning: flag when another title already uses it.
@@ -1344,8 +1375,21 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
                 <div style={s.fileMeta}>{coverProgress < 100 ? `Uploading… ${coverProgress}%` : 'Done ✓'}</div>
               </div>
             )}
+            {/* R20 — the sizing pass, reported in its own line. It runs after the original has
+                landed, so the upload bar above has already said Done; a second bar restarting
+                from zero would read as a failed upload retrying. */}
+            {derivProgress !== null && (
+              <div style={s.fileMeta}>{derivProgress}</div>
+            )}
             {!form.coverFile && form.coverUrl && (
               <div style={s.hintGreen}>✓ Existing cover on file. Pick a new file to replace.</div>
+            )}
+            {/* Whether this title is already serving sized rungs, or still serving the original.
+                Absent is a normal state, not an error — see coverSrcSet in lib/bookstore/covers.js. */}
+            {!form.coverFile && form.coverUrl && (
+              Object.keys(form.coverSizes || {}).length > 0
+                ? <div style={s.hintGreen}>✓ Sized rungs on file ({Object.keys(form.coverSizes).join(', ')}).</div>
+                : <div style={s.fileMeta}>No sized rungs yet — this cover serves at full size. Re-upload it to cut them.</div>
             )}
           </div>
           <div style={s.fileBlock}>
