@@ -201,18 +201,86 @@ export default function BookDetailClient({ params }) {
           .bd-synopsis::first-letter{float:left;font-family:'Cinzel',serif;font-size:3.4rem;line-height:.82;font-weight:600;color:#c9a44c;padding:.1rem .6rem .1rem 0;margin-top:.1rem}
           .bd-shelfcard{margin-top:1.6rem;background:#ece4cf;color:#2a2318;padding:1rem 1.2rem;border-radius:1px;box-shadow:0 8px 22px rgba(0,0,0,.4);font-size:.9rem;line-height:1.6;font-style:italic;max-width:440px}
           .bd-shelfcard span{display:block;margin-top:.5rem;font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.14em;font-style:normal;color:#7a5f24}
-          .bd-buy{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;padding:.95rem 2.2rem;border:none;border-radius:3px;background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;font-weight:600;cursor:pointer;transition:filter .25s,opacity .25s}
+
+          /* ══ R19.8 — THE BUY/SAMPLE PAIR: ONE GEOMETRY, TWO LIVERIES ═════════════════
+             Ikenna raised it directly: BUY · £X.XX and READ SAMPLE did not line up. Measured,
+             on the real export, they were 2.00px apart in HEIGHT and 11.83px apart in vertical
+             CENTRE (87.34px at 390, where the row wrapped). Two independent causes:
+
+               HEIGHT. .bd-sample carried border:1px solid; .bd-buy carried border:none.
+               Everything else — padding 15.2/35.2, font-size 10.88, line-height 16.32 — was
+               already identical, so the whole 2.00px was one border top and one bottom.
+               box-sizing:border-box absorbed none of it, because neither control declares a
+               height: with height:auto the box is content + padding + border either way.
+
+               CENTRE. .bd-buy was not the sample's flex sibling. It sat inside a nested
+               column that ALSO held the "Available September 2026" note, and .bd-actions
+               centred that 70.34px column rather than the 46.69px button.
+
+             THE BORDER, AND WHY A TRANSPARENT ONE RATHER THAN border-box + a fixed height.
+             The border width is now declared ONCE, here, and it is 1px on BOTH. The filled
+             control's is transparent. The alternative — pinning a height and letting
+             border-box swallow the difference — was rejected twice over: it would replace a
+             height DERIVED from the type (padding + line-height, which reflows correctly if
+             Cinzel fails to load and Georgia's metrics stand in) with a magic number, and it
+             would leave [data-unavailable] free to keep adding its own border. That last one
+             is not hypothetical: before this round the unsellable button was 48.69px and the
+             sellable one 46.69px, so the button changed its own height by 2px depending on the
+             reader's geography, and it was the DISABLED variant that accidentally matched the
+             sample. Every variant below now sets border-color only — never border — so no
+             state of either control can move the pair's height again.
+
+             THE TYPE IS UNTOUCHED. Same face, same .68rem, same .16em tracking, same weight.
+             line-height:1.5 is written down rather than inherited, which computes to the same
+             16.32px both controls already had; it is here so that a future change to the
+             column's leading cannot desynchronise a <button> (which resets it in some UA
+             stylesheets) from an <a> (which does not).                                       */
+          .bd-cta{
+            box-sizing:border-box;
+            display:inline-flex;align-items:center;justify-content:center;
+            font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;font-weight:600;
+            line-height:1.5;
+            padding:.95rem 2.2rem;
+            border:1px solid transparent;
+            border-radius:3px;
+            cursor:pointer;text-decoration:none}
+          /* Livery only below — no padding, no border-width, no font metric. */
+          .bd-buy{background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;transition:filter .25s,opacity .25s}
           .bd-buy:hover{filter:brightness(1.08)}
           .bd-buy:disabled{cursor:progress;opacity:.6;filter:none}
-          /* R8.4 — see the twin rule in app/bookstore/page.js. Unavailable is not pending. */
-          .bd-buy[data-unavailable]{cursor:not-allowed;opacity:.55;background:none;border:1px solid rgba(201,164,76,.28);color:rgba(240,234,216,.55)}
-          .bd-sample{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;padding:.95rem 2.2rem;border:1px solid rgba(201,164,76,.4);border-radius:3px;background:rgba(201,164,76,.04);color:#c9a44c;font-weight:600;cursor:pointer;text-decoration:none;transition:all .25s;display:inline-flex;align-items:center}
+          /* R8.4 — see the twin rule in app/bookstore/page.js. Unavailable is not pending.
+             R19.8 — border-color, not border. See the block above. */
+          .bd-buy[data-unavailable]{cursor:not-allowed;opacity:.55;background:none;border-color:rgba(201,164,76,.28);color:rgba(240,234,216,.55)}
+          .bd-sample{background:rgba(201,164,76,.04);border-color:rgba(201,164,76,.4);color:#c9a44c;transition:all .25s}
           .bd-sample:hover{background:rgba(201,164,76,.1);border-color:rgba(201,164,76,.7)}
+
+          /* THE ROW HOLDS THE PAIR AND NOTHING ELSE.
+             align-items:flex-start, not center: the two controls are now the same height,
+             so equal tops ARE equal centres — and a top-aligned item cannot be moved by
+             anything that grows BENEATH it. That is what makes the ruling structural rather
+             than a coincidence of the current content. */
+          .bd-actions{display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-top:2.2rem}
+          /* BuyButton returns a fragment: the <button> AND, on a failed checkout, its inline
+             <p role="alert">. Without this slot that alert would become a flex item of the row
+             and seat itself BETWEEN buy and sample. The slot keeps them as one item, stacked,
+             growing downward from a fixed top. (AuthModal is position:fixed and out of flow.) */
+          .bd-cta-slot{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+          /* The notes sit BENEATH the pair as a whole and take no part in its alignment. */
+          .bd-actions-notes{display:flex;flex-direction:column;align-items:flex-start;gap:.4rem;margin-top:.6rem}
+          .bd-availability{font-family:'Cormorant Garamond',Georgia,serif;font-size:.72rem;font-style:italic;color:rgba(201,164,76,.6);letter-spacing:.04em}
           .colophon{max-width:640px;margin:0 auto;padding:3rem 2rem 5rem;text-align:center;position:relative;z-index:2}
           .colophon-rule{width:80px;height:1px;background:rgba(201,164,76,.3);margin:0 auto 2rem}
           .colophon-text{font-size:.85rem;line-height:1.9;color:rgba(240,234,216,.4);font-style:italic}
           .colophon-mark{margin-top:1.5rem;color:rgba(201,164,76,.5)}
-          @media(max-width:720px){.bd-header{grid-template-columns:1fr !important;justify-items:center;text-align:center}.bd-header .bd-cover-wrap{margin-bottom:1rem}.bd-synopsis::first-letter{float:none;font-size:inherit;color:inherit;padding:0;margin:0}.bd-actions{justify-content:center}.bd-shelfcard{margin-left:auto;margin-right:auto}}
+          /* R19.8 — the handset. At 390 the pair needed 334.06px of a 326px row and wrapped,
+             which put the two controls on different lines and made "one vertical centre"
+             unachievable rather than merely wrong. The horizontal padding is what gives, and it
+             gives in the ONE place the pair's geometry is declared: padding-inline only, so
+             the vertical padding — and therefore the shared height — is identical at every
+             viewport. flex-wrap:wrap is deliberately kept as the graceful floor: below about
+             360px the longest label ("Unavailable here") alongside the sample still cannot fit,
+             and wrapping is a better answer there than a clipped button. */
+          @media(max-width:720px){.bd-header{grid-template-columns:1fr !important;justify-items:center;text-align:center}.bd-header .bd-cover-wrap{margin-bottom:1rem}.bd-synopsis::first-letter{float:none;font-size:inherit;color:inherit;padding:0;margin:0}.bd-actions{justify-content:center;gap:.6rem}.bd-cta{padding-inline:clamp(.6rem,3.2vw,2.2rem)}.bd-cta-slot{align-items:center}.bd-actions-notes{align-items:center;text-align:center}.bd-shelfcard{margin-left:auto;margin-right:auto}}
         `}</style>
 
         <div className="bookstore-grain" aria-hidden="true" />
@@ -314,37 +382,46 @@ export default function BookDetailClient({ params }) {
                       <div className="bd-shelfcard">{title.shelfCard}<span>&mdash; Calvary</span></div>
                     )}
 
-                    {/* Action row */}
-                    <div className="bd-actions" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginTop: '2.2rem' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem', alignItems: 'flex-start' }}>
-                        <BuyButton title={title} className="bd-buy" />
-                        {/* R8.3 — BENEATH the button, deliberately. The button makes a claim
-                            about a sum of money; this qualifies that claim, so it has to be
-                            read second. Above the price it would be a banner over the book,
-                            which is not what the ruling asked for: it is a fact, quietly
-                            stated, in the muted italic the rest of this column already uses
-                            for asides. */}
-                        {/* R8.4 — THE TERRITORY SENTENCE, in the currency sentence's exact
-                            place and exact voice, because it does the same job: it qualifies
-                            the claim the button above it is making. The two are mutually
-                            exclusive by construction, not by this condition — when the title
-                            is not sellable here priceLine returns no price, so fallbackLine is
-                            already null and there is no second sentence to suppress. */}
-                        {!sellable && (
-                          <p data-testid="territory-sentence" style={BUY_ASIDE_STYLE}>
-                            {TERRITORY_SENTENCE}
-                          </p>
-                        )}
-                        {fallbackLine && (
-                          <p data-testid="price-fallback-sentence" style={BUY_ASIDE_STYLE}>
-                            {fallbackLine}
-                          </p>
-                        )}
-                        <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.72rem', fontStyle: 'italic', color: 'rgba(201,164,76,.6)', letterSpacing: '.04em' }}>Available September 2026</span>
+                    {/* ── R19.8 — THE ACTION ROW: THE PAIR, THEN THE NOTES ────────────────
+                        The row below holds EXACTLY two things — the buy slot and the sample —
+                        and every qualifying line that used to live inside the buy's column now
+                        sits in `.bd-actions-notes`, beneath the pair as a whole.
+
+                        What was wrong: the note and the two asides were siblings of the button
+                        inside a nested column, so that column — not the button — was what the
+                        row centred. The note alone made it 70.34px against the button's 46.69,
+                        which put the button's centre 11.83px above the sample's. Deleting the
+                        note from the DOM moved both controls; it was load-bearing.
+
+                        The notes are still read second, still in the same muted italic, and the
+                        availability line is verbatim — launch is confirmed for 30 September
+                        2026, so the wording was never the problem. Only its DOM position was.
+
+                        The stacking order beneath is unchanged (territory OR currency, then
+                        availability), and the two asides remain mutually exclusive by
+                        construction rather than by these conditions: when a title is not
+                        sellable here priceLine returns no price, so fallbackLine is already
+                        null and there is no second sentence to suppress. */}
+                    <div className="bd-actions">
+                      <div className="bd-cta-slot">
+                        <BuyButton title={title} className="bd-cta bd-buy" />
                       </div>
                       {title.samplePath && (
-                        <a className="bd-sample" href={`/reader/${title.slug}?sample=1`}>Read sample</a>
+                        <a className="bd-cta bd-sample" href={`/reader/${title.slug}?sample=1`}>Read sample</a>
                       )}
+                    </div>
+                    <div className="bd-actions-notes" data-testid="bd-actions-notes">
+                      {!sellable && (
+                        <p data-testid="territory-sentence" style={BUY_ASIDE_STYLE}>
+                          {TERRITORY_SENTENCE}
+                        </p>
+                      )}
+                      {fallbackLine && (
+                        <p data-testid="price-fallback-sentence" style={BUY_ASIDE_STYLE}>
+                          {fallbackLine}
+                        </p>
+                      )}
+                      <span className="bd-availability" data-testid="availability-note">Available September 2026</span>
                     </div>
                   </div>
                 </div>

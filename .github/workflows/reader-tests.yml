@@ -269,6 +269,21 @@ jobs:
         run: npx playwright test -c tests/bookstore/playwright.flip.config.mjs
         if: ${{ !cancelled() }}
 
+      # R19.8 — THE BUY/SAMPLE PAIR, MEASURED AT THREE VIEWPORTS.
+      #
+      # It rides here rather than in territory.spec.mjs or currency.spec.mjs — the two nearest
+      # suites that already open /bookstore/[slug] — for two reasons set out at length in
+      # tests/bookstore/playwright.pair.config.mjs: those are pinned to ONE viewport, and the
+      # mismatch this guards was 11.83px at 820 and 1280 but 87.34px at 390, where the row
+      # wrapped entirely; and they are observing suites over a live catalogue, while this one
+      # deletes the availability note and forces the unavailable state on in order to measure
+      # them.
+      #
+      # Cheap: fifteen cases, no build of its own (it uses the out/ built above), ~14s.
+      - name: Pair harness (buy and sample share one height and one centre)
+        run: npx playwright test -c tests/bookstore/playwright.pair.config.mjs
+        if: ${{ !cancelled() }}
+
       # ── R11.17 — MEMBERSHIP AND /links ────────────────────────────────────────────────────
       #
       # All three run against the out/ built above. Ordered cheapest first: the deck check is
