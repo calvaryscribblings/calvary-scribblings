@@ -23,41 +23,38 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { normalizeGenre } from '../../lib/openPages';
 import { stripMarkdown } from '../../lib/openPagesMarkdown';
+import { fireRebuild, HOOKS } from '../../lib/rebuild';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 
 // Cloudflare Pages deploy hook for the Open Pages rebuild — the same hook the AI
 // gate fires when it auto-publishes (functions/api/open-pages/moderate.js). An
 // approved post is live in RTDB immediately, but /open-pages/[id] is enumerated
-// at build time (next.config.mjs → output: 'export'), so without this the post's
-// detail page 404s until some unrelated deploy happens.
-const DEPLOY_HOOK = 'https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/6667c809-d3bf-4c93-bab0-065323c09d76';
-
-// Fired from the browser, so the response is unreadable: api.cloudflare.com
-// answers the hook with `access-control-allow-methods: POST` but NO
-// `access-control-allow-origin`. The POST itself is a simple request (no custom
-// headers), so it is sent and Cloudflare does start the build — the browser just
-// refuses to hand the response back to JS. Reading `res.ok` therefore made fetch
-// reject on a rebuild that had in fact succeeded, and approve() reported a
-// failure that never happened.
+// at build time (next.config.mjs → output: 'export'), so without a rebuild the
+// post's detail page 404s until some unrelated deploy happens.
 //
-// `mode: 'no-cors'` is how the other admin pages fire this (app/admin/page.js,
-// app/admin/voices/page.js): the request goes out and resolves opaquely instead
-// of rejecting. The trade-off is that a genuinely bad hook URL is indistinguishable
-// from success here — only the server-side caller in
-// functions/api/open-pages/moderate.js can actually verify the status.
+// ── R19.7 — THE HOOK IS NAMED, NOT HELD, AND THE ANSWER CAME BACK ───────────────────────
 //
-// Never throws, so a hook problem cannot make a successful approve report as failed.
-// Returns whether the request was dispatched, NOT whether the build was accepted.
-async function fireDeployHook() {
-  try {
-    await fetch(DEPLOY_HOOK, { method: 'POST', mode: 'no-cors', body: '' });
-    return true;
-  } catch (e) {
-    console.error('[admin/forum] deploy hook could not be dispatched:', e);
-    return false;
-  }
-}
+// This file used to carry the Cloudflare deploy-hook URL as a literal and POST it straight
+// from the browser. Two things were wrong with that, and the second one hid the first:
+//
+//   1. THE URL SHIPPED. It was compiled into out/_next/static/chunks and served to every
+//      visitor. A deploy hook is an unauthenticated trigger — possession is authorisation —
+//      so anyone who had loaded the site could start builds indefinitely, with nothing to
+//      revoke. Rotated 26 Aug 2026; that UUID is dead.
+//
+//   2. THE ANSWER WAS OPAQUE. api.cloudflare.com replies to the hook with
+//      `access-control-allow-methods: POST` and NO `access-control-allow-origin`, so reading
+//      `res.ok` made fetch reject on a rebuild that had in fact succeeded. The fix at the time
+//      was `mode: 'no-cors'`, which dispatches the request and resolves opaquely — and which
+//      therefore CANNOT TELL A DEAD HOOK FROM A LIVE ONE. A rotated URL would have gone on
+//      "succeeding" here forever.
+//
+// /api/rebuild is same-origin, so its answer is readable and both problems go at once.
+// approve() below now reports what actually happened rather than what was dispatched.
+//
+// No settle wait: the RTDB update is awaited before the request goes out, and unlike the story
+// CMS there is no second node for the build to race.
 
 // Brand-tinted dark admin palette (matches the other admin pages' base, with
 // the Open Pages gold/purple identity).
@@ -174,13 +171,18 @@ export default function AdminForumPage() {
       // The post is live but /open-pages/[id] is only pre-rendered at build time
       // (output: 'export'), so without a rebuild the detail page 404s. Same hook
       // the auto-publish path fires — see functions/api/open-pages/moderate.js.
-      // The browser cannot read the hook's response (see fireDeployHook), so the
-      // wording below states what was requested, not a confirmed build outcome.
-      const dispatched = await fireDeployHook();
+      //
+      // The verdict is REAL now. /api/rebuild is same-origin, so unlike the opaque no-cors POST
+      // this replaces, a refusal is a refusal and the message below can say so.
+      const verdict = await fireRebuild({
+        hook: HOOKS.OPEN_PAGES,
+        getIdToken: () => user?.getIdToken(),
+        settleMs: 0,
+      });
       setMsg(
-        dispatched
-          ? 'Approved — the post is live. A rebuild has been requested; its page URL works in a few minutes.'
-          : 'Approved — the post is live, but the rebuild request could not be sent. Its /open-pages page will 404 until the next deploy.'
+        verdict.ok
+          ? 'Approved — the post is live. A rebuild has started; its page URL works in about two minutes.'
+          : `Approved — the post is live, but no rebuild started. ${verdict.message}`
       );
     } catch (e) {
       console.error('[admin/forum] approve failed:', e);

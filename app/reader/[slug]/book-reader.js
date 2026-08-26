@@ -246,6 +246,43 @@ export default function BookstoreReaderClient({ slug, title }) {
     </>
   );
 
+  // ── R19.7 — THE SAMPLE'S FAILURE STATE. The end of a forever-spinner. ─────────────────
+  //
+  // THE DEFECT, named in R19.6 and unfixed until now: sample mode passed ReadingRoom neither
+  // `onError` nor `renderFailure`. R7.3 §B's overlay only renders when a register supplies the
+  // second, so a sample whose bytes would not arrive AFTER its download URL had resolved left
+  // the room fully dressed for reading with nothing in it, and the boot spinner ran until the
+  // reader gave up. `loadError` above does not cover this: it fires only when getDownloadURL
+  // itself rejects, which is a different half of the same journey.
+  //
+  // WHY THE OVERLAY AND NOT THE `gate === 'failed'` SHELL the purchased path uses: by the time
+  // the host reports, the Reading Room is mounted and the reader is looking at it. The shell
+  // would tear the room down and rebuild the page around them. The overlay is the room's own
+  // furniture — the same one the story register has had since R7.3 — and it lands *in* the
+  // room, over the book that would not open.
+  //
+  // THE DOOR IS THE BOOK'S OWN PAGE. A sample that will not open is a sale that has not
+  // happened yet: /bookstore/{slug} is where the synopsis, the cover and the buy button are.
+  // The story register sends a reader to the prose; this one sends them to the book.
+  const renderSampleFailure = () => (
+    <div className="rr-fail">
+      <div className="rr-fail-orn">✦</div>
+      <div className="rr-fail-kicker">The Reading Room</div>
+      <div className="rr-fail-title">{title.title}</div>
+      <p className="rr-fail-note">
+        This sample would not open. The book itself is still here — it is waiting on its own page.
+      </p>
+      {/* ONE DOOR, and it is the book's own page. The story register offers two because its
+          second (← Library) goes somewhere the top bar does not; here the top bar's escape is
+          already `← Store` → /bookstore/{slug}, so a second link would be the same door twice.
+          A bare <a href="/bookstore"> would also be the round's only new lint error, and the
+          ratchet is not the reason — the duplication is. */}
+      <div className="rr-fail-actions">
+        <a href={`/bookstore/${slug}`} className="rr-ebtn">See the book →</a>
+      </div>
+    </div>
+  );
+
   // PRIVATE reading position. bookstore_reading_progress/{uid}/{titleId} is owner-only and
   // shape-validated (R7.2 rules). Keyed by titleId — the bookstore_titles push key — not by
   // slug: a slug can be re-pointed by an editor, a purchase never can. Samples pass nothing.
@@ -285,6 +322,13 @@ export default function BookstoreReaderClient({ slug, title }) {
           user={user}
           coverSplash={coverSplash}
           glossary={title.glossary || null}
+          // R19.7 — both halves, and both are needed. `renderFailure` is what makes the host's
+          // report visible at all (ReadingRoom renders the overlay only for a register that
+          // supplies one); `onError` is what puts the reason in the console for whoever has to
+          // work out WHY a sample stopped opening. A sample has no signed URL to re-mint, so
+          // unlike the purchased path there is no retry to attempt first.
+          onError={(message) => console.error('[book-reader] sample would not open:', message)}
+          renderFailure={renderSampleFailure}
           banner={(
             <div className="rr-banner">
               <span className="rr-banner-label">Sample · {title.title}</span>

@@ -3,13 +3,17 @@ import { useState, useEffect } from 'react';
 import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { readMatchNames, CARD_DERIVATIVE_WIDTHS, cardSizeKey } from '../../lib/voices';
+import { fireRebuild, HOOKS } from '../../lib/rebuild';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
-// Cloudflare Pages deploy hook — same one app/admin/page.js fires after a story save.
-// /voices and /voices/{slug} are statically exported, so a new or reordered voice is
-// only live after a rebuild. Every mutation here fires it.
-const DEPLOY_HOOK = 'https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/df2479ae-06a5-4ff3-a319-29b7b94dd106';
+// /voices and /voices/{slug} are statically exported, so a new or reordered voice is only live
+// after a rebuild. Every mutation here asks for one.
+//
+// R19.7 — the hook is NAMED, not held. This file used to carry the Cloudflare deploy-hook URL
+// as a literal and POST it from the browser; the URL shipped in out/_next/static/chunks, and a
+// deploy hook is an unauthenticated trigger. It was rotated on 26 Aug 2026 and is dead. The
+// same identifier as the story CMS, because they share a hook: both surfaces are the CMS.
 
 // The 1080×1350 social card is the whole point of this feature, so the rule blocks
 // cap uploads at 5 MB / image-only. Mirror those limits client-side rather than
@@ -483,13 +487,11 @@ export default function VoicesAdmin() {
     } catch (e) { setMsg('Error reordering: ' + e.message); }
   }
 
-  // Mirrors app/admin/page.js:714 — the 10s pause lets the RTDB write settle before
-  // the build reads cms_voices, so the rebuild cannot race the save it was triggered by.
+  // The settle wait lives in fireRebuild (SETTLE_MS) — it lets the RTDB write land before the
+  // build reads cms_voices, so the rebuild cannot race the save that triggered it. Same helper,
+  // same number, one definition instead of two copies drifting.
   async function fireDeployHook() {
-    try {
-      await new Promise((r) => setTimeout(r, 10000));
-      await fetch(DEPLOY_HOOK, { method: 'POST' });
-    } catch (e) { console.warn('Deploy hook failed:', e); }
+    await fireRebuild({ hook: HOOKS.CMS, getIdToken: () => user?.getIdToken() });
   }
 
   // ── Gates (verbatim from app/admin/page.js) ─────────────────────────────

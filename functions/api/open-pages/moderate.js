@@ -43,12 +43,24 @@ import {
   buildAuthorSnapshot,
   buildPendingPost,
 } from '../../../app/lib/openPages.js';
+import { resolveHook, fire } from '../_deploy-hooks.js';
+
+// Same budget the rebuild endpoint uses for the same third party. Stated here rather than
+// imported from bookstore/_lib.js so this file keeps its one-directory import surface.
+const HOOK_TIMEOUT_MS = 10_000;
 
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
-// Cloudflare Pages deploy hook — POSTed (fire-and-forget) whenever a post goes
-// live, so the static export rebuilds and pre-renders the new /open-pages/[id].
-const DEPLOY_HOOK = 'https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/6667c809-d3bf-4c93-bab0-065323c09d76';
+// The Open Pages deploy hook is POSTed whenever a post goes live, so the static export
+// rebuilds and pre-renders the new /open-pages/[id].
+//
+// ⚠ R19.7 — IT USED TO BE A LITERAL HERE, AND THAT LITERAL IS NOW DEAD. This file is server
+// side, so its copy never shipped to a browser — but app/admin/forum/page.jsx carried the SAME
+// UUID as a client constant and did ship it, which is why the hook was rotated on 26 Aug 2026.
+// A rotated hook answers 404 forever and nothing upstream would have noticed: the status was
+// only ever reported into a diagnostic field. So the URL now comes from the environment,
+// through the one table that owns identifier → env var, and a missing variable is a stated
+// outcome rather than a silent no-op.
 
 const MODEL = 'claude-haiku-4-5';
 const TITLE_MAX = 200;
@@ -460,11 +472,17 @@ export async function onRequestPost(context) {
   // dashboard-accessible console logs without Workers Logs. A hook failure still
   // must not fail the response, so the call is wrapped in try/catch.
   let hookStatus = 'not_called';
-  try {
-    const hookRes = await fetch(DEPLOY_HOOK, { method: 'POST', body: '' });
-    hookStatus = hookRes.ok ? 'ok_' + hookRes.status : 'fail_' + hookRes.status;
-  } catch (e) {
-    hookStatus = 'error_' + e.message;
+  const hook = resolveHook(env, 'openPages');
+  if (!hook.ok) {
+    // Named, not swallowed. 'unconfigured' here means OPEN_PAGES_DEPLOY_HOOK_URL is absent from
+    // the Pages environment and every auto-published post will 404 on its detail page until
+    // some unrelated deploy runs — which is exactly the class of silence this round exists to
+    // end. It still must not fail the publish: the post IS live.
+    console.error('[open-pages/moderate] no deploy hook:', hook.reason);
+    hookStatus = 'unconfigured';
+  } else {
+    const shot = await fire(hook.url, HOOK_TIMEOUT_MS);
+    hookStatus = shot.ok ? 'ok_' + shot.status : (shot.reason === 'refused' ? 'fail_' + shot.status : 'error_unreachable');
   }
 
   return json({ status: 'published', postId, hookStatus });

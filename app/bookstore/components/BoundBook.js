@@ -113,8 +113,50 @@ export const CONTACT_SHADOW_REBASE = {
   raisedByPx: 8,
   measuredPoolBefore: { window190: 8.86, curatedCase170: 8.79, shelf150: 9.52 },
   measuredPoolAfter: { window190: 8.31, curatedCase170: 9.43 },
+
+  // ── R19.7 — THE SILHOUETTE, PROMOTED OUT OF THE PROSE ABOVE ────────────────────────────
+  //
+  // The table in the comment records "silhouette below box" on both sides of the removal.
+  // Those numbers are the RULING ITSELF made measurable: the feet are gone, so the lowest
+  // paint is the front face's own perspective overhang and nothing else. They are exact,
+  // stable and independent of how a shadow rasterises — which makes them a far better pin on
+  // "did the geometry move" than any reading of a blurred tail. Re-measured 26 Aug 2026 and
+  // IDENTICAL to the value R16 recorded, to the hundredth of a pixel.
+  silhouetteAfterPx: { window190: 1.55, curatedCase170: 1.24 },
+
+  // ── R19.7 — THE POOL, RE-BASELINED. READ THIS BEFORE CHANGING A NUMBER HERE. ───────────
+  //
+  // THE FAILURE: boundbook.spec.mjs compared the pool against `measuredPoolBefore` — the
+  // PRE-removal depth — with tolerancePx 1. On the window that assertion shipped with 0.45px
+  // of headroom, because R16 itself measured and wrote down a −0.55 residual (8.86 → 8.31)
+  // and explained above exactly why it cannot be zero: the same 8px of CSS travel renders as
+  // 7.98px at translateZ(-5) and 7.81px at translateZ(-40), and the required travel is itself
+  // size-dependent (7.58 / 7.45 / 7.35px at 150 / 190 / 220). The suite ran in no workflow, so
+  // nobody saw it go red when the last 0.45px went.
+  //
+  // WHAT WAS MEASURED, 26 Aug 2026, same probe, same dsf 4, on the shipped export:
+  //
+  //                     silhouette      pool @0.75      pool @1.5     pool @3
+  //   window      190   +1.55  ✓ R16    7.75            5.00          2.75
+  //   curated case 170  +1.24  ✓ R16    9.31            6.56            —
+  //
+  // THE GEOMETRY IS RIGHT. Both silhouettes are byte-identical to R16's post-removal record,
+  // `.bb-shadow` computes to bottom:-8px = isBottomPx, isBottomPx === wasBottomPx +
+  // raisedByPx, and no call site renders feet. Nothing moved. What moved is the extreme TAIL
+  // of a blur: the probe's threshold is 0.75 of 255 per channel, and where that cutoff lands
+  // is a rasterisation fact, not a layout one — the curated case shifted 0.12px and the window
+  // 0.56px over the same interval, in the same direction, with identical geometry.
+  //
+  // So the comparison target moves from "the depth before the feet came off" to "the depth
+  // this ruling actually renders". The documented R16 residual belongs in the derivation, not
+  // inside the drift budget. THE TOLERANCE IS UNCHANGED at 1px — widening it to make a test
+  // pass would be fitting to a screenshot, which is the one thing this whole record exists to
+  // avoid.
+  measuredPoolNow: { window190: 7.75, curatedCase170: 9.31 },
+  measuredOn: '2026-08-26',
+
   // The guard tests/bookstore/boundbook.spec.mjs uses: the pool may not drift further than
-  // this from its pre-removal depth on a call site whose size did not change.
+  // this from `measuredPoolNow` on a call site whose size did not change.
   tolerancePx: 1,
 };
 

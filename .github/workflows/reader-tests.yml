@@ -163,11 +163,12 @@ jobs:
       # finds, whatever the step before it did. The job still goes red on any failure — nothing
       # is being tolerated, only made visible.
       #
-      # ⚠ THE TRADE, STATED. always() ALSO runs when the workflow is cancelled, and this workflow
-      # sets cancel-in-progress (see the concurrency block above), so a superseded run now
-      # carries on through its remaining suites instead of stopping. `if: ${{ !cancelled() }}`
-      # would buy back that half while keeping the whole point of this change; it is one word,
-      # and it is the first thing to reach for if runner minutes ever start to matter here.
+      # ⚠ `!cancelled()`, NOT `always()` — R19.7. R19.6 shipped `always()`, which also runs the
+      # remaining steps when the workflow is CANCELLED. This workflow sets cancel-in-progress
+      # (see the concurrency block above) precisely so a superseded run stops costing minutes,
+      # and `always()` quietly defeated it: a push that superseded another left the older run
+      # grinding through twelve more suites nobody would read. `!cancelled()` keeps every suite
+      # reporting independently on a real run and lets a cancellation actually cancel.
       #
       # SETUP STEPS ARE DELIBERATELY NOT GUARDED. npm ci, the Chromium install and the fixture
       # build are inputs, not answers: if one of them fails there is nothing to report, only
@@ -177,7 +178,7 @@ jobs:
       # suites: "which paragraph gets the cap" should not wait on a build to be answered.
       - name: Drop-cap targeting
         run: npx playwright test -c tests/dropcap/playwright.config.mjs
-        if: always()
+        if: ${{ !cancelled() }}
 
       # R9.5 — the verification resend goes to the branded sender. Same shape as above: no
       # server, no build, the endpoint is intercepted. It asserts the REQUEST (URL, bearer
@@ -186,34 +187,34 @@ jobs:
       # failing.
       - name: Verification resend
         run: npx playwright test -c tests/verify-email/playwright.config.mjs
-        if: always()
+        if: ${{ !cancelled() }}
 
       - name: Host harness (reading-room.html)
         run: npx playwright test -c tests/reader/playwright.config.mjs
-        if: always()
+        if: ${{ !cancelled() }}
 
       # §H's build gate, and the app suite's input in one step: out/ IS the artifact
       # Cloudflare Pages serves, and it is what the app config drives.
       - name: Build the static export
         run: npx next build
-        if: always()
+        if: ${{ !cancelled() }}
 
       - name: App harness (the React boundary)
         run: npx playwright test -c tests/reader/playwright.app.config.mjs
-        if: always()
+        if: ${{ !cancelled() }}
 
       # R8.1 — the pre-launch gate, against the same out/ the step above built. Its own port
       # (4323), so it neither waits for nor collides with the reader suite's server.
       - name: Gate harness (the pre-launch curtain)
         run: npx playwright test -c tests/bookstore/playwright.gate.config.mjs
-        if: always()
+        if: ${{ !cancelled() }}
 
       # R8.3. Separate step rather than folded into the gate config: the two suites drive
       # different surfaces on different ports, and a currency failure should not read as a
       # gate failure in the run summary.
       - name: Currency harness (selection, marks and rails)
         run: npx playwright test -c tests/bookstore/playwright.currency.config.mjs
-        if: always()
+        if: ${{ !cancelled() }}
 
       # R8.4. Its own port (4325) and its own step, for the same reason as the currency suite:
       # a territory failure should read as a territory failure in the run summary, not as a
@@ -221,7 +222,52 @@ jobs:
       # surface in the other — which is exactly why both names need to be visible.
       - name: Territory harness (rights, marks and the disabled button)
         run: npx playwright test -c tests/bookstore/playwright.territory.config.mjs
-        if: always()
+        if: ${{ !cancelled() }}
+
+      # ── R19.7 — THE FOUR SUITES THAT RAN NOWHERE ──────────────────────────────────────────
+      #
+      # placement, boundbook, masthead and flip existed for rounds — R15 through R17.4 — and NO
+      # workflow ran a single one of them. They were written to pin house-design decisions that
+      # a diff cannot show: where a curated table sits between the shelf rows, that the book has
+      # no feet and its contact pool is at the derived depth, that the masthead's air is
+      # transferred rather than added, and that every book on the shop turns over with an
+      # identical affordance set. All four are exactly the kind of assertion that only ever runs
+      # when somebody remembers — which, measured, was never.
+      #
+      # ⚠ AND ONE OF THEM WAS RED THE WHOLE TIME. boundbook's contact-pool assertion had been
+      # failing since R17.4 against a stale baseline, unseen because nothing ran it. R19.7
+      # re-derived it (see CONTACT_SHADOW_REBASE in app/bookstore/components/BoundBook.js) and
+      # added a geometry test that pins the ruling by exact numbers rather than by the tail of a
+      # blur. A suite in no workflow is not a suite; it is a file that used to be one.
+      #
+      # THE PATHS ALREADY COVER THEM, and that is checked rather than assumed: all four read
+      # only from app/bookstore/** and app/lib/bookstore/**, both already in reader_paths above,
+      # and all four drive /bookstore out of the same out/ this job already builds. No new
+      # trigger path is added because none is needed — adding redundant ones would suggest a
+      # coverage that the existing two lines already give.
+      #
+      # COST, measured locally on the built export: placement 14.8s, boundbook 25.5s, masthead
+      # 4.4s, flip 26.8s — about 72 seconds of suite time, or a minute and a half of job time
+      # once each step's own startup is counted. Against a job that already runs thirteen
+      # minutes, for four suites that pin rulings nobody can re-derive from a screenshot.
+      #
+      # Own ports (4326-4329, see each config), own steps: a masthead failure must read as a
+      # masthead failure in the run summary, not as somebody else's.
+      - name: Placement harness (curated tables between the shelf rows)
+        run: npx playwright test -c tests/bookstore/playwright.placement.config.mjs
+        if: ${{ !cancelled() }}
+
+      - name: Bound-book harness (no feet, the contact pool, three across)
+        run: npx playwright test -c tests/bookstore/playwright.boundbook.config.mjs
+        if: ${{ !cancelled() }}
+
+      - name: Masthead harness (the air is transferred, not added)
+        run: npx playwright test -c tests/bookstore/playwright.masthead.config.mjs
+        if: ${{ !cancelled() }}
+
+      - name: Flip harness (every book on the shop turns over)
+        run: npx playwright test -c tests/bookstore/playwright.flip.config.mjs
+        if: ${{ !cancelled() }}
 
       # ── R11.17 — MEMBERSHIP AND /links ────────────────────────────────────────────────────
       #
@@ -231,21 +277,21 @@ jobs:
       # which is deliberate — one chain, two places to run it, no divergence in what runs first.
       - name: Deck parity (the copy deck vs the shipped page)
         run: node --test tests/membership/deck-parity.test.mjs
-        if: always()
+        if: ${{ !cancelled() }}
 
       # Its own port (4327). It claimed 4325 until R11.17 and the territory suite above has held
       # 4325 since R8.4 — a clash that could not bite while these suites never shared a job, and
       # this step is what would have made it bite. See the header of the copy config.
       - name: Membership copy matrix (3 currencies × 2 intervals × 3 cards)
         run: npx playwright test -c tests/membership/playwright.copy.config.mjs
-        if: always()
+        if: ${{ !cancelled() }}
 
       # MEMBERSHIP_STATE=pre, matching MEMBERSHIP_LAUNCHED=false in the build above. The flag is
       # a build-time constant, so the post-launch wording cannot be exercised in the same run —
       # on launch day the flag and this line move together, in one change.
       - name: /links harness (membership entry, readers' group)
         run: npx playwright test -c tests/membership/playwright.links.config.mjs
-        if: always()
+        if: ${{ !cancelled() }}
         env:
           MEMBERSHIP_STATE: pre
 
@@ -261,7 +307,7 @@ jobs:
       # bundle. Read the header of tests/ci/deploy-hook-secrecy.test.mjs before touching it.
       - name: Deploy hook secrecy (sources + the built export)
         run: node --test tests/ci/deploy-hook-secrecy.test.mjs
-        if: always()
+        if: ${{ !cancelled() }}
 
       - name: Upload traces and reports
         if: failure()

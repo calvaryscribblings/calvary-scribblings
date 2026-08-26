@@ -377,13 +377,13 @@ test(`the cover splash names the book and carries the way out (${FIXTURE.registe
 // DIFFERENT MECHANISM, not the same one with a different fixture, and it is worth being exact
 // about the gap it leaves:
 //
-//   ⚠ `.rr-fail` IS CURRENTLY UNEXERCISED. R7.3 §B's overlay only renders when a register
-//     supplies `renderFailure`, and ONLY page-reader.js does. Sample mode passes neither
-//     `renderFailure` nor `onError` (book-reader.js:279-296), so a book sample whose bytes
-//     404 AFTER the URL resolves has no reader-facing failure state at all — the room stays
-//     dressed and the spinner runs. That is a real hole in the book register, it is not what
-//     this spec asserts, and it will not be closed by anything in this file. Recorded here so
-//     the next reader does not mistake a green run for coverage of it.
+//   ✔ R19.7 — `.rr-fail` IS EXERCISED AGAIN, on the book register. R19.6 recorded a hole here:
+//     R7.3 §B's overlay renders only for a register that supplies `renderFailure`, and only
+//     page-reader.js did, so a sample whose bytes 404 AFTER its URL resolved left the room
+//     dressed for reading with nothing in it and the boot spinner running. book-reader.js now
+//     supplies both `renderFailure` and `onError` for samples, and the third spec below drives
+//     exactly that path. What remains unexercised is the STORY register's own overlay — same
+//     markup, different door (/stories/{slug}) — because the register has no live subject.
 //
 // A 404 rather than a hang: the fence is the host's business and is already measured against
 // real silence next door. Here the only question is what the READER sees, and 404 is the
@@ -436,6 +436,53 @@ test(`a book that will not open shows a failure state with a way out (${FIXTURE.
   await expect(page.locator('.rr-booting')).toHaveCount(0);
 
   console.log(`\n=== failure state (story) ===\n${(await fail.innerText()).replace(/\n+/g, ' / ')}\n`);
+});
+
+// ── R19.7 — THE FOREVER-SPINNER, CLOSED ON THE BOOK REGISTER ─────────────────
+//
+// ⚠ BOOK-REGISTER ONLY, and it asserts a DIFFERENT mechanism from the spec above it. That one
+// kills the METADATA call, so getDownloadURL rejects and book-reader's own `loadError` shell
+// answers — the reader never reaches the Reading Room. This one lets the URL resolve and kills
+// the BYTES, so the room mounts, the cover lifts, the host tries to open a file that 404s, and
+// the question is what the reader is left looking at.
+//
+// Until R19.7 the answer was: the boot spinner, forever. R19.6 measured that and wrote it down
+// without fixing it; this is the fix, asserted. If the fixture ever resolves back to the story
+// register this spec skips itself rather than pretending to cover it — the story register's
+// overlay has been wired since R7.3 and is proven by the spec above whenever it can run.
+test('a sample whose bytes never arrive shows the room\'s failure state, not a spinner', async ({ page }) => {
+  test.skip(FIXTURE.register !== 'book', 'book-register spec; the fixture resolved to the story register');
+
+  // Metadata OK — so getDownloadURL succeeds and the room mounts…
+  await page.route(isEpubMetadata, (route) => route.fulfill({
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...CORS },
+    body: metadataBody(new URL(route.request().url())),
+  }));
+  // …and the bytes are gone, which is the failure the spinner used to swallow.
+  await page.route(isEpubBytes, (route) => route.fulfill({ status: 404, headers: CORS, body: 'gone' }));
+
+  await page.goto(READER_PATH, { waitUntil: 'domcontentloaded' });
+  await dismissCover(page);                    // the frame only mounts once the cover is dismissed
+
+  const fail = page.locator('.rr-fail');
+  await expect(fail, 'a dead sample must end in the Reading Room\'s failure state')
+    .toBeVisible({ timeout: 30000 });
+
+  // It must read as the Reading Room, not as a stack trace…
+  await expect(page.locator('.rr-fail-kicker')).toHaveText('The Reading Room');
+  await expect(page.locator('.rr-fail-note')).toContainText('would not open');
+
+  // …and the door is the BOOK's page, not the story page. A sample that will not open is a
+  // sale that has not happened yet, and /bookstore/{slug} is where the buy button lives.
+  await expect(page.locator(`.rr-fail-actions a[href="/bookstore/${SLUG}"]`),
+    'the failure state must route the reader to the book\'s own page')
+    .toHaveCount(1);
+
+  // THE REGRESSION ITSELF: the defect was never "no error", it was "spins forever".
+  await expect(page.locator('.rr-booting'), 'the boot spinner must be gone').toHaveCount(0);
+
+  console.log(`\n=== sample failure state (book) ===\n${(await fail.innerText()).replace(/\n+/g, ' / ')}\n`);
 });
 
 // ── R7.4 — THE DICTIONARY, across the React boundary ─────────────────────────

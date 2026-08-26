@@ -12,10 +12,10 @@ import {
   uploadSampleEpub,
 } from '../../lib/bookstore/admin-writes';
 // R19.6 — THE PUBLISH → DEPLOY HANDSHAKE. A static export serves files, so a published record
-// has no pages until a build runs. See app/lib/bookstore/rebuild.js and
-// functions/api/bookstore/rebuild.js; the deploy-hook URL is server-side only and is not
-// reachable from this file.
-import { rebuildNeeded, requestRebuild } from '../../lib/bookstore/rebuild';
+// has no pages until a build runs. See app/lib/rebuild.js and functions/api/rebuild.js; this
+// file names a hook ('bookstore') and never holds one. R19.7 moved both modules up out of the
+// bookstore namespace — four surfaces use them now and only one is the shop.
+import { rebuildNeeded, requestRebuild, HOOKS } from '../../lib/rebuild';
 import { TITLE_STATUSES } from '../../lib/bookstore/schema';
 // R18 — the author block's bounds and its 3 MB photo cap, read from the one module the write
 // path and the RTDB .validate rules are both pinned to. Never re-typed here.
@@ -331,7 +331,7 @@ export default function AdminBookstorePage() {
   async function summonDeploy(was, now) {
     if (!rebuildNeeded(was, now)) return;
     setRebuildNotice(null);
-    const verdict = await requestRebuild({ getIdToken: () => user?.getIdToken() });
+    const verdict = await requestRebuild({ hook: HOOKS.BOOKSTORE, getIdToken: () => user?.getIdToken() });
     setRebuildNotice({ tone: verdict.ok ? 'ok' : 'bad', text: verdict.message });
     if (!verdict.ok) console.error('[admin/bookstore] rebuild not started:', verdict.status, verdict.message);
   }

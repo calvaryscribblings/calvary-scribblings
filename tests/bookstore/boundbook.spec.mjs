@@ -166,15 +166,69 @@ test.describe('the book has no feet', () => {
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 test.describe('the contact pool', () => {
-  test('the Window’s pool is where it was before the feet came off', async ({ page }) => {
+  // ── R19.7 — THE RULING, PINNED BY ITS GEOMETRY ────────────────────────────────────────
+  //
+  // This test is new and it is the one that matters. The three assertions below are EXACT —
+  // an integer equation, a computed CSS length, and a layout offset — where the pool probe
+  // beneath them reads the tail of a 46px blur at a threshold of 0.75 in 255. When the two
+  // disagree, THIS is the one telling the truth about whether the geometry moved.
+  //
+  // It exists because the pool assertion spent R17.4 through R19.6 failing on a drift of
+  // 1.11px while the geometry underneath it had not moved by one hundredth of a pixel — and
+  // the suite ran in no workflow, so nobody was told. See CONTACT_SHADOW_REBASE's own header.
+  test('THE DERIVATION HOLDS: the shadow rose by exactly the drop the feet occupied', async ({ page }) => {
+    // 1. The record is internally consistent. -8 === -16 + 8.
+    expect(REBASE.isBottomPx, 'the rebase must BE the derivation, not a number beside it')
+      .toBe(REBASE.wasBottomPx + REBASE.raisedByPx);
+    expect(REBASE.raisedByPx, 'and the rise must be the drop the feet occupied')
+      .toBe(REMOVED.removedDropPx);
+
+    await enterShop(page);
+
+    // 2. The shipped stylesheet agrees with the record.
+    const bottoms = await page.locator('.bb-shadow').evaluateAll(
+      (els) => [...new Set(els.map((el) => getComputedStyle(el).bottom))],
+    );
+    expect(bottoms, 'every contact shadow on the page must sit at the rebased offset')
+      .toEqual([`${REBASE.isBottomPx}px`]);
+
+    // 3. The silhouette is where R16 measured it AFTER the removal — the feet are gone and the
+    //    lowest paint is the front face's own perspective overhang. Tight tolerance on purpose:
+    //    this is a layout number, it does not rasterise, and it should not move at all.
+    for (const [sel, key] of [
+      ['.the-window .bb-persp', 'window190'],
+      ['.curated-case-book .bb-persp', 'curatedCase170'],
+    ]) {
+      const el = page.locator(sel).first();
+      if (await el.count() === 0) continue;
+      const below = await el.evaluate((root) => {
+        const box = root.getBoundingClientRect();
+        const f = root.querySelector('.bb-front').getBoundingClientRect();
+        const feet = root.querySelector('.bb-foreedge-b');
+        return Math.max(f.bottom, feet ? feet.getBoundingClientRect().bottom : -Infinity) - box.bottom;
+      });
+      expect(Math.abs(below - REBASE.silhouetteAfterPx[key]),
+        `${key}: the silhouette sits ${below.toFixed(2)}px below the box, against ${REBASE.silhouetteAfterPx[key]}px on the record`)
+        .toBeLessThanOrEqual(0.1);
+    }
+  });
+
+  // ── The pool itself. Compared against measuredPoolNow, NOT measuredPoolBefore. ──────────
+  //
+  // The target moved in R19.7 and CONTACT_SHADOW_REBASE explains why at length: R16's own
+  // derivation measured and documented a −0.55px residual on the window, so comparing against
+  // the PRE-removal depth spent half the drift budget on a residual the ruling had already
+  // accounted for. The tolerance is unchanged at 1px; only the thing it is measured from moved.
+  test('the Window’s pool is the depth this ruling renders', async ({ page }) => {
     await enterShop(page);
     const win = page.locator('.the-window .bb-persp');
     test.skip(await win.count() === 0, 'no WINDOW section is claimed on the live shop');
     await page.addStyleTag({ content: FLATTEN });
     const depth = await poolDepth(page, '.the-window .bb-persp');
-    const before = REBASE.measuredPoolBefore.window190;
-    expect(Math.abs(depth - before),
-      `the Window's pool is ${depth.toFixed(2)}px deep against ${before}px before the removal`)
+    const base = REBASE.measuredPoolNow.window190;
+    console.log(`\n=== window pool ===\n${depth.toFixed(2)}px against ${base}px recorded ${REBASE.measuredOn}\n`);
+    expect(Math.abs(depth - base),
+      `the Window's pool is ${depth.toFixed(2)}px deep against ${base}px recorded on ${REBASE.measuredOn}`)
       .toBeLessThanOrEqual(REBASE.tolerancePx);
   });
 
@@ -184,9 +238,10 @@ test.describe('the contact pool', () => {
     test.skip(await cased.count() === 0, 'no curated section is rendering a case on the live shop');
     await page.addStyleTag({ content: FLATTEN });
     const depth = await poolDepth(page, '.curated-case-book .bb-persp');
-    const before = REBASE.measuredPoolBefore.curatedCase170;
-    expect(Math.abs(depth - before),
-      `the curated case's pool is ${depth.toFixed(2)}px deep against ${before}px before the removal`)
+    const base = REBASE.measuredPoolNow.curatedCase170;
+    console.log(`\n=== curated case pool ===\n${depth.toFixed(2)}px against ${base}px recorded ${REBASE.measuredOn}\n`);
+    expect(Math.abs(depth - base),
+      `the curated case's pool is ${depth.toFixed(2)}px deep against ${base}px recorded on ${REBASE.measuredOn}`)
       .toBeLessThanOrEqual(REBASE.tolerancePx);
   });
 

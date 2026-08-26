@@ -1,6 +1,6 @@
-// R19.6 — THE PUBLISH → DEPLOY HANDSHAKE, specified end to end.
+// THE PUBLISH → DEPLOY HANDSHAKE, specified end to end. R19.6, generalised in R19.7.
 //
-//   node --test tests/bookstore/rebuild.test.mjs      (npm run test:purchases)
+//   node --test tests/ci/rebuild.test.mjs      (npm run test:ci)
 //
 // THE DEFECT IT CLOSES. `output: 'export'` means every /bookstore/{slug} page is a FILE
 // enumerated at build time. Publishing a title in the CMS wrote a record that nothing served:
@@ -15,22 +15,29 @@
 //      not spend them, and one that can must not spend them twice.
 //   3. THE PUBLISH SURVIVES A FAILED TRIGGER. The record is already public by the time the
 //      trigger runs; a rebuild that will not start must never be able to un-publish a book.
-//   4. THE URL NEVER REACHES A CLIENT — asserted next door, in
-//      tests/ci/deploy-hook-secrecy.test.mjs, which also scans built out/.
+//   4. THE CLIENT NAMES A HOOK AND NEVER HOLDS ONE. An identifier maps to an environment
+//      variable on the SERVER; an unknown identifier is a 400 that names the allowed set. The
+//      absence of any URL is asserted next door, in tests/ci/deploy-hook-secrecy.test.mjs,
+//      which also scans built out/.
 //
 // Offline. Nothing here reaches the network: fetch is injected, and the endpoint is driven as
 // a function with a fabricated env.
 
 import { test, describe } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
-import { onRequestPost as rebuildEndpoint } from '../../functions/api/bookstore/rebuild.js';
+import { onRequestPost as rebuildEndpoint } from '../../functions/api/rebuild.js';
+import { HOOK_ENV, HOOK_IDS as SERVER_HOOK_IDS, resolveHook } from '../../functions/api/_deploy-hooks.js';
 import {
   rebuildNeeded,
   requestRebuild,
   REBUILD_ENDPOINT,
   REBUILD_STARTED,
-} from '../../app/lib/bookstore/rebuild.js';
+  HOOKS,
+} from '../../app/lib/rebuild.js';
 
 const FOUNDER = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 const OTHER_FOUNDER = 'GfXFIc0dThZ1cs2SBBQIFao4aSz1';
@@ -55,14 +62,28 @@ function stubFetch({ uid = FOUNDER, hookStatus = 200, hookThrows = false } = {})
     return new Response('{"success":true}', { status: hookStatus });
   };
   impl.calls = calls;
-  impl.hookCalls = () => calls.filter((c) => c.url === HOOK);
+  impl.hookCalls = () => calls.filter((c) => c.url.startsWith(HOOK));
   return impl;
 }
 
-const post = (token) => new Request('https://calvaryscribblings.co.uk/api/bookstore/rebuild', {
-  method: 'POST',
-  headers: token ? { Authorization: `Bearer ${token}` } : {},
-});
+// `raw` lets a spec send something that is NOT valid JSON — or nothing at all. A default
+// parameter cannot express "no body", because `undefined` is exactly what triggers the default.
+const post = (token, body = { hook: 'bookstore' }, raw) =>
+  new Request('https://calvaryscribblings.co.uk/api/rebuild', {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'Content-Type': 'application/json',
+    },
+    body: raw !== undefined ? raw : JSON.stringify(body),
+  });
+
+const ENV = {
+  NEXT_PUBLIC_FIREBASE_API_KEY: 'k',
+  DEPLOY_HOOK_URL: HOOK,
+  CMS_DEPLOY_HOOK_URL: `${HOOK}-cms`,
+  OPEN_PAGES_DEPLOY_HOOK_URL: `${HOOK}-open`,
+};
 
 async function drive(opts = {}, env = {}) {
   const fetchImpl = stubFetch(opts);
@@ -70,8 +91,8 @@ async function drive(opts = {}, env = {}) {
   globalThis.fetch = fetchImpl;
   try {
     const res = await rebuildEndpoint({
-      request: post(opts.token === undefined ? 'a-token' : opts.token),
-      env: { NEXT_PUBLIC_FIREBASE_API_KEY: 'k', DEPLOY_HOOK_URL: HOOK, ...env },
+      request: post(opts.token === undefined ? 'a-token' : opts.token, opts.body, opts.raw),
+      env: { ...ENV, ...env },
     });
     return { res, body: await res.clone().json().catch(() => null), fetchImpl };
   } finally {
@@ -132,12 +153,14 @@ describe('2 · the endpoint answers honestly', () => {
   test('a founder gets 202 { building: true } — accepted, not finished', async () => {
     const { res, body, fetchImpl } = await drive();
     assert.equal(res.status, 202);
-    assert.deepEqual(body, { building: true });
+    // The identifier is echoed; the URL never is. Two surfaces publishing at once should be
+    // able to tell which answer was theirs.
+    assert.deepEqual(body, { building: true, hook: 'bookstore' });
     assert.equal(fetchImpl.hookCalls().length, 1, 'exactly one POST to the hook');
     assert.equal(fetchImpl.hookCalls()[0].method, 'POST');
   });
 
-  test('DEPLOY_HOOK_URL absent → 503 with an honest message, not a 500 and not a lie', async () => {
+  test('the surface\'s env var absent → 503 with an honest message, not a 500 and not a lie', async () => {
     const { res, body, fetchImpl } = await drive({}, { DEPLOY_HOOK_URL: undefined });
     assert.equal(res.status, 503, 'not configured is not a bug and is not a success');
     assert.equal(body.code, 'deploy_hook_unconfigured');
@@ -171,6 +194,100 @@ describe('2 · the endpoint answers honestly', () => {
       assert.ok(call.init?.signal, `no timeout signal on ${call.url}`);
       assert.equal(typeof call.init.signal.aborted, 'boolean');
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2b. THE IDENTIFIER → ENV MAPPING — R19.7's whole point
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('2b · a hook is NAMED by the caller and RESOLVED by the server', () => {
+  test('each identifier fires its own hook, and only its own', async () => {
+    // Three surfaces, three Cloudflare projects' worth of build minutes. A mapping that sent
+    // the CMS's publish to the bookstore's hook would look like it worked — a build would
+    // start, and the wrong pages would be rebuilt.
+    const cases = [
+      ['bookstore', ENV.DEPLOY_HOOK_URL],
+      ['cms', ENV.CMS_DEPLOY_HOOK_URL],
+      ['openPages', ENV.OPEN_PAGES_DEPLOY_HOOK_URL],
+    ];
+    for (const [hook, expected] of cases) {
+      const { res, body, fetchImpl } = await drive({ body: { hook } });
+      assert.equal(res.status, 202, `${hook} must be accepted`);
+      assert.equal(body.hook, hook);
+      const fired = fetchImpl.hookCalls();
+      assert.equal(fired.length, 1, `${hook} must fire exactly one hook`);
+      assert.equal(fired[0].url, expected, `${hook} must fire ITS OWN hook`);
+    }
+  });
+
+  test('THE FINDING: an unknown identifier is a 400 that names the allowed set', async () => {
+    for (const hook of ['nonsense', 'BOOKSTORE', 'book store', '', 42, null]) {
+      const { res, body, fetchImpl } = await drive({ body: { hook } });
+      assert.equal(res.status, 400, `${JSON.stringify(hook)} must be refused`);
+      assert.equal(body.code, 'unknown_hook');
+      assert.deepEqual(body.allowed, ['bookstore', 'cms', 'openPages'],
+        'the refusal must say what WOULD have been accepted');
+      assert.deepEqual(fetchImpl.hookCalls(), [], 'nothing may fire on an unknown identifier');
+    }
+  });
+
+  test('a body with no hook, an empty body, or one that will not parse — all the same 400', async () => {
+    const cases = [
+      { label: 'no hook key', opts: { body: {} } },
+      { label: 'empty body', opts: { raw: '' } },
+      { label: 'not JSON', opts: { raw: 'not json at all' } },
+      { label: 'JSON, not an object', opts: { raw: '"bookstore"' } },
+    ];
+    for (const { label, opts } of cases) {
+      const { res, body: served, fetchImpl } = await drive(opts);
+      assert.equal(res.status, 400, `${label} must be a 400`);
+      assert.equal(served.code, 'unknown_hook', label);
+      assert.deepEqual(fetchImpl.hookCalls(), [], `${label} must fire nothing`);
+    }
+  });
+
+  test('⛔ A URL IN THE BODY IS NOT A HOOK. It is refused like any other unknown.', async () => {
+    // The failure mode this shape exists to prevent: if the endpoint accepted a URL, it would
+    // be an open POST proxy to anywhere on the internet, authenticated by a founder token.
+    const { res, body, fetchImpl } = await drive({ body: { hook: 'https://evil.example/steal' } });
+    assert.equal(res.status, 400);
+    assert.equal(body.code, 'unknown_hook');
+    assert.deepEqual(fetchImpl.hookCalls(), []);
+    assert.ok(!JSON.stringify(body).includes('evil.example'),
+      'and the refusal must not echo what was asked for');
+  });
+
+  test('the env var name is stated on a 503 — it is configuration, not a secret', async () => {
+    const { res, body } = await drive({ body: { hook: 'cms' } }, { CMS_DEPLOY_HOOK_URL: undefined });
+    assert.equal(res.status, 503);
+    assert.match(body.error, /CMS_DEPLOY_HOOK_URL/,
+      'the message must name the variable to set, or it is not actionable');
+    // …and one surface being unconfigured must not take the others down.
+    const other = await drive({ body: { hook: 'bookstore' } }, { CMS_DEPLOY_HOOK_URL: undefined });
+    assert.equal(other.res.status, 202);
+  });
+
+  test('resolveHook: the mapping itself, without the HTTP', () => {
+    assert.deepEqual(HOOK_ENV, {
+      bookstore: 'DEPLOY_HOOK_URL',
+      cms: 'CMS_DEPLOY_HOOK_URL',
+      openPages: 'OPEN_PAGES_DEPLOY_HOOK_URL',
+    });
+    assert.equal(resolveHook(ENV, 'cms').url, ENV.CMS_DEPLOY_HOOK_URL);
+    assert.equal(resolveHook(ENV, 'nope').reason, 'unknown');
+    assert.equal(resolveHook({}, 'cms').reason, 'unconfigured');
+    assert.equal(resolveHook({}, 'cms').envVar, 'CMS_DEPLOY_HOOK_URL');
+    // Prototype keys are not hooks. `hook: "constructor"` must not resolve to anything.
+    for (const k of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      assert.equal(resolveHook(ENV, k).reason, 'unknown', `${k} must not resolve`);
+    }
+  });
+
+  test('THE MIRROR HOLDS: the client\'s identifiers are exactly the server\'s', () => {
+    // The one way a two-sided table like this rots. The client can only name what the server
+    // can resolve, and the server must not carry a hook nothing can ask for.
+    assert.deepEqual(Object.values(HOOKS).sort(), [...SERVER_HOOK_IDS].sort());
   });
 });
 
@@ -209,7 +326,7 @@ describe('3b · the trigger fires exactly once per flip', () => {
       posts: () => posts,
       async flip(was, now) {
         if (!rebuildNeeded(was, now)) return null;
-        return requestRebuild({ getIdToken: async () => 'tok', fetchImpl });
+        return requestRebuild({ hook: HOOKS.BOOKSTORE, getIdToken: async () => 'tok', fetchImpl });
       },
     };
   }
@@ -243,7 +360,7 @@ describe('3b · the trigger fires exactly once per flip', () => {
   test('the request goes to the endpoint, as a POST, bearing the token', async () => {
     const seen = [];
     const fetchImpl = async (url, init) => { seen.push({ url, init }); return new Response('{}', { status: 202 }); };
-    await requestRebuild({ getIdToken: async () => 'tok', fetchImpl });
+    await requestRebuild({ hook: HOOKS.BOOKSTORE, getIdToken: async () => 'tok', fetchImpl });
     assert.equal(seen[0].url, REBUILD_ENDPOINT);
     assert.equal(seen[0].init.method, 'POST');
     assert.equal(seen[0].init.headers.Authorization, 'Bearer tok');
@@ -260,7 +377,7 @@ describe('4 · a failed trigger is not a failed publish', () => {
       JSON.stringify({ error: 'Rebuilds are not configured on this deployment.', code: 'deploy_hook_unconfigured' }),
       { status: 503 },
     );
-    const verdict = await requestRebuild({ getIdToken: async () => 'tok', fetchImpl });
+    const verdict = await requestRebuild({ hook: HOOKS.BOOKSTORE, getIdToken: async () => 'tok', fetchImpl });
     assert.equal(verdict.ok, false);
     assert.equal(verdict.status, 503);
     assert.match(verdict.message, /not configured/);
@@ -269,7 +386,7 @@ describe('4 · a failed trigger is not a failed publish', () => {
 
   test('the network throwing becomes a verdict, never an exception', async () => {
     const fetchImpl = async () => { throw new Error('offline'); };
-    const verdict = await requestRebuild({ getIdToken: async () => 'tok', fetchImpl });
+    const verdict = await requestRebuild({ hook: HOOKS.BOOKSTORE, getIdToken: async () => 'tok', fetchImpl });
     assert.equal(verdict.ok, false);
     assert.match(verdict.message, /Cloudflare Pages dashboard/, 'the manual fallback must be named');
   });
@@ -277,6 +394,7 @@ describe('4 · a failed trigger is not a failed publish', () => {
   test('getIdToken throwing becomes a verdict, never an exception', async () => {
     // The one that would otherwise land in handleSave's own catch and read as a failed save.
     const verdict = await requestRebuild({
+      hook: HOOKS.BOOKSTORE,
       getIdToken: async () => { throw new Error('token refresh failed'); },
       fetchImpl: async () => { throw new Error('must not be called'); },
     });
@@ -286,14 +404,14 @@ describe('4 · a failed trigger is not a failed publish', () => {
 
   test('a body that will not parse still fails loudly, with the status', async () => {
     const fetchImpl = async () => new Response('<html>502 Bad Gateway</html>', { status: 502 });
-    const verdict = await requestRebuild({ getIdToken: async () => 'tok', fetchImpl });
+    const verdict = await requestRebuild({ hook: HOOKS.BOOKSTORE, getIdToken: async () => 'tok', fetchImpl });
     assert.equal(verdict.ok, false);
     assert.match(verdict.message, /502/);
   });
 
   test('202 is the only success, and it says what happens next', async () => {
     const fetchImpl = async () => new Response('{"building":true}', { status: 202 });
-    const verdict = await requestRebuild({ getIdToken: async () => 'tok', fetchImpl });
+    const verdict = await requestRebuild({ hook: HOOKS.BOOKSTORE, getIdToken: async () => 'tok', fetchImpl });
     assert.equal(verdict.ok, true);
     assert.equal(verdict.message, REBUILD_STARTED);
     assert.match(verdict.message, /two minutes/, 'the wait is stated, not implied');
@@ -304,7 +422,64 @@ describe('4 · a failed trigger is not a failed publish', () => {
     // to an HTML 404 page, most likely, which is exactly what a missing Function looks like on
     // a static host.
     const fetchImpl = async () => new Response('{}', { status: 200 });
-    const verdict = await requestRebuild({ getIdToken: async () => 'tok', fetchImpl });
+    const verdict = await requestRebuild({ hook: HOOKS.BOOKSTORE, getIdToken: async () => 'tok', fetchImpl });
     assert.equal(verdict.ok, false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 5. THE FOUR PUBLISH PATHS ARE ACTUALLY WIRED
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Everything above proves the endpoint is correct. This proves it is CALLED — which is a
+// different claim, and the one that was false for three of these four surfaces until R19.7.
+//
+// It reads the sources rather than driving the admin screens in a browser, deliberately. Each
+// of these is a signed-in founder flow behind a live Firebase write; a browser test of them
+// would need real credentials and would either mutate production data or prove nothing. What
+// can go wrong here is not a rendering fault — it is a call site that was never moved, or one
+// moved onto the wrong hook, and both of those are visible in the text.
+
+const APP = fileURLToPath(new URL('../../app/', import.meta.url));
+const src = (f) => readFileSync(join(APP, f), 'utf8');
+
+describe('5 · every publish path asks for its own deploy', () => {
+  const SITES = [
+    ['admin/bookstore/page.js', 'HOOKS.BOOKSTORE', 'a bookstore title is published or unpublished'],
+    ['admin/page.js', 'HOOKS.CMS', 'a story is saved in the CMS'],
+    ['admin/voices/page.js', 'HOOKS.CMS', 'a voice is added, edited or reordered'],
+    ['admin/forum/page.jsx', 'HOOKS.OPEN_PAGES', 'an Open Pages post is approved'],
+  ];
+
+  for (const [file, hook, when] of SITES) {
+    test(`${file} → ${hook} (when ${when})`, () => {
+      const text = src(file);
+      assert.match(text, /from '(\.\.\/)+lib\/rebuild'/,
+        `${file} must import the shared module, not roll its own request`);
+      assert.match(text, new RegExp(`hook:\\s*${hook.replace('.', '\\.')}`),
+        `${file} must ask for ${hook} — a call site on the wrong hook rebuilds the wrong pages, `
+        + 'and looks like it worked');
+    });
+  }
+
+  test('THE REGRESSION: no publish path holds a hook URL or calls Cloudflare itself', () => {
+    // The shape all three CMS sites had until R19.7. Asserted here as well as in
+    // deploy-hook-secrecy.test.mjs because THIS file is the one somebody reads when they add a
+    // fifth publish path, and the wrong instinct is to copy what the old ones did.
+    for (const [file] of SITES) {
+      const text = src(file);
+      assert.doesNotMatch(text, /deploy_hooks\//, `${file} must not name a deploy hook`);
+      assert.doesNotMatch(text, /['"`]https:\/\/api\.cloudflare\.com/, `${file} must not call Cloudflare directly`);
+    }
+  });
+
+  test('the Open Pages SERVER path resolves its hook from the environment too', () => {
+    // functions/api/open-pages/moderate.js auto-publishes without a human, and it held the same
+    // UUID app/admin/forum/page.jsx did. That URL was rotated on 26 Aug 2026, so the literal it
+    // used to carry is now a dead endpoint that would 404 forever while reporting nothing —
+    // every auto-published post's detail page 404ing until an unrelated deploy happened to run.
+    const text = readFileSync(fileURLToPath(new URL('../../functions/api/open-pages/moderate.js', import.meta.url)), 'utf8');
+    assert.doesNotMatch(text, /deploy_hooks\//, 'the literal must be gone');
+    assert.match(text, /resolveHook\(env, 'openPages'\)/, 'it must resolve through the shared table');
   });
 });

@@ -15,56 +15,64 @@
 // that file's emulator switch needed a second fence. Both facts are measured.) So the rule is
 // not "be careful with it" — it is "app/ must never name it at all".
 //
-// ⚠⚠ THIS FILE FOUND A LIVE LEAK ON THE DAY IT WAS WRITTEN. READ THIS BEFORE THE CODE. ⚠⚠
+// ── WHY THIS FILE EXISTS: IT FOUND A LIVE LEAK, AND THE LEAK IS NOW CLOSED ───────────────
 //
-// 26 Aug 2026, first run against a built out/: TWO Cloudflare deploy-hook URLs are ALREADY
-// hardcoded in client components and ALREADY shipped in the production JavaScript bundle.
+// 26 Aug 2026, R19.6, first run against a built out/: TWO Cloudflare deploy-hook URLs were
+// hardcoded in client components and were already shipping in the production JavaScript bundle.
 //
-//   df2479ae-06a5-4ff3-a319-29b7b94dd106   app/admin/page.js:1042        (story publish)
-//                                          app/admin/voices/page.js:12   (voices mutations)
-//   6667c809-d3bf-4c93-bab0-065323c09d76   app/admin/forum/page.jsx:34   (Open Pages approve)
+//   df2479ae-…   app/admin/page.js:1042, app/admin/voices/page.js:12
+//   6667c809-…   app/admin/forum/page.jsx:34  (+ a legitimate server use in
+//                functions/api/open-pages/moderate.js)
 //
-// All three files carry 'use client', so all three UUIDs are in out/_next/static/chunks/ and
-// have been served to every visitor of the site for as long as they have existed. A fourth
-// occurrence — functions/api/open-pages/moderate.js:51 — is a Pages Function and is FINE; it
-// runs on the server and is not bundled for a browser.
+// All three client files carry 'use client', so both UUIDs were in out/_next/static/chunks/ and
+// had been served to every visitor of the site for as long as they existed. A deploy hook is an
+// unauthenticated trigger — POST to the URL and a build starts, with no token, no signature and
+// no expiry. Possession IS authorisation, and there is nothing to revoke short of destroying
+// the hook.
 //
-// WHAT THAT MEANS, PLAINLY: anyone who has ever loaded the site can POST to those URLs and
-// start a build, as often as they like, forever. There is no token to revoke. The only
-// remedy is to DELETE BOTH HOOKS IN THE CLOUDFLARE DASHBOARD and issue new ones — which is a
-// manual step, and is listed for Ikenna alongside creating DEPLOY_HOOK_URL.
+// ── WHAT HAPPENED NEXT, AND WHY THE EXCEPTION LIST IS EMPTY ──────────────────────────────
 //
-// R19.6 DID NOT FIX THOSE THREE SITES, deliberately. Rewiring them through the new endpoint
-// before the replacement hooks exist would leave the story, voices and Open Pages publish
-// paths answering 503 in the interim, and it would not un-publish a single UUID that is
-// already in a bundle in someone's browser cache and in this repo's git history. The code
-// change is worth nothing until the rotation happens, and the rotation is worth everything
-// on its own.
+// R19.6 could not fix it: rewiring the three call sites before replacement hooks existed would
+// have left the story, voices and Open Pages publish paths dead, and it would not have
+// un-published a UUID already sitting in browser caches and in git history. So R19.6 recorded
+// both ids as DATED EXCEPTIONS — the leak could not grow, but it was still there.
 //
-// ── SO THIS IS A RATCHET, NOT A CLEAN ASSERTION ─────────────────────────────────────────
+//   ✔ 26 Aug 2026 — BOTH HOOKS WERE ROTATED IN CLOUDFLARE. df2479ae-… and 6667c809-… are dead
+//     URLs; POSTing either one starts nothing. Three fresh hooks were created and their URLs
+//     put in the Pages project environment as DEPLOY_HOOK_URL, CMS_DEPLOY_HOOK_URL and
+//     OPEN_PAGES_DEPLOY_HOOK_URL.
 //
-// The two known hook ids are listed below as DATED EXCEPTIONS. Any OTHER hook URL, in any
-// source file or anywhere in out/, fails immediately — so the leak cannot grow. When the
-// hooks are rotated and those three call sites move behind /api/bookstore/rebuild, empty the
-// list and this file becomes the absolute it was written to be.
+//   ✔ R19.7 — all four call sites moved onto /api/rebuild, which takes an IDENTIFIER
+//     ('bookstore' | 'cms' | 'openPages') and maps it to an environment variable server-side.
+//     No URL crosses the boundary in either direction.
 //
-// ── WHY IT MATTERS FOR R19.6's OWN HOOK ─────────────────────────────────────────────────
+// So KNOWN_LEAKED_HOOK_IDS is EMPTY, and it is empty because the leak was closed — not because
+// it was never populated. That distinction is the reason this note is long: an empty allow-list
+// with no history reads like a guard that has never caught anything, and the next person to hit
+// a failure here needs to know it has.
+//
+// ⚠ DO NOT RE-POPULATE IT. If this suite fails, a deploy-hook URL has been written into the
+// tree or emitted into the build, and the fix is to route that call through /api/rebuild — not
+// to add its id below.
+//
+// ── WHY THE NEW HOOK CANNOT LEAK THE SAME WAY ────────────────────────────────────────────
 //
 // Next SUBSTITUTES any env var defined at build time into the client bundle — `process.env.X`
 // in a client component is not a runtime read in a static export, it is a string literal in a
 // chunk. (app/lib/firebase.js's header documents the mirror-image case: an UNDEFINED variable
 // is left as a live property read, which is why that file's emulator switch needed a second
-// fence. Both facts are measured.) So the rule for the new hook is not "be careful with it" —
-// it is "app/ must never name it at all", and that is what the second test asserts.
+// fence. Both facts are measured.) So the rule is not "be careful with it" — it is "app/ must
+// never read it at all", which is what the second test asserts.
 //
-// THREE ASSERTIONS, and the last one needs a build:
+// FOUR ASSERTIONS, and the last one needs a build:
 //
-//   SOURCES  — always runs. `DEPLOY_HOOK_URL` appears under functions/ and nowhere under app/,
-//              and no hook URL outside the dated exceptions is written down anywhere.
-//   OUT/     — runs when out/ exists. Scans every emitted byte for the variable name, for any
-//              unlisted Cloudflare deploy-hook URL, and for the live value if one is in the
-//              environment. reader-tests.yml runs this AFTER `npx next build`, which is the
-//              run that matters; a bare `npm run test:ci` on a clean checkout reports the skip
+//   SOURCES  — always run. The env vars are read under functions/ and nowhere under app/; no
+//              hook URL is written down anywhere; and no client file POSTs api.cloudflare.com
+//              directly, which is the shape the whole leak took.
+//   OUT/     — runs when out/ exists. Scans every emitted byte for the variable names, for any
+//              Cloudflare deploy-hook URL at all, and for the live values if they are in the
+//              environment. reader-tests.yml runs this AFTER `npx next build`, which is the run
+//              that matters; a bare `npm run test:ci` on a clean checkout reports the skip
 //              loudly rather than passing silently on an assertion it never made.
 
 import { test, describe } from 'node:test';
@@ -73,33 +81,42 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 
-const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const VAR = 'DEPLOY_HOOK_URL';
+import { HOOK_ENV } from '../../functions/api/_deploy-hooks.js';
 
-// A READ of the variable, in any of the three forms that would make Next inline it:
-// `env.DEPLOY_HOOK_URL`, `process.env.DEPLOY_HOOK_URL`, `env['DEPLOY_HOOK_URL']`.
+const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+// The three deploy-hook environment variables. Read from functions/api/_deploy-hooks.js rather
+// than retyped, so adding a fourth hook cannot quietly escape this scan.
+const HOOK_VARS = Object.values(HOOK_ENV);
+
+// A READ of one of them, in any of the forms that would make Next inline it:
+// `env.X`, `process.env.X`, `env['X']`.
 //
 // Matching the READ rather than the NAME is deliberate. A bare substring scan would forbid
-// app/lib/bookstore/rebuild.js from having the comment that explains why it must never touch
-// the variable — and a rule that punishes its own documentation is a rule people delete the
-// documentation to satisfy. Nothing is inlined by a mention in a comment; only a read is.
-const READS_VAR = new RegExp(
-  `(?:process\\s*\\.\\s*)?env\\s*(?:\\.\\s*${VAR}\\b|\\[\\s*['"\`]${VAR}['"\`]\\s*\\])`,
+// app/lib/rebuild.js from carrying the comment that explains why it must never touch these —
+// and a rule that punishes its own documentation is a rule people delete the documentation to
+// satisfy. Nothing is inlined by a mention in a comment; only a read is.
+const readsVar = (name) => new RegExp(
+  `(?:process\\s*\\.\\s*)?env\\s*(?:\\.\\s*${name}\\b|\\[\\s*['"\`]${name}['"\`]\\s*\\])`,
 );
+const readsAnyVar = (src) => HOOK_VARS.filter((n) => readsVar(n).test(src));
+
+// THE SHAPE THE LEAK ACTUALLY TOOK: a client file POSTing api.cloudflare.com itself. Matched as
+// a STRING LITERAL (quote or backtick immediately before the scheme), so the prose above a call
+// site may still name the host while the call itself may not exist.
+const CALLS_CLOUDFLARE = /['"`]https:\/\/api\.cloudflare\.com/;
 
 // The shape of a Cloudflare Pages deploy hook, so a HARDCODED one is caught even if somebody
 // renames the variable on the way in. Captures the id, because the ratchet is per-hook.
 const HOOK_SHAPE = /pages\/webhooks\/deploy_hooks\/([0-9a-f-]{8,})/g;
 
-// THE DATED EXCEPTIONS — 26 Aug 2026. See this file's header. These two are already public;
-// listing them here is not a disclosure, it is a record. Delete an entry the moment its hook
-// is rotated in Cloudflare, and delete the list when both are.
-const KNOWN_LEAKED_HOOK_IDS = new Set([
-  'df2479ae-06a5-4ff3-a319-29b7b94dd106', // app/admin/page.js, app/admin/voices/page.js
-  '6667c809-d3bf-4c93-bab0-065323c09d76', // app/admin/forum/page.jsx (+ a legitimate server use)
-]);
+// ⚠ EMPTY, AND IT STAYS EMPTY. Both entries this set once held — df2479ae-… and 6667c809-… —
+// were rotated in Cloudflare on 26 Aug 2026 and are dead URLs. R19.7 moved every call site onto
+// /api/rebuild, so nothing in this repo needs to name a hook again. Read the header before
+// adding anything here; the answer to a failure below is a call site to fix, not an id to
+// forgive.
+const KNOWN_LEAKED_HOOK_IDS = new Set([]);
 
-/** Every deploy-hook id in `src` that is NOT one of the two already-public ones. */
+/** Every deploy-hook id in `src` that is not on the (now empty) exception list. */
 function unlistedHookIds(src) {
   const out = new Set();
   for (const m of src.matchAll(HOOK_SHAPE)) {
@@ -144,75 +161,83 @@ function hits(files, needle) {
   return found;
 }
 
-describe('the deploy hook stays on the server', () => {
-  test('the variable is read under functions/ — the guard is not vacuous', () => {
-    // Without this, every assertion below would pass on a repo where the feature was deleted.
-    const server = hits(walk(join(ROOT, 'functions')), (src) => READS_VAR.test(src) && [VAR])
-      .map((f) => f.split(' → ')[0]);
+describe('the deploy hooks stay on the server', () => {
+  test('the mapping exists and is reachable — the guard is not vacuous', () => {
+    // Without this, every assertion below would pass on a repo where the feature was deleted:
+    // "no file names a hook variable" is trivially true when nothing uses hooks at all.
+    //
+    // The lookup is DYNAMIC — `env?.[HOOK_ENV[id]]` — so no file literally contains
+    // `env.DEPLOY_HOOK_URL`, and scanning for that form would be the wrong question. What must
+    // be true is that the table names all three, that it reads the environment through them,
+    // and that a route resolves through the table.
+    const owner = join(ROOT, 'functions/api/_deploy-hooks.js');
+    assert.ok(existsSync(owner), 'functions/api/_deploy-hooks.js must exist — it owns the mapping');
+    const src = readFileSync(owner, 'utf8');
+
+    for (const name of HOOK_VARS) {
+      assert.match(src, new RegExp(`['"\`]${name}['"\`]`), `${name} must appear in the mapping table`);
+    }
+    assert.match(src, /env\s*\??\.?\[/, 'the mapping must read the environment by computed key');
+
+    const consumers = hits(walk(join(ROOT, 'functions')), (s2) => /resolveHook\s*\(/.test(s2) && ['resolveHook'])
+      .map((f) => f.split(' → ')[0])
+      .filter((f) => f !== 'functions/api/_deploy-hooks.js');
     assert.ok(
-      server.length >= 1,
-      `${VAR} is not read anywhere under functions/. Either the rebuild endpoint was removed `
-      + '(in which case delete this file too) or it stopped reading its own env var.',
+      consumers.includes('functions/api/rebuild.js'),
+      `the rebuild endpoint must resolve through the table; consumers found: ${consumers.join(', ') || 'none'}`,
     );
     assert.ok(
-      server.includes('functions/api/bookstore/rebuild.js'),
-      `the endpoint that owns ${VAR} must be the one reading it; found: ${server.join(', ')}`,
+      consumers.includes('functions/api/open-pages/moderate.js'),
+      'the Open Pages auto-publish path must resolve through the table too — it held a hook '
+      + 'literal until R19.7, and that literal is now a rotated, dead URL',
     );
   });
 
-  test('THE RULE: nothing under app/ READS it', () => {
-    const leaked = hits(walk(join(ROOT, 'app')), (src) => READS_VAR.test(src) && [VAR])
-      .map((f) => f.split(' → ')[0]);
+  test('THE RULE: nothing under app/ READS a hook variable', () => {
+    const leaked = hits(walk(join(ROOT, 'app')), readsAnyVar);
     assert.deepEqual(
       leaked, [],
-      `${VAR} is read in client-tree sources: ${leaked.join(', ')}. Next inlines a defined `
-      + 'env var into the browser bundle at build time, so reading it here ships it. The client '
-      + 'half must know only the ENDPOINT path — see app/lib/bookstore/rebuild.js.',
+      `a deploy-hook variable is read in client-tree sources: ${leaked.join(', ')}. Next inlines `
+      + 'a defined env var into the browser bundle at build time, so reading one here ships it. '
+      + 'The client half must know only the ENDPOINT path and an IDENTIFIER — see app/lib/rebuild.js.',
     );
   });
 
-  test('no UNLISTED deploy-hook URL is hardcoded anywhere in the repo sources', () => {
-    // The ratchet. The two ids in KNOWN_LEAKED_HOOK_IDS are already public and are being
-    // rotated by hand; a THIRD one appearing is a new leak and fails here on the day it lands.
+  test('THE COMPANION: no client file POSTs a deploy hook directly', () => {
+    // The exact shape the R19.6 leak took, kept as its own assertion because it fails EARLIER
+    // and more legibly than the URL scan: a call site that has re-acquired `fetch(CLOUDFLARE…)`
+    // is a mistake to name as such, not a hex id to report.
+    const calling = hits(walk(join(ROOT, 'app')), (src) => CALLS_CLOUDFLARE.test(src) && ['api.cloudflare.com'])
+      .map((f) => f.split(' → ')[0]);
+    assert.deepEqual(
+      calling, [],
+      `client code is calling api.cloudflare.com directly: ${calling.join(', ')}. A deploy hook `
+      + 'is an unauthenticated trigger and must never be reachable from a browser bundle. Post '
+      + "to /api/rebuild with a hook IDENTIFIER instead — app/lib/rebuild.js's HOOKS.",
+    );
+  });
+
+  test('THE FINDING, CLOSED: no deploy-hook URL is written down anywhere in the repo', () => {
+    // The exception list is EMPTY as of R19.7 — see the header. Any hit at all is a leak.
     const dirs = ['app', 'functions', 'scripts', 'tests', 'public'];
     const leaked = [];
     for (const d of dirs) {
       const p = join(ROOT, d);
       if (!existsSync(p)) continue;
       leaked.push(...hits(walk(p), unlistedHookIds)
-        .filter((f) => !f.startsWith('tests/bookstore/rebuild.test.mjs')));
+        .filter((f) => !f.startsWith('tests/ci/rebuild.test.mjs')));
     }
     assert.deepEqual(
       leaked, [],
-      `a Cloudflare deploy-hook URL not on the dated exception list is written into: ${leaked.join(', ')}. `
-      + 'It is an unauthenticated trigger — possession is authorisation — and it belongs in the '
-      + 'Pages project environment, read server-side by functions/api/bookstore/rebuild.js, and '
-      + 'nowhere else. (tests/bookstore/rebuild.test.mjs is exempt: its hook is a fabricated '
-      + 'literal that exists so the specs can prove the real one is never echoed.)',
+      `a Cloudflare deploy-hook URL is written into: ${leaked.join(', ')}. It is an `
+      + 'unauthenticated trigger — possession is authorisation — and it belongs in the Pages '
+      + 'project environment, resolved server-side by functions/api/_deploy-hooks.js, and '
+      + 'nowhere else. (tests/ci/rebuild.test.mjs is exempt: its hook is a fabricated literal '
+      + 'that exists so the specs can prove a real one is never echoed.)',
     );
   });
 
-  test('the two known leaks are still exactly where this file says they are', () => {
-    // The other half of a ratchet: an exception list that stops matching reality is worse than
-    // no list, because it silently forgives whatever moved. If one of these fails, the leak was
-    // either fixed — in which case delete the entry and celebrate — or it moved, in which case
-    // the header above is now lying to whoever reads it next.
-    const clientLeaks = hits(walk(join(ROOT, 'app')), (src) => {
-      const ids = [...src.matchAll(HOOK_SHAPE)].map((m) => m[1]);
-      return ids.length ? ids : false;
-    }).map((f) => f.split(' → ')[0]);
-
-    assert.deepEqual(
-      clientLeaks.sort(),
-      ['app/admin/forum/page.jsx', 'app/admin/page.js', 'app/admin/voices/page.js'],
-      'the client-side deploy-hook leaks recorded in this file\'s header have changed. If one was '
-      + 'FIXED, remove it here and from the header (and from KNOWN_LEAKED_HOOK_IDS once no file '
-      + 'carries that id). If a NEW one appeared, the test above has already failed and this is '
-      + 'the second alarm.',
-    );
-  });
-
-  test('the built export carries neither the variable nor a hook URL', () => {
+  test('the built export carries no hook variable and no hook URL', () => {
     const OUT = join(ROOT, 'out');
     if (!existsSync(OUT)) {
       // LOUD, not silent. A skip that reads like a pass is how this assertion would rot.
@@ -227,26 +252,31 @@ describe('the deploy hook stays on the server', () => {
     const files = walk(OUT);
     assert.ok(files.length > 50, `out/ holds only ${files.length} files — that is not a build`);
 
-    const named = hits(files, VAR);
-    assert.deepEqual(named, [], `${VAR} was emitted into the static export: ${named.join(', ')}`);
+    const named = hits(files, readsAnyVar);
+    assert.deepEqual(named, [], `a deploy-hook variable was emitted into the static export: ${named.join(', ')}`);
 
-    // Chunk filenames are content-hashed, so out/ cannot be allow-listed by path — the ratchet
-    // is on the hook ID instead. The two known ones are expected here (they are compiled from
-    // the three client components named in the header); a third would be a new leak.
+    // Chunk filenames are content-hashed, so out/ cannot be allow-listed by path. With the
+    // exception list empty, the rule is simply: not one.
     const shaped = hits(files, unlistedHookIds);
     assert.deepEqual(
       shaped, [],
-      `a deploy-hook URL not on the dated exception list was emitted into the static export: ${shaped.join(', ')}`,
+      `a deploy-hook URL was emitted into the static export: ${shaped.join(', ')}`,
     );
 
-    // And if a real hook is in this process's environment — as it would be on a machine
-    // configured to run the endpoint locally — its literal value must be absent too.
-    const live = process.env[VAR];
-    if (live) {
-      const literal = hits(files, live);
-      assert.deepEqual(literal, [], `the LIVE hook URL was emitted into the static export: ${literal.join(', ')}`);
+    const calling = hits(files, (src) => CALLS_CLOUDFLARE.test(src) && ['api.cloudflare.com']);
+    assert.deepEqual(calling, [], `the export calls api.cloudflare.com directly: ${calling.join(', ')}`);
+
+    // And if real hooks are in this process's environment — as they would be on a machine
+    // configured to run the endpoint locally — their literal values must be absent too.
+    const live = HOOK_VARS.map((n) => process.env[n]).filter(Boolean);
+    for (const value of live) {
+      const literal = hits(files, value);
+      assert.deepEqual(literal, [], `a LIVE hook URL was emitted into the static export: ${literal.join(', ')}`);
     }
 
-    console.log(`\n✓ scanned ${files.length} files in out/ — no ${VAR}, no hook URL${live ? ', no live value' : ''}.\n`);
+    console.log(
+      `\n✓ scanned ${files.length} files in out/ — no hook variable, no hook URL, no direct `
+      + `Cloudflare call${live.length ? `, and none of the ${live.length} live value(s) present` : ''}.\n`,
+    );
   });
 });

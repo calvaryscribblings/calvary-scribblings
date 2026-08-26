@@ -8,6 +8,12 @@ import { publishedAtMsFor } from '../lib/storyAccess';
 import { validateBody } from '../lib/htmlBlocks';
 import { buildCoverDerivatives, COVER_CACHE_CONTROL } from '../lib/coverDerivatives';
 import { validateDescriptor, canonicalDescriptor, wordsEchoingTitle } from '../lib/coverDescriptor';
+// R19.7 — THE DEPLOY, ASKED FOR BY NAME. This file used to hold a Cloudflare deploy-hook URL
+// as a literal and POST it from the browser. A deploy hook is an unauthenticated trigger, so
+// that URL — shipped in out/_next/static/chunks — let anyone who had loaded the site start
+// builds indefinitely. It was rotated on 26 Aug 2026 and is dead. The hook is now named, never
+// held: see app/lib/rebuild.js.
+import { fireRebuild, HOOKS } from '../lib/rebuild';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -1037,10 +1043,11 @@ export default function AdminPage() {
           } catch(e) { console.warn('Follower notifications failed:', e); }
         }
       }
-      try {
-        await new Promise(r => setTimeout(r, 10000));
-        await fetch('https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/df2479ae-06a5-4ff3-a319-29b7b94dd106', { method: 'POST' });
-      } catch(e) { console.warn('Deploy hook failed:', e); }
+      // The settle wait is inside fireRebuild (SETTLE_MS): the RTDB write above must land
+      // before the build reads cms_stories, or the deploy renders the story as it was a moment
+      // ago. fireRebuild never throws, so a hook problem still cannot fail a successful save —
+      // but unlike the opaque no-cors POST this replaces, a failure is now VISIBLE as one.
+      await fireRebuild({ hook: HOOKS.CMS, getIdToken: () => user?.getIdToken() });
       const isScheduled = form.publishAt && new Date(form.publishAt) > new Date();
       // An unexpected preserved field is surfaced HERE, not just in the console —
       // the console is where the last silent field loss hid for three months.
