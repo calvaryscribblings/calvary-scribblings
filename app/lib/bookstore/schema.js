@@ -32,7 +32,29 @@ export const SCHEMA_VERSION = 2;
 // here decides how a genre is spelled on a screen.
 export const GENRES = GENRE_SEED_SLUGS;
 
-export const TITLE_STATUSES = ['draft', 'published', 'unpublished'];
+// R21 — 'withdrawn' JOINS THE ENUM, AND TITLE_SCHEMA IS STILL LOCKED.
+//
+// This adds a MEMBER to the `status` enum, not a FIELD to the record. The shape below is
+// unchanged, and so is the rule that a 'published' title must carry a cover and an EPUB — a
+// withdrawn title keeps both, because it is a published title that has left the shelf.
+//
+// WHAT IT MEANS, and it is not 'unpublished' with a different spelling:
+//
+//   draft        never been on sale
+//   unpublished  taken down for editing — coming back, probably today
+//   withdrawn    OFF THE SHELF PERMANENTLY. The licence ended, or Ikenna removed it. Not
+//                sellable, no detail page, no sample, out of every curated section and genre
+//                count. Founder-reversible, because a licence can be renewed.
+//
+// ⚠ IT CHANGES NOTHING ABOUT AN OWNER. A withdrawn title stays in My Library and
+// functions/api/bookstore/stream.js keeps serving it, because that endpoint reads the
+// PURCHASE and never the title record. Removal from the SHOP and revocation from an OWNER are
+// different acts, and only the first one exists here. See app/lib/bookstore/withdrawal.js.
+//
+// The reason it is a status rather than a flag is that every public surface in this repo
+// already asks `status === 'published'` — nine of them — so a new status is excluded from all
+// of them by construction, with no filter to add and none to forget.
+export const TITLE_STATUSES = ['draft', 'published', 'unpublished', 'withdrawn'];
 export const PUBLISHER_STATUSES = ['active', 'pending', 'suspended'];
 export const SUPPORTED_CURRENCIES = ['gbp', 'ngn', 'usd'];
 

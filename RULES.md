@@ -69,3 +69,53 @@ tell the shop a book is loved.
 `database.rules.json` carries no comments — RTDB parses an unknown key as a child path, so a
 `"_comment"` string is a syntax error, not documentation. The reasoning for every bookstore
 node lives beside the code that reads or writes it.
+
+## R21 — withdrawal and deletion: the two rules changes, and why each was needed
+
+### `bookstore_titles_deleted` (new node)
+
+The tombstone a deleted title leaves behind: `titleId`, `slug`, `title`, `author`, `coverUrl`,
+`catalogueNumber`, `publisherId`, `deletedAt`, `deletedBy`, `ownersAtDeletion`. `.read: true`,
+founder write.
+
+**It is its own node and never a `deleted: true` flag on the title record.** A flag is
+something every reader of `bookstore_titles` — the storefront, the detail route, the reader
+route, five loader functions and the section resolver — has to remember to exclude, forever,
+and one forgotten filter puts a deleted book back on the shelf.
+
+Public read discloses nothing new: every field was already public on `bookstore_titles` while
+the title was on sale, and three of the four display fields are already denormalised onto the
+buyer's own purchase record. The `$other` deny is the load-bearing line — it is what makes
+"no prices, no `epubPath`, no publisher payment detail on a `.read: true` node" a property of
+the database rather than a property of one function's field list.
+`tests/rules/database.test.mjs` writes the real output of `tombstoneOf()` into the emulator, so
+a field added to the writer and not to the rule fails there.
+
+`bookstore_readership/{titleId}` is deliberately **left standing** when a title is deleted. The
+entitlements did not end — the readers still own the book — and the count is now the record of
+why the master EPUB is still in the bucket.
+
+### `storage.rules` — `allow write` split into `allow create, update` + `allow delete`
+
+On the three bookstore prefixes (`bookstore_covers/{titleId}`,
+`bookstore_epubs/{titleId}/sample.epub`, `bookstore_epubs/{titleId}/master.epub`).
+
+**This closes a hole that was already there.** Each rule was a single `allow write` guarded on
+`request.resource.size` and `request.resource.contentType`. On a DELETE, `request.resource` is
+**null**, so those guards evaluated against null and every delete was refused — for the
+founders too. Nothing noticed because until R21 nothing in the product ever deleted a bookstore
+object: `deleteTitle` was `setTitleStatus(id, 'unpublished')`.
+
+The size and type conditions stay on `create, update`, which are the operations that put bytes
+in the bucket. `delete` needs only the identity.
+
+⚠ **The master EPUB's delete rule does not encode R21's ruling, and must not pretend to.** The
+ruling is "the master is not deleted if anyone owns the book". That needs a purchase count, and
+a Storage rule cannot read RTDB. The guard is `deletionPlan()` in
+`app/lib/bookstore/withdrawal.js`, asserted in `tests/bookstore/withdrawal.test.mjs`. A rule
+written to *look* like it enforced the ruling would be worse than this one, because it would
+move a reader's confidence onto a line that cannot hold it.
+
+Neither change touches `bookstore_purchases`. Withdrawal and deletion are acts on the SHOP;
+revocation from an owner is a different act, it happens only on a refund or a chargeback, and
+only the two payment webhooks can perform it.

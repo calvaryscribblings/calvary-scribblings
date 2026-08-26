@@ -59,26 +59,53 @@ service firebase.storage {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == uid;
     }
+    // R21 — WRITE IS SPLIT FROM DELETE HERE, AND IN THE TWO EPUB RULES BELOW, BECAUSE A
+    // COMBINED `allow write` CANNOT EXPRESS A DELETE AT ALL.
+    //
+    // On a delete, `request.resource` is NULL. Every one of these rules guarded on
+    // `request.resource.size` and `request.resource.contentType`, so a delete evaluated those
+    // against null and was DENIED — for the founders too. That is why R21's delete path needed
+    // a rules change and not just code: before this split, `deleteTitle` could remove the
+    // record and then fail on every single file, leaving the whole bucket's worth of a deleted
+    // title behind with nothing pointing at it.
+    //
+    // The size and content-type guards stay exactly where they belong — on create and update,
+    // which are the operations that put bytes in the bucket. Delete needs only the identity.
     match /bookstore_covers/{titleId} {
       allow read: if true;
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
                    && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
     }
+    // ⛔ THE MASTER EPUB. `allow delete` is granted to the founders and the RULE CANNOT BE THE
+    // GUARD THAT MATTERS. R21's ruling is "the master is not deleted if anyone owns the book",
+    // and a Storage rule cannot count purchases — bookstore_purchases is in a different
+    // product. Writing a rule that LOOKED like it enforced the ruling would be worse than
+    // this: it would move the reader's confidence to a line that cannot hold it.
+    //
+    // The guard is deletionPlan() in app/lib/bookstore/withdrawal.js, which never puts an owned
+    // master in a delete list, and tests/bookstore/withdrawal.test.mjs fails if it ever does.
+    // Read that before changing anything here.
     match /bookstore_epubs/{titleId}/master.epub {
       allow read: if false;
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
                    && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')
                    && request.resource.size < 50 * 1024 * 1024
                    && request.resource.contentType == 'application/epub+zip';
+      allow delete: if request.auth != null
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
     }
     match /bookstore_epubs/{titleId}/sample.epub {
       allow read: if true;
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
                    && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')
                    && request.resource.size < 10 * 1024 * 1024
                    && request.resource.contentType == 'application/epub+zip';
+      allow delete: if request.auth != null
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
     }
     // THE SERIES — instalment master EPUBs.
     //

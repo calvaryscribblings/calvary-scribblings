@@ -1,0 +1,149 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# SCHEDULED WITHDRAWALS — the half of a fixed-term licence that a static site
+# cannot do for itself.
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# WHY A WORKFLOW AND NOT A DATE CHECK IN THE SHOP
+# ───────────────────────────────────────────────
+# next.config.mjs sets `output: 'export'`. The shelf, every /bookstore/{slug},
+# the genre counts and the curated sections are FILES, enumerated from live RTDB
+# at build time and served from a CDN. A file does not consult a clock. When a
+# licence-end date passes at midnight, nothing a reader can see changes — they
+# keep getting the shelf the last deploy rendered, with the withdrawn book still
+# on it, until a build runs.
+#
+# Filtering by date in the browser would not fix it either: it would hide the
+# card while /bookstore/{slug} still answered 200 with a Buy button, which is
+# worse than not hiding it. The record has to change and the site has to be
+# rebuilt, and neither of those is something a page can do.
+#
+# So this job does both, hourly: flip every title whose licence has run out, then
+# fire the deploy hook. The argument in full is at the top of
+# scripts/bookstore/withdrawals.mjs.
+#
+# THE LATENCY, STATED HONESTLY
+# ────────────────────────────
+# GitHub's schedule is best-effort with a five-minute floor; this runs on the
+# hour; a Cloudflare Pages build for this project takes about two minutes. A book
+# whose licence ends on 31 March therefore leaves the shop within roughly an hour
+# of the end of that day, NOT at the stroke of midnight. `workflow_dispatch` is
+# the button that makes it immediate. If a contract ever requires the minute,
+# this is what would have to change — nothing in app/ could help.
+#
+# WHAT IT NEVER TOUCHES
+# ─────────────────────
+# bookstore_purchases, and Storage. A scheduled withdrawal is the SHOP's act: the
+# title leaves the shelf and every reader who bought it keeps it and can still
+# read it. R21 ruling 2 does not have a timer exemption.
+name: scheduled withdrawals
+
+on:
+  schedule:
+    # Hourly. A run costs one RTDB read and, on almost every hour, nothing else.
+    - cron: '7 * * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Write. Unticked, this only reports what is due.'
+        required: false
+        default: true
+        type: boolean
+  # A change to the withdrawal system itself gets CHECKED, never applied — the
+  # same discipline covers.yml uses for the design lock.
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/bookstore/**'
+      - 'app/lib/bookstore/withdrawal.js'
+      - 'tests/bookstore/withdrawal.test.mjs'
+      - '.github/workflows/withdrawals.yml'
+  pull_request:
+    paths:
+      - 'scripts/bookstore/**'
+      - 'app/lib/bookstore/withdrawal.js'
+      - 'tests/bookstore/withdrawal.test.mjs'
+      - '.github/workflows/withdrawals.yml'
+
+# Two runs overlapping would both see the same title due and both PATCH it to the
+# same values — survivable, and pointless. `cancel-in-progress` is deliberately
+# FALSE: cancelling a run between the flip and the deploy is exactly the thing
+# not to do.
+concurrency:
+  group: bookstore-withdrawals
+  cancel-in-progress: false
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # The suite. Runs on every trigger, including before a reconcile: a job that
+  # cannot prove it refuses to delete an owned master EPUB must not write.
+  # ───────────────────────────────────────────────────────────────────────────
+  verify:
+    name: withdrawal suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: the state machine, the rulings and the watch mutations
+        run: npm run test:withdrawals
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # The reconciler. Only ever writes on a schedule or a deliberate dispatch —
+  # never on a push or a pull request, because a push is how an unreviewed change
+  # to the due-date logic would arrive.
+  # ───────────────────────────────────────────────────────────────────────────
+  reconcile:
+    name: withdraw what is due
+    needs: verify
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Materialise the service account
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set — the reconciler cannot write."
+            exit 1
+          fi
+          printf '%s' "$KEY" > "$RUNNER_TEMP/serviceAccountKey.json"
+
+      - name: withdrawals
+        env:
+          BOOKSTORE_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+          # ⚠ THE HOOK IS HELD BY A SERVER, NEVER BY A BROWSER. R19.7's rule is
+          # that no deploy-hook URL may reach the bundle — Next inlines a
+          # process.env read in a client component, and possession of a hook is
+          # authorisation. A runner reading it from a repository secret is the
+          # same shape as the Pages Function reading it from a Cloudflare
+          # variable. tests/ci/deploy-hook-secrecy.test.mjs scans app/ and out/;
+          # neither contains this file.
+          #
+          # It is fired DIRECTLY rather than through /api/rebuild because that
+          # endpoint authorises a FOUNDER'S Firebase ID token, and a cron has no
+          # founder signed in. Storing a founder credential here would be a worse
+          # secret than the hook.
+          BOOKSTORE_DEPLOY_HOOK_URL: ${{ secrets.BOOKSTORE_DEPLOY_HOOK_URL }}
+        run: |
+          ARGS=""
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event.inputs.apply }}" = "true" ]; then
+            ARGS="--apply"
+          fi
+          echo "node scripts/bookstore/withdrawals.mjs $ARGS"
+          node scripts/bookstore/withdrawals.mjs $ARGS
+
+      - name: Shred the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/serviceAccountKey.json"

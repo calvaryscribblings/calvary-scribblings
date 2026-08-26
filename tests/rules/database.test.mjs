@@ -35,6 +35,10 @@ import { isEmailShaped } from '../../app/lib/bookstore/gate.js';
 import {
   AUTHOR_CAPS, isAuthorPhotoPath, normaliseAuthorFields, validateAuthorFields,
 } from '../../app/lib/bookstore/author.js';
+// R21 — the tombstone. Same discipline again: what the writer PRODUCES is asserted against
+// what the rule ACCEPTS, in one test, so a field added to one and not the other is caught here
+// rather than by a founder watching a delete fail halfway through.
+import { tombstoneOf } from '../../app/lib/bookstore/withdrawal.js';
 
 let env, owner, stranger, anon, founder;
 
@@ -1922,5 +1926,113 @@ describe('R18 · bookstore_titles author block', () => {
       if (isAuthorPhotoPath(p)) await assertSucceeds(write, `isAuthorPhotoPath allows ${JSON.stringify(p)}, the rule does not`);
       else await assertFails(write, `isAuthorPhotoPath refuses ${JSON.stringify(p)}, the rule stores it`);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+describe('R21 · bookstore_titles_deleted — the tombstone', () => {
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//
+// A deleted title leaves a tombstone: title, author, slug, coverUrl, catalogue number, and who
+// removed it when. It is a SEPARATE NODE and never a `deleted: true` flag on the title record,
+// because a flag is something every one of the nine readers of bookstore_titles has to remember
+// to exclude, forever — and one forgotten filter is a deleted book back on the shelf.
+//
+// PUBLIC READ, and it discloses nothing new: every field in it was already public on
+// bookstore_titles while the title was on sale, and three of the four are already denormalised
+// onto the buyer's own purchase record. What it must never carry is prices, an epubPath or a
+// publisher's payment detail — and the $other deny is what makes that a property of the
+// database rather than a property of one function's field list.
+
+  const ID = 'the-quiet-house';
+  const STONE = {
+    titleId: ID, slug: ID, title: 'The Quiet House', author: 'A. Nwosu',
+    coverUrl: 'https://firebasestorage.googleapis.com/v0/b/b/o/bookstore_covers%2Fthe-quiet-house.jpg',
+    catalogueNumber: 7, publisherId: 'calvary',
+    deletedAt: 1_800_000_000_000, deletedBy: FOUNDER_A, ownersAtDeletion: 9,
+  };
+
+  test('LEGITIMATE: a founder writes exactly what tombstoneOf() produces', async () => {
+    // Not a hand-typed fixture — the real writer's output. If a field is ever added to the
+    // tombstone without being added to the rule, this fails.
+    const produced = tombstoneOf({
+      titleId: ID,
+      title: { slug: ID, title: 'The Quiet House', author: 'A. Nwosu', coverUrl: STONE.coverUrl, catalogueNumber: 7, publisherId: 'calvary' },
+      by: FOUNDER_A,
+      nowMs: 1_800_000_000_000,
+      ownerCount: 9,
+    });
+    await assertSucceeds(founder.ref(`bookstore_titles_deleted/${ID}`).set(produced));
+  });
+
+  test('anyone may read it — a deleted book is not a secret', async () => {
+    await assertSucceeds(founder.ref(`bookstore_titles_deleted/${ID}`).set(STONE));
+    for (const [who, ctx] of [['anon', anon], ['a stranger', stranger], ['the owner', owner]]) {
+      await assertSucceeds(ctx.ref(`bookstore_titles_deleted/${ID}`).get(), `${who} must be able to read`);
+    }
+  });
+
+  test('nobody but a founder may write one', async () => {
+    for (const [who, ctx] of [['anon', anon], ['a stranger', stranger], ['the owner', owner]]) {
+      await assertFails(ctx.ref(`bookstore_titles_deleted/${ID}`).set(STONE), `${who} wrote a tombstone`);
+    }
+  });
+
+  test('WIPE: a non-founder cannot delete the node or its subtree', async () => {
+    await assertSucceeds(founder.ref(`bookstore_titles_deleted/${ID}`).set(STONE));
+    for (const [who, ctx] of [['anon', anon], ['a stranger', stranger]]) {
+      await assertFails(ctx.ref('bookstore_titles_deleted').set(null), `${who} wiped the node`);
+      await assertFails(ctx.ref(`bookstore_titles_deleted/${ID}`).set(null), `${who} wiped a record`);
+    }
+  });
+
+  test('⚠ THE SHOP\'S PRIVATE FIELDS ARE DENIED AT THE DATABASE, not just omitted by the writer', async () => {
+    for (const leak of ['prices', 'epubPath', 'samplePath', 'synopsis', 'coverSizes', 'territoriesAllowed']) {
+      await assertFails(
+        founder.ref(`bookstore_titles_deleted/${ID}`).set({ ...STONE, [leak]: 'x' }),
+        `${leak} reached a .read:true node`,
+      );
+    }
+  });
+
+  test('the id in the record must be the id in the path', async () => {
+    await assertFails(founder.ref(`bookstore_titles_deleted/${ID}`).set({ ...STONE, titleId: 'something-else' }));
+  });
+
+  test('a record with no slug is refused — My Library keys the shelf on it', async () => {
+    const { slug, ...noSlug } = STONE;
+    await assertFails(founder.ref(`bookstore_titles_deleted/${ID}`).set(noSlug));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+describe("R21 · a withdrawal never reaches a reader's library", () => {
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//
+// Ruling 2, at the rules layer. The CMS runs in a founder's browser, and the founder IS one of
+// the two uids bookstore_purchases grants write to — so nothing in database.rules.json stops a
+// bad admin write from revoking somebody's book. What stops it is that no such code path
+// exists (asserted in tests/bookstore/withdrawal.test.mjs). These two tests pin the OTHER half:
+// that the node's shape is unchanged by this round, and that a reader still cannot touch their
+// own entitlement.
+
+  test('a reader cannot grant or revoke their own purchase', async () => {
+    await assertFails(owner.ref(`bookstore_purchases/${OWNER}/t1`).set({ status: 'active' }));
+    await assertSucceeds(founder.ref(`bookstore_purchases/${OWNER}/t1`).set({ status: 'active', purchasedAt: 1 }));
+    await assertFails(owner.ref(`bookstore_purchases/${OWNER}/t1/status`).set('revoked'));
+  });
+
+  test('a withdrawn or deleted TITLE leaves the purchase record untouched', async () => {
+    await assertSucceeds(founder.ref(`bookstore_purchases/${OWNER}/t1`).set({
+      status: 'active', purchasedAt: 1, slug: 't1', title: 'T', author: 'A', coverUrl: null,
+    }));
+    // The title goes; the entitlement stays. These are different nodes, and that separation is
+    // the whole architecture of the ruling.
+    await assertSucceeds(founder.ref('bookstore_titles/t1').set(null));
+    const after = await owner.ref(`bookstore_purchases/${OWNER}/t1`).get();
+    assert.equal(after.val().status, 'active');
+    // And the denormalised fields My Library falls back to are still there.
+    assert.equal(after.val().title, 'T');
+    assert.equal(after.val().slug, 't1');
   });
 });

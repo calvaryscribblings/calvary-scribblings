@@ -11,6 +11,12 @@ import {
   uploadAuthorPhoto,
   uploadEpub,
   uploadSampleEpub,
+  // R21 — the two ways a title leaves the shop. `deleteTitle` is a REAL delete now; it used to
+  // be setTitleStatus(id, 'unpublished') wearing the name.
+  withdrawTitle,
+  restoreTitle,
+  deleteTitle,
+  deletionPreview,
 } from '../../lib/bookstore/admin-writes';
 // R19.6 — THE PUBLISH → DEPLOY HANDSHAKE. A static export serves files, so a published record
 // has no pages until a build runs. See app/lib/rebuild.js and functions/api/rebuild.js; this
@@ -28,6 +34,10 @@ import { AUTHOR_CAPS, MAX_AUTHOR_PHOTO_BYTES, publicPhotoUrl } from '../../lib/b
 import { getGenres, getSections } from '../../lib/bookstore/loader';
 import { genreLabel as labelOf, sortGenres } from '../../lib/bookstore/genres';
 import SectionsPanel from './SectionsPanel';
+// R21 — the confirm steps. Both dialogs live in their own file because both are ARGUMENTS as
+// much as furniture: the wording is the feature. See the header there.
+import { WithdrawDialog, DeleteDialog } from './RemovalDialog';
+import { WITHDRAWN, isScheduled } from '../../lib/bookstore/withdrawal';
 import GenresPanel from './GenresPanel';
 // R7.4 — the same parser the reader's lookup is built on, so what an editor types here
 // and what a long-press finds cannot drift apart.
@@ -173,6 +183,10 @@ function statusPill(status) {
   if (status === 'published') return { ...s.pill, color: '#86efac', borderColor: 'rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.1)' };
   if (status === 'draft') return { ...s.pill, color: '#fcd34d', borderColor: 'rgba(217,119,6,0.4)', background: 'rgba(217,119,6,0.1)' };
   if (status === 'unpublished') return { ...s.pill, color: 'rgba(255,255,255,0.55)', borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.04)' };
+  // R21 — amber, and deliberately not the grey 'unpublished' wears. A withdrawn title is not a
+  // title someone is mid-way through editing; it is one that has left the shop, and the row
+  // has to say which of those two it is at a glance.
+  if (status === WITHDRAWN) return { ...s.pill, color: '#fdba74', borderColor: 'rgba(234,88,12,0.45)', background: 'rgba(234,88,12,0.12)' };
   return { ...s.pill, color: 'rgba(255,255,255,0.6)', borderColor: 'rgba(255,255,255,0.2)' };
 }
 
@@ -253,6 +267,10 @@ export default function AdminBookstorePage() {
   const [epubProgress, setEpubProgress] = useState(null);
   const [sampleProgress, setSampleProgress] = useState(null);
   const [authorPhotoProgress, setAuthorPhotoProgress] = useState(null);
+
+  // R21 — the removal dialogs. One slot: at most one can be open.
+  const [removal, setRemoval] = useState(null);
+  const [removalBusy, setRemovalBusy] = useState(null);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState('all');
@@ -663,6 +681,90 @@ export default function AdminBookstorePage() {
     loadAll();
   }
 
+  // ═════════════════════════════════════════════════════════════════════════════════════════
+  // R21 — WITHDRAWAL AND DELETION
+  // ═════════════════════════════════════════════════════════════════════════════════════════
+  //
+  // One piece of state for both dialogs, because at most one can be open and two independent
+  // flags would admit a state where both are.
+  //
+  //   { mode: 'withdraw', title }                 the shop's act, reversible
+  //   { mode: 'delete', title, preview }          destructive — `preview` carries the LIVE count
+  //
+  // The delete dialog is not opened until deletionPreview() has returned. See the header in
+  // ./RemovalDialog.js: a confirm step whose number arrives after the button is a confirm step
+  // that can be pressed without one.
+
+  async function openWithdraw(title) {
+    setRemoval({ mode: 'withdraw', title });
+  }
+
+  async function openDelete(title) {
+    setRemovalBusy(title.id);
+    const preview = await deletionPreview(title.id);
+    setRemovalBusy(null);
+    if (!preview.ok) {
+      // NO DIALOG AT ALL when the count could not be read. deleteTitle refuses on an unknown
+      // count anyway (ruling 2, failing closed), so a dialog here would offer something that
+      // cannot happen.
+      alert((preview.errors || ['Could not prepare the deletion']).join('\n'));
+      return;
+    }
+    setRemoval({ mode: 'delete', title, preview });
+  }
+
+  async function confirmWithdraw({ scheduledFor, reason }) {
+    const title = removal?.title;
+    if (!title) return { ok: false, errors: ['Nothing selected'] };
+    const result = await withdrawTitle(title.id, { scheduledFor, reason });
+    if (!result.ok) return result;
+    setRemoval(null);
+    showToast(result.withdrawn ? 'Title withdrawn' : 'Withdrawal scheduled');
+    // A SCHEDULED withdrawal changes nothing a reader can see yet, so it owes no build. An
+    // immediate one takes the title off a shelf that is a FILE, and that file has to be
+    // rebuilt without it — rebuildNeeded('published', 'withdrawn') is true.
+    if (result.withdrawn) await summonDeploy(title.status || 'published', WITHDRAWN);
+    loadAll();
+    return result;
+  }
+
+  async function confirmRestore(title) {
+    const result = await restoreTitle(title.id);
+    if (!result.ok) {
+      alert((result.errors || ['Restore failed']).join('\n'));
+      return;
+    }
+    showToast('Title restored');
+    await summonDeploy(WITHDRAWN, 'published');
+    loadAll();
+  }
+
+  async function confirmDelete({ confirmName }) {
+    const title = removal?.title;
+    if (!title) return { ok: false, errors: ['Nothing selected'] };
+    const result = await deleteTitle(title.id, { confirmName });
+    if (!result.ok) return result;
+    setRemoval(null);
+    showToast('Title deleted');
+    // A file that could not be removed is reported HERE and not swallowed: the shop is already
+    // correct, but an orphan in the bucket is something a founder should know about rather than
+    // discover in a storage bill.
+    if (result.filesFailed?.length) {
+      console.warn('[admin/bookstore] some files survived the delete:', result.filesFailed);
+    }
+    // Both acts trigger a rebuild — rule C. A deleted title's page is a FILE that still exists
+    // in the deployed export until a build runs without it.
+    //
+    // rebuildNeeded() is still the arbiter, and it says NO for a title that was already
+    // withdrawn or was never published: those pages do not exist in the deployed export, so
+    // there is nothing to remove and a build would deploy the world exactly as it already is.
+    // That is not this round declining rule C — it is rule C meeting the rule R19.6 wrote,
+    // "publishedness changed", which is the same rule.
+    await summonDeploy(title.status || 'published', 'deleted');
+    loadAll();
+    return result;
+  }
+
   async function handleQuickStatus(title, nextStatus) {
     const was = title.status || 'draft';
     const result = await setTitleStatus(title.id, nextStatus);
@@ -885,6 +987,40 @@ export default function AdminBookstorePage() {
                                       ? <button style={s.btnSm} type="button" onClick={() => handleQuickStatus(t, 'published')} title="Publish (cover + EPUB must already be set)">Publish</button>
                                       : null
                                   }
+                                  {/* R21 — WITHDRAW / RESTORE. Only a published title can be
+                                      withdrawn: there is nothing to withdraw a draft from,
+                                      and the refusal is written down in withdrawalRefusal().
+                                      A scheduled title is still published, so it still shows
+                                      Withdraw — pressing it again re-sets the date. */}
+                                  {t.status === 'published' && (
+                                    <button
+                                      style={s.btnDanger}
+                                      type="button"
+                                      onClick={() => openWithdraw(t)}
+                                      title="Take this title off the shelf. Readers who bought it keep it."
+                                      data-testid={`withdraw-${t.id}`}
+                                    >
+                                      {isScheduled(t) ? 'Reschedule' : 'Withdraw'}
+                                    </button>
+                                  )}
+                                  {t.status === WITHDRAWN && (
+                                    <button style={s.btnSm} type="button" onClick={() => confirmRestore(t)} data-testid={`restore-${t.id}`}>
+                                      Restore
+                                    </button>
+                                  )}
+                                  {/* ⚠ NO STATUS CONDITION. Ruling 1: no title is unremovable,
+                                      for any reason. Draft, published, withdrawn — Delete is
+                                      on every row, and the confirm step is what makes it
+                                      deliberate rather than the button's absence. */}
+                                  <button
+                                    style={removalBusy === t.id ? { ...s.btnDanger, ...s.btnDisabled } : s.btnDanger}
+                                    type="button"
+                                    disabled={removalBusy === t.id}
+                                    onClick={() => openDelete(t)}
+                                    data-testid={`delete-${t.id}`}
+                                  >
+                                    {removalBusy === t.id ? 'Counting…' : 'Delete'}
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -902,6 +1038,22 @@ export default function AdminBookstorePage() {
           at when the two minutes are up. A failure keeps the same furniture and changes only
           the colour and the sentence — a separate error surface would teach the eye that this
           box is always good news. */}
+      {/* R21 — at most one dialog, and the delete one never renders without its live count. */}
+      {removal?.mode === 'withdraw' && (
+        <WithdrawDialog
+          title={removal.title}
+          onCancel={() => setRemoval(null)}
+          onConfirm={confirmWithdraw}
+        />
+      )}
+      {removal?.mode === 'delete' && (
+        <DeleteDialog
+          title={removal.title}
+          preview={removal.preview}
+          onCancel={() => setRemoval(null)}
+          onConfirm={confirmDelete}
+        />
+      )}
       {rebuildNotice && (
         <div style={{ ...s.rebuild, borderColor: rebuildNotice.tone === 'ok' ? '#2a2a2a' : '#7f1d1d', color: rebuildNotice.tone === 'ok' ? '#86efac' : '#fca5a5' }}>
           <span aria-hidden="true">{rebuildNotice.tone === 'ok' ? '⟳' : '⚠'}</span>

@@ -8,7 +8,7 @@
 
 import { test, before, after, describe } from 'node:test';
 import { makeEnv, assertFails, assertSucceeds, OWNER, STRANGER, FOUNDER_A } from './helpers.mjs';
-import { ref, uploadBytes, getBytes } from 'firebase/storage';
+import { ref, uploadBytes, getBytes, deleteObject } from 'firebase/storage';
 
 let env, owner, stranger, anon, founder;
 
@@ -98,4 +98,74 @@ describe('admin-only prefixes reject ordinary readers', () => {
       await assertFails(put(stranger, path, PNG, 'image/png'));
     });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// R21 — THE DELETE RULES, AND THE HOLE THEY CLOSE
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Every bookstore rule used to be a single `allow write` guarded on
+// `request.resource.size` and `request.resource.contentType`. On a DELETE,
+// `request.resource` is NULL — so those guards evaluated against null and the
+// delete was refused, for the founders too. Nothing noticed, because until R21
+// nothing in the product ever deleted a bookstore object: `deleteTitle` was
+// `setTitleStatus(id, 'unpublished')`.
+//
+// The rules now split `create, update` (which put bytes in the bucket, and keep
+// the size and type guards) from `delete` (which needs only the identity).
+//
+// ⚠ THE MASTER EPUB'S RULE DOES NOT ENCODE R21'S RULING, AND MUST NOT PRETEND TO.
+// "The master is not deleted if anyone owns the book" needs a purchase count, and
+// a Storage rule cannot read RTDB. The guard is deletionPlan() in
+// app/lib/bookstore/withdrawal.js, asserted in tests/bookstore/withdrawal.test.mjs.
+// A rule that LOOKED like it enforced the ruling would be worse than this one,
+// because it would move a reader's confidence onto a line that cannot hold it.
+describe('R21 · deleting bookstore objects', () => {
+  test('a founder can delete a cover — this was denied before the split', async () => {
+    await assertSucceeds(put(founder, 'bookstore_covers/r21-a', PNG, 'image/png'));
+    await assertSucceeds(deleteObject(ref(founder, 'bookstore_covers/r21-a')));
+  });
+
+  test('a founder can delete a cover derivative (flat sibling key)', async () => {
+    await assertSucceeds(put(founder, 'bookstore_covers/r21-b_w360.webp', PNG, 'image/png'));
+    await assertSucceeds(deleteObject(ref(founder, 'bookstore_covers/r21-b_w360.webp')));
+  });
+
+  test('a founder can delete a sample EPUB', async () => {
+    await assertSucceeds(put(founder, 'bookstore_epubs/r21-c/sample.epub', EPUB, 'application/epub+zip'));
+    await assertSucceeds(deleteObject(ref(founder, 'bookstore_epubs/r21-c/sample.epub')));
+  });
+
+  test('a founder can delete a master EPUB — the RULE allows it; the CODE is what refuses', async () => {
+    await assertSucceeds(put(founder, 'bookstore_epubs/r21-d/master.epub', EPUB, 'application/epub+zip'));
+    await assertSucceeds(deleteObject(ref(founder, 'bookstore_epubs/r21-d/master.epub')));
+  });
+
+  test('nobody else can delete anything under the bookstore prefixes', async () => {
+    await assertSucceeds(put(founder, 'bookstore_covers/r21-e', PNG, 'image/png'));
+    await assertSucceeds(put(founder, 'bookstore_epubs/r21-e/sample.epub', EPUB, 'application/epub+zip'));
+    await assertSucceeds(put(founder, 'bookstore_epubs/r21-e/master.epub', EPUB, 'application/epub+zip'));
+    for (const st of [anon, owner, stranger]) {
+      await assertFails(deleteObject(ref(st, 'bookstore_covers/r21-e')));
+      await assertFails(deleteObject(ref(st, 'bookstore_epubs/r21-e/sample.epub')));
+      await assertFails(deleteObject(ref(st, 'bookstore_epubs/r21-e/master.epub')));
+    }
+  });
+
+  test('THE SPLIT DID NOT LOOSEN THE UPLOAD GUARDS', async () => {
+    // The whole risk of turning one `allow write` into two rules is that the size
+    // and content-type conditions get left on the wrong half.
+    await assertFails(put(founder, 'bookstore_covers/r21-f', EPUB, 'application/epub+zip'));
+    await assertFails(put(founder, 'bookstore_epubs/r21-f/master.epub', PNG, 'image/png'));
+    await assertFails(put(founder, 'bookstore_epubs/r21-f/sample.epub', PNG, 'image/png'));
+    await assertFails(put(stranger, 'bookstore_covers/r21-f', PNG, 'image/png'));
+    await assertFails(put(anon, 'bookstore_epubs/r21-f/sample.epub', EPUB, 'application/epub+zip'));
+  });
+
+  test('and master.epub is still unreadable by everyone', async () => {
+    await assertSucceeds(put(founder, 'bookstore_epubs/r21-g/master.epub', EPUB, 'application/epub+zip'));
+    await assertFails(getBytes(ref(anon, 'bookstore_epubs/r21-g/master.epub')));
+    await assertFails(getBytes(ref(owner, 'bookstore_epubs/r21-g/master.epub')));
+    await assertFails(getBytes(ref(founder, 'bookstore_epubs/r21-g/master.epub')));
+  });
 });

@@ -34,6 +34,26 @@ import {
 } from './author';
 // R20 — the cover rungs: the widths, the key shape and the flat Storage path. See covers.js.
 import { COVER_DERIVATIVE_WIDTHS, coverSizeKey, coverDerivativePath } from './covers';
+// R21 — WITHDRAWAL AND DELETION. Same precedent as the five imports above: the rule about
+// what leaving the shop LOOKS like lives beside the rule about what it MEANS, so the CMS's
+// confirm dialog and the write that follows it cannot disagree about who owns the book.
+import {
+  WITHDRAWN,
+  WITHDRAWAL_KEY,
+  RESTORE_STATUS,
+  normaliseWithdrawal,
+  validateWithdrawal,
+  withdrawalRefusal,
+  restoreRefusal,
+  OWNERS_UNKNOWN,
+  ownersKnown,
+  deletionPlan,
+  tombstoneOf,
+  pruneClaims,
+  nameMatches,
+  confirmConsequence,
+} from './withdrawal';
+import { READERSHIP_PATH, readershipCountOf } from './readership';
 import {
   validateSection,
   PLACEMENTS,
@@ -49,6 +69,11 @@ const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz
 const PUBLISHERS_PATH = 'bookstore_publishers';
 const PUBLISHERS_PRIVATE_PATH = 'bookstore_publishers_private';
 const TITLES_PATH = 'bookstore_titles';
+// R21 — where a deleted title's remains go. A SEPARATE NODE, never a flag on the title: a
+// soft-deleted record under bookstore_titles is one every reader of that node has to remember
+// to exclude, forever. See tombstoneOf() in ./withdrawal.js for what it carries and why My
+// Library does not actually depend on it.
+const TOMBSTONES_PATH = 'bookstore_titles_deleted';
 
 // Fields that live in the public node. Everything else on a publisher doc
 // (contactEmail, paymentDetails) lives in the private sibling node.
@@ -374,6 +399,11 @@ export async function createTitle(input) {
     authorBio: input.authorBio,
     authorPhotoPath: input.authorPhotoPath,
     authorPhotoAlt: input.authorPhotoAlt,
+    // R21 — THE WITHDRAWAL BLOCK. Schema-external, like every field above it. On a NEW title
+    // it is almost always null; it is accepted here so that a title created with a fixed-term
+    // licence already on it ("we have this one until March") carries the date from the start
+    // rather than needing a second edit to set it.
+    [WITHDRAWAL_KEY]: normaliseWithdrawal(input[WITHDRAWAL_KEY]),
     prices: input.prices || {},
     genre: input.genre,
     publishedDate: input.publishedDate,
@@ -420,6 +450,8 @@ export async function createTitle(input) {
   if (glErrors.length) return { ok: false, errors: glErrors };
   const auErrors = validateAuthorFields(doc);
   if (auErrors.length) return { ok: false, errors: auErrors };
+  const wdErrors = validateWithdrawal(doc[WITHDRAWAL_KEY]);
+  if (wdErrors.length) return { ok: false, errors: wdErrors };
 
   try {
     const existing = await get(ref(db, `${TITLES_PATH}/${slug}`));
@@ -507,6 +539,26 @@ export async function updateTitle(titleId, partial) {
     const auErrors = validateAuthorFields(merged);
     if (auErrors.length) return { ok: false, errors: auErrors };
 
+    // R21 — the withdrawal block rides through the spread like the glossary, and must be able
+    // to be CLEARED the same way: an edit that empties the licence-end date removes the whole
+    // block, because a title with a `withdrawal: { }` and no date in it is a record that looks
+    // scheduled and is not.
+    merged[WITHDRAWAL_KEY] = normaliseWithdrawal(merged[WITHDRAWAL_KEY]);
+    const wdErrors = validateWithdrawal(merged[WITHDRAWAL_KEY]);
+    if (wdErrors.length) return { ok: false, errors: wdErrors };
+
+    // ⚠ THE FORM MAY NOT WITHDRAW A TITLE BY TYPING A STATUS. Withdrawal is an ACT — it
+    // records who did it and when, and it owes a deploy — and the status radio in the CMS
+    // knows none of that. Routing it here would produce a withdrawn title with no provenance
+    // and a shelf that still shows it until something else happens to trigger a build.
+    // withdrawTitle() below is the only door, and restoreTitle() is the only way back.
+    if (merged.status === WITHDRAWN && existing.status !== WITHDRAWN) {
+      return { ok: false, errors: ['Use Withdraw to take a title off the shelf — it records who withdrew it and starts the deploy.'] };
+    }
+    if (existing.status === WITHDRAWN && merged.status !== WITHDRAWN) {
+      return { ok: false, errors: ['This title is withdrawn. Use Restore to put it back on the shelf.'] };
+    }
+
     // R8.4 — the territory pair rides through the spread like the glossary. An edit that
     // switches a title back to "Sold worldwide" must be able to REMOVE the exclusions, so ''
     // / [] / null / undefined all delete the key rather than being skipped as "no change" —
@@ -531,6 +583,14 @@ export async function setTitleStatus(titleId, status) {
   if (!TITLE_STATUSES.includes(status)) {
     return { ok: false, errors: [`Status must be one of: ${TITLE_STATUSES.join(', ')}`] };
   }
+  // R21 — 'withdrawn' is in the enum but not reachable from here, for the reason argued at the
+  // matching guard in updateTitle: a withdrawal carries provenance and owes a deploy, and this
+  // function is a bare status PATCH that knows about neither. It is also the function behind
+  // the CMS's Publish/Unpublish buttons, so leaving the door open would mean one stray
+  // argument could withdraw a title with no record of who did it.
+  if (status === WITHDRAWN) {
+    return { ok: false, errors: ['Use withdrawTitle() — a withdrawal records who made it and when.'] };
+  }
   try {
     const snap = await get(ref(db, `${TITLES_PATH}/${titleId}`));
     if (!snap.exists()) return { ok: false, errors: [`Title '${titleId}' not found`] };
@@ -545,10 +605,314 @@ export async function setTitleStatus(titleId, status) {
   }
 }
 
-// Soft delete: never removes the title doc, just flips status to 'unpublished'.
-// Hard delete is a manual Firebase Console operation.
-export async function deleteTitle(titleId) {
-  return setTitleStatus(titleId, 'unpublished');
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R21 — WITHDRAWAL AND DELETION
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// TWO ACTS, AND THEY ARE NOT DEGREES OF THE SAME ONE.
+//
+//   WITHDRAW  the shop's act. The title leaves the shelf permanently and can be put back.
+//             The record survives intact, the files survive, the curator's claims survive.
+//   DELETE    destructive, always permitted, founder-only. The record goes, its files go,
+//             its claims are pruned, and a tombstone is left where owners need one.
+//
+// NEITHER OF THEM TOUCHES AN OWNER. Nothing below writes to bookstore_purchases — the node is
+// not even imported — and functions/api/bookstore/stream.js decides entitlement from that node
+// and nothing else. That is ruling 2 held by construction rather than by care: there is no
+// code path from this file to a reader's library.
+//
+// What was here before R21 was `deleteTitle = setTitleStatus(id, 'unpublished')`, commented
+// "Hard delete is a manual Firebase Console operation." That is the exact state ruling 1 was
+// made against, and the name has been given back its meaning.
+
+/**
+ * How many readers own this book, RIGHT NOW, from live data.
+ *
+ * bookstore_readership/{titleId}/count — the number of purchase records whose status is
+ * 'active', written by the same atomic multi-path update that records each purchase (see
+ * functions/api/bookstore/_lib.js). It is the ONLY number a browser may learn: bookstore_
+ * purchases is readable per-uid, so even a founder cannot enumerate the node from here, and
+ * this counter exists precisely so nothing has to.
+ *
+ * ⚠ A FAILED READ IS NOT ZERO. It returns OWNERS_UNKNOWN, and every caller refuses to delete
+ * on it. An absent node IS zero — that is the node's documented contract, and today, before
+ * the shop has opened, it is absent for every title.
+ */
+export async function readOwnerCount(titleId) {
+  if (!titleId) return OWNERS_UNKNOWN;
+  try {
+    const snap = await get(ref(db, `${READERSHIP_PATH}/${titleId}`));
+    return ownersKnown(snap.exists() ? readershipCountOf(snap.val()) : 0);
+  } catch (err) {
+    // LOUD, and it fails closed upstream. A silent zero here is how a master EPUB gets
+    // deleted out from under nine readers.
+    console.error('[bookstore.admin-writes] readOwnerCount failed', err);
+    return OWNERS_UNKNOWN;
+  }
+}
+
+/**
+ * Everything the confirm dialog needs, from live data, before anything happens.
+ *
+ * The panel calls this, shows what comes back, and only then may call deleteTitle(). Building
+ * the sentence HERE rather than in the component is what makes "the confirm step's count
+ * matches live data" a testable claim: tests/bookstore/withdrawal.test.mjs asserts the
+ * sentence against the count, and the component has no second copy of the wording to drift.
+ */
+export async function deletionPreview(titleId) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!titleId) return { ok: false, errors: ['titleId is required'] };
+  let title;
+  try {
+    const snap = await get(ref(db, `${TITLES_PATH}/${titleId}`));
+    if (!snap.exists()) return { ok: false, errors: [`Title '${titleId}' not found`] };
+    title = snap.val();
+  } catch (err) {
+    console.error('[bookstore.admin-writes] deletionPreview read failed', err);
+    return { ok: false, errors: [`Could not read the title: ${err.message || 'unknown error'}`] };
+  }
+
+  const owners = await readOwnerCount(titleId);
+  if (!owners.ok) {
+    return {
+      ok: false,
+      errors: ['The number of readers who own this book could not be read, so nothing was deleted. Try again.'],
+    };
+  }
+
+  const plan = deletionPlan({ titleId, title, owners });
+  return {
+    ok: true,
+    titleId,
+    name: title.title,
+    ownerCount: owners.count,
+    // The sentence, in plain words, stating the consequence BEFORE it happens. Never a bare
+    // "are you sure" — see confirmConsequence().
+    consequence: confirmConsequence(owners.count),
+    filesRemoved: plan.delete,
+    filesKept: plan.held,
+    filesReason: plan.reason,
+  };
+}
+
+/**
+ * WITHDRAW — the shop's act, and it is reversible.
+ *
+ * @param titleId
+ * @param opts.scheduledFor  epoch ms. Omit to withdraw NOW. A date in the future stores the
+ *                           licence's end and leaves the title published until it passes —
+ *                           see the schedule note below.
+ * @param opts.reason        free text for the founder's own record; never rendered publicly.
+ *
+ * ── THE SCHEDULED CASE, SAID PLAINLY ───────────────────────────────────────────────────────
+ * A future date does NOT withdraw anything. It writes the date onto a title that stays on the
+ * shelf. next.config.mjs sets output:'export', so nothing about a static page changes when a
+ * clock passes a number — the flip is performed by scripts/bookstore/withdrawals.mjs on the
+ * cron at .github/workflows/withdrawals.yml, which then fires the deploy that rebuilds the
+ * shop without it. If that workflow is removed, a scheduled withdrawal never happens.
+ */
+export async function withdrawTitle(titleId, opts = {}) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!titleId) return { ok: false, errors: ['titleId is required'] };
+
+  const now = Date.now();
+  const scheduledFor = Number.isInteger(opts.scheduledFor) && opts.scheduledFor > 0 ? opts.scheduledFor : null;
+  const by = auth?.currentUser?.uid || null;
+
+  try {
+    const snap = await get(ref(db, `${TITLES_PATH}/${titleId}`));
+    if (!snap.exists()) return { ok: false, errors: [`Title '${titleId}' not found`] };
+    const title = snap.val();
+
+    const refusal = withdrawalRefusal(title);
+    if (refusal) return { ok: false, errors: [refusal] };
+
+    // A date already in the past is an immediate withdrawal, not an error. The founder means
+    // "the licence has run out"; refusing on a boundary of milliseconds would be pedantry.
+    const immediate = !scheduledFor || scheduledFor <= now;
+
+    const block = normaliseWithdrawal({
+      scheduledFor: scheduledFor || (immediate ? now : null),
+      appliedAt: immediate ? now : null,
+      by,
+      reason: opts.reason,
+      previousStatus: title.status,
+    });
+
+    const patch = { [WITHDRAWAL_KEY]: block, updatedAt: now };
+    if (immediate) patch.status = WITHDRAWN;
+
+    await update(ref(db, `${TITLES_PATH}/${titleId}`), patch);
+    return { ok: true, titleId, withdrawn: immediate, scheduledFor: immediate ? null : scheduledFor };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] withdrawTitle failed', err);
+    return { ok: false, errors: [`Write failed: ${err.message || 'unknown error'}`] };
+  }
+}
+
+/**
+ * RESTORE — put a withdrawn title back on the shelf. Founder-reversible, ruling 1's other half.
+ *
+ * The withdrawal block is REMOVED rather than kept with a flag, because a restored title is an
+ * ordinary published title: a record carrying a stale `scheduledFor` would be picked up by the
+ * reconciler and withdrawn again on its next run, which is the one bug this shape can produce.
+ * The tombstone is not involved — nothing was deleted.
+ */
+export async function restoreTitle(titleId) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!titleId) return { ok: false, errors: ['titleId is required'] };
+  try {
+    const snap = await get(ref(db, `${TITLES_PATH}/${titleId}`));
+    if (!snap.exists()) return { ok: false, errors: [`Title '${titleId}' not found`] };
+    const refusal = restoreRefusal(snap.val());
+    if (refusal) return { ok: false, errors: [refusal] };
+
+    await update(ref(db, `${TITLES_PATH}/${titleId}`), {
+      status: RESTORE_STATUS,
+      [WITHDRAWAL_KEY]: null,     // RTDB drops a null key — the block genuinely leaves.
+      updatedAt: Date.now(),
+    });
+    return { ok: true, titleId };
+  } catch (err) {
+    console.error('[bookstore.admin-writes] restoreTitle failed', err);
+    return { ok: false, errors: [`Write failed: ${err.message || 'unknown error'}`] };
+  }
+}
+
+/**
+ * DELETE — destructive, always permitted, founder-only.
+ *
+ * `confirmName` must match the title's own name (see nameMatches). It is not a password; it is
+ * the difference between deleting a book and deleting the book you meant to.
+ *
+ * ORDER OF OPERATIONS, and it is deliberate:
+ *   1. read the record, and the LIVE owner count
+ *   2. refuse outright if the count could not be read       ⛔ ruling 2, fail closed
+ *   3. write the tombstone, remove the record, prune the claims, correct titlesCount —
+ *      ALL IN ONE atomic multi-path update
+ *   4. delete the Storage objects the plan allows
+ *
+ * The database write comes BEFORE the file deletes because the two failure modes are not
+ * symmetrical. A record removed with its files still in the bucket is an orphan nobody can
+ * reach — untidy. Files removed with the record still live is a title on the shelf whose cover
+ * 404s and whose sample is gone — a broken shop. And a Storage failure at step 4 leaves the
+ * shop correct, which is why it is reported rather than rolled back.
+ *
+ * ⛔ THE MASTER EPUB. deletionPlan() decides what may go, and it never puts an owned master in
+ * the delete list. That is ruling 2 at the only place it could be broken — see the block
+ * comment there. This function must never take a path from anywhere else.
+ */
+export async function deleteTitle(titleId, { confirmName } = {}) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!titleId) return { ok: false, errors: ['titleId is required'] };
+
+  const now = Date.now();
+  const by = auth?.currentUser?.uid || null;
+
+  let title;
+  try {
+    const snap = await get(ref(db, `${TITLES_PATH}/${titleId}`));
+    if (!snap.exists()) return { ok: false, errors: [`Title '${titleId}' not found`] };
+    title = snap.val();
+  } catch (err) {
+    console.error('[bookstore.admin-writes] deleteTitle read failed', err);
+    return { ok: false, errors: [`Could not read the title: ${err.message || 'unknown error'}`] };
+  }
+
+  if (!nameMatches(confirmName, title.title)) {
+    return { ok: false, errors: [`Type the title's name exactly — "${title.title}" — to delete it.`] };
+  }
+
+  // ⛔ RULING 2, FAIL CLOSED. An unknown count is not zero, and a delete that guesses it would
+  // be a delete that might remove the file nine readers are streaming.
+  const owners = await readOwnerCount(titleId);
+  if (!owners.ok) {
+    return {
+      ok: false,
+      errors: ['The number of readers who own this book could not be read, so nothing was deleted. Try again.'],
+    };
+  }
+
+  const plan = deletionPlan({ titleId, title, owners });
+  if (!plan.ok) return { ok: false, errors: [plan.reason] };
+
+  // The curator's claims. Read before the write so the prune rides in the same patch — a shop
+  // that removed the title and then failed to prune would have a section pointing at nothing.
+  let sections = [];
+  try {
+    const sSnap = await get(ref(db, SECTIONS_PATH));
+    sSnap.forEach((child) => { sections.push({ id: child.key, ...child.val() }); return false; });
+  } catch (err) {
+    console.error('[bookstore.admin-writes] deleteTitle could not read sections', err);
+    return { ok: false, errors: ['The curated sections could not be read, so nothing was deleted. Try again.'] };
+  }
+  const { patch: claimPatch, touched: claimsTouched } = pruneClaims(sections, title.slug || titleId, now);
+
+  // ── ONE ATOMIC UPDATE ────────────────────────────────────────────────────────────────────
+  const rootPatch = {
+    // The record itself. null at a named path is a removal.
+    [`${TITLES_PATH}/${titleId}`]: null,
+    // The tombstone, in its own node so no reader of bookstore_titles can ever see it.
+    [`${TOMBSTONES_PATH}/${titleId}`]: tombstoneOf({ titleId, title, by, nowMs: now, ownerCount: owners.count }),
+  };
+  for (const [k, v] of Object.entries(claimPatch)) rootPatch[`${SECTIONS_PATH}/${k}`] = v;
+
+  // titlesCount finally decrements. It has been a created-ever count wearing the name of a
+  // live one since createTitle() first bumped it, precisely because the old deleteTitle was a
+  // soft delete that touched no counter (the argument is written out in app/lib/series/schema.js,
+  // which rejected this counter as a model for the same reason). A real delete is the moment
+  // that stops being defensible: a publisher claiming three titles when one is gone is a wrong
+  // number on an admin screen.
+  if (title.publisherId) {
+    rootPatch[`${PUBLISHERS_PATH}/${title.publisherId}/titlesCount`] = increment(-1);
+    rootPatch[`${PUBLISHERS_PATH}/${title.publisherId}/updatedAt`] = now;
+  }
+
+  // ⚠ bookstore_readership/{titleId} IS DELIBERATELY LEFT STANDING. It is the count of live
+  // entitlements, and those entitlements did not end — the readers still own the book, and the
+  // count is now the record of WHY the master EPUB is still in the bucket. Nothing renders it:
+  // the detail page that printed it no longer exists.
+
+  try {
+    await update(ref(db), rootPatch);
+  } catch (err) {
+    console.error('[bookstore.admin-writes] deleteTitle write failed', err);
+    return { ok: false, errors: [`Delete failed: ${err.message || 'unknown error'}`] };
+  }
+
+  // ── THE FILES ────────────────────────────────────────────────────────────────────────────
+  // After the record is gone, and never before. Reported rather than rolled back: the shop is
+  // already correct, and a leftover object is a tidiness problem, not a product one.
+  const removed = [];
+  const failed = [];
+  try {
+    const { ref: sref, deleteObject } = await import('firebase/storage');
+    for (const path of plan.delete) {
+      try {
+        await deleteObject(sref(storage, path));
+        removed.push(path);
+      } catch (err) {
+        // object-not-found is the ordinary case for a title that never had a sample or an
+        // author photograph. It is not a failure and must not be reported as one.
+        if (err?.code === 'storage/object-not-found') continue;
+        console.error('[bookstore.admin-writes] deleteTitle could not remove', path, err);
+        failed.push(path);
+      }
+    }
+  } catch (err) {
+    console.error('[bookstore.admin-writes] deleteTitle storage module failed', err);
+    failed.push(...plan.delete);
+  }
+
+  return {
+    ok: true,
+    titleId,
+    ownerCount: owners.count,
+    filesRemoved: removed,
+    filesKept: plan.held,
+    filesFailed: failed,
+    claimsPruned: claimsTouched,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

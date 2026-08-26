@@ -30,6 +30,7 @@
     "covers:backfill": "node scripts/backfill-bookstore-cover-derivatives.mjs",
     "test:newsletter": "node --test \"tests/newsletter/*.test.mjs\"",
     "test:purchases": "node --test \"tests/bookstore/*.test.mjs\"",
+    "test:withdrawals": "node --test tests/bookstore/withdrawal.test.mjs",
     "test:membership": "node --test \"tests/membership/*.test.mjs\"",
     "test:rules": "firebase emulators:exec --only database,storage --project demo-calvary-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
     "test:sponsor": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.sponsor.config.mjs\"",

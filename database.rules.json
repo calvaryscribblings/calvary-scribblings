@@ -768,6 +768,24 @@
         "authorPhotoPath": { ".validate": "newData.isString() && newData.val().length <= 200 && newData.val().matches(/^bookstore_covers[/][A-Za-z0-9._-]+$/)" }
       }
     },
+    "bookstore_titles_deleted": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$titleId": {
+        ".validate": "newData.hasChildren(['titleId', 'slug', 'deletedAt'])",
+        "titleId": { ".validate": "newData.isString() && newData.val() === $titleId" },
+        "slug": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
+        "title": { ".validate": "newData.isString() && newData.val().length <= 300" },
+        "author": { ".validate": "newData.isString() && newData.val().length <= 200" },
+        "coverUrl": { ".validate": "newData.isString() && newData.val().length <= 2000" },
+        "catalogueNumber": { ".validate": "newData.isNumber() && newData.val() > 0" },
+        "publisherId": { ".validate": "newData.isString() && newData.val().length <= 200" },
+        "deletedAt": { ".validate": "newData.isNumber() && newData.val() > 0" },
+        "deletedBy": { ".validate": "newData.isString() && newData.val().length <= 128" },
+        "ownersAtDeletion": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "$other": { ".validate": false }
+      }
+    },
     "bookstore_genres": {
       ".read": true,
       ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
