@@ -26,11 +26,12 @@
 //   manifest. The gateway stands with no wall (the radial-gradient background shows through)
 //   rather than the deploy failing. Exit code is always 0.
 //
-//   ⛔ THIS IS ONE OF EXACTLY TWO READS PL-12 ALLOWS TO DEGRADE (the other is
-//   app/u/[handle]/page.js). Ikenna ruled on 27 Aug 2026 that a build which cannot read the
-//   catalogue FAILS; the wall is a named exception because it is DECORATION — nothing 404s,
-//   no page loses content, no link goes anywhere it did not go before. See the argument in
-//   app/lib/gateway-build.js and the contract in app/lib/build-read.mjs.
+//   ⛔ THE WALL IS NOW THE ONLY READ PL-12 ALLOWS TO DEGRADE. Ikenna ruled on 27 Aug 2026 that
+//   a build which cannot read the catalogue FAILS; the wall is the named exception because it
+//   is DECORATION — nothing 404s, no page loses content, no link goes anywhere it did not go
+//   before. app/u/[handle]/page.js used to be the second exception and was removed in R24.1:
+//   its argument rested on static pages shadowing the /u/:handle redirect, and measurement
+//   showed the redirect shadows THEM. See app/lib/gateway-build.js and app/lib/build-read.mjs.
 //
 //   ⚠ WHAT PL-12 DID CHANGE IS THE WAITING. Every fetch here now carries a deadline. Neither
 //   `fetch` nor firebase/database's get() fails fast on an unreachable host — get() never

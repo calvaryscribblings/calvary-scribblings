@@ -186,24 +186,36 @@ export async function buildRead(what, needs, read) {
 }
 
 /**
- * ⚠ A build-time read that is ALLOWED to fail — and there are exactly TWO of them.
+ * ⚠ A build-time read that is ALLOWED to fail — and there is exactly ONE reason left.
  *
  * Ikenna's ruling of 27 August 2026 is that a build which cannot read the catalogue FAILS. This
- * function is the two named, argued exceptions to it, and `why` is mandatory so that a third
- * one cannot be added without writing down the argument for it:
+ * function is the named, argued exception to it, and `why` is mandatory so that another one
+ * cannot be added without writing down the argument for it:
  *
  *   · app/lib/gateway-build.js and scripts/generate-gateway-wall.mjs — DECORATION. The story
  *     count, the rotating whispers and the cover mosaic behind the gateway hero. The gateway
  *     stands without them; nothing 404s and no page loses a link.
- *   · app/u/[handle]/page.js — a REAL EDGE FALLBACK, not a hope. public/_redirects carries
- *     `/u/:handle → /user?handle=:handle`, so a handle with no static page is served by the
- *     edge rule the static page would otherwise shadow. The reader lands on their profile
- *     either way.
  *
- * Everything else fails. If you are about to add a third caller, the question to answer first
+ * ── THE SECOND EXCEPTION IS GONE, AND ITS ARGUMENT WAS BACKWARDS (R24.1, 27 Aug 2026) ───────
+ *
+ * app/u/[handle]/page.js used to be here, on the reasoning that "a static page at /u/<handle>
+ * SHADOWS the /u/:handle → /user?handle=:handle rule, so emitting fewer pages costs a redirect
+ * hop, not a destination". The premise was measured and it is FALSE. Cloudflare applies a
+ * _redirects rule whether or not an asset matches: `/u/5yh7sr997w` — a handle that HAD a
+ * prerendered page — 301'd to /user?handle=5yh7sr997w on the live site. The static pages never
+ * shadowed the rule; the rule shadowed them, and all 98 of them had never been served.
+ *
+ * So the exception was not merely unnecessary, it was arguing for the weaker of the two. The
+ * redirect covers every handle including ones created since the last deploy — which is the very
+ * degrade path this note was written to protect — and /user?handle= resolves the handle live
+ * and shows an honest "User not found." when it does not resolve. The route, its read and its
+ * 5.4 MB of dead export are gone. The redirect is the product.
+ *
+ * Everything else fails. If you are about to add another caller, the question to answer first
  * is: what does a reader see when this data is missing? If the answer is "a link that 404s" or
  * "a shelf whose items do not open", it is not a candidate — that is the exact failure PL-12
- * exists to prevent.
+ * exists to prevent. And if the answer is "an edge rule covers it", CHECK THAT IT DOES: the
+ * exception removed above is what an unchecked one looks like.
  *
  * ⚠ IT STILL CARRIES THE DEADLINE AND THE RETRIES. Degrading is about the OUTCOME, never about
  * the waiting: without the deadline these two would hang the build just as thoroughly as a

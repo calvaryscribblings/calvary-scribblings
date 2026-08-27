@@ -248,6 +248,15 @@ jobs:
       - name: Redirect limits — every rule in _redirects is actually served
         run: npm run test:redirects
 
+      # R24.1 — THE /u PRERENDER MUST STAY GONE. app/u/[handle] emitted 98 pages that Cloudflare
+      # had never served once, because a _redirects rule is applied whether or not an asset
+      # matches. Only the SOURCE half runs here — the route file reappearing is how this
+      # regresses, and this is the workflow whose filter watches app/**. The half that proves
+      # the check can fail needs two real builds and rides reader-tests.yml, which already
+      # budgets for a build; it is started by tests/**, so editing the suite still runs it.
+      - name: The /u prerender stays removed (source half — the build half is in reader-tests)
+        run: npm run test:no-u-source
+
       # R11.18 — THE FOLIATE PIN. "Both surfaces run the same engine" was a convention held by
       # nobody: the app repo enforced it in its own test and this repo enforced nothing, so the
       # two could drift apart in silence. It runs here rather than in reader-tests.yml because

@@ -38,6 +38,8 @@
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",
     "test:build": "node --test tests/build/liveness.test.mjs",
     "test:redirects": "node --test tests/build/redirects-limits.test.mjs",
+    "test:no-u-prerender": "node --test tests/build/no-u-prerender.test.mjs",
+    "test:no-u-source": "node --test --test-name-pattern='the route is gone' tests/build/no-u-prerender.test.mjs",
     "test:membership-copy": "next build && node --test tests/membership/deck-parity.test.mjs && playwright test -c tests/membership/playwright.copy.config.mjs && playwright test -c tests/membership/playwright.links.config.mjs",
     "test:dropcap": "playwright test -c tests/dropcap/playwright.config.mjs",
     "test:verify-email": "playwright test -c tests/verify-email/playwright.config.mjs",

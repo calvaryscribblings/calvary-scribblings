@@ -96,16 +96,17 @@ describe('the contract: a build-time read either completes or the build stops', 
     assert.doesNotMatch(r.stdout, /BUILD FAILED/);
   });
 
-  test('the two named exceptions degrade — but they still carry the deadline', async () => {
-    // buildReadOptional is the gateway wall and /u/[handle], and nothing else. A hang must
-    // still END, or "never fails the build" is only true of a network that answers.
+  test('the named exception degrades — but it still carries the deadline', async () => {
+    // buildReadOptional is the gateway wall and nothing else since R24.1, when the second case
+    // (/u/[handle]) was removed along with the route it existed for. A hang must still END, or
+    // "never fails the build" is only true of a network that answers.
     const r = await attempt(process.execPath, [DRIVER, 'optional-hang']);
     assert.equal(r.code, 0, 'a named degrade case must not fail the build');
     assert.match(r.stdout, /RESULT \{"degraded":true\} calls=4/, 'it degrades, after trying');
     assert.match(r.stdout, /DEGRADING — decoration only/, 'and it says so, with its reason');
   });
 
-  test('a third degrade case cannot be added without writing down why', async () => {
+  test('another degrade case cannot be added without writing down why', async () => {
     const r = await attempt(process.execPath, [DRIVER, 'optional-no-why']);
     assert.match(r.stdout, /THREW .*requires a written reason/);
   });
@@ -304,11 +305,16 @@ describe('no build-time read can bypass the contract', () => {
       'app/reader/[slug]/page.js', 'app/lib/voices-build.js', 'app/series/[slug]/page.js',
       'app/series/instalment/[instalmentId]/page.js', 'app/series/read/[instalmentId]/page.js',
       'app/open-pages/[id]/page.js', 'app/open-pages/edit/[id]/page.js', 'app/sitemap.js',
-      'app/lib/gateway-build.js', 'app/u/[handle]/page.js',
+      'app/lib/gateway-build.js',
       'scripts/generate-redirects.mjs', 'scripts/generate-gateway-wall.mjs',
     ];
-    // Exactly two may degrade, and they are named here rather than inferred.
-    const MAY_DEGRADE = new Set(['app/lib/gateway-build.js', 'app/u/[handle]/page.js', 'scripts/generate-gateway-wall.mjs']);
+    // ⚠ R24.1 REMOVED THE SECOND DEGRADE CASE. app/u/[handle]/page.js was listed here and in
+    // MAY_DEGRADE until 27 Aug 2026. Its whole argument was that a static /u/<handle> page
+    // shadows the /u/:handle redirect, so emitting fewer pages costs only a hop — and that was
+    // measured false: Cloudflare applies the rule whether or not an asset matches, so all 98
+    // prerendered pages had never been served. The route, its read and its deadline machinery
+    // went with it. Only the gateway wall degrades now.
+    const MAY_DEGRADE = new Set(['app/lib/gateway-build.js', 'scripts/generate-gateway-wall.mjs']);
 
     for (const rel of SERVER_READERS) {
       const src = readFileSync(join(ROOT, rel), 'utf8');
@@ -316,9 +322,15 @@ describe('no build-time read can bypass the contract', () => {
       if (!MAY_DEGRADE.has(rel)) {
         assert.ok(/buildRead\(/.test(src), `${rel} must use buildRead — it is not a named degrade case`);
         assert.ok(!/buildReadOptional\(/.test(src),
-          `${rel} degrades, and only the gateway wall and /u/[handle] may. See the argument in build-read.mjs.`);
+          `${rel} degrades, and only the gateway wall may. See the argument in build-read.mjs.`);
       }
     }
+
+    // ⭑ AND THE REMOVED ROUTE MUST STAY REMOVED. A file reappearing at this path would be a
+    // build-time read that no line above names, which is exactly the blind spot this case is
+    // for — the list can only test the sites it knows about.
+    assert.ok(!existsSync(join(ROOT, 'app/u')),
+      'app/u/ is back — R24.1 removed it; a route here reads Firebase at build time unlisted');
 
     // And no build-time module may still be catching its own read. A catch cannot run for a
     // promise that never settles, which is what made these dead code in the first place.

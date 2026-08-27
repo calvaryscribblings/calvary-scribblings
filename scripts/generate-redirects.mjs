@@ -54,9 +54,19 @@ const STATIC_LEGACY_REDIRECTS = [
   // static-exports without generateStaticParams). Verified nothing shadows this
   // path: there is no app/summer-reading route and no public/summer-reading asset.
   ['/summer-reading',  '/leaderboard/summer-2026'],
-  // Author profile shorthand — Open Pages cards/detail link to /u/<handle>;
-  // the live profile page is /user?handle=<handle>. Cloudflare placeholder
-  // syntax (:handle) forwards the captured segment into the query string.
+  // Author profile shorthand — Open Pages cards/detail link to /u/<handle>; the live profile
+  // page is /user?handle=<handle>. Cloudflare placeholder syntax (:handle) forwards the
+  // captured segment into the query string.
+  //
+  // ⭑ R24.1 — THIS RULE IS NOW THE WHOLE MECHANISM, not a fallback for one. app/u/[handle]
+  // used to prerender a page per known handle as "belt and braces"; measurement showed
+  // Cloudflare applies this rule whether or not an asset matches, so those 98 pages had never
+  // been served once. The rule covers every handle including any created since the last
+  // deploy, and /user resolves the handle live, showing "User not found." when it does not.
+  //
+  // ⛔ It is also the file's ONLY dynamic rule, and R24 is why that matters: the generator
+  // partitions so it is emitted LAST. A second dynamic rule is fine; a dynamic rule that ends
+  // up ahead of the static ones caps the whole file at ~100. See redirects-limits.mjs.
   ['/u/:handle',      '/user?handle=:handle'],
 ];
 

@@ -71,7 +71,13 @@ async function readWallManifest() {
 //                leaves the wall, and a missing wall still leaves the count.
 // A failed Firebase read degrades to zeroes/empty rather than throwing: a blip should leave
 // the gateway standing (count line hidden, no whispers), not fail the deploy.
-// ⛔ PL-12 — ONE OF EXACTLY TWO READS ALLOWED TO DEGRADE, AND THE ARGUMENT IS HERE.
+// ⛔ PL-12 — THE ONLY READ ALLOWED TO DEGRADE, AND THE ARGUMENT IS HERE.
+//
+// It was one of two until R24.1 (27 Aug 2026). The other, app/u/[handle]/page.js, was
+// granted its exception on the premise that a static /u/<handle> page shadows the
+// /u/:handle → /user?handle=:handle redirect. Measurement showed the reverse — Cloudflare
+// applies the rule whether or not an asset matches — so the pages it was protecting had
+// never been served, and the route went. Decoration is the whole of the remaining case.
 //
 // Ikenna's ruling of 27 August 2026 is that a build which cannot read the catalogue FAILS
 // rather than publishing a diminished site. This is a named exception to it, accepted on the

@@ -309,6 +309,15 @@ jobs:
       # which is deliberate — one chain, two places to run it, no divergence in what runs first.
       - name: Deck parity (the copy deck vs the shipped page)
         run: node --test tests/membership/deck-parity.test.mjs
+
+      # R24.1 — the falsifiable half of the /u check. It runs TWO real `next build`s of its
+      # own: one clean, asserting out/u is empty and the sitemap names no /u URL, and one with
+      # a canary route restored, requiring the pages to come back. Without the second, "out/u
+      # is empty" would also pass against a typo in the path or a build that emitted nothing.
+      # It rides this workflow because it is the one that budgets for builds; the cheap source
+      # half runs in rules-and-hygiene, whose filter watches app/**.
+      - name: The /u prerender stays removed — and the check is proved able to see it
+        run: npm run test:no-u-prerender
         if: ${{ !cancelled() }}
 
       # Its own port (4327). It claimed 4325 until R11.17 and the territory suite above has held
