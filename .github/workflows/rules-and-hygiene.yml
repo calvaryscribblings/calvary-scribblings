@@ -234,6 +234,20 @@ jobs:
       - name: Build liveness — timeout, 5xx, empty, malformed, and the half-built shop
         run: npm run test:build
 
+      # R24 — _redirects SILENTLY LOST ITS TAIL, AND HAD FOR MONTHS. Measured against the live
+      # site on 27 Aug 2026: 335 rules in the file, 108 served, 227 dropped, 114 legacy story
+      # URLs 404'ing with live targets behind them. The cause was one dynamic rule sitting
+      # ninth — Cloudflare latches every rule below the first dynamic one into the 100-rule
+      # dynamic bucket and then abandons the file. Nothing in CI could see it, because a
+      # redirect map is not a page and no suite had ever read one.
+      #
+      # This runs next to the liveness suite for the same reason that one exists: a rule file
+      # that quietly loses its tail is the same class of defect as a catalogue that quietly
+      # loses its stories. It needs no build and no browser — about a second, most of it the
+      # four generator runs that prove the gate stops a build rather than merely reporting.
+      - name: Redirect limits — every rule in _redirects is actually served
+        run: npm run test:redirects
+
       # R11.18 — THE FOLIATE PIN. "Both surfaces run the same engine" was a convention held by
       # nobody: the app repo enforced it in its own test and this repo enforced nothing, so the
       # two could drift apart in silence. It runs here rather than in reader-tests.yml because

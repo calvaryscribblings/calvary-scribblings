@@ -37,6 +37,7 @@
     "test:sponsor": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.sponsor.config.mjs\"",
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",
     "test:build": "node --test tests/build/liveness.test.mjs",
+    "test:redirects": "node --test tests/build/redirects-limits.test.mjs",
     "test:membership-copy": "next build && node --test tests/membership/deck-parity.test.mjs && playwright test -c tests/membership/playwright.copy.config.mjs && playwright test -c tests/membership/playwright.links.config.mjs",
     "test:dropcap": "playwright test -c tests/dropcap/playwright.config.mjs",
     "test:verify-email": "playwright test -c tests/verify-email/playwright.config.mjs",
