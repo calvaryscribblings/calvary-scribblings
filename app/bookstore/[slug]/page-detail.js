@@ -94,6 +94,27 @@ export default function BookDetailClient({ params, seed = null }) {
   // render, and the gate stays mounted through the unlock so its lift has something to reveal.
   // A shared /bookstore/[slug] link — the reader's "View in the Book Store", a message from a
   // friend — meets the same curtain as the front door, which is the point of gating both.
+  //
+  // ⛔ R23 — THE BLANK BEFORE THE PAGE IS THIS GATE, AND IT IS NOT FIXABLE FROM HERE.
+  //
+  // Ikenna's recording of 27 Aug (iPhone Safari, live site) shows ~600ms of EMPTY PAGE between
+  // the tap and any content at all. Measured against the built export the same shape appears,
+  // faster: nothing is in the document until an effect has run.
+  //
+  // The cause is the line below and the `{detailReady && (...)}` that reads it. `unlocked`
+  // starts false and is set from localStorage in an effect, and the WHOLE tree — Navbar, the
+  // <style> block, the body — hangs off it. So there is nothing to paint until React has
+  // mounted, run the effect and re-rendered. The stylesheet @import inside that gated block
+  // cannot even begin to load before then, which is why the fonts arrive late too.
+  //
+  // ⛔ DO NOT ANSWER THIS WITH ANIMATION. R23 has just removed a 600ms fadeUp that was put on
+  // the content below, and every one of the four things it was blamed for came from covering
+  // an arrival rather than making one. A fade over a blank makes the blank longer and the
+  // arrival mushier; it does not make the page come sooner.
+  //
+  // THE FIX IS R9's GATE REMOVAL — the same unwinding that lets the cover flight pair, because
+  // a cross-document transition cannot snapshot a page that has not rendered. Until then this
+  // blank is a known, named cost and not a bug to be decorated over.
   const [curtain, setCurtain] = useState('checking'); // 'checking' | 'up' | 'gone'
   const [unlocked, setUnlocked] = useState(false);
   const [genres, setGenres] = useState([]);
@@ -198,7 +219,6 @@ export default function BookDetailClient({ params, seed = null }) {
           body{background:#070707;color:#f0ead8;font-family:'Cormorant Garamond',Georgia,serif;overflow-x:hidden}
           ${BOUND_BOOK_CSS}
           ${AUTHOR_BLOCK_CSS}
-          @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.7}}
           .bd-skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
           ${SHIPPED_BOOK_TRANSITION_CSS}
@@ -361,11 +381,36 @@ export default function BookDetailClient({ params, seed = null }) {
             )}
 
             {state === 'ready' && title && (
-              /* R22C — `cs-settle` is inert unless a view transition is running: the rules in
-                 BOOK_TRANSITION_CSS are scoped to `html:active-view-transition`, so an ordinary
-                 load keeps the fadeUp it has always had and only an arrival-by-book gets the
-                 beat-at-a-time settle. The two never run together. */
-              <div className="cs-settle cs-settle-1" style={{ animation: 'fadeUp .6s ease forwards' }}>
+              /* ═══════════════════════════════════════════════════════════════════════════
+                 R23 — THE ENTRANCE REVEAL IS CUT. THE PAGE ARRIVES FINISHED.
+                 ═══════════════════════════════════════════════════════════════════════════
+
+                 This div carried a 600ms `fadeUp` entrance. It was the ONLY entrance animation
+                 on the page and it was doing all of what Ikenna named on 27 Aug, measured
+                 frame by frame against the built export:
+
+                   · THE COVER DIPPED. The loading branch above draws the seed board at FULL
+                     opacity. When `state` flips to ready that branch unmounts and the SAME
+                     book re-mounts INSIDE this wrapper — which started at opacity 0. Measured
+                     effective opacity on .bd-cover-wrap: 1 -> 0 -> 1. Not a filter, not a late
+                     decode. The board was being un-drawn and re-drawn by its own reveal, which
+                     is exactly what the R22C seed above exists to prevent.
+                   · THINGS ARRIVED OUT OF DOM ORDER. Not from a stagger — there is none — but
+                     because the cover is on screen from the loading branch ~150ms before the
+                     breadcrumb, kicker and title exist at all, and those then had to climb out
+                     of opacity 0 while the cover was already standing there.
+                   · IT TOOK ~430ms TO READ AS ARRIVED. The animation is 600ms; the stretch a
+                     viewer registers as assembly is the climb to roughly nine-tenths opacity.
+
+                 `cs-settle cs-settle-1` STAYS. Those classes are the flagged cover flight's
+                 machinery, inert in shipped output — BOOK_TRANSITION_SHIPPED is false, so
+                 SHIPPED_BOOK_TRANSITION_CSS is the empty string and the rules that would act
+                 on them are never emitted. R9's flag flip still has what it needs.
+
+                 ⛔ DO NOT PUT A FADE BACK HERE. The blank that precedes this content is not
+                 this element's doing and cannot be answered from this element — see THE BLANK
+                 note at the gate above. */
+              <div className="cs-settle cs-settle-1">
                 {/* Breadcrumb */}
                 <nav style={{ fontFamily: "'Cinzel',serif", fontSize: '.56rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'rgba(201,164,76,.5)', marginBottom: '2.5rem', display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <a href="/bookstore" style={{ color: 'rgba(201,164,76,.7)', textDecoration: 'none' }}>Book Store</a>

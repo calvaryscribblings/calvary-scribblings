@@ -269,6 +269,16 @@ jobs:
         run: npx playwright test -c tests/bookstore/playwright.flip.config.mjs
         if: ${{ !cancelled() }}
 
+      # R23 — THE ARRIVAL. Ikenna cut the detail page's entrance reveal on 27 Aug: a 600ms
+      # fadeUp on the wrapper around all the ready content, which was re-drawing the R22C seed
+      # board from transparent (measured effective opacity 1 -> 0 -> 1) and making the page
+      # look assembled rather than arrived. This suite reads computed style at the FIRST FRAME
+      # the content exists — the frame that used to read opacity 0 — and its last case puts the
+      # animation back and requires the other four to go red.
+      - name: Arrival harness (the detail page renders finished, nothing settles)
+        run: npx playwright test -c tests/bookstore/playwright.reveal.config.mjs
+        if: ${{ !cancelled() }}
+
       # R19.8 — THE BUY/SAMPLE PAIR, MEASURED AT THREE VIEWPORTS.
       #
       # It rides here rather than in territory.spec.mjs or currency.spec.mjs — the two nearest
