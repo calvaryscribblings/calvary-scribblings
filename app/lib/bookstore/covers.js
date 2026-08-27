@@ -101,7 +101,9 @@ export function coverSrc(title) {
   return title?.coverUrl || null;
 }
 
-// NO SIZES CONSTANT LIVES HERE. BoundBook already derives the attribute correctly and has
-// since R16 — `${width}px` for a fixed board, '(max-width:640px) 33vw, 200px' for a board that
-// is its column — and a second copy in this file would be a number that could disagree with the
-// one actually rendered. See the note at its call site.
+// NO SIZES CONSTANT LIVES HERE, AND R26 DID NOT PUT ONE HERE EITHER. The rule stands: a second
+// copy in this file would be a number that could disagree with the one actually rendered.
+// R26 needed the detail page's SERVER component to state the same `sizes` its <img> will use,
+// so the ONE derivation moved out of BoundBook (a 'use client' module a server component cannot
+// safely read a value from) into app/lib/bookstore/board.js, which BoundBook now imports. It
+// moved; it was not duplicated. See that file, and the note at BoundBook's call site.

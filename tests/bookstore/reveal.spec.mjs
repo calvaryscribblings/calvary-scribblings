@@ -34,6 +34,25 @@
 // through CSS injected at document_start with the same declaration the deleted inline style
 // produced, and requires every assertion above to go red. Without that half, "opacity is 1"
 // would also pass against a selector that matches nothing.
+//
+// ── R26 — WHAT MOVED UNDER THIS SUITE, AND WHY IT MEASURES MORE NOW ────────────────────────
+//
+// `.cs-settle` used to exist ONLY in the ready branch, so "the first frame .cs-settle exists"
+// and "the first frame the ready content exists" were the same frame. R26 collapsed the
+// loading and ready branches into one — one board, one <img>, one box, because the flip
+// between two branches was moving the drawn cover 53.42px and re-fetching it — so `.cs-settle`
+// now mounts with the SEED, some 35ms earlier, carrying the breadcrumb and the board.
+//
+// The measurement is unchanged in kind and strictly stronger in reach: the same element, at an
+// EARLIER first frame, still has to be at final opacity and final position with nothing
+// animating. Two consequences are written into the cases below rather than papered over:
+//
+//   · THE SKELETON PULSE IS INSIDE THE WRAPPER NOW. It belongs to the right-hand column, which
+//     is genuinely not here yet, and it is RULED — so it is named and excluded, exactly as the
+//     `running` case beside it already excluded it. Nothing else may animate.
+//   · THE <h1> DOES NOT EXIST ON THAT FRAME. It arrives with the live record. So its opacity
+//     is measured on the first frame it DOES exist, which is what R23's assertion always
+//     meant: the title must not climb out of a fade when it appears.
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -59,12 +78,25 @@ const REMOVED_REVEAL = `
 // reveal is precisely something that is not yet in its final state when it first appears.
 const RECORDER = () => {
   window.__firstPaint = null;
+  // R26 — the title arrives after the wrapper does. Same question, its own frame.
+  window.__titlePaint = null;
   const effectiveOpacity = (el) => {
     let o = 1;
     for (let n = el; n && n.nodeType === 1; n = n.parentElement) o *= parseFloat(getComputedStyle(n).opacity);
     return +o.toFixed(4);
   };
   const look = () => {
+    if (!window.__titlePaint) {
+      const h = document.querySelector('h1');
+      if (h) {
+        const cover = document.querySelector('.bd-cover-wrap');
+        window.__titlePaint = {
+          t: Math.round(performance.now()),
+          h1Opacity: effectiveOpacity(h),
+          coverOpacity: cover ? effectiveOpacity(cover) : null,
+        };
+      }
+    }
     if (!window.__firstPaint) {
       const w = document.querySelector('.cs-settle');
       if (w) {
@@ -88,7 +120,7 @@ const RECORDER = () => {
           animationName: cs.animationName,
           transitionDelay: cs.transitionDelay,
           coverOpacity: cover ? effectiveOpacity(cover) : null,
-          h1Opacity: h1 ? effectiveOpacity(h1) : null,
+          h1Opacity: h1 ? effectiveOpacity(h1) : null,   // null before the record lands — see __titlePaint
           running: document.getAnimations().map((a) => a.animationName || a.transitionProperty).filter(Boolean),
           offenders,
         };
@@ -122,9 +154,15 @@ async function openDetail(page, { putTheRevealBack = false } = {}) {
   await page.goto(`/bookstore/${slug}`);
   await expect(page.locator('.cs-settle h1')).toBeVisible({ timeout: 30000 });
   const paint = await page.evaluate(() => window.__firstPaint);
-  expect(paint, 'the recorder never saw the ready content — this suite measured nothing').toBeTruthy();
-  return { slug, paint };
+  const titlePaint = await page.evaluate(() => window.__titlePaint);
+  expect(paint, 'the recorder never saw the content wrapper — this suite measured nothing').toBeTruthy();
+  expect(titlePaint, 'the recorder never saw the title — this suite measured nothing').toBeTruthy();
+  return { slug, paint, titlePaint };
 }
+
+// The one animation ruled IN. It is on the right-hand column's skeleton bars, which stand for
+// text that has genuinely not arrived; it is not on the cover, which has.
+const RULED_PULSE = 'pulse';
 
 test.describe('the detail page renders in its final state at first paint', () => {
   test('the content wrapper is at final opacity and final position on the frame it appears', async ({ page }) => {
@@ -141,16 +179,24 @@ test.describe('the detail page renders in its final state at first paint', () =>
     expect(paint.animationName, 'the wrapper must carry no entrance animation').toBe('none');
     expect(paint.transitionDelay.split(',').map((d) => parseFloat(d)).filter((d) => d > 0),
       'the wrapper must carry no transition delay').toEqual([]);
-    expect(paint.offenders, `these elements arrive animated or delayed: ${JSON.stringify(paint.offenders)}`).toEqual([]);
+    const offenders = paint.offenders.filter((o) => o.animation !== RULED_PULSE || parseFloat(o.transitionDelay) > 0);
+    expect(offenders, `these elements arrive animated or delayed: ${JSON.stringify(offenders)}`).toEqual([]);
+    // …and the pulse is only ever allowed on the skeleton. It may not spread to the cover.
+    expect(paint.offenders.filter((o) => o.animation === RULED_PULSE && !/bd-skeleton/.test(o.cls)),
+      'the ruled skeleton pulse has escaped the skeleton').toEqual([]);
   });
 
   test('THE COVER DOES NOT DIP — the board is at full opacity the moment the page is ready', async ({ page }) => {
     // ⭑ The symptom Ikenna described most concretely, and the one the R22C seed exists to
     // prevent: the same board drawn at full opacity in the loading state must not be re-drawn
     // from transparent when the real record lands.
-    const { paint } = await openDetail(page);
-    expect(paint.coverOpacity, 'the cover must not be climbing out of a fade when the page is ready').toBe(1);
-    expect(paint.h1Opacity, 'the title must not be climbing out of a fade either').toBe(1);
+    const { paint, titlePaint } = await openDetail(page);
+    expect(paint.coverOpacity, 'the cover must not be climbing out of a fade on the frame the page arrives').toBe(1);
+    // R26 — the same board, still at full opacity on the LATER frame the record lands. Before
+    // R26 that was a different <img> in a different box; now it is the same element, and this
+    // is the assertion that says so in opacity terms.
+    expect(titlePaint.coverOpacity, 'the cover must not dip when the live record lands').toBe(1);
+    expect(titlePaint.h1Opacity, 'the title must not be climbing out of a fade either').toBe(1);
   });
 
   test('no entrance animation is running anywhere on the page at that frame', async ({ page }) => {

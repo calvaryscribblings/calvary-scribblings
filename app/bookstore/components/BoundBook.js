@@ -15,6 +15,9 @@
 // round measured. See FrontFace.
 import { useEffect, useRef } from 'react';
 import { coverSrcSet, coverSrc } from '../../lib/bookstore/covers';
+// R26 — the board's width and its `sizes`, in one place both this client module and the
+// detail page's server component can read. See that file's header.
+import { boardSizes } from '../../lib/bookstore/board';
 // R22C — the marker a link uses to find this board. See ./bookTransition.js for the mechanism.
 import { BOOK_SLUG_ATTR } from './bookTransition';
 import { useBookGesture } from './useBookGesture';
@@ -606,12 +609,11 @@ export default function BoundBook({ title, variant = 'shelf', width = 160, ribbo
   // being `unoptimized`; that day never came (a static export has no optimiser), so FrontFace
   // now carries the rungs itself and this is what tells the browser which one to take.
   //
-  // A fixed book states its pixels; a column-width one states the columns. Both were already
-  // right and neither number moved: measured on the shipped page, the shelf column renders
-  // 104.7px at 390 (33vw = 128.7, over-stated, which picks the same 360w rung) and 197.6px at
-  // 1280 (200px, over-stated by 2.4). Over-stating costs nothing; under-stating would pick a
-  // rung too small and the eye would see it.
-  const sizes = typeof width === 'number' ? `${width}px` : '(max-width:640px) 33vw, 200px';
+  // R26 — THE EXPRESSION MOVED, THE NUMBER DID NOT. It now lives in
+  // app/lib/bookstore/board.js, a module with no 'use client', because the detail page's
+  // SERVER component has to state the same `sizes` in its <link rel="preload"> or the preload
+  // warms a rung the <img> never draws. Still one expression in the tree; see that file.
+  const sizes = boardSizes(width);
 
   // R22C — THE MARKER AND THE WAY BACK.
   //

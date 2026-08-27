@@ -234,7 +234,11 @@ describe('R16 — THREE ACROSS, AND THE BOOK IS ITS COLUMN', () => {
     const shop = src('app/bookstore/page.js');
     assert.match(shop, /width=\{190\} ribbon/, 'the Window’s book changed size');
     assert.match(src('app/bookstore/components/CuratedSection.js'), /width=\{170\}/, 'the curated case’s book changed size');
-    assert.match(src('app/bookstore/[slug]/page-detail.js'), /width=\{220\}/, 'the detail page’s book changed size');
+    // R26 — the detail board's 220 moved into app/lib/bookstore/board.js so the detail page's
+    // SERVER component can state the same `sizes` in its cover preload. Same fact, asserted in
+    // both halves: the page passes the constant, and the constant is still 220.
+    assert.match(src('app/bookstore/[slug]/page-detail.js'), /width=\{DETAIL_BOARD_WIDTH\}/, 'the detail page’s book no longer takes its width from the shared constant');
+    assert.match(src('app/lib/bookstore/board.js'), /export const DETAIL_BOARD_WIDTH = 220;/, 'the detail page’s book changed size');
     assert.match(shop, /width="100%"/, 'the shelf’s book is not its column');
   });
 

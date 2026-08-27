@@ -12,6 +12,9 @@ import AuthorBlock, { AUTHOR_BLOCK_CSS } from '../components/AuthorBlock';
 import Navbar from '../../components/Navbar';
 import TabBar from '../../components/TabBar';
 import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
+// R26 — the one place the detail board's width is written down. ./page.js reads it too, to
+// tell the preload which rung this board will draw. See app/lib/bookstore/board.js.
+import { DETAIL_BOARD_WIDTH } from '../../lib/bookstore/board';
 import BuyButton from '../components/BuyButton';
 import { truncate, formatCatalogueNumber } from '../components/fields';
 import { useCurrency, useRegionCountry, priceLine, fallbackSentence } from '../../lib/currency';
@@ -204,8 +207,26 @@ export default function BookDetailClient({ params, seed = null }) {
   // R14. The platform argument is left at its default here — this IS the web — and the
   // register lives in the module, so this call site never learns why the answer was null.
   const readershipLine = readershipFor(readership);
-  const section = title ? sectionLabel(title.genre) : '';
   const cat = title ? formatCatalogueNumber(title.catalogueNumber) : null;
+
+  // ── R26 — THE BOARD'S SUBJECT, AND THE ONE FLAG THAT SWAPS TEXT ───────────────────────
+  //
+  // `board` is the live record once it lands and the build-time seed until then. It is ONE
+  // value because the cover is ONE element: the loading state and the ready state used to be
+  // two mutually exclusive JSX branches, each rendering its own <BoundBook>, so the flip tore
+  // the board down and built a second one. Measured on the built export: two distinct <img>
+  // elements, and the drawn board moving 53.42px (laptop) / 33px across and 53.42px down
+  // (handset 390) between them. That WAS the second beat.
+  //
+  // The seed carries the same coverUrl and the same coverSizes as the record, so the <img>'s
+  // src and srcSet do not change when `board` does — React keeps the element, the browser
+  // keeps the decoded bitmap, and nothing repaints.
+  //
+  // `arrived` swaps TEXT ONLY. Nothing it gates sits above the board in the block flow, so
+  // nothing it gates can move the board.
+  const board = title || seed;
+  const arrived = state === 'ready' && !!title;
+  const section = board ? sectionLabel(board.genre) : '';
 
   return (
     <>
@@ -313,39 +334,26 @@ export default function BookDetailClient({ params, seed = null }) {
               See GRAIN_REMOVED in ../components/grain.js. */}
           <div style={{ maxWidth: '920px', margin: '0 auto', padding: '3.5rem 2rem 4rem', position: 'relative', zIndex: 2 }}>
             {/* ═══════════════════════════════════════════════════════════════════════════
-                R22C — THE ARRIVING BOARD.
+                ⛔ R26 — THE SEPARATE LOADING BRANCH STOOD HERE AND IS GONE.
                 ═══════════════════════════════════════════════════════════════════════════
 
-                The board is drawn from the BUILD-TIME seed while the live record is in flight,
-                in the same 260px column and at the same 220px width the ready state uses, so
-                nothing moves when the real title lands. That is not a nicety: a cross-document
-                view transition snapshots the incoming page at its first rendering opportunity,
-                and this page's title arrives from Firebase hundreds of milliseconds later. The
-                board has to be in the parsed HTML or the cover blinks out and back, which is
-                the one thing the mock forbids. See the seedFor() note in ./page.js.
+                It drew the R22C seed board in a grid of its own — `260px 1fr`, no class, no
+                breadcrumb above it — and the ready block below drew the SAME book again in
+                `.bd-header`. Two branches, two <BoundBook>s, two <img> elements, and a flip
+                between them that moved the drawn board. That is what Ikenna saw as the cover
+                assembling in two beats; the whole of R26's answer is that there is now one
+                board, rendered once, below.
 
-                NO SEED, NO BOARD — the skeleton block stands exactly as it did before R22, and
-                the transition degrades to a plain navigation. Same outcome as a browser with no
-                view-transition support. */}
-            {state === 'loading' && (
-              <div style={{ display: 'grid', gridTemplateColumns: seed ? '260px 1fr' : '280px 1fr', gap: '3.5rem' }}>
-                {seed ? (
-                  <div className="bd-cover-wrap" {...{ [BOOK_ARRIVAL_ATTR]: '' }} style={{ display: 'flex', justifyContent: 'center', paddingTop: '.5rem' }}>
-                    <BoundBook title={seed} variant="detail" width={220} />
-                  </div>
-                ) : (
-                  <div className="bd-skeleton" style={{ width: '280px', aspectRatio: '2/3', borderRadius: '2px 5px 5px 2px' }} />
-                )}
-                <div>
-                  <div className="bd-skeleton" style={{ height: '.6rem', width: '35%', marginBottom: '1.2rem' }} />
-                  <div className="bd-skeleton" style={{ height: '2rem', width: '80%', marginBottom: '.8rem' }} />
-                  <div className="bd-skeleton" style={{ height: '1rem', width: '45%', marginBottom: '2rem' }} />
-                  <div className="bd-skeleton" style={{ height: '.9rem', width: '100%', marginBottom: '.6rem' }} />
-                  <div className="bd-skeleton" style={{ height: '.9rem', width: '92%', marginBottom: '.6rem' }} />
-                  <div className="bd-skeleton" style={{ height: '.9rem', width: '96%' }} />
-                </div>
-              </div>
-            )}
+                R22C'S REQUIREMENT IS UNCHANGED AND STILL MET — the board is on screen from the
+                seed while the live record is in flight, at its final geometry, so the flagged
+                cover flight still has an incoming element to pair with. What is no longer true
+                is the claim R22C's own note made: the board is NOT in the parsed HTML. It never
+                was. The whole tree hangs off `unlocked`, which is false during the prerender,
+                so out/bookstore/<slug>.html contains no <img> at all — measured, zero, for
+                every title. That is the R9 gate, it is not fixable from here, and R26 answers
+                the part of it that CAN be answered from here: ./page.js emits a
+                <link rel="preload" as="image"> in the head, which the preload scanner acts on
+                off the raw bytes, so the cover is in cache before React has run. */}
 
             {/* Returned from a completed Stripe checkout. Modest on purpose — the shelf, not a
                 receipt. The webhook is what actually grants the book, and it may land a moment
@@ -380,7 +388,7 @@ export default function BookDetailClient({ params, seed = null }) {
               </div>
             )}
 
-            {state === 'ready' && title && (
+            {board && (
               /* ═══════════════════════════════════════════════════════════════════════════
                  R23 — THE ENTRANCE REVEAL IS CUT. THE PAGE ARRIVES FINISHED.
                  ═══════════════════════════════════════════════════════════════════════════
@@ -389,9 +397,10 @@ export default function BookDetailClient({ params, seed = null }) {
                  on the page and it was doing all of what Ikenna named on 27 Aug, measured
                  frame by frame against the built export:
 
-                   · THE COVER DIPPED. The loading branch above draws the seed board at FULL
-                     opacity. When `state` flips to ready that branch unmounts and the SAME
-                     book re-mounts INSIDE this wrapper — which started at opacity 0. Measured
+                   · THE COVER DIPPED. The loading branch that stood above — R26 removed it,
+                     see the note where it was — drew the seed board at FULL opacity. When
+                     `state` flipped to ready that branch unmounted and the SAME book
+                     re-mounted INSIDE this wrapper, at opacity 0. Measured
                      effective opacity on .bd-cover-wrap: 1 -> 0 -> 1. Not a filter, not a late
                      decode. The board was being un-drawn and re-drawn by its own reveal, which
                      is exactly what the R22C seed above exists to prevent.
@@ -409,27 +418,68 @@ export default function BookDetailClient({ params, seed = null }) {
 
                  ⛔ DO NOT PUT A FADE BACK HERE. The blank that precedes this content is not
                  this element's doing and cannot be answered from this element — see THE BLANK
-                 note at the gate above. */
+                 note at the gate above.
+
+                 R26 — THIS BLOCK IS NOW THE ONLY ONE. It renders from `board`, which is the
+                 seed before the record lands and the record after, so the breadcrumb, the
+                 header grid, the cover wrapper and the <BoundBook> are the same elements
+                 throughout the arrival. `arrived` swaps the right-hand column's text and adds
+                 the sections below the header — never anything above the board. */
               <div className="cs-settle cs-settle-1">
-                {/* Breadcrumb */}
+                {/* ── BREADCRUMB ──────────────────────────────────────────────────────────
+                    R26 — IT IS DRAWN FROM THE FIRST FRAME, and that is a load-bearing detail
+                    rather than a cosmetic one. This nav sits ABOVE the board in the block
+                    flow, so a breadcrumb that appeared only when the live record landed pushed
+                    the cover down by its own height the instant it did: measured 53.42px at
+                    1280 (one line) and 76.44px at 390 (two). Drawing it from the seed — which
+                    is why ./page.js seeds `genre` — means the board's box is settled before
+                    the cover is even decoded.
+
+                    The section word can still change once, from the taxonomy fallback to the
+                    real group, when getGenres() lands. Measured across the whole live
+                    catalogue at 390 and 1280, including the longest titles and all three
+                    non-fiction ones, that word swap never changes the nav's HEIGHT — it is
+                    four characters inside an already-wrapping row — so it never moves the
+                    board. tests/bookstore/cover-arrival.spec.mjs asserts the box across the
+                    entire arrival rather than trusting that. */}
                 <nav style={{ fontFamily: "'Cinzel',serif", fontSize: '.56rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'rgba(201,164,76,.5)', marginBottom: '2.5rem', display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <a href="/bookstore" style={{ color: 'rgba(201,164,76,.7)', textDecoration: 'none' }}>Book Store</a>
                   <span style={{ opacity: .5 }}>&middot;</span>
-                  <a href={`/bookstore#${sectionAnchor(title.genre)}`} style={{ color: 'rgba(201,164,76,.7)', textDecoration: 'none' }}>{section}</a>
+                  <a href={`/bookstore#${sectionAnchor(board.genre)}`} style={{ color: 'rgba(201,164,76,.7)', textDecoration: 'none' }}>{section}</a>
                   <span style={{ opacity: .5 }}>&middot;</span>
-                  <span style={{ color: 'rgba(240,234,216,.55)' }}>{title.title}</span>
+                  <span style={{ color: 'rgba(240,234,216,.55)' }}>{board.title}</span>
                 </nav>
 
-                {/* Book header */}
-                <div className="bd-header" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '3.5rem', alignItems: 'start' }}>
+                {/* Book header.
+                    `data-bd-state` names which half of the arrival this is. Nothing in the
+                    shipped stylesheet selects on it — it is there so the arrival harness can
+                    inject the pre-R26 geometry onto the loading half and prove its assertions
+                    can go red. See tests/bookstore/cover-arrival.spec.mjs. */}
+                <div className="bd-header" data-bd-state={arrived ? 'ready' : 'loading'} style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '3.5rem', alignItems: 'start' }}>
                   <div className="bd-cover-wrap" {...{ [BOOK_ARRIVAL_ATTR]: '' }} style={{ display: 'flex', justifyContent: 'center', paddingTop: '.5rem' }}>
                     {/* R17.3 — it flips on tap like every other book on the shop. NO `onOpen`:
                         this page IS the quick look, and a modal repeating the page you are
                         standing on is not a way in, so the book turns back instead. That is a
-                        registered surface, not an omission — see BOOK_SURFACES in BoundBook.js. */}
-                    <BoundBook title={title} variant="detail" width={220} />
+                        registered surface, not an omission — see BOOK_SURFACES in BoundBook.js.
+                        R26 — `board`, not `title`: ONE element for the whole arrival. */}
+                    <BoundBook title={board} variant="detail" width={DETAIL_BOARD_WIDTH} />
                   </div>
                   <div>
+                    {!arrived && (
+                      /* The right column while the record is in flight. The skeleton PULSE
+                         stays — it is ruled, and it belongs to the text that is genuinely not
+                         here yet. It is not on the cover, which is. */
+                      <>
+                        <div className="bd-skeleton" style={{ height: '.6rem', width: '35%', marginBottom: '1.2rem' }} />
+                        <div className="bd-skeleton" style={{ height: '2rem', width: '80%', marginBottom: '.8rem' }} />
+                        <div className="bd-skeleton" style={{ height: '1rem', width: '45%', marginBottom: '2rem' }} />
+                        <div className="bd-skeleton" style={{ height: '.9rem', width: '100%', marginBottom: '.6rem' }} />
+                        <div className="bd-skeleton" style={{ height: '.9rem', width: '92%', marginBottom: '.6rem' }} />
+                        <div className="bd-skeleton" style={{ height: '.9rem', width: '96%' }} />
+                      </>
+                    )}
+                    {arrived && (
+                    <>
                     {cat !== null && (
                       <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.6rem', letterSpacing: '.26em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.6rem' }}>{cat}</div>
                     )}
@@ -498,9 +548,17 @@ export default function BookDetailClient({ params, seed = null }) {
                       )}
                       <span className="bd-availability" data-testid="availability-note">Available September 2026</span>
                     </div>
+                    </>
+                    )}
                   </div>
                 </div>
 
+                {/* ── R26 — EVERYTHING BELOW THE HEADER IS `arrived`-ONLY ─────────────────
+                    All of it sits BENEATH the board in the block flow, so none of it can move
+                    the board when it appears. That is the whole rule this file now keeps:
+                    what arrives late must arrive below. */}
+                {arrived && (
+                <>
                 {/* Metadata strip */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: '1.5rem 2rem', marginTop: '3.5rem', paddingTop: '2.5rem', borderTop: '1px solid rgba(201,164,76,.1)' }}>
                   <MetaItem label="Genre" value={genreLabel(title.genre)} />
@@ -551,6 +609,27 @@ export default function BookDetailClient({ params, seed = null }) {
                     </blockquote>
                   </div>
                 )}
+                </>
+                )}
+              </div>
+            )}
+
+            {/* NO SEED, NO BOARD. `board` is null only when this page was built without the
+                title — which, because generateStaticParams enumerates exactly the titles that
+                have a seed, means the slug has no static page and this render is on its way to
+                notFound(). The skeleton is what stands for the frame or two before that
+                resolves; it is not an arrival, and nothing pairs with it. */}
+            {!board && state === 'loading' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '3.5rem' }}>
+                <div className="bd-skeleton" style={{ width: '280px', aspectRatio: '2/3', borderRadius: '2px 5px 5px 2px' }} />
+                <div>
+                  <div className="bd-skeleton" style={{ height: '.6rem', width: '35%', marginBottom: '1.2rem' }} />
+                  <div className="bd-skeleton" style={{ height: '2rem', width: '80%', marginBottom: '.8rem' }} />
+                  <div className="bd-skeleton" style={{ height: '1rem', width: '45%', marginBottom: '2rem' }} />
+                  <div className="bd-skeleton" style={{ height: '.9rem', width: '100%', marginBottom: '.6rem' }} />
+                  <div className="bd-skeleton" style={{ height: '.9rem', width: '92%', marginBottom: '.6rem' }} />
+                  <div className="bd-skeleton" style={{ height: '.9rem', width: '96%' }} />
+                </div>
               </div>
             )}
           </div>

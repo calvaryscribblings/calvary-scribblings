@@ -279,6 +279,25 @@ jobs:
         run: npx playwright test -c tests/bookstore/playwright.reveal.config.mjs
         if: ${{ !cancelled() }}
 
+      # R26 — THE COVER'S OWN ARRIVAL. Ikenna, 27 Aug, after R23: "the cover assembles in two
+      # beats when the detail page is opened." Measured, the two beats were an EMPTY board —
+      # the <img> is in no served detail page, so the request could not start until React had
+      # hydrated behind the R9 gate — and then a SECOND board, because the loading and ready
+      # states were two JSX branches each rendering their own <BoundBook>. The drawn board
+      # moved 53.42px on a laptop and 33px across plus 53.42px down on a handset.
+      #
+      # It runs BOTH viewports, and that is the point of a separate step: the handset carried a
+      # horizontal displacement the laptop did not, from a media query that could not reach the
+      # loading branch because that branch had no `.bd-header` class. A suite pinned to 1280
+      # would have been green through the whole defect.
+      #
+      # Ten cases at each of two viewports, five of them mutation twins that inject the
+      # measured pre-R26 defect and require their assertion to invert. ~66s, on the out/ built
+      # above. Own port (4333).
+      - name: Cover arrival harness (one box, one <img>, one file, asked for at navigation)
+        run: npx playwright test -c tests/bookstore/playwright.cover-arrival.config.mjs
+        if: ${{ !cancelled() }}
+
       # R19.8 — THE BUY/SAMPLE PAIR, MEASURED AT THREE VIEWPORTS.
       #
       # It rides here rather than in territory.spec.mjs or currency.spec.mjs — the two nearest

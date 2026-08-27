@@ -10,7 +10,12 @@
 // titles, so when the real list is empty we emit one reserved slug ('__no-titles-yet__'). It
 // contains underscores, which the title validator forbids, so it can never collide with a real
 // slug — and BookDetailClient resolves it (like any unknown slug) straight to notFound().
+import ReactDOM from 'react-dom';
 import BookDetailClient from './page-detail';
+// R26 — the two statements the preload has to make, read from the same modules the board
+// itself reads. Neither carries 'use client', so a server component may read their values.
+import { coverSrc, coverSrcSet } from '../../lib/bookstore/covers';
+import { DETAIL_BOARD_WIDTH, boardSizes } from '../../lib/bookstore/board';
 // PL-12 — every build-time read goes through here. The deadline is the fix, not a belt: see
 // that file's header for the measurement (get() never settles on an unreachable DB, and a full
 // build hung 420s producing an empty out/).
@@ -113,10 +118,16 @@ export async function generateStaticParams() {
 // exactly the blink the mock forbids.
 //
 // So the four fields a cover needs are read HERE, at build time, from the same query
-// generateMetadata already runs, and handed to the client as `seed`. The board is then in the
-// parsed document at its final geometry before a byte of Firebase has arrived. When the live
-// record lands it carries the same coverUrl, the <img> src does not change, and nothing
-// repaints.
+// generateMetadata already runs, and handed to the client as `seed`. When the live record
+// lands it carries the same coverUrl, the <img> src does not change, and nothing repaints.
+//
+// ⚠ R26 CORRECTS ONE CLAIM THIS NOTE USED TO MAKE. It said the board is "in the parsed
+// document at its final geometry before a byte of Firebase has arrived". It is not, and never
+// was: BookDetailClient's whole tree hangs off `unlocked`, which is false during the prerender
+// (the R9 gate reads localStorage in an effect), so `grep -c '<img' out/bookstore/<slug>.html`
+// is 0 for every title. The seed puts the board on screen at the first CLIENT render, which is
+// early enough for the view transition's first rendering opportunity and is what R22C measured
+// — but it is not the parsed HTML, and the preload below exists precisely because it is not.
 //
 // ⚠ IT IS A FIRST-PAINT HINT AND NEVER AN AUTHORITY. The client still reads the live record and
 // still refuses to render the page unless it comes back `published` — so a title withdrawn or
@@ -141,6 +152,11 @@ async function seedFor(slug) {
     slug: t.slug,
     title: t.title || '',
     author: t.author || '',
+    // R26 — `genre` joins the list so the BREADCRUMB can be drawn in the loading state too.
+    // Not decoration: the breadcrumb sits above the board in the block flow, so a breadcrumb
+    // that appears only when the live record lands MOVES THE COVER — measured at 53.42px on a
+    // laptop and 76.44px on a handset. It is a public field, printed on this page already.
+    genre: t.genre || null,
     coverUrl: t.coverUrl || null,
     coverSizes: t.coverSizes || null,
   };
@@ -166,10 +182,61 @@ export async function generateMetadata({ params }) {
   };
 }
 
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R26 — THE COVER IS ASKED FOR AT NAVIGATION, NOT AFTER THE TITLE READ
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// Ikenna, 27 Aug 2026: "the cover assembles in two beats when the detail page is opened."
+// Measured on the built export, handset 390 @dpr3, the second beat is the cover face landing
+// ~190ms after a board that arrived empty. The reason it arrived empty is here:
+//
+//   THE <img> IS NOT IN THE SERVED DOCUMENT. `grep -c '<img' out/bookstore/<slug>.html` is 0,
+//   for every title. BookDetailClient's whole tree hangs off `unlocked`, which is false during
+//   the prerender (it is read from localStorage in an effect — the R9 gate), so the export
+//   contains no board, no <img>, and no cover URL anywhere the PRELOAD SCANNER can see it.
+//
+// So the request could not start until the HTML had been parsed, the bundle fetched, React
+// hydrated, the gate's effect run and a re-render committed. MEASURED: navigation responseEnd
+// at 4ms; the cover request started at 124ms. On a laptop against localhost. On Ikenna's
+// handset over a real network that gap is the whole of the first beat.
+//
+// THE LINK BELOW IS THE ANSWER, and it is the only one available while the gate stands. It is
+// in the <head> of the served document, so the preload scanner starts the fetch off the raw
+// bytes — before the bundle, before React, before the gate. By the time the board mounts, the
+// image is in the cache and paints with it rather than after it.
+//
+// ⚠ THE PRELOAD MUST NAME THE RUNG THE BOARD ACTUALLY DRAWS. A preload whose `imagesizes`
+// disagrees with the <img>'s `sizes` warms one rung and draws another: a wasted request AND a
+// late cover, strictly worse than no preload. That is why boardSizes/DETAIL_BOARD_WIDTH are
+// imported rather than restated — one expression decides both. See app/lib/bookstore/board.js.
+//
+// ⚠ AND IT MUST NAME THE SAME FILE THE SHELF ALREADY DREW. It does, by construction: the two
+// rungs are 360w and 720w, the shelf states 190px (or 33vw) and this board states 220px, and
+// at every device pixel ratio those two land on the same rung. tests/bookstore/cover-arrival
+// asserts it against the live catalogue rather than trusting the arithmetic.
 export default async function BookDetailPage({ params }) {
   const { slug } = await params;
   // The sentinel exists only so generateStaticParams never returns []; it resolves to
   // notFound() in the client and has no title to seed.
   const seed = slug === SENTINEL_SLUG ? null : await seedFor(slug);
+  const href = seed ? coverSrc(seed) : null;
+  const imageSrcSet = seed ? coverSrcSet(seed) : undefined;
+  // ReactDOM.preload rather than a rendered <link>: React 19 hoists a rendered <link> into the
+  // head AND emits its own preload directive for it, so the document carried the same tag
+  // twice. This emits exactly one, and it lands in the first 200 bytes of the head — ahead of
+  // the stylesheet, ahead of every script — which is the whole point.
+  //
+  // `imageSizes` only alongside an imagesrcset, exactly as on the <img> itself: without rungs
+  // it would tell the browser about a choice it does not have.
+  if (href) {
+    ReactDOM.preload(href, {
+      as: 'image',
+      imageSrcSet,
+      imageSizes: imageSrcSet ? boardSizes(DETAIL_BOARD_WIDTH) : undefined,
+      fetchPriority: 'high',
+    });
+  }
+  // No cover, no preload — a title with neither coverUrl nor derivatives draws the typographic
+  // fallback face, which needs no network at all.
   return <BookDetailClient params={params} seed={seed} />;
 }
