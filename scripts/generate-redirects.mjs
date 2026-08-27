@@ -11,6 +11,7 @@
 import { writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildRead, fetchJsonWithDeadline } from '../app/lib/build-read.mjs';
 
 // REST API (not the Firebase JS SDK) — the SDK keeps a persistent WebSocket
 // open which prevents Node from exiting after the read, hanging the build.
@@ -58,14 +59,37 @@ const STATIC_LEGACY_REDIRECTS = [
   ['/u/:handle',      '/user?handle=:handle'],
 ];
 
-async function loadCmsSlugs() {
-  const res = await fetch(`${FB_DB}/cms_stories.json`);
-  if (!res.ok) throw new Error(`cms_stories fetch failed: ${res.status}`);
-  const data = await res.json();
-  if (!data || typeof data !== 'object') return [];
-  return Object.entries(data)
-    .filter(([, s]) => s?.published !== false)
-    .map(([slug]) => slug);
+// ⛔ PL-12 — THIS READ IS NOT ALLOWED TO DEGRADE, AND IT USED TO.
+//
+// MEASURED against a fault-injection rig, 27 Aug 2026 — a 500, an empty body and a truncated
+// JSON body all produced the same thing:
+//
+//     [generate-redirects] wrote public/_redirects (0 slugs from CMS, 9 static)
+//     exit=0
+//
+// Nine rules where there had been 335. Every one of the 326 legacy pre-migration story URLs
+// that Google still has indexed would start 404'ing, on a green build, silently. That is
+// exactly the diminished shop Ikenna's ruling of 27 Aug names — "a broken deploy that announces
+// itself is recoverable, a silently thinner catalogue is not."
+//
+// A non-2xx is an ERROR, not an empty result. Conflating them is what made a 500 look like "no
+// stories". fetchJsonWithDeadline draws that line and carries the deadline; buildRead carries
+// the retries and the exit. See app/lib/build-read.mjs.
+function loadCmsSlugs() {
+  return buildRead(
+    'cms_stories (REST)',
+    'public/_redirects — the 301 for every pre-migration story URL still in Google\'s index',
+    async () => {
+      const data = await fetchJsonWithDeadline(`${FB_DB}/cms_stories.json`);
+      // `null` is what RTDB returns for a node that does not exist. That is EMPTY, not
+      // unreadable, and it is a valid answer: a site with no stories has no story redirects.
+      if (data === null) return [];
+      if (typeof data !== 'object') throw new Error(`cms_stories was ${typeof data}, not an object`);
+      return Object.entries(data)
+        .filter(([, s]) => s?.published !== false)
+        .map(([slug]) => slug);
+    },
+  );
 }
 
 function formatRedirect(from, to, code = 301) {
@@ -77,12 +101,13 @@ async function main() {
   const here = dirname(fileURLToPath(import.meta.url));
   const outPath = resolve(here, '..', 'public', '_redirects');
 
-  let cmsSlugs = [];
-  try {
-    cmsSlugs = await loadCmsSlugs();
-  } catch (e) {
-    console.warn('[generate-redirects] CMS read failed, no story redirects emitted:', e.message);
-  }
+  // ⚠ READ FIRST, WRITE AFTER. This script's output is a git-tracked file that it overwrites
+  // in place, so a read that fails AFTER the write has begun would leave a gutted _redirects
+  // on disk for the next build — or for a deploy — to pick up. buildRead exits the process on
+  // failure, before this line, so the file on disk is left exactly as it was. That is the
+  // "nothing partial" half of the ruling, and for this script it means nothing partial in
+  // public/ as well as in out/.
+  const cmsSlugs = await loadCmsSlugs();
 
   const slugs = [...cmsSlugs].sort();
 

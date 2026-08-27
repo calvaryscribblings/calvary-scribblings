@@ -21,15 +21,28 @@
 //   a single read of cms_stories, so REST is simpler and exits cleanly — the same reason and
 //   the same public-read access generate-redirects.mjs relies on.
 //
-// NEVER FAILS THE BUILD OVER THE WALL
+// NEVER FAILS THE BUILD OVER THE WALL — AND PL-12 KEPT IT THAT WAY, DELIBERATELY
 //   A cover fetch that errors is skipped. A Firebase read that fails degrades to an empty
 //   manifest. The gateway stands with no wall (the radial-gradient background shows through)
 //   rather than the deploy failing. Exit code is always 0.
+//
+//   ⛔ THIS IS ONE OF EXACTLY TWO READS PL-12 ALLOWS TO DEGRADE (the other is
+//   app/u/[handle]/page.js). Ikenna ruled on 27 Aug 2026 that a build which cannot read the
+//   catalogue FAILS; the wall is a named exception because it is DECORATION — nothing 404s,
+//   no page loses content, no link goes anywhere it did not go before. See the argument in
+//   app/lib/gateway-build.js and the contract in app/lib/build-read.mjs.
+//
+//   ⚠ WHAT PL-12 DID CHANGE IS THE WAITING. Every fetch here now carries a deadline. Neither
+//   `fetch` nor firebase/database's get() fails fast on an unreachable host — get() never
+//   settles at all (measured) and fetch waits on the OS connect timeout, which is minutes. A
+//   build that hangs is not a degraded build, it is no build, so "never fails the build" was
+//   only ever true of a network that answered.
 
 import { writeFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import { BUILD_READ, buildReadOptional, fetchJsonWithDeadline } from '../app/lib/build-read.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(HERE, '..', 'public', 'gateway-wall');
@@ -63,9 +76,12 @@ function isPublished(s, now) {
 }
 
 async function loadStories() {
-  const res = await fetch(`${FB_DB}/cms_stories.json`);
-  if (!res.ok) throw new Error(`cms_stories fetch failed: ${res.status}`);
-  const data = await res.json();
+  const data = await buildReadOptional(
+    'cms_stories (REST, for the gateway wall)',
+    null,
+    'the cover wall is decoration — the gateway stands on its radial gradient and nothing 404s',
+    () => fetchJsonWithDeadline(`${FB_DB}/cms_stories.json`),
+  );
   if (!data || typeof data !== 'object') return [];
   const now = Date.now();
   return Object.entries(data)
@@ -81,7 +97,9 @@ async function loadStories() {
 async function encodeTile(story) {
   let res;
   try {
-    res = await fetch(story.cover);
+    // A per-tile deadline. Twelve of these run per build and a single unresponsive Storage
+    // host would otherwise stall the whole wall for the OS connect timeout apiece.
+    res = await fetch(story.cover, { signal: AbortSignal.timeout(BUILD_READ.timeoutMs) });
   } catch (e) {
     console.warn(`  ✗ ${story.slug} — cover fetch threw (${e.message}), skipped`);
     return null;

@@ -24,6 +24,7 @@
 // what a build step looks like once someone hands it a service credential, and the fix for
 // "we accidentally gave the build a token" should not be "and now the release gate is off".
 // THE SERIES PAGE IS THE SHAREABLE SURFACE. It is public at all times, by construction.
+import { buildRead } from '../../../lib/build-read.mjs';
 import InstalmentDetailClient from './page-instalment';
 
 const SENTINEL_ID = '__no-instalments-yet__';
@@ -39,26 +40,30 @@ const FB = {
 };
 
 export async function generateStaticParams() {
-  const params = [];
-  try {
-    const { initializeApp, getApps } = await import('firebase/app');
-    const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
-    const app = getApps().length ? getApps()[0] : initializeApp(FB);
-    const db = getDatabase(app);
+  // ⛔ PL-12 — guarded. The instalment index is a live client query and these pages are
+  // static, so an unreadable node shipped a series whose instalments do not open.
     // The PUBLIC row node only — ids are public, titles are not, and a build step has no
     // business holding the second. Verbatim the reader route's rule and for its reason.
     //
     // Published-but-unreleased rows ARE enumerated, and must be: the page has to exist at its
     // URL on the day the clock passes releaseAtMs, and nothing deploys at that moment. What it
     // renders before then is the locked state, which is built from the row alone.
-    const snap = await get(query(ref(db, 'series_instalments'), orderByChild('status'), equalTo('published')));
-    if (snap.exists()) {
-      snap.forEach((child) => { params.push({ instalmentId: child.key }); return false; });
-    }
-  } catch (e) {
-    console.error('[series/instalment] generateStaticParams failed', e);
-  }
-  return params.length ? params : [{ instalmentId: SENTINEL_ID }];
+  const ids = await buildRead(
+    'series_instalments (status = published)',
+    '/series/instalment/[instalmentId] — the page for every instalment a series lists',
+    async () => {
+      const { initializeApp, getApps } = await import('firebase/app');
+      const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
+      const app = getApps().length ? getApps()[0] : initializeApp(FB);
+      const db = getDatabase(app);
+      const snap = await get(query(ref(db, 'series_instalments'), orderByChild('status'), equalTo('published')));
+      const out = [];
+      if (snap.exists()) snap.forEach((child) => { out.push(child.key); return false; });
+      return out;
+    },
+  );
+  // Empty is a valid answer and keeps the sentinel. Unreachable never reaches here.
+  return ids.length ? ids.map((instalmentId) => ({ instalmentId })) : [{ instalmentId: SENTINEL_ID }];
 }
 
 export default async function SeriesInstalmentPage({ params }) {

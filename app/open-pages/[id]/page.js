@@ -8,6 +8,7 @@
 // page reflects edits without a rebuild). Posts created after the last build are
 // covered on the next deploy, exactly like CMS stories.
 
+import { buildRead } from '../../lib/build-read.mjs';
 import OpenPageDetailClient from './page-client';
 
 const FB = {
@@ -26,19 +27,39 @@ const OG_DEFAULT = `${SITE_URL}/og-default.png`;
 // Read a single published post by id at build time, using the same lazy
 // firebase/app + firebase/database client pattern generateStaticParams uses.
 // Returns the post object, or null if missing / on error.
-async function fetchPost(id) {
-  try {
-    const { initializeApp, getApps } = await import('firebase/app');
-    const { getDatabase, ref, get } = await import('firebase/database');
-    const app = getApps().length ? getApps()[0] : initializeApp(FB);
-    const db = getDatabase(app);
-    const snap = await get(ref(db, `open_pages/${id}`));
-    if (snap.exists()) return snap.val();
-  } catch (e) {
-    console.error('open-pages fetchPost error:', e);
+// ⛔ PL-12 — ONE GUARDED READ OF open_pages, memoised, feeding both the params and every
+// page's metadata.
+//
+// /open-pages is a client-side live query and ships whatever the node holds at view time; every
+// /open-pages/{id} is static and enumerated below. An unreadable node emitted the single
+// throwaway `none` id, so the index listed every community post and every card 404'd. The same
+// shape as the bookstore shelf without its detail pages.
+//
+// It also replaces a per-post read whose catch returned null — a page shipping under the
+// generic "Open Pages · Calvary Scribblings" title with no excerpt and no card image, which
+// looks like a post nobody wrote rather than a build that half-failed.
+let _openPages;
+function readOpenPages() {
+  if (!_openPages) {
+    _openPages = buildRead(
+      'open_pages',
+      '/open-pages/[id] — the page for every post the index links to',
+      async () => {
+        const { initializeApp, getApps } = await import('firebase/app');
+        const { getDatabase, ref, get } = await import('firebase/database');
+        const app = getApps().length ? getApps()[0] : initializeApp(FB);
+        const snap = await get(ref(getDatabase(app), 'open_pages'));
+        return snap.exists() ? snap.val() || {} : {};
+      },
+    );
   }
-  return null;
+  return _openPages;
 }
+
+async function fetchPost(id) {
+  return (await readOpenPages())[id] ?? null;
+}
+
 
 // Strip Markdown to plain text and truncate to 160 chars for meta descriptions.
 function plainExcerpt(markdown) {
@@ -95,23 +116,12 @@ export async function generateMetadata({ params }) {
 }
 
 export async function generateStaticParams() {
-  try {
-    const { initializeApp, getApps } = await import('firebase/app');
-    const { getDatabase, ref, get } = await import('firebase/database');
-    const app = getApps().length ? getApps()[0] : initializeApp(FB);
-    const db = getDatabase(app);
-    const snap = await get(ref(db, 'open_pages'));
-    if (snap.exists()) {
-      const ids = Object.keys(snap.val());
-      if (ids.length) return ids.map((id) => ({ id }));
-    }
-  } catch (e) {
-    console.error('open-pages generateStaticParams error:', e);
-  }
-  // output:'export' requires a dynamic segment to emit at least one path. When
-  // there are no published posts yet (empty open_pages), emit a single throwaway
-  // id so the build stays green — page-client.js renders its not-found state for
-  // it, and real posts are picked up on the next deploy.
+  const ids = Object.keys(await readOpenPages());
+  if (ids.length) return ids.map((id) => ({ id }));
+  // output:'export' requires a dynamic segment to emit at least one path. EMPTY IS A VALID
+  // ANSWER — no posts published yet — so a throwaway id keeps the build green and
+  // page-client.js renders its not-found state for it. Unreachable never reaches this line;
+  // that is the split PL-12 put in. See app/lib/build-read.mjs.
   return [{ id: 'none' }];
 }
 

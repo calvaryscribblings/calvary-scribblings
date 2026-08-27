@@ -5,6 +5,7 @@
 // time via generateStaticParams. We list every post id from open_pages and let the
 // client half (page-client.js) do the auth/ownership gating, pre-fill, and save.
 
+import { buildRead } from '../../../lib/build-read.mjs';
 import EditPageClient from './page-client';
 
 export const metadata = {
@@ -23,22 +24,24 @@ const FB = {
 };
 
 export async function generateStaticParams() {
-  try {
-    const { initializeApp, getApps } = await import('firebase/app');
-    const { getDatabase, ref, get } = await import('firebase/database');
-    const app = getApps().length ? getApps()[0] : initializeApp(FB);
-    const db = getDatabase(app);
-    const snap = await get(ref(db, 'open_pages'));
-    if (snap.exists()) {
-      const ids = Object.keys(snap.val());
-      if (ids.length) return ids.map((id) => ({ id }));
-    }
-  } catch (e) {
-    console.error('open-pages edit generateStaticParams error:', e);
-  }
-  // output:'export' requires a dynamic segment to emit at least one path. Posts
-  // created after the last build are covered on the next deploy; the client half
-  // renders its not-found / permission states for anything not pre-rendered.
+  // PL-12 — guarded. The editor is reached from a reader's own post; an unreadable node emitted
+  // only the throwaway id, so every "edit" link on the site 404'd while the posts themselves
+  // rendered fine. Invisible until an author tried to fix a typo.
+  const posts = await buildRead(
+    'open_pages',
+    '/open-pages/edit/[id] — the editor for every post its author can reach',
+    async () => {
+      const { initializeApp, getApps } = await import('firebase/app');
+      const { getDatabase, ref, get } = await import('firebase/database');
+      const app = getApps().length ? getApps()[0] : initializeApp(FB);
+      const snap = await get(ref(getDatabase(app), 'open_pages'));
+      return snap.exists() ? snap.val() || {} : {};
+    },
+  );
+  const ids = Object.keys(posts);
+  if (ids.length) return ids.map((id) => ({ id }));
+  // Empty is a valid answer: no posts yet. output:'export' requires one path, and the client
+  // half renders its not-found / permission states for anything not pre-rendered.
   return [{ id: 'none' }];
 }
 

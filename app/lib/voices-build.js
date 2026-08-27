@@ -13,6 +13,7 @@
 // mutation fires the deploy hook, so the seed is never stale for long.
 import { initializeApp, getApps } from 'firebase/app';
 import { getDatabase, ref, get } from 'firebase/database';
+import { buildRead } from './build-read.mjs';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -30,24 +31,33 @@ function buildDB() {
 
 // The whole roster, keyed by slug, exactly as stored. Callers filter — generateStaticParams
 // wants every slug including drafts, the grid wants published only.
-// A failed read returns {} rather than throwing: a Firebase blip should degrade the build
-// to an unseeded page, not fail the deploy outright.
-export async function fetchVoicesNode() {
-  try {
-    const snap = await get(ref(buildDB(), 'cms_voices'));
-    return snap.exists() ? snap.val() || {} : {};
-  } catch (e) {
-    console.error('voices build read: cms_voices fetch failed', e);
-    return {};
+//
+// ⛔ PL-12 — THIS USED TO RETURN {} ON A FAILED READ, and the comment that stood here said "a
+// Firebase blip should degrade the build to an unseeded page, not fail the deploy outright."
+// That was wrong about what it degraded to. /voices is a CLIENT-SIDE LIVE QUERY and would ship
+// listing every voice; /voices/[slug] is STATIC and enumerated from this read, so {} emits the
+// sentinel and nothing else. Every name on the roster would link to a 404 — the same shape as
+// the bookstore's shelf-without-detail-pages, which is the failure PL-12 exists to prevent.
+//
+// It is also memoised now. generateStaticParams and both seeded pages wanted the same roster.
+let _voicesNode;
+export function fetchVoicesNode() {
+  if (!_voicesNode) {
+    _voicesNode = buildRead(
+      'cms_voices',
+      '/voices/[slug] — the page for every voice the roster links to',
+      async () => {
+        const snap = await get(ref(buildDB(), 'cms_voices'));
+        return snap.exists() ? snap.val() || {} : {};
+      },
+    );
   }
+  return _voicesNode;
 }
 
 export async function fetchVoice(slug) {
-  try {
-    const snap = await get(ref(buildDB(), `cms_voices/${slug}`));
-    return snap.exists() ? snap.val() : null;
-  } catch (e) {
-    console.error(`voices build read: cms_voices/${slug} fetch failed`, e);
-    return null;
-  }
+  // PL-12: served from the roster above rather than a second query per voice. The old per-slug
+  // read returned null on failure, which seeded the page with nothing — the hero's layout shift
+  // and the unseeded morph target the file's own header explains this seeding exists to remove.
+  return (await fetchVoicesNode())[slug] ?? null;
 }

@@ -15,6 +15,7 @@
 // simply get nothing, and a build running after would start leaking instalment titles into
 // <meta> tags for pages that were generated at a different moment. The parent is public at
 // all times and says everything a share card needs.
+import { buildRead } from '../../lib/build-read.mjs';
 import SeriesDetailClient from './page-detail';
 
 const SENTINEL_SLUG = '__no-series-yet__';
@@ -29,57 +30,60 @@ const FB = {
   appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
 };
 
-async function readSeriesNode() {
-  const { initializeApp, getApps } = await import('firebase/app');
-  const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
-  const app = getApps().length ? getApps()[0] : initializeApp(FB);
-  const db = getDatabase(app);
-  return get(query(ref(db, 'series'), orderByChild('status'), equalTo('published')));
+// ⛔ PL-12 — ONE GUARDED READ, memoised, feeding both the params and the metadata.
+//
+// /series is a client-side live query and ships whatever the CMS holds at view time; every
+// /series/{slug} is static and enumerated here. A read that returned nothing therefore did not
+// produce a smaller Series — it produced a landing page listing series whose pages 404. The
+// same shape as the bookstore shelf, and not allowed to degrade for the same reason.
+//
+// Flattened to a slug-keyed map inside the read so generateMetadata is a lookup rather than a
+// second query with a second, quieter failure policy (it used to catch and return {} — a page
+// shipping with no title and no card image, invisible until someone shared the link).
+let _seriesBySlug;
+function readSeries() {
+  if (!_seriesBySlug) {
+    _seriesBySlug = buildRead(
+      'series (status = published)',
+      '/series/[slug] — the page for every series The Series links to',
+      async () => {
+        const { initializeApp, getApps } = await import('firebase/app');
+        const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
+        const app = getApps().length ? getApps()[0] : initializeApp(FB);
+        const db = getDatabase(app);
+        const snap = await get(query(ref(db, 'series'), orderByChild('status'), equalTo('published')));
+        const bySlug = new Map();
+        if (snap.exists()) {
+          snap.forEach((child) => { const d = child.val(); if (d?.slug) bySlug.set(d.slug, d); return false; });
+        }
+        return bySlug;
+      },
+    );
+  }
+  return _seriesBySlug;
 }
 
 export async function generateStaticParams() {
-  const params = [];
-  try {
-    const snap = await readSeriesNode();
-    if (snap.exists()) {
-      snap.forEach((child) => {
-        const slug = child.val()?.slug;
-        if (slug) params.push({ slug });
-        return false;
-      });
-    }
-  } catch (e) {
-    console.error('[series/[slug]] generateStaticParams failed', e);
-  }
+  // Empty is a valid answer and keeps the sentinel — there are legitimately zero published
+  // series today. Unreachable never reaches this line. See app/lib/build-read.mjs.
+  const params = [...(await readSeries()).keys()].map((slug) => ({ slug }));
   return params.length ? params : [{ slug: SENTINEL_SLUG }];
 }
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
   if (slug === SENTINEL_SLUG) return {};
-  try {
-    const snap = await readSeriesNode();
-    let doc = null;
-    if (snap.exists()) {
-      snap.forEach((child) => {
-        if (!doc && child.val()?.slug === slug) doc = child.val();
-        return false;
-      });
-    }
-    if (!doc) return {};
-    return {
-      title: `${doc.title} — The Series | Calvary Scribblings`,
+  const doc = (await readSeries()).get(slug);
+  if (!doc) return {};
+  return {
+    title: `${doc.title} — The Series | Calvary Scribblings`,
+    description: doc.synopsis || undefined,
+    openGraph: {
+      title: doc.title,
       description: doc.synopsis || undefined,
-      openGraph: {
-        title: doc.title,
-        description: doc.synopsis || undefined,
-        images: doc.coverUrl ? [doc.coverUrl] : undefined,
-      },
-    };
-  } catch (e) {
-    console.error('[series/[slug]] generateMetadata failed', e);
-    return {};
-  }
+      images: doc.coverUrl ? [doc.coverUrl] : undefined,
+    },
+  };
 }
 
 export default async function SeriesDetailPage({ params }) {

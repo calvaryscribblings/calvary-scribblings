@@ -34,6 +34,8 @@ on:
       - 'tests/newsletter/**'
       - 'tests/bookstore/**'
       - 'tests/ci/**'
+      # PL-12 — the build's liveness suite. Editing it must be able to start the job.
+      - 'tests/build/**'
       - 'app/**'
       - 'functions/**'
       - 'scripts/**'
@@ -215,6 +217,22 @@ jobs:
       # nothing pinned to a floating tag, and no new action slipping in unrecorded.
       - name: Workflow hygiene (action runtimes)
         run: npm run test:ci
+
+      # ⛔ PL-12 — THE BUILD'S LIVENESS. The launch-blocking one.
+      #
+      # `output:'export'` means the shop, the library, the voices and the series exist or do not
+      # exist according to what a network read returns on a build machine. Measured on 27 Aug
+      # 2026: firebase/database's get() NEVER SETTLES against an unreachable database, so every
+      # try/catch guarding a build-time read was dead code, and a full build hung 420s with an
+      # empty out/. Worse, a build in which only bookstore_titles failed exited 0 and shipped a
+      # nineteen-title shelf with one detail page — a shop whose books do not open.
+      #
+      # This suite injects those faults and asserts what the build actually does. It costs about
+      # four and a half minutes, two of which are real `next build` runs and ninety seconds of
+      # which is the shipped 20s deadline proving itself end to end. That is the correct price
+      # for the only known item that can break the launch deploy.
+      - name: Build liveness — timeout, 5xx, empty, malformed, and the half-built shop
+        run: npm run test:build
 
       # R11.18 — THE FOLIATE PIN. "Both surfaces run the same engine" was a convention held by
       # nobody: the app repo enforced it in its own test and this repo enforced nothing, so the

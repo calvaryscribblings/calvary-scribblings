@@ -16,6 +16,7 @@
 //
 // SENTINEL, for the same reason as the series route: Next 16 rejects an empty
 // generateStaticParams under output:'export'.
+import { buildRead } from '../../../lib/build-read.mjs';
 import SeriesReaderClient from './page-reader';
 
 const SENTINEL_ID = '__no-instalments-yet__';
@@ -31,23 +32,27 @@ const FB = {
 };
 
 export async function generateStaticParams() {
-  const params = [];
-  try {
-    const { initializeApp, getApps } = await import('firebase/app');
-    const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
-    const app = getApps().length ? getApps()[0] : initializeApp(FB);
-    const db = getDatabase(app);
+  // ⛔ PL-12 — guarded. The instalment index is a live client query and these pages are
+  // static, so an unreadable node shipped a series whose instalments do not open.
     // The PUBLIC row node only. Reading the detail node here would be both denied and wrong:
     // the ids are already public (that node is `.read: true`) but the titles are not, and a
     // build step has no business holding them.
-    const snap = await get(query(ref(db, 'series_instalments'), orderByChild('status'), equalTo('published')));
-    if (snap.exists()) {
-      snap.forEach((child) => { params.push({ instalmentId: child.key }); return false; });
-    }
-  } catch (e) {
-    console.error('[series/read] generateStaticParams failed', e);
-  }
-  return params.length ? params : [{ instalmentId: SENTINEL_ID }];
+  const ids = await buildRead(
+    'series_instalments (status = published)',
+    '/series/read/[instalmentId] — the reading room for every published instalment',
+    async () => {
+      const { initializeApp, getApps } = await import('firebase/app');
+      const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
+      const app = getApps().length ? getApps()[0] : initializeApp(FB);
+      const db = getDatabase(app);
+      const snap = await get(query(ref(db, 'series_instalments'), orderByChild('status'), equalTo('published')));
+      const out = [];
+      if (snap.exists()) snap.forEach((child) => { out.push(child.key); return false; });
+      return out;
+    },
+  );
+  // Empty is a valid answer and keeps the sentinel. Unreachable never reaches here.
+  return ids.length ? ids.map((instalmentId) => ({ instalmentId })) : [{ instalmentId: SENTINEL_ID }];
 }
 
 export default async function SeriesReadPage({ params }) {

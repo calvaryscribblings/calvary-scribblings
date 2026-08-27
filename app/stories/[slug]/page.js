@@ -2,6 +2,9 @@ import { stories } from '../../lib/stories';
 import { cutPreview } from '../../lib/previewCut';
 import { GATING_ENABLED, hasStaticPage } from '../../lib/storyAccess';
 import StoryPageClient from './page-client';
+// PL-12 — the deadline and the retries. See app/lib/build-read.mjs for why the deadline is the
+// fix rather than a precaution.
+import { buildRead } from '../../lib/build-read.mjs';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -19,33 +22,44 @@ const FB = {
 // same read also feeds each page's build-inlined prose. Memoised so 435 pages cost
 // one fetch, not 435.
 let _allStoriesPromise;
-async function getAllStories() {
+function getAllStories() {
   if (!_allStoriesPromise) {
-    _allStoriesPromise = (async () => {
-      const { initializeApp, getApps } = await import('firebase/app');
-      const { getDatabase, ref, get } = await import('firebase/database');
-      const app = getApps().length ? getApps()[0] : initializeApp(FB);
-      const snap = await get(ref(getDatabase(app), 'cms_stories'));
-      return snap.exists() ? snap.val() : {};
-    })();
+    _allStoriesPromise = buildRead(
+      'cms_stories',
+      '/stories/[slug] — every story page, and the prose inside it',
+      async () => {
+        const { initializeApp, getApps } = await import('firebase/app');
+        const { getDatabase, ref, get } = await import('firebase/database');
+        const app = getApps().length ? getApps()[0] : initializeApp(FB);
+        const snap = await get(ref(getDatabase(app), 'cms_stories'));
+        return snap.exists() ? snap.val() : {};
+      },
+    );
   }
   return _allStoriesPromise;
 }
 
 export async function generateStaticParams() {
-  const staticSlugs = stories.map(s => ({ slug: s.id }));
-  try {
-    const all = await getAllStories();
-    // Same filter as the sibling layout — the two enumerate the same node and must agree, or
-    // one builds a page the other has no metadata for. See storyAccess.js:hasStaticPage.
-    const cmsSlugs = Object.entries(all)
-      .filter(([, story]) => hasStaticPage(story))
-      .map(([slug]) => ({ slug }));
-    return [...staticSlugs, ...cmsSlugs].filter((s, i, arr) => arr.findIndex(x => x.slug === s.slug) === i);
-  } catch (e) {
-    console.error('generateStaticParams error:', e);
-  }
-  return staticSlugs;
+  const staticSlugs = stories.map((s) => ({ slug: s.id }));
+  // ⭑ PL-12 — THE catch HERE USED TO RETURN `staticSlugs`, AND THAT WAS A TRAP TWICE OVER.
+  //
+  // app/lib/stories.js has been `export const stories = []` since the 2026-05-18 migration, so
+  // the "safe fallback" was an EMPTY ARRAY — and `output:'export'` rejects an empty
+  // generateStaticParams with "Page /stories/[slug] is missing generateStaticParams()". Which
+  // is a lie: the function ran, and the network did not answer it. That message is what sent
+  // PL-12's diagnosis down the wrong road. It is gone; the read either completes or the build
+  // stops with Firebase and this route named in the first two lines.
+  //
+  // And an empty result now means what it says. See app/lib/build-read.mjs for the accepted
+  // boundary: an empty-but-successful cms_stories builds a green, empty library, on Ikenna's
+  // ruling of 27 Aug that there is no floor on the story count.
+  const all = await getAllStories();
+  // Same filter as the sibling layout — the two enumerate the same node and must agree, or
+  // one builds a page the other has no metadata for. See storyAccess.js:hasStaticPage.
+  const cmsSlugs = Object.entries(all)
+    .filter(([, story]) => hasStaticPage(story))
+    .map(([slug]) => ({ slug }));
+  return [...staticSlugs, ...cmsSlugs].filter((s, i, arr) => arr.findIndex((x) => x.slug === s.slug) === i);
 }
 
 // Server component (runs at build under output:export). It hands the client the

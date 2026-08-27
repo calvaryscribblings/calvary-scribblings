@@ -11,6 +11,10 @@
 // contains underscores, which the title validator forbids, so it can never collide with a real
 // slug — and BookDetailClient resolves it (like any unknown slug) straight to notFound().
 import BookDetailClient from './page-detail';
+// PL-12 — every build-time read goes through here. The deadline is the fix, not a belt: see
+// that file's header for the measurement (get() never settles on an unreachable DB, and a full
+// build hung 420s producing an empty out/).
+import { buildRead } from '../../lib/build-read.mjs';
 
 const SENTINEL_SLUG = '__no-titles-yet__';
 
@@ -24,25 +28,70 @@ const FB = {
   appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
 };
 
-export async function generateStaticParams() {
-  const params = [];
-  try {
-    const { initializeApp, getApps } = await import('firebase/app');
-    const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
-    const app = getApps().length ? getApps()[0] : initializeApp(FB);
-    const db = getDatabase(app);
-    const snap = await get(query(ref(db, 'bookstore_titles'), orderByChild('status'), equalTo('published')));
-    if (snap.exists()) {
-      snap.forEach((child) => {
-        const slug = child.val()?.slug;
-        if (slug) params.push({ slug });
-        return false;
-      });
-    }
-  } catch (e) {
-    console.error('[bookstore/[slug]] generateStaticParams failed', e);
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// ⛔ PL-12 — ONE GUARDED READ, SHARED BY ALL THREE CONSUMERS OF THIS FILE
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// generateStaticParams (the slugs), generateMetadata (per page) and seedFor (per page) all
+// want the same thing: the published catalogue. They used to make that query THREE TIMES —
+// once for the list and twice more for every single title — each behind its own try/catch,
+// each with its own idea of what to do when it failed. Three failure policies for one fact.
+//
+// It is one read now, memoised for the worker (Next collects page data with a single worker),
+// and it either completes or the build stops. The per-title lookups are map reads.
+//
+// ── AND THIS IS THE ROUTE THAT MADE PL-12 URGENT ─────────────────────────────────────────
+//
+// MEASURED, 27 Aug 2026, with only this read failing and every other read succeeding:
+//
+//     BUILD EXIT: 0
+//     out/bookstore/*.html  →  1     (just __no-titles-yet__.html)
+//     out/reader/*.html     →  188
+//
+// The shelf at /bookstore is a CLIENT-SIDE LIVE QUERY, so it shipped and listed all nineteen
+// titles. Every detail page is STATIC and enumerated here, and there was exactly one of them.
+// So every "Full details" link 404'd, and so did every ?sample=1 reader path — a shop whose
+// books do not open, deployed green, with one line of console.error in a log nobody reads.
+//
+// That is why this read is not allowed to degrade, and why the sentinel below is now reachable
+// ONLY from a successful empty read.
+let _publishedTitles;
+function readPublishedTitles() {
+  if (!_publishedTitles) {
+    _publishedTitles = buildRead(
+      'bookstore_titles (status = published)',
+      '/bookstore/[slug] — the detail page for every book on the shelf',
+      async () => {
+        const { initializeApp, getApps } = await import('firebase/app');
+        const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
+        const app = getApps().length ? getApps()[0] : initializeApp(FB);
+        const db = getDatabase(app);
+        const snap = await get(query(ref(db, 'bookstore_titles'), orderByChild('status'), equalTo('published')));
+        // Flattened to a plain map INSIDE the guarded read, so nothing downstream holds a
+        // Firebase snapshot and every caller is reading the same object.
+        const bySlug = new Map();
+        if (snap.exists()) {
+          snap.forEach((child) => {
+            const t = child.val();
+            if (t?.slug) bySlug.set(t.slug, t);
+            return false;
+          });
+        }
+        return bySlug;
+      },
+    );
   }
-  // Never return []; see SENTINEL note above.
+  return _publishedTitles;
+}
+
+export async function generateStaticParams() {
+  const bySlug = await readPublishedTitles();
+  // ⭑ EMPTY IS NOT UNREACHABLE. Reaching this line means the read COMPLETED — an unreadable
+  // catalogue never gets here, it ends the build with a message naming Firebase and this route.
+  // An empty map is the CMS answering honestly that nothing is published yet, which is the
+  // launch-day state and exactly what the sentinel exists for. The two used to arrive at this
+  // line together, through one try/catch, and produce the same output; that was the defect.
+  const params = [...bySlug.keys()].map((slug) => ({ slug }));
   return params.length ? params : [{ slug: SENTINEL_SLUG }];
 }
 
@@ -79,58 +128,42 @@ export async function generateStaticParams() {
 // of a public page, and a spread would put prices, territories and the publisher's id there the
 // moment one of them is added to the record.
 async function seedFor(slug) {
-  try {
-    const { initializeApp, getApps } = await import('firebase/app');
-    const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
-    const app = getApps().length ? getApps()[0] : initializeApp(FB);
-    const db = getDatabase(app);
-    const snap = await get(query(ref(db, 'bookstore_titles'), orderByChild('slug'), equalTo(slug)));
-    if (!snap.exists()) return null;
-    let t = null;
-    snap.forEach((child) => { if (!t) t = child.val(); return false; });
-    if (!t || t.status !== 'published') return null;
-    return {
-      slug: t.slug,
-      title: t.title || '',
-      author: t.author || '',
-      coverUrl: t.coverUrl || null,
-      coverSizes: t.coverSizes || null,
-    };
-  } catch (e) {
-    // A seed that cannot be read is not a build failure. The page renders its skeleton exactly
-    // as it did before R22 and the transition degrades to a plain navigation — which is the
-    // same thing that happens on a browser with no view-transition support.
-    console.error('[bookstore/[slug]] seedFor failed', e);
-    return null;
-  }
+  // PL-12: a map read now. It used to be its own Firebase query with its own catch, whose
+  // comment said "a seed that cannot be read is not a build failure" — true of a seed, and the
+  // reason it was wrong is that it was not reading a seed, it was re-reading the catalogue. The
+  // catalogue is read once, above, and the build has already stopped if it could not be.
+  const t = (await readPublishedTitles()).get(slug);
+  if (!t || t.status !== 'published') return null;
+  // The fields are listed rather than spread on purpose: this object is serialised into the
+  // HTML of a public page, and a spread would put prices, territories and the publisher's id
+  // there the moment one of them is added to the record.
+  return {
+    slug: t.slug,
+    title: t.title || '',
+    author: t.author || '',
+    coverUrl: t.coverUrl || null,
+    coverSizes: t.coverSizes || null,
+  };
 }
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
   if (slug === SENTINEL_SLUG) return {};
-  try {
-    const { initializeApp, getApps } = await import('firebase/app');
-    const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
-    const app = getApps().length ? getApps()[0] : initializeApp(FB);
-    const db = getDatabase(app);
-    const snap = await get(query(ref(db, 'bookstore_titles'), orderByChild('slug'), equalTo(slug)));
-    if (!snap.exists()) return {};
-    let title = null;
-    snap.forEach((child) => { if (!title) title = child.val(); return false; });
-    if (!title || title.status !== 'published') return {};
-    const desc = (title.synopsis || `${title.title} by ${title.author}`).replace(/<[^>]+>/g, '').slice(0, 200);
-    const url = `https://calvaryscribblings.co.uk/bookstore/${slug}`;
-    const images = title.coverUrl ? [{ url: title.coverUrl, alt: title.title }] : undefined;
-    // No robots here — noindex inherits from app/bookstore/layout.js.
-    return {
-      title: `${title.title} — Calvary Scribblings Book Store`,
-      description: desc,
-      openGraph: { title: title.title, description: desc, url, siteName: 'Calvary Scribblings', images, type: 'book' },
-      twitter: { card: 'summary_large_image', title: title.title, description: desc, images: title.coverUrl ? [title.coverUrl] : undefined },
-    };
-  } catch (e) {
-    return {};
-  }
+  // PL-12: the same memoised read. Its own catch used to return {} — a page silently shipped
+  // with no title, no description and no card image, which is invisible until someone shares
+  // a link. One read, one policy.
+  const title = (await readPublishedTitles()).get(slug);
+  if (!title || title.status !== 'published') return {};
+  const desc = (title.synopsis || `${title.title} by ${title.author}`).replace(/<[^>]+>/g, '').slice(0, 200);
+  const url = `https://calvaryscribblings.co.uk/bookstore/${slug}`;
+  const images = title.coverUrl ? [{ url: title.coverUrl, alt: title.title }] : undefined;
+  // No robots here — noindex inherits from app/bookstore/layout.js.
+  return {
+    title: `${title.title} — Calvary Scribblings Book Store`,
+    description: desc,
+    openGraph: { title: title.title, description: desc, url, siteName: 'Calvary Scribblings', images, type: 'book' },
+    twitter: { card: 'summary_large_image', title: title.title, description: desc, images: title.coverUrl ? [title.coverUrl] : undefined },
+  };
 }
 
 export default async function BookDetailPage({ params }) {

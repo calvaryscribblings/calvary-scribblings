@@ -14,6 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { initializeApp, getApps } from 'firebase/app';
 import { getDatabase, ref, get } from 'firebase/database';
+import { buildReadOptional } from './build-read.mjs';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -70,33 +71,58 @@ async function readWallManifest() {
 //                leaves the wall, and a missing wall still leaves the count.
 // A failed Firebase read degrades to zeroes/empty rather than throwing: a blip should leave
 // the gateway standing (count line hidden, no whispers), not fail the deploy.
+// ⛔ PL-12 — ONE OF EXACTLY TWO READS ALLOWED TO DEGRADE, AND THE ARGUMENT IS HERE.
+//
+// Ikenna's ruling of 27 August 2026 is that a build which cannot read the catalogue FAILS
+// rather than publishing a diminished site. This is a named exception to it, accepted on the
+// argument that WHAT THIS READ FEEDS IS DECORATION:
+//
+//   · storyCount — a number under the hero. Renders as 0.
+//   · whispers   — the rotating quotes. The rotator simply has nothing to rotate.
+//   · wall       — the cover mosaic behind the hero, already darkened to brightness(0.35)
+//                  behind a scrim. The radial-gradient background shows through instead.
+//
+// NOTHING 404s. No link goes anywhere it did not go before, no page loses content, and no
+// reader meets a dead end. That is the test to apply to any future candidate for this
+// treatment, and it is the test the bookstore, the library, the voices, the series and Open
+// Pages all FAIL — each of those pairs a live client-side index with static detail pages, so a
+// missing read there ships a list whose items do not open.
+//
+// ⚠ IT STILL CARRIES THE DEADLINE AND THE FOUR ATTEMPTS. Degrading is about the OUTCOME, never
+// about the waiting: firebase/database's get() never settles on an unreachable database
+// (measured — see app/lib/build-read.mjs), so without the deadline this "harmless" read would
+// hang the whole build just as completely as a required one. A hang is not a degraded build.
 export async function fetchGatewayData() {
   const wall = await readWallManifest();
-  try {
-    const snap = await get(ref(buildDB(), 'cms_stories_index'));
-    if (!snap.exists()) return { storyCount: 0, whispers: [], wall };
-    const data = snap.val() || {};
-    const now = new Date();
-    const published = Object.values(data).filter((s) => isPublished(s, now));
+  const data = await buildReadOptional(
+    'cms_stories_index',
+    null,
+    'the gateway\'s story count, whispers and cover wall are decoration — the gateway stands '
+      + 'without them and nothing 404s',
+    async () => {
+      const snap = await get(ref(buildDB(), 'cms_stories_index'));
+      return snap.exists() ? snap.val() || {} : {};
+    },
+  );
+  if (!data) return { storyCount: 0, whispers: [], wall };
 
-    const withQuote = published
-      .map((s) => ({
-        quote: typeof s.trailerQuote === 'string' ? s.trailerQuote.trim() : '',
-        title: typeof s.title === 'string' ? s.title.trim() : '',
-      }))
-      .filter((w) => w.quote && w.title);
+  const now = new Date();
+  const published = Object.values(data).filter((s) => isPublished(s, now));
 
-    // Prefer the shortest quotes (those under the cap lead), then take the first 12.
-    withQuote.sort((a, b) => {
-      const au = a.quote.length <= WHISPER_MAX_CHARS ? 0 : 1;
-      const bu = b.quote.length <= WHISPER_MAX_CHARS ? 0 : 1;
-      if (au !== bu) return au - bu;
-      return a.quote.length - b.quote.length;
-    });
+  const withQuote = published
+    .map((s) => ({
+      quote: typeof s.trailerQuote === 'string' ? s.trailerQuote.trim() : '',
+      title: typeof s.title === 'string' ? s.title.trim() : '',
+    }))
+    .filter((w) => w.quote && w.title);
 
-    return { storyCount: published.length, whispers: withQuote.slice(0, MAX_WHISPERS), wall };
-  } catch (e) {
-    console.error('gateway build read: cms_stories fetch failed', e);
-    return { storyCount: 0, whispers: [], wall };
-  }
+  // Prefer the shortest quotes (those under the cap lead), then take the first 12.
+  withQuote.sort((a, b) => {
+    const au = a.quote.length <= WHISPER_MAX_CHARS ? 0 : 1;
+    const bu = b.quote.length <= WHISPER_MAX_CHARS ? 0 : 1;
+    if (au !== bu) return au - bu;
+    return a.quote.length - b.quote.length;
+  });
+
+  return { storyCount: published.length, whispers: withQuote.slice(0, MAX_WHISPERS), wall };
 }
