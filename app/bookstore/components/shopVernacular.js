@@ -109,6 +109,107 @@ export const SHOP_RHYTHM_CSS = `
   }
 `;
 
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// ⛔ R27 — THE SHELF'S PER-ENTRY FADE, REMOVED
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// Ikenna's ruling, 27 August 2026, walking the storefront: the books fade in one at a time on
+// every genre tab switch, and it goes. R23's sweep found this declaration and left it — the
+// storefront was outside that round's scope. It is the same mechanism R23 cut from the detail
+// page, firing on every tab switch rather than once per visit, on the shop's busiest surface.
+//
+// ── MEASURED ON THE BUILT EXPORT, 402x874 AND 1280x900 ─────────────────────────────────────
+//
+// WHAT ANIMATED. Exactly one declaration, on .shelf-entry itself. The entry subtree was
+// scanned element by element: one offender, no per-element delay, no transition anywhere
+// (transitionDuration and transitionDelay both 0s — the computed shorthand reads "all"
+// because that is CSS's default serialisation, not because anything transitions).
+//
+// NO STAGGER, AND THERE NEVER WAS ONE. All seventeen entries mounted on the same frame and
+// every fadeUp read currentTime 0 together. What Ikenna saw as "one at a time" is the covers
+// decoding at different moments underneath a common ramp.
+//
+// THE BOX MOVED. Not only opacity: translateY(20px) -> 0, so each entry's drawn box travelled
+// 20px upward over the 500ms. A transform, so it reflowed nothing — but it moved.
+//
+// AND IT STARTED FROM NOTHING. Measured in compositor frames on a tab switch at 1280, the
+// shelf strip's mean luminance went 28.9 (the outgoing shelf) -> 7 with a MAXIMUM of 7 — a
+// black band where the shelf had been — and then climbed for ~500ms. The fade was not a gentle
+// arrival laid over the shelf; it blanked the shelf and climbed out of the blank. Removing it,
+// the same strip goes 29.1 -> 59.4 in one step and is settled by 205ms.
+//
+// WHY IT FIRED ON EVERY TAB SWITCH: THE ENTRIES REMOUNT. Every entry was a new element after
+// the switch — new ids, all born on the same frame. It is not a missing key (ShelfEntry is
+// keyed by title id); it is the RUN STRUCTURE. Unfiltered, the live Editor's Choice cut at
+// "after 2" splits the shelf into run-0 (2 books) and run-1 (the rest); filtered, there is one
+// run. Books move between runs, so React cannot reuse their nodes across the switch. See THE
+// FILTERED-TAB RULING on CatalogueSection in app/bookstore/page.js.
+//
+// ── ⚠ IS THE FADE HIDING A COVER POPPING IN? MEASURED, AND NO ────────────────────────────
+//
+// The round was told to stop rather than trade one artefact for another, so this was measured
+// rather than assumed, on the path the ruling is about — a tab switch with the shelf in view:
+//
+//     402 @dpr3    10 of 10 covers already decoded at mount, 0 arrived after
+//    1280 @dpr1     8 of 10 already decoded, 2 arrived at +121ms and +131ms
+//
+// The covers of books the reader has just been looking at are in cache, and the new <img>
+// elements resolve from it on the frame they mount. There is nothing for the fade to hide.
+//
+// THE RESIDUAL, STATED HONESTLY. On a wide viewport an entry whose cover was never fetched —
+// it was below the fold in the previous view — draws its board for ~130ms before the cover
+// lands. That happens WITH the fade too, at about a quarter opacity, so the fade dimmed it
+// rather than prevented it; and a board without its cover is .bb-front's own plate,
+// rgb(14,10,22), not a hole. An image arriving when it decodes is the covers' lazy loading,
+// which this ruling protects. It is not what was removed.
+//
+// ⛔ AT FIRST LOAD THE FADE WAS NEVER SEEN AT ALL. The first shelf row sits 1,783px down the
+// document at 1280x900 and 2,213px at 402x874 — it mounts far below the fold, and the 500ms
+// has long since finished (animation-fill-mode was forwards) by the time a reader scrolls to
+// it. Even /bookstore#fiction lands there: the anchor scroll fires before the catalogue has
+// resolved, so the entries still mount at y=2194. The tab switch is where this was visible,
+// and that is what Ikenna described.
+//
+// ── WHAT THIS ROUND DID NOT TOUCH, AND BOTH ARE RULINGS ────────────────────────────────────
+//
+//   THE TICKETS' UNEVEN HEIGHTS, SIZES AND SLANT. .shelf-card's two-line clamp over variable
+//   copy, its fluid type, and the alternating rotate(±0.7deg) from ShelfEntry's `tilt`. Ikenna
+//   chose that imperfection; regularising it would remove something wanted.
+//
+//   THE COVERS' LAZY LOADING. loading="lazy" on every shelf board (FrontFace in BoundBook.js,
+//   budgeted by R20 and tests/bookstore/payload.spec.mjs). This round removed an ANIMATION.
+//
+// @keyframes fadeUp STAYS DEFINED in app/bookstore/page.js: .hero-inner still uses it for the
+// masthead's own .9s entrance. That is a different element on a different surface, no ruling
+// has been made about it, and it is named here only so the next sweep does not have to find it
+// again.
+export const SHELF_FADE_REMOVED = {
+  ruledBy: 'Ikenna',
+  on: '2026-08-27',
+  ruling: 'The books fade in one at a time on every genre tab switch. It goes.',
+  wasClass: 'shelf-entry',
+  // Verbatim, so a mutation twin can inject exactly what was removed rather than a
+  // reconstruction of it. tests/bookstore/shelf-arrival.spec.mjs reads this field.
+  wasDeclaration: 'animation:fadeUp .5s ease forwards',
+  wasKeyframeName: 'fadeUp',
+  wasKeyframes: '@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}',
+  // The keyframes are NOT removed — the masthead still runs them. See the note above.
+  keyframesStillUsedBy: '.hero-inner (app/bookstore/page.js), animation:fadeUp .9s ease forwards',
+  measured: {
+    entriesOnFirstLoad: 17,
+    stagger: 'none — every entry mounted on one frame with currentTime 0',
+    travelledPx: 20,
+    tabSwitchRemountsEveryEntry: true,
+    remountCause: 'the run structure changes with the filter, so books move between runs',
+    shelfStripLuminanceWithFade: { outgoing: 28.9, atStart: 7, settled: 59.1, settledAtMs: 645 },
+    shelfStripLuminanceWithout: { outgoing: 29.1, settled: 59.4, settledAtMs: 205 },
+    coversDecodedAtMountOnTabSwitch: { at402: '10/10', at1280: '8/10' },
+  },
+  supersedes: [
+    { round: 'R23', on: '2026-08-27', said: 'swept and named, left untouched — the storefront was out of scope' },
+  ],
+};
+
 export const SHOP_VERNACULAR_CSS = `
   ${SHOP_RHYTHM_CSS}
   .section-head{display:flex;align-items:center;gap:1.2rem;margin-bottom:2.5rem}
@@ -161,7 +262,9 @@ export const SHOP_VERNACULAR_CSS = `
      in .entry-title would then push a column wider than its third and put four-across geometry
      on a three-across shelf. */
   .shelf{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--shelf-row-gap) var(--shelf-col-gap);justify-items:center}
-  .shelf-entry{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:200px;animation:fadeUp .5s ease forwards}
+  /* ⛔ R27 — THE PER-ENTRY FADE STOOD ON THIS RULE AND IS GONE. See SHELF_FADE_REMOVED
+     above for the ruling, the measurement and the verbatim declaration. */
+  .shelf-entry{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:200px}
   /* THE BOOK IS THE COLUMN. BoundBook takes a CSS length, so the shelf hands it 100% and the
      cover is whatever a third of the shelf is — about 106px on a 390px handset, and 200px on a
      laptop, where .shelf-entry's own long-standing cap stops a third of 1040px from becoming a

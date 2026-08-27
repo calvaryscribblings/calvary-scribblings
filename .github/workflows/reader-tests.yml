@@ -318,6 +318,24 @@ jobs:
         run: npx playwright test -c tests/bookstore/playwright.rhythm.config.mjs
         if: ${{ !cancelled() }}
 
+      # R27 — THE SHELF ARRIVES FINISHED. Ikenna, 27 Aug: the books fade in one at a time on
+      # every genre tab switch, and it goes. One declaration on .shelf-entry, the same
+      # mechanism R23 cut from the detail page — R23's sweep named it and left it because the
+      # storefront was out of that round's scope.
+      #
+      # It measures TWO PATHS because they did not behave the same. At first load the entries
+      # mount 1,783px (1280) / 2,213px (402) below the fold, so the 500ms had finished before a
+      # reader could see it. On a tab switch the shelf is in view and EVERY ENTRY REMOUNTS — the
+      # run structure changes with the filter — which is why it fired again and is what Ikenna
+      # described. A suite measuring only first paint would have been green through the whole
+      # complaint, and the first draft of this one was: it armed on "any entries" and read the
+      # frame BEFORE the switch. It arms on freshly mounted entries now.
+      #
+      # Own port (4335). The twin injects SHELF_FADE_REMOVED.wasDeclaration verbatim.
+      - name: Shelf arrival harness (no fade at first paint or on a tab switch)
+        run: npx playwright test -c tests/bookstore/playwright.shelf-arrival.config.mjs
+        if: ${{ !cancelled() }}
+
       # R19.8 — THE BUY/SAMPLE PAIR, MEASURED AT THREE VIEWPORTS.
       #
       # It rides here rather than in territory.spec.mjs or currency.spec.mjs — the two nearest

@@ -28,6 +28,7 @@
     "test:reveal": "next build && playwright test -c tests/bookstore/playwright.reveal.config.mjs",
     "test:cover-arrival": "next build && playwright test -c tests/bookstore/playwright.cover-arrival.config.mjs",
     "test:rhythm": "next build && playwright test -c tests/bookstore/playwright.rhythm.config.mjs",
+    "test:shelf-arrival": "next build && playwright test -c tests/bookstore/playwright.shelf-arrival.config.mjs",
     "test:pair": "next build && playwright test -c tests/bookstore/playwright.pair.config.mjs",
     "test:payload": "next build && playwright test -c tests/bookstore/playwright.payload.config.mjs",
     "covers:backfill": "node scripts/backfill-bookstore-cover-derivatives.mjs",

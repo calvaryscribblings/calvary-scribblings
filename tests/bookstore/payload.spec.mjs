@@ -273,9 +273,26 @@ test.describe('compositing', () => {
 
     const before = await layerCount(context, page);
     expect(before).toBeLessThanOrEqual(LAYER_MAX);
+    const boards = await page.locator('.bb-persp').count();
+    expect(boards, 'no boards on the shelf — this case would prove nothing').toBeGreaterThan(0);
+    console.log(`\n=== layer ratchet: baseline ${before}, ceiling ${LAYER_MAX}, headroom ${LAYER_MAX - before}, ${boards} boards ===\n`);
 
-    // One more promoted element per board, which is exactly the regression the ratchet exists
-    // to catch — a transform quietly added inside BoundBook.
+    // ── R27 — THE INJECTION IS DERIVED FROM THE HEADROOM, NOT TYPED ─────────────────────
+    //
+    // This used to add a flat FOUR promoted elements per board, which crossed the ceiling
+    // when it was written and stopped crossing it the moment the baseline moved. R27 removed
+    // `.shelf-entry{animation:fadeUp .5s ease forwards}` and the baseline fell from 207 to
+    // 166 — measured both ways, with the declaration restored and removed, on the same build:
+    // an active CSS animation on opacity and transform promotes its element, and
+    // animation-fill-mode:forwards keeps the promotion after it finishes, so the shelf was
+    // carrying one extra layer per entry and then some. 41 layers, for an animation nobody
+    // could see at first load.
+    //
+    // Four per board then landed on 254 against a 260 ceiling and this case went red — the
+    // ratchet's own proof failing because the product got better, which is the least useful
+    // way for a suite to break. The count is now taken from the gap it actually has to close,
+    // so it stays a real proof at whatever baseline the shop next has.
+    const perBoard = Math.ceil((LAYER_MAX - before) / boards) + 2;
     await page.evaluate((n) => {
       for (const persp of document.querySelectorAll('.bb-persp')) {
         for (let i = 0; i < n; i++) {
@@ -284,11 +301,14 @@ test.describe('compositing', () => {
           persp.appendChild(d);
         }
       }
-    }, 4);
+    }, perBoard);
     await page.waitForTimeout(1200);
 
     const after = await layerCount(context, page);
-    expect(after, 'adding four promoted elements per board must push the count past the ratchet').toBeGreaterThan(LAYER_MAX);
+    expect(after,
+      `adding ${perBoard} promoted elements to each of ${boards} boards took the count from `
+      + `${before} to ${after}, which must be past the ${LAYER_MAX} ratchet`)
+      .toBeGreaterThan(LAYER_MAX);
   });
 });
 
