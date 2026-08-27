@@ -336,6 +336,25 @@ jobs:
         run: npx playwright test -c tests/bookstore/playwright.shelf-arrival.config.mjs
         if: ${{ !cancelled() }}
 
+      # R28 — THE DETAIL PAGE'S ALIGNMENT. Ikenna, 27 Aug, from an iPhone Safari walk: the body
+      # copy runs centred at phone width and must be left-aligned, like the app. One
+      # declaration did it — text-align:center on .bd-header inside the handset query — and
+      # .bd-header is the whole two-column header, so every word in the right-hand column
+      # inherited it while the meta strip and the From-the-book quote, which sit outside it,
+      # stayed left. One blanket, two alignments on one page.
+      #
+      # BOTH WIDTHS, because the ruling IS a difference between them: the catalogue number,
+      # kicker, title, byline and shelf card are centred at 402 and left at 1280. A suite
+      # pinned to one width could not tell a ruling from a blanket.
+      #
+      # Its table is the ruling written down, and both twins are real: the blanket restored
+      # (prose must go centred at 402 and must NOT move at 1280 — that is what proves the
+      # desktop page is outside the query), and the head flattened (the deliberately-centred
+      # blocks must stop being centred). Own port (4336).
+      - name: Alignment harness (which detail-page blocks are centred, at both widths)
+        run: npx playwright test -c tests/bookstore/playwright.alignment.config.mjs
+        if: ${{ !cancelled() }}
+
       # R19.8 — THE BUY/SAMPLE PAIR, MEASURED AT THREE VIEWPORTS.
       #
       # It rides here rather than in territory.spec.mjs or currency.spec.mjs — the two nearest

@@ -326,7 +326,38 @@ export default function BookDetailClient({ params, seed = null }) {
              viewport. flex-wrap:wrap is deliberately kept as the graceful floor: below about
              360px the longest label ("Unavailable here") alongside the sample still cannot fit,
              and wrapping is a better answer there than a clipped button. */
-          @media(max-width:720px){.bd-header{grid-template-columns:1fr !important;justify-items:center;text-align:center}.bd-header .bd-cover-wrap{margin-bottom:1rem}.bd-synopsis::first-letter{float:none;font-size:inherit;color:inherit;padding:0;margin:0}.bd-actions{justify-content:center;gap:.6rem}.bd-cta{padding-inline:clamp(.6rem,3.2vw,2.2rem)}.bd-cta-slot{align-items:center}.bd-actions-notes{align-items:center;text-align:center}.bd-shelfcard{margin-left:auto;margin-right:auto}}
+          /* ══ R28 — THE HANDSET. WHAT IS CENTRED IS NAMED; PROSE IS NOT ══════════════════
+             Ikenna's ruling, 27 Aug 2026, from an iPhone Safari walk: the detail page's body
+             copy runs centred at phone width and must be left-aligned, like the app.
+
+             THIS RULE USED TO SAY "text-align:center" ON .bd-header, and .bd-header is the
+             whole two-column header — so every word in the right-hand column inherited it.
+             Measured at 402: the catalogue number, the genre kicker, the title, the byline,
+             the SYNOPSIS, the shelf card, the author label, the author name, the AUTHOR BIO,
+             the buy notes and the availability line, all centred; while the meta strip and
+             the From-the-book quote, which are OUTSIDE .bd-header, were left-aligned. One
+             blanket declaration produced two alignments on one page.
+
+             ⚠ SO THE BLANKET IS GONE AND THE CENTRED THINGS ARE LISTED. That is the shape
+             Ikenna asked for — block by block, not a rule — and it also fixes the trap that
+             produced this: a new block added to the right-hand column now inherits LEFT, which
+             is the right default for prose, instead of silently inheriting centre.
+
+             CENTRED, deliberately, and each one named by the ruling: the cover board (by
+             justify-items, not by text-align), the catalogue number, the genre kicker, the
+             title, the byline, and the shelf card. The buy/sample pair keeps its own centring
+             and its notes stay centred WITH IT — they are a caption to a centred control, not
+             running prose, and moving them alone would leave a left-aligned sentence under a
+             centred button.
+
+             LEFT, because it is body copy: the synopsis, the author block (see the twin rule
+             in AuthorBlock.js), the meta strip and the From-the-book quote — the last two were
+             already left and are simply no longer the odd ones out.
+
+             ⛔ AT 1280 NOTHING CHANGES. Measured before and after: every block on the desktop
+             page already computed "start" except the colophon, which is the page's footer and
+             centred on purpose. This rule is inside the handset query and cannot reach it. */
+          @media(max-width:720px){.bd-header{grid-template-columns:1fr !important;justify-items:center}.bd-header .bd-cover-wrap{margin-bottom:1rem}.bd-cat,.bd-kicker,.bd-header h1,.bd-byline,.bd-shelfcard{text-align:center}.bd-synopsis::first-letter{float:none;font-size:inherit;color:inherit;padding:0;margin:0}.bd-actions{justify-content:center;gap:.6rem}.bd-cta{padding-inline:clamp(.6rem,3.2vw,2.2rem)}.bd-cta-slot{align-items:center}.bd-actions-notes{align-items:center;text-align:center}.bd-shelfcard{margin-left:auto;margin-right:auto}}
         `}</style>
 
         <main style={{ background: '#070707', color: '#f0ead8', minHeight: '100vh', paddingTop: '68px', position: 'relative' }}>
@@ -481,11 +512,11 @@ export default function BookDetailClient({ params, seed = null }) {
                     {arrived && (
                     <>
                     {cat !== null && (
-                      <div style={{ fontFamily: "'Cinzel',serif", fontSize: '.6rem', letterSpacing: '.26em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.6rem' }}>{cat}</div>
+                      <div className="bd-cat" style={{ fontFamily: "'Cinzel',serif", fontSize: '.6rem', letterSpacing: '.26em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.6rem' }}>{cat}</div>
                     )}
-                    <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.62rem', fontWeight: 500, letterSpacing: '.22em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.9rem' }}>{genreLabel(title.genre)}</div>
+                    <div className="bd-kicker" style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '.62rem', fontWeight: 500, letterSpacing: '.22em', textTransform: 'uppercase', color: '#c9a44c', marginBottom: '.9rem' }}>{genreLabel(title.genre)}</div>
                     <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: 'clamp(1.8rem,4vw,2.8rem)', fontWeight: 600, color: '#f0ead8', lineHeight: 1.1, marginBottom: '.7rem' }}>{title.title}</h1>
-                    <p style={{ fontSize: '1.15rem', fontStyle: 'italic', fontWeight: 400, color: 'rgba(240,234,216,.55)', marginBottom: '2rem' }}>by {title.author}</p>
+                    <p className="bd-byline" style={{ fontSize: '1.15rem', fontStyle: 'italic', fontWeight: 400, color: 'rgba(240,234,216,.55)', marginBottom: '2rem' }}>by {title.author}</p>
 
                     {title.synopsis && <p className="bd-synopsis" dangerouslySetInnerHTML={{ __html: title.synopsis }} />}
 

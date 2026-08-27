@@ -50,7 +50,15 @@ export const AUTHOR_BLOCK_CSS = `
 .bd-author-text{min-width:0}
 .bd-author-name{font-family:'Cinzel',serif;font-size:1.02rem;font-weight:600;letter-spacing:.03em;color:#f0ead8;margin:0 0 .7rem}
 .bd-author-bio{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.02rem;line-height:1.8;color:rgba(240,234,216,.66);margin:0}
-@media(max-width:720px){.bd-author-body{flex-direction:column;align-items:center;text-align:center}.bd-author-plate{width:150px}}
+/* R28 — the handset. The block stacks, and it stacks LEFT.
+   "text-align:center" came off with the blanket one on .bd-header (see the note there):
+   Ikenna's ruling names the author bio as body copy, and body copy is left-aligned.
+   ⚠ align-items MOVED WITH IT, and that is a proposal rather than a transcription — the app
+   witnesses this block on a phone but the round carried no figure for where the PLATE sits
+   once the text beside it is left-aligned. A centred photograph over left-aligned prose reads
+   as two alignments in one block, so the plate lines up with the text it belongs to. If
+   Ikenna wants the photograph centred over left copy, this is the one line to change back. */
+@media(max-width:720px){.bd-author-body{flex-direction:column;align-items:flex-start}.bd-author-plate{width:150px}}
 `;
 
 export default function AuthorBlock({ title }) {
