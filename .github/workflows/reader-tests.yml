@@ -298,6 +298,26 @@ jobs:
         run: npx playwright test -c tests/bookstore/playwright.cover-arrival.config.mjs
         if: ${{ !cancelled() }}
 
+      # R25 — THE STOREFRONT'S VERTICAL RHYTHM. Ikenna, 27 Aug: the web shop has black voids
+      # between its elements, bring it to the app's sizing. The paddings all dated from 14 Jul,
+      # when the shop stood on a violet gradient and later a grain; R22.1 made the ground flat
+      # black on the morning of the 27th and nothing was retuned for it. The masthead's
+      # min-height:88vh with align-items:center was putting HALF A LEFTOVER VIEWPORT under the
+      # currency line — 219px on a 402x874 phone, 209 on a 1440x900 laptop, a void whose size
+      # was a function of the device.
+      #
+      # It runs at 402 and 1280 because the catalogue's vertical padding used to BE a
+      # breakpoint (48 handset / 64 laptop) — two rhythms, neither written down — and a suite
+      # pinned to one width would have been green through half of it.
+      #
+      # ⭑ AND IT IS THE ONE THING THAT CAN CATCH A CONSTANT BEING RETYPED. The ruled figures
+      # are literals in the spec, asserted BOTH against SHOP_RHYTHM and against the built
+      # page, so editing a constant and nothing else goes red — demonstrated, not assumed.
+      # Own port (4334).
+      - name: Rhythm harness (the shop's section intervals, both breakpoints)
+        run: npx playwright test -c tests/bookstore/playwright.rhythm.config.mjs
+        if: ${{ !cancelled() }}
+
       # R19.8 — THE BUY/SAMPLE PAIR, MEASURED AT THREE VIEWPORTS.
       #
       # It rides here rather than in territory.spec.mjs or currency.spec.mjs — the two nearest

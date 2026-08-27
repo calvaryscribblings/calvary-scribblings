@@ -949,7 +949,28 @@ export default function BookStorePage() {
           .skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
           ${SHIPPED_BOOK_TRANSITION_CSS}
 
-          .hero{min-height:88vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;text-align:center;padding:2rem}
+          /* ═══ R25 — THE MASTHEAD STOPS RESERVING A VIEWPORT ═══════════════════════════
+             It read "min-height:88vh;align-items:center" from R4b (14 Jul), when the shop
+             stood on a violet gradient and a full-height title page had something in it. The
+             ground went flat on the morning of 27 Aug (R22.1), and what the centring actually
+             produces on flat black is a void UNDER the currency line: half the leftover
+             viewport, measured at 219.06px on a 402x874 phone, 126.67 on a 390x664 one and
+             208.80 on a 1440x900 laptop. A gap that changes size with the device is why the
+             masthead sits differently on every screen.
+
+             ⚠ THE TOP PADDING IS LOAD-BEARING, NOT DECORATION. .cs-nav is position:fixed at
+             68px and this page's <main> has no padding-top — the masthead was cleared from the
+             navigation BY THE CENTRING SLACK. Remove one without stating the other and the
+             shop's title slides under the bar. --shop-nav-clear is that 68px, named.
+
+             The bottom is --shop-head-close and the section beneath takes none of its own: the
+             currency line and the first case are one head. See SHOP_RHYTHM. */
+          .hero{display:flex;justify-content:center;position:relative;overflow:hidden;text-align:center;
+            padding:calc(var(--shop-nav-clear) + var(--shop-head-air)) 2rem var(--shop-head-close)}
+          /* The whole of the head's close is paid by the masthead, so whatever stands first —
+             the Window, a curated case, the rail, or the skeleton shelf while the catalogue is
+             in flight — sits at exactly --shop-head-close and not at that plus its own air. */
+          main > .hero + *{padding-top:0}
           .hero-lamp{position:absolute;inset:0;background:radial-gradient(ellipse 60% 44% at 50% 40%,rgba(201,164,76,.16) 0%,transparent 66%);animation:lampPulse 5.5s ease-in-out infinite}
           .hero-inner{position:relative;z-index:2;max-width:720px;animation:fadeUp .9s ease forwards}
           .hero-eyebrow{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;color:#c9a44c;margin-bottom:2rem}
@@ -983,7 +1004,9 @@ export default function BookStorePage() {
           .hero-edition{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.28em;text-transform:uppercase;color:rgba(201,164,76,.6)}
           .hero-currency{margin-top:1.6rem}
 
-          .the-window{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:4rem 2rem 3rem}
+          /* R25 — one interval, both edges. Was "4rem 2rem 3rem": 64 above and 48 below, an
+             asymmetric pair from R4b's gradient ground. See SHOP_RHYTHM. */
+          .the-window{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:var(--shop-section-air) 2rem}
           .window-plate{text-align:center;font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.6rem}
           /* R13 — .curated-case and .curated-lamp are GROUPED ONTO these rules rather than
              described again in CuratedSection.js. The display case is one look and it has
@@ -1005,7 +1028,13 @@ export default function BookStorePage() {
           .btn-sample{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;padding:.85rem 1.9rem;border:1px solid rgba(201,164,76,.4);border-radius:3px;background:rgba(201,164,76,.04);color:#c9a44c;font-weight:600;text-decoration:none}
           .btn-sample:hover{background:rgba(201,164,76,.1)}
 
-          .rail{position:relative;z-index:2;max-width:760px;margin:0 auto;padding:3.5rem 2rem;text-align:center}
+          /* R25 — was 3.5rem (56) top and bottom. Those two paddings WERE Ikenna's "~105 above
+             and below the quote": 48 of the Window's bottom + 56 here is 104 above, and 56
+             here + 48 of the catalogue's top is 104 below. Both are now one section join.
+             ⛔ NOTHING INSIDE .rail-stage MOVES. The quote zone's reserve, the controls zone's
+             reserve and the 1.8rem between them are R22.1B's ruling and are not this round's.
+             tests/bookstore/payload.spec.mjs holds them. */
+          .rail{position:relative;z-index:2;max-width:760px;margin:0 auto;padding:var(--shop-section-air) 2rem;text-align:center}
           .rail-eyebrow{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.5rem}
           /* ⛔ R22.1B — THE STAGE. Ikenna's ruling of 27 Aug 2026: this section is a FIXED
              height and nothing below it ever moves. See RAIL_STAGE above for the two faults

@@ -27,7 +27,90 @@
 // ⚠ CLASS NAMES ARE GLOBAL. The admin screens style themselves with inline objects and use
 // no class names at all, so injecting this there collides with nothing. If that ever stops
 // being true, scope it rather than rename anything here — the names are the shop's.
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R25 — THE SHOP'S VERTICAL RHYTHM
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// Ikenna's ruling, 27 August 2026: the web storefront has black voids between its elements —
+// "check it against the app's perfect sizing and measurements." The app is the approved
+// reference. These four values are the web's answer to it, and they are HERE, in the shop's
+// vernacular, because the rhythm spans three stylesheets: this one (.catalogue-section),
+// CURATED_SECTION_CSS (.curated-section) and app/bookstore/page.js's inline block (.hero,
+// .the-window, .rail). One record, one :root block derived from it, three readers.
+//
+// ── WHY THE OLD NUMBERS WERE WHAT THEY WERE ────────────────────────────────────────────────
+//
+// Every padding this replaces dates from `e1e8baf7`, "Bookstore R4b", 14 July 2026 — with two
+// later touches (.curated-section from R13 and the catalogue's handset padding from R15, both
+// 19 August). On 14 July the shop stood on a VIOLET RADIAL GRADIENT over a three-stop vertical
+// ramp, and from R20 on an animated grain over that. Large intervals on a textured ground read
+// as atmosphere: the eye has something to look at between two sections.
+//
+// R22.1 removed the last of it on the MORNING of 27 August. The ground is now flat #070707.
+// The same intervals on flat black have nothing in them, which is exactly the complaint: the
+// spacing was never retuned for the ground it now sits on. That is the whole history, and it
+// is why this is a retune and not a preference.
+//
+// ── WHAT WAS ACTUALLY MEASURED, on the built export ────────────────────────────────────────
+//
+// The void beneath the masthead was not a section gap at all. `.hero` carried
+// `min-height:88vh` with `align-items:center`, so the leftover viewport was split in half and
+// HALF OF IT SAT BELOW THE CURRENCY LINE — 219.06px at 402x874, 177.70 at 402x780, 126.67 at
+// 390x664, 164.80 at 1280x800, 208.80 at 1440x900. A void that changes size with the device is
+// why the page reads differently on every phone. On top of it sat .the-window's 64px of
+// padding, for 283.06px total against the app's ~40.
+//
+// ⭑ AND NOTHING IS FAILING TO RENDER. Every element above the shelf with height was scanned
+// for one with no text, no image and nothing painted: there are none. The web has no
+// early-access line under the catalogue line — the app does, and the web has 219px of reserved
+// viewport there instead. Empty space, not a broken element.
+export const SHOP_RHYTHM = {
+  ruledBy: 'Ikenna',
+  on: '2026-08-27',
+  ruling: 'The web storefront has black voids between elements. Check it against the app\'s sizing.',
+
+  // The fixed .cs-nav is 68px tall (app/components/Navbar.js) and the storefront's <main> has
+  // NO padding-top — the masthead was cleared from the bar only by the 88vh centring slack.
+  // Remove the slack without stating this and the shop's title slides under the navigation.
+  navClearPx: 68,
+
+  // ⚠ A WEB JUDGEMENT CALL, FLAGGED. The app witnesses phone and tablet and gives no figure
+  // for the air ABOVE the masthead; the web's own was never a chosen number either — it was
+  // half of whatever the viewport had left over (219 at 874, 127 at 664). This makes it a
+  // stated constant, the same at every width, which is itself the fix for a masthead that sat
+  // differently on every device. 148px total (68 + 80) is close to what a 1280x800 laptop
+  // already showed (164.78) and 71px tighter than a tall phone.
+  headAir: '5rem',        // 80px
+
+  // The masthead sits DOWN ONTO the first case. The app's measured figure, exactly: the
+  // currency line and the Window's plate are one head, not two sections.
+  headClose: '2.5rem',    // 40px
+
+  // Half a join. Two adjacent sections each pay their half, so a section join is 4.5rem/72px.
+  // The app's measured button-to-heading figure is ~75 once its own reserved slot is set
+  // aside; 72 is the nearest value on a 0.25rem scale and is used at EVERY join above the
+  // shelf, so the shop has one interval and not four.
+  sectionAir: '2.25rem',  // 36px
+
+  // What the joins come to, for the harness and for anyone reading this without a browser.
+  get headClosePx() { return 40; },
+  get sectionJoinPx() { return 72; },
+};
+
+// Declared once, on :root, inside the vernacular — because the vernacular is the string BOTH
+// surfaces inject (the storefront and /admin/bookstore's Sections preview), so a rule in any
+// of the three stylesheets can read these and neither surface can get a different rhythm.
+export const SHOP_RHYTHM_CSS = `
+  :root{
+    --shop-nav-clear:${SHOP_RHYTHM.navClearPx}px;
+    --shop-head-air:${SHOP_RHYTHM.headAir};
+    --shop-head-close:${SHOP_RHYTHM.headClose};
+    --shop-section-air:${SHOP_RHYTHM.sectionAir};
+  }
+`;
+
 export const SHOP_VERNACULAR_CSS = `
+  ${SHOP_RHYTHM_CSS}
   .section-head{display:flex;align-items:center;gap:1.2rem;margin-bottom:2.5rem}
   .section-rule{flex:1;height:1px;background:rgba(201,164,76,.12)}
   .section-mark{font-size:.7rem}
@@ -128,7 +211,7 @@ export const SHOP_VERNACULAR_CSS = `
      reason .shelf moved in R13: the CMS preview now draws the REAL CatalogueSection around a
      placed table, so a preview that got its own copy of these rules would be a picture of a
      shop that does not exist. Same string, both surfaces, nothing retyped. */
-  .catalogue-section{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:4rem 2.5rem}
+  .catalogue-section{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:var(--shop-section-air) 2.5rem}
   .genre-tabs{display:flex;overflow-x:auto;margin-bottom:3rem;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.06)}
   .genre-tabs::-webkit-scrollbar{display:none}
   .genre-tab{padding:.7rem 1.3rem;white-space:nowrap;font-family:'Cormorant Garamond',Georgia,serif;font-size:.75rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:rgba(240,234,216,.45);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
@@ -161,8 +244,14 @@ export const SHOP_VERNACULAR_CSS = `
   @media(max-width:640px){
     /* R16 — the grid-template-columns override that lived here is gone with the auto-fill rule
        it corrected: three columns need no handset variant, which was half the point of fixing
-       the count. The gap tokens stay, and R15's doubled interleave air still derives from them. */
+       the count. The gap tokens stay, and R15's doubled interleave air still derives from them.
+
+       R25 — ONLY THE HORIZONTAL PADDING IS A BREAKPOINT NOW. This used to read
+       "padding:3rem 1.25rem", which quietly made the shop's vertical rhythm 48px on a handset
+       and 64px on a laptop — two rhythms, neither of them written down. The vertical air is
+       --shop-section-air at every width; the gutter still narrows, because a gutter is about
+       the width of the screen and an interval is not. */
     .shelf,.catalogue-section{--shelf-row-gap:2.75rem;--shelf-col-gap:1rem}
-    .catalogue-section{padding:3rem 1.25rem}
+    .catalogue-section{padding-inline:1.25rem}
   }
 `;

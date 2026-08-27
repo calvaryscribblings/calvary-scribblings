@@ -78,8 +78,39 @@ const FLATTEN = `
 async function poolDepth(page, selector, threshold = 0.75) {
   const el = page.locator(selector).first();
   await el.scrollIntoViewIfNeeded();
-  await page.evaluate(() => window.scrollBy(0, -200));
-  await page.waitForTimeout(200);
+  // ── R25 — THE BOOK IS PLACED, NOT NUDGED ────────────────────────────────────────────────
+  //
+  // This used to be `scrollBy(0, -200)`: scroll the book into view, then scroll the page back
+  // up 200px so the book sat lower and the 150px clip below it had somewhere to land. That is
+  // a nudge tuned to where the Window happened to fall in a 7,485px-tall document, and R25's
+  // retune moved it 306px up. scrollIntoViewIfNeeded then found the book ALREADY VISIBLE and
+  // did nothing, scrollBy(0,-200) clamped at the top of the document, and the clip ran off the
+  // bottom of the viewport: "Clipped area is either empty or outside the resulting image".
+  //
+  // Nothing about the MEASUREMENT changed — it is still a differential of the same frame with
+  // and without .bb-shadow. What changed is that the book is PLACED rather than nudged: it is
+  // scrolled so its BOTTOM sits CLIP_ROOM above the fold, which is the arrangement the -200
+  // was reaching for and states it as a requirement instead of an offset.
+  //
+  // ⚠ AND IT MUST STAY LOW IN THE VIEWPORT, not high. Placing it near the TOP was tried first
+  // and read 66.62px then 17.62px for the same book on two runs: the shop's covers are
+  // loading="lazy", so a book high on the screen puts a page of un-decoded covers underneath
+  // it and they arrive BETWEEN the two frames of the differential. Keeping it low leaves only
+  // the clip beneath it, and the wait below closes the rest of that window.
+  await page.evaluate(([sel, room]) => {
+    const e = document.querySelector(sel);
+    const b = e.getBoundingClientRect();
+    const want = b.bottom + window.scrollY + room - window.innerHeight;
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo(0, Math.max(0, Math.min(want, max)));
+  }, [selector, 160]);
+  // Every image THE VIEWPORT NOW HOLDS, decoded, before either frame is taken. Restricted to
+  // the viewport on purpose: the shop's covers are loading="lazy", so an <img> below the fold
+  // reports complete:false for ever and a document-wide wait never resolves.
+  await page.waitForFunction(() => [...document.images]
+    .filter((i) => { const r = i.getBoundingClientRect(); return r.bottom > 0 && r.top < window.innerHeight && r.width > 0; })
+    .every((i) => i.complete), null, { timeout: 15000 });
+  await page.waitForTimeout(250);
 
   const silhouette = await el.evaluate((root) => {
     const f = root.querySelector('.bb-front').getBoundingClientRect();

@@ -194,7 +194,10 @@ export default function CuratedSection({ section, renderEntry, renderWindow, gen
 // follows is only what has no precedent: the month line, the curator's line, the slot, and
 // the case's slightly tighter interior.
 export const CURATED_SECTION_CSS = `
-  .curated-section{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:3.5rem 2rem 2.5rem}
+  /* R25 — the vertical air is the shop's one interval (--shop-section-air, declared in
+     SHOP_VERNACULAR_CSS, which every surface that injects this string also injects). It was
+     3.5rem/2.5rem — an asymmetric pair tuned on July's gradient ground. See SHOP_RHYTHM. */
+  .curated-section{position:relative;z-index:2;max-width:1000px;margin:0 auto;padding:var(--shop-section-air) 2rem}
   .curated-month{text-align:center;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.3em;
     text-transform:uppercase;color:rgba(201,164,76,.72);margin:-1.6rem 0 1.4rem}
   .curated-line{text-align:center;font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;
@@ -229,7 +232,9 @@ export const CURATED_SECTION_CSS = `
   .curated-slot{display:flex;flex-direction:column;align-items:center;width:200px}
   .curated-slot .no-divider{margin-bottom:.85rem}
   @media(max-width:640px){
-    .curated-section{padding:2.5rem 1.25rem 2rem}
+    /* R25 — the gutter narrows on a handset; the interval does not. See the twin note in
+       shopVernacular.js's catalogue rule. */
+    .curated-section{padding-inline:1.25rem}
     .curated-case-inner{grid-template-columns:1fr;gap:2rem;text-align:center}
     .curated-case-book{padding:0}
     .curated-case-inner .window-pull{border-left:none;padding-left:0}
