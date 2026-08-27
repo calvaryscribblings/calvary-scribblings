@@ -38,17 +38,16 @@
     z-index: 0;
   }
 
-  /* Grain overlay */
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-    background-size: 200px 200px;
-    opacity: 0.6;
-    pointer-events: none;
-    z-index: 0;
-  }
+  /* ⛔ R22.1 — THIS PAGE'S OWN NOISE OVERLAY IS GONE. Ikenna's ruling of 27 August 2026, on
+     glass. It was a fixed full-viewport SVG-filter tile at 0.6 opacity — the third grain site
+     in the tree and the only one the ruling named by technique. The element is recorded
+     VERBATIM, with the ruling, in BETA_PAGE_GRAIN_REMOVED in
+     app/bookstore/components/grain.js. It is kept there rather than here on purpose: this file
+     is served byte-for-byte, so a record in this comment would ship the removed layer's own
+     source to every visitor and would defeat the ratchet that scans the export for it.
+
+     The radial-gradient ground above STAYS. That is this page's dark background, not a
+     texture drawn over it. */
 
   /* ── Layout ── */
   .page {

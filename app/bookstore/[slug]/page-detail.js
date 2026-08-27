@@ -32,11 +32,14 @@ const BUY_ASIDE_STYLE = {
 };
 import LaunchGate from '../components/LaunchGate';
 import { isStoreUnlocked } from '../../lib/bookstore/gate';
-// R20 — the grain, its ruling and its one definition. See the header of that file.
-import { GRAIN_CSS, GRAIN_CLASS } from '../components/grain';
+// R20 — the grain, its ruling and its one definition. Superseded:
+// R22.1 — the grain import is gone; the layer was ruled out entirely. The record lives
+// at ../components/grain.js and is imported by nothing.
 // R22C — the arriving half of the book's journey. One definition, both documents; see the
 // header of that file for the mechanism and the timing window it has to land in.
-import { BOOK_TRANSITION_CSS, BOOK_ARRIVAL_ATTR } from '../components/bookTransition';
+// R22.1C — SHIPPED_BOOK_TRANSITION_CSS, not BOOK_TRANSITION_CSS. It is empty until
+// BOOK_TRANSITION_SHIPPED is flipped; the built transition is intact in that file.
+import { SHIPPED_BOOK_TRANSITION_CSS, BOOK_ARRIVAL_ATTR } from '../components/bookTransition';
 
 // R13 — WHAT WAS HERE. A twelve-row GENRE_LABELS map whose comment read "kept local (the
 // storefront's map isn't exported)", byte-identical to the storefront's and separately
@@ -198,8 +201,7 @@ export default function BookDetailClient({ params, seed = null }) {
           @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.7}}
           .bd-skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
-          ${GRAIN_CSS}
-          ${BOOK_TRANSITION_CSS}
+          ${SHIPPED_BOOK_TRANSITION_CSS}
           .bd-synopsis{font-size:1.02rem;line-height:1.8;color:rgba(240,234,216,.72)}
           .bd-synopsis::first-letter{float:left;font-family:'Cinzel',serif;font-size:3.4rem;line-height:.82;font-weight:600;color:#c9a44c;padding:.1rem .6rem .1rem 0;margin-top:.1rem}
           .bd-shelfcard{margin-top:1.6rem;background:#ece4cf;color:#2a2318;padding:1rem 1.2rem;border-radius:1px;box-shadow:0 8px 22px rgba(0,0,0,.4);font-size:.9rem;line-height:1.6;font-style:italic;max-width:440px}
@@ -287,14 +289,8 @@ export default function BookDetailClient({ params, seed = null }) {
         `}</style>
 
         <main style={{ background: '#070707', color: '#f0ead8', minHeight: '100vh', paddingTop: '68px', position: 'relative' }}>
-          {/* R20 — INSIDE <main>, AND THAT IS THE WHOLE OF THE UN-FIXING. It used to sit
-              here as a SIBLING, which was fine while it was position:fixed and would be
-              silently broken now: an absolutely positioned element with no positioned
-              ancestor resolves against the viewport-sized initial containing block, so the
-              grain would cover the first screenful and then stop. <main> is already
-              position:relative, so it is the containing block and the grain is as tall as the
-              document. See GRAIN_PARENT_RULE in ../components/grain.js. */}
-          <div className={GRAIN_CLASS} aria-hidden="true" />
+          {/* ⛔ R22.1 — THE GRAIN OVERLAY STOOD HERE AND IS GONE. Plain dark ground.
+              See GRAIN_REMOVED in ../components/grain.js. */}
           <div style={{ maxWidth: '920px', margin: '0 auto', padding: '3.5rem 2rem 4rem', position: 'relative', zIndex: 2 }}>
             {/* ═══════════════════════════════════════════════════════════════════════════
                 R22C — THE ARRIVING BOARD.

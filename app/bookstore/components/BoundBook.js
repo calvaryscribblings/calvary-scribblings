@@ -270,6 +270,25 @@ export const FORE_EDGE = {
 };
 
 // Injected once per page (storefront, detail, modal). Keyed classes only — no dynamic values.
+// ⛔ R22.1 — THE COVER GRAIN IS GONE FROM THE STYLESHEET BELOW.
+//
+// Ikenna ruled the grain out ENTIRELY on glass on 27 Aug 2026 — texture and all — and `.bb-grain`
+// was the same stripe recipe as the page overlay, drawn twice per book: front face and back.
+// Twenty-odd boards on a full shelf is forty-odd of them. Leaving it while removing the page
+// layer would have been half a fix, which is precisely how R22 cost a round.
+//
+// The element is recorded verbatim in COVER_GRAIN_REMOVED in ./grain.js — including the reason
+// `.bb-foreedge` STAYS. That rule is also a repeating-linear-gradient of 1px stripes and it is
+// NOT a texture: it is the drawing, the book's stacked page edges in opaque paper tones, ruled
+// in by R16 and R17 and transcribed into the app from this repo. A noise overlay is rgba
+// white-over-black at low opacity across a whole surface; a page block is opaque ink in the
+// shape of an edge. The ratchet in tests/bookstore/payload.spec.mjs is written to that
+// distinction rather than to "no repeating gradients", which would have taken the pages with it.
+//
+// ⚠ THIS NOTE IS OUT HERE, NOT IN THE TEMPLATE LITERAL, and that is not a style choice. A CSS
+// comment inside the literal ships to every visitor in the chunk — measured: the first draft of
+// this note put 600 bytes of prose, and the string `bb-grain`, into the export and tripped the
+// very ratchet it was explaining.
 export const BOUND_BOOK_CSS = `
   /* R16 — THE BOOK IS SIZED BY ITS CONTAINER, NOT BY A NUMBER PASSED IN.
      --bb-w is the one input: a length from the caller (the Window's 190px, the detail page's
@@ -323,9 +342,6 @@ export const BOUND_BOOK_CSS = `
      file for the ruling, the element verbatim, and the 8px the shadow below moved by. The
      RIGHT fore-edge one line above it stays. Its WIDTH stopped being 12px in R17.4 — see
      FORE_EDGE — but the element itself is exactly as kept. */
-  .bb-grain{position:absolute;inset:0;pointer-events:none;opacity:.06;mix-blend-mode:overlay;
-    background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.5) 0,rgba(0,0,0,.5) 1px,transparent 1px,transparent 2px),
-      repeating-linear-gradient(90deg,rgba(255,255,255,.4) 0,rgba(0,0,0,.4) 1px,transparent 1px,transparent 3px)}
   .bb-sheen{position:absolute;inset:0;pointer-events:none;
     background:linear-gradient(122deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,.04) 26%,transparent 46%)}
   /* R16 — bottom was -16px, against a silhouette whose lowest paint was the feet at -8px.
@@ -436,7 +452,6 @@ function FrontFace({ title, sizes, eager }) {
         </div>
       )}
       <div className="bb-spine" />
-      <div className="bb-grain" />
       <div className="bb-sheen" />
     </div>
   );
@@ -494,7 +509,6 @@ function BackFace({ title }) {
           )}
         </div>
       </div>
-      <div className="bb-grain" />
     </div>
   );
 }

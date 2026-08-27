@@ -47,29 +47,9 @@ function stringConst(src, name, file) {
 const GATE_STORAGE_KEY = stringConst(GATE_SRC, 'GATE_STORAGE_KEY', 'app/lib/bookstore/gate.js');
 const CURRENCY_KEY = 'cs_bookstore_currency';
 
-// R20 — the grain's own record, read from the module rather than restated here. If the ruling
-// is ever reversed, it is reversed in ONE file and this suite follows it there instead of
-// asserting a number nobody can find the origin of.
-const GRAIN_SRC = readFileSync(join(ROOT, 'app/bookstore/components/grain.js'), 'utf8');
-const numConst = (name) => {
-  const m = new RegExp(`^export const ${name} = (\\d+);`, 'm').exec(GRAIN_SRC);
-  if (!m) throw new Error(`app/bookstore/components/grain.js no longer exports a numeric const named ${name}.`);
-  return Number(m[1]);
-};
-const GRAIN_BLEED_PX = numConst('GRAIN_BLEED_PX');
-
-// R22 — the removal, read out of the module's own record rather than restated here. The
-// ratchet below scans the BUILT export for these strings, so if a future round puts the
-// shimmer back by copying `wasDeclaration` out of the record, the ratchet trips on the copy.
-const removedConst = (name) => {
-  const m = new RegExp(`^  ${name}: '((?:[^'\\\\]|\\\\.)*)',$`, 'm').exec(GRAIN_SRC);
-  if (!m) throw new Error(`GRAIN_ANIMATION_REMOVED no longer records a single-quoted ${name}.`);
-  return m[1];
-};
-const GRAIN_KEYFRAME_NAME = removedConst('keyframeName');
-
-// Both pages carry the grain, and R20 changed it on both. A suite that only checked the
-// storefront would let the detail page drift back on its own.
+// BOTH PAGES CARRIED THE GRAIN, so both are checked for its absence. A suite that only looked
+// at the storefront would let the detail page drift back on its own — which is exactly the
+// half-fix R22.1 was called in to clean up.
 //
 // The detail page's slug is RESOLVED FROM THE SHOP, not named — see tests/bookstore/live-slug.mjs
 // for the incident that taught this suite the difference.
@@ -344,24 +324,101 @@ async function layerCount(context, page) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// THE GRAIN — R20, Ikenna's ruling of 26 August 2026.
-//
-//   "Grain that holds still while the page moves reads as dust on the lens; grain that
-//    travels with the page reads as texture in the paper."
-//
-// The grain IS the single largest cost in a scroll of the storefront — but un-fixing it is not
-// what recovers that, and the header of app/bookstore/components/grain.js sets out the faulty
-// ablation that briefly suggested otherwise. These cases guard a DRAWING.
-//
-// WHAT THESE CASES GUARD is the ATTACHMENT, because that is the whole of the change and it is
-// a single word in a stylesheet. `position:fixed` would restore a viewport-locked layer that
-// re-composites against every scroll offset, and nothing else on this platform would notice.
-// It would not break a page, fail a build, or move a pixel at rest.
+// ⛔ THE GRAIN IS GONE — R22.1, Ikenna's ruling of 27 August 2026, on glass
 // ═══════════════════════════════════════════════════════════════════════════════
-test.describe('the grain', () => {
+//
+//   "It looks really bad... let's just go back to having dark background."
+//
+// He walked production on an iPhone at 01:38 and again at 05:45. THE WHOLE LAYER IS OUT —
+// texture and all, not just the animation R22 removed. These cases replace R20's and R22's,
+// which asserted the grain's positioning, coverage and opacity: there is nothing left to
+// position or cover.
+//
+// ── WHY R22 DID NOT FIX IT, WHICH IS WHY THE RATCHET BELOW IS SHAPED THE WAY IT IS ────────
+//
+// R22.1 opened by checking three suspects against the LIVE SITE, anonymously, before changing
+// a line — a service worker serving the old bundle, a deploy that never landed, or an unswept
+// second grain site. All three were innocent. The live sw.js was stamped with R22's own commit;
+// /bookstore is in PASS_THROUGH_PATHS so its document is never intercepted; and the live chunk
+// carried R22's grain rule with no animation in it.
+//
+// ⭑ R22 REACHED HIS GLASS. IT FIXED THE WRONG HALF. The artefact is the TEXTURE: a 1px/2px
+// stripe period resampled at DPR 3 folds into moire bands, and scrolling moves their phase, so
+// it crawls whether or not anything is animating. See GRAIN_REMOVED in
+// app/bookstore/components/grain.js.
+//
+// ── AND THE RATCHET SCANS .js, WHICH R22's DID NOT ───────────────────────────────────────
+//
+// R22's export ratchet walked out/ for `.html` and `.css` only. THE GRAIN RULE WAS NEVER IN
+// EITHER — the shop renders its stylesheet from a client component, so the CSS lives in
+// /_next/static/chunks/*.js. That ratchet could not have caught a restoration by the one route
+// a restoration would actually take. This one reads the chunks.
+test.describe('the grain is gone', () => {
+  const GRAIN_REC = readFileSync(join(ROOT, 'app/bookstore/components/grain.js'), 'utf8');
+
+  // The removed class names, read out of the record rather than restated here — so a round
+  // that reverses the ruling reverses it in ONE file and this suite follows it there.
+  const recorded = (name) => {
+    const m = new RegExp(`^  ${name}: '([^']*)',$`, 'm').exec(GRAIN_REC);
+    if (!m) throw new Error(`app/bookstore/components/grain.js no longer records a ${name}.`);
+    return m[1];
+  };
+  const PAGE_GRAIN_CLASS = recorded('wasClass');                      // bookstore-grain
+  const COVER_GRAIN_CLASS = (() => {
+    const m = /^export const COVER_GRAIN_REMOVED = \{[\s\S]*?^  wasClass: '([^']*)',$/m.exec(GRAIN_REC);
+    if (!m) throw new Error('COVER_GRAIN_REMOVED no longer records a wasClass.');
+    return m[1];                                                      // bb-grain
+  })();
+  const KEYFRAME = recorded('wasKeyframeName');                       // grainShift
+
+  // ⚠ THE ONE DISTINCTION THIS WHOLE FILE TURNS ON.
+  //
+  // A NOISE OVERLAY is rgba white-over-black at low opacity laid across a whole surface. That
+  // is what banded on Ikenna's phone, and it is what must never come back — by any class name,
+  // from any stylesheet, on any page.
+  //
+  // A PAGE BLOCK is `.bb-foreedge`: also a repeating-linear-gradient of 1px stripes, and it
+  // STAYS. It is not a texture over the drawing, it IS the drawing — the book's stacked page
+  // edges in OPAQUE paper tones (#e6dfc8 / #d3caae), at the object's own scale, ruled in by R16
+  // and R17 and transcribed into the app from this repo. A ratchet written as "no repeating
+  // gradients" would have taken the book's pages with the noise and reverted two rulings.
+  //
+  // So the signature below is the rgba white-and-black pair, and nothing else.
+  const isNoiseGradient = (css) => {
+    const out = [];
+    let at = 0;
+    for (;;) {
+      const i = css.indexOf('repeating-linear-gradient(', at);
+      if (i === -1) break;
+      // Balance the parens so a nested rgba(...) does not end the slice early.
+      let depth = 0; let j = i + 'repeating-linear-gradient'.length;
+      for (; j < css.length; j += 1) {
+        if (css[j] === '(') depth += 1;
+        else if (css[j] === ')') { depth -= 1; if (depth === 0) { j += 1; break; } }
+      }
+      const g = css.slice(i, j);
+      if (/rgba?\(\s*255\s*,\s*255\s*,\s*255/.test(g) && /rgba?\(\s*0\s*,\s*0\s*,\s*0/.test(g)) out.push(g);
+      at = i + 1;
+    }
+    return out;
+  };
+
+  // The scanner, as a pure function so the case below can prove it able to fail without
+  // touching out/.
+  const grainOffences = (text) => {
+    const hits = [];
+    if (text.includes(PAGE_GRAIN_CLASS)) hits.push(`the page grain's class (${PAGE_GRAIN_CLASS})`);
+    if (text.includes(COVER_GRAIN_CLASS)) hits.push(`the cover grain's class (${COVER_GRAIN_CLASS})`);
+    if (text.includes(KEYFRAME)) hits.push(`the shimmer's keyframe (${KEYFRAME})`);
+    if (/feTurbulence|fractalNoise/.test(text)) hits.push('an SVG noise filter');
+    const noise = isNoiseGradient(text);
+    if (noise.length) hits.push(`a white-over-black stripe gradient: ${noise[0].slice(0, 90)}`);
+    return hits;
+  };
+
   for (const pg of GRAIN_PAGES) {
     for (const vp of VIEWPORTS) {
-      test(`${pg.name} ${vp.name}: the grain travels with the page and covers it`, async ({ page }) => {
+      test(`${pg.name} ${vp.name}: plain dark ground, and no stripe layer from any source`, async ({ page }) => {
         await page.setViewportSize({ width: vp.width, height: vp.height });
         await enterShop(page);
 
@@ -374,124 +431,75 @@ test.describe('the grain', () => {
         }
         await page.goto(target, { waitUntil: 'networkidle', timeout: 60000 });
         await expect(page.locator(pg.ready).first()).toBeVisible({ timeout: 30000 });
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1200);
 
-        const g = await page.evaluate(() => {
-          const el = document.querySelector('.bookstore-grain');
-          if (!el) return null;
-          const cs = getComputedStyle(el);
-          const parent = el.parentElement;
-          const r = el.getBoundingClientRect();
+        const seen = await page.evaluate(() => {
+          const stripes = [];
+          for (const el of document.querySelectorAll('*')) {
+            const cs = getComputedStyle(el);
+            for (const src of [cs.backgroundImage, cs.background]) {
+              if (src && src.includes('repeating-linear-gradient')) {
+                stripes.push({ tag: el.tagName, cls: el.className?.toString?.().slice(0, 40) || '', css: src });
+              }
+            }
+            // ::before / ::after are where a grain layer hides when it has no element of its
+            // own — which is exactly the arrangement public/beta.html carried until R22.1.
+            for (const pseudo of ['::before', '::after']) {
+              const ps = getComputedStyle(el, pseudo);
+              const bg = ps.backgroundImage;
+              if (bg && bg !== 'none' && (bg.includes('repeating-linear-gradient') || bg.includes('feTurbulence'))) {
+                stripes.push({ tag: `${el.tagName}${pseudo}`, cls: el.className?.toString?.().slice(0, 40) || '', css: bg });
+              }
+            }
+          }
+          const main = document.querySelector('main');
           return {
-            position: cs.position,
-            parentTag: parent.tagName,
-            parentPositioned: getComputedStyle(parent).position !== 'static',
-            isFirstChild: parent.firstElementChild === el,
-            height: Math.round(r.height),
-            parentScrollHeight: parent.scrollHeight,
-            viewportH: window.innerHeight,
-            animationName: cs.animationName,
-            animationDuration: cs.animationDuration,
-            // R22 — every running KEYFRAME animation the document holds, not just this
-            // element's own declaration. getAnimations() sees one whoever declared it, so a
-            // restoration wired through a global stylesheet or a parent rule is caught here
-            // even though the computed style above would read 'none'. CSSTransition entries
-            // carry no animationName and drop out, which is correct: R22B's page-turn is a
-            // transition and is not what this is watching for.
-            //
-            // The shop legitimately runs OTHER keyframes — fadeUp on entrance, pulse and
-            // lampPulse on the hero — so this narrows to anything grain-shaped rather than
-            // demanding silence it never had.
+            pageGrain: document.querySelectorAll('.bookstore-grain').length,
+            coverGrain: document.querySelectorAll('.bb-grain').length,
+            mainBg: main ? getComputedStyle(main).backgroundColor : null,
             grainAnimationsRunning: document.getAnimations()
-              .map((a) => a.animationName || '')
-              .filter((n) => /grain/i.test(n)),
-            opacity: cs.opacity,
-            backgroundImage: cs.backgroundImage,
+              .map((a) => a.animationName || '').filter((n) => /grain/i.test(n)),
+            stripes,
           };
         });
-        expect(g, 'the grain must be on the page').not.toBeNull();
 
-        // THE RULING ITSELF.
-        expect(g.position,
-          'the grain must travel with the page — Ikenna\'s ruling of 26 Aug 2026. position:fixed '
-          + 'is the pre-R20 arrangement. This is a DESIGN assertion, not a performance one: the '
-          + 'two positioning schemes measure the same, and the header of '
-          + 'app/bookstore/components/grain.js corrects an earlier claim that they did not. '
-          + 'Read that before changing this.')
-          .toBe('absolute');
+        // THE RULING ITSELF, at the DOM.
+        expect(seen.pageGrain,
+          'the page grain overlay is gone — Ikenna\'s ruling of 27 Aug 2026, on glass. '
+          + 'Read GRAIN_REMOVED in app/bookstore/components/grain.js before restoring it: the '
+          + 'artefact was the TEXTURE, not the animation R22 removed.').toBe(0);
+        expect(seen.coverGrain, 'the cover grain is gone from every board — see COVER_GRAIN_REMOVED').toBe(0);
+        expect(seen.grainAnimationsRunning, 'nothing may run a grain keyframe').toEqual([]);
 
-        // AND THE ARRANGEMENT THAT MAKES IT WORK. An absolutely positioned element with no
-        // positioned ancestor resolves against the viewport-sized initial containing block —
-        // so the grain would cover one screenful and stop, which looks fine above the fold and
-        // is why this is asserted rather than left to review.
-        expect(g.parentTag, 'the grain must live inside <main>').toBe('MAIN');
-        expect(g.parentPositioned, '<main> must be positioned, or the grain resolves against the viewport and runs out').toBeTruthy();
+        // THE GROUND. "Let's just go back to having dark background" — this is that background,
+        // and it is the same #070707 the pages already declared under the grain.
+        expect(seen.mainBg, '<main> must paint the plain dark ground').toBe('rgb(7, 7, 7)');
 
-        // COVERAGE, to the full height of the shop's own surface plus the bleed.
-        expect(g.height,
-          `the grain is ${g.height}px against a ${g.parentScrollHeight}px page — it must reach the foot`)
-          .toBeGreaterThanOrEqual(g.parentScrollHeight);
-
-        // A SHORT PAGE still gets a full screen of it.
-        expect(g.height, 'a short page must still be covered to the fold').toBeGreaterThanOrEqual(g.viewportH);
-
-        // ⛔ R22 — THE SHIMMER IS GONE, AND THIS IS THE RATCHET.
-        //
-        // Ikenna, 26 Aug 2026, shown the animated grain on glass: "doesn't look good at all...
-        // needs to go very quickly." THE LOOK RULED. The animation also cost frames — 34.1% →
-        // 20.8% on this page at this viewport, `npm run bench:grain`, both arms on one build —
-        // and that is a BONUS. It is not the reason, and winning the performance argument does
-        // not reopen this. See GRAIN_ANIMATION_REMOVED in app/bookstore/components/grain.js,
-        // including why R22 records 13 points where R20 recorded 22.
-        //
-        // Asserted on the COMPUTED style, at both viewports, on both pages, so a restoration
-        // by any route — the module, a page's inline CSS, a global stylesheet — is caught.
-        expect(g.animationName,
-          'the grain must not animate — Ikenna\'s ruling of 26 Aug 2026, on how it looked. '
-          + 'Read GRAIN_ANIMATION_REMOVED before restoring it.').toBe('none');
-        expect(g.animationDuration, 'no animation means no duration').toBe('0s');
-        // NOT animationPlayState: its INITIAL value is 'running', so it reads 'running' on an
-        // element with no animation at all. Asserting on it would be a check that can never
-        // fail in the direction it was written for.
-        // And nothing on the page is running a grain keyframe under any other name or from any
-        // other stylesheet.
-        expect(g.grainAnimationsRunning,
-          'a grain animation is running from somewhere other than the grain rule').toEqual([]);
-
-        // THE LOOK. Opacity and both gradient passes are what make the texture; they are
-        // unchanged by R20 and this is where that is written down.
-        expect(g.opacity).toBe('0.05');
-        expect(g.backgroundImage).toContain('repeating-linear-gradient');
-        expect((g.backgroundImage.match(/repeating-linear-gradient/g) || []).length,
-          'both gradient passes — the 0deg and the 90deg — make the texture').toBe(2);
+        // AND NO STRIPE LAYER FROM ANY SOURCE. The fore-edge is allowed and everything else is
+        // not — see the note on isNoiseGradient above for why that is the line.
+        const noise = seen.stripes.filter((s) => isNoiseGradient(s.css).length > 0);
+        expect(noise.map((s) => `${s.tag}.${s.cls}`),
+          'a white-over-black stripe layer is drawing somewhere on this page. That is the '
+          + 'texture that banded on an iPhone at DPR 3, whatever it is called now.').toEqual([]);
       });
     }
   }
 
-  test('the bleed stays at 16px — it sets the texture\'s phase, not the travel', async () => {
-    // R20 sized this to exceed the largest keyframe offset (9px) so a step could not drag an
-    // uncovered edge into view. R22 removed the steps, and the number is load-bearing for a
-    // DIFFERENT reason that outlives them: the texture's colour stops are absolute pixels, so
-    // the gradient's phase is a function of the element's origin. The 90deg pass has a 3px
-    // period — move the origin and the texture lands out of phase, which is a visible change
-    // to a drawing two rulings protect.
-    expect(GRAIN_BLEED_PX, 'the bleed sets the gradient origin; changing it re-phases the texture').toBe(16);
-  });
-
-  test('⛔ the BUILT export ships no grain animation anywhere', async () => {
+  test('⛔ THE RATCHET — no grain layer, of any kind, anywhere in the export', async () => {
     // ═══════════════════════════════════════════════════════════════════════════════════════
-    // THE RATCHET. R22.
+    // Every HTML file, every stylesheet AND EVERY CHUNK in out/.
+    //
+    // The .js half is the whole point. R22's ratchet scanned .html and .css, and the grain rule
+    // has never been in either of them — the shop renders its stylesheet from a client
+    // component, so it lives in /_next/static/chunks/*.js. A restoration by the one route a
+    // restoration actually takes would have sailed straight past it.
+    //
+    // It catches four things: either removed class name, the shimmer's keyframe name, an SVG
+    // noise filter (which is what public/beta.html carried, and which the ruling named
+    // explicitly), and a white-over-black stripe gradient under ANY name at all — because the
+    // easiest way back is not to restore `.bookstore-grain`, it is to write the same two
+    // gradients on `.shop-texture`.
     // ═══════════════════════════════════════════════════════════════════════════════════════
-    //
-    // The computed-style cases above prove the shimmer is not running on the two pages this
-    // suite loads. THIS one proves it is not in the artefact AT ALL — every HTML file and every
-    // emitted stylesheet in out/. The difference matters because a keyframe restored on a page
-    // this suite does not visit, or behind a media query, or in a chunk that only loads on a
-    // third route, would pass every assertion above and still be a shimmer on Ikenna's iPad.
-    //
-    // It scans for the keyframe NAME read out of GRAIN_ANIMATION_REMOVED, so the one route a
-    // restoration would actually take — copying `wasKeyframes` back out of the record — is the
-    // route this catches first.
     const { readdirSync, statSync } = await import('node:fs');
     const OUT = join(ROOT, 'out');
     let exists = true;
@@ -504,44 +512,120 @@ test.describe('the grain', () => {
         const full = join(dir, name);
         const st = statSync(full);
         if (st.isDirectory()) { walk(full); continue; }
-        if (/\.(html|css)$/.test(name)) files.push(full);
+        // .map files are sourcemaps of vendored third-party code (pdf.js among them) and are
+        // not shipped CSS. Scanning them reports on libraries nobody here drew.
+        if (/\.(html|css|js)$/.test(name)) files.push(full);
       }
     })(OUT);
-    expect(files.length, 'the export must contain HTML and CSS to scan').toBeGreaterThan(10);
+    expect(files.length, 'the export must contain HTML, CSS and chunks to scan').toBeGreaterThan(50);
+    expect(files.some((f) => f.includes('/_next/static/chunks/')),
+      'the chunks are where the grain rule actually lived — this scan must reach them').toBeTruthy();
 
     const offenders = [];
     for (const f of files) {
-      const text = readFileSync(f, 'utf8');
-      if (text.includes(GRAIN_KEYFRAME_NAME)) offenders.push(`${f.slice(OUT.length)} (keyframe name)`);
-      // The declaration, however it is spelled: `animation:` or `animation-name:` inside the
-      // grain rule. Sliced tightly so an unrelated animation elsewhere in the file is not
-      // blamed on the grain.
-      let at = 0;
-      for (;;) {
-        const i = text.indexOf(`.${'bookstore-grain'}{`, at);
-        if (i === -1) break;
-        const rule = text.slice(i, text.indexOf('}', i) + 1);
-        if (/animation(-name)?\s*:/.test(rule)) offenders.push(`${f.slice(OUT.length)} (grain rule: ${rule.slice(0, 120)})`);
-        at = i + 1;
-      }
+      // public/vendor/** is third-party reader code, shipped verbatim and not this house's
+      // drawing. Named rather than silently skipped.
+      if (f.includes('/vendor/')) continue;
+      const hits = grainOffences(readFileSync(f, 'utf8'));
+      if (hits.length) offenders.push(`${f.slice(OUT.length)} — ${hits.join('; ')}`);
     }
     expect(offenders,
-      'the grain animation was removed on Ikenna\'s ruling of 26 Aug 2026 — "doesn\'t look good '
-      + 'at all... needs to go very quickly". It also cost 13 points of dropped frames, which is '
-      + 'a bonus and not the reason. See GRAIN_ANIMATION_REMOVED in app/bookstore/components/grain.js.')
+      'a grain layer is back in the export. Ikenna ruled it out ENTIRELY on 27 Aug 2026, on '
+      + 'glass: "it looks really bad... let\'s just go back to having dark background". Texture '
+      + 'and animation both. See GRAIN_REMOVED in app/bookstore/components/grain.js.')
       .toEqual([]);
   });
 
-  test('there is exactly one definition of the grain', async () => {
-    // It used to be duplicated byte-for-byte in app/bookstore/page.js and
-    // app/bookstore/[slug]/page-detail.js. Two copies of a ruling is one copy that gets
-    // reversed on its own, which is precisely the failure the cases above are guarding.
-    for (const f of ['app/bookstore/page.js', 'app/bookstore/[slug]/page-detail.js']) {
-      const src = readFileSync(join(ROOT, f), 'utf8');
-      expect(src.includes('position:fixed;inset:-50%'),
-        `${f} still carries its own copy of the pre-R20 grain rule`).toBeFalsy();
-      expect(src.includes('GRAIN_CSS'), `${f} must render the shared grain`).toBeTruthy();
+  test('the ratchet is a real ceiling — it trips on each of the four ways back', async () => {
+    // A ratchet nobody has ever seen fail is a number, not a test. Each string below is a
+    // genuine route back, and the last one is the one that matters most: the same texture under
+    // a name this suite has never heard of.
+    const ways = {
+      'the page grain restored verbatim': PAGE_GRAIN_REMOVED_CSS(),
+      'the cover grain restored verbatim': COVER_GRAIN_REMOVED_CSS(),
+      'the shimmer restored': '@keyframes grainShift{0%{transform:translate(0,0)}}',
+      'an SVG noise filter': "<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9'/></filter>",
+      'the same texture under a new name': '.shop-texture{background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0,rgba(0,0,0,.6) 1px,transparent 1px,transparent 2px)}',
+    };
+    for (const [why, css] of Object.entries(ways)) {
+      expect(grainOffences(css).length, `the ratchet must catch: ${why}`).toBeGreaterThan(0);
     }
+    // And it must NOT catch the book's page block, which is the drawing and stays.
+    expect(grainOffences('.bb-foreedge{background:repeating-linear-gradient(90deg,#e6dfc8 0,#e6dfc8 1px,#d3caae 1px,#d3caae 2px)}'),
+      'the fore-edge is the book\'s stacked pages, not a texture. R16/R17 ruled it in and the '
+      + 'app transcribed it from this repo — a ratchet that takes it out reverts two rulings.')
+      .toEqual([]);
+  });
+
+  function PAGE_GRAIN_REMOVED_CSS() {
+    const m = /^export const PAGE_GRAIN_REMOVED = \{[\s\S]*?^  wasCss: '((?:[^'\\]|\\.)*)',$/m.exec(GRAIN_REC);
+    if (!m) throw new Error('PAGE_GRAIN_REMOVED no longer records a wasCss.');
+    return m[1];
+  }
+  function COVER_GRAIN_REMOVED_CSS() {
+    const m = /^export const COVER_GRAIN_REMOVED = \{[\s\S]*?^  wasCss: '((?:[^'\\]|\\.)*)',$/m.exec(GRAIN_REC);
+    if (!m) throw new Error('COVER_GRAIN_REMOVED no longer records a wasCss.');
+    return m[1];
+  }
+
+  test('the record is imported by NOTHING, so it cannot be rendered back by accident', async () => {
+    // app/bookstore/components/grain.js is now a record, not a component. Two consequences, and
+    // both are load-bearing: an unimported module cannot be rendered, and the removed strings it
+    // holds verbatim never reach the bundle — which is what lets the ratchet above scan the
+    // whole export for exactly those strings without the record tripping it.
+    const { readdirSync, statSync } = await import('node:fs');
+    const importers = [];
+    (function walk(dir) {
+      for (const name of readdirSync(dir)) {
+        if (name === 'node_modules') continue;
+        const full = join(dir, name);
+        const st = statSync(full);
+        if (st.isDirectory()) { walk(full); continue; }
+        if (!/\.jsx?$/.test(name)) continue;
+        if (full.endsWith('components/grain.js')) continue;
+        const src = readFileSync(full, 'utf8');
+        if (/from\s+['"][^'"]*components\/grain['"]/.test(src)) importers.push(full.slice(ROOT.length));
+      }
+    })(join(ROOT, 'app'));
+    expect(importers,
+      'nothing may import the grain record. It exists to be READ — by a person, and by the '
+      + 'ratchet above, out of the source. An import puts the removed CSS back in the bundle.')
+      .toEqual([]);
+  });
+
+  test('the service worker cannot serve a returning reader a stale grain', async () => {
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    // THE FIRST SUSPECT IN R22.1, AND IT WAS INNOCENT — pinned here so it stays that way.
+    //
+    // The fear was reasonable: an installed SW that cached shop documents or chunks would keep
+    // serving the pre-fix bundle for ever and no ruling would ever reach a returning reader.
+    // It cannot, for two independent reasons, and this case asserts BOTH so that losing either
+    // one is a red test rather than a silent regression that only shows up on someone's phone.
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    const SW = readFileSync(join(ROOT, 'public/sw.js'), 'utf8');
+
+    // 1. THE SHOP IS NEVER INTERCEPTED. isPassThrough returns before any respondWith can be
+    //    reached, so /bookstore and /bookstore/{slug} are handled by the browser as if no
+    //    worker existed — online or off.
+    const list = /const PASS_THROUGH_PATHS = \[([\s\S]*?)\];/.exec(SW);
+    expect(list, 'public/sw.js no longer declares PASS_THROUGH_PATHS').not.toBeNull();
+    expect(list[1].includes("'/bookstore'"),
+      'the shop must stay in PASS_THROUGH_PATHS — it is what guarantees no installed worker '
+      + 'can serve a returning reader yesterday\'s shop').toBeTruthy();
+
+    // 2. AND EVEN THE CHUNKS CANNOT GO STALE. /_next/static/* is the one cache-first path in
+    //    the file, which is only safe because the filenames are content-hashed: a rebuilt grain
+    //    rule arrives at a URL no cache has ever seen. The per-build cache key and the
+    //    activate-time sweep are the belt to that brace.
+    expect(/const SHELL_CACHE = `cs-shell-v\$\{BUILD\}`/.test(SW),
+      'the shell cache must be keyed per build').toBeTruthy();
+    expect(/keys\.filter\(\(k\) => k\.startsWith\(CACHE_PREFIX\) && k !== SHELL_CACHE\)\.map\(\(k\) => caches\.delete\(k\)\)/.test(SW),
+      'activate must delete every cache that is not this build\'s').toBeTruthy();
+
+    // 3. AND NO DOCUMENT IS EVER CACHE-FIRST. The one rule the whole file is built on. If this
+    //    ever changes, a stale shell becomes reachable and everything above stops mattering.
+    expect(/if \(event\.request\.mode === 'navigate'\) \{\s*event\.respondWith\(navigateNetworkFirst\(event\)\);/.test(SW),
+      'navigations must stay network-first').toBeTruthy();
   });
 });
 
@@ -618,8 +702,8 @@ test.describe('the opening line turns like a page', () => {
 
   test('the attribution follows a beat behind', async ({ page }) => {
     const words = await openRail(page);
-    await words.page().locator('.rail-btn').first().click();          // "Whose line is this?"
-    const attrib = words.page().locator('.rail-attrib');
+    await words.page().locator('.rail-ask .rail-btn').click();        // "Whose line is this?"
+    const attrib = words.page().locator('.rail-reveal.rail-attrib');
     await expect(attrib).toBeVisible({ timeout: 10000 });
     const delays = await attrib.evaluate((el) => getComputedStyle(el).transitionDelay);
     for (const d of delays.split(',').map((x) => x.trim())) {
@@ -651,18 +735,33 @@ test.describe('the opening line turns like a page', () => {
     const words = await openRail(page);
     const page_ = words.page();
     const before = await words.textContent();
-    const markBoxBefore = await page_.locator('.rail-mark').first().boundingBox();
+    // ⚠ offsetTop/offsetLeft, NOT boundingBox(). A bounding box is viewport-relative, so it
+    // moves whenever the page happens to have scrolled between the two readings — which it
+    // does, because clicking a control scrolls it into view. This assertion is about LAYOUT,
+    // and the layout number is the one that does not know where the window is.
+    const markBefore = await page_.locator('.rail-mark').first()
+      .evaluate((el) => ({ x: el.offsetLeft, y: el.offsetTop }));
 
-    await page_.locator('.rail-btn').first().click();                 // reveal
-    await page_.locator('.rail-btn').first().click();                 // "Another line"
+    // ⚠ R22.1B — THE TWO CLICKS ARE NO LONGER BACK TO BACK, and that is the change under test
+    // rather than a workaround for it. The reveal used to be a bare setState and landed in the
+    // same frame; it now runs the SAME out/in turn as a line change, so pressing "Another line"
+    // during those 420ms is a mid-turn press and is ignored by design. The test waits for the
+    // answer to arrive, which is what a reader does.
+    await page_.locator('.rail-ask .rail-btn').click();               // "Whose line is this?"
+    await expect(page_.locator('.rail-answer')).toBeVisible({ timeout: 10000 });
+    await page_.locator('.rail-reveal .rail-btn').click();            // "Another line"
     await page_.waitForTimeout(DURATION_MS + 300);
 
     expect(await words.textContent(), 'the rail must be showing a different line').not.toBe(before);
-    const markBoxAfter = await page_.locator('.rail-mark').first().boundingBox();
+    const markAfter = await page_.locator('.rail-mark').first()
+      .evaluate((el) => ({ x: el.offsetLeft, y: el.offsetTop }));
     // The frame is a frame. A mark that moved would mean the quotation marks had been carried
-    // out with the words, which is the version of this effect the mock rejected.
-    expect(Math.abs(markBoxAfter.x - markBoxBefore.x), 'the opening quotation mark moved horizontally').toBeLessThan(1.5);
-    expect(Math.abs(markBoxAfter.y - markBoxBefore.y), 'the opening quotation mark moved vertically').toBeLessThan(1.5);
+    // out with the words, which is the version of this effect the mock rejected — or, since
+    // R22.1B, that the quote is being centred inside its locked zone rather than sitting at the
+    // top of it, which moves the frame by half the difference between the longest line and this
+    // one. See .rail-quote-zone in app/bookstore/page.js.
+    expect(Math.abs(markAfter.x - markBefore.x), 'the opening quotation mark moved horizontally').toBeLessThan(1.5);
+    expect(Math.abs(markAfter.y - markBefore.y), 'the opening quotation mark moved vertically').toBeLessThan(1.5);
   });
 
   test('reduced motion produces NO transition — not a faster one', async ({ browser }) => {
@@ -685,25 +784,249 @@ test.describe('the opening line turns like a page', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// R22C — THE BOOK CARRIES YOU TO ITS PAGE
+// ⛔ R22.1B — THE STAGE OWNS THE HEIGHT, AND NOTHING BELOW IT EVER MOVES
 // ═══════════════════════════════════════════════════════════════════════════════
 //
-// ⚠ WHAT CAN AND CANNOT BE ASSERTED HEADLESSLY, STATED PLAINLY.
+// Ikenna's ruling of 27 August 2026, after the same fault appeared on the app and was then
+// confirmed on the web: every line change AND every reveal resized the section, so the FICTION
+// heading, the genre tabs and the whole shelf jumped on every turn.
 //
-// CANNOT: that the cover looks like it lifts, travels and lands. No headless assertion reads
-// that, and pretending otherwise with a screenshot diff of a mid-transition frame would be a
-// test that goes red when the easing is adjusted by a designer and green when the effect is
-// broken. Ikenna judges the feel on glass; that is the correct instrument for it.
+// R22B's page-turn was never the problem — the BOX around it was. A four-line opening quote and
+// a one-liner are three line-boxes apart, and "WHOSE LINE IS THIS?" is one button where the
+// revealed state is a title, an author, a gap and "ANOTHER LINE". Both resized the section, and
+// the turn's own 420ms made the jump read as part of the effect.
 //
-// CAN, and these are the ones that actually decay:
-//   · both documents opt in from their PARSED <head>, not from a stylesheet React renders.
-//     This is the exact defect that made the first working version of R22C do nothing at all.
-//   · the pair-or-nothing guard is in the head as a classic script, so it is listening before
-//     `pagereveal`.
-//   · a navigation really does offer a transition — `pageswap` carries a live viewTransition.
-//   · the outgoing board is findable by slug and carries a front face to photograph.
-//   · nothing here is load-bearing for the navigation itself.
-test.describe('the book carries you to its page', () => {
+// ── WHAT THESE CASES ARE, AND WHY THEY ARE THE RIGHT INSTRUMENT ──────────────────────────
+//
+// This is one of the rare motion rulings that IS fully assertable headlessly, because it is a
+// statement about numbers rather than about feel: two boxes must have the same height and the
+// same offsetTop in every state the rail can be in. So the suite walks EVERY line in the live
+// pool, in BOTH states, at BOTH breakpoints, and demands the numbers not move.
+//
+// ⭑ THE WALK RUNS UNDER reducedMotion:'reduce', AND THAT IS A FEATURE OF THE TEST, NOT A
+// SHORTCUT. Under reduced motion the component swaps instantly — no 420ms wait per turn — so
+// twenty-odd lines in two states is seconds rather than a minute. It also happens to assert the
+// half of the ruling that is easiest to lose: prefers-reduced-motion swaps instantly AND THE
+// HEIGHT STILL NEVER CHANGES. Reduced motion is not a licence to reintroduce the shove.
+//
+// The normal-motion case below it then does two turns and a reveal at full speed, so the
+// animated path is covered too.
+test.describe('the opening-line stage never moves the page', () => {
+  // The element after the rail is the fiction shelf — its heading, its genre tabs and its
+  // boards. That is precisely what Ikenna watched jump, so it is what gets measured.
+  const readStage = async (page) => page.evaluate(() => {
+    const rail = document.querySelector('.rail');
+    if (!rail) return null;
+    const next = rail.nextElementSibling;
+    return {
+      railH: Math.round(rail.getBoundingClientRect().height),
+      stageH: Math.round(document.querySelector('.rail-stage').getBoundingClientRect().height),
+      // offsetTop is measured against the offsetParent and is unaffected by scroll position,
+      // which is what makes it the honest number here — a boundingClientRect would move
+      // whenever the page happened to be scrolled.
+      nextTop: next ? next.offsetTop : null,
+      nextTag: next ? `${next.tagName}.${next.className?.toString?.().slice(0, 30) || ''}` : null,
+      line: document.querySelector('.rail-words')?.textContent || '',
+      revealed: !!document.querySelector('.rail-reveal'),
+    };
+  });
+
+  for (const vp of VIEWPORTS) {
+    test(`${vp.name}: every line, both states, one height`, async ({ browser }) => {
+      // reducedMotion so the walk is instant — see the note above. The ruling is asserted
+      // FOR this mode as well as through it.
+      const ctx = await browser.newContext({
+        reducedMotion: 'reduce',
+        viewport: { width: vp.width, height: vp.height },
+      });
+      const page = await ctx.newPage();
+      try {
+        await enterShop(page);
+        await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
+        await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
+        const rail = page.locator('.rail-words');
+        if (await rail.count() === 0) {
+          test.skip(true, 'the live catalogue has fewer than two titles carrying an opening line');
+        }
+        // The stage is sized from a probe measured against the real webfonts; give them the
+        // chance to land before the first reading, or the baseline is Georgia's.
+        await page.evaluate(() => document.fonts?.ready);
+        await page.waitForTimeout(400);
+
+        const poolSize = await page.evaluate(() => {
+          // The pool is live. Reading its size from the component is not possible from here, so
+          // the walk simply goes round until it sees its first line again — see below.
+          return document.querySelectorAll('.rail-words').length;
+        });
+        expect(poolSize, 'exactly one line shows at a time').toBe(1);
+
+        const baseline = await readStage(page);
+        expect(baseline, 'the rail must be on the page').not.toBeNull();
+        expect(baseline.nextTop,
+          'the rail must have something after it — otherwise this case is asserting nothing')
+          .not.toBeNull();
+
+        const seen = [];
+        const firstLine = baseline.line;
+        // A hard ceiling so a catalogue that grows to hundreds cannot turn this into a
+        // twenty-minute case. It is REPORTED rather than silently applied: a truncated walk
+        // that reads as full coverage is worse than no walk.
+        const CEILING = 40;
+        let turns = 0;
+
+        for (;;) {
+          // BOTH STATES OF THE CURRENT LINE. The reveal is the half R22B never sized for.
+          const asking = await readStage(page);
+          expect(asking.revealed, 'a fresh line starts un-revealed').toBeFalsy();
+          seen.push(asking);
+
+          await page.locator('.rail-ask .rail-btn').click();
+          await expect(page.locator('.rail-answer')).toBeVisible({ timeout: 10000 });
+          seen.push(await readStage(page));
+
+          await page.locator('.rail-reveal .rail-btn').click();
+          await expect(page.locator('.rail-ask .rail-btn')).toBeVisible({ timeout: 10000 });
+          turns += 1;
+
+          const now = await readStage(page);
+          if (now.line === firstLine) break;         // all the way round the pool
+          if (turns >= CEILING) {
+            console.log(`[rail] stopped at ${CEILING} lines — the pool is larger than the ceiling`);
+            break;
+          }
+        }
+
+        expect(turns, 'the walk must have turned the line at least twice').toBeGreaterThanOrEqual(2);
+        expect(seen.length, 'every line must have been read in both states').toBe(turns * 2);
+
+        // ── THE RULING ──────────────────────────────────────────────────────────────────
+        // Identical, not "close". These are integers read off the same DOM in the same
+        // viewport; a single pixel of drift here is a line of text changing the layout, which
+        // is the whole fault.
+        const railHeights = [...new Set(seen.map((s) => s.railH))];
+        const stageHeights = [...new Set(seen.map((s) => s.stageH))];
+        const nextTops = [...new Set(seen.map((s) => s.nextTop))];
+
+        expect(stageHeights,
+          `the stage changed height across ${turns} lines in both states. It owns a FIXED height — `
+          + 'Ikenna\'s ruling of 27 Aug 2026. See RAIL_STAGE in app/bookstore/page.js.')
+          .toEqual([baseline.stageH]);
+        expect(railHeights,
+          'the whole Opening Lines section changed height — the eyebrow and the padding are '
+          + 'fixed, so this means the stage did').toEqual([baseline.railH]);
+        expect(nextTops,
+          `${baseline.nextTag} moved. That is the FICTION heading, the genre tabs and the shelf `
+          + 'being shoved down the page on a line change or a reveal, which is exactly what was '
+          + 'ruled out.').toEqual([baseline.nextTop]);
+
+        // And the walk really did see different lines — otherwise the numbers above are all
+        // measurements of the same state.
+        expect(new Set(seen.map((s) => s.line)).size,
+          'the walk must have shown more than one line, or it proved nothing')
+          .toBeGreaterThanOrEqual(2);
+      } finally {
+        await ctx.close();
+      }
+    });
+  }
+
+  test('at full speed too — the turn and the reveal both happen inside the stage', async ({ page }) => {
+    // The reduced-motion walk above covers every line. This one covers the ANIMATED path, where
+    // a height change would be masked by 420ms of motion and would read as part of the effect.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enterShop(page);
+    await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
+    await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
+    if (await page.locator('.rail-words').count() === 0) {
+      test.skip(true, 'the live catalogue has fewer than two titles carrying an opening line');
+    }
+    await page.evaluate(() => document.fonts?.ready);
+    await page.waitForTimeout(400);
+
+    const readings = [await readStage(page)];
+    for (let n = 0; n < 2; n += 1) {
+      await page.locator('.rail-ask .rail-btn').click();
+      await expect(page.locator('.rail-answer')).toBeVisible({ timeout: 10000 });
+      readings.push(await readStage(page));
+      await page.locator('.rail-reveal .rail-btn').click();
+      await expect(page.locator('.rail-ask .rail-btn')).toBeVisible({ timeout: 10000 });
+      readings.push(await readStage(page));
+    }
+
+    expect([...new Set(readings.map((r) => r.stageH))],
+      'the stage changed height during an animated turn or reveal').toEqual([readings[0].stageH]);
+    expect([...new Set(readings.map((r) => r.nextTop))],
+      'the shelf below moved during an animated turn or reveal').toEqual([readings[0].nextTop]);
+  });
+
+  test('the height is measured ONCE and locked — the probe is not left in the DOM', async ({ page }) => {
+    // The stage is sized from a hidden probe that renders every line in both states. It must be
+    // MOUNTED long enough to be measured and gone afterwards: a probe left standing is a second
+    // copy of the whole pool in the document, on the page R20 spent a round making lighter.
+    await enterShop(page);
+    await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
+    await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
+    if (await page.locator('.rail-words').count() === 0) {
+      test.skip(true, 'the live catalogue has fewer than two titles carrying an opening line');
+    }
+    await page.evaluate(() => document.fonts?.ready);
+    await page.waitForTimeout(600);
+
+    expect(await page.locator('.rail-probe').count(),
+      'the probe must be unmounted once the stage is locked').toBe(0);
+
+    // And the lock really is a declared height rather than the content sizing the box.
+    const vars = await page.evaluate(() => {
+      const stage = document.querySelector('.rail-stage');
+      const q = document.querySelector('.rail-quote-zone');
+      const c = document.querySelector('.rail-controls-zone');
+      return {
+        quoteVar: stage.style.getPropertyValue('--rail-quote-h'),
+        ctrlVar: stage.style.getPropertyValue('--rail-ctrl-h'),
+        quoteH: getComputedStyle(q).height,
+        ctrlH: getComputedStyle(c).height,
+      };
+    });
+    expect(vars.quoteVar, 'the quote zone must carry a measured, locked height').toMatch(/^\d+px$/);
+    expect(vars.ctrlVar, 'the controls zone must carry a measured, locked height').toMatch(/^\d+px$/);
+    expect(vars.quoteH).toBe(vars.quoteVar);
+    expect(vars.ctrlH).toBe(vars.ctrlVar);
+
+    // A turn must not re-measure. If it does, the lock is live-resizing wearing a lock's name.
+    await page.locator('.rail-ask .rail-btn').click();
+    await expect(page.locator('.rail-answer')).toBeVisible({ timeout: 10000 });
+    const after = await page.evaluate(() => document.querySelector('.rail-stage').style.getPropertyValue('--rail-quote-h'));
+    expect(after, 'a reveal must not re-measure the stage').toBe(vars.quoteVar);
+    expect(await page.locator('.rail-probe').count(),
+      'a reveal must not remount the probe').toBe(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ⛔ R22.1C — THE VIEW-TRANSITION OPT-IN IS WITHHELD FROM SHIPPED OUTPUT
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Ikenna's ruling, 27 August 2026. Three reasons, and the third settles it:
+//
+//   · the pair-or-nothing guard was proven in CHROMIUM ONLY, and Safari is what he reads on;
+//   · the pair cannot form at all until R9 unwinds the launch gate's STATE SHAPE, so today the
+//     opt-in buys nothing and risks the fallback;
+//   · the app shipped this exact effect and it FAILED ON GLASS as an unpaired translucent
+//     dissolve — which is not a prediction about the unguarded fallback, it is a report of it.
+//
+// So R22C's cases have been replaced rather than deleted. They asserted that the opt-in WAS in
+// every parsed head, that the arriving board was named by rule, and that a navigation offered a
+// transition. All three now assert the opposite, plus the thing that actually matters for R9:
+// THAT NOTHING WAS LOST. The mechanism is intact behind one const, and R22C's two hard-won
+// findings are still on the record where the next round will look for them.
+//
+// ── WHAT MUST NOT BE RELEARNED ───────────────────────────────────────────────────────────
+//   · THE OPT-IN MUST BE IN THE PARSED <head>. In a <style> React renders, `pagereveal` on the
+//     arriving document finds nothing and the destination declines, silently, every time.
+//   · THE BOARD MUST EXIST AT FIRST RENDER — parse or a task after `pagereveal`, never a frame
+//     later. The gate renders the whole shop in an effect, and flipping GATE_ENABLED does not
+//     help: `unlocked` still starts false and is still set in an effect. That is R9's work.
+test.describe('the view transition is withheld until R9', () => {
   const BT_SRC = readFileSync(join(ROOT, 'app/bookstore/components/bookTransition.js'), 'utf8');
   const btConst = (name) => {
     const m = new RegExp(`^export const ${name} = '([^']+)';`, 'm').exec(BT_SRC);
@@ -714,150 +1037,184 @@ test.describe('the book carries you to its page', () => {
   const SLUG_ATTR = btConst('BOOK_SLUG_ATTR');
   const ARRIVAL_ATTR = btConst('BOOK_ARRIVAL_ATTR');
 
-  test('the opt-in is in the PARSED head of every page, not in a stylesheet React renders', async () => {
-    // ═══════════════════════════════════════════════════════════════════════════════════════
-    // THE RATCHET FOR THE BUG THAT COST THIS ROUND ITS FIRST WORKING VERSION.
-    // ═══════════════════════════════════════════════════════════════════════════════════════
-    //
-    // `@view-transition{navigation:auto}` is read by the UA at `pagereveal`, before first
-    // render. Put it in a <style> the app renders and the ARRIVING document declines the
-    // transition — measured: pageswap YES, pagereveal no, on every navigation, silently. It
-    // reads exactly like "view transitions do not work in a static export". They do.
-    //
-    // Scanned in the built HTML, before any script has run, on a shop page and a non-shop page:
-    // this is site-wide by design and the guard is what keeps that from meaning "cross-fade
-    // everything".
+  // ⚠ THE ONE EXEMPTION, NAMED RATHER THAN ASSUMED.
+  //
+  // /voices carries its OWN `@view-transition` — the island morph, a separate feature with its
+  // own fence (that layout wraps /voices and /voices/{slug} and nothing else), its own
+  // reduced-motion nesting, and its own approval. It is not the book transition, it was not
+  // what failed on the app, and R22.1C is not a ruling about it. Removing it here would have
+  // been a round quietly reverting a shipped feature nobody complained about.
+  //
+  // It is exempted BY PATH, so a book-transition opt-in cannot hide behind the exemption by
+  // being emitted somewhere else in the export.
+  const VOICES_EXEMPT = (rel) => rel === '/voices.html' || rel === '/voices.txt'
+    || rel.startsWith('/voices/') || rel.startsWith('/voices.');
+
+  test('⛔ no view-transition opt-in anywhere in the export, outside the voices morph', async () => {
+    const { readdirSync, statSync } = await import('node:fs');
+    const OUT = join(ROOT, 'out');
+    let exists = true;
+    try { statSync(OUT); } catch { exists = false; }
+    expect(exists, 'out/ must exist — this suite runs against the real static export').toBeTruthy();
+
+    const offenders = [];
+    let voices = 0;
+    (function walk(dir) {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name);
+        const st = statSync(full);
+        if (st.isDirectory()) { walk(full); continue; }
+        if (!/\.(html|css|js|txt)$/.test(name)) continue;
+        if (full.includes('/vendor/')) continue;
+        const text = readFileSync(full, 'utf8');
+        if (!text.includes('@view-transition')) continue;
+        const rel = full.slice(OUT.length);
+        if (VOICES_EXEMPT(rel)) { voices += 1; continue; }
+        offenders.push(rel);
+      }
+    })(OUT);
+
+    expect(offenders,
+      'a @view-transition opt-in is in the shipped export. It is withheld until R9 — the guard '
+      + 'was proven in Chromium only, the pair cannot form until the launch gate is unwound, '
+      + 'and the app shipped this effect and it failed on glass as an unpaired dissolve. See '
+      + 'BOOK_TRANSITION_WITHHELD in app/bookstore/components/bookTransition.js.')
+      .toEqual([]);
+
+    // The exemption must be a REAL exemption for a REAL feature. If /voices ever stops opting
+    // in, this list is dead code pretending to be a carve-out and should go.
+    expect(voices,
+      'the voices morph is the one exemption and it must still be there — otherwise this '
+      + 'carve-out is protecting nothing').toBeGreaterThan(0);
+  });
+
+  test('neither the opt-in nor the guard is emitted into any document head', async () => {
+    // The two elements lived in app/layout.js's static <head>, which is the ONLY place early
+    // enough for `pagereveal` on the arriving document — see the header note. Withholding them
+    // therefore means withholding them from there.
     const { readFileSync: rf } = await import('node:fs');
     for (const rel of ['out/bookstore.html', 'out/index.html']) {
       const html = rf(join(ROOT, rel), 'utf8');
       const head = html.slice(0, html.indexOf('</head>'));
-      expect(head.includes('@view-transition'),
-        `${rel}: the opt-in must be in the parsed <head>, or the arriving page declines the transition`)
-        .toBeTruthy();
-      expect(head.includes('pagereveal'),
-        `${rel}: the pair-or-nothing guard must be a head script, listening before pagereveal`)
-        .toBeTruthy();
+      expect(head.includes('@view-transition'), `${rel}: the opt-in must not be emitted`).toBeFalsy();
+      expect(head.includes('pagereveal'), `${rel}: the pair-or-nothing guard must not be emitted`).toBeFalsy();
     }
   });
 
-  test('a detail page is built with the same head, so the pair can form on arrival', async ({ page }) => {
-    const slug = await (async () => {
-      await enterShop(page);
-      await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
-      await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
-      return liveDetailSlug(page);
-    })();
-    const { readFileSync: rf } = await import('node:fs');
-    const html = rf(join(ROOT, `out/bookstore/${slug}.html`), 'utf8');
-    const head = html.slice(0, html.indexOf('</head>'));
-    expect(head.includes('@view-transition'), 'the arriving document must opt in from its parsed head').toBeTruthy();
-  });
-
-  test('the outgoing board is findable by slug and has a face to photograph', async ({ page }) => {
+  test('a shelf → detail navigation is a plain instant swap', async ({ page }) => {
+    // ⭑ THE BEHAVIOURAL ASSERTION, and the one that would catch a partial removal. Without the
+    // opt-in the UA does not begin a cross-document transition at all, so `pageswap` carries no
+    // `viewTransition`. That is the plain swap — the same path a browser with no support takes.
     await enterShop(page);
     await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
     await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
-
-    const boards = await page.locator(`[${SLUG_ATTR}]`).count();
-    expect(boards, 'every BoundBook on the shop must carry its slug, or a link cannot find it').toBeGreaterThan(0);
-
     const slug = await liveDetailSlug(page);
-    const found = await page.evaluate(([attr, s]) => {
-      const host = document.querySelector(`[${attr}="${s}"]`);
-      return { host: !!host, face: !!host?.querySelector('.bb-front') };
-    }, [SLUG_ATTR, slug]);
-    expect(found.host, `no board on the shop carries ${SLUG_ATTR}="${slug}"`).toBeTruthy();
-    expect(found.face, 'the board must have a front face — that is what travels').toBeTruthy();
-  });
 
-  test('naming a board does not create a duplicate name anywhere on the shop', async ({ page }) => {
-    // Duplicates are the silent killer here: two elements claiming one view-transition-name
-    // makes the browser skip the transition for BOTH, with no error. The shop draws twenty-odd
-    // boards, so arming has to clear before it stamps.
-    await enterShop(page);
-    await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
-    await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
-    const slugs = await page.evaluate((attr) =>
-      [...document.querySelectorAll(`[${attr}]`)].map((el) => el.getAttribute(attr)).filter(Boolean).slice(0, 4),
-    SLUG_ATTR);
-    expect(slugs.length).toBeGreaterThan(0);
-
-    const named = await page.evaluate(([attr, list, name]) => {
-      // Arm each in turn, exactly as a click would, and count the claimants each time.
-      const counts = [];
-      for (const s of list) {
-        for (const el of document.querySelectorAll(`[style*="${name}"]`)) el.style.viewTransitionName = '';
-        const face = document.querySelector(`[${attr}="${s}"] .bb-front`);
-        if (face) face.style.viewTransitionName = name;
-        counts.push(document.querySelectorAll(`[style*="${name}"]`).length);
-      }
-      for (const el of document.querySelectorAll(`[style*="${name}"]`)) el.style.viewTransitionName = '';
-      return counts;
-    }, [SLUG_ATTR, slugs, VT_NAME]);
-    for (const c of named) expect(c, 'exactly one element may claim the name').toBe(1);
-  });
-
-  test('a real navigation offers a transition on the way out', async ({ page }) => {
-    await enterShop(page);
-    await page.addInitScript(() => {
+    // ⚠ THE VERDICT HAS TO SURVIVE THE NAVIGATION IT IS ABOUT. `pageswap` fires on the OUTGOING
+    // document as it is being torn down, so a variable on `window` — and the evaluate holding
+    // it — die with the page. sessionStorage is same-origin and survives, and it is read on the
+    // other side. (Awaiting inside the evaluate that triggers the click fails outright:
+    // "Execution context was destroyed".)
+    await page.evaluate(() => {
+      try { sessionStorage.removeItem('cs_swap_vt'); } catch { /* private mode */ }
       window.addEventListener('pageswap', (e) => {
-        try { sessionStorage.setItem('cs-swap-vt', e.viewTransition ? 'yes' : 'no'); } catch { /* private mode */ }
+        try { sessionStorage.setItem('cs_swap_vt', e.viewTransition ? 'yes' : 'no'); } catch { /* ignore */ }
       });
+      const a = document.createElement('a');
+      a.id = 'cs-nav-probe';
+      a.href = '/bookstore';
+      a.textContent = 'go';
+      a.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#fff;color:#000';
+      document.body.appendChild(a);
     });
-    await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
-    await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
-    const slug = await liveDetailSlug(page);
-
     await page.evaluate((s) => {
-      const a = [...document.querySelectorAll('a[href]')].find((x) => x.getAttribute('href') === `/bookstore/${s}`);
-      if (a) a.click();
-      else location.href = `/bookstore/${s}`;
+      document.getElementById('cs-nav-probe').href = `/bookstore/${s}`;
     }, slug);
-    await page.waitForLoadState();
-    await page.waitForTimeout(500);
 
-    const swap = await page.evaluate(() => { try { return sessionStorage.getItem('cs-swap-vt'); } catch { return null; } });
-    expect(swap, 'the outgoing document must offer a cross-document view transition').toBe('yes');
-  });
-
-  test('the arriving board is named by RULE, so nothing has to remember to name it', async ({ page }) => {
-    await enterShop(page);
-    await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
-    await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
-    const slug = await liveDetailSlug(page);
-    await page.goto(`/bookstore/${slug}`, { waitUntil: 'networkidle', timeout: 60000 });
-    await expect(page.locator('.bd-cta').first()).toBeVisible({ timeout: 30000 });
-
-    const arrival = await page.evaluate((attr) => {
-      const wrap = document.querySelectorAll(`[${attr}]`);
-      const face = document.querySelector(`[${attr}] .bb-front`);
-      return { wraps: wrap.length, name: face ? getComputedStyle(face).viewTransitionName : null };
-    }, ARRIVAL_ATTR);
-
-    expect(arrival.wraps, 'the detail page must have exactly one arrival slot — a second would be a duplicate name').toBe(1);
-    expect(arrival.name, 'the arriving board must carry the name from the stylesheet').toBe(VT_NAME);
-  });
-
-  test('NOTHING HERE IS LOAD-BEARING FOR THE NAVIGATION', async ({ page }) => {
-    // The property that makes every degradation path safe: no handler calls preventDefault and
-    // no navigation is performed by script. A browser with no view-transition support, a reader
-    // with reduced motion, a thrown error inside arming — all of them still get the page.
-    // `.preventDefault(` — a CALL. Reading `e.defaultPrevented` is the opposite thing and is
-    // exactly what a well-behaved delegated handler should do.
-    expect(/\.preventDefault\s*\(/.test(BT_SRC), 'the click handler must never preventDefault').toBeFalsy();
-    expect(/location\.(href|assign|replace)|router\.push/.test(BT_SRC),
-      'navigation must stay with the <a>, never move into script').toBeFalsy();
-
-    await enterShop(page);
-    await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
-    await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
-    const slug = await liveDetailSlug(page);
-    // Arm, then follow: the page must still be reached.
-    await page.evaluate((s) => {
-      const a = [...document.querySelectorAll('a[href]')].find((x) => x.getAttribute('href') === `/bookstore/${s}`);
-      if (a) a.click(); else location.href = `/bookstore/${s}`;
-    }, slug);
+    await page.click('#cs-nav-probe');
     await page.waitForURL(`**/bookstore/${slug}`, { timeout: 30000 });
     await expect(page.locator('.bd-cta').first()).toBeVisible({ timeout: 30000 });
+
+    const seen = await page.evaluate(() => {
+      try { return sessionStorage.getItem('cs_swap_vt'); } catch { return null; }
+    });
+    // null = pageswap never fired at all; 'no' = it fired with no transition offered. Either is
+    // a plain navigation. 'yes' is the thing that must not happen.
+    expect(seen, 'a navigation must not offer a view transition while the opt-in is withheld')
+      .not.toBe('yes');
+  });
+
+  test('the shop ships none of the pair\'s CSS either', async ({ page }) => {
+    // BOOK_TRANSITION_CSS is inert without the opt-in, but shipping it would leave the export
+    // reading as though the feature were live and would let a later round restore the effect by
+    // adding two lines to a <head> without anyone re-reading the ruling. One const governs
+    // both, so both are checked.
+    await enterShop(page);
+    await page.goto('/bookstore', { waitUntil: 'networkidle', timeout: 60000 });
+    await expect(page.locator('.shelf-entry .entry-title').first()).toBeVisible({ timeout: 30000 });
+
+    const found = await page.evaluate((name) => {
+      const hits = [];
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = sheet.cssRules; } catch { continue; }  // a cross-origin font sheet
+        for (const r of rules) {
+          if (r.cssText && (r.cssText.includes(name) || r.cssText.includes('::view-transition'))) {
+            hits.push(r.cssText.slice(0, 120));
+          }
+        }
+      }
+      return hits;
+    }, VT_NAME);
+    expect(found, 'the pair\'s CSS must not be on the shop while the transition is withheld').toEqual([]);
+
+    // And no board is carrying the name, so nothing is half-armed.
+    const named = await page.evaluate((n) => document.querySelectorAll(`[style*="${n}"]`).length, VT_NAME);
+    expect(named, 'no board may be named while the transition is withheld').toBe(0);
+  });
+
+  test('the flag is the ONLY thing off — the mechanism is intact for R9', async () => {
+    // ⭑ THIS IS THE CASE THAT PROTECTS THE DAY THE CURTAIN COMES DOWN. R22C's cost was not the
+    // code, it was the two findings; a round that "cleaned up" this module would make R9 pay
+    // for them again.
+    expect(/^export const BOOK_TRANSITION_SHIPPED = false;$/m.test(BT_SRC),
+      'BOOK_TRANSITION_SHIPPED must be a single, greppable const — it is the whole gate').toBeTruthy();
+
+    // The built transition, still built.
+    for (const name of ['BOOK_TRANSITION_CSS', 'VIEW_TRANSITION_OPT_IN_CSS', 'VIEW_TRANSITION_GUARD_JS',
+      'SHIPPED_BOOK_TRANSITION_CSS', 'armBookTransition', 'disarmBookTransition', 'installBookTransitions']) {
+      expect(BT_SRC.includes(`export const ${name}`) || BT_SRC.includes(`export function ${name}`),
+        `${name} must survive — flipping the flag on the day must be a flip, not a rebuild`).toBeTruthy();
+    }
+    // The pair's two ends, and the arriving board's rule, still named by constant.
+    expect(BT_SRC.includes(`[${ARRIVAL_ATTR}] `), 'the arriving board is still named by rule').toBeTruthy();
+    expect(BT_SRC.includes(SLUG_ATTR), 'the outgoing board is still findable by slug').toBeTruthy();
+
+    // AND THE TWO FINDINGS, ON THE RECORD AS DATA rather than only in a comment — so this is a
+    // test that fails when they are dropped, not a paragraph that quietly stops being true.
+    const findings = /findings: \[([\s\S]*?)\],/.exec(BT_SRC);
+    expect(findings, 'BOOK_TRANSITION_WITHHELD must record R22C\'s findings').not.toBeNull();
+    expect(findings[1].toLowerCase()).toContain('parsed head');
+    expect(findings[1].toLowerCase()).toContain('first rendering opportunity after pagereveal');
+
+    // The shop pages must import the GATED string, never the built one — otherwise the gate is
+    // one edit from being routed around.
+    for (const f of ['app/bookstore/page.js', 'app/bookstore/[slug]/page-detail.js']) {
+      const src = readFileSync(join(ROOT, f), 'utf8');
+      expect(src.includes('SHIPPED_BOOK_TRANSITION_CSS'), `${f} must render the gated CSS`).toBeTruthy();
+      expect(/\$\{BOOK_TRANSITION_CSS\}/.test(src), `${f} must not reach past the gate`).toBeFalsy();
+    }
+  });
+
+  test('NOTHING HERE IS LOAD-BEARING FOR THE NAVIGATION', async () => {
+    // Unchanged from R22C, and more important than ever: with the feature off, every link on the
+    // shop must behave exactly as it did before R22 existed. No handler prevents default and no
+    // script performs a navigation.
+    expect(/\.preventDefault\s*\(/.test(BT_SRC), 'the click handler must never preventDefault').toBeFalsy();
+    expect(/location\.(href|assign|replace)|router\.push/.test(BT_SRC),
+      'nothing in this module may perform a navigation').toBeFalsy();
+    // And the installer is a no-op while the flag is down, so the shop is not even listening.
+    expect(/if \(!BOOK_TRANSITION_SHIPPED\) return \(\) => \{\};/.test(BT_SRC),
+      'installBookTransitions must be a no-op while the transition is withheld').toBeTruthy();
   });
 });

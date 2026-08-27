@@ -117,6 +117,66 @@
 // app/bookstore/[slug]/page.js puts the cover into the prerendered HTML the moment the gate
 // stops suppressing it. Nothing in R22C has to be remembered or rebuilt.
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// ⛔ R22.1C — THE OPT-IN IS WITHHELD FROM SHIPPED OUTPUT. THE TRANSITION STAYS IN THE TREE.
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//
+// Ikenna, 27 August 2026. Three reasons, and the third is the one that settles it:
+//
+//   · THE GUARD WAS PROVEN IN CHROMIUM ONLY. `pagereveal` + `skipTransition()` is what stands
+//     between "the book carries you" and "the whole page dissolves", and it has been exercised
+//     in exactly one engine. Safari 18.2 ships cross-document transitions and is what Ikenna
+//     reads on. An unprovable guard is not a guard.
+//   · THE PAIR CANNOT FORM ANYWAY until R9 unwinds the launch gate's STATE SHAPE — see THE ONE
+//     THING STILL MISSING above. So today the opt-in buys nothing and risks the fallback.
+//   · THE APP SHIPPED THIS EXACT EFFECT AND IT FAILED ON GLASS as an unpaired translucent
+//     dissolve. That is not a prediction about what an unguarded fallback looks like. It is a
+//     report of it, on this house's own design, from the reader this is for.
+//
+// So the web does not carry an unprovable guard into launch. ONE CONST BELOW GOVERNS ALL OF IT:
+// the `@view-transition` opt-in in app/layout.js's head, the guard script beside it, the pair's
+// CSS on both shop pages, and the click listener that names a board. With it false, a
+// shelf → detail navigation is a plain instant swap — the same path a browser with no support
+// has always taken.
+//
+// ⭑ NOTHING IS DELETED. R22C's two findings — the ones that cost the round its first working
+// version — are preserved verbatim below and in the header above, so the day R9 lands this is a
+// flag flip and a re-verification, not a rebuild:
+//
+//     THE OPT-IN MUST BE IN THE PARSED <head>. In a <style> React renders, `pagereveal` on the
+//     arriving document finds nothing and the destination declines the transition, silently,
+//     on every navigation. Measured; see the block above VIEW_TRANSITION_OPT_IN_CSS.
+//     THE BOARD MUST BE THERE AT FIRST RENDER. The incoming snapshot is taken at the first
+//     rendering opportunity after `pagereveal` — parse or a task, never a frame later. Measured
+//     four ways; see the table in the header.
+//
+// WHAT TO DO ON THE DAY: flip BOOK_TRANSITION_SHIPPED, rebuild, and re-verify the pairing in
+// WebKit before it ships — the Chromium proof is not transferable and the app's failure is the
+// evidence for that.
+export const BOOK_TRANSITION_SHIPPED = false;
+
+export const BOOK_TRANSITION_WITHHELD = {
+  ruledBy: 'Ikenna',
+  on: '2026-08-27',
+  reasons: [
+    'the pair-or-nothing guard was proven in Chromium only',
+    'the pair cannot form until R9 unwinds the launch gate\'s state shape',
+    'the app shipped this effect and it failed on glass as an unpaired translucent dissolve',
+  ],
+  withheld: ['the @view-transition opt-in', 'the pair-or-nothing guard script',
+    'BOOK_TRANSITION_CSS on both shop pages', 'the click listener that names a board'],
+  shippedBehaviour: 'a plain instant swap — the same path a browser with no support takes',
+  // The two findings that must survive to R9. Restated as data so a test can assert they are
+  // still on the record, not merely still in a comment.
+  findings: [
+    'the opt-in must be in the PARSED head, not in a stylesheet React renders',
+    'the arriving board must exist at the first rendering opportunity after pagereveal',
+  ],
+  unblockedBy: 'R9 — app/lib/bookstore/gate.js carries the delete list',
+  onTheDay: 'flip BOOK_TRANSITION_SHIPPED and re-verify pairing in WebKit. The Chromium proof '
+    + 'does not transfer, and the app\'s failure on Safari is the evidence for that.',
+};
+
 /** The one name, on both documents. A constant so the two sides cannot drift. */
 export const BOOK_VT_NAME = 'cs-book-board';
 
@@ -227,6 +287,15 @@ export const BOOK_TRANSITION_CSS = `
 export const VIEW_TRANSITION_OPT_IN_CSS = '@view-transition{navigation:auto}';
 
 /**
+ * ⛔ WHAT THE SHOP PAGES ACTUALLY RENDER. Empty until BOOK_TRANSITION_SHIPPED is flipped.
+ *
+ * The pages import THIS, never BOOK_TRANSITION_CSS, so the gate is one const in one file
+ * rather than a condition repeated at each consumer — and a page cannot opt itself back in by
+ * reaching past it. BOOK_TRANSITION_CSS above is the built transition, kept intact.
+ */
+export const SHIPPED_BOOK_TRANSITION_CSS = BOOK_TRANSITION_SHIPPED ? BOOK_TRANSITION_CSS : '';
+
+/**
  * ⭑ PAIR OR NOTHING. The guard, as a classic inline script for the static <head>.
  *
  * A cross-document transition runs whether or not the names pair. When they do not, the reader
@@ -325,6 +394,12 @@ export function disarmBookTransition() {
  * CAPTURE PHASE, so the name is on the element before anything downstream can navigate.
  */
 export function installBookTransitions() {
+  // ⛔ R22.1C. Withheld from shipped output — see BOOK_TRANSITION_WITHHELD above. The gate is
+  // here rather than at the call site so that the effect in app/bookstore/page.js is unchanged
+  // and one const governs the whole feature. Returns the same teardown shape either way, so
+  // the caller's `useEffect(() => installBookTransitions(), [])` needs no condition of its own.
+  if (!BOOK_TRANSITION_SHIPPED) return () => {};
+
   const onClick = (e) => {
     // Modified clicks open a new tab; there is no navigation in this document to transition.
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;

@@ -1,7 +1,32 @@
 // ═══════════════════════════════════════════════════════════════════════════════════════════
-// WHAT THE SHIMMER COST — the measurement behind R22's grain removal.
+// WHAT THE GRAIN COST — the measurement behind R22's and R22.1's grain removals.
 //
 //   npx next build && npm run bench:grain
+//
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// ⚠ R22.1 — THE ARMS CHANGED, BECAUSE THE LAYER DID. READ THIS BEFORE THE NUMBERS BELOW.
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//
+// R22 removed the ANIMATION and kept the texture, so this script's two arms were "shimmering"
+// and "static". Ikenna ruled the WHOLE LAYER out on 27 August 2026, on glass — "it looks really
+// bad... let's just go back to having dark background" — so there is no longer a static arm to
+// compare against. There is no grain element in the shipped build at all.
+//
+// The harness STAYS, and its arms are now the two that still exist:
+//
+//   with     the whole layer put back — the element, the texture and the shimmer, restored
+//            verbatim from PAGE_GRAIN_REMOVED in app/bookstore/components/grain.js
+//   without  the build as it ships: nothing
+//
+// That is R20's "absolute + animated" against its "removed entirely" — the widest of the three
+// comparisons it ever drew, and the one this round is actually entitled to quote. THE ARM NAMES
+// IN THE OUTPUT SAY SO; a figure copied out of this script's older output is answering a
+// different question and should not be pasted beside these.
+//
+// ⭑ AND IT IS STILL NOT WHY THE LAYER WENT. Both removals were judgements about how it looked
+// on a screen. The frames are a bonus. See GRAIN_REMOVED for why R22 did not fix what Ikenna
+// was looking at — the artefact was the texture, not the redraw, so a round that wins the
+// performance argument has still not reopened this.
 //
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 // ⚠ THIS IS NOT WHY THE ANIMATION WAS REMOVED, AND THAT MATTERS MORE THAN THE NUMBER.
@@ -69,17 +94,25 @@ const VIEWPORT = { width: 1280, height: 900 };
 const SCROLL_TICKS = 80;
 const SCROLL_TICK_MS = 50;
 
-// ── the removed CSS, read from the record rather than retyped ──────────────────────────────
+// ── the removed LAYER, read from the record rather than retyped ────────────────────────────
+// R22.1: this used to read only the keyframes, because the element and its texture were still
+// in the build and only the animation had to be put back. Both are gone now, so the restore arm
+// reconstructs the whole thing — class, texture, element and shimmer — out of the one record
+// that holds it verbatim. Reading it from there rather than retyping it here is the same
+// discipline the suite uses: one place says what was removed.
 const GRAIN_SRC = readFileSync(join(ROOT, 'app/bookstore/components/grain.js'), 'utf8');
 function recorded(name) {
   const m = new RegExp(`^  ${name}: '((?:[^'\\\\]|\\\\.)*)',$`, 'm').exec(GRAIN_SRC);
-  if (!m) throw new Error(`GRAIN_ANIMATION_REMOVED no longer records ${name}.`);
+  if (!m) throw new Error(`PAGE_GRAIN_REMOVED no longer records ${name}. See app/bookstore/components/grain.js.`);
   return m[1].replace(/\\'/g, "'");
 }
 const WAS_KEYFRAMES = recorded('wasKeyframes');
 const WAS_DECLARATION = recorded('wasDeclaration');
-const GRAIN_CLASS = /^export const GRAIN_CLASS = '([^']+)';/m.exec(GRAIN_SRC)[1];
-const RESTORE_CSS = `${WAS_KEYFRAMES}\n.${GRAIN_CLASS}{${WAS_DECLARATION}}`;
+const WAS_CSS = recorded('wasCss');
+const GRAIN_CLASS = recorded('wasClass');
+// The texture rule with the shimmer added back into it — the layer at its most expensive, which
+// is the arm R20 measured at 42.7%.
+const RESTORE_CSS = `${WAS_KEYFRAMES}\n${WAS_CSS.replace(/\}$/, `;${WAS_DECLARATION}}`)}`;
 
 // The gate and the currency choice, so the shop renders rather than the curtain.
 const GATE_KEY = /^export const GATE_STORAGE_KEY = '([^']+)';/m
@@ -117,15 +150,39 @@ async function measure(browser, { restore }) {
   }, [GATE_KEY]);
 
   if (restore) {
-    // Injected as a document-level stylesheet before any script runs, so it is in place for
-    // the very first paint — exactly as the shipped declaration used to be.
-    await page.addInitScript((css) => {
-      document.addEventListener('DOMContentLoaded', () => {
+    // R22.1 — THE ELEMENT AS WELL AS THE RULE. The shop no longer draws a grain div, so a
+    // stylesheet on its own would restore nothing and both arms would measure the same page.
+    //
+    // It is put back exactly where R20 ruled it must live: the FIRST CHILD of <main>, which is
+    // position:relative, so the layer is as tall as the document rather than resolving against
+    // the viewport. Anywhere else and this measures a grain that covers one screenful — the
+    // ablation error R20's own header corrects at length.
+    //
+    // <main> is rendered behind the launch gate, in an effect, so it does not exist at
+    // DOMContentLoaded. A short observer waits for it and then stops.
+    await page.addInitScript(([css, cls]) => {
+      const style = () => {
         const el = document.createElement('style');
         el.textContent = css;
         document.head.appendChild(el);
+      };
+      const plant = () => {
+        const main = document.querySelector('main');
+        if (!main || main.querySelector(`.${cls}`)) return !!main;
+        const div = document.createElement('div');
+        div.className = cls;
+        div.setAttribute('aria-hidden', 'true');
+        main.insertBefore(div, main.firstChild);
+        return true;
+      };
+      document.addEventListener('DOMContentLoaded', () => {
+        style();
+        if (plant()) return;
+        const mo = new MutationObserver(() => { if (plant()) mo.disconnect(); });
+        mo.observe(document.documentElement, { childList: true, subtree: true });
+        setTimeout(() => mo.disconnect(), 20000);
       });
-    }, RESTORE_CSS);
+    }, [RESTORE_CSS, GRAIN_CLASS]);
   }
 
   await page.goto(`http://127.0.0.1:${PORT}${PATH}`, { waitUntil: 'networkidle', timeout: 60000 });
@@ -133,9 +190,11 @@ async function measure(browser, { restore }) {
   // Let entrance animations (fadeUp) finish, so what is measured is a scroll and not a load.
   await page.waitForTimeout(2000);
 
+  // What the arm actually ended up with. 'no-grain' is the CORRECT reading for the shipped
+  // build — there is no element — and the assertion at the foot of the file is written to that.
   const running = await page.evaluate((cls) => {
     const el = document.querySelector(`.${cls}`);
-    return el ? getComputedStyle(el).animationName : 'NO-GRAIN-ELEMENT';
+    return el ? getComputedStyle(el).animationName : 'no-grain';
   }, GRAIN_CLASS);
 
   // ── the trace ────────────────────────────────────────────────────────────────────────────
@@ -226,14 +285,22 @@ try {
   const wo = median(arms.without.map((r) => r.pct));
 
   console.log(`\n${PATH} at ${VIEWPORT.width}, medians of ${RUNS} scripted scrolls:\n`);
-  console.log(`  WITH the shimmer      ${w.toFixed(1)}% of frames dropped`);
-  console.log(`  WITHOUT (as shipped)  ${wo.toFixed(1)}% of frames dropped`);
-  console.log(`  the shimmer cost      ${(w - wo).toFixed(1)} points\n`);
-  console.log('The animation was removed on how it LOOKED — Ikenna, 26 Aug 2026. This number');
+  console.log(`  WITH the whole layer   ${w.toFixed(1)}% of frames dropped   (texture + shimmer, restored)`);
+  console.log(`  WITHOUT (as shipped)   ${wo.toFixed(1)}% of frames dropped   (no grain at all)`);
+  console.log(`  the layer cost         ${(w - wo).toFixed(1)} points\n`);
+  console.log('⚠ These are R22.1 arms — the WHOLE LAYER against nothing. R22\'s output compared');
+  console.log('  the shimmer against a static texture and its figures are not these figures.');
+  console.log('The layer was removed on how it LOOKED — Ikenna, 26 and 27 Aug 2026. This number');
   console.log('is a bonus, and is not a reason to restore it if it ever moves.');
 
-  if (arms.without.some((r) => r.animationName !== 'none')) {
-    console.error('\n::error::the shipped build is still animating the grain.');
+  // The shipped arm must have NO grain element. If one appears, the ruling has been reversed
+  // somewhere and this script is quietly measuring the same page twice.
+  if (arms.without.some((r) => r.animationName !== 'no-grain')) {
+    console.error('\n::error::the shipped build is drawing a grain layer. See GRAIN_REMOVED.');
+    process.exitCode = 1;
+  }
+  if (arms.with.some((r) => r.animationName === 'no-grain')) {
+    console.error('\n::error::the restore arm never planted its layer — the two arms are identical.');
     process.exitCode = 1;
   }
 } finally {

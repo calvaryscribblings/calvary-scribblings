@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { notFound } from 'next/navigation';
 import { db } from '../lib/firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
@@ -23,11 +23,17 @@ import { genreLabel as labelOf, genresPresentIn, titlesInGroup, groupLabel } fro
 import { resolveSections, bandsFor, applyBands, rebindSections, nextExpiryMs, planShopFlow, shelfRuns } from '../lib/bookstore/sections';
 import CuratedSection, { CURATED_SECTION_CSS } from './components/CuratedSection';
 import { SHOP_VERNACULAR_CSS } from './components/shopVernacular';
-// R20 — the grain, its ruling and its one definition. See the header of that file.
-import { GRAIN_CSS, GRAIN_CLASS } from './components/grain';
+// R22.1 — THE GRAIN IS GONE. There is no import here any more and there must not be one: the
+// layer was ruled out entirely on 27 Aug 2026 ("it looks really bad... let's just go back to
+// having dark background"), texture and all. app/bookstore/components/grain.js survives as the
+// RECORD — the ruling, the two it supersedes, and both removed layers verbatim — and it is
+// deliberately imported by nothing, so the removed strings never reach the bundle and the
+// ratchet can scan the whole export for them.
 // R22C — the departing half of the book's journey. Both documents must carry this stylesheet
 // or the pair never forms; see the header of that file.
-import { BOOK_TRANSITION_CSS, installBookTransitions } from './components/bookTransition';
+// R22.1C — SHIPPED_BOOK_TRANSITION_CSS, not BOOK_TRANSITION_CSS. It is empty until
+// BOOK_TRANSITION_SHIPPED is flipped; the built transition is intact in that file.
+import { SHIPPED_BOOK_TRANSITION_CSS, installBookTransitions } from './components/bookTransition';
 
 // R13 — WHAT USED TO BE HERE, AND WHERE IT WENT.
 //
@@ -310,59 +316,300 @@ export const RAIL_TURN = {
   stationary: ['.rail-eyebrow', '.rail-quote', '.rail-mark'],
 };
 
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// ⛔ R22.1B — THE STAGE OWNS THE HEIGHT, AND NOTHING BELOW IT EVER MOVES
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// IKENNA'S RULING, 27 August 2026, confirmed on the web after the app showed the same fault:
+//
+//   the section is a FIXED height. Every line change and every reveal happens inside it.
+//   FICTION, the genre tabs and the shelf do not move. Ever.
+//
+// ── WHAT WAS WRONG, AND IT WAS TWO FAULTS WEARING ONE COAT ───────────────────────────────
+//
+// R22B built the page-turn correctly — transform and opacity, nothing that repaints — and
+// then let the SECTION size itself to whatever was in it. Two things resize it:
+//
+//   1. THE LINE. A four-line opening quote and a one-liner are 3 line-boxes apart. The
+//      blockquote grows, the section grows, and everything after it is shoved down the page.
+//   2. THE REVEAL. "WHOSE LINE IS THIS?" is one button. The revealed state is a title, an
+//      author, a 1rem gap and "ANOTHER LINE" — measurably taller. So the section jumped on
+//      the reveal as well as on the turn, and the turn's own 420ms of motion made the jump
+//      read as part of the effect rather than as a fault.
+//
+// The page-turn was never the problem. The BOX around it was, which is why R22B looked right
+// in isolation and wrong on a phone.
+//
+// ── THE FIX: TWO LOCKED HEIGHTS, MEASURED ONCE, NOT LIVE ─────────────────────────────────
+//
+// The stage is two zones with declared heights, set from CSS custom properties:
+//
+//   --rail-quote-h   the tallest QUOTE across every line in the pool
+//   --rail-ctrl-h    the tallest CONTROLS block across every entry in BOTH states
+//
+// and a fixed 1.8rem gap between them. Section height is therefore a constant for a given
+// width, whichever line is showing and whether or not it is revealed.
+//
+// ⚠ MEASURED, NOT COMPUTED FROM A CONSTANT — and that is deliberate rather than lazy. The
+// pool is LIVE: it is whatever published titles currently carry a resolvable opening line, so
+// a build-time number would be a lie the first time a curator adds a title, and it would be a
+// lie SILENTLY, in the direction of clipping the longest quote. So a hidden probe renders
+// every line and both control states at the real width and the real type, and the maximum is
+// taken from the DOM.
+//
+// ⭑ ONCE, THOUGH — not on every turn. The probe mounts, is measured in a LAYOUT EFFECT (before
+// paint, so there is no flash of an unsized stage), and unmounts. It re-runs on exactly three
+// events, each of which genuinely changes the answer:
+//
+//     the pool changes        different lines, different maximum
+//     the width changes       the quote re-wraps; this is the "per breakpoint" requirement
+//     the webfonts land       Cormorant and Cinzel have different metrics from Georgia, and
+//                             measuring before they arrive locks a height for the wrong face
+//
+// It does NOT re-run on a line change or a reveal. That is the whole ruling: the height is a
+// property of the POOL, not of what is currently showing.
+//
+// ── AND THE REVEAL JOINS THE SAME REGISTER ───────────────────────────────────────────────
+//
+// R22B revealed by bare setState — one frame a button, the next frame an attribution. Beside a
+// 420ms page-turn that reads as a snap. The reveal now runs the same out/in pair on the
+// controls, with the same duration, curve and 60ms lag, while the quote holds still. Same
+// register, one effect.
+//
+// prefers-reduced-motion: the swap is INSTANT — and instant means instant, so the 420ms wait
+// that exists to let the turn finish is skipped too, not merely un-animated. THE HEIGHT IS
+// UNAFFECTED. A reader who asked for less motion gets the same locked stage as everyone else;
+// reduced motion is not a licence to reintroduce the shove.
+export const RAIL_STAGE = {
+  ruledBy: 'Ikenna',
+  on: '2026-08-27',
+  ruling: 'The stage owns a fixed height and nothing below it ever moves.',
+  seenOn: 'the app first, then confirmed on the web',
+  // The two locked heights, and the fixed gap between them.
+  vars: ['--rail-quote-h', '--rail-ctrl-h'],
+  gap: '1.8rem',
+  // Why they are measured rather than declared. See the block above.
+  measured: 'a hidden probe renders every line and both control states at the real width',
+  measuredOnce: true,
+  remeasuresOn: ['the pool changing', 'the width changing', 'document.fonts.ready'],
+  neverRemeasuresOn: ['a line change', 'a reveal'],
+  // The reveal is no longer a bare setState.
+  revealJoinsTheTurn: true,
+  reducedMotion: 'instant swap, no wait — and the height is unchanged',
+};
+
 function OpeningLinesRail({ pool }) {
   const [i, setI] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  // 'idle' | 'out' | 'in'. One variable rather than two booleans: the page is either settled,
-  // leaving, or arriving, and a pair of flags admits a fourth state that means nothing.
-  const [phase, setPhase] = useState('idle');
+  // 'idle' | 'out' | 'in', one per moving part. The WORDS turn only on a line change; the
+  // CONTROLS turn on a line change AND on a reveal, which is what puts the reveal in the same
+  // register as the page-turn instead of snapping beside it.
+  const [wordsPhase, setWordsPhase] = useState('idle');
+  const [ctrlPhase, setCtrlPhase] = useState('idle');
   const timers = useRef([]);
 
+  // ── the locked stage ───────────────────────────────────────────────────────────────────
+  const stageRef = useRef(null);
+  const probeRef = useRef(null);
+  // What was measured, and WHAT IT WAS MEASURED AGAINST. Holding the inputs beside the answer
+  // is what lets "does this need measuring again?" be DERIVED rather than held in a second
+  // piece of state — which also keeps the trigger out of an effect body. An effect whose whole
+  // job is a synchronous setState is a cascading render, and the lint ratchet counts it.
+  const [probed, setProbed] = useState(null);  // { key, token, w, quoteH, ctrlH }
+  // Bumped from event callbacks — a resize, and the fonts landing. Never from an effect body.
+  const [token, setToken] = useState(0);
+  const [instant, setInstant] = useState(false);
+
+  // A stable signature for the pool. `linesPool` is re-derived by filter on every parent
+  // render, so the ARRAY is new every time and depending on it directly would re-measure on
+  // every unrelated state change on the page.
+  const poolKey = useMemo(() => pool.map((t) => t.slug).join('|'), [pool]);
+
+  // ⭑ THE PROBE IS MOUNTED EXACTLY WHEN ITS ANSWER IS STALE, and staleness is a comparison
+  // rather than a flag. Three things invalidate a measurement and they are all here: the pool
+  // changed, the width changed, or the webfonts landed. A LINE CHANGE AND A REVEAL ARE
+  // CONSPICUOUSLY NOT AMONG THEM. That is the ruling.
+  const needProbe = !probed || probed.key !== poolKey || probed.token !== token;
+
   useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
+
+  // The webfonts. Measuring against Georgia and then locking that height would leave the stage
+  // sized for a face the reader never sees — short by a line on a long quote, which is exactly
+  // the clip this whole mechanism exists to avoid. The setState lives in the promise callback,
+  // not in the effect body.
+  useEffect(() => {
+    let live = true;
+    document.fonts?.ready?.then(() => { if (live) setToken((n) => n + 1); });
+    return () => { live = false; };
+  }, []);
+
+  // The width. `probed.w` is what we measured AT; anything else and the quote re-wraps, which
+  // is the "per breakpoint" half of the ruling.
+  useEffect(() => {
+    const onResize = () => {
+      const w = stageRef.current?.getBoundingClientRect().width;
+      if (w && probed && Math.abs(w - probed.w) > 0.5) setToken((n) => n + 1);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [probed]);
+
+  // ⭑ useLayoutEffect, NOT useEffect. This runs after the probe is in the DOM and BEFORE the
+  // browser paints, so the very first frame the reader sees already has the stage at its
+  // locked height. With useEffect there would be one painted frame of an auto-height stage and
+  // the shove would be back — smaller, once per load, and still a shove.
+  useLayoutEffect(() => {
+    if (!needProbe) return;
+    const probe = probeRef.current;
+    if (!probe) return;
+    const w = probe.getBoundingClientRect().width;
+    const maxOf = (sel) => {
+      let h = 0;
+      probe.querySelectorAll(sel).forEach((n) => { h = Math.max(h, n.getBoundingClientRect().height); });
+      return Math.ceil(h);
+    };
+    const quoteH = maxOf('[data-probe="quote"]');
+    const ctrlH = maxOf('[data-probe="ctrl"]');
+    // A probe that measured nothing — a display:none ancestor, a zero-width stage — must not
+    // write zeroes, which would collapse the stage and hide the rail rather than steady it. The
+    // previous answer stands in that case. But the record IS written either way: `needProbe` is
+    // derived from it, so failing to write would leave the probe mounted and re-measuring for
+    // ever.
+    setProbed({
+      key: poolKey,
+      token,
+      w,
+      quoteH: quoteH > 0 ? quoteH : (probed?.quoteH ?? 0),
+      ctrlH: ctrlH > 0 ? ctrlH : (probed?.ctrlH ?? 0),
+    });
+  }, [needProbe, poolKey, token, probed]);
+
+  // prefers-reduced-motion. Read in an effect, never during render: a server cannot know what
+  // it will say, and a synchronous read would be a hydration mismatch.
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setInstant(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   const entry = pool[i % pool.length];
   const line = resolveOpeningLine(entry);
 
+  // Mid-turn presses are ignored rather than queued. A second press during the 420ms would
+  // otherwise start an `in` on a part that is still going `out`, and the rail would flicker
+  // through a sentence nobody read.
+  const busy = wordsPhase !== 'idle' || ctrlPhase !== 'idle';
+
   const advance = () => {
-    // Mid-turn presses are ignored rather than queued. A second press during the 420ms would
-    // otherwise start an `in` on a line that is still going `out`, and the rail would flicker
-    // through a sentence nobody read.
-    if (phase !== 'idle') return;
-    setPhase('out');
+    if (busy) return;
+    if (instant) { setRevealed(false); setI((n) => (n + 1) % pool.length); return; }
+    setWordsPhase('out');
+    setCtrlPhase('out');
     timers.current.push(setTimeout(() => {
       // The swap happens at the far end of the outgoing turn, while the words are invisible —
       // which is what makes it a page turn rather than a cross-fade.
       setRevealed(false);
       setI((n) => (n + 1) % pool.length);
-      setPhase('in');
+      setWordsPhase('in');
+      setCtrlPhase('in');
       // One frame in the arriving position before the class comes off, or the browser
       // coalesces "put it at +11px" and "put it back at 0" into no transition at all.
-      timers.current.push(setTimeout(() => setPhase('idle'), 30));
+      timers.current.push(setTimeout(() => { setWordsPhase('idle'); setCtrlPhase('idle'); }, 30));
     }, RAIL_TURN.durationMs));
   };
 
-  const turning = phase === 'out' ? ' is-out' : phase === 'in' ? ' is-in' : '';
+  // The reveal turns the CONTROLS and leaves the quote alone: the line is not changing, the
+  // answer to it is. Same duration, same curve, same 60ms lag as the attribution has always
+  // had — R22.1B's ruling that the reveal joins the register rather than snapping into it.
+  const reveal = () => {
+    if (busy) return;
+    if (instant) { setRevealed(true); return; }
+    setCtrlPhase('out');
+    timers.current.push(setTimeout(() => {
+      setRevealed(true);
+      setCtrlPhase('in');
+      timers.current.push(setTimeout(() => setCtrlPhase('idle'), 30));
+    }, RAIL_TURN.durationMs));
+  };
+
+  const cls = (phase) => (phase === 'out' ? ' is-out' : phase === 'in' ? ' is-in' : '');
+  const wordsTurn = cls(wordsPhase);
+  const ctrlTurn = cls(ctrlPhase);
+
+  // The stage's two locked heights. Before the first measurement they are absent and the zones
+  // fall back to `auto` — which lasts less than one frame, because the probe is measured in a
+  // layout effect. Written as custom properties rather than inline heights so the CSS above
+  // keeps every other declaration and this component contributes only two numbers.
+  const stageVars = probed && probed.quoteH > 0 && probed.ctrlH > 0
+    ? { '--rail-quote-h': `${probed.quoteH}px`, '--rail-ctrl-h': `${probed.ctrlH}px` }
+    : undefined;
 
   return (
     <section className="rail">
       <div className="rail-eyebrow"><Fleuron /> Opening Lines <Fleuron /></div>
-      {/* The marks are the FRAME and stay put; only .rail-words travels through them. */}
-      <blockquote className="rail-quote">
-        <span className="rail-mark" aria-hidden="true">&ldquo;</span>
-        <span className={`rail-words${turning}`}>{line}</span>
-        <span className="rail-mark" aria-hidden="true">&rdquo;</span>
-      </blockquote>
-      {revealed ? (
-        <div className={`rail-reveal rail-attrib${turning}`}>
-          <a href={`/bookstore/${entry.slug}`} className="rail-answer">
-            <span className="rail-answer-title">{entry.title}</span>
-            <span className="rail-answer-author">{entry.author}</span>
-          </a>
-          <button className="rail-btn" onClick={advance}>Another line <Fleuron /></button>
+
+      {/* ⛔ THE STAGE. Fixed height, both zones. Nothing below this element moves when the line
+          changes or when the answer is revealed. See RAIL_STAGE above. */}
+      <div className="rail-stage" ref={stageRef} style={stageVars}>
+        <div className="rail-quote-zone">
+          {/* The marks are the FRAME and stay put; only .rail-words travels through them. */}
+          <blockquote className="rail-quote">
+            <span className="rail-mark" aria-hidden="true">&ldquo;</span>
+            <span className={`rail-words${wordsTurn}`}>{line}</span>
+            <span className="rail-mark" aria-hidden="true">&rdquo;</span>
+          </blockquote>
         </div>
-      ) : (
-        <button className="rail-btn" onClick={() => setRevealed(true)}>Whose line is this?</button>
-      )}
+
+        <div className="rail-controls-zone">
+          {revealed ? (
+            <div className={`rail-reveal rail-attrib${ctrlTurn}`}>
+              <a href={`/bookstore/${entry.slug}`} className="rail-answer">
+                <span className="rail-answer-title">{entry.title}</span>
+                <span className="rail-answer-author">{entry.author}</span>
+              </a>
+              <button className="rail-btn" onClick={advance}>Another line <Fleuron /></button>
+            </div>
+          ) : (
+            <div className={`rail-ask rail-attrib${ctrlTurn}`}>
+              <button className="rail-btn" onClick={reveal}>Whose line is this?</button>
+            </div>
+          )}
+        </div>
+
+        {/* ── THE PROBE ──────────────────────────────────────────────────────────────────
+            Every line, and both control states, laid out at the stage's real width in the
+            stage's real type — then measured and unmounted. It is `visibility:hidden` rather
+            than `display:none` ON PURPOSE: a display:none subtree has no boxes and every
+            height would read 0, which is the one failure mode that would silently collapse
+            the stage. aria-hidden and tabIndex={-1} keep the duplicate quotes and buttons out
+            of the accessibility tree and off the tab ring while they are up. */}
+        {needProbe && (
+          <div className="rail-probe" ref={probeRef} aria-hidden="true">
+            {pool.map((t, n) => (
+              <div key={t.slug || n}>
+                <blockquote className="rail-quote" data-probe="quote">
+                  <span className="rail-mark">&ldquo;</span>
+                  <span className="rail-words">{resolveOpeningLine(t)}</span>
+                  <span className="rail-mark">&rdquo;</span>
+                </blockquote>
+                <div className="rail-reveal" data-probe="ctrl">
+                  <span className="rail-answer">
+                    <span className="rail-answer-title">{t.title}</span>
+                    <span className="rail-answer-author">{t.author}</span>
+                  </span>
+                  <button className="rail-btn" tabIndex={-1}>Another line <Fleuron /></button>
+                </div>
+              </div>
+            ))}
+            {/* The asking state does not vary by entry, so it is measured once. */}
+            <div className="rail-ask" data-probe="ctrl">
+              <button className="rail-btn" tabIndex={-1}>Whose line is this?</button>
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -700,8 +947,7 @@ export default function BookStorePage() {
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.75}}
           @keyframes lampPulse{0%,100%{opacity:.5}50%{opacity:.9}}
           .skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
-          ${GRAIN_CSS}
-          ${BOOK_TRANSITION_CSS}
+          ${SHIPPED_BOOK_TRANSITION_CSS}
 
           .hero{min-height:88vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;text-align:center;padding:2rem}
           .hero-lamp{position:absolute;inset:0;background:radial-gradient(ellipse 60% 44% at 50% 40%,rgba(201,164,76,.16) 0%,transparent 66%);animation:lampPulse 5.5s ease-in-out infinite}
@@ -761,7 +1007,42 @@ export default function BookStorePage() {
 
           .rail{position:relative;z-index:2;max-width:760px;margin:0 auto;padding:3.5rem 2rem;text-align:center}
           .rail-eyebrow{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.5rem}
-          .rail-quote{font-size:clamp(1.3rem,3vw,1.9rem);font-style:italic;font-weight:300;line-height:1.5;color:#f0ead8;margin-bottom:1.8rem}
+          /* ⛔ R22.1B — THE STAGE. Ikenna's ruling of 27 Aug 2026: this section is a FIXED
+             height and nothing below it ever moves. See RAIL_STAGE above for the two faults
+             that made it move and for why the heights are measured rather than declared.
+
+             The two zones and the gap between them are the WHOLE of the section's height, so
+             a constant gap plus two constant zones is a constant section — whichever line is
+             showing, revealed or not.
+
+             ⚠ grid, NOT flex, for the zones. A flex item sizes to its content on the main
+             axis, so the blockquote would be shrink-to-fit inside the zone and wrap at a
+             different width from the probe that measured it — the one way this mechanism
+             could lock a height that is wrong by a line. Grid stretches its item to the
+             track, which is exactly what the probe rendered at.
+
+             ⚠ NO BACKTICKS IN THIS COMMENT — it is inside a template literal and one would end
+             the string. See the same warning in BoundBook.js, which cost a build.
+
+             The fallback is auto and it is never seen: the probe is read in a layout effect,
+             before paint. It exists so that a browser that somehow measured nothing gets a
+             readable rail rather than a collapsed one. */
+          .rail-stage{position:relative;display:flex;flex-direction:column;gap:1.8rem}
+          /* ⚠ align-content:start, NOT center, AND THAT IS THE R22B FRAME RULING TALKING.
+             Centring a short quote inside a zone sized for the longest one puts its first line
+             lower down the box than a four-line quote's — so the opening quotation mark, which
+             R22B ruled must HOLD STILL while the words travel through it, would move by half
+             the difference on every turn. Fixing the section's height and then letting the mark
+             float inside it would have traded one shove for a smaller one. Top-aligned, the
+             frame's top edge is a constant and the page turns downward behind it. */
+          .rail-quote-zone{height:var(--rail-quote-h,auto);display:grid;align-content:start}
+          .rail-controls-zone{height:var(--rail-ctrl-h,auto);display:grid;align-content:start}
+          /* visibility:hidden, never display:none — see the probe's own note in the JSX. It is
+             out of flow so it contributes nothing to the height it is measuring. */
+          .rail-probe{position:absolute;left:0;right:0;top:0;visibility:hidden;pointer-events:none}
+          /* margin:0 — the 1.8rem that used to hang under the quote is now the stage's gap,
+             so it is declared in ONE place and cannot be paid twice. */
+          .rail-quote{font-size:clamp(1.3rem,3vw,1.9rem);font-style:italic;font-weight:300;line-height:1.5;color:#f0ead8;margin:0}
           /* R22B — THE PAGE TURN. See RAIL_TURN above for the record and the reasoning.
              .rail-quote and .rail-mark are the FRAME: neither carries a transition, so the
              quotation marks hold their place while the words travel between them.
@@ -781,7 +1062,10 @@ export default function BookStorePage() {
             .rail-words,.rail-words.is-out,.rail-words.is-in,
             .rail-attrib,.rail-attrib.is-out,.rail-attrib.is-in{transition:none;transform:none;opacity:1}
           }
+          /* Both control states are FULL WIDTH and centre their own contents, so the probe
+             measures each at the width it will really be drawn at. */
           .rail-reveal{display:flex;flex-direction:column;align-items:center;gap:1rem}
+          .rail-ask{display:flex;flex-direction:column;align-items:center}
           .rail-answer{text-decoration:none;color:inherit}
           .rail-answer-title{display:block;font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.1em;color:#c9a44c}
           .rail-answer-author{display:block;font-size:.9rem;font-style:italic;color:rgba(240,234,216,.5);margin-top:.2rem}
@@ -812,14 +1096,13 @@ export default function BookStorePage() {
         `}</style>
 
         <main style={{ background: '#070707', color: '#f0ead8', position: 'relative' }}>
-          {/* R20 — INSIDE <main>, AND THAT IS THE WHOLE OF THE UN-FIXING. It used to sit
-              here as a SIBLING, which was fine while it was position:fixed and would be
-              silently broken now: an absolutely positioned element with no positioned
-              ancestor resolves against the viewport-sized initial containing block, so the
-              grain would cover the first screenful and then stop. <main> is already
-              position:relative, so it is the containing block and the grain is as tall as the
-              document. See GRAIN_PARENT_RULE in ../components/grain.js. */}
-          <div className={GRAIN_CLASS} aria-hidden="true" />
+          {/* ⛔ R22.1 — THE GRAIN OVERLAY STOOD HERE AND IS GONE. The ground is #070707 on
+              <main> and nothing is drawn over it. <main> stays position:relative — the
+              curated sections and the colophon lift themselves above it with z-index:2, so
+              that is not vestigial grain scaffolding. See GRAIN_REMOVED in
+              ./components/grain.js before restoring anything: the artefact Ikenna saw was the
+              TEXTURE, not the animation R22 removed, and a quieter texture is the same
+              physics with a smaller coefficient. */}
           <Hero count={totalCount} currency={currency} onCurrency={chooseCurrency} chosen={currencyChosen} />
 
           {loading ? (

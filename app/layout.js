@@ -4,9 +4,12 @@
 // exports below depend on that.
 import './globals.css';
 import Providers from './components/Providers';
-// R22C — the two lines that must be in every document's parsed <head>. See the note in <head>
-// below and the header of app/bookstore/components/bookTransition.js.
-import { VIEW_TRANSITION_OPT_IN_CSS, VIEW_TRANSITION_GUARD_JS } from './bookstore/components/bookTransition';
+// R22C — the two lines that must be in every document's parsed <head> for a cross-document
+// view transition, and R22.1C's flag, which is what decides whether they are emitted at all.
+// See the note in <head> below and BOOK_TRANSITION_WITHHELD in that file.
+import {
+  BOOK_TRANSITION_SHIPPED, VIEW_TRANSITION_OPT_IN_CSS, VIEW_TRANSITION_GUARD_JS,
+} from './bookstore/components/bookTransition';
 
 const BASE_URL = 'https://calvaryscribblings.co.uk';
 
@@ -54,34 +57,38 @@ export default function RootLayout({ children }) {
           href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap"
         />
         {/* ═══════════════════════════════════════════════════════════════════════════════
-            R22C — THE VIEW-TRANSITION OPT-IN, AND WHY IT IS UP HERE AND NOT WITH THE SHOP.
+            R22.1C — THE OPT-IN IS WITHHELD. THIS BLOCK EMITS NOTHING UNTIL R9.
             ═══════════════════════════════════════════════════════════════════════════════
 
-            A cross-document view transition needs `@view-transition{navigation:auto}` to be
-            READABLE ON BOTH DOCUMENTS at moments neither the app nor React controls: on the
-            outgoing one when the navigation starts, and on the ARRIVING one at `pagereveal`,
-            which fires before the first render.
+            `BOOK_TRANSITION_SHIPPED` is false, so neither element below is rendered and no
+            document in the export carries `@view-transition`. A shelf → detail navigation is
+            therefore a plain instant swap. Ikenna's ruling of 27 Aug 2026: the guard was
+            proven in Chromium only, the pair cannot form until R9 unwinds the launch gate, and
+            the app shipped this exact effect and it failed on glass as an unpaired translucent
+            dissolve. See BOOK_TRANSITION_WITHHELD in app/bookstore/components/bookTransition.js
+            for all three reasons and for what to do on the day.
 
-            The bookstore renders everything — its stylesheet included — behind the launch gate,
-            in an effect. Measured against the real export: the outgoing page offered a
-            transition and the arriving page declined it, every time, because its <style> did
-            not exist yet. Two lines in a prerendered <head> are the whole fix, and there is
-            nowhere lower in the tree that is early enough.
+            ⭑ THE ARRANGEMENT IS KEPT RATHER THAN DELETED, and this is the reason it has to be:
+            a cross-document view transition needs `@view-transition{navigation:auto}` READABLE
+            ON BOTH DOCUMENTS at moments neither the app nor React controls — on the outgoing
+            one when the navigation starts, and on the ARRIVING one at `pagereveal`, which fires
+            before the first render. The shop renders everything, its stylesheet included,
+            behind the launch gate in an effect; measured against the real export, the arriving
+            page declined the transition every single time because its <style> did not exist
+            yet. TWO LINES IN A PRERENDERED <head> ARE THE WHOLE FIX, and there is nowhere lower
+            in the tree that is early enough. That finding cost R22C its first working version
+            and must not be relearned.
 
-            SITE-WIDE, and that is a decision rather than a side effect: the guard below cancels
-            any transition whose pair has not formed, so every page that is not a book landing
-            on its own board navigates exactly as it did before. Nothing else opts in, and
-            nothing else changes.
-
-            The pair's own styling — durations, curves, the settle — stays with the shop in
-            BOOK_TRANSITION_CSS, because it is read when the transition is already under way
-            and is allowed to arrive with the page. */}
-        <style dangerouslySetInnerHTML={{ __html: VIEW_TRANSITION_OPT_IN_CSS }} />
-        {/* ⭑ PAIR OR NOTHING. A classic inline script, so it runs during parse and is listening
-            before `pagereveal`. Without it, a navigation whose names did not pair would get the
-            browser's default root cross-fade — the whole page dissolving — with the cover
-            blinking out inside it, which is the one outcome the mock rules out. */}
-        <script dangerouslySetInnerHTML={{ __html: VIEW_TRANSITION_GUARD_JS }} />
+            The guard is a CLASSIC inline script for the same reason: it has to be listening
+            before `pagereveal`, and without it a navigation whose names did not pair would get
+            the browser's default root cross-fade — which is the dissolve the app just shipped
+            by accident. */}
+        {BOOK_TRANSITION_SHIPPED && (
+          <>
+            <style dangerouslySetInnerHTML={{ __html: VIEW_TRANSITION_OPT_IN_CSS }} />
+            <script dangerouslySetInnerHTML={{ __html: VIEW_TRANSITION_GUARD_JS }} />
+          </>
+        )}
       </head>
       <body>
         <Providers>{children}</Providers>
