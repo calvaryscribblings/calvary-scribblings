@@ -1,0 +1,1097 @@
+{
+  "generatedAt": "2026-07-05T20:39:29.872Z",
+  "model": "claude-sonnet-4-6",
+  "rows": [
+    {
+      "id": "1967",
+      "title": "1967",
+      "category": "Short Story",
+      "quote": "I peed in my tattered trousers, but wetting myself was the least of my problems",
+      "wordCount": 15,
+      "status": "ok"
+    },
+    {
+      "id": "47-sessions",
+      "title": "47 Sessions",
+      "category": "Flash Fiction",
+      "quote": "how to make ₦15,000 last for thirty days",
+      "wordCount": 8,
+      "status": "ok"
+    },
+    {
+      "id": "5-to-9",
+      "title": "5-To-9",
+      "category": "Short Story",
+      "quote": "There was no bark like I expected. Just a groan. A very human groan",
+      "wordCount": 14,
+      "status": "ok"
+    },
+    {
+      "id": "50-lines-of-war",
+      "title": "50 lines of war",
+      "category": "Poetry",
+      "quote": "guilt-filled i seek home at least with home i'd find solace",
+      "wordCount": 11,
+      "status": "ok"
+    },
+    {
+      "id": "7am-an-american-pulp-classic",
+      "title": "7AM: An American Pulp Classic",
+      "category": "Inspiring",
+      "quote": "you only meet a few good ones in a lifetime. If a man has courage, why not reach for them?",
+      "wordCount": 20,
+      "status": "ok"
+    },
+    {
+      "id": "a-daub-of-blue",
+      "title": "A Daub of Blue",
+      "category": "Short Story",
+      "quote": "Of never being enough. His exes wouldn't leave him alone",
+      "wordCount": 10,
+      "status": "ok"
+    },
+    {
+      "id": "a-heart-trained-for-battle",
+      "title": "A Heart Trained for Battle",
+      "category": "Poetry",
+      "quote": "The grief of realising that your wounds have become fluent in a language healthy love does not speak",
+      "wordCount": 18,
+      "status": "ok"
+    },
+    {
+      "id": "a-legacy-through-time",
+      "title": "A Legacy Through Time",
+      "category": "Short Story",
+      "quote": "She lit the last stub of candle, found a scrap of paper, and reached for a quill",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "a-media-giant-takes-shapes",
+      "title": "A Media Giant Takes Shape",
+      "category": "News & Updates",
+      "quote": "",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "model returned SKIP"
+    },
+    {
+      "id": "adadiorama",
+      "title": "Adadiorama",
+      "category": "Short Story",
+      "quote": "The sound makes something ugly rise in my throat. I suddenly understand how easy it is for good daughters to become dangerous",
+      "wordCount": 22,
+      "status": "ok"
+    },
+    {
+      "id": "afterglow",
+      "title": "Afterglow",
+      "category": "Short Story",
+      "quote": "Spellbound, he had gaped as the long-dead came back to startling life",
+      "wordCount": 12,
+      "status": "ok"
+    },
+    {
+      "id": "almost-like-her",
+      "title": "Almost Like Her",
+      "category": "Short Story",
+      "quote": "He turned off the light in the bedroom, then sat beside me in the dark like he was afraid of what light might reveal",
+      "wordCount": 24,
+      "status": "ok"
+    },
+    {
+      "id": "almost-together",
+      "title": "Almost Together",
+      "category": "Short Story",
+      "quote": "She picked up the broken strap, held it like evidence of a crime, and kept moving",
+      "wordCount": 16,
+      "status": "ok"
+    },
+    {
+      "id": "amvca-2026-africa-s-biggest-night-in-film",
+      "title": "AMVCA 2026: Africa’s Biggest Night in Film",
+      "category": "News & Updates",
+      "quote": "",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "model returned SKIP"
+    },
+    {
+      "id": "amvca-an-opinion-feature",
+      "title": "AMVCA: An Opinion Feature",
+      "category": "News & Updates",
+      "quote": "Nine nominations. Zero wins",
+      "wordCount": 4,
+      "status": "ok"
+    },
+    {
+      "id": "an-appetite-for-love",
+      "title": "An Appetite for Love",
+      "category": "Poetry",
+      "quote": "Each drink, an attempt to set fire to my feelings and deepest musings",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "apple-ushers-in-the-ternus-era",
+      "title": "Apple Ushers in the Ternus Era",
+      "category": "News & Updates",
+      "quote": "",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "model returned SKIP"
+    },
+    {
+      "id": "asake-m-ney-album-review",
+      "title": "Asake: M$NEY - Album Review",
+      "category": "News & Updates",
+      "quote": "Four years ago, Asake sounded like an artist trying to outrun poverty",
+      "wordCount": 12,
+      "status": "ok"
+    },
+    {
+      "id": "bafta-2026",
+      "title": "BAFTA 2026: Winners...",
+      "category": "News & Updates",
+      "quote": "",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "model returned SKIP"
+    },
+    {
+      "id": "become-a-content-creator-the-step-by-step-guide",
+      "title": "Become a Content Creator: The Step-by-Step Guide",
+      "category": "News & Updates",
+      "quote": "Shamelessness is a rite of entry",
+      "wordCount": 6,
+      "status": "ok"
+    },
+    {
+      "id": "beta-princess",
+      "title": "Beta Princess [Part One]",
+      "category": "Novel",
+      "quote": "My hands trembled as I pulled on the blood-soaked gown",
+      "wordCount": 10,
+      "status": "ok"
+    },
+    {
+      "id": "brenda",
+      "title": "Brenda",
+      "category": "Short Story",
+      "quote": "Heartbreak doesn't break you — it reveals you. It strips away what you were pretending to be",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "brown-skinned-girl",
+      "title": "Brown-Skinned Girl",
+      "category": "Poetry",
+      "quote": "the light that fell on them like favour and seemed to skip her",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "chernobyl",
+      "title": "Chernobyl",
+      "category": "Short Story",
+      "quote": "I have never known one to exist without the other",
+      "wordCount": 10,
+      "status": "ok"
+    },
+    {
+      "id": "cinema-vs-tv-the-difference",
+      "title": "Cinema vs TV: The Difference",
+      "category": "News & Updates",
+      "quote": "Some films are designed to command a giant screen, surround sound and a room full of people",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "clarity-of-mind-omah-lay-s-introspective-return-album-review",
+      "title": "Clarity of Mind: Omah Lay’s Introspective Return (Album Review)",
+      "category": "News & Updates",
+      "quote": "Clarity of Mind feels like the songs of a man who knows his flaws and is introspective enough to understand how dangerous or reckless they are, yet addicted enough to return to them",
+      "wordCount": 33,
+      "status": "ok"
+    },
+    {
+      "id": "cybercrime-has-a-calendar",
+      "title": "Cybercrime Has a Calendar",
+      "category": "News & Updates",
+      "quote": "Large-scale phishing operations run in much the same way as legitimate digital marketing campaigns — testing subject lines, measuring open rates, refining timing and scaling whatever performs best",
+      "wordCount": 28,
+      "status": "ok"
+    },
+    {
+      "id": "death-by-a-thousand-apps",
+      "title": "Death By A Thousand Apps",
+      "category": "News & Updates",
+      "quote": "rummaging through your whole house for your charger like an addict hunting for a fix",
+      "wordCount": 15,
+      "status": "ok"
+    },
+    {
+      "id": "diary-of-a-lagos-9-5er-1",
+      "title": "Diary of a Lagos 9-5er [1]",
+      "category": "Novel",
+      "quote": "Lagos was winning",
+      "wordCount": 3,
+      "status": "ok"
+    },
+    {
+      "id": "dinner-at-my-family-table",
+      "title": "Dinner at My Family Table",
+      "category": "Flash Fiction",
+      "quote": "She waited until the girl had settled down at the table. Relaxed. Then she struck",
+      "wordCount": 15,
+      "status": "ok"
+    },
+    {
+      "id": "dont-worry",
+      "title": "Don't Worry",
+      "category": "Flash Fiction",
+      "quote": "every word he uttered conveyed love on angel's wings, her advice echoed faintly in my mind",
+      "wordCount": 16,
+      "status": "ok"
+    },
+    {
+      "id": "drip-drip-drip",
+      "title": "Drip. Drip. Drip.",
+      "category": "Flash Fiction",
+      "quote": "My work is my life. I didn't climb out of the four walls of university to start life broke",
+      "wordCount": 19,
+      "status": "ok"
+    },
+    {
+      "id": "early",
+      "title": "Early",
+      "category": "Short Story",
+      "quote": "I want to watch you come undone beneath me. Above me. Beside me",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "filtered-reality",
+      "title": "Filtered Reality",
+      "category": "Short Story",
+      "quote": "She smooths the gloss carefully, like she's sealing something in place, then adjusts my hairline",
+      "wordCount": 15,
+      "status": "ok"
+    },
+    {
+      "id": "final-boarding-call",
+      "title": "Final Boarding Call",
+      "category": "Short Story",
+      "quote": "So she kept this one to herself. A quiet act of defiance",
+      "wordCount": 12,
+      "status": "ok"
+    },
+    {
+      "id": "freezer-34",
+      "title": "Freezer 34",
+      "category": "Short Story",
+      "quote": "I didn't expect to die at 40. But here I am",
+      "wordCount": 11,
+      "status": "ok"
+    },
+    {
+      "id": "full",
+      "title": "Full",
+      "category": "Flash Fiction",
+      "quote": "Silence is the only currency I have left",
+      "wordCount": 8,
+      "status": "ok"
+    },
+    {
+      "id": "genevieve-nnaji-s-influence-on-global-african-storytelling",
+      "title": "Genevieve Nnaji’s Influence on Global African Storytelling",
+      "category": "News & Updates",
+      "quote": "her presence there felt bigger than a red carpet moment — it felt symbolic",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "validation failed"
+    },
+    {
+      "id": "halfway-around-the-moon-part-i-dawn",
+      "title": "Halfway Around the Moon [Part I: Dawn]",
+      "category": "Novel",
+      "quote": "the whole bright racket of the place narrowing to the single fact of her",
+      "wordCount": 14,
+      "status": "ok"
+    },
+    {
+      "id": "halfway-around-the-moon-prologue",
+      "title": "Halfway Around the Moon [Prologue]",
+      "category": "Novel",
+      "quote": "She lay down, her mind saying No whilst her heart countered, Why not? You love him",
+      "wordCount": 16,
+      "status": "ok"
+    },
+    {
+      "id": "hold-your-breath-and-count-to-ten",
+      "title": "Hold Your Breath and Count to Ten",
+      "category": "Flash Fiction",
+      "quote": "Her face exuded a kind of peace — a steady and gracious peace, like someone who knows the end from the beginning",
+      "wordCount": 22,
+      "status": "ok"
+    },
+    {
+      "id": "how-to-make-peppersoup",
+      "title": "How to Make Peppersoup",
+      "category": "Inspiring",
+      "quote": "The heat from one spoon of Ofada sauce activating the sweat glands, causing one to pant ceaselessly",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "i-dey-your-back",
+      "title": "I Dey Your Back",
+      "category": "Short Story",
+      "quote": "The rhythm was slow and deliberate, like someone taking their time because they already knew that running was futile",
+      "wordCount": 19,
+      "status": "ok"
+    },
+    {
+      "id": "i-told-you",
+      "title": "I Told You",
+      "category": "Short Story",
+      "quote": "My grandmother used to talk to her dead husband every evening.",
+      "wordCount": 11,
+      "status": "ok"
+    },
+    {
+      "id": "in-case-of-emergency",
+      "title": "In Case of Emergency",
+      "category": "Flash Fiction",
+      "quote": "Fear just looks remarkably productive when you put it in a table",
+      "wordCount": 12,
+      "status": "ok"
+    },
+    {
+      "id": "in-your-20-s",
+      "title": "In Your 20’s",
+      "category": "Inspiring",
+      "quote": "sweet, sweet freedom — enough to plague you with cavities like responsibilities and consequences",
+      "wordCount": 14,
+      "status": "ok"
+    },
+    {
+      "id": "is-2026-shaping-up-to-be-the-year-for-peak-modern-cinema",
+      "title": "Is 2026 Shaping Up To Be the Year For Peak Modern Cinema?",
+      "category": "News & Updates",
+      "quote": "an astronaut who wakes up alone in space with no memory, tasked with saving Earth from extinction",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "it-can-never-be-me",
+      "title": "It Can Never Be Me",
+      "category": "Flash Fiction",
+      "quote": "you had rerouted funds meant for hospital development towards buying properties in Dubai",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "john-davidson-bafta-tourettes",
+      "title": "The Man in the Middle: John Davidson",
+      "category": "News & Updates",
+      "quote": "I have been physically beaten to within an inch of my life with an iron bar after ticking a comment to a young woman",
+      "wordCount": 24,
+      "status": "ok"
+    },
+    {
+      "id": "knicks-in-5",
+      "title": "Knicks In 5",
+      "category": "News & Updates",
+      "quote": "the largest comeback in Finals history — had already entered the record books",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "lagos-friendship",
+      "title": "Lagos Fiendship",
+      "category": "Short Story",
+      "quote": "If your mother ever finds out about us, I won't be the only one going down in a scandal",
+      "wordCount": 19,
+      "status": "ok"
+    },
+    {
+      "id": "london-tube-strike",
+      "title": "Another London Underground Strike!",
+      "category": "News & Updates",
+      "quote": "",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "model returned SKIP"
+    },
+    {
+      "id": "love-it-enough",
+      "title": "Love It Enough",
+      "category": "Short Story",
+      "quote": "I thought it was brilliant. With happy hands I sent it to my best friend",
+      "wordCount": 15,
+      "status": "ok"
+    },
+    {
+      "id": "macbook-neo",
+      "title": "The All New MacBook Neo!",
+      "category": "News & Updates",
+      "quote": "",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "model returned SKIP"
+    },
+    {
+      "id": "mask-with-no-memory",
+      "title": "Mask with No Memory",
+      "category": "Poetry",
+      "quote": "Meaning dissolved beneath performance",
+      "wordCount": 4,
+      "status": "ok"
+    },
+    {
+      "id": "may-nigeria-never-happen-to-you",
+      "title": "May Nigeria Never Happen To You",
+      "category": "Poetry",
+      "quote": "the light at the end of the tunnel grows dim",
+      "wordCount": 10,
+      "status": "ok"
+    },
+    {
+      "id": "meet-the-top-readers",
+      "title": "Meet the Top Readers",
+      "category": "News & Updates",
+      "quote": "",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "model returned SKIP"
+    },
+    {
+      "id": "michael-could-this-be-the-most-talked-about-music-biopic-of-the-decade",
+      "title": "Michael: Could this be the Most Talked-about Music Biopic of the Decade?",
+      "category": "News & Updates",
+      "quote": "he remained trapped within the structure built around him",
+      "wordCount": 9,
+      "status": "ok"
+    },
+    {
+      "id": "miss-lady",
+      "title": "Miss Lady",
+      "category": "Flash Fiction",
+      "quote": "She had a fine mien — the kind that was difficult to escape. The haircut alone could trap a man",
+      "wordCount": 20,
+      "status": "ok"
+    },
+    {
+      "id": "mission-taroni-bringing-the-overview-effect-back-to-earth",
+      "title": "Mission Taroni: Bringing the Overview Effect Back to Earth",
+      "category": "News & Updates",
+      "quote": "a human-like sculpture, wrapped in electric blue silk, drifting against the blackness of space",
+      "wordCount": 14,
+      "status": "ok"
+    },
+    {
+      "id": "mother-and-other-poems",
+      "title": "Mother and Other Poems",
+      "category": "Poetry",
+      "quote": "Darkness comes at me like pure grace",
+      "wordCount": 7,
+      "status": "ok"
+    },
+    {
+      "id": "murdoch-s-torment",
+      "title": "Murdoch's Torment",
+      "category": "Poetry",
+      "quote": "Fate is a black lipstick & I am a good kisser,",
+      "wordCount": 11,
+      "status": "ok"
+    },
+    {
+      "id": "my-best-friend-is-an-algorithm",
+      "title": "My Best Friend Is An Algorithm",
+      "category": "Inspiring",
+      "quote": "the hesitation, the gut feeling, the shared silence, the ability to change one's mind based on an irrational, emotional insight",
+      "wordCount": 20,
+      "status": "ok"
+    },
+    {
+      "id": "my-daddy-is-a-superhero",
+      "title": "My Daddy is a Superhero",
+      "category": "Short Story",
+      "quote": "Daddy sees through my acts",
+      "wordCount": 5,
+      "status": "ok"
+    },
+    {
+      "id": "my-dream-man",
+      "title": "My Dream Man",
+      "category": "Flash Fiction",
+      "quote": "the entire mood collapsed. Voices rose. The girlfriend went pale",
+      "wordCount": 10,
+      "status": "ok"
+    },
+    {
+      "id": "my-father-s-shadow-the-nigerian-film-the-world-is-watching",
+      "title": "My Father’s Shadow: The Nigerian Film the World Is Watching",
+      "category": "News & Updates",
+      "quote": "it invites audiences not just to watch Nigeria but to feel it",
+      "wordCount": 12,
+      "status": "ok"
+    },
+    {
+      "id": "netflix-harry-styles",
+      "title": "Netflix to Stream Harry Styles' New Album",
+      "category": "News & Updates",
+      "quote": "",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "model returned SKIP"
+    },
+    {
+      "id": "neverland",
+      "title": "Neverland",
+      "category": "Poetry",
+      "quote": "wondering why, for ten thousand years, a human would want to venture back out",
+      "wordCount": 14,
+      "status": "ok"
+    },
+    {
+      "id": "new-alliances-and-old-tactics-inside-nigeria-s-shifting-political-landscape",
+      "title": "New Alliances and Old Tactics: Inside Nigeria’s Shifting Political Landscape",
+      "category": "News & Updates",
+      "quote": "Tinubu won the presidency with less than ten per cent of the registered electorate",
+      "wordCount": 14,
+      "status": "ok"
+    },
+    {
+      "id": "nollywood-on-youtube-new-era-or-creative-decline",
+      "title": "Nollywood on YouTube: New Era or Creative Decline?",
+      "category": "News & Updates",
+      "quote": "Pregnant and abroad, she found herself bored of binge-watching content on YouTube and saw an opportunity rather than a gap",
+      "wordCount": 20,
+      "status": "ok"
+    },
+    {
+      "id": "nostalgia-still-sells",
+      "title": "Nostalgia Still Sells",
+      "category": "News & Updates",
+      "quote": "toys are losing their place in children's lives — fearing they are becoming irrelevant as Bonnie spends more time with screens",
+      "wordCount": 21,
+      "status": "ok"
+    },
+    {
+      "id": "notting-hill-carnival-a-new-spin",
+      "title": "Notting Hill Carnival: A New Spin",
+      "category": "News & Updates",
+      "quote": "Sound systems line the streets, turning the entire area into one massive party",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "odds-and-ends",
+      "title": "Odds and Ends",
+      "category": "Short Story",
+      "quote": "He promised his wife and son a family vacation, drove them to a remote village miles from home, left them there",
+      "wordCount": 21,
+      "status": "ok"
+    },
+    {
+      "id": "odeluwa",
+      "title": "Odeluwa",
+      "category": "Inspiring",
+      "quote": "she learnt to disappear herself from her own imagination",
+      "wordCount": 9,
+      "status": "ok"
+    },
+    {
+      "id": "one-day-for-the-thief",
+      "title": "One Day for the Thief",
+      "category": "Short Story",
+      "quote": "Does he regret? Does he pray? Does he become angry? Did he still believe he would survive?",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "one-photo",
+      "title": "One Photo",
+      "category": "News & Updates",
+      "quote": "A stranger with one photo of you and a little determination can potentially surface your full name, your employer, your neighbourhood",
+      "wordCount": 21,
+      "status": "ok"
+    },
+    {
+      "id": "oscars-2026",
+      "title": "The Oscar Showdowns",
+      "category": "News & Updates",
+      "quote": "His performance required him to portray two distinct personalities in the same film",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "otu-obi",
+      "title": "Otu Obi",
+      "category": "Poetry",
+      "quote": "who woke some mornings with grief that had no object, homesick for somewhere she had never been",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "paramount-warner-bros-discovery",
+      "title": "Hollywood Reacts: Paramount Moves to Take Control of WBD",
+      "category": "News & Updates",
+      "quote": "",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "model returned SKIP"
+    },
+    {
+      "id": "paramount-wbd-plans",
+      "title": "Paramount Reveals Plans for the Future",
+      "category": "News & Updates",
+      "quote": "",
+      "wordCount": 0,
+      "status": "skip",
+      "reason": "model returned SKIP"
+    },
+    {
+      "id": "peekaboo",
+      "title": "Peekaboo",
+      "category": "Short Story",
+      "quote": "not exactly in disbelief, but in that startling feeling that comes when what you already knew would happen finally happens",
+      "wordCount": 20,
+      "status": "ok"
+    },
+    {
+      "id": "pigment",
+      "title": "Pigment",
+      "category": "Short Story",
+      "quote": "I had never actually seen anybody there before",
+      "wordCount": 8,
+      "status": "ok"
+    },
+    {
+      "id": "proof-of-life",
+      "title": "Proof of Life",
+      "category": "Short Story",
+      "quote": "it felt like a hand reaching into the dark and pulling her toward the light",
+      "wordCount": 15,
+      "status": "ok"
+    },
+    {
+      "id": "public-wi-fi-is-a-trap",
+      "title": "Public Wi-Fi Is a Trap",
+      "category": "News & Updates",
+      "quote": "What you did not see was the person three tables away, casually sitting with a laptop, watching every single thing you just did",
+      "wordCount": 23,
+      "status": "ok"
+    },
+    {
+      "id": "purple",
+      "title": "Purple",
+      "category": "Flash Fiction",
+      "quote": "A product of fire and ice, mixed by blood, carried by water",
+      "wordCount": 12,
+      "status": "ok"
+    },
+    {
+      "id": "purple-rain",
+      "title": "Purple Rain",
+      "category": "Flash Fiction",
+      "quote": "At the same moment, the restaurant's music shifted to Prince's 'Purple Rain' — that quiet, arresting confidence filling the room before I had even realised it",
+      "wordCount": 26,
+      "status": "ok"
+    },
+    {
+      "id": "racial-representation-in-film",
+      "title": "Racial Representation In Film",
+      "category": "News & Updates",
+      "quote": "casting has always shaped how audiences connect with these stories",
+      "wordCount": 10,
+      "status": "ok"
+    },
+    {
+      "id": "real-heartbreak",
+      "title": "Real Heartbreak",
+      "category": "Flash Fiction",
+      "quote": "Dumebi had ended things on a Wednesday evening with the emotional softness of someone cancelling plans",
+      "wordCount": 16,
+      "status": "ok"
+    },
+    {
+      "id": "red-nails-theory",
+      "title": "Red Nails Theory",
+      "category": "Short Story",
+      "quote": "Something about him felt wrong immediately. His clothes were slightly mismatched, his posture stiff in an unnatural way",
+      "wordCount": 18,
+      "status": "ok"
+    },
+    {
+      "id": "red-white-red",
+      "title": "Red-White-Red",
+      "category": "Poetry",
+      "quote": "of villages emptied at dusk, of highways swallowed by dread, of families counting the hours between a ringing phone and a ransom demand",
+      "wordCount": 23,
+      "status": "ok"
+    },
+    {
+      "id": "release-the-footage-how-the-henry-nowak-case-became-an-international-debate",
+      "title": "'Release the Footage': How the Henry Nowak Case Became an International Debate",
+      "category": "News & Updates",
+      "quote": "I've been stabbed. I can't breathe.' Those were among the final words of Henry Nowak",
+      "wordCount": 15,
+      "status": "ok"
+    },
+    {
+      "id": "rise-and-shine",
+      "title": "Rise and Shine",
+      "category": "Flash Fiction",
+      "quote": "daylight sneaks in through the crack of your curtains like an unwanted visitor",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "seven-metres-and-four-years-of-silence",
+      "title": "Seven Metres and Four Years of Silence",
+      "category": "Inspiring",
+      "quote": "On her first attempt, she jumped 7.12 metres",
+      "wordCount": 8,
+      "status": "ok"
+    },
+    {
+      "id": "shots-fired-at-white-house-correspondents-dinner-trump-evacuated-unhurt",
+      "title": "Shots Fired at White House Correspondents’ Dinner: Trump Evacuated Unhurt",
+      "category": "News & Updates",
+      "quote": "administration officials would be considered 'targets, prioritised from highest-ranking to lowest",
+      "wordCount": 11,
+      "status": "ok"
+    },
+    {
+      "id": "sixth-cycle",
+      "title": "Sixth Cycle",
+      "category": "Short Story",
+      "quote": "That is the thing about IVF. It doesn't fail one person. It fails two people at the same time, differently",
+      "wordCount": 20,
+      "status": "ok"
+    },
+    {
+      "id": "small-permissions",
+      "title": "Small Permissions",
+      "category": "Short Story",
+      "quote": "Not with violence. Not with cruelty. But with small permissions",
+      "wordCount": 10,
+      "status": "ok"
+    },
+    {
+      "id": "starmer-steps-down",
+      "title": "Starmer Steps Down",
+      "category": "News & Updates",
+      "quote": "Labour lost more than 1,000 council seats — were widely read as a repudiation of Starmer's leadership",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "stars-vs-franchises",
+      "title": "Stars vs Franchises",
+      "category": "News & Updates",
+      "quote": "Has Hollywood quietly replaced movie stars with brands?",
+      "wordCount": 8,
+      "status": "ok"
+    },
+    {
+      "id": "still-becoming",
+      "title": "Still Becoming",
+      "category": "Inspiring",
+      "quote": "Sometimes the silence after trying your best hurts more than rejection itself",
+      "wordCount": 12,
+      "status": "ok"
+    },
+    {
+      "id": "stuck-on-rewind",
+      "title": "Stuck On Rewind",
+      "category": "Flash Fiction",
+      "quote": "in silhouette, in the frame, stood this dude every inch a lookalike of James Brown",
+      "wordCount": 15,
+      "status": "ok"
+    },
+    {
+      "id": "success-wears-many-faces",
+      "title": "Success Wears Many Faces",
+      "category": "Inspiring",
+      "quote": "Many experienced climbers discover that the true fulfilment lies in the physical challenge, the personal growth and the journey itself",
+      "wordCount": 20,
+      "status": "ok"
+    },
+    {
+      "id": "suffering-grass",
+      "title": "Suffering Grass",
+      "category": "Short Story",
+      "quote": "I could see the world crumbling inside his eyes",
+      "wordCount": 9,
+      "status": "ok"
+    },
+    {
+      "id": "sweet-16",
+      "title": "Sweet 16",
+      "category": "News & Updates",
+      "quote": "Paraguay stunned four-time champions Germany on penalties after a fiercely contested encounter",
+      "wordCount": 12,
+      "status": "ok"
+    },
+    {
+      "id": "terms-and-conditions",
+      "title": "Terms and Conditions",
+      "category": "Short Story",
+      "quote": "She had the kind of face that made you look twice and then feel strangely caught, like you had been staring at something sacred",
+      "wordCount": 24,
+      "status": "ok"
+    },
+    {
+      "id": "the-2026-world-cup-is-finally-here",
+      "title": "The 2026 World Cup Is Finally Here",
+      "category": "News & Updates",
+      "quote": "The World Cup has a way of making everyone care",
+      "wordCount": 10,
+      "status": "ok"
+    },
+    {
+      "id": "the-ad-tug-of-war",
+      "title": "The Ad Tug-of-War",
+      "category": "News & Updates",
+      "quote": "a lecture or tutorial that needs your full concentration, a film, or a church service streamed online, interrupted mid-flow by an ad for Indomie noodles",
+      "wordCount": 25,
+      "status": "ok"
+    },
+    {
+      "id": "the-age-of-agentic-ai-when-machines-start-hacking-without-permission-or-a-human",
+      "title": "The Age of Agentic AI: when machines start hacking without permission — or a human",
+      "category": "News & Updates",
+      "quote": "Every single person on that call — the CFO, the colleagues, all of them — was a deepfake",
+      "wordCount": 18,
+      "status": "ok"
+    },
+    {
+      "id": "the-apps-know-more-than-your-closest-friend",
+      "title": "The Apps Know More Than Your Closest Friend",
+      "category": "News & Updates",
+      "quote": "TikTok does not just know what you watched. It knows the exact moment you lost interest and swiped away",
+      "wordCount": 19,
+      "status": "ok"
+    },
+    {
+      "id": "the-call",
+      "title": "The Call",
+      "category": "Short Story",
+      "quote": "They told me you'd never come",
+      "wordCount": 6,
+      "status": "ok"
+    },
+    {
+      "id": "the-deadline",
+      "title": "The Deadline",
+      "category": "Poetry",
+      "quote": "hold on to the souvenirs of my existence tattooed on the inner linings of your mind",
+      "wordCount": 16,
+      "status": "ok"
+    },
+    {
+      "id": "the-enabler",
+      "title": "The Enabler",
+      "category": "Flash Fiction",
+      "quote": "beggars — a whole army of them, lined up on the edge of the street",
+      "wordCount": 15,
+      "status": "ok"
+    },
+    {
+      "id": "the-falling-out-behind-children-of-blood-and-bone",
+      "title": "The Falling Out Behind ‘Children of Blood and Bone’",
+      "category": "News & Updates",
+      "quote": "Adeyemi reportedly grew frustrated with the project's pace there and was denied the chance to write the screenplay herself",
+      "wordCount": 19,
+      "status": "ok"
+    },
+    {
+      "id": "the-frictionless-trap",
+      "title": "The Frictionless Trap",
+      "category": "Inspiring",
+      "quote": "We are essentially skimming our lives rather than inhabiting them",
+      "wordCount": 10,
+      "status": "ok"
+    },
+    {
+      "id": "the-ghost-at-the-dinning-table",
+      "title": "The Ghost At the Dinning Table",
+      "category": "Inspiring",
+      "quote": "I had absolute, vivid clarity about a stranger's cooking technique hundreds of miles away, but zero cognitive record of what the human being sitting twenty inches in front of me had just said",
+      "wordCount": 33,
+      "status": "ok"
+    },
+    {
+      "id": "the-girl-who-sang-through-the-dark",
+      "title": "The Girl Who Sang Through the Dark",
+      "category": "Inspiring",
+      "quote": "She sang in the compound after the aunt had gone to bed, quietly, to herself, her voice finding shapes in the dark that her words never could",
+      "wordCount": 27,
+      "status": "ok"
+    },
+    {
+      "id": "the-iron-and-the-wood",
+      "title": "The Iron and the Wood",
+      "category": "News & Updates",
+      "quote": "the iron blade cannot fell the tree until the wood itself agrees",
+      "wordCount": 12,
+      "status": "ok"
+    },
+    {
+      "id": "the-man-i-met-at-nineteen",
+      "title": "The Man I Met At Nineteen",
+      "category": "Short Story",
+      "quote": "Daniel looked at me like I was the first beautiful thing he had ever seen up close",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "the-number-thirteen",
+      "title": "The Number Thirteen",
+      "category": "Short Story",
+      "quote": "Before he could make sense of it, one of them yanked his door open",
+      "wordCount": 14,
+      "status": "ok"
+    },
+    {
+      "id": "the-outrage-is-never-equal",
+      "title": "The Outrage is Never Equal",
+      "category": "News & Updates",
+      "quote": "A man's mistake is rarely treated as isolated — it becomes evidence of 'male nature' itself",
+      "wordCount": 16,
+      "status": "ok"
+    },
+    {
+      "id": "the-pill",
+      "title": "The Pill",
+      "category": "Short Story",
+      "quote": "Wash blood out of a child's hair. Stitch faces back together",
+      "wordCount": 11,
+      "status": "ok"
+    },
+    {
+      "id": "therapist-s-note-on-love",
+      "title": "Therapist’s Note on Love",
+      "category": "Short Story",
+      "quote": "I just didn't know what to do with something that wasn't hurting me",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "this-is-nigeria",
+      "title": "This is Nigeria",
+      "category": "News & Updates",
+      "quote": "How are we regressing instead of progressing?",
+      "wordCount": 7,
+      "status": "ok"
+    },
+    {
+      "id": "tilting-scales",
+      "title": "Tilting Scales",
+      "category": "News & Updates",
+      "quote": "Disproportionate weights on a bar create a lethal imbalance that can cause serious harm",
+      "wordCount": 14,
+      "status": "ok"
+    },
+    {
+      "id": "to-the-moon-and-back-artemis-ii-2026",
+      "title": "To the Moon and Back! (Artemis II 2026)",
+      "category": "News & Updates",
+      "quote": "Is 2026 simply a modern echo of 1972?",
+      "wordCount": 8,
+      "status": "ok"
+    },
+    {
+      "id": "unstoppabbl",
+      "title": "unstoppaBBL",
+      "category": "Flash Fiction",
+      "quote": "For weeks she drank garri without sugar, soothing her growling stomach with ambition",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "what-are-cookies-and-should-you-accept-them",
+      "title": "What Are Cookies and Should You Accept Them?",
+      "category": "News & Updates",
+      "quote": "after searching for trainers once, trainer ads follow you everywhere like a determined, obsessed, and insane girlfriend",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "whatsapp-hides-your-number",
+      "title": "WhatsApp Hides Your Number",
+      "category": "News & Updates",
+      "quote": "even if a username is leaked or shared publicly, strangers still cannot make contact without it",
+      "wordCount": 16,
+      "status": "ok"
+    },
+    {
+      "id": "where-we-begin-the-story",
+      "title": "Where We Begin the Story",
+      "category": "News & Updates",
+      "quote": "What is a million children's lives compared to a million barrels of oil?",
+      "wordCount": 13,
+      "status": "ok"
+    },
+    {
+      "id": "why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it",
+      "title": "Why AI Will Take Your Job and Here’s What You Can Do About It",
+      "category": "News & Updates",
+      "quote": "Bookstores laughed at Amazon. Taxi companies ignored Uber before it even existed",
+      "wordCount": 12,
+      "status": "ok"
+    },
+    {
+      "id": "witness-me",
+      "title": "Witness Me",
+      "category": "Short Story",
+      "quote": "The moon had stripped itself naked to light up his path",
+      "wordCount": 11,
+      "status": "ok"
+    },
+    {
+      "id": "you-clicked-remember-password-now-what",
+      "title": "You Clicked “Remember Password.” Now What?",
+      "category": "News & Updates",
+      "quote": "open Chrome on your PC or laptop, paste chrome://password-manager/passwords into the address bar, and take a look",
+      "wordCount": 17,
+      "status": "ok"
+    },
+    {
+      "id": "you-didnt-ask",
+      "title": "You Didn't Ask",
+      "category": "Short Story",
+      "quote": "Look — he even left his phone here. Like he has nothing to hide",
+      "wordCount": 14,
+      "status": "ok"
+    },
+    {
+      "id": "you-will-love-it",
+      "title": "You Will Love It",
+      "category": "Flash Fiction",
+      "quote": "minutes that feel borrowed, never owned",
+      "wordCount": 6,
+      "status": "ok"
+    },
+    {
+      "id": "your-camera-is-on",
+      "title": "Your Camera Is On",
+      "category": "News & Updates",
+      "quote": "does not always switch off when you think it does. And in some cases, it is not entirely clear who has the ability to look through it",
+      "wordCount": 27,
+      "status": "ok"
+    },
+    {
+      "id": "zee-a-love-letters-story",
+      "title": "Zee (a Love Letters story)",
+      "category": "Short Story",
+      "quote": "The girl walking past the car had stunned him. She was the most beautiful girl he had ever seen",
+      "wordCount": 19,
+      "status": "ok"
+    }
+  ]
+}
