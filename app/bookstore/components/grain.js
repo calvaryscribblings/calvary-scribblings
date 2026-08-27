@@ -1,4 +1,46 @@
-// THE GRAIN — one definition, two pages, and R20's ruling about what it is attached to.
+// THE GRAIN — one definition, two pages, and TWO rulings: what it is attached to, and that it
+// holds still.
+//
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// ⛔ R22 — IKENNA'S RULING, 26 August 2026: THE SHIMMER IS GONE. DO NOT PUT IT BACK.
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+//   "Doesn't look good at all... needs to go very quickly."
+//
+// He was shown the animated grain on glass and that was the verdict. THE LOOK RULED. The
+// animation is removed; the TEXTURE IS UNTOUCHED — same two gradients, same absolute-pixel
+// stops, same .05 opacity, same -16px bleed, same absolute positioning inside <main> so it
+// still travels with the page per the R20 ruling below. Only the redraw stopped.
+//
+// ── AND THE FRAMES ARE A BONUS, NOT THE ARGUMENT ─────────────────────────────────────────
+// R20 measured the shimmer at TWENTY-TWO POINTS of dropped frames on the storefront at 1280:
+// absolute + animated 42.7%, absolute + animation:none 19.3%, the element removed entirely
+// 13.1%. That harness is not in this repo, so R22 built one — `npm run bench:grain`, which
+// puts both arms on ONE build and reads Chrome's own PipelineReporter accounting.
+//
+// R22's figures, medians of five interleaved wheel-scrolls in this container:
+//
+//     WITH the shimmer      34.1% of frames not fully presented
+//     WITHOUT (as shipped)  20.8%
+//     the shimmer cost      13.3 points
+//
+// ⚠ THE BASELINE REPRODUCES R20 AND THE LOADED ARM DOES NOT, and that is stated rather than
+// smoothed over. 20.8% against R20's 19.3% is the same number; 34.1% against R20's 42.7% is
+// not. So the honest claim is THIRTEEN points on this harness, not twenty-two — same
+// direction, same order of magnitude, consistently reproduced on every run, and materially
+// less than the figure R20 recorded. Anyone quoting "22 points" is quoting a measurement
+// nobody in this repo can now re-run.
+//
+// The number is real and it is large. IT IS STILL NOT WHY THIS CHANGED.
+//
+// BOTH REASONS ARE WRITTEN HERE ON PURPOSE. A restoration argued as "the A24 trick" or "film
+// grain needs to move" is answering the performance half of a decision whose other half was a
+// judgement about how it looked on a screen — and the judgement is the one that carries.
+// Winning the frames argument does not reopen this. Ikenna does.
+//
+// THE ONE THING THAT WOULD: Ikenna saying so. Everything needed to put it back is on the
+// record — GRAIN_ANIMATION_REMOVED below holds the keyframes and the declaration verbatim, so
+// a restoration is a copy and not a reconstruction.
 //
 // ═════════════════════════════════════════════════════════════════════════════════════════
 // R20 — IKENNA'S RULING, 26 August 2026: THE GRAIN IS UN-FIXED
@@ -37,8 +79,12 @@
 // future round wants the frames back, the question to put to the house is about the SHIMMER,
 // not about this line.
 //
-// THE ANIMATION STAYS. Same rate, same ten steps, same eight seconds. What changed is the
-// element's positioning scheme and nothing else about how it is drawn.
+// ⤷ R22 PUT EXACTLY THAT QUESTION TO THE HOUSE, and the house answered. R20's last paragraph
+//   here read "THE ANIMATION STAYS. Same rate, same ten steps, same eight seconds." It does
+//   not stay. It was removed one round later on how it looked, and the 22 points R20 located
+//   came with it. The positioning ruling — which is what the rest of this block is about — is
+//   UNCHANGED and still governs: the grain is absolute inside <main> and travels with the
+//   page. Two rulings, two different questions, and R22 answered only the second one.
 //
 // ── WHY DENSITY AND SCALE CANNOT MOVE, WHICH IS THE THING THE RULING PROTECTS ──────────────
 // The texture is two repeating-linear-gradients whose colour stops are in ABSOLUTE PIXELS —
@@ -76,7 +122,13 @@
 // on its <main> and the storefront's hero is 88vh before anything else, so this is a floor
 // nothing currently stands on — which is the best moment to put one in.
 //
-// ── THE BLEED, AND WHY THE KEYFRAMES ARE NOW IN PIXELS ────────────────────────────────────
+// ── THE BLEED, AND WHY THE KEYFRAMES WERE IN PIXELS ───────────────────────────────────────
+// R22 note: the keyframes are gone, so nothing travels and nothing can drag an uncovered edge
+// into view. THE BLEED STAYS AT 16px ANYWAY, and it is not vestigial — the texture's colour
+// stops are in absolute pixels, so the gradient's PHASE is a function of the element's origin.
+// Move the origin by 16px and the horizontal pass (a 3px period) lands 1/3 of a period out.
+// That would be a visible change to a texture two rulings say must not change. The paragraph
+// below is the original argument, kept because it is what makes the 16px unarguable.
 // The keyframe sequence is the same nine offsets in the same order; only the unit changed,
 // from % to px. That is not a cosmetic tidy — under the old scheme the offsets were
 // percentages of the element's own box, which was 2× the VIEWPORT (inset:-50% of a fixed
@@ -94,18 +146,59 @@
 // The first frame — transform:translate(0,0) — is byte-identical to the old first frame, and
 // that is the frame the suite diffs.
 //
-// ── WHAT THIS ROUND DELIBERATELY DID NOT ADD ──────────────────────────────────────────────
-// A prefers-reduced-motion stop. BoundBook has one for the flip and the argument for one here
-// is decent, but the ruling said the animation STAYS and nobody asked for a class of readers
-// to stop seeing it. Adding it under cover of a performance round would be a behaviour change
-// smuggled in beside a design one. It is written here as the obvious next question rather than
-// answered unilaterally.
+// ── WHAT R20 DELIBERATELY DID NOT ADD, AND WHY R22 DID NOT NEED TO ────────────────────────
+// R20 left out a prefers-reduced-motion stop, on the grounds that the ruling kept the
+// animation and dropping it for one class of readers under cover of a performance round would
+// be a behaviour change smuggled in beside a design one. That question is CLOSED rather than
+// answered: there is no animation left to stop, for anybody. A media query guarding a
+// declaration that does not exist would be the kind of dead code that reads as a live
+// safeguard.
 
-// The bleed each side, in px. Must exceed the largest single offset in the keyframes below
-// (9px) or a step would drag an uncovered edge into view. Asserted against the keyframes by
-// tests/bookstore/payload.spec.mjs so the two cannot drift apart.
+// The bleed each side, in px. It USED to be sized to exceed the largest keyframe offset (9px)
+// so a step could not drag an uncovered edge into view. R22 removed the steps, and it stays at
+// 16 for the reason in the header: the texture's stops are absolute pixels, so the element's
+// origin sets the gradient's PHASE, and moving it would change a texture two rulings protect.
 export const GRAIN_BLEED_PX = 16;
-export const GRAIN_MAX_TRAVEL_PX = 9;
+
+// ⛔ THE SHIMMER, VERBATIM, SO A RESTORATION IS A COPY AND NOT A RECONSTRUCTION.
+//
+// Removed R22 on Ikenna's judgement of how it looked — "doesn't look good at all... needs to
+// go very quickly" — and NOT on the frames, which are a bonus and are recorded here so that
+// nobody re-derives the performance case and mistakes winning it for permission.
+//
+// This object is exported because tests/bookstore/payload.spec.mjs RATCHETS AGAINST IT: the
+// suite asserts the built export ships no `animation` on the grain and no `grainShift`
+// keyframe anywhere, and it reads the removed strings from here rather than restating them,
+// so the ratchet cannot drift from the record.
+//
+// ⚠ A PLAIN OBJECT, NOT Object.freeze(...), AND THAT IS DELIBERATE ON A PERFORMANCE ROUND.
+// Nothing imports this at runtime — the suite reads it out of the SOURCE — so webpack should
+// drop it entirely, and it does, exactly as it already drops GRAIN_PARENT_RULE below. Wrapping
+// it in Object.freeze() defeats that: the call is a side effect the bundler cannot prove pure,
+// so the whole record survives into out/_next/static/chunks and ships the removed keyframes to
+// every visitor. That was MEASURED, not assumed — the frozen version put all 800-odd bytes of
+// `wasKeyframes` in the shipped bundle, which is a comical way to close a round about a
+// shimmer nobody can see.
+export const GRAIN_ANIMATION_REMOVED = {
+  ruledBy: 'Ikenna',
+  on: '2026-08-26',
+  ruling: "Doesn't look good at all... needs to go very quickly.",
+  reason: 'how it looked on glass. The frames are a bonus, not the argument.',
+  // Measured by `npm run bench:grain` — both arms on one build, /bookstore at 1280, medians of
+  // five interleaved wheel-scrolls, Chrome's own PipelineReporter accounting. See the header
+  // for why this says 13 points where R20 said 22.
+  droppedFramesBefore: '34.1%',
+  droppedFramesAfter: '20.8%',
+  droppedFramesCost: '13.3 points',
+  measuredBy: 'npm run bench:grain',
+  keyframeName: 'grainShift',
+  wasKeyframes: '@keyframes grainShift{0%{transform:translate(0,0)}10%{transform:translate(-3px,-2px)}20%{transform:translate(-8px,4px)}30%{transform:translate(3px,-8px)}40%{transform:translate(-2px,9px)}50%{transform:translate(-8px,3px)}60%{transform:translate(4px,-2px)}70%{transform:translate(-4px,6px)}80%{transform:translate(6px,3px)}90%{transform:translate(-2px,-4px)}}',
+  wasDeclaration: 'animation:grainShift 8s steps(10) infinite',
+  maxTravelPx: 9,
+  // What did NOT change, listed so a reviewer can check the claim rather than take it.
+  unchanged: ['the two gradients', 'the absolute-pixel stops', 'opacity .05', 'inset -16px',
+    'position:absolute inside <main>', 'min-height', 'z-index', 'pointer-events'],
+};
 
 // The class, and the rule that it must live inside a positioned <main>. Exported so the suite
 // asserts the arrangement rather than trusting it.
@@ -125,10 +218,11 @@ export const GRAIN_PARENT_RULE = {
   costOfRefixing: 'nothing measurable — the positioning scheme is performance neutral. Reversing it reverses the ruling.',
 };
 
+// ⛔ NO `animation`, AND NO @keyframes. R22. Every other declaration is byte-identical to what
+// R20 shipped — the frame this draws is the frame it drew, held still. See
+// GRAIN_ANIMATION_REMOVED above for the ruling and for what was taken out.
 export const GRAIN_CSS = `
-  @keyframes grainShift{0%{transform:translate(0,0)}10%{transform:translate(-3px,-2px)}20%{transform:translate(-8px,4px)}30%{transform:translate(3px,-8px)}40%{transform:translate(-2px,9px)}50%{transform:translate(-8px,3px)}60%{transform:translate(4px,-2px)}70%{transform:translate(-4px,6px)}80%{transform:translate(6px,3px)}90%{transform:translate(-2px,-4px)}}
   .${GRAIN_CLASS}{position:absolute;inset:-${GRAIN_BLEED_PX}px;z-index:1;pointer-events:none;opacity:.05;
     min-height:calc(100vh + ${GRAIN_BLEED_PX * 2}px);
-    background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0,rgba(0,0,0,.6) 1px,transparent 1px,transparent 2px),repeating-linear-gradient(90deg,rgba(255,255,255,.5) 0,rgba(0,0,0,.5) 1px,transparent 1px,transparent 3px);
-    animation:grainShift 8s steps(10) infinite}
+    background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.6) 0,rgba(0,0,0,.6) 1px,transparent 1px,transparent 2px),repeating-linear-gradient(90deg,rgba(255,255,255,.5) 0,rgba(0,0,0,.5) 1px,transparent 1px,transparent 3px)}
 `;

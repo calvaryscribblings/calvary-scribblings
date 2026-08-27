@@ -4,6 +4,9 @@
 // exports below depend on that.
 import './globals.css';
 import Providers from './components/Providers';
+// R22C — the two lines that must be in every document's parsed <head>. See the note in <head>
+// below and the header of app/bookstore/components/bookTransition.js.
+import { VIEW_TRANSITION_OPT_IN_CSS, VIEW_TRANSITION_GUARD_JS } from './bookstore/components/bookTransition';
 
 const BASE_URL = 'https://calvaryscribblings.co.uk';
 
@@ -50,6 +53,35 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap"
         />
+        {/* ═══════════════════════════════════════════════════════════════════════════════
+            R22C — THE VIEW-TRANSITION OPT-IN, AND WHY IT IS UP HERE AND NOT WITH THE SHOP.
+            ═══════════════════════════════════════════════════════════════════════════════
+
+            A cross-document view transition needs `@view-transition{navigation:auto}` to be
+            READABLE ON BOTH DOCUMENTS at moments neither the app nor React controls: on the
+            outgoing one when the navigation starts, and on the ARRIVING one at `pagereveal`,
+            which fires before the first render.
+
+            The bookstore renders everything — its stylesheet included — behind the launch gate,
+            in an effect. Measured against the real export: the outgoing page offered a
+            transition and the arriving page declined it, every time, because its <style> did
+            not exist yet. Two lines in a prerendered <head> are the whole fix, and there is
+            nowhere lower in the tree that is early enough.
+
+            SITE-WIDE, and that is a decision rather than a side effect: the guard below cancels
+            any transition whose pair has not formed, so every page that is not a book landing
+            on its own board navigates exactly as it did before. Nothing else opts in, and
+            nothing else changes.
+
+            The pair's own styling — durations, curves, the settle — stays with the shop in
+            BOOK_TRANSITION_CSS, because it is read when the transition is already under way
+            and is allowed to arrive with the page. */}
+        <style dangerouslySetInnerHTML={{ __html: VIEW_TRANSITION_OPT_IN_CSS }} />
+        {/* ⭑ PAIR OR NOTHING. A classic inline script, so it runs during parse and is listening
+            before `pagereveal`. Without it, a navigation whose names did not pair would get the
+            browser's default root cross-fade — the whole page dissolving — with the cover
+            blinking out inside it, which is the one outcome the mock rules out. */}
+        <script dangerouslySetInnerHTML={{ __html: VIEW_TRANSITION_GUARD_JS }} />
       </head>
       <body>
         <Providers>{children}</Providers>

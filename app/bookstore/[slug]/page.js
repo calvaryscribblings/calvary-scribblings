@@ -46,6 +46,65 @@ export async function generateStaticParams() {
   return params.length ? params : [{ slug: SENTINEL_SLUG }];
 }
 
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R22C — THE SEED, AND WHY THE BOARD HAS TO BE IN THE PRERENDERED HTML
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// The mock's requirement is that the cover PERSISTS from the shelf to this page — it never
+// blinks out and back. The mechanism is a cross-document view transition
+// (app/bookstore/components/bookTransition.js), and it has one unforgiving condition: the
+// incoming named element must exist at the FIRST RENDERING OPPORTUNITY after `pagereveal`.
+//
+// MEASURED on the browser this ships to, mounting the incoming element four ways: during parse
+// ✓, in a task ✓, in a requestAnimationFrame ✗, 300ms later ✗.
+//
+// BookDetailClient reads its title from Firebase at runtime and draws a SKELETON meanwhile —
+// hundreds of milliseconds, firmly in the ✗ column. Without a seed the shelf's cover would pair
+// with a grey rectangle, and the browser would fall back to its default cross-fade, which is
+// exactly the blink the mock forbids.
+//
+// So the four fields a cover needs are read HERE, at build time, from the same query
+// generateMetadata already runs, and handed to the client as `seed`. The board is then in the
+// parsed document at its final geometry before a byte of Firebase has arrived. When the live
+// record lands it carries the same coverUrl, the <img> src does not change, and nothing
+// repaints.
+//
+// ⚠ IT IS A FIRST-PAINT HINT AND NEVER AN AUTHORITY. The client still reads the live record and
+// still refuses to render the page unless it comes back `published` — so a title withdrawn or
+// deleted since the build (R21) still resolves to notFound(), exactly as it did before. The
+// seed can put a cover on screen for the ~200ms before that resolves, which the skeleton
+// already occupied; it cannot put a page there.
+//
+// The fields are listed rather than spread on purpose: this object is serialised into the HTML
+// of a public page, and a spread would put prices, territories and the publisher's id there the
+// moment one of them is added to the record.
+async function seedFor(slug) {
+  try {
+    const { initializeApp, getApps } = await import('firebase/app');
+    const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
+    const app = getApps().length ? getApps()[0] : initializeApp(FB);
+    const db = getDatabase(app);
+    const snap = await get(query(ref(db, 'bookstore_titles'), orderByChild('slug'), equalTo(slug)));
+    if (!snap.exists()) return null;
+    let t = null;
+    snap.forEach((child) => { if (!t) t = child.val(); return false; });
+    if (!t || t.status !== 'published') return null;
+    return {
+      slug: t.slug,
+      title: t.title || '',
+      author: t.author || '',
+      coverUrl: t.coverUrl || null,
+      coverSizes: t.coverSizes || null,
+    };
+  } catch (e) {
+    // A seed that cannot be read is not a build failure. The page renders its skeleton exactly
+    // as it did before R22 and the transition degrades to a plain navigation — which is the
+    // same thing that happens on a browser with no view-transition support.
+    console.error('[bookstore/[slug]] seedFor failed', e);
+    return null;
+  }
+}
+
 export async function generateMetadata({ params }) {
   const { slug } = await params;
   if (slug === SENTINEL_SLUG) return {};
@@ -74,6 +133,10 @@ export async function generateMetadata({ params }) {
   }
 }
 
-export default function BookDetailPage({ params }) {
-  return <BookDetailClient params={params} />;
+export default async function BookDetailPage({ params }) {
+  const { slug } = await params;
+  // The sentinel exists only so generateStaticParams never returns []; it resolves to
+  // notFound() in the client and has no title to seed.
+  const seed = slug === SENTINEL_SLUG ? null : await seedFor(slug);
+  return <BookDetailClient params={params} seed={seed} />;
 }

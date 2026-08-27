@@ -34,6 +34,9 @@ import LaunchGate from '../components/LaunchGate';
 import { isStoreUnlocked } from '../../lib/bookstore/gate';
 // R20 — the grain, its ruling and its one definition. See the header of that file.
 import { GRAIN_CSS, GRAIN_CLASS } from '../components/grain';
+// R22C — the arriving half of the book's journey. One definition, both documents; see the
+// header of that file for the mechanism and the timing window it has to land in.
+import { BOOK_TRANSITION_CSS, BOOK_ARRIVAL_ATTR } from '../components/bookTransition';
 
 // R13 — WHAT WAS HERE. A twelve-row GENRE_LABELS map whose comment read "kept local (the
 // storefront's map isn't exported)", byte-identical to the storefront's and separately
@@ -64,7 +67,7 @@ function MetaItem({ label, value }) {
   );
 }
 
-export default function BookDetailClient({ params }) {
+export default function BookDetailClient({ params, seed = null }) {
   const { slug } = use(params);
   const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'missing'
   const [title, setTitle] = useState(null);
@@ -196,6 +199,7 @@ export default function BookDetailClient({ params }) {
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.7}}
           .bd-skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
           ${GRAIN_CSS}
+          ${BOOK_TRANSITION_CSS}
           .bd-synopsis{font-size:1.02rem;line-height:1.8;color:rgba(240,234,216,.72)}
           .bd-synopsis::first-letter{float:left;font-family:'Cinzel',serif;font-size:3.4rem;line-height:.82;font-weight:600;color:#c9a44c;padding:.1rem .6rem .1rem 0;margin-top:.1rem}
           .bd-shelfcard{margin-top:1.6rem;background:#ece4cf;color:#2a2318;padding:1rem 1.2rem;border-radius:1px;box-shadow:0 8px 22px rgba(0,0,0,.4);font-size:.9rem;line-height:1.6;font-style:italic;max-width:440px}
@@ -292,9 +296,30 @@ export default function BookDetailClient({ params }) {
               document. See GRAIN_PARENT_RULE in ../components/grain.js. */}
           <div className={GRAIN_CLASS} aria-hidden="true" />
           <div style={{ maxWidth: '920px', margin: '0 auto', padding: '3.5rem 2rem 4rem', position: 'relative', zIndex: 2 }}>
+            {/* ═══════════════════════════════════════════════════════════════════════════
+                R22C — THE ARRIVING BOARD.
+                ═══════════════════════════════════════════════════════════════════════════
+
+                The board is drawn from the BUILD-TIME seed while the live record is in flight,
+                in the same 260px column and at the same 220px width the ready state uses, so
+                nothing moves when the real title lands. That is not a nicety: a cross-document
+                view transition snapshots the incoming page at its first rendering opportunity,
+                and this page's title arrives from Firebase hundreds of milliseconds later. The
+                board has to be in the parsed HTML or the cover blinks out and back, which is
+                the one thing the mock forbids. See the seedFor() note in ./page.js.
+
+                NO SEED, NO BOARD — the skeleton block stands exactly as it did before R22, and
+                the transition degrades to a plain navigation. Same outcome as a browser with no
+                view-transition support. */}
             {state === 'loading' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '3.5rem' }}>
-                <div className="bd-skeleton" style={{ width: '280px', aspectRatio: '2/3', borderRadius: '2px 5px 5px 2px' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: seed ? '260px 1fr' : '280px 1fr', gap: '3.5rem' }}>
+                {seed ? (
+                  <div className="bd-cover-wrap" {...{ [BOOK_ARRIVAL_ATTR]: '' }} style={{ display: 'flex', justifyContent: 'center', paddingTop: '.5rem' }}>
+                    <BoundBook title={seed} variant="detail" width={220} />
+                  </div>
+                ) : (
+                  <div className="bd-skeleton" style={{ width: '280px', aspectRatio: '2/3', borderRadius: '2px 5px 5px 2px' }} />
+                )}
                 <div>
                   <div className="bd-skeleton" style={{ height: '.6rem', width: '35%', marginBottom: '1.2rem' }} />
                   <div className="bd-skeleton" style={{ height: '2rem', width: '80%', marginBottom: '.8rem' }} />
@@ -340,7 +365,11 @@ export default function BookDetailClient({ params }) {
             )}
 
             {state === 'ready' && title && (
-              <div style={{ animation: 'fadeUp .6s ease forwards' }}>
+              /* R22C — `cs-settle` is inert unless a view transition is running: the rules in
+                 BOOK_TRANSITION_CSS are scoped to `html:active-view-transition`, so an ordinary
+                 load keeps the fadeUp it has always had and only an arrival-by-book gets the
+                 beat-at-a-time settle. The two never run together. */
+              <div className="cs-settle cs-settle-1" style={{ animation: 'fadeUp .6s ease forwards' }}>
                 {/* Breadcrumb */}
                 <nav style={{ fontFamily: "'Cinzel',serif", fontSize: '.56rem', letterSpacing: '.2em', textTransform: 'uppercase', color: 'rgba(201,164,76,.5)', marginBottom: '2.5rem', display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <a href="/bookstore" style={{ color: 'rgba(201,164,76,.7)', textDecoration: 'none' }}>Book Store</a>
@@ -352,7 +381,7 @@ export default function BookDetailClient({ params }) {
 
                 {/* Book header */}
                 <div className="bd-header" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '3.5rem', alignItems: 'start' }}>
-                  <div className="bd-cover-wrap" style={{ display: 'flex', justifyContent: 'center', paddingTop: '.5rem' }}>
+                  <div className="bd-cover-wrap" {...{ [BOOK_ARRIVAL_ATTR]: '' }} style={{ display: 'flex', justifyContent: 'center', paddingTop: '.5rem' }}>
                     {/* R17.3 — it flips on tap like every other book on the shop. NO `onOpen`:
                         this page IS the quick look, and a modal repeating the page you are
                         standing on is not a way in, so the book turns back instead. That is a

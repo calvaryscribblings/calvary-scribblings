@@ -13,7 +13,10 @@
 // R20 — next/image is gone from this file. It was `unoptimized` (output:'export' has no
 // optimiser), which means it emitted no srcset, which is the whole of the payload problem this
 // round measured. See FrontFace.
+import { useEffect, useRef } from 'react';
 import { coverSrcSet, coverSrc } from '../../lib/bookstore/covers';
+// R22C — the marker a link uses to find this board. See ./bookTransition.js for the mechanism.
+import { BOOK_SLUG_ATTR } from './bookTransition';
 import { useBookGesture } from './useBookGesture';
 import { resolveOpeningLine, resolveBackBlurb, gradientFor, obiLabel, formatCatalogueNumber } from './fields';
 import { useCurrency, useRegionCountry, priceLine } from '../../lib/currency';
@@ -596,8 +599,38 @@ export default function BoundBook({ title, variant = 'shelf', width = 160, ribbo
   // rung too small and the eye would see it.
   const sizes = typeof width === 'number' ? `${width}px` : '(max-width:640px) 33vw, 200px';
 
+  // R22C — THE MARKER AND THE WAY BACK.
+  //
+  // `data-bb-slug` is how a link to /bookstore/{slug} finds the board it should carry — see
+  // armBookTransition() in ./bookTransition.js. It is an ATTRIBUTE and not a ref registry
+  // because the shop draws boards from four different components on two pages, and a registry
+  // would need every one of them to remember to enrol.
+  //
+  // The `cs-book-unflip` listener is the other half. A book that has been turned over shows its
+  // back, and `backface-visibility:hidden` means its front is not painted — so a view
+  // transition that snapshotted it would capture nothing and fall back to a cross-fade, which
+  // is the cover blinking out. Arming therefore asks the book to turn back first. A
+  // CustomEvent rather than a prop: the gesture's `reset` lives inside useBookGesture and the
+  // link that needs it is in a modal three components away, and threading a callback through
+  // all of them would be a prop every future surface has to remember — the exact failure
+  // BOOK_SURFACES was written about.
+  const bookHostRef = useRef(null);
+  useEffect(() => {
+    const el = bookHostRef.current;
+    if (!el) return undefined;
+    const onUnflip = () => reset();
+    el.addEventListener('cs-book-unflip', onUnflip);
+    return () => el.removeEventListener('cs-book-unflip', onUnflip);
+  }, [reset]);
+
   return (
-    <div className={'bb-persp' + (canHover ? ' bb-hoverable' : '')} style={{ '--bb-w': cssWidth }} {...bind}>
+    <div
+      ref={bookHostRef}
+      className={'bb-persp' + (canHover ? ' bb-hoverable' : '')}
+      style={{ '--bb-w': cssWidth }}
+      {...{ [BOOK_SLUG_ATTR]: title?.slug || undefined }}
+      {...bind}
+    >
       <div className="bb-shadow" />
       <div ref={bookRef} className={'bb-book' + (flipped ? ' bb-flipped' : '')}>
         {/* The RIGHT fore-edge. The bottom one was removed by R16 — see

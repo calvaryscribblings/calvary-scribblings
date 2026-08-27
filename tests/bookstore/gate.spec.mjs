@@ -129,7 +129,19 @@ test.describe('the flag', () => {
         //
         // The lookbehind is the fix and it is the whole fix: a real second reader would import
         // `GATE_ENABLED` under exactly that name, so the character before it is never [A-Z_].
-        if (/(?<![A-Z_])GATE_ENABLED/.test(readFileSync(full, 'utf8'))) hits.push(relative(ROOT, full));
+        //
+        // ⚠ R22 — AND COMMENTS ARE STRIPPED FIRST, for the same class of reason one round
+        // later. This test asks "how many places READ the flag", and prose that names it does
+        // not read it. R22C's bookTransition.js explains at length why the book-to-page
+        // transition cannot form while the curtain is up — a note whose entire value is that it
+        // names the flag a future reader will search for. Making that note cost a red suite
+        // would teach the next person to write a vaguer one, which is the opposite of what this
+        // file is for. A real second reader still cannot hide: an import or a conditional is
+        // code, and code survives the strip.
+        const src = readFileSync(full, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/(^|[^:])\/\/.*$/gm, '$1');
+        if (/(?<![A-Z_])GATE_ENABLED/.test(src)) hits.push(relative(ROOT, full));
       }
     })(join(ROOT, 'app'));
 

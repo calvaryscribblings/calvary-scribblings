@@ -25,6 +25,9 @@ import CuratedSection, { CURATED_SECTION_CSS } from './components/CuratedSection
 import { SHOP_VERNACULAR_CSS } from './components/shopVernacular';
 // R20 — the grain, its ruling and its one definition. See the header of that file.
 import { GRAIN_CSS, GRAIN_CLASS } from './components/grain';
+// R22C — the departing half of the book's journey. Both documents must carry this stylesheet
+// or the pair never forms; see the header of that file.
+import { BOOK_TRANSITION_CSS, installBookTransitions } from './components/bookTransition';
 
 // R13 — WHAT USED TO BE HERE, AND WHERE IT WENT.
 //
@@ -256,19 +259,101 @@ export function TheWindow({ title, genreLabelFor, onOpen }) {
   );
 }
 
-// ── Opening Lines rail: rotating quote → reveal → next ────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// OPENING LINES — R22B: THE LINE TURNS LIKE A PAGE
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// The rail used to swap its quote with a bare setState: one frame the old sentence, the next
+// frame the new one. Per the approved mock the words now TURN — the outgoing line rises out of
+// the frame and the new one arrives from below, with the attribution a beat behind it.
+//
+//   out    opacity 1 → 0, translateY 0 → -9px      ~420ms
+//   in     opacity 0 → 1, translateY +11px → 0     ~420ms
+//   the attribution runs the same pair, 60ms later
+//
+// ── THE QUOTATION MARKS, THE KICKER AND THE FRAME DO NOT MOVE ────────────────────────────
+//
+// That is the whole reading of the effect: the rail is a frame with a book's first sentence
+// showing through it, and a page turns behind the frame rather than the frame going with it.
+// So the &ldquo; and &rdquo; were pulled OUT of the moving element — they used to sit inside
+// .rail-quote's text, which would have carried them up and out with the words — and now sit
+// beside .rail-words as their own spans. `.rail-quote` itself never transforms; only
+// `.rail-words` and `.rail-attrib` do.
+//
+// ── TRANSFORM AND OPACITY ONLY ───────────────────────────────────────────────────────────
+//
+// Nothing here animates a property that repaints or reflows: no height, no margin, no colour,
+// no filter. The two transitioned properties are named in RAIL_TURN below and asserted by
+// tests/bookstore/payload.spec.mjs against the computed style, so a later edit that reaches
+// for `top` or `line-height` because it is easier fails rather than quietly costing a round
+// like R22A's.
+//
+// ── AND IT STOPS FOR prefers-reduced-motion ──────────────────────────────────────────────
+//
+// `transition:none` under the query, so the swap is instantaneous. R20 declined to add one to
+// the grain on the grounds that nobody had asked for a class of readers to stop seeing a thing
+// the house had ruled in. This is the opposite case: the motion is the feature, and a reader
+// who has asked their system for less of it is asking about exactly this.
+export const RAIL_TURN = {
+  ruledBy: 'Ikenna',
+  on: '2026-08-26',
+  approvedAs: 'the mock — the line turns like a page',
+  durationMs: 420,
+  easing: 'cubic-bezier(.4,0,.2,1)',
+  outY: '-9px',
+  inY: '11px',
+  attributionDelayMs: 60,
+  // The ONLY two properties that may appear in the transition. Asserted, not hoped.
+  properties: ['opacity', 'transform'],
+  // What must never move, because moving it turns a frame with a page behind it into a card
+  // that slides.
+  stationary: ['.rail-eyebrow', '.rail-quote', '.rail-mark'],
+};
+
 function OpeningLinesRail({ pool }) {
   const [i, setI] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  // 'idle' | 'out' | 'in'. One variable rather than two booleans: the page is either settled,
+  // leaving, or arriving, and a pair of flags admits a fourth state that means nothing.
+  const [phase, setPhase] = useState('idle');
+  const timers = useRef([]);
+
+  useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
+
   const entry = pool[i % pool.length];
   const line = resolveOpeningLine(entry);
-  const advance = () => { setRevealed(false); setI((n) => (n + 1) % pool.length); };
+
+  const advance = () => {
+    // Mid-turn presses are ignored rather than queued. A second press during the 420ms would
+    // otherwise start an `in` on a line that is still going `out`, and the rail would flicker
+    // through a sentence nobody read.
+    if (phase !== 'idle') return;
+    setPhase('out');
+    timers.current.push(setTimeout(() => {
+      // The swap happens at the far end of the outgoing turn, while the words are invisible —
+      // which is what makes it a page turn rather than a cross-fade.
+      setRevealed(false);
+      setI((n) => (n + 1) % pool.length);
+      setPhase('in');
+      // One frame in the arriving position before the class comes off, or the browser
+      // coalesces "put it at +11px" and "put it back at 0" into no transition at all.
+      timers.current.push(setTimeout(() => setPhase('idle'), 30));
+    }, RAIL_TURN.durationMs));
+  };
+
+  const turning = phase === 'out' ? ' is-out' : phase === 'in' ? ' is-in' : '';
+
   return (
     <section className="rail">
       <div className="rail-eyebrow"><Fleuron /> Opening Lines <Fleuron /></div>
-      <blockquote className="rail-quote">&ldquo;{line}&rdquo;</blockquote>
+      {/* The marks are the FRAME and stay put; only .rail-words travels through them. */}
+      <blockquote className="rail-quote">
+        <span className="rail-mark" aria-hidden="true">&ldquo;</span>
+        <span className={`rail-words${turning}`}>{line}</span>
+        <span className="rail-mark" aria-hidden="true">&rdquo;</span>
+      </blockquote>
       {revealed ? (
-        <div className="rail-reveal">
+        <div className={`rail-reveal rail-attrib${turning}`}>
           <a href={`/bookstore/${entry.slug}`} className="rail-answer">
             <span className="rail-answer-title">{entry.title}</span>
             <span className="rail-answer-author">{entry.author}</span>
@@ -414,6 +499,19 @@ export default function BookStorePage() {
     if (isStoreUnlocked()) { setUnlocked(true); setCurtain('gone'); }
     else setCurtain('up');
   }, []);
+
+  // R22C — THE BOOK CARRIES YOU TO ITS PAGE.
+  //
+  // One delegated listener for the whole shop rather than a handler per link: the shelf
+  // re-renders on every genre tab, every currency change and every section resolve, and the
+  // links live in four different components including a modal that mounts and unmounts. It
+  // reads the href, finds the board with that slug, and names it so the browser carries it
+  // across the navigation. See ./components/bookTransition.js.
+  //
+  // ⚠ NOTHING HERE IS LOAD-BEARING FOR GETTING TO THE PAGE. No preventDefault, no scripted
+  // navigation. If this effect never ran — an old browser, a thrown error, the module removed —
+  // every link on the shop still works exactly as it did before R22, without the motion.
+  useEffect(() => installBookTransitions(), []);
 
   // A0 runtime gate — UNCHANGED in substance: the route still stays invisible (404) until at
   // least one title is published. The only difference is that it now waits for the curtain,
@@ -603,6 +701,7 @@ export default function BookStorePage() {
           @keyframes lampPulse{0%,100%{opacity:.5}50%{opacity:.9}}
           .skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
           ${GRAIN_CSS}
+          ${BOOK_TRANSITION_CSS}
 
           .hero{min-height:88vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;text-align:center;padding:2rem}
           .hero-lamp{position:absolute;inset:0;background:radial-gradient(ellipse 60% 44% at 50% 40%,rgba(201,164,76,.16) 0%,transparent 66%);animation:lampPulse 5.5s ease-in-out infinite}
@@ -663,6 +762,25 @@ export default function BookStorePage() {
           .rail{position:relative;z-index:2;max-width:760px;margin:0 auto;padding:3.5rem 2rem;text-align:center}
           .rail-eyebrow{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.3em;text-transform:uppercase;color:#c9a44c;margin-bottom:1.5rem}
           .rail-quote{font-size:clamp(1.3rem,3vw,1.9rem);font-style:italic;font-weight:300;line-height:1.5;color:#f0ead8;margin-bottom:1.8rem}
+          /* R22B — THE PAGE TURN. See RAIL_TURN above for the record and the reasoning.
+             .rail-quote and .rail-mark are the FRAME: neither carries a transition, so the
+             quotation marks hold their place while the words travel between them.
+             .rail-words is inline-block because a transform has no effect on an inline box. */
+          .rail-mark{display:inline}
+          .rail-words{display:inline-block;transition:opacity 420ms cubic-bezier(.4,0,.2,1),transform 420ms cubic-bezier(.4,0,.2,1)}
+          .rail-words.is-out{opacity:0;transform:translateY(-9px)}
+          .rail-words.is-in{opacity:0;transform:translateY(11px);transition:none}
+          /* The attribution follows a beat behind — 60ms, which is enough to read as "and then
+             the credit" and not enough to read as two separate animations. */
+          .rail-attrib{transition:opacity 420ms cubic-bezier(.4,0,.2,1) 60ms,transform 420ms cubic-bezier(.4,0,.2,1) 60ms}
+          .rail-attrib.is-out{opacity:0;transform:translateY(-9px)}
+          .rail-attrib.is-in{opacity:0;transform:translateY(11px);transition:none}
+          /* The motion IS the feature, so a reader who has asked for less of it gets the swap
+             and not the turn. Instant, never a slower version of the same thing. */
+          @media(prefers-reduced-motion:reduce){
+            .rail-words,.rail-words.is-out,.rail-words.is-in,
+            .rail-attrib,.rail-attrib.is-out,.rail-attrib.is-in{transition:none;transform:none;opacity:1}
+          }
           .rail-reveal{display:flex;flex-direction:column;align-items:center;gap:1rem}
           .rail-answer{text-decoration:none;color:inherit}
           .rail-answer-title{display:block;font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.1em;color:#c9a44c}
