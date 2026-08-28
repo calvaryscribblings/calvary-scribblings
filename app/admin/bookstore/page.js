@@ -8,6 +8,7 @@ import {
   setTitleStatus,
   uploadCover,
   uploadCoverDerivatives,
+  makeCoverLqip,
   uploadAuthorPhoto,
   uploadEpub,
   uploadSampleEpub,
@@ -565,6 +566,7 @@ export default function AdminBookstorePage() {
     // ones. Writing {} here would strip a title's derivatives every time someone fixed a typo
     // in its synopsis — the same trap the voices form documents for cardSizes.
     let nextCoverSizes;
+    let nextCoverLqip;
 
     // Upload cover first (cheaper to retry, public-readable). If it fails, abort before EPUB upload
     // and before the title doc write — no orphaned title rows pointing at missing storage.
@@ -593,6 +595,12 @@ export default function AdminBookstorePage() {
       setCoverProgress(null);
       setDerivProgress('sizing…');
       nextCoverSizes = await uploadCoverDerivatives(titleId, form.coverFile, (w) => setDerivProgress(`sizing ${w}w…`));
+      // R29 — and the inline stand-in, from the same file, at the same door. Nothing is
+      // uploaded: it is a string that rides onto the record beside coverSizes. Same
+      // never-gated, never-thrown rule as the rungs above — a cover that saves without a
+      // stand-in draws the plate it drew before this round.
+      setDerivProgress('stand-in…');
+      nextCoverLqip = await makeCoverLqip(form.coverFile);
       setDerivProgress(null);
     }
 
@@ -651,6 +659,8 @@ export default function AdminBookstorePage() {
     if (nextCoverUrl) payload.coverUrl = nextCoverUrl;
     // Only when this save actually cut new rungs. See the note on nextCoverSizes above.
     if (nextCoverSizes) payload.coverSizes = nextCoverSizes;
+    // Only when this save actually cut one, on the same reasoning as the rungs above.
+    if (nextCoverLqip) payload.coverLqip = nextCoverLqip;
     if (nextEpubPath) payload.epubPath = nextEpubPath;
     if (nextSamplePath) payload.samplePath = nextSamplePath;
 

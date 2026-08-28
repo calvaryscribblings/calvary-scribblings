@@ -77,6 +77,43 @@ async function encodeBest(canvas) {
   return null;
 }
 
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R29 — THE INLINE STAND-IN, CUT AT THE SAME DOOR
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// A 16px-wide WebP data URI, from the SAME file and the SAME repeated-halving downscale the
+// rungs above use. It is not uploaded anywhere: it is stored on the title record and travels
+// inside a payload the page has already fetched, because a stand-in that needs its own request
+// has not solved the problem it exists for. See coverLqip() in app/lib/bookstore/covers.js for
+// the measurements and for why this is a data URI and not the blurhash the story library uses.
+//
+// ⚠ toDataURL RATHER THAN toBlob, and that is the whole reason this is a separate function
+// rather than another width passed to buildCoverDerivatives: everything above ends as an
+// upload and this one must end as a STRING.
+//
+// NEVER THROWS, for the same reason stated below and at uploadCoverDerivatives: a title that
+// saves without a stand-in draws the plate it drew before this round. A cover that will not
+// save is a book the shop does not have.
+export async function buildCoverLqip(file, opts = {}) {
+  const width = opts.width || 16;
+  const quality = opts.quality ?? 0.4;
+  let handle = null;
+  try {
+    handle = await loadBitmap(file);
+    const canvas = drawScaled(handle.bitmap, width);
+    // The same trust-what-you-asked-for check encodeBest makes: toDataURL silently falls back
+    // to PNG for a type the browser cannot encode, and a PNG at this size is several times a
+    // WebP. A PNG stand-in is not worth carrying, so an engine without WebP simply gets none.
+    const uri = canvas.toDataURL('image/webp', quality);
+    return uri.startsWith('data:image/webp') ? uri : null;
+  } catch (err) {
+    console.warn('[coverDerivatives] stand-in generation failed; the board keeps its plate', err);
+    return null;
+  } finally {
+    try { handle?.release(); } catch { /* the bitmap is already gone */ }
+  }
+}
+
 // Returns { w360, w720 } download URLs (partial or {} on failure). Never throws:
 // a cover that uploads without derivatives simply falls back to the original in
 // srcset — heavier, but a failed derivative must never block publishing.

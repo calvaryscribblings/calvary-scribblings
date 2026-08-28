@@ -14,7 +14,7 @@
 // optimiser), which means it emitted no srcset, which is the whole of the payload problem this
 // round measured. See FrontFace.
 import { useEffect, useRef } from 'react';
-import { coverSrcSet, coverSrc } from '../../lib/bookstore/covers';
+import { coverSrcSet, coverSrc, coverLqip } from '../../lib/bookstore/covers';
 // R26 — the board's width and its `sizes`, in one place both this client module and the
 // detail page's server component can read. See that file's header.
 import { boardSizes } from '../../lib/bookstore/board';
@@ -316,7 +316,13 @@ export const BOUND_BOOK_CSS = `
   .bb-book.bb-flipped{transform:rotateY(-178deg) translateY(-16px) scale(1.045)}
   .bb-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
     border-radius:2px 5px 5px 2px;overflow:hidden}
-  .bb-front{background:#0e0a16;box-shadow:8px 14px 46px rgba(0,0,0,.8),0 0 0 1px rgba(201,164,76,.1),inset -5px 0 12px rgba(0,0,0,.42)}
+  /* R29 - THE STAND-IN'S BOX. background-size and background-position come AFTER the
+     shorthand on purpose: 'background:#0e0a16' resets both to their initial values, so
+     declaring them first would silently do nothing. The colour stays underneath as the floor
+     beneath the floor, for a board whose title has no stand-in yet.
+     cover, against a 2:3 face and a 2:3 stand-in, is an exact fit and never crops.
+     No image-rendering: the DEFAULT smooth upscale is what does the blurring. */
+  .bb-front{background:#0e0a16;background-size:cover;background-position:center;box-shadow:8px 14px 46px rgba(0,0,0,.8),0 0 0 1px rgba(201,164,76,.1),inset -5px 0 12px rgba(0,0,0,.42)}
   .bb-back{transform:rotateY(180deg);background:#ece4cf;color:#2a2318;
     box-shadow:8px 14px 46px rgba(0,0,0,.8),0 0 0 1px rgba(0,0,0,.2),inset 5px 0 12px rgba(0,0,0,.14)}
   .bb-spine{position:absolute;top:0;bottom:0;left:0;width:13px;z-index:4;pointer-events:none;
@@ -421,8 +427,52 @@ function FrontFace({ title, sizes, eager }) {
   // alt="" is unchanged and still deliberate — see the long note above.
   const srcSet = coverSrcSet(title);
   const src = coverSrc(title);
+  // ══ R29 - THE STAND-IN ══════════════════════════════════════════════════════════════════
+  //
+  // Ikenna's ruling: a board never shows an empty plate while its cover is in flight. R28
+  // measured that plate standing empty for 1.9s and 5.6s on Fast 3G and 7.8s and 23.7s on
+  // Slow 3G, per cover, on the storefront.
+  //
+  // ⚠ IT IS A FLOOR AND IT CANNOT BE ANYTHING ELSE, WHICH IS THE POINT OF DOING IT THIS WAY.
+  //
+  // The stand-in is the BACKGROUND of the face. The cover is an <img> at inset:0 with
+  // object-fit:cover on top of it. So THE INSTANT THE IMAGE HAS PIXELS IT OCCLUDES THE
+  // BACKGROUND COMPLETELY. There is no `loaded` state, no effect, no decision: the browser's
+  // own paint order is what makes this a floor, so the stand-in cannot outrank the cover for
+  // even one frame, cached or not.
+  //
+  // That is the defect the app hit and had to correct by making the cached rung beat the
+  // blurhash. The correction is not needed here because the failure mode is unreachable:
+  // there is nothing in front of the image to rank against it.
+  //
+  // ⚠ WHAT A WARM CACHE STILL COSTS, STATED HONESTLY because the suite measures it and an
+  // overstated comment here would read as a promise the code does not make. An <img> whose
+  // bytes are already in the HTTP cache is STILL resolved asynchronously: the element is
+  // created, and the cache read lands a tick later. Measured over six warm reloads of the
+  // detail page, that is 0-2 frames (~40ms) in which the board shows the stand-in and not the
+  // cover. No markup closes that gap - and before this round those same frames drew the flat
+  // rgb(14,10,22) plate, so the stand-in took nothing from the cached cover; it filled a frame
+  // that was empty. tests/bookstore/cover-standin.spec.mjs pins the two statements separately:
+  // never in front of a cover that HAS pixels (the app's defect), and a warm window that
+  // closes at once.
+  //
+  // NO ANIMATION, and none is possible. The handover is the image arriving over the
+  // background. Nothing transitions, nothing fades, nothing is mounted or unmounted - R23, R26
+  // and R27 each removed one of those and this round does not put one back.
+  //
+  // NO NEW ELEMENT AND NO NEW LAYER. This is a background on the face the board already draws,
+  // so the shelf's composited layer count is untouched - R27 recovered 41 of them and
+  // payload.spec.mjs holds the ceiling at 260.
+  //
+  // The corner and edge treatment come free: .bb-face carries the border-radius and
+  // overflow:hidden, so the stand-in is clipped exactly as the cover is, behind the spine and
+  // the sheen, which are drawn after it.
+  const standIn = hasCover ? coverLqip(title) : null;
   return (
-    <div className="bb-face bb-front">
+    <div
+      className="bb-face bb-front"
+      style={standIn ? { backgroundImage: `url("${standIn}")` } : undefined}
+    >
       {hasCover ? (
         /* eslint-disable-next-line @next/next/no-img-element --
            The rule's advice is to use next/image "to automatically optimize images". There is

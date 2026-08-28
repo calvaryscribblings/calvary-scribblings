@@ -159,6 +159,11 @@ async function seedFor(slug) {
     genre: t.genre || null,
     coverUrl: t.coverUrl || null,
     coverSizes: t.coverSizes || null,
+    // R29 — the inline stand-in. It is listed here for the same reason the cover's rungs are:
+    // the board is drawn from this object before a byte of Firebase has arrived, so a stand-in
+    // that is not in the seed is a stand-in the detail page cannot paint at the moment it is
+    // for. ~199 bytes of data URI on the average title, 311 on the largest of the twenty.
+    coverLqip: t.coverLqip || null,
   };
 }
 
@@ -214,6 +219,50 @@ export async function generateMetadata({ params }) {
 // rungs are 360w and 720w, the shelf states 190px (or 33vw) and this board states 220px, and
 // at every device pixel ratio those two land on the same rung. tests/bookstore/cover-arrival
 // asserts it against the live catalogue rather than trusting the arithmetic.
+//
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// TWO THINGS R28 FOUND HERE, RECORDED AND DELIBERATELY NOT FIXED IN R29
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//
+// Both were re-measured on 28 Aug 2026 against the built export and the live catalogue. Both
+// are structural rather than urgent, and neither has a fix that is small enough to be obvious.
+//
+// ── 1. THE PRELOAD EMITS NO PLAIN href AT ALL ──────────────────────────────────────────────
+//
+// VERIFIED in out/bookstore/*.html: the emitted tag is
+//
+//     <link rel="preload" as="image" fetchPriority="high" imageSrcSet="…360w, …720w" imageSizes="220px"/>
+//
+// with NO href attribute. That is ReactDOM.preload's own behaviour — it drops the href once an
+// imageSrcSet is given. So an engine that does not support imagesrcset on rel=preload gets
+// nothing from this tag rather than the fallback rung it could have had.
+//
+// NOT FIXED, for two reasons. The fix is not small: the href cannot be forced back through
+// ReactDOM.preload, and the alternative — rendering our own <link> — is the exact thing the
+// note above says was tried and abandoned, because React 19 hoists a rendered <link> into the
+// head AND emits its own directive for it, so the document carried the tag twice.
+//
+// AND R29 HAS ALREADY TAKEN MOST OF THE COST AWAY. What such an engine loses is not the cover
+// — the <img> still carries src and srcset, which are universally supported — it is only the
+// HEAD START this preload buys. That head start exists to shorten the window in which the
+// board is empty, and as of R29 that window is not empty any more: it is the stand-in. The
+// engines in question would see a blurred cover for slightly longer, not a blank plate.
+//
+// ── 2. THE SEED IS BAKED AT BUILD TIME ─────────────────────────────────────────────────────
+//
+// seedFor() reads Firebase during the export, so a cover re-uploaded BETWEEN deploys leaves
+// this page preloading a URL the <img> will never request — a wasted request, and one that
+// does not warm the file the board draws.
+//
+// MEASURED AGAIN 28 Aug 2026, all twenty published titles: 0 stale cover URLs and 0 stale
+// stand-ins. Unchanged from R28's count.
+//
+// NOT FIXED. It self-corrects: this page is a client component that re-reads the title from
+// Firebase, and the seed is only a bootstrap, so a stale seed costs one wasted preload and
+// nothing else. R29 adds coverLqip to the same seed and inherits the same property — a stale
+// stand-in is a blur of the PREVIOUS cover, which is still a filled plate and is replaced the
+// moment the real file lands. Closing this would mean giving up the build-time seed, and the
+// seed is what lets the preload scanner see a cover URL at all while the R9 gate stands.
 export default async function BookDetailPage({ params }) {
   const { slug } = await params;
   // The sentinel exists only so generateStaticParams never returns []; it resolves to

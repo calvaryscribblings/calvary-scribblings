@@ -33,7 +33,7 @@ import {
   MAX_AUTHOR_PHOTO_BYTES,
 } from './author';
 // R20 — the cover rungs: the widths, the key shape and the flat Storage path. See covers.js.
-import { COVER_DERIVATIVE_WIDTHS, coverSizeKey, coverDerivativePath } from './covers';
+import { COVER_DERIVATIVE_WIDTHS, coverSizeKey, coverDerivativePath, COVER_LQIP_WIDTH, COVER_LQIP_QUALITY, MAX_COVER_LQIP_BYTES } from './covers';
 // R21 — WITHDRAWAL AND DELETION. Same precedent as the five imports above: the rule about
 // what leaving the shop LOOKS like lives beside the rule about what it MEANS, so the CMS's
 // confirm dialog and the write that follows it cannot disagree about who owns the book.
@@ -377,6 +377,11 @@ export async function createTitle(input) {
     // caller can test `title.coverSizes` without also testing Object.keys().length — the same
     // shape decision the glossary already made in loader.js.
     coverSizes: normaliseCoverSizes(input.coverSizes),
+    // R29 — the inline stand-in. Schema-external, exactly like coverSizes above, and
+    // normalised on the same principle: a value that is not a data URI would reach the board
+    // as a background-image pointing at nothing, which is the empty plate this round exists to
+    // remove. Null rather than '' so the getter can test the field alone.
+    coverLqip: normaliseCoverLqip(input.coverLqip),
     // The Bookseller's Fields (R4b) — schema-external; normalised here, checked below.
     backCoverBlurb: typeof input.backCoverBlurb === 'string' && input.backCoverBlurb.trim() ? input.backCoverBlurb.trim() : null,
     openingLine: typeof input.openingLine === 'string' && input.openingLine.trim() ? input.openingLine.trim() : null,
@@ -510,6 +515,7 @@ export async function updateTitle(titleId, partial) {
     // than trusted: an update whose payload omits it must KEEP the existing rungs (the spread
     // does that), and one that sends a half-built map must not store a rung that is not a URL.
     merged.coverSizes = normaliseCoverSizes(merged.coverSizes);
+    merged.coverLqip = normaliseCoverLqip(merged.coverLqip);
 
     // The Bookseller's Fields (R4b) — normalise empty/undefined → null, coerce a stray float
     // catalogueNumber to an integer, then validate inline (schema.js is locked).
@@ -935,6 +941,33 @@ const MAX_SAMPLE_BYTES = 10 * 1024 * 1024;
 // stray key, a number, or a half-finished upload that stored `undefined` would otherwise reach
 // coverSrcSet() and become a srcset rung pointing at nothing — which is a BLANK BOOK on the
 // shelf, a worse outcome than the heavy original this round exists to replace.
+// R29 — the stand-in, normalised on the way in. The ceiling is covers.js's, not a second
+// number: a value that is not an inline data URI, or is large enough to be something other
+// than a 16px thumbnail, is dropped rather than stored. coverLqip() applies the same two tests
+// on the way out, so a record written before this function existed cannot render either.
+function normaliseCoverLqip(v) {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s.startsWith('data:image/')) return null;
+  if (s.length > MAX_COVER_LQIP_BYTES) return null;
+  return s;
+}
+
+// R29 — THE DOOR CUTS THE STAND-IN TOO. Same file, same downscale, same moment as the rungs.
+// Not an upload: it returns a string that rides onto the record. Never throws — see
+// buildCoverLqip, and the same sentence at uploadCoverDerivatives below.
+export async function makeCoverLqip(file) {
+  if (!isAdmin()) return null;
+  if (!file) return null;
+  try {
+    const { buildCoverLqip } = await import('../coverDerivatives');
+    return await buildCoverLqip(file, { width: COVER_LQIP_WIDTH, quality: COVER_LQIP_QUALITY });
+  } catch (err) {
+    console.warn('[bookstore.admin-writes] stand-in failed; the board keeps its plate', err);
+    return null;
+  }
+}
+
 function normaliseCoverSizes(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const out = {};

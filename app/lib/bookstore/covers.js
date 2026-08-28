@@ -101,6 +101,82 @@ export function coverSrc(title) {
   return title?.coverUrl || null;
 }
 
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R29 — THE STAND-IN
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// Ikenna's ruling, 27 August 2026, on R28's measurements: a board must never show an empty
+// plate while its cover is in flight. R28 measured the storefront cold, per cover, from
+// entering the viewport to painting — 61ms and 664ms on 4G, 1,882ms and 5,647ms on Fast 3G,
+// 7,818ms and 23,732ms on Slow 3G — with the board drawing spine, sheen, fore-edge and shadow
+// around a flat rgb(14,10,22) plate holding nothing. A shelf of blank books for the better
+// part of a minute on the connection most of this shop's readers are on.
+//
+// ── WHAT WAS ALREADY HERE, AND WHY IT IS NOT WHAT THIS USES ────────────────────────────────
+//
+// The story library has carried `coverHash` — a 4x3 BLURHASH — since the covers work, painted
+// by an inlined decoder in app/components/CoverImage.js. `bookstore_titles` carries no such
+// field: measured, 0 of 20 published titles have one, so the data has to be made either way.
+//
+// MEASURED, over all twenty real covers:
+//
+//     blurhash 4x3      28 bytes avg      560 bytes for the shelf
+//     WebP 12w q40     161 bytes avg      3.1 KiB
+//   * WebP 16w q40     199 bytes avg      3.9 KiB   (max 311)
+//     WebP 20w q45     260 bytes avg      5.1 KiB
+//     JPEG 16w q40     493 bytes avg      9.6 KiB
+//
+// THE BLURHASH IS SEVEN TIMES SMALLER AND IT LOSES ANYWAY, on three counts that all point the
+// same way - the brief's own instruction was that the cheaper answer wins, not the elegant one:
+//
+//   - IT NEEDS A DECODER. CoverImage.js's inlined one is 2,756 bytes of JavaScript, and it
+//     would have to be pulled into the bookstore bundle to save 3.4 KiB of data URI.
+//   - IT NEEDS A CANVAS PER BOARD. Twenty canvases on a full shelf, against a compositing
+//     ceiling of 260 that R27 has just bought 94 layers of headroom under. A background image
+//     on an element that already exists adds no element and no layer.
+//   - IT CANNOT PAINT BEFORE ITS JAVASCRIPT RUNS. A blurhash is drawn in a layout effect. A
+//     background image is painted by the style system with the frame the board first appears
+//     on, which is the frame this exists for.
+//
+// 3.9 KiB for a whole shelf is 0.24% of what R20 left the shelf's covers weighing (1.6 MiB),
+// and it arrives inside records the page has already fetched - no request of its own, which is
+// the whole point of a stand-in.
+//
+// 16px IS ALSO THE BEST-LOOKING, NOT A COMPROMISE FOR SIZE. Rendered at the 220px detail board
+// and the 106px shelf board against the real cover: 16w reads as a soft field of the cover's
+// own colour and composition with nothing legible in it, while 20w and 24w start to show
+// blocky edges. Pre-blurring before the encode was tried and is pointless - it produced a
+// byte-identical file. The upscale does the blurring.
+export const COVER_LQIP_WIDTH = 16;
+export const COVER_LQIP_QUALITY = 0.4;
+
+// A stand-in that needed its own request would not be one. Anything that is not an inline
+// data URI is refused rather than rendered.
+const LQIP_PREFIX = 'data:image/';
+
+// A ceiling, not a target. The largest of the twenty real covers encodes to 311 bytes; 2 KiB
+// leaves room for a cover that resists compression and still refuses anything that is
+// evidently not a 16px thumbnail - a full-size image pasted into this field would defeat the
+// round by making the stand-in heavier than the thing it stands in for.
+export const MAX_COVER_LQIP_BYTES = 2048;
+
+/**
+ * The inline stand-in for a board, or null.
+ *
+ * NULL IS A SUPPORTED ANSWER and always has been the shape of these getters: a title uploaded
+ * before the CMS cut one, or one whose encode failed, has no stand-in and the board draws its
+ * plate exactly as it did before this round. Nothing renders blank because a placeholder was
+ * unavailable - the same rule coverSrcSet states above.
+ */
+export function coverLqip(title) {
+  const v = title?.coverLqip;
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s.startsWith(LQIP_PREFIX)) return null;
+  if (s.length > MAX_COVER_LQIP_BYTES) return null;
+  return s;
+}
+
 // NO SIZES CONSTANT LIVES HERE, AND R26 DID NOT PUT ONE HERE EITHER. The rule stands: a second
 // copy in this file would be a number that could disagree with the one actually rendered.
 // R26 needed the detail page's SERVER component to state the same `sizes` its <img> will use,
