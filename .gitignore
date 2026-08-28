@@ -110,3 +110,6 @@ backups/
 # R18 — the JSX render harness in tests/bookstore/author-render.test.mjs transforms a component
 # beside its source and imports it. after() removes it; this is the safety net for a crashed run.
 app/**/.*.test-build.mjs
+
+# One-off essay export (scripts/export-essays.mjs). Full story text — never committed.
+essays-export.md
