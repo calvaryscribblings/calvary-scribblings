@@ -112,4 +112,4 @@ backups/
 app/**/.*.test-build.mjs
 
 # One-off essay export (scripts/export-essays.mjs). Full story text — never committed.
-essays-export.md
+essays-export*.md
