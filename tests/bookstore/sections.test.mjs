@@ -1036,7 +1036,20 @@ describe('R15 — THE FILTERED-TAB RULING, as the storefront implements it', () 
     const grid = CATALOGUE.filter((t) => t.genre === 'historical');
     assert.deepEqual(grid.map((t) => t.slug), ['basil']);
     // The expression the shop uses, quoted from the component so a rewrite is caught here.
-    assert.ok(/const grid = filtered \? titles\.filter\(\(t\) => t\.genre === active\) : titles;/.test(SHOP));
+    //
+    // R30 MOVED THE LINE AND NOT THE RULE. The filter used to be the whole of `grid`; it is now
+    // the first half of a useMemo whose second half hands the result to spectralOrder — the
+    // shelf is arranged by colour and the tables are still refused under a tab. So this asserts
+    // the two halves separately rather than one line of source, which is the honest split: the
+    // SELECTION is R15's ruling and is quoted exactly; the ORDER is R30's and belongs to
+    // tests/bookstore/spectrum.test.mjs.
+    assert.ok(/const set = filtered \? titles\.filter\(\(t\) => t\.genre === active\) : titles;/.test(SHOP),
+      'the tab no longer selects exactly the genre it names');
+    // ⚠ AND THE ORDER IS APPLIED TO THE FILTERED SET, not to the catalogue ahead of the filter.
+    // The colour walk would be unchanged either way; the author pass would not — see the note
+    // at the call site and docs/cover-colour.md.
+    assert.ok(/return spectralOrder\(set\);/.test(SHOP),
+      'the shelf order is no longer computed from the filtered set');
   });
 
   test('a filtered shelf takes NO cuts — one run, exactly as before this round', () => {

@@ -114,6 +114,51 @@ export async function buildCoverLqip(file, opts = {}) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════════════
+// R30 — THE DOMINANT COLOUR, CUT AT THE SAME DOOR AND IN THE SAME BREATH
+// ══════════════════════════════════════════════════════════════════════════════════════
+//
+// The shelf is arranged by colour now (Ikenna, 30 Aug 2026), so every cover has to know what
+// colour it is — and it has to know BEFORE the shop paints, because a static export has no
+// server and there is no moment in which twenty-two covers could be decoded to decide an
+// order. So the colour is cut HERE, from the same File, on the same repeated-halving
+// downscale, in the same handful of milliseconds R29 already spends cutting the stand-in.
+//
+// ⚠ THE ARITHMETIC IS NOT HERE. dominantColourFromPixels lives in
+// app/lib/bookstore/spectrum.js and takes a raw pixel buffer, knowing nothing about canvases
+// or files. That is deliberate and it is the reason this round has one extractor rather than
+// two: the backfill runs the identical function over sharp's raw output. A browser copy and a
+// node copy of a histogram would agree on the day they were written and drift by the second
+// time either was touched, and the shelf order would then depend on WHICH DOOR a cover came
+// through — the exact class of bug R20's two writers and R29's two writers were each built to
+// avoid.
+//
+// NEVER THROWS, for the third time in this file and for the same reason. A title that saves
+// without a colour is filed at the end of the walk by arrangeShelf, visible and obviously
+// un-arranged. A cover that will not save is a book the shop does not have.
+export async function buildCoverColour(file, opts = {}) {
+  const width = opts.width || 48;
+  let handle = null;
+  try {
+    handle = await loadBitmap(file);
+    const canvas = drawScaled(handle.bitmap, width);
+    const { data } = canvas.getContext('2d', { willReadFrequently: true })
+      .getImageData(0, 0, canvas.width, canvas.height);
+    const { dominantColourFromPixels } = await import('./bookstore/spectrum');
+    const cut = dominantColourFromPixels(data, 4);
+    if (!cut) return null;
+    // `share` is an extraction statistic, not a property of a book — see the note on it in
+    // spectrum.js. Only the five stored values leave this function.
+    const { h, s, l, c, hex, v } = cut;
+    return { h, s, l, c, hex, v };
+  } catch (err) {
+    console.warn('[coverDerivatives] colour extraction failed; the book files at the end of the walk', err);
+    return null;
+  } finally {
+    try { handle?.release(); } catch { /* the bitmap is already gone */ }
+  }
+}
+
 // Returns { w360, w720 } download URLs (partial or {} on failure). Never throws:
 // a cover that uploads without derivatives simply falls back to the original in
 // srcset — heavier, but a failed derivative must never block publishing.

@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (334 of 2000 permitted) ───────────────
+# ── Static rules (338 of 2000 permitted) ───────────────
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
 /offline.html                                                /public-library                                              301
@@ -52,6 +52,8 @@
 /asake-m-ney-album-review.html                               /stories/asake-m-ney-album-review                            301
 /at-the-table                                                /stories/at-the-table                                        301
 /at-the-table.html                                           /stories/at-the-table                                        301
+/beautifully-blue                                            /stories/beautifully-blue                                    301
+/beautifully-blue.html                                       /stories/beautifully-blue                                    301
 /become-a-content-creator-the-step-by-step-guide             /stories/become-a-content-creator-the-step-by-step-guide     301
 /become-a-content-creator-the-step-by-step-guide.html        /stories/become-a-content-creator-the-step-by-step-guide     301
 /beyond-saving                                               /stories/beyond-saving                                       301
@@ -220,6 +222,8 @@
 /safety-net.html                                             /stories/safety-net                                          301
 /sapiosexual                                                 /stories/sapiosexual                                         301
 /sapiosexual.html                                            /stories/sapiosexual                                         301
+/scandalous                                                  /stories/scandalous                                          301
+/scandalous.html                                             /stories/scandalous                                          301
 /seven-metres-and-four-years-of-silence                      /stories/seven-metres-and-four-years-of-silence              301
 /seven-metres-and-four-years-of-silence.html                 /stories/seven-metres-and-four-years-of-silence              301
 /sim-swapping                                                /stories/sim-swapping                                        301

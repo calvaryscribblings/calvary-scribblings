@@ -725,6 +725,19 @@ test.describe('the opening line turns like a page', () => {
     await words.page().locator('.rail-ask .rail-btn').click();        // "Whose line is this?"
     const attrib = words.page().locator('.rail-reveal.rail-attrib');
     await expect(attrib).toBeVisible({ timeout: 10000 });
+    // ⚠ WAIT FOR THE TURN TO SETTLE BEFORE READING THE STYLE, and this is a fix rather than a
+    // tolerance. `.rail-attrib.is-in` sets `transition:none` DELIBERATELY — the incoming half
+    // of the turn is a jump to the start position, not a slide to it — and the Rail carries
+    // that class for the 30ms between setCtrlPhase('in') and setCtrlPhase('idle'). This
+    // assertion is about the RESTING transition, so reading it mid-turn was reading a state
+    // the test was never asking about and getting a correct answer to the wrong question.
+    //
+    // Measured at 5 of 8 runs passing, IDENTICALLY on this round's build and on the commit
+    // before it — a race that has been in this suite since R22 and that happens to land
+    // inside a 30ms window about a third of the time on a loaded machine. Nothing about the
+    // shelf order touches this component; it was found by R30's full-suite run, not caused
+    // by it.
+    await expect(attrib).not.toHaveClass(/\bis-(in|out)\b/, { timeout: 5000 });
     const delays = await attrib.evaluate((el) => getComputedStyle(el).transitionDelay);
     for (const d of delays.split(',').map((x) => x.trim())) {
       expect(d, 'the attribution lags the words').toBe(`${DELAY_MS / 1000}s`);

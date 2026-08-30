@@ -9,6 +9,7 @@ import {
   uploadCover,
   uploadCoverDerivatives,
   makeCoverLqip,
+  makeCoverColour,
   uploadAuthorPhoto,
   uploadEpub,
   uploadSampleEpub,
@@ -28,6 +29,11 @@ import { TITLE_STATUSES } from '../../lib/bookstore/schema';
 // R18 — the author block's bounds and its 3 MB photo cap, read from the one module the write
 // path and the RTDB .validate rules are both pinned to. Never re-typed here.
 import { AUTHOR_CAPS, MAX_AUTHOR_PHOTO_BYTES, publicPhotoUrl } from '../../lib/bookstore/author';
+// R30 — THE SPECTRAL SHELF. The swatch this panel paints and the shelf-end it names are the
+// SHOP'S OWN arithmetic, imported, never restated here — an admin panel that described the
+// order with its own copy of the rules is exactly how /admin's GENRE_OPTIONS came to disagree
+// with the shop about four of twelve genre labels (see the note at the top of app/bookstore/page.js).
+import { coverColourFromHex, spectralBandOf, NEUTRAL_CHROMA_MAX } from '../../lib/bookstore/spectrum';
 // R13 — the taxonomy and the curation system. The genre dropdown used to be built from
 // schema.js's GENRES with labels DERIVED from the slug, and it disagreed with the shop on
 // four of the twelve ("Thriller Suspense" here, "Thriller & Suspense" on the shelf). It now
@@ -212,6 +218,13 @@ const emptyForm = {
   shelfCard: '',
   glossary: '',            // R7.4 — authored as text, saved as a map
   catalogueNumber: '',
+  // R30 — the editorial override, authored as a hex and stored as the full sortable shape.
+  // Empty means "the machine's reading stands" — it is NOT the same as black.
+  coverColourOverride: '',
+  // DISPLAY ONLY, and deliberately not in buildPayload: what the extraction currently says
+  // about this cover, so the panel can show the curator what they would be overruling. The
+  // form is the only thing TitleForm can see, so a read-only value it needs has to ride here.
+  coverColourRead: '',
   // R18 — THE AUTHOR BLOCK. authorName is NOT the byline above; see the note by the fields.
   authorName: '',
   authorBio: '',
@@ -394,6 +407,11 @@ export default function AdminBookstorePage() {
       // R7.4 — the stored map back into the editor's line-per-entry form.
       glossary: serialiseGlossary(title.glossary),
       catalogueNumber: Number.isInteger(title.catalogueNumber) ? String(title.catalogueNumber) : '',
+      // R30 — ONLY the override seeds this field, never the extraction. Pre-filling it with
+      // the machine's answer would turn every save into an override of a value nobody chose,
+      // and the two keys would stop meaning different things by the end of the week.
+      coverColourOverride: title.coverColourOverride?.hex || '',
+      coverColourRead: title.coverColour?.hex || '',
       // R18 — never seeded from title.author. The byline and the author's name are different
       // claims and are allowed to disagree; pre-filling one from the other would quietly make
       // them agree on the next save.
@@ -490,6 +508,11 @@ export default function AdminBookstorePage() {
     if (!Object.keys(payload.glossary).length) payload.glossary = null;
     const catNum = form.catalogueNumber.trim() === '' ? null : Number(form.catalogueNumber);
     payload.catalogueNumber = Number.isInteger(catNum) && catNum > 0 ? catNum : null;
+    // R30 — always included (null when the field is empty), for the same reason as every field
+    // above: an editor must be able to CLEAR an override and hand the book back to the machine.
+    // The hex becomes the full { h, s, l, c, hex, v } here, so nothing downstream ever has to
+    // re-derive a sort key from a colour string.
+    payload.coverColourOverride = coverColourFromHex(form.coverColourOverride) || null;
     // R18 — always included (null when empty), for the same reason as every field above: the
     // write path spreads the existing record, so an omitted key would keep the old value and
     // a curator could never CLEAR a bio. authorPhotoPath is set by the upload step in
@@ -567,6 +590,10 @@ export default function AdminBookstorePage() {
     // in its synopsis — the same trap the voices form documents for cardSizes.
     let nextCoverSizes;
     let nextCoverLqip;
+    // R30 — undefined, NOT null, for exactly the reason nextCoverSizes gives above: an edit
+    // that does not touch the cover must leave the existing colour alone. The payload line
+    // below only overrides when this save actually cut a new one.
+    let nextCoverColour;
 
     // Upload cover first (cheaper to retry, public-readable). If it fails, abort before EPUB upload
     // and before the title doc write — no orphaned title rows pointing at missing storage.
@@ -601,6 +628,11 @@ export default function AdminBookstorePage() {
       // stand-in draws the plate it drew before this round.
       setDerivProgress('stand-in…');
       nextCoverLqip = await makeCoverLqip(form.coverFile);
+      // R30 — and the dominant colour, from the same file, at the same door, under the same
+      // rule: never gated, never thrown. A cover that saves without a colour files at the end
+      // of the shelf's walk rather than blocking a publish.
+      setDerivProgress('colour…');
+      nextCoverColour = await makeCoverColour(form.coverFile);
       setDerivProgress(null);
     }
 
@@ -661,6 +693,10 @@ export default function AdminBookstorePage() {
     if (nextCoverSizes) payload.coverSizes = nextCoverSizes;
     // Only when this save actually cut one, on the same reasoning as the rungs above.
     if (nextCoverLqip) payload.coverLqip = nextCoverLqip;
+    // Only when this save actually cut one. ⚠ AND IT NEVER TOUCHES payload.coverColourOverride,
+    // which buildPayload has already set from the form — a re-upload replaces the machine's
+    // reading and leaves the human's decision exactly where it was.
+    if (nextCoverColour) payload.coverColour = nextCoverColour;
     if (nextEpubPath) payload.epubPath = nextEpubPath;
     if (nextSamplePath) payload.samplePath = nextSamplePath;
 
@@ -1080,7 +1116,23 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
   const slugInvalid = form.slug && !SLUG_RE.test(form.slug);
 
   // Non-blocking duplicate-catalogue-number warning: flag when another title already uses it.
+  // R30 — the swatch chip. A hard-edged block on the panel's own dark ground, so a near-black
+  // reads as a near-black rather than as an absence; the hairline is what makes #000000 and
+  // "nothing here" tell apart.
+  const swatchBox = { width: 28, height: 28, borderRadius: 3, border: '1px solid rgba(255,255,255,0.22)', display: 'inline-block', flex: '0 0 auto' };
   const catNumParsed = form.catalogueNumber.trim() === '' ? null : Number(form.catalogueNumber);
+  // R30 — the panel's reading of this title's shelf colour, derived with the SHOP'S functions.
+  // `machine` is what the extraction stored, `override` is what the form currently says, and
+  // `where` is what spectralBandOf will actually do with the winner — no second opinion.
+  const shelfColourRead = (() => {
+    const machine = coverColourFromHex(form.coverColourRead);
+    const override = coverColourFromHex(form.coverColourOverride);
+    const band = spectralBandOf(override || machine);
+    const where = band.label === 'neutral' ? 'the neutral shelf-end'
+      : band.label === 'unplaced' ? 'the end of the walk (no colour yet)'
+      : `the ${band.label}° hue band`;
+    return { machine, override, where };
+  })();
   const catDupTitle = (catNumParsed !== null && Number.isInteger(catNumParsed) && catalogueInUse)
     ? catalogueInUse.get(catNumParsed)
     : null;
@@ -1298,6 +1350,42 @@ function TitleForm({ form, setForm, editingTitleId, saving, errors, publishers, 
           <div style={catDup ? s.hintWarn : s.hint}>
             The No. on everything. Admin-controlled, not auto-assigned.
             {catDup && <> &mdash; ⚠ No. {catNumParsed} is already used by &ldquo;{catDup.title}&rdquo;.</>}
+          </div>
+        </div>
+        {/* R30 — THE SHELF COLOUR.
+            The panel shows what the machine read, what (if anything) the curator has said
+            instead, and WHICH SHELF-END the book will therefore stand at — because the last of
+            those is the only one that actually changes where the book is, and a swatch with no
+            consequence attached would be decoration. Both readings are shown side by side so
+            the override is visibly an argument with a specific value, not a blank guess.
+
+            ⚠ THIS FIELD MOVES A BOOK ON THE SHELF. IT DOES NOT MOVE ITS CS NUMBER. The
+            catalogue number above is an accession mark and nothing in R30 touches it. */}
+        <div style={{ ...s.fg, marginTop: '1.1rem' }}>
+          <label style={s.label}>Shelf colour <span style={s.labelSoft}>(optional override)</span></label>
+          <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ ...swatchBox, background: shelfColourRead.machine?.hex || 'transparent' }} title={shelfColourRead.machine?.hex || 'not cut yet'} />
+            <span style={s.hint}>
+              read from the cover: {shelfColourRead.machine ? shelfColourRead.machine.hex : <em>not cut yet</em>}
+            </span>
+            <input
+              style={{ ...s.input, width: 130 }}
+              value={form.coverColourOverride}
+              onChange={(e) => setForm((f) => ({ ...f, coverColourOverride: e.target.value }))}
+              placeholder="#a33b12"
+            />
+            <span style={{ ...swatchBox, background: shelfColourRead.override?.hex || 'transparent' }} title={shelfColourRead.override?.hex || 'no override'} />
+          </div>
+          <div style={form.coverColourOverride.trim() && !shelfColourRead.override ? s.hintWarn : s.hint}>
+            {form.coverColourOverride.trim() && !shelfColourRead.override
+              ? '⚠ Not a hex colour — write it as #rrggbb. Nothing will be saved for this field.'
+              : <>Leave blank and the cover decides. Fill it in when the cover&rsquo;s dominant colour is
+                 arithmetically right and wrong on the shelf &mdash; a dark painting reading as a near-black,
+                 a duotone filed under whichever ink covers more board.</>}
+          </div>
+          <div style={s.hint}>
+            Stands at: <strong>{shelfColourRead.where}</strong>
+            {' '}&mdash; anything under chroma {NEUTRAL_CHROMA_MAX}/255 is a neutral and goes to the quiet end of the shelf.
           </div>
         </div>
       </div>

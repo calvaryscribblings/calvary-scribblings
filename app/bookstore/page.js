@@ -21,6 +21,15 @@ import { isStoreUnlocked } from '../lib/bookstore/gate';
 import { getGenres, getSections, getSignals } from '../lib/bookstore/loader';
 import { genreLabel as labelOf, genresPresentIn, titlesInGroup, groupLabel } from '../lib/bookstore/genres';
 import { resolveSections, bandsFor, applyBands, rebindSections, nextExpiryMs, planShopFlow, shelfRuns } from '../lib/bookstore/sections';
+// R30 — THE SPECTRAL SHELF. Ikenna, 30 Aug 2026: "arrange the books by colour. Make the store
+// beautiful", with a second ruling folded in — no author may cluster, because publication-date
+// order had put every one of one author's titles in a row.
+//
+// ⚠ THE SORT IS DATA AND THE SHELF'S BODY IS SETTLED LAW. This import is the entire change R30
+// makes to this file. The tickets' deliberate unevenness, the R25 rhythm, the R27 no-fade
+// arrival and R29's stand-ins are all untouched, because none of them is a question about
+// ORDER. See app/lib/bookstore/spectrum.js.
+import { spectralOrder } from '../lib/bookstore/spectrum';
 import CuratedSection, { CURATED_SECTION_CSS } from './components/CuratedSection';
 import { SHOP_VERNACULAR_CSS } from './components/shopVernacular';
 // R22.1 — THE GRAIN IS GONE. There is no import here any more and there must not be one: the
@@ -157,7 +166,34 @@ export function ShelfEntry({ title, index, onOpen, genreLabelFor, suppressMark }
 // Exported for the CMS preview — see the panel's placed-context frame.
 export function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPresent, active, setActive, onOpen, genreLabelFor, interleaves, renderSection }) {
   const filtered = active !== 'all';
-  const grid = filtered ? titles.filter((t) => t.genre === active) : titles;
+  // ── R30 — THE WALK ORDER, AND WHY IT IS COMPUTED HERE RATHER THAN UPSTREAM ────────────────
+  //
+  // The shelf is arranged by colour, then passed once to break same-author adjacencies. The
+  // whole arrangement is spectralOrder(), applied to WHATEVER SET IS ABOUT TO BE DRAWN.
+  //
+  // ⚠ AFTER THE FILTER, NOT BEFORE IT. Sorting the catalogue upstream and letting the tab
+  // filter a subsequence out of it would give the identical answer for the COLOUR half — a
+  // total order's subsequence is that order — and a wrong answer for the AUTHOR half. On the
+  // All Fiction shelf a third author's book may be the only thing standing between two of
+  // Ikenna's; the moment a genre tab filters that book away the two close up, and a shelf that
+  // only obeys the no-clustering ruling when unfiltered does not obey it. The brief said the
+  // same thing more briefly: "the order is the same function applied to the filtered set".
+  //
+  // ⚠ IT DOES NOT MOVE A SINGLE CURATED TABLE. `interleaves` is a list of DEPTHS into this
+  // shelf, planShopFlow counted them off the shelf's LENGTH, and neither the length nor the
+  // depths are things a re-ordering can change — so every stop is exactly where R15 put it and
+  // only the books standing at it are different. tests/bookstore/placement.spec.mjs asserts
+  // that against the real export, and it is the reason this sort is applied to `grid` and not
+  // to `run.titles` inside the map below: sorting each run separately would arrange four
+  // little shelves instead of one, and the spectrum would restart at every table.
+  //
+  // Memoised on the identity of the filtered list, which is what React re-renders on. The sort
+  // is O(n log n) over twenty-two records and would be cheap either way; the memo is here so
+  // that a currency change or a modal open does not re-derive it.
+  const grid = useMemo(() => {
+    const set = filtered ? titles.filter((t) => t.genre === active) : titles;
+    return spectralOrder(set);
+  }, [titles, filtered, active]);
   // R13 — genresPresent is now taxonomy RECORDS rather than slugs, so the tab carries the
   // curator's label and the curator's order. The rule it encodes is unchanged and is now
   // stated once, in genres.js: All Fiction first, then only genres holding a published title.

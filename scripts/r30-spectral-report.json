@@ -1,0 +1,780 @@
+{
+  "generatedAt": "2026-08-30T16:54:56.738Z",
+  "constants": {
+    "HUE_ORIGIN": 0,
+    "HUE_BAND_DEGREES": 30,
+    "NEUTRAL_CHROMA_MAX": 32,
+    "AUTHOR_NUDGE_WINDOW": 2
+  },
+  "genres": [
+    {
+      "slug": "literary-fiction",
+      "label": "Literary Fiction",
+      "group": "fiction",
+      "order": 1
+    },
+    {
+      "slug": "romance",
+      "label": "Romance",
+      "group": "fiction",
+      "order": 2
+    },
+    {
+      "slug": "thriller-suspense",
+      "label": "Thriller & Suspense",
+      "group": "fiction",
+      "order": 3
+    },
+    {
+      "slug": "sci-fi-fantasy",
+      "label": "Sci-Fi & Fantasy",
+      "group": "fiction",
+      "order": 4
+    },
+    {
+      "slug": "historical",
+      "label": "Historical",
+      "group": "fiction",
+      "order": 5
+    },
+    {
+      "slug": "short-story-collection",
+      "label": "Short Story Collections",
+      "group": "fiction",
+      "order": 6
+    },
+    {
+      "slug": "poetry",
+      "label": "Poetry",
+      "group": "fiction",
+      "order": 7
+    },
+    {
+      "slug": "memoir-biography",
+      "label": "Memoir & Biography",
+      "group": "nonfiction",
+      "order": 8
+    },
+    {
+      "slug": "essays",
+      "label": "Essays",
+      "group": "nonfiction",
+      "order": 9
+    },
+    {
+      "slug": "self-development",
+      "label": "Self-Development",
+      "group": "nonfiction",
+      "order": 10
+    },
+    {
+      "slug": "business-finance",
+      "label": "Business & Finance",
+      "group": "nonfiction",
+      "order": 11
+    },
+    {
+      "slug": "politics-society",
+      "label": "Politics & Society",
+      "group": "nonfiction",
+      "order": 12
+    }
+  ],
+  "extraction": [
+    {
+      "slug": "after-the-fact",
+      "status": "skipped",
+      "colour": {
+        "h": 11,
+        "s": 92,
+        "l": 40,
+        "c": 190,
+        "hex": "#c62a08",
+        "v": 1
+      }
+    },
+    {
+      "slug": "all-shadows-are-black",
+      "status": "skipped",
+      "colour": {
+        "h": 0,
+        "s": 99,
+        "l": 35,
+        "c": 179,
+        "hex": "#b40100",
+        "v": 1
+      }
+    },
+    {
+      "slug": "beyond-good-and-evil",
+      "status": "skipped",
+      "colour": {
+        "h": 247,
+        "s": 39,
+        "l": 5,
+        "c": 9,
+        "hex": "#080710",
+        "v": 1
+      }
+    },
+    {
+      "slug": "deportee",
+      "status": "skipped",
+      "colour": {
+        "h": 48,
+        "s": 0,
+        "l": 96,
+        "c": 0,
+        "hex": "#f5f5f5",
+        "v": 1
+      }
+    },
+    {
+      "slug": "linea-house-publishing-they-killed-ahmet",
+      "status": "skipped",
+      "colour": {
+        "h": 50,
+        "s": 10,
+        "l": 0,
+        "c": 0,
+        "hex": "#010101",
+        "v": 1
+      }
+    },
+    {
+      "slug": "mrs-dalloway",
+      "status": "skipped",
+      "colour": {
+        "h": 247,
+        "s": 39,
+        "l": 5,
+        "c": 9,
+        "hex": "#080710",
+        "v": 1
+      }
+    },
+    {
+      "slug": "rogues-of-the-east",
+      "status": "skipped",
+      "colour": {
+        "h": 1,
+        "s": 84,
+        "l": 13,
+        "c": 54,
+        "hex": "#3b0605",
+        "v": 1
+      }
+    },
+    {
+      "slug": "slavery-is-not-a-choice",
+      "status": "skipped",
+      "colour": {
+        "h": 179,
+        "s": 6,
+        "l": 1,
+        "c": 0,
+        "hex": "#030404",
+        "v": 1
+      }
+    },
+    {
+      "slug": "some-kind-things-wey-mouth-no-fit-talk",
+      "status": "skipped",
+      "colour": {
+        "h": 56,
+        "s": 3,
+        "l": 100,
+        "c": 0,
+        "hex": "#fefefe",
+        "v": 1
+      }
+    },
+    {
+      "slug": "test-drive",
+      "status": "skipped",
+      "colour": {
+        "h": 241,
+        "s": 77,
+        "l": 4,
+        "c": 17,
+        "hex": "#030314",
+        "v": 1
+      }
+    },
+    {
+      "slug": "the-autobiography-of-an-ex-colored-man",
+      "status": "skipped",
+      "colour": {
+        "h": 247,
+        "s": 39,
+        "l": 5,
+        "c": 9,
+        "hex": "#080710",
+        "v": 1
+      }
+    },
+    {
+      "slug": "the-awakening",
+      "status": "skipped",
+      "colour": {
+        "h": 247,
+        "s": 39,
+        "l": 5,
+        "c": 9,
+        "hex": "#080710",
+        "v": 1
+      }
+    },
+    {
+      "slug": "the-bloody-ones-come-to-town-book-two-of-the-fatma-zdemir-crime-series",
+      "status": "skipped",
+      "colour": {
+        "h": 12,
+        "s": 10,
+        "l": 0,
+        "c": 0,
+        "hex": "#000000",
+        "v": 1
+      }
+    },
+    {
+      "slug": "the-interesting-narrative-of-the-life-of-olaudah-equiano",
+      "status": "skipped",
+      "colour": {
+        "h": 247,
+        "s": 39,
+        "l": 5,
+        "c": 9,
+        "hex": "#080710",
+        "v": 1
+      }
+    },
+    {
+      "slug": "the-legend-of-the-hidden-treasures",
+      "status": "skipped",
+      "colour": {
+        "h": 17,
+        "s": 64,
+        "l": 27,
+        "c": 88,
+        "hex": "#713219",
+        "v": 1
+      }
+    },
+    {
+      "slug": "the-marrow-of-tradition",
+      "status": "skipped",
+      "colour": {
+        "h": 248,
+        "s": 39,
+        "l": 5,
+        "c": 9,
+        "hex": "#080710",
+        "v": 1
+      }
+    },
+    {
+      "slug": "the-rescue",
+      "status": "skipped",
+      "colour": {
+        "h": 37,
+        "s": 11,
+        "l": 4,
+        "c": 2,
+        "hex": "#0d0c0a",
+        "v": 1
+      }
+    },
+    {
+      "slug": "the-sport-of-the-gods",
+      "status": "skipped",
+      "colour": {
+        "h": 247,
+        "s": 39,
+        "l": 5,
+        "c": 9,
+        "hex": "#080710",
+        "v": 1
+      }
+    },
+    {
+      "slug": "the-tenant-of-wildfell-hall",
+      "status": "skipped",
+      "colour": {
+        "h": 250,
+        "s": 72,
+        "l": 2,
+        "c": 7,
+        "hex": "#030109",
+        "v": 1
+      }
+    },
+    {
+      "slug": "the-yellow-trumpet",
+      "status": "skipped",
+      "colour": {
+        "h": 40,
+        "s": 100,
+        "l": 48,
+        "c": 245,
+        "hex": "#f6a300",
+        "v": 1
+      }
+    },
+    {
+      "slug": "whatever-happens-in-antalya",
+      "status": "skipped",
+      "colour": {
+        "h": 44,
+        "s": 92,
+        "l": 54,
+        "c": 217,
+        "hex": "#f5bd1c",
+        "v": 1
+      }
+    },
+    {
+      "slug": "where-the-story-begins",
+      "status": "skipped",
+      "colour": {
+        "h": 12,
+        "s": 39,
+        "l": 6,
+        "c": 11,
+        "hex": "#140b09",
+        "v": 1
+      }
+    },
+    {
+      "slug": "yahoo-yahoo",
+      "status": "skipped",
+      "colour": {
+        "h": 158,
+        "s": 95,
+        "l": 22,
+        "c": 104,
+        "hex": "#036b45",
+        "v": 1
+      }
+    }
+  ],
+  "shelves": {
+    "fiction": {
+      "order": [
+        {
+          "position": 1,
+          "slug": "rogues-of-the-east",
+          "title": "Rogues of the East",
+          "author": "Ikenna Okeh",
+          "catalogueNumber": 2,
+          "genre": "thriller-suspense",
+          "colour": {
+            "h": 1,
+            "s": 84,
+            "l": 13,
+            "c": 54,
+            "hex": "#3b0605",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 2,
+          "slug": "all-shadows-are-black",
+          "title": "All Shadows Are Black",
+          "author": "Collins C. Oparaocha",
+          "catalogueNumber": 13,
+          "genre": "thriller-suspense",
+          "colour": {
+            "h": 0,
+            "s": 99,
+            "l": 35,
+            "c": 179,
+            "hex": "#b40100",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 3,
+          "slug": "the-legend-of-the-hidden-treasures",
+          "title": "The Legend of the Hidden Treasures",
+          "author": "Ikenna Okeh",
+          "catalogueNumber": 23,
+          "genre": "sci-fi-fantasy",
+          "colour": {
+            "h": 17,
+            "s": 64,
+            "l": 27,
+            "c": 88,
+            "hex": "#713219",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 4,
+          "slug": "after-the-fact",
+          "title": "After the Fact",
+          "author": "Calvary Scribblings",
+          "catalogueNumber": 1,
+          "genre": "short-story-collection",
+          "colour": {
+            "h": 11,
+            "s": 92,
+            "l": 40,
+            "c": 190,
+            "hex": "#c62a08",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 5,
+          "slug": "the-yellow-trumpet",
+          "title": "The Yellow Trumpet",
+          "author": "Chinedu Philip Onoyima",
+          "catalogueNumber": 14,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 40,
+            "s": 100,
+            "l": 48,
+            "c": 245,
+            "hex": "#f6a300",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 6,
+          "slug": "whatever-happens-in-antalya",
+          "title": "Whatever Happens in Antalya",
+          "author": "Ikenna Okeh",
+          "catalogueNumber": 17,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 44,
+            "s": 92,
+            "l": 54,
+            "c": 217,
+            "hex": "#f5bd1c",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 7,
+          "slug": "yahoo-yahoo",
+          "title": "Yahoo! Yahoo!",
+          "author": "Ikenna Okeh",
+          "catalogueNumber": 11,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 158,
+            "s": 95,
+            "l": 22,
+            "c": 104,
+            "hex": "#036b45",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 8,
+          "slug": "linea-house-publishing-they-killed-ahmet",
+          "title": "They Killed Ahmet (Book one of the Fatma Özdemir novellas)",
+          "author": "Ikenna Okeh",
+          "catalogueNumber": 15,
+          "genre": "thriller-suspense",
+          "colour": {
+            "h": 50,
+            "s": 10,
+            "l": 0,
+            "c": 0,
+            "hex": "#010101",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 9,
+          "slug": "the-tenant-of-wildfell-hall",
+          "title": "The Tenant of Wildfell Hall",
+          "author": "Anne Brontë",
+          "catalogueNumber": 8,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 250,
+            "s": 72,
+            "l": 2,
+            "c": 7,
+            "hex": "#030109",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 10,
+          "slug": "the-bloody-ones-come-to-town-book-two-of-the-fatma-zdemir-crime-series",
+          "title": "The Bloody Ones Come to Town (Book Two of the Fatma Özdemir Crime Series)",
+          "author": "Ikenna Okeh",
+          "catalogueNumber": 20,
+          "genre": "thriller-suspense",
+          "colour": {
+            "h": 12,
+            "s": 10,
+            "l": 0,
+            "c": 0,
+            "hex": "#000000",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 11,
+          "slug": "the-rescue",
+          "title": "The Rescue",
+          "author": "Joseph Conrad",
+          "catalogueNumber": 12,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 37,
+            "s": 11,
+            "l": 4,
+            "c": 2,
+            "hex": "#0d0c0a",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 12,
+          "slug": "slavery-is-not-a-choice",
+          "title": "Slavery Is (Not) a Choice",
+          "author": "Ikenna Okeh",
+          "catalogueNumber": 19,
+          "genre": "historical",
+          "colour": {
+            "h": 179,
+            "s": 6,
+            "l": 1,
+            "c": 0,
+            "hex": "#030404",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 13,
+          "slug": "the-marrow-of-tradition",
+          "title": "The Marrow of Tradition",
+          "author": "Charles W. Chesnutt",
+          "catalogueNumber": 5,
+          "genre": "historical",
+          "colour": {
+            "h": 248,
+            "s": 39,
+            "l": 5,
+            "c": 9,
+            "hex": "#080710",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 14,
+          "slug": "the-autobiography-of-an-ex-colored-man",
+          "title": "The Autobiography of an Ex-Colored Man",
+          "author": "James Weldon Johnson",
+          "catalogueNumber": 6,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 247,
+            "s": 39,
+            "l": 5,
+            "c": 9,
+            "hex": "#080710",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 15,
+          "slug": "the-sport-of-the-gods",
+          "title": "The Sport of the Gods",
+          "author": "Paul Laurence Dunbar",
+          "catalogueNumber": 7,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 247,
+            "s": 39,
+            "l": 5,
+            "c": 9,
+            "hex": "#080710",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 16,
+          "slug": "the-awakening",
+          "title": "The Awakening",
+          "author": "Kate Chopin",
+          "catalogueNumber": 9,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 247,
+            "s": 39,
+            "l": 5,
+            "c": 9,
+            "hex": "#080710",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 17,
+          "slug": "mrs-dalloway",
+          "title": "Mrs Dalloway",
+          "author": "Virginia Woolf",
+          "catalogueNumber": 10,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 247,
+            "s": 39,
+            "l": 5,
+            "c": 9,
+            "hex": "#080710",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 18,
+          "slug": "deportee",
+          "title": "Deportee",
+          "author": "Ikenna Okeh",
+          "catalogueNumber": 21,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 48,
+            "s": 0,
+            "l": 96,
+            "c": 0,
+            "hex": "#f5f5f5",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        }
+      ],
+      "unbroken": [
+        {
+          "author": "Ikenna Okeh",
+          "before": "whatever-happens-in-antalya",
+          "after": "yahoo-yahoo"
+        },
+        {
+          "author": "Ikenna Okeh",
+          "before": "yahoo-yahoo",
+          "after": "linea-house-publishing-they-killed-ahmet"
+        }
+      ]
+    },
+    "nonfiction": {
+      "order": [
+        {
+          "position": 1,
+          "slug": "the-interesting-narrative-of-the-life-of-olaudah-equiano",
+          "title": "The Interesting Narrative of the Life of Olaudah Equiano",
+          "author": "Olaudah Equiano",
+          "catalogueNumber": 4,
+          "genre": "memoir-biography",
+          "colour": {
+            "h": 247,
+            "s": 39,
+            "l": 5,
+            "c": 9,
+            "hex": "#080710",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 2,
+          "slug": "beyond-good-and-evil",
+          "title": "Beyond Good and Evil",
+          "author": "Friedrich Nietzsche",
+          "catalogueNumber": 16,
+          "genre": "essays",
+          "colour": {
+            "h": 247,
+            "s": 39,
+            "l": 5,
+            "c": 9,
+            "hex": "#080710",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 3,
+          "slug": "where-the-story-begins",
+          "title": "Where the Story Begins",
+          "author": "Calvary Scribblings",
+          "catalogueNumber": 24,
+          "genre": "essays",
+          "colour": {
+            "h": 12,
+            "s": 39,
+            "l": 6,
+            "c": 11,
+            "hex": "#140b09",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        },
+        {
+          "position": 4,
+          "slug": "some-kind-things-wey-mouth-no-fit-talk",
+          "title": "Some Kind Things Wey Mouth No Fit Talk",
+          "author": "Ikenna Okeh",
+          "catalogueNumber": 22,
+          "genre": "essays",
+          "colour": {
+            "h": 56,
+            "s": 3,
+            "l": 100,
+            "c": 0,
+            "hex": "#fefefe",
+            "v": 1
+          },
+          "overridden": false,
+          "weakPlurality": false
+        }
+      ],
+      "unbroken": []
+    }
+  }
+}

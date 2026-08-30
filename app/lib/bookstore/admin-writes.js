@@ -34,6 +34,11 @@ import {
 } from './author';
 // R20 — the cover rungs: the widths, the key shape and the flat Storage path. See covers.js.
 import { COVER_DERIVATIVE_WIDTHS, coverSizeKey, coverDerivativePath, COVER_LQIP_WIDTH, COVER_LQIP_QUALITY, MAX_COVER_LQIP_BYTES } from './covers';
+// R30 — THE SPECTRAL SHELF. Same precedent as the import above: the rule about what a stored
+// colour IS lives in one module, and this file calls it rather than re-stating it. In
+// particular normaliseCoverColour is the SAME function the reader-side resolver applies, so a
+// value that could not sort can neither be written here nor read there.
+import { COVER_COLOUR_SAMPLE_WIDTH, normaliseCoverColour } from './spectrum';
 // R21 — WITHDRAWAL AND DELETION. Same precedent as the five imports above: the rule about
 // what leaving the shop LOOKS like lives beside the rule about what it MEANS, so the CMS's
 // confirm dialog and the write that follows it cannot disagree about who owns the book.
@@ -382,6 +387,14 @@ export async function createTitle(input) {
     // as a background-image pointing at nothing, which is the empty plate this round exists to
     // remove. Null rather than '' so the getter can test the field alone.
     coverLqip: normaliseCoverLqip(input.coverLqip),
+    // R30 — THE TWO COLOUR FIELDS. Schema-external, exactly like the two above, and there are
+    // TWO of them on purpose: `coverColour` is the machine's reading of the cover and
+    // `coverColourOverride` is Ikenna's. Kept apart so that re-cutting the extraction — a new
+    // upload, a --force backfill — can never silently erase an editorial decision, and so that
+    // clearing the override restores the machine's answer instead of leaving a hole.
+    // See app/lib/bookstore/spectrum.js for the shape and for which one wins.
+    coverColour: normaliseCoverColour(input.coverColour),
+    coverColourOverride: normaliseCoverColour(input.coverColourOverride),
     // The Bookseller's Fields (R4b) — schema-external; normalised here, checked below.
     backCoverBlurb: typeof input.backCoverBlurb === 'string' && input.backCoverBlurb.trim() ? input.backCoverBlurb.trim() : null,
     openingLine: typeof input.openingLine === 'string' && input.openingLine.trim() ? input.openingLine.trim() : null,
@@ -516,6 +529,13 @@ export async function updateTitle(titleId, partial) {
     // does that), and one that sends a half-built map must not store a rung that is not a URL.
     merged.coverSizes = normaliseCoverSizes(merged.coverSizes);
     merged.coverLqip = normaliseCoverLqip(merged.coverLqip);
+    // R30 — re-normalised on the same principle, and for one extra reason that only applies to
+    // the override: an editor CLEARING the swatch field must be able to remove the override and
+    // hand the book back to the extraction. normaliseCoverColour answers '' / null / a
+    // half-typed hex with null, so an emptied field stores null rather than being skipped as
+    // "no change" — the same decision the glossary makes six lines below.
+    merged.coverColour = normaliseCoverColour(merged.coverColour);
+    merged.coverColourOverride = normaliseCoverColour(merged.coverColourOverride);
 
     // The Bookseller's Fields (R4b) — normalise empty/undefined → null, coerce a stray float
     // catalogueNumber to an integer, then validate inline (schema.js is locked).
@@ -964,6 +984,26 @@ export async function makeCoverLqip(file) {
     return await buildCoverLqip(file, { width: COVER_LQIP_WIDTH, quality: COVER_LQIP_QUALITY });
   } catch (err) {
     console.warn('[bookstore.admin-writes] stand-in failed; the board keeps its plate', err);
+    return null;
+  }
+}
+
+// R30 — AND THE DOOR CUTS THE COLOUR. Same file, same downscale, same moment as the rungs and
+// the stand-in. Not an upload: it returns five small numbers that ride onto the record.
+//
+// ⚠ IT WRITES `coverColour` AND NEVER `coverColourOverride`. A new cover is a new reading by
+// the machine; whether Ikenna has overruled the machine for this title is a separate fact that
+// survives the upload, which is the entire reason the two are separate keys.
+//
+// Never throws — see buildCoverColour, and the same sentence at makeCoverLqip above.
+export async function makeCoverColour(file) {
+  if (!isAdmin()) return null;
+  if (!file) return null;
+  try {
+    const { buildCoverColour } = await import('../coverDerivatives');
+    return normaliseCoverColour(await buildCoverColour(file, { width: COVER_COLOUR_SAMPLE_WIDTH }));
+  } catch (err) {
+    console.warn('[bookstore.admin-writes] colour extraction failed; the book files at the end of the walk', err);
     return null;
   }
 }
