@@ -28,6 +28,21 @@
 // no class names at all, so injecting this there collides with nothing. If that ever stops
 // being true, scope it rather than rename anything here — the names are the shop's.
 // ═════════════════════════════════════════════════════════════════════════════════════════
+// THE SHELF'S COLUMN COUNT — one number, named, read by the CSS and by the component
+// ═════════════════════════════════════════════════════════════════════════════════════════
+//
+// R16, Ikenna's ruling of 19 August 2026, ratifying the app's storefront as the house design:
+// three books per row AT EVERY VIEWPORT. The full argument is at .shelf below; what matters
+// here is that the number was a literal inside a template string, and R30.2 gave the STOREFRONT
+// a reason to know it too — the opening row of each half holds min(3, whatever is there), and
+// a component that hard-coded its own 3 would be a second opinion about the shape of a shelf.
+//
+// ⚠ THE ONE PLACE THIS IS WRITTEN DOWN. `.shelf`'s grid-template-columns is interpolated from
+// it, `--shelf-col-w` is derived from it, and CatalogueSection imports it. Change it here and
+// the shelf, the opening row and the split all move together.
+export const SHELF_COLUMNS = 3;
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
 // R25 — THE SHOP'S VERTICAL RHYTHM
 // ═════════════════════════════════════════════════════════════════════════════════════════
 //
@@ -260,8 +275,54 @@ export const SHOP_VERNACULAR_CSS = `
 
      minmax(0,1fr) rather than 1fr: a bare 1fr floors at min-content, and a long unbroken title
      in .entry-title would then push a column wider than its third and put four-across geometry
-     on a three-across shelf. */
-  .shelf{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--shelf-row-gap) var(--shelf-col-gap);justify-items:center}
+     on a three-across shelf.
+
+     ⚠ THE COUNT IS FIXED, WHICH IS WHY R30.2 HAS NO BREAKPOINT TABLE. There is one geometry at
+     every width: three columns on a 390px handset and three on a 1440px desktop, with only the
+     gap tokens and the section's gutter changing at 640px. A rule about "the first row" cannot
+     therefore meet a first row of one book or of four — the pre-R16 auto-fill rule could
+     produce those, and it is gone. The opening row holds one, two or three books, and at three
+     the centring is arithmetically a no-op. */
+  .shelf{display:grid;grid-template-columns:repeat(${SHELF_COLUMNS},minmax(0,1fr));gap:var(--shelf-row-gap) var(--shelf-col-gap);justify-items:center;
+    /* ⚠ A THIRD OF THE SHELF, DERIVED — the width one column actually resolves to, so the
+       opening row below can state a column width without inventing a second number. It is the
+       same arithmetic the 1fr tracks perform: the container less the gaps between the tracks,
+       divided by the count. */
+    --shelf-col-w:calc((100% - (${SHELF_COLUMNS} - 1) * var(--shelf-col-gap)) / ${SHELF_COLUMNS})}
+
+  /* ── R30.2 — THE OPENING ROW OF EACH HALF IS CENTRED ────────────────────────────────────
+     Ikenna's ruling, 30 August 2026. The two surfaces had diverged and each needed the
+     opposite half of one rule: the APP centred every short row and has just been corrected to
+     left-align below the first; the WEB already left-aligned everywhere and was missing the
+     centring at the top.
+
+     ⚠ ON THIS SIDE THE RULE WAS ABSENT, NOT INVERTED, and the record should say which. Over in
+     the app the left-alignment being corrected was an explicit named function carrying a
+     ruling of 2026-08-20, so R30.2 REVISES a decision there. Here there was never a rule about
+     row alignment at all: repeat(3,minmax(0,1fr)) with no justify-content packs a short row
+     into the leading columns, and that is a CONSEQUENCE of the R16 grid rather than a decision
+     anybody took. Nothing is being reversed on the web — a gap is being filled. (The one place
+     the web did state an opinion about a short row is .curated-shelf, which is flex and
+     centres; that is a curated table, not the catalogue.)
+
+     WHAT IT LOOKS LIKE TODAY: After the Fact and Rogues of the East, two books in a
+     three-column row above the Editor's Choice table, centred rather than flush left.
+
+     HOW IT WORKS, and why the opening row is its own grid. Centring n items INSIDE a
+     three-track grid is not expressible by placement — two items centred in three tracks would
+     have to start half a column in, and there is no half column. So the opening row gets its
+     own container with exactly n tracks, each one --shelf-col-w wide, and justify-content
+     centres those tracks in the same width the shelf below spans. The books are therefore
+     BYTE-IDENTICAL in size to every other row; only the leading space changes.
+
+     ⚠ IT IS STATED FOR A FULL ROW TOO, AND THAT IS DELIBERATE. With n = 3 the tracks come to
+     3 * --shelf-col-w + 2 gaps, which is exactly 100%, so justify-content has nothing to
+     distribute and the row is pixel-identical to what shipped before this round. Stating it
+     changes no pixel today and means nothing shifts on the day a half's opening row is short. */
+  .shelf-opening{grid-template-columns:repeat(var(--opening-count),var(--shelf-col-w));justify-content:center}
+  /* The two grids are siblings, so the row gap between them is the parent's to pay. Only when
+     both exist — an opening row that is the whole of its run has no row beneath it to space. */
+  .shelf-opening + .shelf{margin-top:var(--shelf-row-gap)}
   /* ⛔ R27 — THE PER-ENTRY FADE STOOD ON THIS RULE AND IS GONE. See SHELF_FADE_REMOVED
      above for the ruling, the measurement and the verbatim declaration. */
   .shelf-entry{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:200px}

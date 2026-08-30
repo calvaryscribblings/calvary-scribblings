@@ -304,9 +304,31 @@ test.describe('three across, at every viewport', () => {
     test(`${name} (${width}px) draws three columns`, async ({ page }) => {
       await page.setViewportSize({ width, height });
       await enterShop(page);
-      const cols = await page.locator('#fiction .shelf').first()
+      // ⚠ .shelf:not(.shelf-opening), AND THE RULING IS UNCHANGED. R16's three-across still
+      // governs the shelf; R30.2 gave the OPENING ROW of each half its own grid, which states
+      // exactly as many tracks as it has books so it can be centred (two items cannot be
+      // centred in three tracks — there is no half column). Reading `.shelf` first now lands on
+      // that opening grid and counts its books, which is a different question from how wide the
+      // shelf's columns are.
+      const cols = await page.locator('#fiction .shelf:not(.shelf-opening)').first()
         .evaluate((g) => getComputedStyle(g).gridTemplateColumns.trim().split(/\s+/).length);
       expect(cols, `the shelf drew ${cols} columns at ${width}px`).toBe(3);
+
+      // AND THE STRONGER CLAIM R30.2 HAS TO EARN: the opening row's tracks are a THIRD OF THE
+      // SHELF, not some width of their own. If they ever drift, the shop's first row shows
+      // books at a different size from every row under it — which is the one way this round
+      // could have broken R16 without changing a column count anywhere.
+      const track = await page.evaluate(() => {
+        const one = (sel) => {
+          const g = document.querySelector(sel);
+          if (!g) return null;
+          return parseFloat(getComputedStyle(g).gridTemplateColumns.trim().split(/\s+/)[0]);
+        };
+        return { opening: one('#fiction .shelf-opening'), shelf: one('#fiction .shelf:not(.shelf-opening)') };
+      });
+      expect(track.opening, 'no opening row was drawn on the fiction shelf').not.toBeNull();
+      expect(track.opening, `the opening row's track is ${track.opening}px against the shelf's ${track.shelf}px`)
+        .toBeCloseTo(track.shelf, 0);
     });
   }
 

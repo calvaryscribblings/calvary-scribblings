@@ -156,9 +156,12 @@ test.describe('interleaving', () => {
         const kids = [...cat.children].filter((el) => el.querySelector('.shelf, .catalogue-interleave') || el.classList.contains('shelf'));
         const runs = [];
         for (const wrap of cat.querySelectorAll(':scope > div')) {
-          const grid = wrap.querySelector(':scope > .shelf');
+          // ⚠ ALL the grids in this run, not the first. R30.2 splits a run's opening row into
+          // its own sibling grid, so a run that draws six books is now two elements; counting
+          // only the first would report three and quietly understate every run above a table.
+          const grids = [...wrap.querySelectorAll(':scope > .shelf')];
           const table = wrap.querySelector(':scope > .catalogue-interleave');
-          if (grid) runs.push({ books: grid.children.length });
+          if (grids.length) runs.push({ books: grids.reduce((n, g) => n + g.children.length, 0) });
           if (table) runs.push({ table: true });
         }
         if (runs.length) out.push({ id: cat.id, runs, total: cat.querySelectorAll('.shelf > .shelf-entry').length });
@@ -250,8 +253,18 @@ test.describe('the genre tabs, with tables interleaved', () => {
       // THE RULING: the shelf is the reader's while they have narrowed it.
       expect(await page.locator('#fiction .catalogue-interleave').count(),
         `a curated table survived the ${label} tab`).toBe(0);
-      expect(await page.locator('#fiction .shelf').count(),
-        `the ${label} tab drew more than one grid`).toBe(1);
+      // ⚠ THE PROXY MOVED; THE RULING DID NOT. This used to read `.shelf` count === 1, standing
+      // for "a filtered shelf takes no cuts — one continuous grid of exactly the books they
+      // asked for". R30.2 gave the opening row of each half its own grid so it can be centred,
+      // so an uncut filtered shelf is now drawn as at most TWO elements: the opening row and
+      // the rest. The thing R15 actually forbids is a TABLE cutting the shelf, and that is
+      // asserted directly on the line above. What is checked here is that the shelf is still
+      // ONE CONTINUOUS RUN — the R30.2 pair and nothing else.
+      const grids = await page.$$eval('#fiction .shelf', (gs) => gs.map((g) => g.classList.contains('shelf-opening')));
+      expect(grids.length, `the ${label} tab drew ${grids.length} grids; an uncut shelf is the opening row and the rest`)
+        .toBeLessThanOrEqual(2);
+      expect(grids[0], `the ${label} tab's first grid is not the opening row`).toBe(true);
+      expect(grids.slice(1).some(Boolean), `the ${label} tab drew a second opening row`).toBe(false);
     }
   });
 

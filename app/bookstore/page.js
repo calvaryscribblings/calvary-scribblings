@@ -31,7 +31,7 @@ import { resolveSections, bandsFor, applyBands, rebindSections, nextExpiryMs, pl
 // ORDER. See app/lib/bookstore/spectrum.js.
 import { spectralOrder } from '../lib/bookstore/spectrum';
 import CuratedSection, { CURATED_SECTION_CSS } from './components/CuratedSection';
-import { SHOP_VERNACULAR_CSS } from './components/shopVernacular';
+import { SHOP_VERNACULAR_CSS, SHELF_COLUMNS } from './components/shopVernacular';
 // R22.1 — THE GRAIN IS GONE. There is no import here any more and there must not be one: the
 // layer was ruled out entirely on 27 Aug 2026 ("it looks really bad... let's just go back to
 // having dark background"), texture and all. app/bookstore/components/grain.js survives as the
@@ -206,6 +206,22 @@ export function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPre
   // which alternates, and restarting it at each cut would put two cards at the same angle
   // either side of a table.
   let seen = 0;
+  // ── R30.2 — THE OPENING ROW ──────────────────────────────────────────────────────────────
+  //
+  // Ikenna's ruling, 30 August 2026: the first row of each half is CENTRED, and every row below
+  // it stays hard left. One centred row per half, at the top.
+  //
+  // ⚠ A CURATED TABLE DOES NOT RESET IT. R15's tables float through the shelf, and the row
+  // resuming after one is the shelf continuing — so this latch is armed once for the whole
+  // component and spent on the FIRST RUN THAT HAS BOOKS IN IT, not on the first run. A cut at
+  // depth 0 puts a table above the first book (`run.titles.length === 0`), and the opening row
+  // is still the first row of books the reader meets.
+  //
+  // It takes min(SHELF_COLUMNS, whatever is there) entries, so a half with two books centres
+  // both, and a half with twenty centres its first three — which is arithmetically the same as
+  // not centring them at all. See .shelf-opening in shopVernacular.js for why that is stated
+  // rather than special-cased.
+  let openingSpent = false;
   return (
     <section id={id} className="catalogue-section">
       <div className="section-head">
@@ -230,13 +246,35 @@ export function CatalogueSection({ id, sectionLabel, allLabel, titles, genresPre
                   cuts that clamped to the same depth, leave a run with nothing in it — and an
                   empty .shelf is a row gap with no row, which is the hole this round is
                   required not to open. */}
-              {run.titles.length > 0 && (
-                <div className="shelf">
-                  {run.titles.map((t, i) => (
-                    <ShelfEntry key={t.id} title={t} index={from + i} onOpen={onOpen} genreLabelFor={genreLabelFor} />
-                  ))}
-                </div>
-              )}
+              {run.titles.length > 0 && (() => {
+                // The opening row is split off into its own grid because centring n items
+                // inside a three-track grid is not expressible by placement — see the CSS.
+                // `opening` is empty for every run after the latch is spent, and then this
+                // renders exactly the single .shelf it always did.
+                const take = openingSpent ? 0 : Math.min(SHELF_COLUMNS, run.titles.length);
+                if (take) openingSpent = true;
+                const opening = run.titles.slice(0, take);
+                const rest = run.titles.slice(take);
+                const entry = (t, i) => (
+                  <ShelfEntry key={t.id} title={t} index={from + i} onOpen={onOpen} genreLabelFor={genreLabelFor} />
+                );
+                return (
+                  <>
+                    {opening.length > 0 && (
+                      // --opening-count is the track count, and it is the ONLY thing that
+                      // differs between a centred row of two and a no-op row of three.
+                      <div className="shelf shelf-opening" style={{ '--opening-count': opening.length }}>
+                        {opening.map((t, i) => entry(t, i))}
+                      </div>
+                    )}
+                    {rest.length > 0 && (
+                      <div className="shelf">
+                        {rest.map((t, i) => entry(t, take + i))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               {run.sections.map((sec) => (
                 <div className="catalogue-interleave" key={sec.id}>{renderSection(sec)}</div>
               ))}

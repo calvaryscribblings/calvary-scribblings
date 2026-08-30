@@ -1066,8 +1066,18 @@ describe('R15 — THE FILTERED-TAB RULING, as the storefront implements it', () 
   });
 
   test('a run with no books draws no grid', () => {
-    assert.ok(/run\.titles\.length > 0 && \(\s*<div className="shelf">/.test(SHOP),
+    // R30.2 SPLIT THE RUN AND KEPT THE GUARD. This used to quote one line — the run guard
+    // sitting immediately on top of `<div className="shelf">`. The opening row of each half is
+    // now its own sibling grid, so there are THREE guards to hold rather than one, and all
+    // three are checked: the run must have books, and neither half of the split may render an
+    // empty grid of its own. tests/bookstore/placement.spec.mjs proves the same thing against
+    // the real export by counting empty grids on the page; this is the source-side half.
+    assert.ok(/run\.titles\.length > 0 && \(\(\) => \{/.test(SHOP),
       'the empty-run guard is gone — a cut at depth 0 would draw an empty grid');
+    assert.ok(/\{opening\.length > 0 && \(/.test(SHOP),
+      'the opening row can now render with nothing in it');
+    assert.ok(/\{rest\.length > 0 && \(/.test(SHOP),
+      'the remainder can now render with nothing in it — a half of three books would draw an empty grid under its opening row');
   });
 
   test('the opening and the foot are OUTSIDE the tabbed shelves', () => {
