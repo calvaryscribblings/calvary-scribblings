@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-30T16:54:56.738Z",
+  "generatedAt": "2026-08-30T18:37:56.473Z",
   "constants": {
     "HUE_ORIGIN": 0,
     "HUE_BAND_DEGREES": 30,
@@ -376,8 +376,7 @@
             "hex": "#3b0605",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         },
         {
           "position": 2,
@@ -394,8 +393,7 @@
             "hex": "#b40100",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         },
         {
           "position": 3,
@@ -412,8 +410,7 @@
             "hex": "#713219",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         },
         {
           "position": 4,
@@ -430,11 +427,61 @@
             "hex": "#c62a08",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         },
         {
           "position": 5,
+          "slug": "the-marrow-of-tradition",
+          "title": "The Marrow of Tradition",
+          "author": "Charles W. Chesnutt",
+          "catalogueNumber": 5,
+          "genre": "historical",
+          "colour": {
+            "h": 30,
+            "s": 73,
+            "l": 16,
+            "c": 61,
+            "hex": "#48290b",
+            "v": 1
+          },
+          "overridden": true
+        },
+        {
+          "position": 6,
+          "slug": "the-autobiography-of-an-ex-colored-man",
+          "title": "The Autobiography of an Ex-Colored Man",
+          "author": "James Weldon Johnson",
+          "catalogueNumber": 6,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 38,
+            "s": 44,
+            "l": 19,
+            "c": 43,
+            "hex": "#46361b",
+            "v": 1
+          },
+          "overridden": true
+        },
+        {
+          "position": 7,
+          "slug": "mrs-dalloway",
+          "title": "Mrs Dalloway",
+          "author": "Virginia Woolf",
+          "catalogueNumber": 10,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 41,
+            "s": 26,
+            "l": 37,
+            "c": 50,
+            "hex": "#786846",
+            "v": 1
+          },
+          "overridden": true
+        },
+        {
+          "position": 8,
           "slug": "the-yellow-trumpet",
           "title": "The Yellow Trumpet",
           "author": "Chinedu Philip Onoyima",
@@ -448,11 +495,10 @@
             "hex": "#f6a300",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         },
         {
-          "position": 6,
+          "position": 9,
           "slug": "whatever-happens-in-antalya",
           "title": "Whatever Happens in Antalya",
           "author": "Ikenna Okeh",
@@ -466,11 +512,27 @@
             "hex": "#f5bd1c",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         },
         {
-          "position": 7,
+          "position": 10,
+          "slug": "the-sport-of-the-gods",
+          "title": "The Sport of the Gods",
+          "author": "Paul Laurence Dunbar",
+          "catalogueNumber": 7,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 187,
+            "s": 26,
+            "l": 32,
+            "c": 43,
+            "hex": "#3c6267",
+            "v": 1
+          },
+          "overridden": true
+        },
+        {
+          "position": 11,
           "slug": "yahoo-yahoo",
           "title": "Yahoo! Yahoo!",
           "author": "Ikenna Okeh",
@@ -484,11 +546,27 @@
             "hex": "#036b45",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         },
         {
-          "position": 8,
+          "position": 12,
+          "slug": "the-awakening",
+          "title": "The Awakening",
+          "author": "Kate Chopin",
+          "catalogueNumber": 9,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 192,
+            "s": 21,
+            "l": 63,
+            "c": 39,
+            "hex": "#8dacb4",
+            "v": 1
+          },
+          "overridden": true
+        },
+        {
+          "position": 13,
           "slug": "linea-house-publishing-they-killed-ahmet",
           "title": "They Killed Ahmet (Book one of the Fatma Özdemir novellas)",
           "author": "Ikenna Okeh",
@@ -502,47 +580,10 @@
             "hex": "#010101",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         },
         {
-          "position": 9,
-          "slug": "the-tenant-of-wildfell-hall",
-          "title": "The Tenant of Wildfell Hall",
-          "author": "Anne Brontë",
-          "catalogueNumber": 8,
-          "genre": "literary-fiction",
-          "colour": {
-            "h": 250,
-            "s": 72,
-            "l": 2,
-            "c": 7,
-            "hex": "#030109",
-            "v": 1
-          },
-          "overridden": false,
-          "weakPlurality": false
-        },
-        {
-          "position": 10,
-          "slug": "the-bloody-ones-come-to-town-book-two-of-the-fatma-zdemir-crime-series",
-          "title": "The Bloody Ones Come to Town (Book Two of the Fatma Özdemir Crime Series)",
-          "author": "Ikenna Okeh",
-          "catalogueNumber": 20,
-          "genre": "thriller-suspense",
-          "colour": {
-            "h": 12,
-            "s": 10,
-            "l": 0,
-            "c": 0,
-            "hex": "#000000",
-            "v": 1
-          },
-          "overridden": false,
-          "weakPlurality": false
-        },
-        {
-          "position": 11,
+          "position": 14,
           "slug": "the-rescue",
           "title": "The Rescue",
           "author": "Joseph Conrad",
@@ -556,11 +597,44 @@
             "hex": "#0d0c0a",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         },
         {
-          "position": 12,
+          "position": 15,
+          "slug": "the-bloody-ones-come-to-town-book-two-of-the-fatma-zdemir-crime-series",
+          "title": "The Bloody Ones Come to Town (Book Two of the Fatma Özdemir Crime Series)",
+          "author": "Ikenna Okeh",
+          "catalogueNumber": 20,
+          "genre": "thriller-suspense",
+          "colour": {
+            "h": 12,
+            "s": 10,
+            "l": 0,
+            "c": 0,
+            "hex": "#000000",
+            "v": 1
+          },
+          "overridden": false
+        },
+        {
+          "position": 16,
+          "slug": "the-tenant-of-wildfell-hall",
+          "title": "The Tenant of Wildfell Hall",
+          "author": "Anne Brontë",
+          "catalogueNumber": 8,
+          "genre": "literary-fiction",
+          "colour": {
+            "h": 62,
+            "s": 17,
+            "l": 35,
+            "c": 30,
+            "hex": "#666749",
+            "v": 1
+          },
+          "overridden": true
+        },
+        {
+          "position": 17,
           "slug": "slavery-is-not-a-choice",
           "title": "Slavery Is (Not) a Choice",
           "author": "Ikenna Okeh",
@@ -574,98 +648,7 @@
             "hex": "#030404",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
-        },
-        {
-          "position": 13,
-          "slug": "the-marrow-of-tradition",
-          "title": "The Marrow of Tradition",
-          "author": "Charles W. Chesnutt",
-          "catalogueNumber": 5,
-          "genre": "historical",
-          "colour": {
-            "h": 248,
-            "s": 39,
-            "l": 5,
-            "c": 9,
-            "hex": "#080710",
-            "v": 1
-          },
-          "overridden": false,
-          "weakPlurality": false
-        },
-        {
-          "position": 14,
-          "slug": "the-autobiography-of-an-ex-colored-man",
-          "title": "The Autobiography of an Ex-Colored Man",
-          "author": "James Weldon Johnson",
-          "catalogueNumber": 6,
-          "genre": "literary-fiction",
-          "colour": {
-            "h": 247,
-            "s": 39,
-            "l": 5,
-            "c": 9,
-            "hex": "#080710",
-            "v": 1
-          },
-          "overridden": false,
-          "weakPlurality": false
-        },
-        {
-          "position": 15,
-          "slug": "the-sport-of-the-gods",
-          "title": "The Sport of the Gods",
-          "author": "Paul Laurence Dunbar",
-          "catalogueNumber": 7,
-          "genre": "literary-fiction",
-          "colour": {
-            "h": 247,
-            "s": 39,
-            "l": 5,
-            "c": 9,
-            "hex": "#080710",
-            "v": 1
-          },
-          "overridden": false,
-          "weakPlurality": false
-        },
-        {
-          "position": 16,
-          "slug": "the-awakening",
-          "title": "The Awakening",
-          "author": "Kate Chopin",
-          "catalogueNumber": 9,
-          "genre": "literary-fiction",
-          "colour": {
-            "h": 247,
-            "s": 39,
-            "l": 5,
-            "c": 9,
-            "hex": "#080710",
-            "v": 1
-          },
-          "overridden": false,
-          "weakPlurality": false
-        },
-        {
-          "position": 17,
-          "slug": "mrs-dalloway",
-          "title": "Mrs Dalloway",
-          "author": "Virginia Woolf",
-          "catalogueNumber": 10,
-          "genre": "literary-fiction",
-          "colour": {
-            "h": 247,
-            "s": 39,
-            "l": 5,
-            "c": 9,
-            "hex": "#080710",
-            "v": 1
-          },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         },
         {
           "position": 18,
@@ -682,20 +665,14 @@
             "hex": "#f5f5f5",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         }
       ],
       "unbroken": [
         {
           "author": "Ikenna Okeh",
-          "before": "whatever-happens-in-antalya",
-          "after": "yahoo-yahoo"
-        },
-        {
-          "author": "Ikenna Okeh",
-          "before": "yahoo-yahoo",
-          "after": "linea-house-publishing-they-killed-ahmet"
+          "before": "slavery-is-not-a-choice",
+          "after": "deportee"
         }
       ]
     },
@@ -703,42 +680,23 @@
       "order": [
         {
           "position": 1,
-          "slug": "the-interesting-narrative-of-the-life-of-olaudah-equiano",
-          "title": "The Interesting Narrative of the Life of Olaudah Equiano",
-          "author": "Olaudah Equiano",
-          "catalogueNumber": 4,
-          "genre": "memoir-biography",
-          "colour": {
-            "h": 247,
-            "s": 39,
-            "l": 5,
-            "c": 9,
-            "hex": "#080710",
-            "v": 1
-          },
-          "overridden": false,
-          "weakPlurality": false
-        },
-        {
-          "position": 2,
           "slug": "beyond-good-and-evil",
           "title": "Beyond Good and Evil",
           "author": "Friedrich Nietzsche",
           "catalogueNumber": 16,
           "genre": "essays",
           "colour": {
-            "h": 247,
-            "s": 39,
-            "l": 5,
-            "c": 9,
-            "hex": "#080710",
+            "h": 36,
+            "s": 53,
+            "l": 78,
+            "c": 60,
+            "hex": "#e4cca8",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": true
         },
         {
-          "position": 3,
+          "position": 2,
           "slug": "where-the-story-begins",
           "title": "Where the Story Begins",
           "author": "Calvary Scribblings",
@@ -752,8 +710,24 @@
             "hex": "#140b09",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
+        },
+        {
+          "position": 3,
+          "slug": "the-interesting-narrative-of-the-life-of-olaudah-equiano",
+          "title": "The Interesting Narrative of the Life of Olaudah Equiano",
+          "author": "Olaudah Equiano",
+          "catalogueNumber": 4,
+          "genre": "memoir-biography",
+          "colour": {
+            "h": 90,
+            "s": 1,
+            "l": 47,
+            "c": 2,
+            "hex": "#787977",
+            "v": 1
+          },
+          "overridden": true
         },
         {
           "position": 4,
@@ -770,11 +744,16 @@
             "hex": "#fefefe",
             "v": 1
           },
-          "overridden": false,
-          "weakPlurality": false
+          "overridden": false
         }
       ],
       "unbroken": []
     }
+  },
+  "r301": {
+    "overrides": 8,
+    "leftAlone": [
+      "the-rescue"
+    ]
   }
 }

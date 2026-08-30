@@ -227,6 +227,121 @@ stand-in backfills say of it. It never runs in a build.
 
 ---
 
+## R30.1 — the eight explicit shelf colours
+
+**Status:** live on `bookstore_titles`, web (R30.1, 30 Aug 2026). Written by
+`scripts/bookstore-shelf-colour-overrides.mjs`, which **is the record** — the values live in the
+database where a reader of the code cannot see them, so they live in git too, with their
+reasons, under review.
+
+### The ruling
+
+Ikenna, on reading R30's proposed shelf: the Calvary-liveried classics must not sort as a
+near-black block. They sort by their **cover artwork** — the museum paintings — so the shelf
+reads chromatically rather than as a short rainbow followed by a wall.
+
+> ⚠ **The extraction rule is untouched, and must stay untouched.** This is the whole reason the
+> change is eight editorial values and not a smarter extractor.
+>
+> **A board whose dominant colour is `#080710` is correctly read as neutral.** rgb(8,7,16) is a
+> near-black; `spectrum.js` is right about it, chroma 32 is still the line, and every future
+> cover through the CMS door is still measured exactly as R30 measured these. **Nobody should
+> later "fix" the extractor to produce these values automatically.** That would mean teaching a
+> general rule to see past a livery only these titles wear, and it would silently re-file every
+> honest near-black in the catalogue.
+>
+> What is true of these eight is not a defect in the measurement. It is that **a reader's
+> experience of them is the painting, not the board**: the livery puts the artwork on the top
+> 60% of the cover and a dark plate under it, and the plate is what wins a whole-cover
+> histogram. A curator saying "file this book under the colour a reader sees" is an editorial
+> act, and `coverColourOverride` is the field built for exactly it.
+
+### The method, and why the obvious version of it fails
+
+1. **The crop was measured, not guessed.** Mean luminance across each cover in twentieths of its
+   height: every liveried cover holds high through band 12 and has collapsed to 8–28 by band 16.
+   The painting is the **top 60%** — above the scrim, the wordmark and its gold rule, the title,
+   the author, the CS number and the museum credit. (*The Rescue* carries no plate: 78%.)
+
+2. ⚠ **Re-running the plain dominant-colour rule on that crop returns mud**, and this finding is
+   the reason the round worked at all. Measured: Marrow `#1d1c12`, Mrs Dalloway `#343433`, The
+   Awakening `#9baeaa`, Wildfell Hall `#434b3c`. All neutral, all arithmetically correct, all
+   useless — the change would have moved these books from one grey to another. **A
+   nineteenth-century oil's most common pixel is its tonal ground**, because that is what an oil
+   painting mostly is; its colour lives in smaller, more saturated regions. *The dominant swatch
+   of a painting is not the colour of a painting.*
+
+3. So: the painting's own **hue family** first — a circular mean over every swatch carrying real
+   colour (chroma ≥ 8), weighted by area *and* saturation — then, within that family, the **most
+   saturated colour covering at least 2% of the board**. A real colour, really in the painting,
+   in the painting's own dominant hue.
+
+4. And **a gate**, so the method cannot invent a colour for a picture that has none: at least
+   **25% of the painting must carry chroma ≥ 20**. Measured spread: 30.6% (Wildfell Hall, the
+   weakest kept) against 11.8% (*The Rescue*) and 0.0% (Equiano). A clean gap, and what falls
+   below it is left alone — the brief's own instruction was "say so rather than forcing a hue".
+
+### The eight
+
+| CS | Title | Hex | h / l / chroma | Band | Note |
+|----|-------|-----|----------------|------|------|
+|005|The Marrow of Tradition|`#48290b`|30 / 16 / 61|30–60°|Hue rounds to **exactly 30**, the band edge. Family is 36, so gold is the honest home — the boundary landed where the painting already pointed.|
+|006|The Autobiography of an Ex-Colored Man|`#46361b`|38 / 19 / 43|30–60°|65% coloured, coherence 0.92.|
+|007|The Sport of the Gods|`#3c6267`|187 / 32 / 43|180–210°|Every populous swatch between hue 162 and 189.|
+|016|Beyond Good and Evil|`#e4cca8`|36 / 78 / 60|30–60°|68% coloured at coherence 0.99. No judgement call at all.|
+|008|The Tenant of Wildfell Hall|`#666749`|62 / 35 / 30|**neutral**|⚠ Chroma 30 — two under the line. **Does not reach a hue band, and that is the rule working.** The override buys its true lightness (35, not the plate's 2). **Do not raise it to clear the threshold.**|
+|009|The Awakening|`#8dacb4`|192 / 63 / 39|180–210°|⭑ See below.|
+|010|Mrs Dalloway|`#786846`|41 / 37 / 50|30–60°|The swatch argues with the eye, which goes to the foliage. Fry's greens are heavily desaturated — one green swatch, 3% of board at chroma 12.|
+|004|The Interesting Narrative|`#787977`|90 / 47 / 2|**neutral**|A neutral *correction*, not a colour. No swatch reaches chroma 8. Buys the painting's lightness (47) over the plate's (5).|
+
+#### ⭑ The Awakening — an editorial call overriding a measurement
+
+The one value here a later reader would otherwise "correct", so it is written down as what it
+is. This is the only genuinely **split** painting of the nine — coherence 0.62, warm 60% of the
+board against cool 38% — and the warm reading (`#93866b`, the sand) **won on area** and was the
+defensible default that was proposed.
+
+Ikenna took the cool: *"the novel is a woman and the sea, and the cover is a beach scene; the sky
+is what the book is about."*
+
+That is precisely what `coverColourOverride` exists for. **Do not restore the majority colour.**
+The measurement is not wrong and the value is not a mistake — a person chose between two true
+readings of the same picture, on grounds a histogram cannot hold.
+
+### Left alone, on purpose
+
+**The Rescue** (CS 012, Joseph Conrad) carries no override and must not be given one. Only 11.8%
+of its painting reaches chroma 20, and that is a sliver of warm cloud-edge on a charcoal storm.
+Its cover is also not the Calvary livery — no dark plate — so its stored extraction is already
+the painting, and there is nothing to correct.
+
+### For the record: the gold band is the catalogue, not a bug
+
+Four of the eight land in **30–60°**, joining *The Yellow Trumpet* and *Whatever Happens in
+Antalya*. On the fiction shelf that is five books in one band, grading by lightness
+**16 · 19 · 37 · 48 · 54**; *Beyond Good and Evil* makes a sixth at 78 on the non-fiction shelf.
+
+That is what nineteenth-century oils are — warm, earth-toned, umber and ochre — and the band
+**grades rather than jumbles**, which is exactly what "order by lightness within a hue band" was
+put in for. The next person to look at this shelf should read the band as a property of the
+catalogue, not as a fault in the sort.
+
+*The Sport of the Gods* and *The Awakening* open the **180–210°** band, which nothing in this
+catalogue occupied before.
+
+### What it did to the author pass
+
+Fiction adjacencies fell from **2 to 1** (only *Slavery Is (Not) a Choice* / *Deportee* remains);
+non-fiction stayed at **0**. The cool Awakening is what did it — the warm reading left the count
+at 2.
+
+One visible consequence worth expecting: on the fiction shelf the band headers now read
+180–210° → 150–180° → 180–210°, because the author pass lifts *The Sport of the Gods* over
+*Yahoo! Yahoo!* to break an Ikenna Okeh adjacency. That is the documented behaviour — *a nudge
+may cross a band edge locally* — working in the open, not a sorting fault.
+
+---
+
 ## For the app
 
 Read `coverColourOverride` first, then `coverColour`. Apply the key in *The order* above,

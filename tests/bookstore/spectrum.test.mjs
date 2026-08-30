@@ -415,6 +415,92 @@ test('the sort is the only change the storefront made', () => {
     'the board learned about the sort; it must not need to');
 });
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// R30.1 — THE OVERRIDES ARE EDITORIAL, AND THE EXTRACTOR STAYS HONEST
+// ─────────────────────────────────────────────────────────────────────────────────────────
+//
+// Ikenna, 30 Aug 2026: the Calvary-liveried classics sort by their painting, not their board.
+// The mechanism is the override field, and the RULE IS UNTOUCHED. These tests exist so that the
+// second half of that sentence keeps being true — the failure they are guarding against is a
+// later round deciding to be helpful and teaching the extractor to see past the livery.
+
+test('⛔ the extractor knows nothing about any particular book', () => {
+  // ⚠ AGAINST THE CODE, NOT THE PROSE. spectrum.js names The Tenant of Wildfell Hall and the
+  // #080710 livery in its comments ON PURPOSE — they are the measured evidence the chroma
+  // threshold rests on, and deleting that evidence to satisfy a test would make the file worse.
+  // What must never appear is a BRANCH on a particular book. So: strip the comments, then look.
+  const code = SPECTRUM_SRC
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n').filter((l) => !l.trim().startsWith('//')).join('\n')
+    .replace(/\/\/.*$/gm, '');
+  for (const name of ['marrow', 'dalloway', 'awakening', 'equiano', 'wildfell', 'nietzsche', 'calvary', 'livery']) {
+    assert.equal(code.toLowerCase().includes(name), false,
+      `the executable half of spectrum.js mentions "${name}" — the sort must not know which books these are`);
+  }
+  // And no override value is written into the rule, in code OR comment: an editorial colour
+  // sitting in the extractor is the first step towards the extractor producing it.
+  for (const hex of ['48290b', '46361b', '3c6267', 'e4cca8', '666749', '8dacb4', '786846', '787977']) {
+    assert.equal(SPECTRUM_SRC.toLowerCase().includes(hex), false,
+      `spectrum.js contains the override value #${hex}; editorial values live in the CMS, not in the rule`);
+  }
+  // No per-title table of any kind reached the module.
+  assert.equal(/coverColourOverride\s*=/.test(code), false, 'spectrum.js assigns an override; it may only read one');
+});
+
+test('⛔ a near-black board is still read as a neutral — the rule R30.1 did NOT change', () => {
+  // The livery's board. If a later round "fixes" the extractor to make these titles chromatic,
+  // this is what breaks, and it is meant to.
+  assert.equal(NEUTRAL_CHROMA_MAX, 32, 'the threshold moved; R30.1 was explicit that it must not');
+  assert.equal(spectralBandOf(coverColourFromHex('#080710')).label, 'neutral');
+  assert.equal(spectralBandOf(coverColourFromHex('#030109')).label, 'neutral');
+  // The plain dominant-colour rule over the painting crop returns these — measured, and the
+  // reason the overrides are hand-set rather than extracted. All four must still read neutral.
+  for (const mud of ['#1d1c12', '#343433', '#9baeaa', '#434b3c']) {
+    assert.equal(spectralBandOf(coverColourFromHex(mud)).label, 'neutral',
+      `${mud} is what the plain rule returns for one of these paintings; it is a neutral and must stay one`);
+  }
+});
+
+test('the eight approved values land where the record says they land', () => {
+  // Read from the override record itself, so this cannot drift from what was written.
+  const REC = readFileSync(join(ROOT, 'scripts/bookstore-shelf-colour-overrides.mjs'), 'utf8');
+  const expected = {
+    'the-marrow-of-tradition': ['#48290b', '30-60'],
+    'the-autobiography-of-an-ex-colored-man': ['#46361b', '30-60'],
+    'the-sport-of-the-gods': ['#3c6267', '180-210'],
+    'beyond-good-and-evil': ['#e4cca8', '30-60'],
+    'the-tenant-of-wildfell-hall': ['#666749', 'neutral'],
+    'the-awakening': ['#8dacb4', '180-210'],
+    'mrs-dalloway': ['#786846', '30-60'],
+    'the-interesting-narrative-of-the-life-of-olaudah-equiano': ['#787977', 'neutral'],
+  };
+  for (const [slug, [hex, band]] of Object.entries(expected)) {
+    assert.ok(new RegExp(`'${slug}':\\s*\\{\\s*\\n?\\s*hex: '${hex}'`).test(REC),
+      `the record no longer carries ${slug} at ${hex}`);
+    assert.equal(spectralBandOf(coverColourFromHex(hex)).label, band, `${slug} (${hex}) changed band`);
+  }
+  // ⚠ The Awakening is an EDITORIAL call over a measurement — the warm reading won on area and
+  // was overruled. If someone "corrects" it back to the majority colour, this fails.
+  assert.equal(spectralBandOf(coverColourFromHex('#93866b')).label, '30-60',
+    'the warm reading of The Awakening is the one that was overruled; it is still a gold');
+  assert.ok(/93866b/.test(REC), 'the record must keep the overruled warm value, or the decision is invisible');
+  // ⚠ The Rescue is left alone deliberately, and its absence is load-bearing.
+  assert.ok(/LEFT_NEUTRAL_ON_PURPOSE = \['the-rescue'\]/.test(REC), 'The Rescue is no longer recorded as deliberately left alone');
+  assert.equal(/'the-rescue':\s*\{/.test(REC), false, 'The Rescue was given an override; 11.8% coloured area is the forcing the brief refused');
+});
+
+test('the override record writes ONE key, and never a CS number', () => {
+  const REC = readFileSync(join(ROOT, 'scripts/bookstore-shelf-colour-overrides.mjs'), 'utf8');
+  // db.ref(...).set(...) only. A Map.set on a local variable is not a write to anything.
+  const writes = REC.split('\n')
+    .filter((l) => /db\.ref\(/.test(l) && /\.set\(/.test(l) && !l.trim().startsWith('//'));
+  assert.equal(writes.length, 1, `the record performs ${writes.length} database writes; it may perform exactly one`);
+  assert.match(writes[0], /coverColourOverride/, 'the one database write is not to coverColourOverride');
+  // ⛔ Never the machine's key, and never an accession mark.
+  assert.equal(/\/coverColour`/.test(REC), false, "the record writes coverColour; that key belongs to the machine");
+  assert.equal(/catalogueNumber`\)/.test(REC), false, 'the record writes a catalogue number');
+});
+
 test('the module is pure — no clock, no database, no DOM', () => {
   for (const forbidden of ['Date.now', 'Math.random', 'firebase', 'document.', 'window.', 'localStorage']) {
     assert.equal(SPECTRUM_SRC.includes(forbidden), false, `spectrum.js reaches for ${forbidden}`);
