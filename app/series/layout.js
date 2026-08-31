@@ -14,10 +14,23 @@
 // `robots: { index: false }` and app/sitemap.js would need /series removed, in the same
 // change. A sitemap entry pointing at a wall is a soft-404 signal, and the two must not be
 // allowed to drift apart.
+//
+// ── R31: THE DESCRIPTION FOLLOWS THE FLAG, AS THE PAGE'S OWN COPY ALREADY DID ────────────
+//
+// It shipped hardcoding "A Platinum membership benefit." while page.js derived its kicker and
+// its on-page description from SERIES_TIER_GATE_ENABLED — so the live HTML carried a meta
+// description promising a paywall directly above a page that said the Series is free to
+// everyone. Same fault the kicker's own comment names: the page telling a reader something the
+// endpoint disagrees with. It is worse in metadata than in body copy, because this is the
+// sentence a search result and a shared link print, where there is no page around it to
+// correct the impression.
+import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
+
 export const metadata = {
   title: 'The Series — Calvary Scribblings',
-  description:
-    'Long-form fiction in instalments. Each instalment is its own complete book, released on its own date. A Platinum membership benefit.',
+  description: SERIES_TIER_GATE_ENABLED
+    ? 'Long-form fiction in instalments. Each instalment is its own complete book, released on its own date. A Platinum membership benefit.'
+    : 'Long-form fiction in instalments. Each instalment is its own complete book, released on its own date — and free to everyone until memberships open.',
 };
 
 export default function SeriesLayout({ children }) {

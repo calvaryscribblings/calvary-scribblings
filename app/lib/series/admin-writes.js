@@ -39,6 +39,7 @@ import {
   SERIES_PATH,
   INSTALMENTS_PATH,
   INSTALMENTS_DETAIL_PATH,
+  INSTALMENTS_DELETED_PATH,
   SERIES_STATUSES,
   INSTALMENT_STATUSES,
   epubObjectPath,
@@ -47,6 +48,7 @@ import {
   validateInstalment,
   validateInstalmentDetail,
 } from './schema';
+import { deletionPlan } from './deletion';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 
@@ -207,17 +209,40 @@ export async function createInstalment(input) {
     updatedAt: now,
   };
 
-  const rowCheck = validateInstalment(row);
-  if (!rowCheck.valid) return { ok: false, errors: rowCheck.errors };
-  const detailCheck = validateInstalmentDetail(detail, { publishing: row.status === 'published' });
-  if (!detailCheck.valid) return { ok: false, errors: detailCheck.errors };
-
+  // ── IDENTITY BEFORE CONTENT, AND THE ORDER IS DELIBERATE (R31) ─────────────────────────
+  //
+  // The three checks below are about WHICH RECORD THIS IS; the validators after them are about
+  // what is in it. Running the validators first — which is how this shipped — meant an editor
+  // who typed a retired ordinal was told 'title is required', filled the form in, and only
+  // then learned the number was impossible. Answering the smaller question first is the same
+  // discipline the release gate follows in access.js: a refusal that a better-filled form
+  // cannot fix should not wait behind one that it can.
+  //
+  // It costs one extra read on the failure path only — the reads were happening anyway.
   try {
     const seriesSnap = await get(ref(db, `${SERIES_PATH}/${seriesId}`));
     if (!seriesSnap.exists()) return { ok: false, errors: [`Series '${seriesId}' not found`] };
 
     const existing = await get(ref(db, `${INSTALMENTS_PATH}/${id}`));
     if (existing.exists()) return { ok: false, errors: [`Instalment '${id}' already exists`] };
+
+    // ⚠ R31 — A BURNED ID IS NEVER REISSUED. Deleting instalment 3 leaves a tombstone, and
+    // the ordinal gap it opens is permanent: the id is derived from the ordinal, and a reader
+    // whose saved position still names this key would be re-pointed at a different story by a
+    // reuse. See app/lib/series/deletion.js, ruling 2. This is the check the ordinal gap
+    // actually rests on — not renumbering is necessary and is not sufficient.
+    const dead = await get(ref(db, `${INSTALMENTS_DELETED_PATH}/${id}`));
+    if (dead.exists()) {
+      return { ok: false, errors: [
+        `Instalment ${ordinal} of this series was deleted and its number cannot be reused. `
+        + 'Ordinals are accession marks — the gap is permanent. Use the next free number.',
+      ] };
+    }
+
+    const rowCheck = validateInstalment(row);
+    if (!rowCheck.valid) return { ok: false, errors: rowCheck.errors };
+    const detailCheck = validateInstalmentDetail(detail, { publishing: row.status === 'published' });
+    if (!detailCheck.valid) return { ok: false, errors: detailCheck.errors };
 
     // Atomic: row + detail together. See the header.
     await update(ref(db), {
@@ -299,6 +324,102 @@ export async function setInstalmentStatus(id, status) {
     return { ok: false, errors: [`status must be one of: ${INSTALMENT_STATUSES.join(', ')}`] };
   }
   return updateInstalment(id, { status });
+}
+
+/**
+ * ⚠ DELETE AN INSTALMENT. Permanent, and it takes the artefacts with it.
+ *
+ * The DECISION lives in deletionPlan() — a pure function this executes and does not second-
+ * guess. Its header carries the four rulings; the notes here are only about the ORDER, which
+ * is the part a plan cannot express.
+ *
+ * ── THE RECORDS GO FIRST, AND THE FILES SECOND ──────────────────────────────────────────
+ *
+ * The reverse order is the tempting one — remove the bytes, then the pointer — and it is
+ * wrong. Between the two writes it would leave a PUBLISHED, RELEASED instalment whose record
+ * says it has an EPUB and whose bucket does not: every reader who opened it would get a
+ * signed URL to a missing object, which surfaces as a broken download rather than as an
+ * absence. Records first means the failure window shows a deleted instalment (correct) with
+ * an orphaned file behind it (invisible, and reported below so a human can sweep it).
+ *
+ * The RTDB half is one multi-path update — row, detail and tombstone together — so the burn
+ * and the removal cannot come apart. If that update fails, nothing has happened at all.
+ *
+ * ── A FILE THAT WILL NOT DELETE IS REPORTED, NOT RAISED ─────────────────────────────────
+ *
+ * By the time the objects are being removed the instalment is already gone from every node an
+ * editor or a reader can see. Failing the whole call there would tell them the delete did not
+ * happen, which is false and would invite a retry against records that no longer exist. So
+ * storage failures come back in `warnings` with the paths, exactly as uploadInstalmentEpub()
+ * reports a count it could not take.
+ *
+ * ⚠ If storage.rules ever loses the create/update-vs-delete split on series_epubs/ and
+ * series_covers/, EVERY file here fails and only these warnings will say so — a single
+ * `allow write` guarded on request.resource.size denies deletes outright, because
+ * request.resource is null on a delete. That is R21's lesson and R31 paid for it again.
+ */
+export async function deleteInstalment(id) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!id) return { ok: false, errors: ['instalmentId is required'] };
+
+  let plan;
+  try {
+    const rowSnap = await get(ref(db, `${INSTALMENTS_PATH}/${id}`));
+    if (!rowSnap.exists()) return { ok: false, errors: [`Instalment '${id}' not found`] };
+    const row = rowSnap.val();
+    plan = deletionPlan({ id, seriesId: row.seriesId, ordinal: row.ordinal });
+
+    const patch = {};
+    for (const path of plan.dbPaths) patch[path] = null;
+    patch[plan.tombstonePath] = plan.tombstone;
+    // The parent's own updatedAt, mirroring createInstalment(). There is no instalmentCount to
+    // adjust and there never was — see the schema header on why the field was rejected:
+    // releasedCount() derives the number from the rows at read time, so REMOVING THE ROW IS
+    // THE RECOUNT. A stored counter here would now be one too high and nothing would say so.
+    patch[`${SERIES_PATH}/${row.seriesId}/updatedAt`] = plan.tombstone.deletedAt;
+
+    await update(ref(db), patch);
+  } catch (err) {
+    console.error('[series.admin-writes] deleteInstalment records failed', err);
+    return { ok: false, errors: [`Delete failed: ${err.message || 'unknown error'}`] };
+  }
+
+  const warnings = [];
+  try {
+    const { ref: sref, deleteObject, listAll } = await import('firebase/storage');
+
+    // The EPUB. `storage/object-not-found` is not a failure: an instalment created and deleted
+    // without one is an ordinary state, and so is a second click on the delete button.
+    try {
+      await deleteObject(sref(storage, plan.epubPath));
+    } catch (err) {
+      if (err?.code !== 'storage/object-not-found') warnings.push(`Could not delete ${plan.epubPath} (${err?.code || err?.message}).`);
+    }
+
+    // The cover and the sponsor logo. Enumerated rather than derived — the object name carries
+    // a Date.now() the record never stored. Every historical upload under the prefix goes, not
+    // just the one the record happens to name: re-uploading a cover leaves the previous object
+    // in place, so the prefix is where the orphans actually are.
+    for (const prefix of plan.storagePrefixes) {
+      try {
+        const listing = await listAll(sref(storage, prefix));
+        await Promise.all(listing.items.map(async (item) => {
+          try {
+            await deleteObject(item);
+          } catch (err) {
+            if (err?.code !== 'storage/object-not-found') warnings.push(`Could not delete ${item.fullPath} (${err?.code || err?.message}).`);
+          }
+        }));
+      } catch (err) {
+        warnings.push(`Could not list ${prefix} (${err?.code || err?.message}).`);
+      }
+    }
+  } catch (err) {
+    console.error('[series.admin-writes] deleteInstalment artefacts failed', err);
+    warnings.push(`Artefacts may remain in Storage (${err.message || 'unknown error'}).`);
+  }
+
+  return { ok: true, instalmentId: id, plan, warnings };
 }
 
 function pick(obj, keys) {

@@ -45,6 +45,7 @@
     "test:membership": "node --test \"tests/membership/*.test.mjs\"",
     "test:rules": "firebase emulators:exec --only database,storage --project demo-calvary-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
     "test:sponsor": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.sponsor.config.mjs\"",
+    "test:r31": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.r31.config.mjs\"",
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",
     "test:build": "node --test tests/build/liveness.test.mjs",
     "test:redirects": "node --test tests/build/redirects-limits.test.mjs",

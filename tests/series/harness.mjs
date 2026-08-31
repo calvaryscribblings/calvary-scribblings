@@ -43,6 +43,7 @@ export function adminApp(name = 'series-harness') {
   return initializeApp({
     projectId: PROJECT_ID,
     databaseURL: `http://127.0.0.1:9000?ns=${DB_NAMESPACE}`,
+    storageBucket: `${PROJECT_ID}.firebasestorage.app`,
   }, name);
 }
 
@@ -60,6 +61,9 @@ export async function seedFixture(app) {
   await db.ref('series').set(null);
   await db.ref('series_instalments').set(null);
   await db.ref('series_instalments_detail').set(null);
+  // R31 — the burn survives a reseed unless it is cleared, and a burned ordinal makes the very
+  // next create fail. A suite that left one behind would fail in its NEXT run, not this one.
+  await db.ref('series_instalments_deleted').set(null);
 
   const now = Date.now();
   await db.ref().update({
@@ -112,3 +116,76 @@ export function adminToken(app, uid = FOUNDER_A) {
 }
 
 export const detailRef = (app) => getDatabase(app).ref(`series_instalments_detail/${INSTALMENT_ID}`);
+export const rowRef = (app, id = INSTALMENT_ID) => getDatabase(app).ref(`series_instalments/${id}`);
+export const tombstoneRef = (app, id = INSTALMENT_ID) => getDatabase(app).ref(`series_instalments_deleted/${id}`);
+export const seriesRef = (app) => getDatabase(app).ref(`series/${SERIES_ID}`);
+
+/**
+ * R31 — a SECOND instalment, RELEASED and PUBLISHED, with artefacts on it.
+ *
+ * The base fixture is a single unreleased draft, which is the right shape for the sponsor
+ * suite and the wrong one for this round's two claims. A tier edit only changes who may read
+ * something that is READABLE, and a delete is only interesting when there is something to
+ * take with it — so this seeds an instalment a reader could actually open, with an EPUB and a
+ * cover in the bucket, and asserts nothing about it that the base fixture already covers.
+ *
+ * Ordinal 2, so the pair also exercises the gap: deleting 2 must not renumber 1, and must not
+ * hand ordinal 2 back to the next create.
+ */
+export const RELEASED_ID = 'harness-series-i2';
+
+export async function seedReleased(app, { freeForGold = false } = {}) {
+  const db = getDatabase(app);
+  const now = Date.now();
+  await db.ref().update({
+    [`series_instalments/${RELEASED_ID}`]: {
+      schemaVersion: 1,
+      seriesId: SERIES_ID,
+      ordinal: 2,
+      releaseAtMs: now - 60_000,
+      freeForGold,
+      status: 'published',
+      addedAt: now,
+      updatedAt: now,
+    },
+    [`series_instalments_detail/${RELEASED_ID}`]: {
+      schemaVersion: 1,
+      title: 'Released Instalment',
+      synopsis: null,
+      logline: null,
+      author: 'Fixture Author',
+      authorUid: 'fixture-uid',
+      authorHandle: 'fixture',
+      coverUrl: null,
+      // Required to be published — validateInstalmentDetail refuses a published instalment
+      // with no epubPath, which is the refusal that produced beta-princess-i3.
+      epubPath: `series_epubs/${RELEASED_ID}/master.epub`,
+      sponsorName: null,
+      sponsorLogoUrl: null,
+      wordCount: null,
+      updatedAt: now,
+    },
+  });
+}
+
+/** Put real bytes at an object path, through the admin SDK (which bypasses rules — correct for
+ *  a fixture: what a test needs to already exist must not depend on the rule under test). */
+export async function putObject(app, objectPath, buffer, contentType) {
+  const { getStorage } = await import('firebase-admin/storage');
+  const bucket = getStorage(app).bucket(`${PROJECT_ID}.firebasestorage.app`);
+  await bucket.file(objectPath).save(buffer, { contentType, resumable: false });
+}
+
+export async function objectExists(app, objectPath) {
+  const { getStorage } = await import('firebase-admin/storage');
+  const bucket = getStorage(app).bucket(`${PROJECT_ID}.firebasestorage.app`);
+  const [exists] = await bucket.file(objectPath).exists();
+  return exists;
+}
+
+export async function listPrefix(app, prefix) {
+  const { getStorage } = await import('firebase-admin/storage');
+  const bucket = getStorage(app).bucket(`${PROJECT_ID}.firebasestorage.app`);
+  const [files] = await bucket.getFiles({ prefix });
+  return files.map((f) => f.name);
+}

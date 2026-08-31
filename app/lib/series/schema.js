@@ -43,6 +43,11 @@ export const SCHEMA_VERSION = 1;
 export const SERIES_PATH = 'series';
 export const INSTALMENTS_PATH = 'series_instalments';
 export const INSTALMENTS_DETAIL_PATH = 'series_instalments_detail';
+// R31 — THE TOMBSTONE NODE. Admin-only, in database.rules.json. It holds no content: an id,
+// its seriesId, its ordinal and when it went. Its only job is to make a burned id
+// unreissuable, because instalmentId() derives the key from the ordinal and a reader's saved
+// position is keyed by that id. See app/lib/series/deletion.js.
+export const INSTALMENTS_DELETED_PATH = 'series_instalments_deleted';
 export const PROGRESS_PATH = 'series_reading_progress';
 
 /** Series and instalments share a status vocabulary with bookstore titles, deliberately. */

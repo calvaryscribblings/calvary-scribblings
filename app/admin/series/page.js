@@ -35,20 +35,41 @@
 //    only for as long as somebody has revised a chapter without re-uploading it, which is a
 //    state this screen makes visible rather than hides.
 //
-// 6. The instalment's own COVER now has an uploader. It always had a field — createInstalment
+// 6. R31 — THE TIER IS EDITABLE AFTER CREATION, AND IT SAYS WHAT IT COSTS. freeForGold was
+//    always accepted by updateInstalment(); no control was ever bound to it, so a value chosen
+//    once at create time was frozen for the life of the record — the same shape as the cover
+//    gap in note 6 below. It now sits in the Edit panel with the create form's own note about
+//    passes, and with a warning that a published, released instalment CHANGES WHO MAY READ IT
+//    the moment the tier is saved.
+//
+// 7. R31 — DELETE IS PERMANENT AND SAYS SO BEFORE IT RUNS. It is the only control on this
+//    screen guarded by a typed confirmation, because it is the only one that destroys bytes
+//    nobody can restore. It burns the ordinal: see app/lib/series/deletion.js.
+//
+// 8. R31 — ERRORS APPEAR AT THE ROW THAT PRODUCED THEM, NOT ONLY AT THE TOP OF THE PAGE.
+//    `msg` renders above the New Series form. A failed status change — publishing an
+//    instalment with no EPUB is refused by validateInstalmentDetail — put its error there
+//    while the editor was scrolled to a row hundreds of pixels below, so the click looked like
+//    it had worked and the row simply stayed a draft. That is how beta-princess-i3 came to be
+//    reported as published while the database held a draft.
+//
+// 9. The instalment's own COVER now has an uploader. It always had a field — createInstalment
 //    has accepted coverUrl since R12.0 — but no form control was ever bound to it, so the only
 //    art any instalment carried was whatever scripts/migrate-beta-princess.mjs copied across.
 //    The instalment page's hero band is that cover, so the gap had to close.
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
-import { getAllSeries, getAllInstalments, getInstalmentDetail } from '../../lib/series/loader';
+import {
+  getAllSeries, getAllInstalments, getInstalmentDetail, getDeletedInstalments,
+} from '../../lib/series/loader';
 import {
   createSeries, updateSeries, setSeriesStatus,
-  createInstalment, updateInstalment, setInstalmentStatus,
+  createInstalment, updateInstalment, setInstalmentStatus, deleteInstalment,
   uploadInstalmentEpub, uploadInstalmentImage, uploadSeriesImage,
   instalmentId as makeInstalmentId,
 } from '../../lib/series/admin-writes';
-import { isReleased, releasedCount } from '../../lib/series/access';
+import { isReleased, releasedCount, SERIES_TIER_GATE_ENABLED } from '../../lib/series/access';
+import { nextFreeOrdinal } from '../../lib/series/deletion';
 import { formatRelease, readingTimeLabel } from '../../lib/series/format';
 import { SERIES_STATUSES, INSTALMENT_STATUSES } from '../../lib/series/schema';
 
@@ -106,7 +127,14 @@ export default function SeriesAdminPage() {
     // getAllSeries, not getPublishedSeries: a series is created as a DRAFT and would be
     // invisible on the screen that just created it otherwise.
     const all = await getAllSeries();
-    const withRows = await Promise.all(all.map(async (x) => ({ ...x, rows: await getAllInstalments(x.id) })));
+    const withRows = await Promise.all(all.map(async (x) => ({
+      ...x,
+      rows: await getAllInstalments(x.id),
+      // R31 — the burned ordinals. Loaded so the Add form cannot propose a number that
+      // createInstalment() is going to refuse. Admin-only by rule, so this is [] for anyone
+      // who should not be on this screen at all.
+      dead: await getDeletedInstalments(x.id),
+    })));
     setList(withRows);
   }, []);
 
@@ -144,6 +172,16 @@ export default function SeriesAdminPage() {
             <h2 style={s.h2}>{series.title}</h2>
             <div style={s.note}>
               {series.id} · {series.status} · {releasedCount(series.rows)} of {series.rows.length} instalments released
+              {/* Derived at read time from the rows — there is no stored instalmentCount and
+                  there must not be one. See the schema header: a counter cannot express
+                  "released so far", whose value changes at a moment nothing writes. Deleting a
+                  row IS the recount. */}
+              {series.dead?.length > 0 && (
+                <> · <span style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  {series.dead.length === 1 ? 'ordinal' : 'ordinals'}{' '}
+                  {series.dead.map((d) => d.ordinal).join(', ')} deleted — permanently retired
+                </span></>
+              )}
             </div>
             <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {SERIES_STATUSES.filter((st) => st !== series.status).map((st) => (
@@ -162,8 +200,19 @@ export default function SeriesAdminPage() {
             {!series.rows.length && <div style={s.note}>None yet.</div>}
 
             <InstalmentForm
+              // ⚠ key: THE FORM MUST REMOUNT WHEN THE FREE ORDINAL MOVES. `blank` is read once,
+              // in useState's initialiser, so a changed nextOrdinal prop never reaches the
+              // field — after a delete the form went on proposing the number that had just been
+              // burned, and the writer refused a create the screen had suggested. Same remedy
+              // as InstalmentDetailEditor's key={detail.updatedAt}, and the same reasoning: an
+              // effect pushing the prop into the form would fight the editor's own typing.
+              key={nextFreeOrdinal(series.rows, series.dead)}
               seriesId={series.id}
-              nextOrdinal={(series.rows.reduce((n, r) => Math.max(n, r.ordinal || 0), 0)) + 1}
+              // ⚠ COUNTS THE DEAD. max(live) + 1 alone would hand the next create the id that
+              // was just burned, whenever the deleted instalment was the highest one — and the
+              // id is what a reader's saved position is keyed by. See deletion.js, ruling 2.
+              nextOrdinal={nextFreeOrdinal(series.rows, series.dead)}
+              retired={series.dead || []}
               onDone={(m) => { setMsg(m); refresh(); }}
             />
           </div>
@@ -227,7 +276,20 @@ function InstalmentRow({ row, onDone }) {
   const [detail, setDetail] = useState(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  // ⚠ THE ROW'S OWN MESSAGE LINE. The page-level `msg` renders above the New Series form, which
+  // on a series with several instalments is a long way above the button that was clicked — so a
+  // REFUSED status change looked exactly like a successful one, and the editor learned about it
+  // only by noticing the row had not changed. Publishing without an EPUB is refused by
+  // validateInstalmentDetail, which is precisely the refusal most likely to be met and the one
+  // that produced beta-princess-i3: reported as published, stored as a draft.
+  //
+  // Both are written, not one instead of the other. The top line is where the eye goes after a
+  // save; this one is where the hand was.
+  const [rowMsg, setRowMsg] = useState(null);
   const released = isReleased(row);
+
+  // Every write from this row reports in both places.
+  const report = (m) => { setRowMsg(m); onDone(m); };
 
   // Its own reload rather than the page's refresh(): refresh() re-reads the SERIES and its
   // rows, and the detail record hangs off this component's own effect, keyed on an id that has
@@ -245,8 +307,18 @@ function InstalmentRow({ row, onDone }) {
   }, [row.id]);
 
   return (
-    <div style={{ borderBottom: '1px solid #222' }}>
-      <div style={{ ...s.row, borderBottom: 'none' }}>
+    // data-instalment: the row's id on the row itself. The screen already PRINTS the id in the
+    // note line, but that text sits on a nested <div> — an ancestor lookup from it lands on
+    // whichever div a locator happens to resolve last, which is not the row. With two
+    // instalments on screen the tier and delete suites must be able to name one unambiguously,
+    // and this is also what makes the DOM readable when an editor reports a fault on "the third
+    // row". See tests/series/instalment-admin.spec.mjs.
+    <div data-instalment={row.id} style={{ borderBottom: '1px solid #222' }}>
+      {/* flexWrap, and it is not cosmetic: the delete confirmation opens INSIDE this row at
+          flexBasis 100%, and without a wrap it would be squeezed between the EPUB and Edit
+          buttons rather than dropping to its own line. A confirmation panel nobody can read is
+          a confirmation in name only. */}
+      <div style={{ ...s.row, borderBottom: 'none', flexWrap: 'wrap' }}>
         <span style={{ minWidth: 28, color: '#c9a84c' }}>{row.ordinal}</span>
         <span style={{ flex: 1, minWidth: 0 }}>
           {/* The detail node is admin-readable at any time, so a title shows here even before
@@ -295,11 +367,20 @@ function InstalmentRow({ row, onDone }) {
         </button>
         {INSTALMENT_STATUSES.filter((st) => st !== row.status).map((st) => (
           <button key={st} type="button" style={s.btnSm}
-            onClick={async () => onDone(toMsg(await setInstalmentStatus(row.id, st)))}>
+            onClick={async () => {
+              const r = await setInstalmentStatus(row.id, st);
+              report(r.ok
+                ? { ok: true, text: `Instalment ${row.ordinal} is now ${st}.` }
+                : { ok: false, text: `Could not set ${st}: ${(r.errors || []).join(' ')}` });
+            }}>
             {st}
           </button>
         ))}
+        <DeleteInstalment row={row} detail={detail} onDone={onDone} />
       </div>
+      {rowMsg && (
+        <div style={{ ...(rowMsg.ok ? s.ok : s.err), margin: '0 0 8px 40px' }}>{rowMsg.text}</div>
+      )}
       {editing && (detail
         ? (
           // key={detail.updatedAt} rather than a syncing effect: the form seeds itself from
@@ -310,7 +391,7 @@ function InstalmentRow({ row, onDone }) {
             key={detail.updatedAt}
             row={row}
             detail={detail}
-            onSaved={async (m) => { await reload(); onDone(m); }}
+            onSaved={async (m) => { await reload(); report(m); }}
           />
         )
         : <div style={{ ...s.note, padding: '0.5rem 0 1rem 40px' }}>Detail record still loading, or unreadable.</div>
@@ -359,6 +440,8 @@ function InstalmentDetailEditor({ row, detail, onSaved }) {
 
   return (
     <div style={{ padding: '0.75rem 0 1.1rem 40px' }}>
+      <InstalmentTier row={row} onSaved={onSaved} />
+
       <label style={s.label}>Logline</label>
       <input
         style={s.input} value={f.logline}
@@ -454,12 +537,220 @@ function InstalmentDetailEditor({ row, detail, onSaved }) {
   );
 }
 
-function InstalmentForm({ seriesId, nextOrdinal, onDone }) {
+/**
+ * ⚠ R31 — THE INSTALMENT'S TIER, EDITABLE AFTER CREATION.
+ *
+ * `freeForGold` was never frozen in the WRITER — updateInstalment() has always carried it in
+ * its pick list. What was frozen was the screen: the create form had the only control, so a
+ * value chosen once could never be revised, and an editor who picked Platinum for instalment 3
+ * had no way back. Identical in shape to the cover gap note 9 records — a field the record
+ * accepted and no form was bound to.
+ *
+ * ── IT KEEPS THE CREATE FORM'S DISCIPLINE, AND NOT BY COPYING THE MARKUP ────────────────
+ *
+ * The create form's select is a genuine TRI-STATE because at creation there is no answer yet
+ * and a default would be a choice nobody made. Here there always IS a stored answer, so the
+ * select seeds from the row and the third state does not exist — but the thing the tri-state
+ * was protecting still does, so it is protected differently: the button is inert until the
+ * selection actually differs from what is stored, and the value sent is a hard boolean derived
+ * from the string, never `undefined`. A save that silently posted undefined would reach
+ * validateInstalment() and be refused, which is safe, but the control would look broken.
+ *
+ * ── THE £1 DAY PASS IS EXCLUDED WHICHEVER WAY THIS IS SET, AND THE NOTE SAYS SO ─────────
+ *
+ * Verbatim the sentence the create form already prints, and it is here for a reason larger
+ * than symmetry. PASS_TIER is 'gold' — app/lib/membershipPasses.js — so a day pass produces
+ * the SAME tier string a real Gold membership does, and the only thing keeping a £1 pass out
+ * of every freeForGold instalment on the site is that grantForInstalment() compares against the
+ * SUBSCRIPTION and never against effectiveTier(). Nothing on this screen can weaken that. What
+ * a second tier control CAN do is make the distinction easier to forget, by making "free for
+ * Gold" look like a single simple switch with no history — so the sentence travels with the
+ * control rather than living only in the create form.
+ */
+function InstalmentTier({ row, onSaved }) {
+  const [choice, setChoice] = useState(row.freeForGold === true ? 'yes' : 'no');
+  const [busy, setBusy] = useState(false);
+  const next = choice === 'yes';
+  const changed = next !== (row.freeForGold === true);
+
+  // ⚠ WOULD SAVING THIS RE-GATE SOMEBODY? Only a PUBLISHED, RELEASED instalment is readable at
+  // all, so only that one has readers to lose. A draft or a future-dated row is refused to
+  // everyone by the release gate regardless, and warning about it there would train an editor
+  // to dismiss the warning that matters.
+  const live = isReleased(row);
+  // And only if the tier gate is on. While SERIES_TIER_GATE_ENABLED is false the Series is open
+  // to everyone and this field decides nothing today — saying otherwise would be this screen
+  // asserting a consequence the endpoint does not currently enforce, which is the same fault
+  // the /series kicker exists to avoid. It still says what the value WILL mean, because that
+  // is the decision being recorded.
+  const narrowing = live && changed && !next;
+
+  return (
+    <div style={{
+      border: '1px solid #2a2a2a', borderRadius: 6, padding: '0.7rem 0.85rem', marginBottom: 12,
+      background: '#121212',
+    }}>
+      <label style={{ ...s.label, marginTop: 0 }}>Who may read this instalment</label>
+      <select style={s.select} value={choice} onChange={(e) => setChoice(e.target.value)}>
+        <option value="yes">Free for Gold — Gold and Platinum members may read this one</option>
+        <option value="no">Platinum only</option>
+      </select>
+      <div style={s.note}>
+        Stored as freeForGold = {String(next)}. Not tied to ordinal 1 — any instalment may be
+        the Gold taste, and a series may have more than one or none.{' '}
+        <strong style={{ color: 'rgba(255,255,255,0.55)' }}>
+          Day and week passes never qualify, whichever way this is set.
+        </strong>
+      </div>
+
+      {!SERIES_TIER_GATE_ENABLED && (
+        <div style={{ ...s.note, color: '#93c5fd' }}>
+          The Series tier gate is currently OFF, so every released instalment is free to
+          everyone and this setting changes nothing a reader can see today. It is what will
+          apply when memberships open.
+        </div>
+      )}
+
+      {narrowing && (
+        <div style={{ ...s.note, color: '#fcd34d' }}>
+          ⚠ This instalment is published and released. Saving Platinum only takes it away from
+          Gold members who can read it now{SERIES_TIER_GATE_ENABLED ? '' : ' — once the gate is on'}.
+          Their saved position is kept either way.
+        </div>
+      )}
+      {live && changed && next && (
+        <div style={{ ...s.note, color: '#4ade80' }}>
+          This instalment is published and released. Saving opens it to Gold members as well as
+          Platinum.
+        </div>
+      )}
+
+      <button type="button" style={{ ...s.btn, opacity: changed ? 1 : 0.4, cursor: changed ? 'pointer' : 'default' }}
+        disabled={!changed || busy}
+        onClick={async () => {
+          setBusy(true);
+          // A hard boolean. Never the select's string, and never undefined — see the header.
+          const r = await updateInstalment(row.id, { freeForGold: next });
+          setBusy(false);
+          onSaved(r.ok
+            ? { ok: true, text: `Instalment ${row.ordinal} is now ${next ? 'free for Gold' : 'Platinum only'}.` }
+            : toMsg(r));
+        }}>
+        {busy ? 'Saving…' : (changed ? 'Save tier' : 'Tier unchanged')}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * ⚠ R31 — DELETE. Permanent, and the only destructive control on this screen.
+ *
+ * ── WHY A TYPED CONFIRMATION AND NOT A confirm() ────────────────────────────────────────
+ *
+ * Every other button here is reversible: a status is set back, a field is retyped, a cover is
+ * re-uploaded. This one destroys an EPUB that exists nowhere else — the object is
+ * `read: if false` to every client including this admin, so there is no copy to download first
+ * and nothing to restore from. A native confirm() is one keystroke from a habit; typing the
+ * ordinal is the smallest gesture that cannot be made by reflex, and it names the specific
+ * instalment rather than "this item", which is the mistake a row of near-identical buttons
+ * invites.
+ *
+ * The panel states the three consequences before the field, because a confirmation that hides
+ * what it is confirming is a formality. They are the rulings in deletion.js, in the second
+ * person.
+ */
+function DeleteInstalment({ row, detail, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const armed = typed.trim() === String(row.ordinal);
+
+  if (!open) {
+    return (
+      <button type="button"
+        style={{ ...s.btnSm, color: '#f87171', borderColor: 'rgba(248,113,113,0.35)', background: 'rgba(248,113,113,0.08)' }}
+        onClick={() => setOpen(true)}>
+        Delete
+      </button>
+    );
+  }
+
+  return (
+    <div style={{
+      flexBasis: '100%', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 6,
+      padding: '0.8rem 0.9rem', background: 'rgba(248,113,113,0.06)', marginTop: 8,
+    }}>
+      <div style={{ color: '#f87171', fontWeight: 700, fontSize: '0.9rem' }}>
+        Delete instalment {row.ordinal}{detail?.title ? ` — ${detail.title}` : ''}?
+      </div>
+      <ul style={{ ...s.note, margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.6 }}>
+        <li>
+          The record, the EPUB and any cover or sponsor logo are removed. The EPUB cannot be
+          downloaded first — the object is unreadable to this screen by rule — so there is
+          nothing to restore it from.
+        </li>
+        <li>
+          <strong style={{ color: 'rgba(255,255,255,0.6)' }}>Ordinal {row.ordinal} is retired for good.</strong>{' '}
+          The instalments after it keep their own numbers — 4 does not become 3 — and no new
+          instalment can ever take this one&apos;s place. Numbers here are accession marks, and
+          the gap is the record.
+        </li>
+        <li>
+          Anyone who was reading this instalment keeps their saved place. It cannot be removed
+          from here, and it is harmless: the number it belongs to can never be reissued to a
+          different story.
+        </li>
+      </ul>
+      <label style={s.label}>Type the ordinal ({row.ordinal}) to confirm</label>
+      <input style={{ ...s.input, maxWidth: 160 }} value={typed}
+        onChange={(e) => setTyped(e.target.value)} placeholder={String(row.ordinal)} />
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button type="button"
+          style={{
+            ...s.btnSm, marginTop: 0,
+            color: armed ? '#fff' : 'rgba(255,255,255,0.4)',
+            background: armed ? '#b91c1c' : 'rgba(255,255,255,0.06)',
+            borderColor: armed ? '#b91c1c' : '#2a2a2a',
+            cursor: armed ? 'pointer' : 'default',
+          }}
+          disabled={!armed || busy}
+          onClick={async () => {
+            setBusy(true);
+            const r = await deleteInstalment(row.id);
+            setBusy(false);
+            // The row unmounts on the refresh onDone triggers, so this message HAS to go to the
+            // page-level line — there is no row left to print it in. The opposite of the
+            // status buttons, and for the same reason: the message belongs where the editor
+            // will still be looking.
+            onDone(r.ok
+              ? {
+                ok: true,
+                text: `Instalment ${row.ordinal} deleted. Ordinal ${row.ordinal} is retired and cannot be reused.`
+                  + (r.warnings?.length ? ` ⚠ ${r.warnings.join(' ')}` : ''),
+              }
+              : toMsg(r));
+          }}>
+          {busy ? 'Deleting…' : `Delete instalment ${row.ordinal}`}
+        </button>
+        <button type="button" style={{ ...s.btnSm, marginTop: 0 }}
+          onClick={() => { setOpen(false); setTyped(''); }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InstalmentForm({ seriesId, nextOrdinal, retired = [], onDone }) {
   const blank = {
     ordinal: nextOrdinal, title: '', synopsis: '', logline: '', author: '', authorUid: '',
     authorHandle: '', sponsorName: '', coverUrl: '', release: '', freeForGold: '',
   };
   const [f, setF] = useState(blank);
+  // The screen's half of the burn. createInstalment() is the authority and refuses the write
+  // outright; this only means an editor is told before they fill in nine fields. See
+  // getDeletedInstalments() on why an empty list here is not proof of anything.
+  const retiredOrdinals = new Set(retired.map((d) => d.ordinal));
 
   return (
     <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #242424' }}>
@@ -467,6 +758,13 @@ function InstalmentForm({ seriesId, nextOrdinal, onDone }) {
       <label style={s.label}>Ordinal</label>
       <input style={s.input} type="number" min="1" value={f.ordinal}
         onChange={(e) => setF({ ...f, ordinal: Number(e.target.value) })} />
+      {retired.length > 0 && (
+        <div style={{ ...s.note, color: retiredOrdinals.has(f.ordinal) ? '#f87171' : undefined }}>
+          {retiredOrdinals.has(f.ordinal)
+            ? `⚠ Ordinal ${f.ordinal} was deleted and is retired — this will be refused. Numbers are accession marks and a gap is permanent.`
+            : `Retired: ${retired.map((d) => d.ordinal).join(', ')}. Those numbers are gone for good and cannot be reused.`}
+        </div>
+      )}
       <label style={s.label}>Title</label>
       <input style={s.input} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} />
       <label style={s.label}>Synopsis (optional)</label>

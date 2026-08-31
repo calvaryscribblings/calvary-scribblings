@@ -1224,6 +1224,9 @@ export default function AdminPage() {
           <a href="/admin/voices" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Voices →</a>
           <a href="/admin/bookstore" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Bookstore →</a>
           <a href="/admin/publishers" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Publishers →</a>
+          {/* R31 — /admin/series existed since R12.0 and was reachable only by typing the URL,
+              which is why it was reported as missing rather than as broken. */}
+          <a href="/admin/series" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Series →</a>
           <a href="/admin/quizzes" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Quizzes →</a>
           <a href="/admin/analytics" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Analytics →</a>
           <a href="/admin/forum" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>

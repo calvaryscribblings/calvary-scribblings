@@ -21,7 +21,9 @@
 
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 import { db } from '../firebase';
-import { SCHEMA_VERSION, SERIES_PATH, INSTALMENTS_PATH, INSTALMENTS_DETAIL_PATH } from './schema';
+import {
+  SCHEMA_VERSION, SERIES_PATH, INSTALMENTS_PATH, INSTALMENTS_DETAIL_PATH, INSTALMENTS_DELETED_PATH,
+} from './schema';
 import { instalmentsOf, isReleased, releasedCount } from './access';
 
 /**
@@ -221,6 +223,28 @@ export async function getAllInstalments(seriesId) {
     return snapToRows(snap).sort((a, b) => (a.ordinal || 0) - (b.ordinal || 0));
   } catch (err) {
     console.error(`[series.loader] getAllInstalments failed for ${seriesId}`, err);
+    return [];
+  }
+}
+
+/**
+ * The BURNED ordinals of a series — R31's tombstones. ADMIN-ONLY BY RULE, so this returns []
+ * for everybody else, and that is not a failure to log loudly: a signed-out reader calling it
+ * is the gate working, exactly as getInstalmentDetail()'s denial is.
+ *
+ * ⚠ AN EMPTY ARRAY HERE IS NOT PROOF THAT NOTHING WAS DELETED. It is also what a denied read
+ * returns. Only the admin screen calls it, and only to keep the next-ordinal proposal off a
+ * burned number — the check that actually holds the gap is in createInstalment(), which reads
+ * the node directly and refuses. A caller that treated [] as "the id is free" would be
+ * relying on the weaker of the two.
+ */
+export async function getDeletedInstalments(seriesId) {
+  if (!seriesId) return [];
+  try {
+    const snap = await get(query(ref(db, INSTALMENTS_DELETED_PATH), orderByChild('seriesId'), equalTo(seriesId)));
+    return snapToRows(snap).sort((a, b) => (a.ordinal || 0) - (b.ordinal || 0));
+  } catch (err) {
+    console.debug(`[series.loader] getDeletedInstalments denied or failed for ${seriesId}`, err?.code || err);
     return [];
   }
 }

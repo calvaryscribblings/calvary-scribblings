@@ -130,21 +130,43 @@ service firebase.storage {
     //
     // CORS needs no work: scripts/bookstore-set-cors.mjs sets a BUCKET-level policy, so a
     // new prefix in the same bucket inherits it.
+    //
+    // ⚠ R31 — WRITE IS SPLIT FROM DELETE HERE, FOR THE REASON R21 GIVES ABOVE THE THREE
+    // bookstore_ RULES. This prefix was added after that split and did not inherit it: a
+    // single `allow write` guarded on request.resource.size and request.resource.contentType
+    // DENIES EVERY DELETE, founders included, because request.resource is null on a delete and
+    // both guards evaluate against null. deleteInstalment() would have removed the records and
+    // then failed on the file, leaving a 50 MB orphan with nothing pointing at it.
+    //
+    // Unlike bookstore_epubs/{titleId}/master.epub there is no ownership question to hold this
+    // file back. An instalment is never bought — there is no series_purchases node, and the
+    // only path to these bytes is a ~300-second signed URL — so no reader's copy is revoked by
+    // removing it. See app/lib/series/deletion.js.
     match /series_epubs/{instalmentId}/master.epub {
       allow read: if false;
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
                    && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')
                    && request.resource.size < 50 * 1024 * 1024
                    && request.resource.contentType == 'application/epub+zip';
+      allow delete: if request.auth != null
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
     }
     // Series and instalment artwork — the poster and any per-instalment cover. Public read,
     // because a locked instalment still shows its art; only the FILE is gated.
+    //
+    // ⚠ R31 — SPLIT FOR DELETE, same reason as series_epubs above. The delete path here is
+    // list-then-remove rather than a derived key: uploadSeriesImage() writes
+    // `series_covers/{key}/{Date.now()}-{file.name}`, so the object name is not recoverable
+    // from the record and deleteInstalment() has to enumerate the prefix. `read: if true`
+    // already permits that listing; only the removal needed a rule.
     match /series_covers/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
                    && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
     }
     match /bookstore_epubs/{titleId}/buyers/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;

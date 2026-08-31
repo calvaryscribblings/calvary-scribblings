@@ -2006,6 +2006,95 @@ describe('R21 · bookstore_titles_deleted — the tombstone', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
+describe('R31 · series_instalments_deleted — the burned ordinal', () => {
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//
+// The Series' tombstone, and DELIBERATELY NOT the bookstore's shape above. Two differences,
+// both reasoned:
+//
+//   PRIVATE, not `.read: true`. bookstore_titles_deleted is public because My Library renders
+//   it — a reader who owns a withdrawn book still sees its title and cover, and every field on
+//   it was public while the book was on sale. Nobody owns an instalment, so no reader surface
+//   reads this node at all. The ordinal GAP is public (the rows show 1, 2, 4); that a specific
+//   instalment once existed, what it was, and when it went, is not something a reader was ever
+//   told, and there is no surface asking to be told it.
+//
+//   THREE FIELDS, no content. It carries no title, no author, no cover — nothing that would
+//   make it a shadow copy of the record it replaces. Its only job is to make the id
+//   unreissuable, and the smallest record that does that job is the one least likely to grow
+//   into a second, staler instalments node.
+//
+// The `$other: false` deny is copied verbatim from R21, and for R21's reason: it makes "this
+// node holds no content" a property of the database rather than of one writer's field list.
+
+  const ID = 'harness-series-i3';
+  const STONE = { seriesId: 'harness-series', ordinal: 3, deletedAt: 1_800_000_000_000 };
+
+  test('LEGITIMATE: a founder writes exactly what deletionPlan() produces', async () => {
+    // The real planner's output, not a hand-typed fixture. A field added to the tombstone
+    // without being added to the rule fails here rather than in production.
+    const { deletionPlan } = await import('../../app/lib/series/deletion.js');
+    const plan = deletionPlan({ id: ID, seriesId: 'harness-series', ordinal: 3, now: 1_800_000_000_000 });
+    assert.equal(plan.tombstonePath, `series_instalments_deleted/${ID}`);
+    await assertSucceeds(founder.ref(plan.tombstonePath).set(plan.tombstone));
+  });
+
+  test('⚠ NOBODY BUT A FOUNDER MAY READ IT — the gap is public, the record is not', async () => {
+    await assertSucceeds(founder.ref(`series_instalments_deleted/${ID}`).set(STONE));
+    for (const [who, ctx] of [['anon', anon], ['a stranger', stranger], ['the owner', owner]]) {
+      await assertFails(ctx.ref(`series_instalments_deleted/${ID}`).get(), `${who} read a tombstone`);
+      await assertFails(ctx.ref('series_instalments_deleted').get(), `${who} enumerated the node`);
+    }
+    // The founder can, which is what stops the denials above passing for a node that simply
+    // does not exist.
+    const snap = await founder.ref(`series_instalments_deleted/${ID}`).get();
+    assert.equal(snap.val().ordinal, 3);
+  });
+
+  test('nobody but a founder may write one, or wipe one', async () => {
+    await assertSucceeds(founder.ref(`series_instalments_deleted/${ID}`).set(STONE));
+    for (const [who, ctx] of [['anon', anon], ['a stranger', stranger], ['the owner', owner]]) {
+      await assertFails(ctx.ref(`series_instalments_deleted/${ID}`).set(STONE), `${who} wrote a tombstone`);
+      // ⚠ THE SHARP ONE. Wiping the node un-burns every ordinal on the site, and the next
+      // create would reissue an id a reader's saved position still names.
+      await assertFails(ctx.ref(`series_instalments_deleted/${ID}`).set(null), `${who} un-burned an ordinal`);
+      await assertFails(ctx.ref('series_instalments_deleted').set(null), `${who} wiped the whole node`);
+    }
+  });
+
+  test('the record is CLOSED — it can never become a shadow copy of the instalment', async () => {
+    for (const leak of ['title', 'author', 'synopsis', 'logline', 'epubPath', 'coverUrl', 'sponsorName']) {
+      await assertFails(
+        founder.ref(`series_instalments_deleted/${ID}`).set({ ...STONE, [leak]: 'x' }),
+        `${leak} reached the tombstone`,
+      );
+    }
+  });
+
+  test('all three fields are required, and the ordinal must be a real one', async () => {
+    for (const missing of ['seriesId', 'ordinal', 'deletedAt']) {
+      const { [missing]: _drop, ...partial } = STONE;
+      await assertFails(founder.ref(`series_instalments_deleted/${ID}`).set(partial), `${missing} was optional`);
+    }
+    await assertFails(founder.ref(`series_instalments_deleted/${ID}`).set({ ...STONE, ordinal: 0 }));
+    await assertFails(founder.ref(`series_instalments_deleted/${ID}`).set({ ...STONE, ordinal: '3' }));
+    await assertFails(founder.ref(`series_instalments_deleted/${ID}`).set({ ...STONE, deletedAt: 0 }));
+  });
+
+  test("⚠ AN ADMIN STILL CANNOT REACH A READER'S SAVED POSITION — the reason deletion spares it", async () => {
+    // deletion.js ruling 3 rests on this being true. If a founder carve-out is ever added to
+    // series_reading_progress, the ruling has to be revisited rather than silently outgrown.
+    await assertSucceeds(owner.ref(`series_reading_progress/${OWNER}/${ID}`).set({ fraction: 0.6, updatedAt: 1 }));
+    await assertFails(founder.ref(`series_reading_progress/${OWNER}/${ID}`).get(), 'a founder read a reader position');
+    await assertFails(founder.ref(`series_reading_progress/${OWNER}/${ID}`).set(null), 'a founder deleted a reader position');
+    // And it survives the instalment being removed, because they are different nodes.
+    await assertSucceeds(founder.ref(`series_instalments/${ID}`).set(null));
+    const kept = await owner.ref(`series_reading_progress/${OWNER}/${ID}`).get();
+    assert.equal(kept.val().fraction, 0.6);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
 describe("R21 · a withdrawal never reaches a reader's library", () => {
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 //
