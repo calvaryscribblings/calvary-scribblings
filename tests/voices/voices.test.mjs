@@ -95,13 +95,64 @@ test('nothing pins until the stage has been measured', () => {
   assert.equal(shouldTrailer({ ...base, pinReady: false }), false);
 });
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// ⭑ R32.2 — THE CEILING IS NINE OF TEN, NOT FIVE. This test replaces one that asserted
+// `every 2nd story only`, and the assertion it replaces is the defect Ikenna walked into:
+// the modulo capped the ten at five trailers before a single voice was consulted, and the
+// live mean was 3.86. Mutation: restore `if (storyIndex % 2 !== 1) return false`.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+test('every story but the first can carry a trailer', () => {
+  const base = { reducedMotion: false, quote: 'a line', voices: [{ id: 'a' }], pinReady: true };
+  // the whole ten, and nine of them are eligible
+  const eligible = [];
+  for (let i = 0; i < 10; i++) if (shouldTrailer({ ...base, storyIndex: i })) eligible.push(i);
+  assert.deepEqual(eligible, [1, 2, 3, 4, 5, 6, 7, 8, 9], 'positions 2-10 are all eligible');
+
+  // ⚠ STORY 0 NEVER TRAILERS, and it is load-bearing twice over: the sequence's step 0 must
+  // be a CARD, because `loop` advances on the wrap to step 0 and `loop` chooses the voice —
+  // a trailer there would advance the counter into the step whose voice it changes. And the
+  // homepage opens on a story, not on a quote animating into one.
+  assert.equal(shouldTrailer({ ...base, storyIndex: 0 }), false, 'step 0 must be a card');
+});
+
 test('the conditions that already existed still hold', () => {
   const base = { reducedMotion: false, quote: 'a line', voices: [{ id: 'a' }], pinReady: true };
-  assert.equal(shouldTrailer({ ...base, storyIndex: 0 }), false, 'every 2nd story only');
-  assert.equal(shouldTrailer({ ...base, storyIndex: 1 }), true);
-  assert.equal(shouldTrailer({ ...base, storyIndex: 2 }), false);
   assert.equal(shouldTrailer({ ...base, storyIndex: 1, reducedMotion: true }), false);
   assert.equal(shouldTrailer({ ...base, storyIndex: 1, quote: '   ' }), false);
+  assert.equal(shouldTrailer({ ...base, storyIndex: 2, quote: '   ' }), false, 'no quote, any position');
+  assert.equal(shouldTrailer({ ...base, storyIndex: 2, voices: [] }), false, 'no voice, any position');
+  assert.equal(shouldTrailer({ ...base, storyIndex: 2, pinReady: false }), false, 'no pin, any position');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// THE DWELL. Ikenna's ruling: a card carrying two quotes needs longer than one carrying one.
+// The trailer's duration and the card's are separate constants and must stay separate —
+// slowing all ten would make the carousel drag. Mutation: drop TRAILER_READER_HOLD_MS from
+// the hold, or leave TRAILER_CAP_MS at 8000 while the hold grows.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+const PAGE_SRC = readFileSync(fileURLToPath(new URL('../../app/public-library/page.js', import.meta.url)), 'utf8');
+
+test('the trailer dwell grew by three seconds and the cap grew with it', () => {
+  assert.match(PAGE_SRC, /const HERO_CARD_MS = 5000;/, 'a plain card is untouched at 5s');
+  assert.match(PAGE_SRC, /const TRAILER_READER_HOLD_MS = 3000;/);
+  assert.match(PAGE_SRC, /const TRAILER_CAP_MS = 11000;/, 'the cap must move or the longest quotes gain nothing');
+  // the extra time goes on the HOLD — not the lead-in, not the word cadence
+  assert.match(PAGE_SRC, /Math\.min\(3200, wordCount \* 120\)\) \+ TRAILER_READER_HOLD_MS/);
+  // and the watchdog ceiling is derived from the cap, never restated
+  assert.match(PAGE_SRC, /MAX_STEP_MS = Math\.max\(HERO_CARD_MS, TRAILER_CAP_MS\)/);
+
+  // ⭑ EVERY quote gains exactly three seconds, including the nine that were already sitting
+  // on the old ceiling. Both the hold and the cap moved by 3000, so the difference is
+  // constant across the whole pool — which is the property a raised cap is FOR. Leave the
+  // cap at 8000 and this assertion goes red at 39 words and above, where the nine live.
+  const base = (w) => Math.max(1600, Math.min(3200, w * 120));
+  const was = (w) => Math.min(350 + w * 150 + 750 + base(w), 8000);
+  const now = (w) => Math.min(350 + w * 150 + 750 + base(w) + 3000, 11000);
+  for (let w = 1; w <= 120; w++) {
+    assert.equal(now(w) - was(w), 3000, `a ${w}-word quote must gain exactly three seconds`);
+  }
+  assert.equal(was(60), 8000, 'a 60-word quote was on the old ceiling');
+  assert.equal(now(60), 11000, 'and is on the new one, three seconds later');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────

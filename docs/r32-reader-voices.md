@@ -18,6 +18,138 @@ Where things live:
 
 ---
 
+# R32.2 — the first walk: two of ten, and a card that passed too fast
+
+Ikenna walked the deployed carousel with the backfill live, 2 Sept 2026. It reads well, and
+two things were wrong. Both are fixed here.
+
+## 1. ⚠ TWO OF TEN CARRIED A VOICE — diagnosed, and it was none of the three suspects
+
+The suspicion was that the trailer step was being APPENDED to the run rather than distributed
+through it — two cards at positions 8 and 10 of 10 is what appending looks like. It is not
+what happened. **Diagnosed against the live site and live data, not the source.**
+
+**The exact screen was reproduced.** The carousel's ten come from `rotationScore(id, seed)`,
+a deterministic hash seeded on a 30-minute window. Replaying **seed 993549 — the 22:30Z
+window** — against live RTDB gives trailers at **[8, 10]**, exactly what he saw:
+
+| # | story | quote | voices | |
+|---|---|---|---|---|
+| 1 | peer-pressure-from-the-dead | y | 2 | position never eligible |
+| 2 | mask-with-no-memory | **n** | 0 | no trailer quote at all |
+| 3 | red-nails-theory | y | 2 | position never eligible |
+| 4 | my-daddy-is-a-superhero | **n** | 0 | no trailer quote at all |
+| 5 | a-broken-heart-playlist | y | 2 | position never eligible |
+| 6 | your-device-has-an-addrrss | y | **0** | no promotable voice |
+| 7 | the-48-team-gamble-paid-off | y | 0 | position never eligible |
+| 8 | **sapiosexual** | y | 4 | ★ TRAILER |
+| 9 | sim-swapping | y | 1 | position never eligible |
+| 10 | **nostalgia-still-sells** | y | 1 | ★ TRAILER |
+
+**And the live site was walked** — `calvaryscribblings.co.uk/public-library`, two full passes
+at 1440px, and again at Fast 3G with 4× CPU throttling. Both runs: four trailers, at 4/6/8/10.
+
+- **Not a different query.** The ten are the house's featured rotation and voices are looked
+  up for all ten.
+- **Not appended.** Each trailer plays immediately before **its own card** —
+  `★TRAILER The Number Thirteen` then `card The Number Thirteen` — and across rotations they
+  land only at even positions, never 1/3/5/7/9.
+- **Not a failing lookup.** Four of five eligible slots resolved voices;
+  `comment_screening` reads HTTP 200 unauthenticated. The one that failed (`5-To-9`) has zero
+  promotable comments, correctly.
+
+**The cause was the ceiling.** `shouldTrailer` opened with `if (storyIndex % 2 !== 1) return
+false` — *"every 2nd story, unchanged"* — which capped the ten at **five** before a single
+voice was consulted. Over 1,000 rotations the live mean was **3.86 of 5**, and **68 rotations
+(6.8%) gave two or fewer**. Ikenna hit one of them.
+
+### The ruling: the every-2nd rule is gone
+
+**It was pacing a card that no longer exists.** When the modulo was written a trailer carried
+ONE quote — the house's — and every second story was the right pace for a single repeated
+gesture. R32 changed what a trailer card *is*: two quotes in two registers, plus a reader's
+name and face. Eight or nine of ten is now the correct expectation.
+
+⚠ **Do not restore the old rhythm without knowing what it was pacing.** If a future round
+wants fewer trailers, the honest levers are the dwell or the size of the ten — not a modulo
+that halves the ceiling and then hides behind the voice pool for the shortfall.
+
+⚠⚠ **ORDERING THE TEN BY VOICE WAS PROPOSED AND REFUSED.** Keeping the modulo and sorting the
+ten so voiced stories land on eligible positions measures beautifully — mean 4.99 of 5, one
+bad rotation in a thousand. **Ikenna refused it, correctly:** it lets comment activity decide
+which story *leads* the carousel, which is the same ruling he made when he kept a voiceless
+story's card rather than dropping it from the ten. **The house chooses what is promoted.**
+The set and the order of the ten are editorial; only whether a card gets a trailer is not.
+Recorded here so it is not proposed again.
+
+⭑ **Story 0 still never trailers**, and that is not a leftover of the modulo. Two independent
+requirements agree on it: the sequence's step 0 must be a **card**, because `loop` advances
+on the wrap to step 0 and `loop` chooses each story's voice — a trailer there would advance
+the counter into the very step whose voice it changes; and the homepage should open on a
+story, not on a quote animating word by word into one. So the ceiling is **nine of ten**.
+
+## 2. THE DWELL — three seconds, on trailer steps only
+
+Ikenna's ruling: the two cards that did carry the new furniture passed too quickly to read.
+
+**Trailer steps only. Cards stay at `HERO_CARD_MS = 5000`.** This is not fragmenting a shared
+constant — the two durations were already separate (`HERO_CARD_MS` for cards,
+`getTrailerDuration(quote)` computed per trailer). A plain card gained nothing to read in
+R32, and slowing all ten would make the carousel drag.
+
+The three seconds go on the **hold**, via `TRAILER_READER_HOLD_MS`, and nowhere else: the
+reader's line lands last, so lengthening the lead-in or the word cadence would slow the house
+quote's animation instead of giving anyone time to read what is already on screen.
+
+⚠ **The cap moved with it, 8000 → 11000.** Not decoration: **9 of the 157 live quotes already
+computed to exactly 8000ms** and would have gained nothing at all under the old ceiling. Both
+the hold and the cap moved by 3000, so every quote in the pool gains exactly three seconds —
+the suite asserts that across 120 word counts. `MAX_STEP_MS` derives from the cap, so the
+watchdog followed on its own.
+
+## ⚠ THE COST — a full pass is now nearly two minutes
+
+Measured over 1,000 rotations against live data:
+
+| | as shipped (R32) | now (R32.2) |
+|---|---|---|
+| trailers per ten | **3.86** of a ceiling of 5 | **6.97** of a ceiling of 9 |
+| rotations with ≤2 trailers | 68 / 1,000 | **1 / 1,000** |
+| **full pass** | **1m 14s** | **1m 52s** |
+| time to reach card 10 | 1m 05s | **1m 41s** |
+
+New distribution: 7→32%, 8→26%, 6→21%, 5→10%, 9→9%.
+
+**Say the uncomfortable part plainly: the tenth card is now 1m 41s from the top of the pass,
+and most homepage visitors will never see it.** That was already half-true at 1m 05s; it is
+now firmly true. Trailers are 59 of those 112 seconds — over half the pass — so the dwell is
+not the lever that fixes it.
+
+**Proposed, not built** — this is Ikenna's call and it should follow a walk, not precede one:
+
+| | full pass |
+|---|---|
+| ten cards, 5s dwell (as shipped now) | 1m 53s |
+| **ten → eight cards** | 1m 29s |
+| **ten → seven cards** | 1m 17s |
+| card dwell 5s → 4s, ten kept | 1m 43s |
+| both (seven cards, 4s) | 1m 10s |
+
+My read: **shrink the ten, don't shorten the card.** Cards are only 53 of the 112 seconds, so
+trimming their dwell barely moves the total and costs the plain cards their legibility. Going
+to seven or eight cards buys the time back from the part of the pass almost nobody reaches.
+But the ten is an editorial number, so it is not mine to change.
+
+## What to expect on the next walk
+
+- **Seven of ten cards should carry a reader's voice**, most rotations (7→32%, 8→26%, 6→21%).
+  Fewer than five happens in 2% of rotations, and two or fewer in 1 in 1,000.
+- **Position 1 never carries one** — by design, both reasons above.
+- A trailer holds about **three seconds longer** than before; the longest run 11s.
+- **A full pass is about 1m 52s**, and reaching the tenth card takes about **1m 41s**.
+
+---
+
 # R32.1 — what the backfill found
 
 The backfill ran 2 Sept 2026. 425 calls, 306 promotable, 129 of the 157 quoted stories now

@@ -128,10 +128,55 @@ export function promotableVoices(node) {
  * ⚠ A FALSE HERE COSTS THE TRAILER, NEVER THE CARD. The story keeps its place in the ten and
  * simply shows plain. Dropping the card would let comment activity decide which stories the
  * house promotes, and that is backwards — the house chooses what is featured.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════
+ * ⭑ R32.2 — THE EVERY-2ND RULE IS GONE, AND WHAT IT WAS PACING NO LONGER EXISTS
+ * ═════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * This function used to open with `if (storyIndex % 2 !== 1) return false` — "every 2nd
+ * story, unchanged". That capped the ten at FIVE trailers before a single voice was
+ * consulted, and it is why Ikenna's first walk of the shipped carousel found two.
+ *
+ * ⚠ IT WAS A RHYTHM DECISION MADE FOR A DIFFERENT CARD. When that rule was written a trailer
+ * carried ONE quote — the house's — and every second story was the right pace for a single
+ * repeated gesture. R32 changed what a trailer card IS: it now carries two quotes in two
+ * registers, the house's and a stranger's, and a reader's name and face beside them. That is
+ * no longer a gesture being repeated too often; it is the thing the card is for. Ikenna
+ * expected eight or nine of ten, and after R32 that expectation is the correct one.
+ *
+ * ⚠⚠ DO NOT RESTORE THE OLD RHYTHM WITHOUT KNOWING WHAT IT WAS PACING. If a future round
+ * wants fewer trailers, the honest lever is the dwell or the size of the ten, not a modulo
+ * that silently halves the ceiling and then hides behind the voice pool for the shortfall.
+ *
+ * MEASURED, over 1,000 rotations against live data, 2 Sept 2026:
+ *   with `% 2`  — mean 3.86 of a ceiling of 5, and 68 rotations in 1,000 (6.8%) showing two
+ *                 or fewer. Seed 993549, the 22:30Z window Ikenna walked, gave exactly two,
+ *                 at positions 8 and 10.
+ *   without it  — mean 7.1 of a ceiling of 9.
+ *
+ * ⚠⚠ AND THE FIX THAT WAS REFUSED, recorded here so it is not proposed again. The obvious
+ * alternative was to keep the modulo and ORDER THE TEN so that stories carrying a voice land
+ * on the eligible positions. It measures beautifully — mean 4.99 of 5, one bad rotation in a
+ * thousand — and Ikenna refused it, correctly. It lets comment activity decide WHICH STORY
+ * LEADS THE CAROUSEL, which is the same ruling he already made when he kept a voiceless
+ * story's card rather than dropping it from the ten. The house chooses what is promoted.
+ * The set and the order of the ten are editorial; only whether a card gets a trailer is not.
+ *
+ * ⭑ STORY 0 STILL NEVER TRAILERS, and that is not a leftover of the modulo — it is two
+ * separate requirements that happen to agree:
+ *
+ *   1. THE SEQUENCE'S FIRST STEP MUST BE A CARD. `loop` increments when the rotation wraps
+ *      to step 0, and `loop` is an input to which voice each story shows. If step 0 were a
+ *      trailer, the pass counter would advance into the very step whose voice it changes.
+ *      The carousel's own comment states that invariant; this is what keeps it true.
+ *   2. THE HOMEPAGE OPENS ON A STORY, NOT ON AN INTERSTITIAL. The first thing the hero shows
+ *      a new visitor should be a card, not a quote animating word by word into one.
+ *
+ * So the ceiling is NINE of ten, which is exactly the eight or nine that was asked for.
  */
 export function shouldTrailer({ storyIndex, reducedMotion, quote, voices, pinReady }) {
   if (reducedMotion) return false;
-  if (storyIndex % 2 !== 1) return false;              // every 2nd story, unchanged
+  if (storyIndex === 0) return false;                  // step 0 is a card — see above, both reasons
   if (typeof quote !== 'string' || !quote.trim()) return false;
   if (!pinReady) return false;                         // nothing pins until every candidate reported
   return Array.isArray(voices) && voices.length > 0;

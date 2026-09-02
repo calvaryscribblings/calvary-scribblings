@@ -163,25 +163,44 @@ function getRotationCarousel(stories) {
 // duration, trailers get a computed one. Trailer steps share the story's dot.
 
 const HERO_CARD_MS = 5000;
-const TRAILER_CAP_MS = 8000;
+// ⭑ R32.2 — THE CAP MOVED WITH THE DWELL, 8000 → 11000. Ikenna's ruling on his first walk:
+// a trailer card now carries TWO quotes, the house's and a reader's, and passed too quickly
+// to read. Three seconds go onto the hold below. Raising the cap is not decoration: NINE of
+// the 157 live quotes already computed to exactly 8000 and would have gained nothing at all
+// from a longer hold under the old ceiling.
+// ⚠ CARDS ARE UNTOUCHED at HERO_CARD_MS. A plain card gained nothing to read in R32, and
+// slowing all ten would make the carousel drag. The two durations were already separate
+// constants, so this is not a fragmentation — it is the split doing its job.
+const TRAILER_CAP_MS = 11000;
 const TRAILER_DISSOLVE_MS = 900;
 // Longest any single step can legitimately run; the watchdog force-advances
 // past this plus a grace window if the step's own timer never fired.
 const MAX_STEP_MS = Math.max(HERO_CARD_MS, TRAILER_CAP_MS);
 const WATCHDOG_GRACE_MS = 1500;
 
+// R32.2 — the reader's line lands last, so the extra dwell goes on the HOLD and nowhere else.
+// Adding it to the lead-in or the word cadence would slow the house quote's animation; the
+// three seconds are meant to be time to READ what is already fully on screen.
+const TRAILER_READER_HOLD_MS = 3000;
+
 function getTrailerDuration(quote) {
   const wordCount = quote.trim().split(/\s+/).filter(Boolean).length;
-  const hold = Math.max(1600, Math.min(3200, wordCount * 120));
+  const hold = Math.max(1600, Math.min(3200, wordCount * 120)) + TRAILER_READER_HOLD_MS;
   // leadIn 350 + words×150 + rule 450 + attribution 300 + hold, capped.
   return Math.min(350 + wordCount * 150 + 750 + hold, TRAILER_CAP_MS);
 }
 
-// Steps: { type: 'card'|'trailer', storyIndex, duration }. Every 2nd story
-// (even positions: 2nd, 4th, …) gets a trailer step before its card, provided
-// it has a non-empty trailerQuote. Stories without a quote show plain and do
+// Steps: { type: 'card'|'trailer', storyIndex, duration }. EVERY story but the
+// first gets a trailer step before its card, provided it has a non-empty
+// trailerQuote and a promotable voice. Stories without either show plain and do
 // NOT steal a trailer from a neighbour. Under reduced motion the sequence is
 // cards only — rotation behaves exactly as before.
+//
+// ⭑ R32.2: this was "every 2nd story" until Ikenna's first walk found two
+// trailers in ten. The modulo capped the ten at five before a voice was
+// consulted, and it was pacing a card that carried ONE quote. See shouldTrailer
+// in app/lib/trailerVoices.js for the full reasoning, the measurements, and the
+// alternative fix that was refused.
 //
 // ── R32: TWO MORE CONDITIONS, AND WHAT THEY MEAN WHEN THEY FAIL ─────────────
 //
@@ -1424,8 +1443,10 @@ export default function Home() {
   // its shuffle — Ikenna's ruling that a story shows several different comments
   // across a session rather than one fixed per session or per launch. It is
   // incremented only when the sequence wraps back to step 0, which is always a
-  // CARD step (trailers sit at odd story positions), so no trailer is ever
-  // playing at the moment its voice changes.
+  // CARD step — story 0 never trailers, and THAT IS WHY, not a leftover of the
+  // every-2nd rule R32.2 removed. If step 0 were a trailer the pass counter
+  // would advance into the very step whose voice it changes. shouldTrailer
+  // holds this invariant explicitly and names it.
   const [loop, setLoop] = useState(0);
 
   // Rotation sequence: cards + trailer interstitials over the rotation carousel.
