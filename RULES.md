@@ -119,3 +119,26 @@ move a reader's confidence onto a line that cannot hold it.
 Neither change touches `bookstore_purchases`. Withdrawal and deletion are acts on the SHOP;
 revocation from an owner is a different act, it happens only on a refund or a chargeback, and
 only the two payment webhooks can perform it.
+
+
+## `comment_screening` — R32, and why the verdict is not inside the comment
+
+`comment_screening/{slug}/{commentId}` holds the promotion verdict for a reader's comment:
+`{ promotable, text?, uid, categories, reason, model, version, checkedAt }`. It is
+world-readable and written by `functions/api/comments/screen.js` and
+`scripts/screen-comments.mjs` with the service account, which bypasses these rules entirely.
+
+**It is deliberately NOT a child of the comment record.** The obvious design was a
+`screening` child on `comments/{slug}/{commentId}`, and it is worthless: that node's rule
+grants the comment's author `.write` on the whole record, and in RTDB **a permissive parent
+grants the entire subtree** — a `.write: false` nested inside it is decoration, not a
+boundary. That is the R31 lesson about combined grants restated. Giving the verdict its own
+node means the comments rule is not reopened at all.
+
+Founders keep `.write` on it so `promotable: false` can be set by hand — the general
+"do not promote" signal, which keeps a comment off every promoted surface without deleting
+it. `text` may only be written when `promotable` is true, and `$other` is refused, so a hand
+edit cannot invent fields.
+
+(This paragraph lives here because RTDB rejects a `"//"` comment key at a node position —
+`Expected '{'` — so the JSON cannot carry its own reasoning.)

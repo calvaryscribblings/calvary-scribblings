@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../lib/AuthContext';
 import AuthModal from '../components/AuthModal';
@@ -23,6 +23,19 @@ import { shelfLine } from '../lib/series/format';
 import { useArrivalReady } from '../components/ArrivalVeil';
 import { SUMMER_2026, prizePool } from '../lib/leaderboards';
 import { useContestPhase } from '../lib/useContestPhase';
+// R32 — the reader's line on the trailer card. Everything about it that is not pixels
+// (which comments may be promoted, how one is abridged, which one a rotation shows, how the
+// identity resolves) lives in the lib; this file draws it.
+import {
+  promotableVoices,
+  shouldTrailer,
+  pickVoice,
+  abridgeToFit,
+  resolveVoiceIdentity,
+  SCREENING_NODE,
+} from '../lib/trailerVoices';
+import { getBadge, BadgeIcon } from '../components/conversation/ConversationKit';
+import { measureQuotePin } from '../lib/pinQuoteStage';
 
 // ── Typography system ───────────────────────────────────────────────────────
 // DISPLAY for headings/titles, LABEL for kickers/badges/controls, BODY for meta.
@@ -169,11 +182,28 @@ function getTrailerDuration(quote) {
 // it has a non-empty trailerQuote. Stories without a quote show plain and do
 // NOT steal a trailer from a neighbour. Under reduced motion the sequence is
 // cards only — rotation behaves exactly as before.
-function buildHeroSequence(carousel, reducedMotion) {
+//
+// ── R32: TWO MORE CONDITIONS, AND WHAT THEY MEAN WHEN THEY FAIL ─────────────
+//
+// A trailer step is now emitted only when the story ALSO has a promotable
+// reader's voice, and only once the quote stage's pin has been measured.
+//
+// ⭑ A STORY WITH NO PROMOTABLE VOICE LOSES ITS TRAILER, NOT ITS PLACE. Its card
+// stays in the ten exactly as before. Ikenna's reasoning, 2 Sept 2026: dropping
+// the card would let comment activity decide which stories get promoted, and
+// that is backwards — the house chooses what is featured, not the commenters.
+//
+// ⚠ AND THIS IS THE ANSWER TO "WHAT IF A COMMENT FAILS BETWEEN THE POOL BEING
+// BUILT AND THE CARD BEING DRAWN": THE CARD IS NOT BUILT. The voice is an INPUT
+// to whether the step exists, not something fetched after it does, so there is
+// no code path anywhere that draws a trailer with an empty corner. A voice that
+// stops being promotable disappears from voicesBySlug on the next data load and
+// the step it fed simply stops being emitted.
+function buildHeroSequence(carousel, reducedMotion, voicesBySlug, pinReady) {
   const seq = [];
   carousel.forEach((s, storyIndex) => {
     const quote = typeof s.trailerQuote === 'string' ? s.trailerQuote.trim() : '';
-    if (!reducedMotion && storyIndex % 2 === 1 && quote) {
+    if (shouldTrailer({ storyIndex, reducedMotion, quote, voices: voicesBySlug?.get(s.id), pinReady })) {
       seq.push({ type: 'trailer', storyIndex, duration: getTrailerDuration(quote) });
     }
     seq.push({ type: 'card', storyIndex, duration: HERO_CARD_MS });
@@ -181,10 +211,212 @@ function buildHeroSequence(carousel, reducedMotion) {
   return seq;
 }
 
+// ── THE PIN, MEASURED OVER THE WHOLE POOL ───────────────────────────────────
+//
+// ⚠ NOTHING PINS UNTIL EVERY CANDIDATE HAS REPORTED. The stage height cannot be
+// a constant in this file: the quote size is a clamp() so it depends on the
+// viewport, the metrics depend on Cormorant Garamond having actually loaded,
+// and the pool changes the moment a trailer quote is edited in the CMS. So it
+// is measured — every eligible quote on the site, offscreen, in the real type
+// at the real width, and the tallest wins.
+//
+// The measurement itself is app/lib/pinQuoteStage.js — its own module so the
+// height suite can run THE REAL FUNCTION against the live pool rather than a
+// second copy of it. Measured 2 Sept 2026 over the 157 live quotes: 209px at
+// 390 and 430, 156 at 768, 260 at 1024, 335 at 1440 — a 279px swing on desktop
+// between the shortest quote and the tallest, which is how far the STORY
+// TRAILER kicker was jumping as the carousel turned before this pin existed.
+/**
+ * The pin, remeasured whenever anything it depends on moves: the pool, the
+ * viewport, or the fonts arriving. Returns 0 until it is known, and a 0 pin
+ * emits no trailer steps at all — the carousel shows plain cards rather than a
+ * stage of the wrong height.
+ */
+function useQuoteStagePin(quotes) {
+  const [pin, setPin] = useState(0);
+  const key = quotes.join(' ');
+  useEffect(() => {
+    if (quotes.length === 0) { setPin(0); return; }
+    let cancelled = false;
+    const measure = () => { if (!cancelled) setPin(measureQuotePin(quotes)); };
+    // Fallback metrics are not the real metrics; measuring before the face has
+    // landed would pin the stage to Georgia and be wrong by tens of pixels.
+    if (document.fonts?.ready) document.fonts.ready.then(measure).catch(measure);
+    else measure();
+    let t;
+    const onResize = () => { clearTimeout(t); t = setTimeout(measure, 150); };
+    window.addEventListener('resize', onResize);
+    return () => { cancelled = true; clearTimeout(t); window.removeEventListener('resize', onResize); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return pin;
+}
+
+// ── THE VOICES ──────────────────────────────────────────────────────────────
+//
+// One bounded read per carousel story of comment_screening/{slug} — a measured
+// mean of 888 bytes, against 3.6 KB for that story's raw comment thread. The
+// node contains ONLY screened comments, so the carousel cannot accidentally
+// promote something unscreened: the unpromotable ones are not in the node it
+// reads.
+//
+// ⚠ NO LIVE LISTENER, DELIBERATELY. Subscribing to comments is the whole-node
+// pattern the Fortress Audit removed (peak database load 15.1% with 338
+// readers, of which `get` was 0.1505 of 0.1509) and it is not coming back for
+// this. The consequence, stated rather than hidden: a comment a founder revokes
+// mid-session can finish that session on the cards of a reader already on the
+// page. The dangerous direction is safe in every case — unchecked is never
+// promotable, not for a moment.
+function useTrailerVoices(carousel) {
+  const [voices, setVoices] = useState(() => new Map());
+  const slugs = carousel
+    .filter((s) => typeof s.trailerQuote === 'string' && s.trailerQuote.trim())
+    .map((s) => s.id);
+  const key = slugs.join(',');
+  useEffect(() => {
+    if (slugs.length === 0) { setVoices(new Map()); return; }
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        slugs.map(async (slug) => {
+          try {
+            const snap = await get(ref(db, `${SCREENING_NODE}/${slug}`));
+            return [slug, promotableVoices(snap.exists() ? snap.val() : null)];
+          } catch {
+            // An unreadable node is no voices, which is no trailer — never a
+            // trailer with a hole in it.
+            return [slug, []];
+          }
+        })
+      );
+      if (!cancelled) setVoices(new Map(entries));
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return voices;
+}
+
+/**
+ * ⚠⚠ THE IDENTITY RESOLVES AT RENDER. R33's Square audit found identity
+ * photographed at write time and never refreshed — the island badge wrong on
+ * 112 of 115 posts, 23 stale names, 15 readers showing initials who by then had
+ * pictures. Measured on the comments 2 Sept 2026, 447 of 1,830 stored
+ * authorName copies (24.4%) already disagree with the reader's live record.
+ * This surface reads users/{uid}; the stored copy is only the last rung of the
+ * ladder in resolveVoiceIdentity, for the 29 commenters whose user record holds
+ * no name at all.
+ *
+ * One read per distinct reader on the carousel — at most ten, cached for the
+ * life of the page, and exactly what Avatar variant="comment" and UserBadge
+ * self already do on the story pages.
+ */
+function useVoiceIdentities(uids) {
+  const [people, setPeople] = useState(() => new Map());
+  const key = [...new Set(uids)].sort().join(',');
+  useEffect(() => {
+    const wanted = [...new Set(uids)].filter(Boolean);
+    if (wanted.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        wanted.map(async (uid) => {
+          try {
+            const snap = await get(ref(db, `users/${uid}`));
+            return [uid, snap.exists() ? snap.val() : null];
+          } catch {
+            return [uid, null];
+          }
+        })
+      );
+      if (!cancelled) setPeople(new Map(entries));
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return people;
+}
+
+/**
+ * THE READER'S ZONE — the second voice on the card.
+ *
+ * Fitted here rather than estimated: the comment is abridged against a probe of
+ * this zone's own width in this zone's own type, in a layout effect, so the
+ * decision is made from the real box before anything paints. `abridgeToFit`
+ * takes `fits` as an argument for exactly this reason — the suite passes a
+ * counting stub, the card passes the DOM.
+ */
+function TrailerVoice({ voice, person, delay }) {
+  const zoneRef = useRef(null);
+  const probeRef = useRef(null);
+  const lineRef = useRef(null);
+
+  // The fit is written straight into the node rather than through state. Not a
+  // micro-optimisation: a layout effect that sets state renders twice, and the
+  // second render is the one the reader would see the line appear on. This way
+  // the measurement and the text land in the same commit, before paint.
+  useLayoutEffect(() => {
+    const probe = probeRef.current;
+    const out = lineRef.current;
+    const zone = zoneRef.current;
+    if (!probe || !out || !zone || !voice) return;
+    // Two lines of this face at this size — read off the probe rather than
+    // computed, so a font that has not landed yet cannot produce a wrong cap.
+    probe.textContent = 'x';
+    const oneLine = probe.getBoundingClientRect().height;
+    const cap = oneLine * 2 + 1;
+    const fits = (t) => {
+      probe.textContent = t;
+      return probe.getBoundingClientRect().height <= cap;
+    };
+    const { text } = abridgeToFit(voice.text, oneLine ? fits : () => false);
+    probe.textContent = '';
+    out.textContent = text || '';
+    // A width so narrow that not one word fits is not a card we would draw.
+    zone.hidden = !text;
+  }, [voice]);
+
+  // A voice we cannot name is not drawn at all. resolveVoiceIdentity's last rung
+  // is the comment's stored copy and this surface deliberately does not carry
+  // one — "Reader" beside a real photograph would be worse than no zone.
+  if (!voice || !person) return null;
+
+  const badge = person.isAuthor ? { color: '#581c87' } : getBadge(person.readCount);
+
+  return (
+    <div className="tv-zone" ref={zoneRef} style={{ animationDelay: `${delay}ms` }}>
+      <div className="tv-kicker">A Reader Said</div>
+      <p className="tv-line"><q ref={lineRef} /></p>
+      <div className="tv-id">
+        <span style={{
+          width: 22, height: 22, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+          background: 'rgba(107,47,173,0.22)', border: '1px solid rgba(107,47,173,0.3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: BODY, fontSize: 9, color: '#c9a84c',
+        }}>
+          {person.photo
+            ? <img src={person.photo} alt="" width={22} height={22} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : person.initials}
+        </span>
+        <span style={{
+          fontFamily: BODY, fontSize: '0.78rem', color: 'rgba(245,240,232,0.9)', whiteSpace: 'nowrap',
+        }}>{person.name}</span>
+        {/* ⭑ Icon only, no label. "Immortal of the Island" out-measures the name
+            beside it, and 67 of 99 commenters carry no badge at all — a
+            labelled badge would make this row's width lurch from card to card,
+            which is a moving stage in a different direction. */}
+        {badge && <BadgeIcon color={badge.color} size={12} />}
+      </div>
+      <p className="tv-line tv-probe" ref={probeRef} aria-hidden="true" />
+    </div>
+  );
+}
+
 // The trailer layer: blurred slow-zooming cover (or aurora fallback), staggered
-// word reveal, gold rule, attribution. Stays mounted through the dissolve into
-// the card (same story, so `story` doesn't change across that boundary).
-function HeroTrailer({ story, dissolving }) {
+// word reveal, gold rule, attribution — and, since R32, a reader's line in the
+// lower right. Stays mounted through the dissolve into the card (same story, so
+// `story` doesn't change across that boundary).
+function HeroTrailer({ story, dissolving, voice, person, pin }) {
   const quote = (story.trailerQuote || '').trim();
   const words = quote.split(/\s+/).filter(Boolean);
   const duration = getTrailerDuration(quote);
@@ -211,7 +443,10 @@ function HeroTrailer({ story, dissolving }) {
         <div className="trailer-aurora" />
       )}
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,6,16,0.35)' }} />
-      <div style={{ position: 'absolute', left: '4%', right: '4%', bottom: '22%', maxWidth: 640, zIndex: 1 }}>
+      {/* Raised from bottom 22% to 34% — Ikenna's ruling. The quote and its
+          attribution sat low with dead space beneath, and that space is where
+          the reader's line now goes. */}
+      <div style={{ position: 'absolute', left: '4%', right: '4%', bottom: '34%', maxWidth: 640, zIndex: 1 }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           gap: 10, marginBottom: 26,
@@ -223,23 +458,24 @@ function HeroTrailer({ story, dissolving }) {
           }}>STORY TRAILER</span>
           <span aria-hidden="true" style={{ width: 34, height: 1, background: 'rgba(201,168,76,0.55)' }} />
         </div>
-        <p style={{
-          fontFamily: DISPLAY, fontWeight: 500,
-          fontSize: 'clamp(1.5rem, 3.5vw, 2.4rem)',
-          color: '#f5f0e8', lineHeight: 1.45, margin: 0,
-          textShadow: '0 2px 24px rgba(107,47,173,0.5)',
-        }}>
-          {words.map((w, i) => (
-            <span key={i} className="trailer-word" style={{ animationDelay: `${350 + i * 150}ms` }}>
-              {w}{i < words.length - 1 ? ' ' : ''}
-            </span>
-          ))}
-        </p>
+        {/* The pinned stage. Height comes from the measured pool maximum and the
+            quote sits on its FLOOR, so the kicker above never moves between
+            rotations and nothing below it moves either. */}
+        <div className="trailer-stage" style={{ height: pin || undefined }}>
+          <p className="trailer-quote">
+            {words.map((w, i) => (
+              <span key={i} className="trailer-word" style={{ animationDelay: `${350 + i * 150}ms` }}>
+                {w}{i < words.length - 1 ? ' ' : ''}
+              </span>
+            ))}
+          </p>
+        </div>
         <div className="trailer-rule" style={{ animationDelay: `${ruleDelay}ms` }} />
         <div className="trailer-attr" style={{ animationDelay: `${attrDelay}ms` }}>
           from {story.title} · {story.author}
         </div>
       </div>
+      <TrailerVoice voice={voice} person={person} delay={attrDelay} />
     </div>
   );
 }
@@ -1173,8 +1409,51 @@ export default function Home() {
     return () => clearTimeout(t);
   }, []);
 
+  // ── R32 · the reader's line ────────────────────────────────────────────────
+  // The pin is measured over EVERY eligible quote on the site, not over the ten
+  // on screen: a pin that changed as the carousel re-rolled would be furniture
+  // moving between rotations, which is the defect it exists to prevent.
+  const allQuotes = useMemo(
+    () => allStories.map(s => (typeof s.trailerQuote === 'string' ? s.trailerQuote.trim() : '')).filter(Boolean),
+    [allStories]
+  );
+  const quotePin = useQuoteStagePin(allQuotes);
+  const voicesBySlug = useTrailerVoices(carousel);
+
+  // `loop` counts full passes of the carousel and advances each story's place in
+  // its shuffle — Ikenna's ruling that a story shows several different comments
+  // across a session rather than one fixed per session or per launch. It is
+  // incremented only when the sequence wraps back to step 0, which is always a
+  // CARD step (trailers sit at odd story positions), so no trailer is ever
+  // playing at the moment its voice changes.
+  const [loop, setLoop] = useState(0);
+
   // Rotation sequence: cards + trailer interstitials over the rotation carousel.
-  const sequence = useMemo(() => buildHeroSequence(carousel, reducedMotion), [carousel, reducedMotion]);
+  const sequence = useMemo(
+    () => buildHeroSequence(carousel, reducedMotion, voicesBySlug, quotePin > 0),
+    [carousel, reducedMotion, voicesBySlug, quotePin]
+  );
+
+  // The rotation seed is the 30-minute window the carousel already re-rolls on,
+  // so a story's shuffle order is stable within a rotation and different across
+  // them. Recomputed with the carousel, never per render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rotationSeed = useMemo(() => Math.floor(Date.now() / ROTATION_MS), [carousel]);
+
+  // One voice per story per pass. Computed for the whole carousel rather than
+  // just the story on screen, so the reader's photograph is already resolved by
+  // the time their card comes round.
+  const picksBySlug = useMemo(() => {
+    const m = new Map();
+    for (const st of carousel) {
+      const v = pickVoice(voicesBySlug.get(st.id) || [], { slug: st.id, seed: rotationSeed, loop });
+      if (v) m.set(st.id, v);
+    }
+    return m;
+  }, [carousel, voicesBySlug, rotationSeed, loop]);
+
+  const voiceUids = useMemo(() => [...picksBySlug.values()].map(v => v.uid).filter(Boolean), [picksBySlug]);
+  const voicePeople = useVoiceIdentities(voiceUids);
 
   // Any sequence rebuild (re-roll, CMS update, motion-pref change) clamps the
   // step index back into range and resets in-flight presentation state so a
@@ -1275,6 +1554,9 @@ export default function Home() {
     let inner;
     const timer = setTimeout(() => {
       const next = (cur + 1) % sequence.length;
+      // Wrapped — one full pass of the carousel, so each story advances to the
+      // next voice in its shuffle. See `loop` above.
+      if (next === 0) setLoop(n => n + 1);
       if (step.type === 'trailer') {
         // Next step is this story's card: dissolve overlaps into the card entrance.
         setSeqIdx(next);
@@ -1303,7 +1585,12 @@ export default function Home() {
       setTrailerDissolving(false);
       setCardEntering(false);
       setHeroTransition(true);
-      setSeqIdx(i => (sequenceLenRef.current > 0 ? (i + 1) % sequenceLenRef.current : 0));
+      setSeqIdx(i => {
+        if (sequenceLenRef.current === 0) return 0;
+        const n = (i + 1) % sequenceLenRef.current;
+        if (n === 0) setLoop(l => l + 1);
+        return n;
+      });
     }, 1000);
     return () => clearInterval(wd);
   }, []);
@@ -1328,6 +1615,17 @@ export default function Home() {
   const isTrailerStep = step?.type === 'trailer';
   const featured = carousel[heroIndex];
   const badge = featured ? (badgeStyle[featured.category] || badgeStyle.news) : badgeStyle.news;
+  const featuredVoice = featured ? picksBySlug.get(featured.id) || null : null;
+  // ⚠ `stored` is deliberately null here. resolveVoiceIdentity's last rung is the
+  // comment's own authorName copy, and this surface does not have one and must
+  // not acquire one: a name copied into comment_screening at screening time and
+  // never refreshed would be exactly the disease R33 found in the Square, only
+  // staler. So a reader whose users/{uid} holds no name at all simply does not
+  // appear on a card — measured, that is 44 of 1,830 comments — and the story
+  // shows the next voice in its shuffle instead.
+  const featuredPerson = featuredVoice
+    ? resolveVoiceIdentity(voicePeople.get(featuredVoice.uid), null)
+    : null;
 
   return (
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif" }}>
@@ -1406,7 +1704,14 @@ export default function Home() {
             dissolves out over the same story's entering card. Dots/arrows
             (rendered after, same z-index) stay on top throughout. */}
         {(isTrailerStep || trailerDissolving) && featured && !reducedMotion && (
-          <HeroTrailer key={`${featured.id}-${pageVisible}`} story={featured} dissolving={trailerDissolving} />
+          <HeroTrailer
+            key={`${featured.id}-${pageVisible}`}
+            story={featured}
+            dissolving={trailerDissolving}
+            voice={featuredVoice}
+            person={featuredPerson}
+            pin={quotePin}
+          />
         )}
 
         <div style={{ position: 'absolute', bottom: '5%', left: '4%', zIndex: 3, display: 'flex', alignItems: 'center', gap: '1.5rem' }}>

@@ -248,3 +248,143 @@ a {
   }
   .trailer-rule { width: 88px; }
 }
+
+/* ── R32 · Reader voices on the trailer cards ────────────────────────────────
+   Two quotes on one card — the writer's trailer line (the house speaking) and a
+   real reader's comment (a reader speaking) — and they must read as different
+   registers or the card is confusing.
+
+   The register break is carried by four things and no chrome: scale (2.4rem
+   against 0.95), alignment (the house left, the reader right), colour (full
+   cream against 72%), and QUOTATION MARKS. The house quote carries none — it is
+   not being quoted, it IS the voice. The reader's line is reported speech and
+   takes the marks. Italic was the obvious alternative and is unavailable: the
+   attribution below the rule is already italic gold.
+
+   ⚠ EVERY HEIGHT HERE IS PINNED. A trailer quote wraps to between one and six
+   lines depending on the story and a comment abridges to two; if either block's
+   height were free the other would move with it, and a card whose parts shift
+   as the carousel turns is the defect the 27 August ruling settled. */
+
+/* The house quote. Its own class so the offscreen probe that measures the pin
+   and the element that finally paints cannot drift apart — they are the same
+   type by construction, not by two lists of properties kept in step by hand. */
+.trailer-quote {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 500;
+  font-size: clamp(1.5rem, 3.5vw, 2.4rem);
+  line-height: 1.45;
+  margin: 0;
+  color: #f5f0e8;
+  text-shadow: 0 2px 24px rgba(107, 47, 173, 0.5);
+}
+
+/* The pinned stage. Height is set inline from the measured pool maximum; the
+   quote sits on its FLOOR, so a short quote leaves its air above — under the
+   kicker, where nothing moves — rather than dragging the kicker down with it. */
+.trailer-stage {
+  display: flex;
+  align-items: flex-end;
+}
+
+/* ⚠ THE ATTRIBUTION IS CLAMPED TO ONE LINE, and this is a fix, not a style.
+   Measured 2 Sept 2026: at 390px `from {title} · {author}` wrapped to two lines
+   on 11 of the 157 live quotes, so the line under the gold rule was already
+   jumping 17px between rotations — an existing shift, found while measuring for
+   this round and inside this round's held-height work, so fixed here. */
+.trailer-attr {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The reader's zone: its own bottom-anchored block in the lower right, so it
+   cannot be moved by anything the quote does. Measured clear of the dots and
+   arrows (bottom 5%, left 4%) at every width — 18px at the tightest, a 768-tall
+   laptop, and never overlapping horizontally. */
+.tv-zone {
+  position: absolute;
+  right: 4%;
+  bottom: 13%;
+  width: min(92vw, 420px);
+  text-align: right;
+  z-index: 1;
+}
+
+/* Half the scale of STORY TRAILER and in the same typographic language, so the
+   two zones read as siblings of different rank. It costs 8.3px and it is what
+   stops a reader meeting two quotes with no signal which is the house. */
+.tv-kicker {
+  font-family: 'Cinzel', 'Cormorant Garamond', Georgia, serif;
+  font-size: 0.52rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #c9a84c;
+  line-height: 1;
+  margin: 0 0 9px;
+}
+
+/* Exactly two lines, always — the height is arithmetic on the type, not a
+   measurement, because two lines of a known face at a known size is a constant.
+   Verified against all 500 candidates at five viewports: none overflows. */
+.tv-line {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0;
+  color: rgba(245, 240, 232, 0.72);
+  height: calc(0.95rem * 1.5 * 2);
+  overflow: hidden;
+}
+.tv-line q { quotes: '“' '”'; }
+.tv-line q::before, .tv-line q::after { color: rgba(201, 168, 76, 0.8); }
+
+/* Picture, name, badge icon. No handle — see app/lib/trailerVoices.js for the
+   three measured reasons. Reversed, so the round avatar anchors the corner. */
+.tv-id {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  height: 24px;
+}
+
+@media (max-width: 699px) {
+  .tv-line { font-size: 0.9rem; height: calc(0.9rem * 1.5 * 2); }
+}
+
+/* The probe the abridger measures against: same class, same width — it is a
+   sibling inside the zone — with the two-line cap lifted so a natural height can
+   be read off it.
+
+   ⚠ IT SITS AFTER THE MEDIA QUERY, AND `height` IS !important, FOR A REASON. It
+   was first written above that block, and .tv-line's phone height — same
+   specificity, later in the file — won. The probe was therefore clamped to two
+   lines at phone widths, so `fits` answered yes to everything and NOTHING was
+   abridged below 700px: a 1,876-character comment was being clipped mid-word by
+   overflow:hidden instead of cut at a sentence. The height suite found it by
+   reporting that 475 of 475 comments came back "whole" at 390px, which is
+   arithmetically impossible; it now asserts against that directly. */
+.tv-probe {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: auto !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* The zone fades in with the attribution rather than animating word by word:
+   the reader is a witness to the trailer, not a second performance in it. */
+@keyframes tv-zone-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.tv-zone { animation: tv-zone-in 0.6s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tv-zone { animation: none !important; }
+}

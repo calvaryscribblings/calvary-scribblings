@@ -47,6 +47,8 @@
     "test:sponsor": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.sponsor.config.mjs\"",
     "test:r31": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.r31.config.mjs\"",
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",
+    "test:voices": "node --test \"tests/voices/voices.test.mjs\"",
+    "test:voices:heights": "playwright test -c tests/voices/playwright.config.mjs",
     "test:build": "node --test tests/build/liveness.test.mjs",
     "test:redirects": "node --test tests/build/redirects-limits.test.mjs",
     "test:no-u-prerender": "node --test tests/build/no-u-prerender.test.mjs",

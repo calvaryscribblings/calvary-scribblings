@@ -358,6 +358,44 @@
         }
       }
     },
+    "comment_screening": {
+      ".read": true,
+      "$slug": {
+        "$commentId": {
+          ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+          ".validate": "!newData.exists() || (newData.hasChildren(['promotable', 'checkedAt']) && newData.child('promotable').isBoolean() && newData.child('checkedAt').isNumber())",
+          "promotable": {
+            ".validate": "newData.isBoolean()"
+          },
+          "text": {
+            ".validate": "newData.isString() && newData.val().length <= 5000 && newData.parent().child('promotable').val() === true"
+          },
+          "uid": {
+            ".validate": "newData.isString() && newData.val().length <= 128"
+          },
+          "reason": {
+            ".validate": "newData.isString() && newData.val().length <= 400"
+          },
+          "model": {
+            ".validate": "newData.isString() && newData.val().length <= 64"
+          },
+          "version": {
+            ".validate": "newData.isNumber()"
+          },
+          "checkedAt": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          },
+          "categories": {
+            "$i": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
     "followers": {
       ".read": true,
       "$uid": {

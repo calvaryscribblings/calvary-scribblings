@@ -10,6 +10,7 @@ import { updateStreak } from '../../lib/streakEngine';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
+import { requestScreening } from '../../lib/requestScreening';
 import {
   USER_COMMENTS_PATH, indexedCommentWrite, indexedCommentRemoval,
   commentCountOf, commentMilestoneFor,
@@ -675,6 +676,10 @@ function CommentsSection({ slug, onSignIn }) {
             createdAt: Date.now(),
           },
         }));
+        // R32 — ask for this comment to be screened for carousel promotion. Fire and
+        // forget: the comment is already saved, and a screening failure must never
+        // block or delay somebody commenting. See app/lib/requestScreening.js.
+        requestScreening({ getIdToken: () => user.getIdToken(), slug, commentId }).catch(() => {});
       } catch (e) {
         setComments(prev => prev.filter(c => c.id !== tempId));
         if (parentId) setReplyText(trimmed);
