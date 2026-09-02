@@ -140,5 +140,17 @@ Founders keep `.write` on it so `promotable: false` can be set by hand — the g
 it. `text` may only be written when `promotable` is true, and `$other` is refused, so a hand
 edit cannot invent fields.
 
+**`categories` is a closed vocabulary from `version: 2` onward** (R32.1). A version 1 row's
+categories are free text from the model — 27 distinct labels over 129 refusals, which is why
+the list was closed; a version 2 row's are drawn from `REFUSAL_CATEGORIES` in
+`app/lib/voiceScreening.js` and nothing else. **Nothing was rescreened**, so both shapes are
+live: read them through `foldCategory()`, which maps the version 1 spellings onto the closed
+list without touching a row. `version` is what tells them apart.
+
+The `.validate` here deliberately still accepts any string under 64 characters rather than an
+enum, because founders hold `.write` on this node and an enum would reject a hand edit that
+put a version 1 row back with its original labels. The boundary that actually holds is
+`normaliseCategories()` in the parse, which every writer goes through.
+
 (This paragraph lives here because RTDB rejects a `"//"` comment key at a node position —
 `Expected '{'` — so the JSON cannot carry its own reasoning.)

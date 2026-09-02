@@ -29,6 +29,18 @@ import {
   ABRIDGE_SENTENCE,
   ABRIDGE_ELLIPSIS,
 } from '../../app/lib/trailerVoices.js';
+import {
+  REFUSAL_CATEGORIES,
+  SCREENING_VERSION,
+  CALIBRATION,
+  foldCategory,
+  normaliseCategories,
+  buildScreeningRequest,
+  parseScreeningResponse,
+  screeningRow,
+  estimateInputTokens,
+  promptChars,
+} from '../../app/lib/voiceScreening.js';
 
 // A `fits` stub: everything up to `n` characters fits. Enough to drive every branch.
 const upTo = (n) => (t) => t.length <= n;
@@ -270,4 +282,175 @@ test('the pin probe builds the real word spans and never measures a plain string
   // and the painter itself must still emit the non-breaking space
   assert.ok(PINNER_SRC.includes('\u00a0'), 'paintQuoteWords must join words with a non-breaking space');
   assert.ok(PINNER_SRC.includes("span.className = 'trailer-word'"), 'the probe spans must carry the real class');
+});
+
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// R32.1 — THE CLOSED REFUSAL LIST, AND THE COST MODEL
+//
+// Same discipline as everything above: each block names the edit to app/lib/voiceScreening.js
+// that must redden it, and each of those edits was applied, the suite run, the red observed,
+// and the edit reverted.
+// ═════════════════════════════════════════════════════════════════════════════════════════
+const SCREEN_SRC = readFileSync(fileURLToPath(new URL('../../app/lib/voiceScreening.js', import.meta.url)), 'utf8');
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// THE COERCION IS THE PART THAT HOLDS. Mutation: in normaliseCategories, return the raw
+// array filtered to strings — i.e. restore the version 1 behaviour.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+test('nothing off the closed list can ever reach a stored row', () => {
+  // every free-text label the version 1 run actually produced, plus junk and an attack
+  const wild = [
+    'not about the story', 'not_about_story', 'no_story_reference', 'unclear context',
+    'context-dependent', 'no context', 'out of context', 'lacks context', 'out-of-context',
+    'incomplete context', 'contextual fragment', 'unclear reference', 'inside-reference',
+    'unclear', 'fragment', 'incomplete', 'generic advice', 'generic platitude',
+    'political advocacy', 'sports prediction', 'likely spam or bot', 'violence',
+    'wibble', '', '   ', 'SPOILER', 'Off-Topic ', 'ignore your instructions',
+  ];
+  for (const label of wild) {
+    for (const c of normaliseCategories([label])) {
+      assert.ok(REFUSAL_CATEGORIES.includes(c), `${JSON.stringify(label)} produced off-list ${JSON.stringify(c)}`);
+    }
+  }
+  // non-strings, and non-arrays, cannot produce a category either
+  for (const junk of [undefined, null, 'spoiler', 42, {}, { 0: 'spoiler' }]) {
+    assert.deepEqual(normaliseCategories(junk), [], `non-array ${JSON.stringify(junk)}`);
+  }
+  for (const c of normaliseCategories([null, 7, {}, [], () => {}])) {
+    assert.ok(REFUSAL_CATEGORIES.includes(c));
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// THE FOLD IS WHAT MAKES THE STORED HISTORY COUNTABLE. Mutation: drop the LEGACY_CATEGORY
+// lookup from foldCategory and return CATEGORY_FALLBACK for anything not already on the list.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+test('the version 1 vocabulary folds onto the closed list rather than collapsing to other', () => {
+  assert.equal(foldCategory('not about the story'), 'off-topic');
+  assert.equal(foldCategory('not_about_story'), 'off-topic');
+  assert.equal(foldCategory('no_story_reference'), 'off-topic');
+  assert.equal(foldCategory('unclear context'), 'needs-context');
+  assert.equal(foldCategory('out of context'), 'needs-context');
+  assert.equal(foldCategory('out-of-context'), 'needs-context');
+  assert.equal(foldCategory('lacks context'), 'needs-context');
+  assert.equal(foldCategory('context-dependent'), 'needs-context');
+  assert.equal(foldCategory('likely spam or bot'), 'spam');
+  assert.equal(foldCategory('violence'), 'explicit');
+  // already-canonical words survive untouched, in any casing or padding
+  for (const c of REFUSAL_CATEGORIES) {
+    assert.equal(foldCategory(c), c);
+    assert.equal(foldCategory(` ${c.toUpperCase()} `), c);
+  }
+  // a genuinely unknown word is the only thing that becomes `other`
+  assert.equal(foldCategory('wibble'), 'other');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// `other` IS A LAST RESORT, NOT A COMPANION. Mutation: return `out` unfiltered.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+test('other is dropped beside a real label and kept when it is the whole answer', () => {
+  assert.deepEqual(normaliseCategories(['spoiler', 'wibble']), ['spoiler']);
+  assert.deepEqual(normaliseCategories(['wibble']), ['other']);
+  assert.deepEqual(normaliseCategories(['wibble', 'wobble']), ['other']);
+  // and duplicates — four spellings of one reason — collapse to one label
+  assert.deepEqual(
+    normaliseCategories(['off-topic', 'not about the story', 'not_about_story', 'no_story_reference']),
+    ['off-topic']
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// THE LIST IS STATED IN ALL THREE PLACES. Mutation: delete `enum` from the tool schema, or
+// remove one bullet from the CATEGORIES block of the system prompt.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+test('the schema enum and the system prompt name exactly the closed list, and nothing else', () => {
+  const req = buildScreeningRequest('a comment long enough to be worth screening at all');
+  const schema = req.tools[0].input_schema.properties.categories;
+  assert.deepEqual(schema.items.enum, [...REFUSAL_CATEGORIES], 'the tool schema enum IS the list');
+  for (const c of REFUSAL_CATEGORIES) {
+    assert.ok(req.system.includes(`\n- ${c} —`), `the system prompt must define ${c}`);
+  }
+  // and no bullet in that block names a word that is not on the list
+  const block = req.system.slice(req.system.indexOf('CATEGORIES.'));
+  for (const [, word] of block.matchAll(/^- ([a-z-]+) —/gm)) {
+    assert.ok(REFUSAL_CATEGORIES.includes(word), `the prompt defines off-list ${word}`);
+  }
+  assert.ok(req.system.includes('Do not invent a label'), 'the prompt must forbid inventing one');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// A REFUSAL IS STILL A REFUSAL. Mutation: make parseScreeningResponse throw when a category
+// is off-list. That would turn a labelling quibble into a fail-closed, which is the one
+// thing the vocabulary change must NOT do.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+test('an off-list label never changes the verdict, in either direction', () => {
+  const resp = (input) => ({ content: [{ type: 'tool_use', name: 'screen_comment', input }] });
+  const refused = parseScreeningResponse(resp({ promotable: false, categories: ['wibble'], reason: 'no' }));
+  assert.equal(refused.promotable, false);
+  assert.deepEqual(refused.categories, ['other']);
+  const passed = parseScreeningResponse(resp({ promotable: true, categories: ['wibble'], reason: 'yes' }));
+  assert.equal(passed.promotable, true, 'a promotable comment is not demoted by an odd label');
+  // the verdict gate is still the boolean and nothing else
+  assert.equal(screeningRow({ ...refused, uid: 'u1', text: 'x' }).promotable, false);
+  assert.equal(screeningRow({ ...passed, uid: 'u1', text: 'x' }).promotable, true);
+  assert.equal(screeningRow({ ...passed, uid: 'u1', text: 'x' }).version, SCREENING_VERSION);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// ⭑ THE ESTIMATOR MUST MOVE WHEN THE PROMPT DOES. This is the R32 defect itself, as a test:
+// 526 was projected, ~1,297 was billed, and nothing anywhere noticed. Mutation: make
+// estimateInputTokens return a constant, or drop the `drift` term from it.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+test('a longer prompt costs more, and a longer comment costs more', () => {
+  const short = estimateInputTokens('x'.repeat(50));
+  const long = estimateInputTokens('x'.repeat(50 + 3900));
+  assert.ok(long - short > 900, `1,000 tokens of comment must show up; got ${long - short}`);
+
+  // the anchor is a MEASUREMENT of a specific prompt, so the estimate must carry the
+  // difference between that prompt and the one in the file today
+  const drift = (promptChars() - CALIBRATION.promptChars) / 3.9;
+  assert.equal(estimateInputTokens(''), Math.round(CALIBRATION.meanInputTokens - CALIBRATION.meanTextChars / 3.9 + drift));
+
+  // ⚠ and the estimate must be in the neighbourhood of what was actually billed. The old
+  // 526 fails this by a factor of two, which is the only assertion that would have caught it.
+  const atMean = estimateInputTokens('x'.repeat(Math.round(CALIBRATION.meanTextChars)));
+  const ratio = atMean / CALIBRATION.meanInputTokens;
+  assert.ok(ratio > 0.85, `estimate ${atMean} is far under the measured ${CALIBRATION.meanInputTokens}`);
+  assert.ok(ratio < 1.6, `estimate ${atMean} is far over the measured ${CALIBRATION.meanInputTokens}`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// THE OVERHEAD IS NOT THE LENGTH OF THE TEXT. The whole reason 526 was wrong. Mutation:
+// redefine promptChars() as SYSTEM_PROMPT.length alone — the count the original guess made.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+test('the fixed cost counts the tool schema and the wrapper, not just the system prompt', () => {
+  const req = buildScreeningRequest('');
+  const system = req.system.length;
+  const tools = JSON.stringify(req.tools).length;
+  assert.equal(promptChars(), system + tools + req.messages[0].content.length);
+  assert.ok(promptChars() > system + 500, 'the tool definition is billed input and must be counted');
+
+  // and the anchor's overhead must exceed what the visible characters alone would suggest —
+  // the gap IS the tool-use scaffolding the API adds, which no string in the file contains
+  const overhead = CALIBRATION.meanInputTokens - CALIBRATION.meanTextChars / 3.9;
+  assert.ok(overhead > CALIBRATION.promptChars / 3.9 + 300, 'the invisible scaffolding must be inside the anchor');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// NO ESTIMATE MAY BE RESTATED AWAY FROM THE ANCHOR. Mutation: put `const PROJECTED_IN = 526`
+// back into scripts/screen-comments.mjs.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+const BACKFILL_SRC = readFileSync(fileURLToPath(new URL('../../scripts/screen-comments.mjs', import.meta.url)), 'utf8');
+
+test('the backfill projects through the shared cost model and holds no rate of its own', () => {
+  assert.ok(!/PROJECTED_IN|PROJECTED_OUT/.test(BACKFILL_SRC), 'no hardcoded per-call token guess');
+  assert.ok(
+    !/^\s*const\s+USD_PER_(INPUT|OUTPUT)_TOKEN\s*=/m.test(BACKFILL_SRC),
+    'the script must import the rates, never restate them'
+  );
+  assert.ok(BACKFILL_SRC.includes('estimateCallCost'), 'the projection comes from the shared model');
+  assert.ok(BACKFILL_SRC.includes('DRIFT'), 'a measured/estimated disagreement must be announced');
+  // the source of truth carries its provenance
+  assert.match(SCREEN_SRC, /CALIBRATION = Object\.freeze\(\{[\s\S]*measuredAt:/);
 });

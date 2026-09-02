@@ -10,14 +10,30 @@
 // service account, and is complete on its own: the funnel below is measured, not estimated.
 //
 // ═══════════════════════════════════════════════════════════════════════════════════════
-// WHY THIS RUNS ONCE AND THEN NEVER AGAIN
+// ⭑ THIS IS ALSO THE RETRY, AND IT IS THE ONLY ONE
 // ═══════════════════════════════════════════════════════════════════════════════════════
 //
 // Every comment written from now on is screened at write time by
-// functions/api/comments/screen.js. This script exists to catch up the 2,371 records that
-// pre-date that endpoint, and after that the ongoing cost is new comments only. It is safe
-// to re-run — it skips anything already carrying a verdict, so a second run costs nothing
-// but the reads.
+// functions/api/comments/screen.js. This script existed to catch up the 2,371 records that
+// pre-date that endpoint, and it is safe to re-run — it skips anything already carrying a
+// verdict, so a second run costs nothing but the reads.
+//
+// But re-running is not merely harmless, it is REQUIRED, and this is the thing an earlier
+// header got wrong by calling this a once-only job:
+//
+//   A comment that FAILED CLOSED writes no verdict. There is therefore no difference, from
+//   the funnel's point of view, between "the model was unreachable when this was screened"
+//   and "this was never screened" — both are simply eligible with no verdict, and both are
+//   picked up here. That is what makes fail-closed a deferral rather than an exclusion.
+//
+//   ⚠ AND NOTHING ELSE RETRIES. The browser fires the endpoint once, forgets it, and never
+//   fires again (app/lib/requestScreening.js — deliberately, so a moderation failure can
+//   never block a comment). The endpoint returns early on any comment that already has a
+//   verdict, and does nothing at all for one that has none until it is asked. So the retry
+//   path for a fail-closed comment is A LATER RUN OF THIS SCRIPT, and nothing schedules one.
+//
+// The R32 backfill left exactly one such comment — life-will-be-hard/-Oz1RjHH1T2ubaMJH2RH,
+// a fetch error — and a dry run today shows it, alone, as the whole queue.
 //
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // ⭑ THE TOKEN COUNTS ARE MEASURED HERE, NOT ESTIMATED
@@ -25,10 +41,16 @@
 //
 // The R32 report projected this run at about $0.43 from an ESTIMATED ~526 input and ~70
 // output tokens per call, because there was no Anthropic key in the workspace to run
-// count_tokens against. That estimate is not allowed to stand: this script accumulates the
-// real `usage` block from the FIRST 50 CALLS and prints the measured per-call cost against
-// the projection before it goes any further. If the two disagree materially, the run says so
-// in the first few seconds rather than at the end.
+// count_tokens against. THE RUN CAME BACK AT ~1,297 INPUT — every projection was about 100%
+// low, and the reason is written up in app/lib/voiceScreening.js: the guess priced the
+// system prompt and the comment and forgot that the tool definition and the tool-use
+// scaffolding are billed input too.
+//
+// So the projection below is no longer a constant in this file. It comes from
+// estimateCallCost() in the shared module, which is anchored to that measurement and moves
+// on its own when the prompt is edited. This script's job is to keep checking it: it
+// accumulates the real `usage` block from the FIRST 50 CALLS and prints measured against
+// estimated, with a DRIFT line naming the one object to edit when they disagree.
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +62,15 @@ import {
   parseScreeningResponse,
   screeningRow,
   SCREENING_MODEL,
+  SCREENING_VERSION,
+  CALIBRATION,
+  USD_PER_INPUT_TOKEN,
+  USD_PER_OUTPUT_TOKEN,
+  estimateInputTokens,
+  estimateOutputTokens,
+  estimateCallCost,
+  promptChars,
+  foldCategory,
 } from '../app/lib/voiceScreening.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -52,14 +83,11 @@ const LIMIT = (() => {
   return i > -1 ? Number(process.argv[i + 1]) || null : null;
 })();
 
-// Haiku 4.5, first-party API rates. Stated here so the arithmetic below is auditable rather
-// than a number somebody has to trust.
-const USD_PER_INPUT_TOKEN = 1.0 / 1_000_000;
-const USD_PER_OUTPUT_TOKEN = 5.0 / 1_000_000;
-// The projection this run is checking itself against.
-const PROJECTED_IN = 526;
-const PROJECTED_OUT = 70;
+// Rates and the projection both come from app/lib/voiceScreening.js now — one cost model,
+// shared with the endpoint, anchored to a measurement rather than restated as a guess here.
 const MEASURE_FIRST = 50;
+// How far measured may sit from estimated before the run says the anchor needs re-cutting.
+const DRIFT_TOLERANCE = 0.15;
 
 const CONCURRENCY = 4;
 
@@ -139,9 +167,14 @@ async function main() {
   }
 
   const chars = work.reduce((a, w) => a + w.text.length, 0);
-  const projected = work.length * (PROJECTED_IN * USD_PER_INPUT_TOKEN + PROJECTED_OUT * USD_PER_OUTPUT_TOKEN);
+  // Per item, not per mean — a long comment costs more than a short one and the sum should
+  // say so. The overhead inside estimateInputTokens dwarfs both, which is the whole finding.
+  const projected = work.reduce((a, w) => a + estimateCallCost(w.text), 0);
+  const estIn = work.reduce((a, w) => a + estimateInputTokens(w.text), 0) / work.length;
   console.log(`  mean comment ${Math.round(chars / work.length)} chars, longest ${Math.max(...work.map((w) => w.text.length))}`);
-  console.log(`  PROJECTED at ${PROJECTED_IN} in / ${PROJECTED_OUT} out per call: ${money(projected)}\n`);
+  console.log(`  prompt now ${promptChars()} chars (anchor cut at ${CALIBRATION.promptChars} on ${CALIBRATION.measuredAt})`);
+  console.log(`  ESTIMATED ${estIn.toFixed(0)} in / ${estimateOutputTokens()} out per call: ${money(projected)}`);
+  console.log(`  writing version ${SCREENING_VERSION} rows — categories from the closed list\n`);
 
   if (!APPLY) {
     console.log('DRY RUN — no model call made, nothing written. Re-run with --apply.\n');
@@ -159,6 +192,7 @@ async function main() {
   let failed = 0;
   let inTok = 0;
   let outTok = 0;
+  let estimated = 0;
   let measured = false;
   const categories = new Map();
 
@@ -184,6 +218,7 @@ async function main() {
       await write(`${SCREENING_NODE}/${item.slug}/${item.id}`, screeningRow({ ...verdict, uid: item.uid, text: item.text }));
       if (verdict.promotable) promotable++;
       else for (const c of verdict.categories) categories.set(c, (categories.get(c) || 0) + 1);
+      estimated += estimateCallCost(item.text);
     } catch (e) {
       // ⚠ FAIL CLOSED, exactly as the endpoint does: no verdict is written, so the comment
       // is simply not promotable. A failed screening is never a promotion.
@@ -196,11 +231,23 @@ async function main() {
         const perIn = inTok / done;
         const perOut = outTok / done;
         const perCall = perIn * USD_PER_INPUT_TOKEN + perOut * USD_PER_OUTPUT_TOKEN;
+        const estPerCall = estimated / Math.max(1, done);
+        const off = perCall / Math.max(1e-12, estPerCall) - 1;
         console.log(`\n  ── MEASURED over the first ${done} calls ──────────────────────────`);
-        console.log(`     input  ${perIn.toFixed(1)} tok/call   (projected ${PROJECTED_IN})`);
-        console.log(`     output ${perOut.toFixed(1)} tok/call   (projected ${PROJECTED_OUT})`);
+        console.log(`     input  ${perIn.toFixed(1)} tok/call   (estimated ${(estimateInputTokens('x'.repeat(Math.round(chars / work.length)))).toFixed(0)})`);
+        console.log(`     output ${perOut.toFixed(1)} tok/call   (estimated ${estimateOutputTokens()})`);
         console.log(`     ${money(perCall)} per call → ${money(perCall * work.length)} for all ${work.length}`);
-        console.log(`     projection was ${money(projected)} — ${(100 * (perCall * work.length) / projected - 100).toFixed(1)}% off\n`);
+        console.log(`     estimate was ${money(estPerCall)} per call — ${(100 * off).toFixed(1)}% off`);
+        if (Math.abs(off) > DRIFT_TOLERANCE) {
+          // ⚠ The anchor has moved. This is the ONE thing to edit, and this line is the only
+          // notice you get — the previous version of this script compared against a hardcoded
+          // guess and printed "100% off" as though that were a normal result.
+          console.log(`\n     ⚠ DRIFT > ${(DRIFT_TOLERANCE * 100).toFixed(0)}%. Re-cut the anchor in app/lib/voiceScreening.js:`);
+          console.log(`         CALIBRATION = { measuredAt: '${new Date().toISOString().slice(0, 10)}', calls: ${done},`);
+          console.log(`           promptChars: ${promptChars()}, meanTextChars: ${(chars / work.length).toFixed(1)},`);
+          console.log(`           meanInputTokens: ${Math.round(perIn)}, meanOutputTokens: ${Math.round(perOut)} }`);
+        }
+        console.log('');
       } else if (done % 50 === 0) {
         console.log(`  ${done}/${queue.length}  promotable ${promotable}  failed ${failed}`);
       }
@@ -218,11 +265,37 @@ async function main() {
 
   const spent = inTok * USD_PER_INPUT_TOKEN + outTok * USD_PER_OUTPUT_TOKEN;
   console.log(`\nDONE. ${done} screened · ${promotable} promotable (${(100 * promotable / Math.max(1, done - failed)).toFixed(1)}%) · ${failed} failed closed`);
+  if (failed) {
+    // ⭑ NOT AN EXCLUSION. A failure writes no verdict, and the `already carries a verdict`
+    // line of the funnel is the only thing that removes a comment from a later run. So every
+    // one of these is queued again by the next invocation, for free, with no flag to set.
+    console.log(`  the ${failed} that failed closed carry no verdict and are re-queued by the next run.`);
+  }
   console.log(`  real tokens: ${inTok} in, ${outTok} out`);
-  console.log(`  REAL COST: ${money(spent)}   (projected ${money(projected * (done / work.length))})`);
+  console.log(`  REAL COST: ${money(spent)}   (estimated ${money(estimated)})`);
   if (categories.size) {
-    console.log('  reasons for refusal:');
-    for (const [c, n] of [...categories.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)) {
+    console.log('  reasons for refusal (closed list):');
+    for (const [c, n] of [...categories.entries()].sort((a, b) => b[1] - a[1])) {
+      console.log(`    ${String(n).padStart(4)}  ${c}`);
+    }
+  }
+
+  // The whole stored history in the closed vocabulary — version 1 rows folded, version 2 rows
+  // native. This is the count that was impossible to produce before the list was closed.
+  const census = new Map();
+  let refusals = 0;
+  for (const rows of Object.values((await read(SCREENING_NODE)) || {})) {
+    for (const r of Object.values(rows || {})) {
+      if (!r || r.promotable === true) continue;
+      refusals++;
+      for (const c of new Set((r.categories || []).map(foldCategory))) {
+        census.set(c, (census.get(c) || 0) + 1);
+      }
+    }
+  }
+  if (refusals) {
+    console.log(`\n  every refusal on record (${refusals}), folded to the closed list:`);
+    for (const [c, n] of [...census.entries()].sort((a, b) => b[1] - a[1])) {
       console.log(`    ${String(n).padStart(4)}  ${c}`);
     }
   }
