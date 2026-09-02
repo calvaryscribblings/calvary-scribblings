@@ -384,8 +384,12 @@ describe('LB-5 · square_presence', () => {
 
 describe('LB-5 · square_posts', () => {
   const POST = 'post1';
+  // R33.1: authorName was 'R', which the new impersonation validate correctly rejects —
+  // it is not a name this reader holds anywhere. 'Reader' is what the client actually
+  // writes when a reader has no displayName (square/page.js:955), so the fixture is now
+  // both valid and more faithful than it was.
   const post = (uid) => ({
-    authorUid: uid, authorName: 'R', authorInitials: 'R', createdAt: now(),
+    authorUid: uid, authorName: 'Reader', authorInitials: 'R', createdAt: now(),
     text: 'hello', likeCount: 0, isAuthor: false, authorReadCount: 0,
   });
 
@@ -434,6 +438,166 @@ describe('LB-5 · square_posts', () => {
     await seed(env, { [`square_posts/${POST}`]: post(OWNER) });
     await assertFails(stranger.ref('square_posts').remove());
     await assertFails(anon.ref('square_posts').remove());
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R33.1 · THE IMPERSONATION FIELDS
+//
+// A reader could publish a post rendering ANOTHER reader's name, picture and the
+// verified-writer tick: authorUid is enforced by .write, but authorName,
+// authorAvatarUrl and isAuthor were unvalidated and the Square renders exactly
+// what the post carries. Closed the night of the Summer Reading Program
+// announcement, deliberately narrowly — these three children only.
+//
+// THE POSITIVE CASES ARE THE POINT. A rule that only proves the refusal is half
+// tested, and the untested half is the one that empties the room at 20:05. Every
+// shape the client can actually produce is asserted to still write: the full
+// payload field for field, a reply, a reaction, a pin, a delete, and each of the
+// four sources a legitimate authorName can come from.
+describe('R33.1 · square_posts impersonation fields', () => {
+  const P = 'r331post';
+
+  // Exactly what square/page.js:953-966 sends, field for field. Firebase strips
+  // nulls on write, so the null-valued keys below are the client's own literals
+  // and simply do not reach the rules — which is itself part of what is asserted.
+  const fullPost = (uid, over = {}) => ({
+    text: 'a real post',
+    authorUid: uid,
+    authorName: 'Reader',
+    authorInitials: 'RE',
+    authorAvatarUrl: null,
+    authorHandle: '',
+    authorReadCount: 0,
+    isAuthor: false,
+    attachedStory: null,
+    parentId: null,
+    likeCount: 0,
+    pinned: false,
+    unpinnedAt: null,
+    quotedPostId: null,
+    createdAt: now(),
+    ...over,
+  });
+
+  // square/page.js:988-996 — thirteen keys, no attachedStory, no quotedPostId.
+  const fullReply = (uid, over = {}) => ({
+    text: 'a real reply',
+    authorUid: uid,
+    authorName: 'Reader',
+    authorInitials: 'RE',
+    authorAvatarUrl: null,
+    authorHandle: '',
+    authorReadCount: 0,
+    isAuthor: false,
+    parentId: P,
+    likeCount: 0,
+    pinned: false,
+    unpinnedAt: null,
+    createdAt: now(),
+    ...over,
+  });
+
+  const avatarOf = (uid, token = 'tok1') =>
+    `https://firebasestorage.googleapis.com/v0/b/calvary.appspot.com/o/avatars%2F${uid}?alt=media&token=${token}`;
+
+  // ── the four legitimate sources of a name ────────────────────────────────
+  test('LEGITIMATE: name from the AUTH TOKEN, with no users record at all', async () => {
+    // 138 live accounts are exactly this shape: an auth displayName and no
+    // users/{uid}/displayName. Pinning the rule to the record would reject them.
+    const ctx = env.authenticatedContext(OWNER, { name: 'Emily Parker' }).database();
+    await assertSucceeds(ctx.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorName: 'Emily Parker' })));
+  });
+
+  test('LEGITIMATE: name from the users RECORD when the token is stale', async () => {
+    // Both rename paths write auth AND users/{uid}/displayName together
+    // (profile/page.js:619-620), but the ID token keeps the old name for up to an
+    // hour. The record fallback is what stops that window rejecting the post.
+    await seed(env, { [`users/${OWNER}/displayName`]: 'Renamed Reader' });
+    const ctx = env.authenticatedContext(OWNER, { name: 'Old Name' }).database();
+    await assertSucceeds(ctx.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorName: 'Renamed Reader' })));
+  });
+
+  test('LEGITIMATE: name from handle, from username, and the Reader fallback', async () => {
+    await seed(env, { [`users/${OWNER}/handle`]: 'quietreader', [`users/${OWNER}/username`]: 'quiet_r' });
+    await assertSucceeds(owner.ref(`square_posts/${P}a`).set(fullPost(OWNER, { authorName: 'quietreader' })));
+    await assertSucceeds(owner.ref(`square_posts/${P}b`).set(fullPost(OWNER, { authorName: 'quiet_r' })));
+    await assertSucceeds(owner.ref(`square_posts/${P}c`).set(fullPost(OWNER, { authorName: 'Reader' })));
+  });
+
+  // ── avatar ───────────────────────────────────────────────────────────────
+  test('LEGITIMATE: own avatar, and a re-uploaded one with a fresh token', async () => {
+    await seed(env, { [`users/${OWNER}/avatarUrl`]: avatarOf(OWNER, 'tok1') });
+    await assertSucceeds(owner.ref(`square_posts/${P}a`).set(fullPost(OWNER, { authorAvatarUrl: avatarOf(OWNER, 'tok1') })));
+    // Re-uploading to avatars/{uid} mints a new token; the record the Square holds
+    // in memory is then stale. Path-scoping is what keeps that write alive.
+    await assertSucceeds(owner.ref(`square_posts/${P}b`).set(fullPost(OWNER, { authorAvatarUrl: avatarOf(OWNER, 'tok2') })));
+  });
+
+  test('LEGITIMATE: no avatar at all — the null is stripped and never validated', async () => {
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(fullPost(OWNER)));
+  });
+
+  // ── the tick ─────────────────────────────────────────────────────────────
+  test('LEGITIMATE: isAuthor false always passes, including for a founder', async () => {
+    // users/{uid}/isAuthor is UNSET on almost every account, both founders
+    // included, and the client writes `userData?.isAuthor || false`.
+    await assertSucceeds(owner.ref(`square_posts/${P}a`).set(fullPost(OWNER)));
+    await assertSucceeds(founder.ref(`square_posts/${P}b`).set(fullPost(FOUNDER_A)));
+  });
+
+  test('LEGITIMATE: isAuthor true when the record actually says so', async () => {
+    await seed(env, { [`users/${OWNER}/isAuthor`]: true });
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { isAuthor: true })));
+  });
+
+  // ── the whole room still works ───────────────────────────────────────────
+  test('LEGITIMATE: reply, react, pin, edit and delete all survive the change', async () => {
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(fullPost(OWNER)));
+    await assertSucceeds(stranger.ref(`square_posts/${P}r`).set(fullReply(STRANGER)));
+    await assertSucceeds(stranger.ref(`square_posts/${P}/likeCount`).set(1));
+    await assertSucceeds(founder.ref(`square_posts/${P}`).update({ pinned: true, unpinnedAt: null }));
+    await assertSucceeds(owner.ref(`square_posts/${P}/text`).set('edited'));
+    await assertSucceeds(owner.ref(`square_posts/${P}`).remove());
+  });
+
+  test('LEGITIMATE: a post carrying a poll still writes', async () => {
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(
+      fullPost(OWNER, { poll: { question: 'which?', options: ['a', 'b'], votes: {} } })
+    ));
+  });
+
+  // ── THE HOLE ─────────────────────────────────────────────────────────────
+  test('REFUSED: posting under another reader\'s name', async () => {
+    await seed(env, { [`users/${STRANGER}/displayName`]: 'Ikenna Okpara' });
+    await assertFails(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorName: 'Ikenna Okpara' })));
+  });
+
+  test('REFUSED: posting with another reader\'s picture', async () => {
+    await seed(env, { [`users/${STRANGER}/avatarUrl`]: avatarOf(STRANGER) });
+    await assertFails(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorAvatarUrl: avatarOf(STRANGER) })));
+  });
+
+  test('REFUSED: claiming the verified-writer tick', async () => {
+    await assertFails(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { isAuthor: true })));
+  });
+
+  test('REFUSED: claiming the tick when the record says false', async () => {
+    await seed(env, { [`users/${OWNER}/isAuthor`]: false });
+    await assertFails(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { isAuthor: true })));
+  });
+
+  test('REFUSED: the same three forgeries on a REPLY, not just a post', async () => {
+    await seed(env, { [`users/${STRANGER}/displayName`]: 'Ikenna Okpara' });
+    await assertFails(owner.ref(`square_posts/${P}x`).set(fullReply(OWNER, { authorName: 'Ikenna Okpara' })));
+    await assertFails(owner.ref(`square_posts/${P}y`).set(fullReply(OWNER, { isAuthor: true })));
+    await assertFails(owner.ref(`square_posts/${P}z`).set(fullReply(OWNER, { authorAvatarUrl: avatarOf(STRANGER) })));
+  });
+
+  test('REFUSED: patching a forged identity onto a post after the fact', async () => {
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(fullPost(OWNER)));
+    await assertFails(owner.ref(`square_posts/${P}/isAuthor`).set(true));
+    await assertFails(owner.ref(`square_posts/${P}/authorAvatarUrl`).set(avatarOf(STRANGER)));
   });
 });
 

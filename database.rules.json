@@ -352,6 +352,15 @@
         "text": {
           ".validate": "newData.isString() && newData.val().length <= 10000"
         },
+        "authorName": {
+          ".validate": "newData.isString() && newData.val().length <= 128 && (newData.val() === 'Reader' || newData.val() === auth.token.name || newData.val() === root.child('users').child(auth.uid).child('displayName').val() || newData.val() === root.child('users').child(auth.uid).child('handle').val() || newData.val() === root.child('users').child(auth.uid).child('username').val())"
+        },
+        "authorAvatarUrl": {
+          ".validate": "newData.isString() && newData.val().length <= 2048 && (newData.val().contains('avatars%2F' + auth.uid) || newData.val().contains('avatars/' + auth.uid) || newData.val() === root.child('users').child(auth.uid).child('avatarUrl').val() || newData.val() === root.child('users').child(auth.uid).child('photoURL').val() || newData.val() === auth.token.picture)"
+        },
+        "isAuthor": {
+          ".validate": "newData.isBoolean() && (newData.val() === false || root.child('users').child(auth.uid).child('isAuthor').val() === true)"
+        },
         "likeCount": {
           ".write": "auth != null",
           ".validate": "newData.isNumber() && newData.val() >= 0"
