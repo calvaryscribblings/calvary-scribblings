@@ -599,6 +599,69 @@ describe('R33.1 · square_posts impersonation fields', () => {
     await assertFails(owner.ref(`square_posts/${P}/isAuthor`).set(true));
     await assertFails(owner.ref(`square_posts/${P}/authorAvatarUrl`).set(avatarOf(STRANGER)));
   });
+
+  // ── R33.1a · authorHandle ────────────────────────────────────────────────
+  //
+  // The fourth field, and the strongest signal on the surface: a reader could
+  // still post showing @byokpara.
+  //
+  // PINNED TO THE INDEX, NOT THE RECORD, and that is the whole finding. The
+  // obvious rule — match users/{uid}/username, which is what the client writes
+  // verbatim — is worthless: that field is owner-writable (users/$uid/username
+  // .write is `auth.uid == $uid`) with no uniqueness check anywhere, so a reader
+  // sets their own username to 'byokpara' and posts as him. usernames/{handle}
+  // IS uniqueness-enforced (it refuses a write when the key already belongs to
+  // someone else), so it is the only real authority on who owns a handle.
+  test('LEGITIMATE: the handle the usernames index says you own', async () => {
+    await seed(env, { 'usernames/quietreader': OWNER, [`users/${OWNER}/username`]: 'quietreader' });
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorHandle: 'quietreader' })));
+    await assertSucceeds(owner.ref(`square_posts/${P}r`).set(fullReply(OWNER, { authorHandle: 'quietreader' })));
+  });
+
+  test('LEGITIMATE: the empty string — 72% of accounts have no username at all', async () => {
+    // The client writes `userData?.username || ''` (square/page.js:957). 246 of
+    // 343 live accounts hold no username, and 16 live posts carry ''.
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorHandle: '' })));
+    await assertSucceeds(owner.ref(`square_posts/${P}r`).set(fullReply(OWNER, { authorHandle: '' })));
+  });
+
+  test('LEGITIMATE: the key absent entirely — 11 live posts pre-date the field', async () => {
+    const { authorHandle, ...noHandle } = fullPost(OWNER);
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(noHandle));
+  });
+
+  test('REFUSED: posting under another reader\'s handle', async () => {
+    await seed(env, { 'usernames/byokpara': STRANGER });
+    await assertFails(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorHandle: 'byokpara' })));
+  });
+
+  test('REFUSED: THE ESCALATION — claiming a handle on your OWN record only', async () => {
+    // users/$uid/username is owner-writable and not unique, so this is the route
+    // a record-pinned rule would have left wide open. The index is what refuses.
+    await seed(env, {
+      'usernames/byokpara': STRANGER,
+      [`users/${OWNER}/username`]: 'byokpara',
+      [`users/${OWNER}/handle`]: 'byokpara',
+    });
+    await assertFails(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorHandle: 'byokpara' })));
+  });
+
+  test('REFUSED: a handle nobody has claimed', async () => {
+    await seed(env, { [`users/${OWNER}/username`]: 'ghosthandle' });
+    await assertFails(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorHandle: 'ghosthandle' })));
+  });
+
+  test('REFUSED: forged handle on a reply, and patched on after the fact', async () => {
+    await seed(env, { 'usernames/byokpara': STRANGER });
+    await assertFails(owner.ref(`square_posts/${P}x`).set(fullReply(OWNER, { authorHandle: 'byokpara' })));
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(fullPost(OWNER)));
+    await assertFails(owner.ref(`square_posts/${P}/authorHandle`).set('byokpara'));
+  });
+
+  test('REFUSED: a path-shaped handle cannot traverse the index', async () => {
+    await seed(env, { 'usernames/byokpara': OWNER });
+    await assertFails(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorHandle: 'usernames/byokpara' })));
+  });
 });
 
 describe('LB-5 · square_reactions / square_likes', () => {

@@ -358,6 +358,9 @@
         "authorAvatarUrl": {
           ".validate": "newData.isString() && newData.val().length <= 2048 && (newData.val().contains('avatars%2F' + auth.uid) || newData.val().contains('avatars/' + auth.uid) || newData.val() === root.child('users').child(auth.uid).child('avatarUrl').val() || newData.val() === root.child('users').child(auth.uid).child('photoURL').val() || newData.val() === auth.token.picture)"
         },
+        "authorHandle": {
+          ".validate": "newData.isString() && (newData.val() === '' || (newData.val().length <= 32 && root.child('usernames').child(newData.val()).val() === auth.uid))"
+        },
         "isAuthor": {
           ".validate": "newData.isBoolean() && (newData.val() === false || root.child('users').child(auth.uid).child('isAuthor').val() === true)"
         },
