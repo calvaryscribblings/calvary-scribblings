@@ -409,9 +409,23 @@ describe('LB-5 · square_posts', () => {
     await assertFails(stranger.ref(`square_posts/${POST}`).remove());
   });
 
-  test('LEGITIMATE: a founder can moderate (square/page.js:1037 pin, 1057 delete)', async () => {
-    await seed(env, { [`square_posts/${POST}`]: post(OWNER) });
+  test('LEGITIMATE: a moderator with the SWITCHES can pin and remove (R33.2)', async () => {
+    // R33.2 — this used to pass on founder identity alone. Pinning and removal now flow
+    // through canPin / canRemovePosts on the reader record, so the founder needs the
+    // switches like anyone else. That is the point: the grant is not the identity.
+    await seed(env, {
+      [`square_posts/${POST}`]: post(OWNER),
+      [`users/${FOUNDER_A}/canPin`]: true,
+      [`users/${FOUNDER_A}/canRemovePosts`]: true,
+    });
     await assertSucceeds(founder.ref(`square_posts/${POST}`).update({ pinned: true }));
+    await assertSucceeds(founder.ref(`square_posts/${POST}`).remove());
+  });
+
+  test('REFUSED: a founder WITHOUT the switches can no longer pin or remove', async () => {
+    await seed(env, { [`square_posts/${POST}`]: post(OWNER) });
+    await assertFails(founder.ref(`square_posts/${POST}`).update({ pinned: true }));
+    await assertFails(founder.ref(`square_posts/${POST}`).remove());
   });
 
   test('LEGITIMATE: a STRANGER bumps likeCount — the trap that would have broken every like', async () => {
@@ -553,10 +567,11 @@ describe('R33.1 · square_posts impersonation fields', () => {
 
   // ── the whole room still works ───────────────────────────────────────────
   test('LEGITIMATE: reply, react, pin, edit and delete all survive the change', async () => {
+    await seed(env, { [`users/${FOUNDER_A}/canPin`]: true });
     await assertSucceeds(owner.ref(`square_posts/${P}`).set(fullPost(OWNER)));
     await assertSucceeds(stranger.ref(`square_posts/${P}r`).set(fullReply(STRANGER)));
     await assertSucceeds(stranger.ref(`square_posts/${P}/likeCount`).set(1));
-    await assertSucceeds(founder.ref(`square_posts/${P}`).update({ pinned: true, unpinnedAt: null }));
+    await assertSucceeds(founder.ref(`square_posts/${P}`).update({ pinned: true }));
     await assertSucceeds(owner.ref(`square_posts/${P}/text`).set('edited'));
     await assertSucceeds(owner.ref(`square_posts/${P}`).remove());
   });
@@ -661,6 +676,157 @@ describe('R33.1 · square_posts impersonation fields', () => {
   test('REFUSED: a path-shaped handle cannot traverse the index', async () => {
     await seed(env, { 'usernames/byokpara': OWNER });
     await assertFails(owner.ref(`square_posts/${P}`).set(fullPost(OWNER, { authorHandle: 'usernames/byokpara' })));
+  });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R33.2 · THE REMAINING HOLES, AND THE THREE SWITCHES
+//
+// Positives first, as ever. Two of these were caught BY the positives and would
+// have shipped broken from a denial-only suite:
+//   · the first fire/clap reaction on a post writes 1 where NO counter exists —
+//     an "on create it must be 0" rule breaks every first reaction.
+//   · 2 of 28 live replies already exceed the new 300 cap, so a flat cap would
+//     make them permanently uneditable.
+describe('R33.2 · caps, counters, clock, and the switches', () => {
+  const P = 'r332post';
+  const mk = (uid, over = {}) => ({
+    authorUid: uid, authorName: 'Reader', authorInitials: 'RE', createdAt: now(),
+    text: 'hello', likeCount: 0, isAuthor: false, authorReadCount: 0, authorHandle: '', ...over,
+  });
+
+  // ── character caps ───────────────────────────────────────────────────────
+  test('LEGITIMATE: a 500-char post and a 300-char reply both write', async () => {
+    await assertSucceeds(owner.ref(`square_posts/${P}a`).set(mk(OWNER, { text: 'x'.repeat(500) })));
+    await assertSucceeds(owner.ref(`square_posts/${P}b`).set(mk(OWNER, { text: 'y'.repeat(300), parentId: P })));
+  });
+
+  test('LEGITIMATE: an over-cap reply that ALREADY EXISTS can still be shortened', async () => {
+    // 2 live replies are 349 and 353 chars, both by the house account. A flat cap
+    // would freeze them forever; the grandfather clause lets an edit through so
+    // long as it does not grow.
+    await seed(env, { [`square_posts/${P}`]: mk(OWNER, { text: 'z'.repeat(353), parentId: 'parent1' }) });
+    await assertSucceeds(owner.ref(`square_posts/${P}/text`).set('z'.repeat(340)));
+    await assertSucceeds(owner.ref(`square_posts/${P}/text`).set('short again'));
+  });
+
+  test('REFUSED: 501 on a post, 301 on a reply, and growing an over-cap reply', async () => {
+    await assertFails(owner.ref(`square_posts/${P}a`).set(mk(OWNER, { text: 'x'.repeat(501) })));
+    await assertFails(owner.ref(`square_posts/${P}b`).set(mk(OWNER, { text: 'y'.repeat(301), parentId: P })));
+    await seed(env, { [`square_posts/${P}c`]: mk(OWNER, { text: 'z'.repeat(353), parentId: 'p1' }) });
+    await assertFails(owner.ref(`square_posts/${P}c/text`).set('z'.repeat(354)));
+  });
+
+  // ── the counters ─────────────────────────────────────────────────────────
+  test('LEGITIMATE: a stranger reacts — the trap, in all three shapes', async () => {
+    await seed(env, { [`square_posts/${P}`]: mk(OWNER) });
+    await assertSucceeds(stranger.ref(`square_posts/${P}/likeCount`).set(1));   // 0 -> 1
+    await assertSucceeds(stranger.ref(`square_posts/${P}/fireCount`).set(1));   // absent -> 1, FIRST ever
+    await assertSucceeds(stranger.ref(`square_posts/${P}/clapCount`).set(0));   // absent -> 0
+    await assertSucceeds(stranger.ref(`square_posts/${P}/likeCount`).set(0));   // un-react
+  });
+
+  test('REFUSED: an arbitrary count, a jump, and a negative', async () => {
+    await seed(env, { [`square_posts/${P}`]: mk(OWNER, { likeCount: 5 }) });
+    await assertFails(stranger.ref(`square_posts/${P}/likeCount`).set(9999));
+    await assertFails(stranger.ref(`square_posts/${P}/likeCount`).set(7));
+    await assertFails(stranger.ref(`square_posts/${P}/likeCount`).set(-1));
+    await assertFails(stranger.ref(`square_posts/${P}/fireCount`).set(50));
+  });
+
+  // ── the clock: the horizon's attack surface ──────────────────────────────
+  test('LEGITIMATE: a post dated now, and one a few minutes off a skewed clock', async () => {
+    await assertSucceeds(owner.ref(`square_posts/${P}a`).set(mk(OWNER, { createdAt: Date.now() })));
+    await assertSucceeds(owner.ref(`square_posts/${P}b`).set(mk(OWNER, { createdAt: Date.now() + 120000 })));
+    await assertSucceeds(owner.ref(`square_posts/${P}c`).set(mk(OWNER, { createdAt: Date.now() - 86400000 })));
+  });
+
+  test('REFUSED: a post dated into the future never ages out', async () => {
+    await assertFails(owner.ref(`square_posts/${P}`).set(mk(OWNER, { createdAt: Date.now() + 400000 })));
+    await assertFails(owner.ref(`square_posts/${P}`).set(mk(OWNER, { createdAt: Date.now() + 31536000000 })));
+  });
+
+  // ── the last two identity fields ─────────────────────────────────────────
+  test('LEGITIMATE: initials, and a read count at or below the record', async () => {
+    await seed(env, { [`users/${OWNER}/readCount`]: 124 });
+    await assertSucceeds(owner.ref(`square_posts/${P}a`).set(mk(OWNER, { authorReadCount: 124 })));
+    // A stale lower value is harmless — the badge under-reports. This is why the
+    // rule is <= and not ===: the Square reads users/{uid} once at page load, and
+    // a reader who finishes a story in another tab would otherwise be refused.
+    await assertSucceeds(owner.ref(`square_posts/${P}b`).set(mk(OWNER, { authorReadCount: 90 })));
+    // 72 accounts hold no readCount at all and the client writes 0.
+    await assertSucceeds(stranger.ref(`square_posts/${P}c`).set(mk(STRANGER, { authorReadCount: 0 })));
+  });
+
+  test('REFUSED: claiming a standing you have not earned, or arbitrary initials', async () => {
+    await seed(env, { [`users/${OWNER}/readCount`]: 12 });
+    await assertFails(owner.ref(`square_posts/${P}a`).set(mk(OWNER, { authorReadCount: 9999 })));
+    await assertFails(stranger.ref(`square_posts/${P}b`).set(mk(STRANGER, { authorReadCount: 500 })));
+    await assertFails(owner.ref(`square_posts/${P}c`).set(mk(OWNER, { authorInitials: 'IKENNA OKPARA' })));
+  });
+
+  // ── pinning: permanence, and the reason it had to close first ────────────
+  test('LEGITIMATE: pinned:false from anyone; pinned:true with canPin', async () => {
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(mk(OWNER, { pinned: false })));
+    await seed(env, { [`users/${STRANGER}/canPin`]: true });
+    await assertSucceeds(stranger.ref(`square_posts/${P}/pinned`).set(true));
+  });
+
+  test('REFUSED: pinning your own post without the switch', async () => {
+    // Under the horizon a pin confers permanence, so this had to close first.
+    await assertFails(owner.ref(`square_posts/${P}`).set(mk(OWNER, { pinned: true })));
+    await assertSucceeds(owner.ref(`square_posts/${P}`).set(mk(OWNER)));
+    await assertFails(owner.ref(`square_posts/${P}/pinned`).set(true));
+  });
+
+  // ── removal by switch, not identity ──────────────────────────────────────
+  test('LEGITIMATE: canRemovePosts removes another reader\'s post; the author always can', async () => {
+    await seed(env, { [`square_posts/${P}a`]: mk(OWNER), [`square_posts/${P}b`]: mk(OWNER),
+                      [`users/${STRANGER}/canRemovePosts`]: true });
+    await assertSucceeds(stranger.ref(`square_posts/${P}a`).remove());
+    await assertSucceeds(owner.ref(`square_posts/${P}b`).remove());
+  });
+
+  test('REFUSED: removing someone else\'s post without the switch', async () => {
+    await seed(env, { [`square_posts/${P}`]: mk(OWNER) });
+    await assertFails(stranger.ref(`square_posts/${P}`).remove());
+  });
+
+  // ── the switches themselves ──────────────────────────────────────────────
+  test('LEGITIMATE: a founder grants each switch independently', async () => {
+    for (const f of ['canPostImages', 'canPin', 'canRemovePosts']) {
+      await assertSucceeds(founder.ref(`users/${OWNER}/${f}`).set(true));
+      await assertSucceeds(founder.ref(`users/${OWNER}/${f}`).set(false));
+    }
+  });
+
+  test('REFUSED: nobody grants themselves a switch', async () => {
+    for (const f of ['canPostImages', 'canPin', 'canRemovePosts']) {
+      await assertFails(owner.ref(`users/${OWNER}/${f}`).set(true));
+      await assertFails(stranger.ref(`users/${OWNER}/${f}`).set(true));
+      await assertFails(anon.ref(`users/${OWNER}/${f}`).set(true));
+      await assertFails(owner.ref(`users/${OWNER}`).update({ bio: 'ok', [f]: true }));
+    }
+  });
+
+  test('THE SWITCHES ARE INDEPENDENT — the whole reason there are three', async () => {
+    // The failure this shape exists to prevent: granting someone images and
+    // thereby handing them deletion.
+    await seed(env, { [`square_posts/${P}`]: mk(OWNER), [`users/${STRANGER}/canPostImages`]: true });
+    await assertFails(stranger.ref(`square_posts/${P}`).remove());
+    await assertFails(stranger.ref(`square_posts/${P}/pinned`).set(true));
+  });
+
+  test('canPin may pin — but NOT delete, and NOT rewrite the words', async () => {
+    // Pinning someone else's post needs write access to it. Granting that naively
+    // would have handed a pinner deletion and content edits, which is exactly the
+    // conflation the three switches exist to prevent.
+    await seed(env, { [`square_posts/${P}`]: mk(OWNER), [`users/${STRANGER}/canPin`]: true });
+    await assertSucceeds(stranger.ref(`square_posts/${P}/pinned`).set(true));
+    await assertFails(stranger.ref(`square_posts/${P}`).remove());
+    await assertFails(stranger.ref(`square_posts/${P}/text`).set('defaced'));
+    await assertFails(stranger.ref(`square_posts/${P}/authorUid`).set(STRANGER));
   });
 });
 
@@ -1448,7 +1614,12 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
   // R10.2 — isAuthor is the ONE field a reader may not set on themselves. It has no writer
   // anywhere in the tree, and app/lib/readerCollection.js:12 treats it as author membership,
   // so an owner grant let any reader promote themselves into the author collection.
-  const FOUNDER_ONLY_FIELDS = [['isAuthor', true]];
+  // R33.2 — the three Square permission switches. Same shape as isAuthor and for the same
+  // reason: a reader must not be able to grant themselves moderation or the image gate.
+  const FOUNDER_ONLY_FIELDS = [
+    ['isAuthor', true],
+    ['canPostImages', true], ['canPin', true], ['canRemovePosts', true],
+  ];
 
   test('all 31 owner fields are writable by the owner', async () => {
     for (const [field, value] of FIELDS) {
@@ -1471,7 +1642,7 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
       .map(([k]) => k).sort();
     const expected = [...FIELDS, ...FOUNDER_ONLY_FIELDS].map(([f]) => f).sort();
     assert.deepEqual(granted, expected);
-    assert.equal(granted.length, 32);
+    assert.equal(granted.length, 35);
   });
 
   test('R10.2 · isAuthor — a reader cannot promote themselves into the author collection', async () => {
