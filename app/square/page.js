@@ -6,6 +6,7 @@ import { useDeletedUids } from '../lib/userVisibility';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions, BADGE_SVG_PATH, CHECK_PATH } from '../components/conversation/ConversationKit';
 import TabBar, { TabLinks } from '../components/TabBar';
+import { resolveIdentities, identityOf } from '../lib/squareIdentity';
 
 const SQUARE_REACTIONS = buildReactions('like');
 
@@ -27,8 +28,18 @@ async function getDB() { const { getDatabase } = await import('firebase/database
 async function getFirebaseAuth() { const { getAuth } = await import('firebase/auth'); return getAuth(await getApp()); }
 
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
-const MOD_UIDS = [FOUNDER_UID]; // add @calvaryscribblings UID here once known
 const CALVARY_UID = FOUNDER_UID; // system post author
+
+// R33.2 — PERMISSIONS ARE SWITCHES ON THE READER'S RECORD, NOT A ROLE, AND NOT
+// AN IDENTITY. This replaced `MOD_UIDS = [FOUNDER_UID]`, a hardcoded list with a
+// standing comment to "add @calvaryscribblings UID here once known" — while the
+// RULES already granted that second founder everything. Client and rules had
+// disagreed for as long as both existed, and the client was the stricter of the
+// two, so the second founder saw no moderation UI for powers she held.
+//
+// Three switches, not one flag, because a single "moderator" bit means the day
+// you want someone to post images you must also hand them deletion.
+const can = (userData, sw) => userData?.[sw] === true;
 
 // ── Time helpers (London/BST aware) ───────────────────────────────────────────
 function getLondonTime() {
@@ -59,10 +70,25 @@ function getCountdown() {
 function isFriday() { return getLondonTime().day === 5; }
 function isMonday() { return getLondonTime().day === 1; }
 
-function getMaxChars(readCount, uid, isAuthor) {
-  if (isAuthor || uid === FOUNDER_UID || readCount >= 150) return 500;
-  return 200;
-}
+// R33.2 — ONE LIMIT FOR EVERYONE. This used to be a privilege: an ordinary
+// reader got 200 and a reader past 150 stories got 500. Ikenna's ruling is a
+// single number, and the reasoning is about writing rather than about standing —
+// 280 came from SMS, not from prose, and 500 is about three good sentences:
+// enough for a real thought, short enough that a screenful holds several and a
+// 48-hour room stays glanceable. A limit can always be loosened and never
+// tightened, so 500 is deliberately conservative.
+//
+// Replies are 300 and had NO limit at all before this — not in the client, not
+// in the rules, which permitted 10,000.
+export const MAX_POST_CHARS = 500;
+export const MAX_REPLY_CHARS = 300;
+
+// ⚠ THE COUNTER ARRIVES LATE. It used to be on screen from the first keystroke,
+// counting down at someone who was still writing. It now appears at 80% — 400
+// on a post, 240 on a reply — so a writer who never approaches the limit never
+// sees it, and one who does gets about a sentence of warning.
+export const COUNTER_AT = 0.8;
+const showCounter = (len, max) => len >= Math.floor(max * COUNTER_AT);
 
 function VerifiedBadge({ size = 11 }) {
   return (
@@ -109,8 +135,11 @@ function QuotedCard({ quotedPost, onClear }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap', paddingRight: onClear ? 18 : 0 }}>
         <Avatar uid={quotedPost.authorUid} initials={quotedPost.authorInitials || (quotedPost.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()} size={24} isAuthor={quotedPost.isAuthor} avatarUrl={quotedPost.authorAvatarUrl} />
         <span style={{ fontSize: '0.81rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500 }}>{quotedPost.authorName}</span>
-        {quotedPost.isAuthor && <VerifiedBadge size={11} />}
         {quotedPost.authorHandle && <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{quotedPost.authorHandle}</span>}
+        {/* R33.2 — the island badge. This surface drew the writer tick and the
+            handle but never the badge: the one case the audit predicted would
+            have been skipped, and it had been. */}
+        <UserBadge uid={quotedPost.authorUid} readCount={quotedPost.authorReadCount} isAuthor={quotedPost.isAuthor} />
       </div>
       <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.86rem', lineHeight: 1.55, color: 'rgba(255,255,255,0.65)' }}>
         {excerpt}
@@ -235,7 +264,7 @@ function PollDisplay({ poll, postId, user }) {
 }
 
 // ── Post Menu ─────────────────────────────────────────────────────────────────
-function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) {
+function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, onReport, canPin, canRemove }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const isOwn = user?.uid === post.authorUid;
@@ -249,7 +278,10 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
   }, []);
 
   const copyLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/square#${post.id}`);
+    // R33.2 — a real address. `/square#id` only resolved while the post was
+    // still in the feed and the room was open; under the horizon it would have
+    // resolved to nothing at all. /square/p?id= reads the room, then the archive.
+    navigator.clipboard.writeText(`${window.location.origin}/square/p?id=${post.id}`);
     setOpen(false);
   };
 
@@ -268,7 +300,7 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
               edit post
             </button>
           )}
-          {isMod && (
+          {canPin && (
             <button onClick={() => { onPin(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: isPinned ? '#fcd34d' : '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -276,7 +308,7 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
               {isPinned ? 'Unpin post' : 'Pin post'}
             </button>
           )}
-          {isMod && post.quotedPostId && onStripQuote && (
+          {canRemove && post.quotedPostId && onStripQuote && (
             <button onClick={() => { onStripQuote(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -284,12 +316,12 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
               Strip quote attribution
             </button>
           )}
-          {(isOwn || isMod) && (
+          {(isOwn || canRemove) && (
             <button onClick={() => { onDelete(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(220,38,38,0.08)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              Delete post
+              {isOwn ? 'Withdraw post' : 'Remove post'}
             </button>
           )}
           <button onClick={copyLink} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
@@ -299,7 +331,7 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
             Copy link
           </button>
           {!isOwn && (
-            <button onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(232,224,212,0.5)', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
+            <button onClick={() => { onReport(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(232,224,212,0.5)', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
@@ -308,6 +340,59 @@ function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, isMod }) 
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// R33.2 — the report surface. There was none: the menu item closed the menu.
+function ReportModal({ post, onSubmit, onClose }) {
+  const REASONS = [
+    ['abuse', 'Abusive or hateful'],
+    ['harassment', 'Harassment of a reader'],
+    ['spam', 'Spam or advertising'],
+    ['explicit', 'Explicit or graphic'],
+    ['offtopic', 'Not about reading'],
+    ['other', 'Something else'],
+  ];
+  const [reason, setReason] = useState('abuse');
+  const [note, setNote] = useState('');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const go = async () => { setBusy(true); try { await onSubmit(post, reason, note); setSent(true); } catch { setSent(true); } setBusy(false); };
+  const box = { background: '#141018', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 12, padding: '20px 22px', maxWidth: 420, width: '100%' };
+  const ff = 'Cormorant Garamond, Georgia, serif';
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={box}>
+        {sent ? (
+          <>
+            <div style={{ fontFamily: ff, fontSize: '1.25rem', color: '#f5f0e8', marginBottom: 8 }}>Reported</div>
+            <p style={{ fontFamily: ff, fontSize: '0.9rem', color: 'rgba(245,240,232,0.6)', lineHeight: 1.6, margin: '0 0 16px' }}>
+              A moderator will see this. Thank you for telling us — the room only works if people do.
+            </p>
+            <button onClick={onClose} style={{ background: '#6b2fad', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontFamily: ff, fontSize: '0.9rem', cursor: 'pointer' }}>Close</button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontFamily: ff, fontSize: '1.25rem', color: '#f5f0e8', marginBottom: 4 }}>Report this post</div>
+            <p style={{ fontFamily: ff, fontSize: '0.85rem', color: 'rgba(245,240,232,0.45)', margin: '0 0 14px' }}>Only moderators see reports. The author is not told who reported them.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+              {REASONS.map(([v, label]) => (
+                <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: ff, fontSize: '0.9rem', color: reason === v ? '#f5f0e8' : 'rgba(245,240,232,0.6)', cursor: 'pointer' }}>
+                  <input type="radio" name="sq-report" value={v} checked={reason === v} onChange={() => setReason(v)} style={{ accentColor: '#6b2fad' }} />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <textarea value={note} onChange={e => setNote(e.target.value.slice(0, 300))} rows={3} placeholder="Anything a moderator should know (optional)"
+              className="sq-textarea" style={{ width: '100%', fontFamily: ff, fontSize: '0.88rem', marginBottom: 12 }} />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(245,240,232,0.2)', color: 'rgba(245,240,232,0.7)', padding: '8px 16px', borderRadius: 8, fontFamily: ff, fontSize: '0.9rem', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={go} disabled={busy} style={{ background: '#b03636', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontFamily: ff, fontSize: '0.9rem', cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Sending…' : 'Report'}</button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -780,18 +865,45 @@ export default function SquarePage() {
   const [editingPost, setEditingPost] = useState(null);
   const [editText, setEditText] = useState('');
   const [quotedPostId, setQuotedPostId] = useState(null);
+  const [identities, setIdentities] = useState({});
+  const [reportingPost, setReportingPost] = useState(null);
   const textareaRef = useRef(null);
   const replyTextareaRef = useRef(null);
   const editTextareaRef = useRef(null);
 
-  const isMod = user && MOD_UIDS.includes(user.uid);
+  // Two separate capabilities where there was one role.
+  const canPin        = can(userData, 'canPin');
+  const canRemove     = can(userData, 'canRemovePosts');
+  const canPostImages = can(userData, 'canPostImages');
+  const isMod = canPin || canRemove;   // "shows a moderation menu at all"
 
+  // R33.2 — THE FOCUS GATE P2 NEVER REACHED THIS SCREEN.
+  //
+  // This was a bare setInterval(tick, 1000) with an empty dependency array and
+  // no visibility listener. setCountdown() writes a new string every second, so
+  // React re-rendered the entire ~1,400-line component once a second, in every
+  // state, whether or not the tab was visible, for as long as the page was
+  // mounted. P2 gated the story page, the reader, the public library and the
+  // Gateway; the Square was simply missed.
+  //
+  // Two gates, not one. Hidden tabs stop entirely. And while the room is OPEN
+  // the countdown is not drawn at all, so it ticks once a minute instead of
+  // sixty times — the open state is the one people actually sit in.
   useEffect(() => {
+    let interval = null;
     const tick = () => { setSquareOpen(isSquareOpen()); setCountdown(getCountdown()); };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    const start = () => {
+      if (interval) clearInterval(interval);
+      tick();
+      if (typeof document !== 'undefined' && document.hidden) return;
+      interval = setInterval(tick, isSquareOpen() ? 60000 : 1000);
+    };
+    const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
+    const onVis = () => { if (document.hidden) stop(); else start(); };
+    start();
+    document.addEventListener('visibilitychange', onVis);
+    return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
+  }, [squareOpen]);
 
   useEffect(() => {
     let authUnsub = null;
@@ -808,7 +920,7 @@ export default function SquarePage() {
         detachChildren();
         if (u) {
           const db = await getDB();
-          const { ref, get, onValue, set, onDisconnect } = await import('firebase/database');
+          const { ref, get, onValue, onChildAdded, onChildChanged, onChildRemoved, set, onDisconnect } = await import('firebase/database');
           if (cancelled) return;
           const snap = await get(ref(db, `users/${u.uid}`));
           if (snap.exists()) setUserData(snap.val());
@@ -816,17 +928,19 @@ export default function SquarePage() {
             setUnreadNotifs(snap.exists() ? Object.values(snap.val()).filter(n => !n.read).length : 0);
           }));
           // Load reactions for all posts
-          childUnsubs.push(onValue(ref(db, `square_reactions`), (snap) => {
-            if (!snap.exists()) return;
-            const r = {};
-            Object.entries(snap.val()).forEach(([postId, reactionData]) => {
-              r[postId] = {};
-              ['like', 'clap', 'fire'].forEach(type => {
-                if (reactionData[type] && reactionData[type][u.uid]) r[postId][type] = true;
-              });
-            });
-            setReactions(r);
-          }));
+          // Same fix as square_posts: per-child, so one reader's tap does not
+          // re-deliver everyone's reactions to everyone.
+          const rxRef = ref(db, 'square_reactions');
+          const absorb = (snap) => {
+            const d = snap.val() || {};
+            const mine = {};
+            ['like', 'clap', 'fire'].forEach(t => { if (d[t] && d[t][u.uid]) mine[t] = true; });
+            setReactions(prev => ({ ...prev, [snap.key]: mine }));
+          };
+          const rA = onChildAdded(rxRef, absorb);
+          const rC = onChildChanged(rxRef, absorb);
+          const rR = onChildRemoved(rxRef, (snap) => setReactions(prev => { const n = { ...prev }; delete n[snap.key]; return n; }));
+          childUnsubs.push(() => { rA(); rC(); rR(); });
           const presRef = ref(db, `square_presence/${u.uid}`);
           await set(presRef, true);
           onDisconnect(presRef).remove();
@@ -857,18 +971,25 @@ export default function SquarePage() {
       const db = await getDB();
       const { ref, onValue } = await import('firebase/database');
       if (cancelled) return;
-      unsub = onValue(ref(db, 'square_posts'), (snap) => {
-        if (!snap.exists()) { setPosts([]); setLoading(false); return; }
-        const list = Object.entries(snap.val()).map(([id, p]) => ({ id, ...p }));
-        // Pinned posts first, then by date
-        list.sort((a, b) => {
-          if (a.pinned && !b.pinned) return -1;
-          if (!a.pinned && b.pinned) return 1;
-          return b.createdAt - a.createdAt;
-        });
-        setPosts(list);
-        setLoading(false);
-      });
+      // R33.2 — THE PAYLOAD. This was one onValue on the whole square_posts
+      // node, which re-delivers EVERY post to EVERY connected reader on any
+      // change to any of them. Measured at 112 KiB across 115 records: a single
+      // reaction tap cost every person in the room the entire room again.
+      //
+      // Child listeners send only what changed. The first load still costs one
+      // full node (bounded now by the horizon, which is the other half of this
+      // fix); after that a new post or a reaction bump is its own few hundred
+      // bytes. Sorting moves to render, where it was always cheap.
+      const seen = new Map();
+      const flush = () => { setPosts([...seen.values()]); setLoading(false); };
+      const postsRef = ref(db, 'square_posts');
+      const offAdd = onChildAdded(postsRef, (s2) => { seen.set(s2.key, { id: s2.key, ...s2.val() }); flush(); });
+      const offChg = onChildChanged(postsRef, (s2) => { seen.set(s2.key, { id: s2.key, ...s2.val() }); flush(); });
+      const offRem = onChildRemoved(postsRef, (s2) => { seen.delete(s2.key); flush(); });
+      // An empty room never fires a child event, so nothing would clear the
+      // spinner. One value read settles that and then detaches.
+      get(postsRef).then((s2) => { if (!s2.exists()) { setLoading(false); } }).catch(() => setLoading(false));
+      unsub = () => { offAdd(); offChg(); offRem(); };
     })();
     return () => { cancelled = true; if (unsub) unsub(); };
   }, []);
@@ -946,8 +1067,7 @@ export default function SquarePage() {
   const post = async (pollData = null) => {
     if (!text.trim() && !pollData) return;
     if (!user) return;
-    const maxChars = getMaxChars(userData?.readCount || 0, user.uid, userData?.isAuthor);
-    if (text.length > maxChars) return;
+    if (text.length > MAX_POST_CHARS) return;
     setPosting(true);
     try {
       const db = await getDB();
@@ -983,6 +1103,7 @@ export default function SquarePage() {
 
   const reply = async (parentPost) => {
     if (!replyText.trim() || !user) return;
+    if (replyText.length > MAX_REPLY_CHARS) return;   // R33.2 — there was no check here at all
     setPosting(true);
     try {
       const db = await getDB();
@@ -1050,17 +1171,48 @@ export default function SquarePage() {
     setEditingPost(null); setEditText(''); setMentionQueryEdit('');
   };
 
+  // R33.2 — DELETING YOUR OWN POST NO LONGER DESTROYS EVERYONE ELSE'S REPLIES.
+  //
+  // This used to hard-delete the post and then cascade through every reply
+  // beneath it, permanently, with a browser confirm() as the only guard: a
+  // reader could erase a dozen other people's words by removing their own
+  // opening line, and nothing could bring them back.
+  //
+  // The shape that agrees with the horizon is to withdraw the post and leave the
+  // thread standing. The words go; the conversation and its authors do not. A
+  // withdrawn post renders as a tombstone, its replies keep their parent, and
+  // the record is still there to be recovered.
   const handleDelete = async (p) => {
-    if (!confirm('Delete this post?')) return;
+    const replies = posts.filter(r => r.parentId === p.id).length;
+    const msg = replies > 0
+      ? `Withdraw this post?\n\nThe ${replies} ${replies === 1 ? 'reply' : 'replies'} beneath it will stay — they are not yours to delete.`
+      : 'Withdraw this post? It will be removed from the Square.';
+    if (!confirm(msg)) return;
     const db = await getDB();
-    const { ref, remove } = await import('firebase/database');
+    const { ref, remove, update } = await import('firebase/database');
+    if (replies > 0) {
+      await update(ref(db, `square_posts/${p.id}`), {
+        text: '', withdrawn: true, withdrawnAt: Date.now(),
+      });
+      return;
+    }
     await remove(ref(db, `square_posts/${p.id}`));
     await remove(ref(db, `user_square_posts/${p.authorUid}/${p.id}`));
-    const repliesToDelete = posts.filter(r => r.parentId === p.id);
-    await Promise.all(repliesToDelete.map(r => Promise.all([
-      remove(ref(db, `square_posts/${r.id}`)),
-      remove(ref(db, `user_square_posts/${r.authorUid}/${r.id}`)),
-    ])));
+  };
+
+  // R33.2 — THE REPORT BUTTON DID NOTHING. It was wired to
+  // `onClick={() => setOpen(false)}`: it closed the menu. Nothing was recorded,
+  // nobody was notified, and no queue existed — a reader who reported something
+  // believed they had been heard and had not been.
+  const submitReport = async (p, reason, note) => {
+    if (!user) { setShowAuth(true); return; }
+    const db = await getDB();
+    const { ref, set } = await import('firebase/database');
+    await set(ref(db, `square_reports/${p.id}/${user.uid}`), {
+      reason, note: (note || '').slice(0, 300),
+      reporterUid: user.uid, postAuthorUid: p.authorUid || '', createdAt: Date.now(),
+    });
+    setReportingPost(null);
   };
 
   const createPoll = async (pollData) => {
@@ -1084,16 +1236,39 @@ export default function SquarePage() {
     await update(ref(db, `square_posts/${p.id}`), { quotedPostId: null });
   };
 
-  const maxChars = user ? getMaxChars(userData?.readCount || 0, user.uid, userData?.isAuthor) : 200;
+  const maxChars = MAX_POST_CHARS;
   // Hide content from soft-deleted users. Hard-deleted users no longer have
   // posts in the DB, so this only affects the 7-day grace window.
   const deletedAuthorSet = useDeletedUids(posts.map(p => p.authorUid));
   const visiblePosts = deletedAuthorSet
     ? posts.filter(p => !deletedAuthorSet.has(p.authorUid))
     : posts;
-  const topLevel = visiblePosts.filter(p => !p.parentId);
+  // Sorting lives here now that the listeners are per-child. Pinned first, then
+  // newest — the same order the old whole-node listener produced.
+  const topLevel = visiblePosts.filter(p => !p.parentId).sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return (b.createdAt || 0) - (a.createdAt || 0);
+  });
   const getReplies = (id) => visiblePosts.filter(p => p.parentId === id).sort((a, b) => a.createdAt - b.createdAt);
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
+
+  // R33.2 — IDENTITY AT RENDER. Bounded by distinct authors, not by posts.
+  const authorUids = [...new Set(visiblePosts.map(p => p.authorUid).filter(Boolean))].sort().join(',');
+  useEffect(() => {
+    if (!authorUids) return;
+    let cancelled = false;
+    (async () => {
+      const db = await getDB();
+      const map = await resolveIdentities(db, authorUids.split(','));
+      if (!cancelled) setIdentities(Object.fromEntries(map));
+    })();
+    return () => { cancelled = true; };
+  }, [authorUids]);
+  // One place every surface asks. `who(post)` is the ONLY way identity should be
+  // read below — reaching into post.authorName again is how the six surfaces
+  // drifted apart in the first place.
+  const who = (p) => identityOf(p, identities[p.authorUid]);
 
   const ReactionBar = ({ p, size = 16 }) => {
     const idleColor = 'rgba(245,240,232,0.45)';
@@ -1231,11 +1406,16 @@ export default function SquarePage() {
               <div style={{ fontSize: '0.7rem', color: '#f5f0e8', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 12 }}>Last night in the Square</div>
               {topLevel.slice(0, 5).map(p => (
                 <div key={p.id} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#c9a84c', flexShrink: 0, overflow: 'hidden' }}>
-                    {p.authorAvatarUrl ? <img src={p.authorAvatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : p.authorInitials}
-                  </div>
+                  {/* R33.2 — this bypassed the shared Avatar for a raw <img>, so it
+                      inherited none of the fallback behaviour, and drew neither the
+                      handle nor the island badge. Same components as everywhere else now. */}
+                  <Avatar uid={p.authorUid} initials={who(p).initials} size={28} isAuthor={who(p).isAuthor} avatarUrl={who(p).avatarUrl} />
                   <div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 500, color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 3 }}>{p.authorName}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{who(p).displayName}</span>
+                      {who(p).handle && <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{who(p).handle}</span>}
+                      <UserBadge uid={p.authorUid} readCount={who(p).readCount} isAuthor={who(p).isAuthor} />
+                    </div>
                     <div style={{ fontSize: '0.88rem', color: 'rgba(232,224,212,0.5)', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.6 }}>{p.text}</div>
                   </div>
                 </div>
@@ -1277,7 +1457,9 @@ export default function SquarePage() {
                           Create poll
                         </button>
                       )}
-                      <span style={{ fontSize: '0.65rem', color: text.length > maxChars ? '#f87171' : 'rgba(255,255,255,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{text.length} / {maxChars}</span>
+                      {showCounter(text.length, maxChars) && (
+                        <span style={{ fontSize: '0.65rem', color: text.length > maxChars ? '#f87171' : (text.length >= maxChars * 0.9 ? '#d99a3c' : 'rgba(255,255,255,0.45)'), fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{text.length} / {maxChars}</span>
+                      )}
                     </div>
                     <button className="sq-post-btn" onClick={() => post()} disabled={posting || !text.trim() || text.length > maxChars}>{posting ? 'Posting…' : 'Post'}</button>
                   </div>
@@ -1312,16 +1494,16 @@ export default function SquarePage() {
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 10 }}>
-                      <Avatar uid={p.authorUid} initials={p.authorInitials} size={34} isAuthor={p.isAuthor} avatarUrl={p.authorAvatarUrl} />
+                      <Avatar uid={p.authorUid} initials={who(p).initials} size={34} isAuthor={who(p).isAuthor} avatarUrl={who(p).avatarUrl} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
                           <a href={isOwn ? '/profile' : `/user?id=${p.authorUid}`} style={{ fontSize: '0.92rem', fontWeight: 600, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none' }}
                             onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
-                            onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{p.authorName}</a>
-                          {p.authorHandle && <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{p.authorHandle}</span>}
-                          <UserBadge uid={p.authorUid} readCount={p.authorReadCount} isAuthor={p.isAuthor} />
+                            onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{who(p).displayName}</a>
+                          {who(p).handle && <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{who(p).handle}</span>}
+                          <UserBadge uid={p.authorUid} readCount={who(p).readCount} isAuthor={who(p).isAuthor} />
                           <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.42)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>· {timeAgo(p.createdAt)}{p.edited && <span style={{ color: 'rgba(245,240,232,0.25)' }}> · edited</span>}</span>
-                          {user && <PostMenu post={p} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} isMod={isMod} />}
+                          {user && <PostMenu post={p} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} onReport={setReportingPost} canPin={canPin} canRemove={canRemove} />}
                         </div>
 
                         {isEditing ? (
@@ -1346,7 +1528,13 @@ export default function SquarePage() {
 
                         {replyTo === p.id && (
                           <div style={{ marginTop: 10, position: 'relative' }}>
-                            <textarea ref={replyTextareaRef} className="sq-textarea" placeholder={`Reply to ${p.authorName}…`} value={replyText} onChange={e => handleReplyTextChange(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem' }} />
+                            <textarea ref={replyTextareaRef} className="sq-textarea" placeholder={`Reply to ${who(p).displayName}…`} value={replyText} onChange={e => handleReplyTextChange(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem' }} />
+                            {showCounter(replyText.length, MAX_REPLY_CHARS) && (
+                              <div style={{ textAlign: 'right', fontSize: '0.65rem', marginTop: 2, fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500,
+                                color: replyText.length > MAX_REPLY_CHARS ? '#f87171' : (replyText.length >= MAX_REPLY_CHARS * 0.9 ? '#d99a3c' : 'rgba(255,255,255,0.45)') }}>
+                                {replyText.length} / {MAX_REPLY_CHARS}
+                              </div>
+                            )}
                             {mentionQueryReply !== '' && <MentionDropdown query={mentionQueryReply} onSelect={insertMentionReply} />}
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
                               <button className="sq-post-btn" onClick={() => reply(p)} disabled={posting || !replyText.trim()}>{posting ? '…' : 'Reply'}</button>
@@ -1360,16 +1548,16 @@ export default function SquarePage() {
                               const rIsOwn = user?.uid === r.authorUid;
                               return (
                                 <div key={r.id} style={{ display: 'flex', gap: 8 }}>
-                                  <Avatar uid={r.authorUid} initials={r.authorInitials} size={26} isAuthor={r.isAuthor} avatarUrl={r.authorAvatarUrl} />
+                                  <Avatar uid={r.authorUid} initials={who(r).initials} size={26} isAuthor={who(r).isAuthor} avatarUrl={who(r).avatarUrl} />
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
                                       <a href={rIsOwn ? '/profile' : `/user?id=${r.authorUid}`} style={{ fontSize: '0.92rem', fontWeight: 600, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none' }}
                                         onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
-                                        onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{r.authorName}</a>
-                                      {r.authorHandle && <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{r.authorHandle}</span>}
-                                      <UserBadge uid={r.authorUid} readCount={r.authorReadCount} isAuthor={r.isAuthor} />
+                                        onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{who(r).displayName}</a>
+                                      {who(r).handle && <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{who(r).handle}</span>}
+                                      <UserBadge uid={r.authorUid} readCount={who(r).readCount} isAuthor={who(r).isAuthor} />
                                       <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.42)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>· {timeAgo(r.createdAt)}{r.edited && <span style={{ color: 'rgba(245,240,232,0.25)' }}> · edited</span>}</span>
-                                      {user && <PostMenu post={r} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} isMod={isMod} />}
+                                      {user && <PostMenu post={r} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} onReport={setReportingPost} canPin={canPin} canRemove={canRemove} />}
                                     </div>
                                     {editingPost === r.id ? (
                                       <div style={{ position: 'relative' }}>
@@ -1405,6 +1593,7 @@ export default function SquarePage() {
 
       {showStoryAttach && <StoryAttachModal onSelect={(s) => { setAttachedStory(s); setShowStoryAttach(false); }} onClose={() => setShowStoryAttach(false)} cmsStories={cmsStories} />}
       {showPollCreator && <PollCreatorModal onCreate={createPoll} onClose={() => setShowPollCreator(false)} />}
+      {reportingPost && <ReportModal post={reportingPost} onSubmit={submitReport} onClose={() => setReportingPost(null)} />}
       {showDM && user && <DMPanel user={user} onClose={() => setShowDM(false)} />}
       {showNotifs && user && <NotificationsPanel user={user} onClose={() => setShowNotifs(false)} />}
 

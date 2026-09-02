@@ -62,7 +62,8 @@
     "covers:reconcile": "node scripts/covers/on-publish.mjs",
     "covers:lock": "node scripts/covers/design-lock.mjs --write",
     "covers:lock:check": "node scripts/covers/design-lock.mjs",
-    "covers:descriptors": "node scripts/covers/descriptor-sheet.mjs"
+    "covers:descriptors": "node scripts/covers/descriptor-sheet.mjs",
+    "test:square": "node --test tests/square/*.test.mjs"
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",

@@ -1,0 +1,79 @@
+# THE SQUARE'S HORIZON — the thing that must actually run.
+#
+# What it replaces never executed once in 150 days. app/api/square-cleanup was a
+# Next.js route handler under app/api/, which `output: 'export'` never builds, so
+# the URL 404s — and nothing called it anyway. Two independent fatal faults, and
+# neither was visible from the code: the file looked like a working endpoint.
+#
+# ⚠ HOURLY, NOT AT A FIXED TIME. The bell is 20:00 LONDON. Cron runs on UTC, and
+# London is UTC+1 in summer and UTC+0 in winter, so a fixed UTC schedule drifts
+# an hour off the bell twice a year and starts sweeping in the middle of a live
+# session. The script decides: it no-ops unless the London hour is 20. Twenty-
+# three of the twenty-four daily runs do nothing but touch a heartbeat, which
+# costs two reads.
+#
+# ⚠ AND IT SAYS SO WHEN IT STOPS. GitHub disables scheduled workflows on repos
+# with no activity for 60 days, and a silent cron is exactly how the last one
+# died. Every run writes square_horizon/, and the liveness job below FAILS —
+# visibly, in the Actions tab and by email — if the last bell is more than 26
+# hours old. A horizon nobody can tell has stopped is not a horizon.
+
+name: square horizon
+
+on:
+  schedule:
+    - cron: '5 * * * *'   # hourly at :05; the script acts only at London 20:00
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Write. Unticked, this only reports what would move.'
+        required: false
+        type: boolean
+        default: false
+      force:
+        description: 'Sweep even outside the 20:00 bell. For a manual catch-up only.'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: square-horizon
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+
+      - name: Write the service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set. The horizon cannot run."
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > serviceAccountKey.json
+
+      - name: Sweep
+        run: |
+          ARGS=""
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.apply }}" = "true" ]; then
+            ARGS="--apply"
+          fi
+          if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
+          node scripts/square/horizon.mjs $ARGS
+
+      - name: Liveness — fail loudly if the bell has been missed
+        if: github.event_name == 'schedule'
+        run: node scripts/square/horizon-liveness.mjs
+
+      - name: Shred the credential
+        if: always()
+        run: rm -f serviceAccountKey.json

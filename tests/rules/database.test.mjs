@@ -830,6 +830,73 @@ describe('R33.2 · caps, counters, clock, and the switches', () => {
   });
 });
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// R33.2 · THE ARCHIVE AND THE REPORT QUEUE
+describe('R33.2 · square_archive and square_reports', () => {
+  const P = 'r332arch';
+
+  test('LEGITIMATE: anyone may READ the archive — the permalink depends on it', async () => {
+    await seed(env, { [`square_archive/${P}`]: { authorUid: OWNER, text: 'archived', createdAt: now(), archivedAt: now() } });
+    await assertSucceeds(anon.ref(`square_archive/${P}`).get());
+    await assertSucceeds(stranger.ref(`square_archive/${P}`).get());
+  });
+
+  test('NOBODY writes the archive — only the worker, on a service account', async () => {
+    // Clearing is a horizon, not a deletion. If a client could write here it
+    // could also rewrite history, and the archive's whole value is that it is
+    // the thing you can still trust after the room has moved on.
+    const rec = { authorUid: OWNER, text: 'forged', createdAt: now() };
+    await assertFails(owner.ref(`square_archive/${P}`).set(rec));
+    await assertFails(founder.ref(`square_archive/${P}`).set(rec));
+    await seed(env, { [`square_archive/${P}`]: rec });
+    await assertFails(owner.ref(`square_archive/${P}`).remove());
+    await assertFails(founder.ref('square_archive').remove());
+  });
+
+  test('the horizon heartbeat is readable and unwritable', async () => {
+    await seed(env, { 'square_horizon': { lastBellAt: now(), remaining: 4 } });
+    await assertSucceeds(anon.ref('square_horizon').get());
+    await assertFails(owner.ref('square_horizon/lastBellAt').set(0));
+  });
+
+  const report = (uid) => ({ reason: 'abuse', reporterUid: uid, postAuthorUid: STRANGER, createdAt: now() });
+
+  test('LEGITIMATE: a reader reports a post, and can read their own report back', async () => {
+    await assertSucceeds(owner.ref(`square_reports/${P}/${OWNER}`).set(report(OWNER)));
+    await assertSucceeds(owner.ref(`square_reports/${P}/${OWNER}`).get());
+  });
+
+  test('LEGITIMATE: a moderator with canRemovePosts reads the queue and resolves', async () => {
+    await seed(env, {
+      [`square_reports/${P}/${OWNER}`]: report(OWNER),
+      [`users/${STRANGER}/canRemovePosts`]: true,
+    });
+    await assertSucceeds(stranger.ref('square_reports').get());
+    await assertSucceeds(stranger.ref(`square_reports/${P}`).update({ resolved: true, resolvedBy: STRANGER, resolvedAt: now() }));
+  });
+
+  test('REFUSED: reporting as someone else, or reading the queue without the switch', async () => {
+    await assertFails(owner.ref(`square_reports/${P}/${STRANGER}`).set(report(STRANGER)));
+    await assertFails(owner.ref(`square_reports/${P}/${OWNER}`).set({ ...report(OWNER), reporterUid: STRANGER }));
+    await seed(env, { [`square_reports/${P}/${STRANGER}`]: report(STRANGER) });
+    await assertFails(owner.ref('square_reports').get());
+    await assertFails(owner.ref(`square_reports/${P}/${STRANGER}`).get());
+  });
+
+  test('REFUSED: a reader cannot mark their own report handled, or edit one', async () => {
+    await seed(env, { [`square_reports/${P}/${OWNER}`]: report(OWNER) });
+    await assertFails(owner.ref(`square_reports/${P}`).update({ resolved: true }));
+    // Write-once: a report cannot be quietly softened after the fact.
+    await assertFails(owner.ref(`square_reports/${P}/${OWNER}`).set({ ...report(OWNER), reason: 'spam' }));
+  });
+
+  test('REFUSED: an unknown field, and a report dated into the future', async () => {
+    await assertFails(owner.ref(`square_reports/${P}/${OWNER}`).set({ ...report(OWNER), severity: 'max' }));
+    await assertFails(owner.ref(`square_reports/${P}/${OWNER}`).set({ ...report(OWNER), createdAt: Date.now() + 400000 }));
+  });
+});
+
 describe('LB-5 · square_reactions / square_likes', () => {
   test('LEGITIMATE: react under your own uid (square/page.js:1009)', async () => {
     await assertSucceeds(owner.ref(`square_reactions/p1/like/${OWNER}`).set(true));

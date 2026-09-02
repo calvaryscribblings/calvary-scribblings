@@ -1,0 +1,434 @@
+{
+  "flash": [
+    {
+      "slug": "47-sessions",
+      "title": "47 Sessions",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "dead-end-a-halfway-around-the-moon-story",
+      "title": "Dead End (a Halfway Around the Moon story)",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "dinner-at-my-family-table",
+      "title": "Dinner at My Family Table",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "dont-worry",
+      "title": "Don't Worry",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "drip-drip-drip",
+      "title": "Drip. Drip. Drip.",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "full",
+      "title": "Full",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "hold-your-breath-and-count-to-ten",
+      "title": "Hold Your Breath and Count to Ten",
+      "suggested": "Horror"
+    },
+    {
+      "slug": "in-case-of-emergency",
+      "title": "In Case of Emergency",
+      "suggested": "Humour"
+    },
+    {
+      "slug": "it-can-never-be-me",
+      "title": "It Can Never Be Me",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "miss-lady",
+      "title": "Miss Lady",
+      "suggested": "Slice of Life"
+    },
+    {
+      "slug": "my-dream-man",
+      "title": "My Dream Man",
+      "suggested": "Romance"
+    },
+    {
+      "slug": "purple",
+      "title": "Purple",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "purple-rain",
+      "title": "Purple Rain",
+      "suggested": "Romance"
+    },
+    {
+      "slug": "real-heartbreak",
+      "title": "Real Heartbreak",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "rise-and-shine",
+      "title": "Rise and Shine",
+      "suggested": "Slice of Life"
+    },
+    {
+      "slug": "stuck-on-rewind",
+      "title": "Stuck On Rewind",
+      "suggested": "Humour"
+    },
+    {
+      "slug": "the-enabler",
+      "title": "The Enabler",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "unstoppabbl",
+      "title": "unstoppaBBL",
+      "suggested": "Humour"
+    },
+    {
+      "slug": "you-will-love-it",
+      "title": "You Will Love It",
+      "suggested": "Slice of Life"
+    }
+  ],
+  "short": [
+    {
+      "slug": "1967",
+      "title": "1967",
+      "suggested": "Historical"
+    },
+    {
+      "slug": "5-to-9",
+      "title": "5-To-9",
+      "suggested": "Slice of Life"
+    },
+    {
+      "slug": "a-daub-of-blue",
+      "title": "A Daub of Blue",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "adadiorama",
+      "title": "Adadiorama",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "afterglow",
+      "title": "Afterglow",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "almost-like-her",
+      "title": "Almost Like Her",
+      "suggested": "Romance"
+    },
+    {
+      "slug": "almost-together",
+      "title": "Almost Together",
+      "suggested": "Romance"
+    },
+    {
+      "slug": "brenda",
+      "title": "Brenda",
+      "suggested": "Thriller"
+    },
+    {
+      "slug": "early",
+      "title": "Early",
+      "suggested": "Romance"
+    },
+    {
+      "slug": "filtered-reality",
+      "title": "Filtered Reality",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "final-boarding-call",
+      "title": "Final Boarding Call",
+      "suggested": "Romance"
+    },
+    {
+      "slug": "freezer-34",
+      "title": "Freezer 34",
+      "suggested": "Horror"
+    },
+    {
+      "slug": "i-dey-your-back",
+      "title": "I Dey Your Back",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "i-told-you",
+      "title": "I Told You",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "lagos-friendship",
+      "title": "Lagos Fiendship",
+      "suggested": "Humour"
+    },
+    {
+      "slug": "my-daddy-is-a-superhero",
+      "title": "My Daddy is a Superhero",
+      "suggested": "Slice of Life"
+    },
+    {
+      "slug": "one-day-for-the-thief",
+      "title": "One Day for the Thief",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "peekaboo",
+      "title": "Peekaboo",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "pigment",
+      "title": "Pigment",
+      "suggested": "Mystery"
+    },
+    {
+      "slug": "red-nails-theory",
+      "title": "Red Nails Theory",
+      "suggested": "Thriller"
+    },
+    {
+      "slug": "sixth-cycle",
+      "title": "Sixth Cycle",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "small-permissions",
+      "title": "Small Permissions",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "terms-and-conditions",
+      "title": "Terms and Conditions",
+      "suggested": "Romance"
+    },
+    {
+      "slug": "the-call",
+      "title": "The Call",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "the-man-i-met-at-nineteen",
+      "title": "The Man I Met At Nineteen",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "the-number-thirteen",
+      "title": "The Number Thirteen",
+      "suggested": "Horror"
+    },
+    {
+      "slug": "the-pill",
+      "title": "The Pill",
+      "suggested": "Romance"
+    },
+    {
+      "slug": "therapist-s-note-on-love",
+      "title": "Therapist’s Note on Love",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "witness-me",
+      "title": "Witness Me",
+      "suggested": "Drama"
+    },
+    {
+      "slug": "you-didnt-ask",
+      "title": "You Didn't Ask",
+      "suggested": "Romance"
+    },
+    {
+      "slug": "zee-a-love-letters-story",
+      "title": "Zee (a Love Letters story)",
+      "suggested": "Romance"
+    }
+  ],
+  "poetry": [
+    {
+      "slug": "50-lines-of-war",
+      "title": "50 lines of war",
+      "suggested": "Political"
+    },
+    {
+      "slug": "a-heart-trained-for-battle",
+      "title": "A Heart Trained for Battle",
+      "suggested": "Grief"
+    },
+    {
+      "slug": "an-appetite-for-love",
+      "title": "An Appetite for Love",
+      "suggested": "Love"
+    },
+    {
+      "slug": "brown-skinned-girl",
+      "title": "Brown-Skinned Girl",
+      "suggested": "Political"
+    },
+    {
+      "slug": "mask-with-no-memory",
+      "title": "Mask with No Memory",
+      "suggested": "Spiritual"
+    },
+    {
+      "slug": "may-nigeria-never-happen-to-you",
+      "title": "May Nigeria Never Happen To You",
+      "suggested": "Political"
+    },
+    {
+      "slug": "mother-and-other-poems",
+      "title": "Mother and Other Poems",
+      "suggested": "Grief"
+    },
+    {
+      "slug": "murdoch-s-torment",
+      "title": "Murdoch's Torment",
+      "suggested": "Spiritual"
+    },
+    {
+      "slug": "neverland",
+      "title": "Neverland",
+      "suggested": "Nature"
+    },
+    {
+      "slug": "otu-obi",
+      "title": "Otu Obi",
+      "suggested": "Love"
+    },
+    {
+      "slug": "red-white-red",
+      "title": "Red-White-Red",
+      "suggested": "Political"
+    },
+    {
+      "slug": "the-deadline",
+      "title": "The Deadline",
+      "suggested": "Grief"
+    }
+  ],
+  "inspiring": [
+    {
+      "slug": "how-to-make-peppersoup",
+      "title": "How to Make Peppersoup",
+      "suggested": "Personal Essay"
+    },
+    {
+      "slug": "in-your-20-s",
+      "title": "In Your 20’s",
+      "suggested": "Personal Essay"
+    },
+    {
+      "slug": "odeluwa",
+      "title": "Odeluwa",
+      "suggested": "Overcoming"
+    },
+    {
+      "slug": "seven-metres-and-four-years-of-silence",
+      "title": "Seven Metres and Four Years of Silence",
+      "suggested": "Overcoming"
+    },
+    {
+      "slug": "still-becoming",
+      "title": "Still Becoming",
+      "suggested": "Loss & Recovery"
+    },
+    {
+      "slug": "success-wears-many-faces",
+      "title": "Success Wears Many Faces",
+      "suggested": "Ambition"
+    },
+    {
+      "slug": "the-girl-who-sang-through-the-dark",
+      "title": "The Girl Who Sang Through the Dark",
+      "suggested": "Loss & Recovery"
+    }
+  ],
+  "novel": [
+    {
+      "slug": "diary-of-a-lagos-9-5er-1",
+      "title": "Diary of a Lagos 9-5er [1]",
+      "suggested": "Serial"
+    },
+    {
+      "slug": "halfway-around-the-moon-part-i-dawn",
+      "title": "Halfway Around the Moon [Part I: Dawn]",
+      "suggested": "Serial"
+    },
+    {
+      "slug": "halfway-around-the-moon-prologue",
+      "title": "Halfway Around the Moon [Prologue]",
+      "suggested": "Serial"
+    }
+  ],
+  "news": [
+    {
+      "slug": "apple-ushers-in-the-ternus-era",
+      "title": "Apple Ushers in the Ternus Era",
+      "suggested": "Tech"
+    },
+    {
+      "slug": "bafta-2026",
+      "title": "BAFTA 2026: Winners...",
+      "suggested": "Film"
+    },
+    {
+      "slug": "john-davidson-bafta-tourettes",
+      "title": "The Man in the Middle: John Davidson",
+      "suggested": "Film"
+    },
+    {
+      "slug": "knicks-in-5",
+      "title": "Knicks In 5",
+      "suggested": "Sport"
+    },
+    {
+      "slug": "london-tube-strike",
+      "title": "Another London Underground Strike!",
+      "suggested": "Politics"
+    },
+    {
+      "slug": "meet-the-top-readers",
+      "title": "Meet the Top Readers",
+      "suggested": "Culture"
+    },
+    {
+      "slug": "netflix-harry-styles",
+      "title": "Netflix to Stream Harry Styles' New Album",
+      "suggested": "Music"
+    },
+    {
+      "slug": "paramount-warner-bros-discovery",
+      "title": "Hollywood Reacts: Paramount Moves to Take Control of WBD",
+      "suggested": "Business"
+    },
+    {
+      "slug": "paramount-wbd-plans",
+      "title": "Paramount Reveals Plans for the Future",
+      "suggested": "Business"
+    },
+    {
+      "slug": "release-the-footage-how-the-henry-nowak-case-became-an-international-debate",
+      "title": "'Release the Footage': How the Henry Nowak Case Became an International Debate",
+      "suggested": "Politics"
+    },
+    {
+      "slug": "the-2026-world-cup-is-finally-here",
+      "title": "The 2026 World Cup Is Finally Here",
+      "suggested": "Sport"
+    },
+    {
+      "slug": "to-the-moon-and-back-artemis-ii-2026",
+      "title": "To the Moon and Back! (Artemis II 2026)",
+      "suggested": "Science"
+    }
+  ]
+}
