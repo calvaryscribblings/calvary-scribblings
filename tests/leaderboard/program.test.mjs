@@ -62,7 +62,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import {
   PROGRAM_NAME, PROGRAM_PRIZE_POOL, PROGRAM_DETAILS_HREF,
-  SUMMER_2026, prizePool, programStatusLabel, programBoardCta,
+  SUMMER_2026, BOARDS, prizePool, programStatusLabel, programBoardCta,
 } from '../../app/lib/leaderboards.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -124,19 +124,25 @@ function sweepPhaseBanners() {
 }
 const PHASE_BANNERS = sweepPhaseBanners();
 
-// ENTRY_BANNERS — the two surfaces that are a way IN to the programme: the card
-// links to /reading-program and the gated pill to the edition's board. Written
-// down rather than swept, and the difference from PHASE_BANNERS is the point.
-// Which surfaces are entry points is an editorial decision; whether a surface
-// prints a phase word is a fact about its source. You can sweep for the second.
-// The first you can only be told, so it is told here — and a file that stops
-// declaring its banner fails loudly rather than dropping quietly off a list.
+// ENTRY_BANNERS — the surfaces that are a way IN to the programme: the card links
+// to /reading-program and the gated pill to the edition's board. Written down
+// rather than swept, and the difference from PHASE_BANNERS is the point. Which
+// surfaces are entry points is an editorial decision; whether a surface prints a
+// phase word is a fact about its source. You can sweep for the second. The first
+// you can only be told, so it is told here — and a file that stops declaring its
+// banner fails loudly rather than dropping quietly off a list.
 //
-// The home feed's banner is deliberately NOT here. Whether it should become the
-// third entry point is Ikenna's call, open as of 3 Sept 2026.
+// R34b — THE HOME FEED IS THE THIRD, and all three are now the same shape. It was
+// left off for one round on the reasoning that making it an entry point would
+// leave the front page with no route to the certified board once
+// SHOW_SUMMER_2026_BUTTON is flipped off. That reasoning was wrong twice over:
+// the route it was protecting is a one-tap link the banner had ALREADY reduced to
+// the pill, and the two-tap route through the details page is guarded below
+// rather than merely hoped for.
 const ENTRY_BANNERS = [
-  { path: 'app/leaderboard/page.js', fn: 'function ProgramBanner(' },
-  { path: 'app/rewards/page.js',     fn: 'function ProgramCard(' },
+  { path: 'app/leaderboard/page.js',     fn: 'function ProgramBanner(' },
+  { path: 'app/rewards/page.js',         fn: 'function ProgramCard(' },
+  { path: 'app/public-library/page.js',  fn: 'function SummerProgramBanner(' },
 ];
 
 // The component's own body, bounded by declarations() above.
@@ -350,7 +356,7 @@ describe('the phase word comes from one place', () => {
 });
 
 describe('the temporary edition button is one edit', () => {
-  test('both entry banners read the same switch and neither hard-codes the decision', () => {
+  test('every entry banner reads the same switch and none hard-codes the decision', () => {
     for (const banner of ENTRY_BANNERS) {
       const src = bannerSource(banner);
       assert.ok(
@@ -365,6 +371,37 @@ describe('the temporary edition button is one edit', () => {
       read('app/lib/leaderboards.js'),
       /export const SHOW_SUMMER_2026_BUTTON = (true|false);/,
       'SHOW_SUMMER_2026_BUTTON is no longer a plain literal — the one edit stops being one edit',
+    );
+  });
+
+  // R34b — THE SECOND TAP, which is what makes flipping the switch safe.
+  //
+  // Every entry banner reduces to a single link to /reading-program once the pill
+  // is gone. From there the reader must still be able to reach the certified
+  // board, or flipping a switch that is documented as cosmetic would quietly
+  // strand thirteen winners' standings behind a URL nobody has.
+  //
+  // Two things have to hold, and they are separate failures: the details page
+  // must LINK to the board, and it must not read the switch or the phase — a
+  // conditional Editions list would satisfy the first guard and still vanish.
+  test('the details page reaches every board, and no switch can take that away', () => {
+    const details = codeOf(DETAILS_PAGE);
+
+    for (const boardId of Object.keys(BOARDS)) {
+      assert.ok(
+        details.includes(`/leaderboard/${boardId}`) || details.includes('${SUMMER_2026.boardId}')
+          || details.includes('board.boardId') || details.includes('.boardId}'),
+        `${DETAILS_PAGE} does not link to the ${boardId} board. It is the only route to the `
+        + 'certified standings once SHOW_SUMMER_2026_BUTTON is off — the home feed, /leaderboard '
+        + 'and /rewards all reduce to a link to this page.',
+      );
+    }
+
+    assert.equal(
+      /SHOW_SUMMER_2026_BUTTON|useContestPhase/.test(details), false,
+      `${DETAILS_PAGE} now reads the button switch or the contest phase. Its Editions list is the `
+      + 'second tap of the only surviving route to the board; gating any of it on the switch means '
+      + 'flipping the switch removes the route it was supposed to leave behind.',
     );
   });
 

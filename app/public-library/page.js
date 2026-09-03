@@ -21,7 +21,10 @@ import { normalizeGenre } from '../lib/openPages';
 import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
 import { shelfLine } from '../lib/series/format';
 import { useArrivalReady } from '../components/ArrivalVeil';
-import { SUMMER_2026, prizePool, programStatusLabel, programBoardCta } from '../lib/leaderboards';
+import {
+  SUMMER_2026, prizePool, programStatusLabel, programBoardCta,
+  PROGRAM_DETAILS_HREF, SHOW_SUMMER_2026_BUTTON,
+} from '../lib/leaderboards';
 import { useContestPhase } from '../lib/useContestPhase';
 // R32 — the reader's line on the trailer card. Everything about it that is not pixels
 // (which comments may be promoted, how one is abridged, which one a rotation shows, how the
@@ -845,6 +848,24 @@ function SquareFAB({ squareOpen, countdown }) {
 // site's landing surface said STARTS 1 AUGUST over a closed and certified board.
 // Nothing here spells a phase word or a date any more — the chip, the call to
 // action and the window line all come from app/lib/leaderboards.js.
+//
+// R34b — AND IT IS AN ENTRY POINT, the shape the other two banners and the app
+// already ship. The whole card used to be one anchor to the board, so the home
+// feed — the landing surface, and for most readers the only page they see —
+// offered no route at all to what the programme IS. Now the card body goes to
+// /reading-program and a separate pill goes to the board.
+//
+// TWO ANCHORS, NOT ONE, and that is forced: an <a> inside an <a> is invalid HTML,
+// so the gold rectangle is a container and the two destinations are siblings
+// inside it. The phase-aware verb rides the PILL rather than the card, because it
+// describes the board — "See the results" pointing at an explainer would be the
+// same class of lie as "See the prizes" pointing at a closed one.
+//
+// WHAT HAPPENS WHEN SHOW_SUMMER_2026_BUTTON IS FLIPPED OFF: the pill goes and the
+// home feed keeps its route to the certified board, two taps instead of one —
+// card to /reading-program, then the Summer 2026 link under Editions. That page
+// reads neither the switch nor the phase, so nothing about flipping the switch
+// can reach it; tests/leaderboard/program.test.mjs asserts that second tap.
 function SummerProgramBanner() {
   const board = SUMMER_2026;
   const { visible, phase } = useContestPhase(board);
@@ -854,15 +875,17 @@ function SummerProgramBanner() {
 
   return (
     <section style={{ padding: '0.75rem 0' }}>
-      <a href={`/leaderboard/${board.boardId}`} data-program-banner data-reveal="up" style={{
+      <div data-program-banner data-reveal="up" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: 14, flexWrap: 'wrap',
         margin: '0 4%', padding: '1.05rem 1.25rem', borderRadius: 14,
         border: '1px solid rgba(201,168,76,0.3)',
         background: 'linear-gradient(135deg, rgba(201,164,76,0.10), rgba(107,47,173,0.07))',
-        textDecoration: 'none',
       }}>
-        <div style={{ minWidth: 0 }}>
+        {/* The card — what the programme IS. Survives the switch. */}
+        <a data-program-about href={PROGRAM_DETAILS_HREF} style={{
+          display: 'block', textDecoration: 'none', minWidth: 0, flex: '1 1 260px',
+        }}>
           {status && (
             <span data-program-status style={{ ...kickerStyle, marginBottom: 4 }}>
               {status}
@@ -872,11 +895,20 @@ function SummerProgramBanner() {
           <p style={{ fontFamily: BODY, fontSize: '0.92rem', color: 'rgba(245,240,232,0.55)', margin: '6px 0 0', lineHeight: 1.5 }}>
             {board.prizes.length} prize places · £{pool} total · {board.windowLabel}
           </p>
-        </div>
-        <span style={{ ...seeAllStyle, flexShrink: 0 }}>
-          {programBoardCta(phase)}{seeAllChevron}
-        </span>
-      </a>
+          <span style={{ fontFamily: BODY, fontSize: '0.82rem', color: '#a78bfa', fontWeight: 600, display: 'inline-block', marginTop: 8 }}>
+            How it works →
+          </span>
+        </a>
+
+        {/* The pill — this edition's standings. Temporary by design: one edit
+            removes it (SHOW_SUMMER_2026_BUTTON in app/lib/leaderboards.js), and
+            the card above keeps the reader's route to the board via Editions. */}
+        {SHOW_SUMMER_2026_BUTTON && (
+          <a data-edition-button href={`/leaderboard/${board.boardId}`} style={{ ...seeAllStyle, flexShrink: 0 }}>
+            {programBoardCta(phase)}{seeAllChevron}
+          </a>
+        )}
+      </div>
     </section>
   );
 }
