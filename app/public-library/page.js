@@ -21,7 +21,7 @@ import { normalizeGenre } from '../lib/openPages';
 import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
 import { shelfLine } from '../lib/series/format';
 import { useArrivalReady } from '../components/ArrivalVeil';
-import { SUMMER_2026, prizePool } from '../lib/leaderboards';
+import { SUMMER_2026, prizePool, programStatusLabel, programBoardCta } from '../lib/leaderboards';
 import { useContestPhase } from '../lib/useContestPhase';
 // R32 — the reader's line on the trailer card. Everything about it that is not pixels
 // (which comments may be promoted, how one is abridged, which one a rotation shows, how the
@@ -253,7 +253,7 @@ function buildHeroSequence(carousel, reducedMotion, voicesBySlug, pinReady) {
  */
 function useQuoteStagePin(quotes) {
   const [pin, setPin] = useState(0);
-  const key = quotes.join(' ');
+  const key = quotes.join('\u0000');
   useEffect(() => {
     if (quotes.length === 0) { setPin(0); return; }
     let cancelled = false;
@@ -837,15 +837,24 @@ function SquareFAB({ squareOpen, countdown }) {
 // Contest banner for the seasonal board. Renders from a week before the window
 // opens until a fortnight after it closes, then disappears on its own — no
 // deploy needed to take it down. Pure config read, no network.
+//
+// R34a — THE THIRD BANNER. R34 replaced `open ? 'Now on' : 'Starts 1 August'`
+// with a phase word from one place, and rewired the two banners its guard knew
+// about. This one it never saw: the guard censused a typed list of two paths and
+// the defect was in the third, so it reported clean for a fortnight while the
+// site's landing surface said STARTS 1 AUGUST over a closed and certified board.
+// Nothing here spells a phase word or a date any more — the chip, the call to
+// action and the window line all come from app/lib/leaderboards.js.
 function SummerProgramBanner() {
   const board = SUMMER_2026;
-  const { visible, open } = useContestPhase(board);
+  const { visible, phase } = useContestPhase(board);
   if (!visible) return null;
+  const status = programStatusLabel(phase);
   const pool = prizePool(board);
 
   return (
     <section style={{ padding: '0.75rem 0' }}>
-      <a href="/leaderboard/summer-2026" data-reveal="up" style={{
+      <a href={`/leaderboard/${board.boardId}`} data-program-banner data-reveal="up" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: 14, flexWrap: 'wrap',
         margin: '0 4%', padding: '1.05rem 1.25rem', borderRadius: 14,
@@ -854,16 +863,18 @@ function SummerProgramBanner() {
         textDecoration: 'none',
       }}>
         <div style={{ minWidth: 0 }}>
-          <span style={{ ...kickerStyle, marginBottom: 4 }}>
-            {open ? 'NOW ON' : 'STARTS 1 AUGUST'}
-          </span>
+          {status && (
+            <span data-program-status style={{ ...kickerStyle, marginBottom: 4 }}>
+              {status}
+            </span>
+          )}
           <h3 style={{ ...sectionTitleStyle, fontSize: '1.35rem' }}>{board.title}</h3>
           <p style={{ fontFamily: BODY, fontSize: '0.92rem', color: 'rgba(245,240,232,0.55)', margin: '6px 0 0', lineHeight: 1.5 }}>
             {board.prizes.length} prize places · £{pool} total · {board.windowLabel}
           </p>
         </div>
         <span style={{ ...seeAllStyle, flexShrink: 0 }}>
-          {open ? 'View standings' : 'See the prizes'}{seeAllChevron}
+          {programBoardCta(phase)}{seeAllChevron}
         </span>
       </a>
     </section>

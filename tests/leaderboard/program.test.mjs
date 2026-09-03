@@ -17,47 +17,135 @@
 //      not move.
 //
 //   3. THE PHASE WORD COMES FROM ONE PLACE. The live defect was `open ? 'Now on' :
-//      'Starts 1 August'` written out in two banner files, wrong in both. A banner
-//      that spells a phase word itself is the defect returning.
+//      'Starts 1 August'` written out in banner files, wrong in every copy. A
+//      banner that spells a phase word itself is the defect returning.
+//
+// R34a — AND A CENSUS IS ONLY AS GOOD AS THE SWEEP THAT BUILT ITS LIST.
+//
+// Ruling 3 shipped with its banner list TYPED OUT: two paths, app/leaderboard and
+// app/rewards. There were three banners. The third, SummerProgramBanner on the
+// home feed — the site's landing surface — still carried
+// `open ? 'NOW ON' : 'STARTS 1 AUGUST'` and `open ? 'View standings' : 'See the
+// prizes'`, and because it was not on the list this file reported clean while the
+// front page invited readers to see prizes that had already been paid out.
+//
+// This project's standing rule is that a grep proves presence and never absence.
+// Here that rule was turned on a GUARD rather than on a claim, and the guard was
+// the thing asserting the absence. So the list is now SWEPT, not typed:
+//
+//   PHASE_BANNERS — every component in app/ that reads the contest phase, found
+//     by walking the tree. Any banner that prints a phase word can print an
+//     untrue one, so the census must find them rather than be told about them.
+//   ENTRY_BANNERS — the two that are entry points to the programme: they link to
+//     /reading-program and carry the gated edition shortcut. That membership is
+//     an editorial decision about two surfaces, not a property discoverable in
+//     the source, so it stays written down.
+//
+// And because a sweep can itself go blind, two backstops: a floor (the three
+// known banners must all be found, or the walk is broken) and a whole-tree guard
+// that fails when ANY file spells phase copy and is not the one place that may.
+//
+// A note on why the sweep reads files with node:fs rather than shelling out to
+// grep: app/public-library/page.js contains a literal NUL byte inside a string,
+// which makes grep classify the file as binary and drop it from plain -r results.
+// The blind census had a blind search sitting behind it. R34a replaced that byte
+// with \u0000 — same string, no longer invisible — but the sweep does not depend
+// on that having stayed fixed.
 //
 // Offline and instant: filesystem plus two pure modules. No browser, no network,
 // no Firebase.
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import {
   PROGRAM_NAME, PROGRAM_PRIZE_POOL, PROGRAM_DETAILS_HREF,
-  SUMMER_2026, prizePool, programStatusLabel,
+  SUMMER_2026, prizePool, programStatusLabel, programBoardCta,
 } from '../../app/lib/leaderboards.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 
 const DETAILS_PAGE = 'app/reading-program/page.js';
-// The banner COMPONENT in each file, not the whole file. Scoped deliberately: the
-// rewards page also carries an unrelated "opens September 2026" line about the
-// Scribbles catalogue, and a file-wide month guard would either fail on copy that
-// has nothing to do with the programme or have to be loosened until it caught
-// nothing.
-const BANNERS = [
+const PHASE_SOURCE = 'app/lib/useContestPhase.js';
+// The one file that may spell the words. Everything else asks it.
+const WORD_SOURCE = 'app/lib/leaderboards.js';
+
+// Every .js/.jsx file under app/, read off the filesystem rather than listed.
+function appFiles(dir = 'app', out = []) {
+  for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+    const path = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) {
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      appFiles(path, out);
+    } else if (/\.jsx?$/.test(entry.name)) {
+      out.push(path);
+    }
+  }
+  return out;
+}
+
+// Every top-level function declaration in a file, with the span it owns: from its
+// own opening line to the next top-level declaration. Bounded rather than read to
+// end-of-file, because a banner may be declared ABOVE the page component (rewards
+// does exactly that) and reading past it would drag in every unrelated string on
+// the page.
+function declarations(src) {
+  const DECL = /^(?:export default |export )?function (\w+)\s*\(/gm;
+  const found = [...src.matchAll(DECL)].map((m) => ({ name: m[1], at: m.index }));
+  return found.map((d, i) => ({
+    ...d,
+    end: i + 1 < found.length ? found[i + 1].at : src.length,
+  }));
+}
+
+// PHASE_BANNERS — SWEPT, NOT TYPED. Every component that reads the contest phase
+// is a component that can print a phase word, and the walk finds them wherever
+// they are. Typing this list is what let the third banner ship wrong.
+function sweepPhaseBanners() {
+  const found = [];
+  for (const path of appFiles()) {
+    if (path === PHASE_SOURCE) continue;
+    const src = codeOf(path);
+    if (!src.includes('useContestPhase')) continue;
+    const decls = declarations(src);
+    for (const m of src.matchAll(/useContestPhase\s*\(/g)) {
+      // The import line sits above every declaration; it owns no component.
+      const owner = decls.find((d) => m.index > d.at && m.index < d.end);
+      if (!owner) continue;
+      if (!found.some((f) => f.path === path && f.name === owner.name)) {
+        found.push({ path, name: owner.name, fn: `function ${owner.name}(` });
+      }
+    }
+  }
+  return found;
+}
+const PHASE_BANNERS = sweepPhaseBanners();
+
+// ENTRY_BANNERS — the two surfaces that are a way IN to the programme: the card
+// links to /reading-program and the gated pill to the edition's board. Written
+// down rather than swept, and the difference from PHASE_BANNERS is the point.
+// Which surfaces are entry points is an editorial decision; whether a surface
+// prints a phase word is a fact about its source. You can sweep for the second.
+// The first you can only be told, so it is told here — and a file that stops
+// declaring its banner fails loudly rather than dropping quietly off a list.
+//
+// The home feed's banner is deliberately NOT here. Whether it should become the
+// third entry point is Ikenna's call, open as of 3 Sept 2026.
+const ENTRY_BANNERS = [
   { path: 'app/leaderboard/page.js', fn: 'function ProgramBanner(' },
   { path: 'app/rewards/page.js',     fn: 'function ProgramCard(' },
 ];
 
-// The component's own body: from its opening line to the next top-level
-// declaration. Bounded rather than read to end-of-file, because ProgramCard is
-// declared ABOVE the rewards page component and reading past it would drag in
-// every unrelated string on the page.
+// The component's own body, bounded by declarations() above.
 function bannerSource({ path, fn }) {
   const src = codeOf(path);
   const at = src.indexOf(fn);
   assert.notEqual(at, -1, `${path} no longer declares ${fn}`);
-  const rest = src.slice(at + fn.length);
-  const end = rest.search(/\n(?:export default |export function |function |const \w+ = \()/);
-  return fn + (end === -1 ? rest : rest.slice(0, end));
+  const owner = declarations(src).find((d) => d.at <= at && at < d.end);
+  return owner ? src.slice(owner.at, owner.end) : src.slice(at);
 }
 
 // Source with its comments stripped. Every guard below runs on this rather than
@@ -162,6 +250,37 @@ describe('the pool is the programme\'s, not the board\'s', () => {
   });
 });
 
+describe('the census finds every banner', () => {
+  // THE FLOOR, NOT THE LIST. The census is the sweep; these three are what the
+  // sweep must at minimum find for it to be working at all. R34's list WAS three
+  // paths short of one and had no way to know — a walk that silently returns two
+  // entries is indistinguishable from a codebase that has two banners, so the
+  // floor is written down separately from the thing it checks.
+  const KNOWN = [
+    'app/leaderboard/page.js',
+    'app/rewards/page.js',
+    'app/public-library/page.js',   // the home feed — the one R34 missed
+  ];
+
+  test('the sweep finds all three known banners', () => {
+    const swept = PHASE_BANNERS.map((b) => b.path);
+    for (const path of KNOWN) {
+      assert.ok(
+        swept.includes(path),
+        `the sweep did not find a phase banner in ${path}. Found: ${swept.join(', ') || 'nothing'}. `
+        + 'Either the banner has gone or the walk has — and a walk that has gone blind reports every '
+        + 'banner clean, which is exactly how STARTS 1 AUGUST stayed on the front page over a closed board.',
+      );
+    }
+  });
+
+  test('the sweep is a walk, not a list', () => {
+    // A control on the control: the walk must actually be reading the tree. If it
+    // ever collapses to the three known files, this notices.
+    assert.ok(appFiles().length > 50, `the walk found only ${appFiles().length} files under app/`);
+  });
+});
+
 describe('the phase word comes from one place', () => {
   test('every phase has a word, and the closed one is CLOSED', () => {
     assert.equal(programStatusLabel('closed'), 'Closed');
@@ -170,8 +289,37 @@ describe('the phase word comes from one place', () => {
     assert.equal(programStatusLabel('hidden'), null);
   });
 
+  test('every phase has a call to action too', () => {
+    // The chip is the half everyone looks at; the CTA is the half that did the
+    // damage. "See the prizes" over a certified, paid board is not stale copy —
+    // it is an invitation to something that is over.
+    assert.equal(programBoardCta('open'), 'View standings');
+    assert.equal(programBoardCta('closed'), 'See the results');
+    assert.equal(programBoardCta('pre'), 'See the prizes');
+    assert.equal(typeof programBoardCta('hidden'), 'string', 'every phase answers, including the prerender\'s');
+  });
+
+  test('no phase copy is spelled outside the one place that may', () => {
+    // The backstop for a banner that prints a phase word WITHOUT reading the
+    // phase hook — which the sweep above would never see. Whole tree, every file.
+    const PHASE_COPY = /\b(now on|opening soon|see the prizes|view standings|see the results|starts \d{1,2} [a-z]+)\b/i;
+    const offenders = [];
+    for (const path of appFiles()) {
+      if (path === WORD_SOURCE) continue;
+      const m = codeOf(path).match(PHASE_COPY);
+      if (m) offenders.push(`${path} (${JSON.stringify(m[0])})`);
+    }
+    assert.deepEqual(
+      offenders, [],
+      `phase copy is spelled in ${offenders.join(', ')}. Every phase word belongs in ${WORD_SOURCE}, `
+      + 'behind programStatusLabel or programBoardCta. A surface that types one can type an untrue one, '
+      + 'and the census above only finds surfaces that read the phase hook — this catches the ones that '
+      + 'do not bother.',
+    );
+  });
+
   test('no banner spells a phase word itself', () => {
-    for (const banner of BANNERS) {
+    for (const banner of PHASE_BANNERS) {
       const src = bannerSource(banner);
       assert.ok(src.includes('programStatusLabel'), `${banner.path} does not use programStatusLabel`);
 
@@ -193,8 +341,8 @@ describe('the phase word comes from one place', () => {
     }
   });
 
-  test('the details page is where the banner points', () => {
-    for (const banner of BANNERS) {
+  test('the details page is where the entry banners point', () => {
+    for (const banner of ENTRY_BANNERS) {
       assert.ok(bannerSource(banner).includes('PROGRAM_DETAILS_HREF'), `${banner.path} does not link to the programme page`);
     }
     assert.equal(PROGRAM_DETAILS_HREF, '/reading-program');
@@ -202,8 +350,8 @@ describe('the phase word comes from one place', () => {
 });
 
 describe('the temporary edition button is one edit', () => {
-  test('both banners read the same switch and neither hard-codes the decision', () => {
-    for (const banner of BANNERS) {
+  test('both entry banners read the same switch and neither hard-codes the decision', () => {
+    for (const banner of ENTRY_BANNERS) {
       const src = bannerSource(banner);
       assert.ok(
         src.includes('SHOW_SUMMER_2026_BUTTON'),

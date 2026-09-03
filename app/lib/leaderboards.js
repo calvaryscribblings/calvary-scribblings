@@ -164,6 +164,27 @@ export function programStatusLabel(phase) {
   return null;
 }
 
+// The banner's own call to action, which is a phase word wearing a verb.
+//
+// R34a — the home feed's banner was the THIRD copy of the R34 defect, and it had
+// it twice: `open ? 'NOW ON' : 'STARTS 1 AUGUST'` on the chip and
+// `open ? 'View standings' : 'See the prizes'` underneath it. The second is the
+// worse of the two, because a chip that is merely stale reads as a mistake while
+// "See the prizes" over a certified board reads as an invitation to prizes that
+// were paid a fortnight ago. Both come from here now, for the same reason the
+// chip does: a decision written out at each banner is a decision each banner can
+// get wrong on its own.
+//
+// 'hidden' cannot render on any current banner (they all return null when the
+// phase is not visible), but it is answered rather than left to fall through —
+// the whole point of switching on `phase` is that every case has a word.
+export function programBoardCta(phase) {
+  if (phase === 'open')   return 'View standings';
+  if (phase === 'closed') return 'See the results';
+  if (phase === 'pre')    return 'See the prizes';
+  return 'View the board';
+}
+
 const ORDINALS = ['0th', '1st', '2nd', '3rd'];
 export function ordinal(n) {
   const tens = n % 100;
