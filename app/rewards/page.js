@@ -1,7 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
-import { SUMMER_2026, prizePool } from '../lib/leaderboards';
+import {
+  SUMMER_2026, prizePool, PROGRAM_NAME, PROGRAM_DETAILS_HREF,
+  SHOW_SUMMER_2026_BUTTON, programStatusLabel,
+} from '../lib/leaderboards';
 import { useContestPhase } from '../lib/useContestPhase';
 
 const FB = {
@@ -30,32 +33,51 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function SummerProgramCard() {
+// R34 — THE PROGRAMME CARD. Twin of ProgramBanner on /leaderboard: same phase,
+// same status word, same one-line switch for the edition button. The two
+// surfaces differ in dress only; every decision they make comes from
+// app/lib/leaderboards.js, because the defect this replaces was exactly the
+// same ternary written out twice and wrong in both copies.
+//
+// The copy no longer names August or a date of any kind. The programme is
+// seasonal and the pool is £100; the edition's own window is on its own board.
+function ProgramCard() {
   const board = SUMMER_2026;
-  const { visible, open } = useContestPhase(board);
-  if (!visible) return null;
+  const { phase } = useContestPhase(board);
+  const status = programStatusLabel(phase);
 
   return (
-    <a href="/leaderboard/summer-2026" style={{
-      display: 'block', textDecoration: 'none',
+    <div data-program-banner style={{
       background: 'linear-gradient(135deg, rgba(201,164,76,0.09), rgba(107,47,173,0.08))',
       border: '1px solid rgba(201,164,76,0.28)', borderRadius: 14,
       padding: '1.25rem 1.5rem', marginBottom: '1.5rem',
     }}>
-      <div style={{ fontSize: '0.7rem', fontWeight: 500, color: '#c9a44c', letterSpacing: '0.16em', textTransform: 'uppercase', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.45rem' }}>
-        {open ? 'Now on' : 'Starts 1 August'}
-      </div>
+      {status && (
+        <div data-program-status style={{ fontSize: '0.7rem', fontWeight: 500, color: '#c9a44c', letterSpacing: '0.16em', textTransform: 'uppercase', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: '0.45rem' }}>
+          {status}
+        </div>
+      )}
       <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.35rem', color: '#f5f0e8', lineHeight: 1.15, marginBottom: '0.5rem' }}>
-        {board.title}
+        {PROGRAM_NAME}
       </div>
       <p style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', color: 'rgba(240,234,216,0.6)', lineHeight: 1.6, margin: '0 0 0.85rem' }}>
-        Every Scribble you earn between 1 and 31 August counts toward your place.
-        {' '}{board.prizes.length} prize places, £{prizePool(board)} in total.
+        A reading contest each season, ranked on the Scribbles you earn inside
+        the edition&rsquo;s window. {board.prizes.length} prize places,
+        &pound;{prizePool(board)} in total.
       </p>
-      <span style={{ fontSize: '0.85rem', fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#a78bfa', fontWeight: 600 }}>
-        {open ? 'View the standings →' : 'See the prizes →'}
-      </span>
-    </a>
+      <div style={{ display: 'flex', gap: '1.1rem', flexWrap: 'wrap', alignItems: 'baseline' }}>
+        <a href={PROGRAM_DETAILS_HREF} style={{ fontSize: '0.85rem', fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#a78bfa', fontWeight: 600, textDecoration: 'none' }}>
+          How it works &rarr;
+        </a>
+        {/* Temporary. One edit removes it: SHOW_SUMMER_2026_BUTTON in
+            app/lib/leaderboards.js. The board itself stays reachable. */}
+        {SHOW_SUMMER_2026_BUTTON && (
+          <a data-edition-button href={`/leaderboard/${board.boardId}`} style={{ fontSize: '0.85rem', fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#c9a44c', fontWeight: 600, textDecoration: 'none' }}>
+            {board.edition} board &rarr;
+          </a>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -149,10 +171,9 @@ export default function RewardsPage() {
               </div>
             </div>
 
-            {/* Summer Reading Program — directly under the balance, because the
-                balance is exactly what the contest ranks. Self-hides outside the
-                window (lead-in of a week, tail of a fortnight). */}
-            <SummerProgramCard />
+            {/* The Seasonal Reading Program — directly under the balance,
+                because the balance is exactly what an edition ranks. */}
+            <ProgramCard />
 
             {/* Catalogue placeholder */}
             <div style={{
@@ -168,6 +189,12 @@ export default function RewardsPage() {
                   The Scribbles Catalogue
                 </div>
               </div>
+              {/* ⚠ "opens September 2026" is STALE as of 3 Sept 2026 and is left
+                  standing on purpose. It is one of nine launch-date sites, listed
+                  in full at OPENING_DATE in app/bookstore/components/LaunchGate.js,
+                  and they want sweeping together — fixing this one alone leaves the
+                  site saying two different things about the same date. Ikenna's
+                  call, R34. Do not edit this line in isolation. */}
               <p style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: 'rgba(240,234,216,0.6)', lineHeight: 1.7, margin: 0 }}>
                 The Scribbles catalogue — perks you can unlock with your Scribbles — opens September 2026.
                 Until then, your Scribbles accumulate. Perks include exclusive stories, signed prints,

@@ -49,6 +49,38 @@ They were frozen A2.4-era snapshots, and five of the eight had diverged from the
 
 Never edit anything under `calvary-scribblings-next/`, and never re-add it to git. The bookstore surface lives at `app/bookstore/`, `app/admin/bookstore/`, `app/admin/publishers/`, and `app/lib/bookstore/` — root paths only.
 
+## 🚨 THERE IS NO APP SOURCE IN THIS REPO. A BRIEF MUST NOT ASK FOR IT.
+
+`calvary-app/` on disk holds **`node_modules/` and nothing else**. The React Native app
+lives in a separate repository that this container cannot see — not on disk, not in git
+history, not in any branch here.
+
+**This has now been established three times**, each time after a round went hunting for it:
+
+| | round | what the brief asked for | what was actually there |
+|---|---|---|---|
+| 1 | R16 | "the app's fore-edge constants" | nothing — the parity record was built from the ruling in the prompt plus the web's own measurements |
+| 2 | R17.4 | "match the app exactly, its constants were never pasted in" | nothing — and the app's `lib/bookDepth.ts` had transcribed the fore-edge **from this repo** at `da3b53d` |
+| 3 | R34 | "read the app's implementation rather than inventing a third phase" | nothing — both fixes were implemented natively from the rulings as stated in the brief |
+
+**So a round that says "read the app's implementation", "match the app's numbers", or "the
+app's value is already in this repo — find it" cannot be satisfied from this container.**
+The instruction costs a search every time and has never once returned a number.
+
+**What to write instead.** State the ruling and, where a number matters, state the number
+*and the ground it was measured on* — then say to re-measure at the web's own widths. R34's
+brief did exactly this for the strip ("the fixed furniture costs 140pt of 200 … mirror the
+app's own measurement at the web's widths rather than copying its numbers") and it worked:
+the ruling ported cleanly and the web's own furniture came out at 164.4px of 294.4px.
+
+**And check which side transcribed which before treating the app as the reference.** Twice
+now the answer has been that the app copied the web. R34 is the third instance of the
+related trap: the brief's "#6b2fad measures 2.52:1" was the app's number, and the web's
+score was `#a78bfa` at 6.88:1 — passing. The change shipped for consistency, not legibility.
+
+The direction of travel is **app → web for look, web → app for systems**, and the hand-off
+notes in each round's report are the only interface between the two repos.
+
 ## Verification
 
 Before committing any new file, run `git status` and confirm the path is at the repo root (`app/…`, `emails/…`, `scripts/…`, `public/…`). If you see a path starting with `calvary-scribblings-next/` or `calvary-app/`, stop — that is a vestigial location, and nothing under it may be staged or committed.

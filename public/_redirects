@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (340 of 2000 permitted) ───────────────
+# ── Static rules (342 of 2000 permitted) ───────────────
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
 /offline.html                                                /public-library                                              301
@@ -330,6 +330,8 @@
 /why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it.html /stories/why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it 301
 /witness-me                                                  /stories/witness-me                                          301
 /witness-me.html                                             /stories/witness-me                                          301
+/you                                                         /stories/you                                                 301
+/you.html                                                    /stories/you                                                 301
 /you-clicked-remember-password-now-what                      /stories/you-clicked-remember-password-now-what              301
 /you-clicked-remember-password-now-what.html                 /stories/you-clicked-remember-password-now-what              301
 /you-didnt-ask                                               /stories/you-didnt-ask                                       301

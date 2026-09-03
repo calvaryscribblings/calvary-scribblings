@@ -46,9 +46,16 @@ const PATTERN_ROUTES = [
 const READERISH = /read/i;
 
 // Named exceptions: directories whose name trips the sweep but which are not reading
-// surfaces. Empty today — every /read/i route in the app is a reader. Add here WITH a reason
-// rather than loosening the sweep.
-const NOT_IMMERSIVE_BY_DESIGN = new Set([]);
+// surfaces. Add here WITH a reason rather than loosening the sweep.
+const NOT_IMMERSIVE_BY_DESIGN = new Set([
+  // R34. The Seasonal Reading Program's details page — how an edition works,
+  // what is fixed about the programme, why the all-time board never resets. The
+  // word "reading" is in the programme's name, not in a reader: this page has no
+  // book, no chrome to hide and no immersion to protect, and a signed-in reader
+  // who has not verified their email should see the banner here like anywhere
+  // else. First entry in this set; the sweep is doing its job by asking.
+  '/reading-program',
+]);
 
 function routeDirs(dir, acc = []) {
   for (const entry of readdirSync(dir)) {

@@ -1,11 +1,16 @@
 'use client';
 
-// Summer Reading Program — terms.
+// The Summer 2026 edition — terms.
 //
 // Static copy, no data reads. A literal route segment under the board it
 // belongs to, so it static-exports alongside it. The wording is fixed: it is
 // what readers are held to and what the certification in
 // scripts/leaderboard-audit.mjs enforces, so only typography lives here.
+//
+// R34 renamed the programme and touched NOTHING ELSE on this page. These are
+// the terms thirteen certified winners were held to and the audit script
+// enforces clause by clause; the only edit a rename licenses is the programme's
+// own name in the heading. Every date, sum and rule below is the record.
 
 import Navbar from '../../../components/Navbar';
 import { SUMMER_2026 } from '../../../lib/leaderboards';
@@ -38,7 +43,7 @@ export default function SummerReadingTermsPage() {
           </a>
 
           <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(1.6rem, 5.5vw, 2.4rem)', fontWeight: 300, color: '#f5f0e8', lineHeight: 1.15, margin: '0 0 2rem', letterSpacing: '0.01em' }}>
-            The Summer Reading Program — Terms
+            The Seasonal Reading Program — Summer 2026 Terms
           </h1>
 
           <p style={para}>

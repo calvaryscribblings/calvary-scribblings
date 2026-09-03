@@ -273,11 +273,36 @@ export default function SeasonBoard({ board }) {
     <>
       <Navbar />
       <style>{`
+        /* R34 — THE NAME GETS TWO LINES.
+           A display name is the one field on this row that cannot be shortened
+           without becoming a different person's name, and it is the only text
+           node left in the column now that the handle is cut. One line clipped
+           the two longest of the thirteen certified names at 320px; two lines
+           clear every one of them at every width measured. line-clamp rather
+           than a height: a third line would push the row taller than the avatar
+           and break the rhythm of the board.
+           overflow-wrap:anywhere is the belt: a 30-character unbroken name has no space to
+           break at, and without it that name would overflow the column and be
+           painted under the score — exactly the failure the handle had. */
+        .sb-name {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          overflow-wrap: anywhere;
+        }
         @media (max-width: 420px) {
           .sb-prize-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-          .sb-row { gap: 0.6rem !important; padding: 0.6rem 0.55rem !important; }
-          .sb-rank { width: 24px !important; }
+          /* R34 — THE WIDER CARD. Every number here is furniture, and furniture
+             is what the name is competing with: at 320px the row is 294px and
+             the fixed parts took 164 of it, leaving 130 for names measuring up
+             to 155. Tightening the gaps and the rank gutter hands ~22px back to
+             the name column. Cutting the handle does NOT do this — it frees
+             vertical room, not horizontal — which is why both halves ship. */
+          .sb-row { gap: 0.5rem !important; padding: 0.6rem 0.5rem !important; }
+          .sb-rank { width: 20px !important; }
           .sb-av { width: 34px !important; height: 34px !important; }
+          .sb-score { min-width: 0 !important; }
         }
       `}</style>
 
@@ -521,7 +546,32 @@ function Row({ row, board, isMe, rowRef }) {
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {/* R34 — THE HANDLE IS CUT.
+            It was `@{row.username}` on the line below, and it was the one field
+            on this row adding nothing the tap does not already give: the whole
+            row is a link to /user?id={uid}, where the handle is the heading.
+            It was also the only text node in this column with no overflow rule
+            — flex-wrap put it on its own line at full intrinsic width with
+            nothing to stop it, so a long enough handle is painted straight
+            under the score.
+
+            ⚠ CORRECTION TO THE R34 BRIEF, recorded at the site rather than only
+            in the report. THE OVERLAP DOES NOT REPRODUCE ON THE WEB. The brief
+            described the score drawn over the handle; that was measured in the
+            app, on a 200pt card whose furniture cost 140pt. Measured here at
+            320px on the certified thirteen, the longest handle on the board
+            (@adam_sadiq_olamiposi, 98px) came within 11.7px of the score and
+            never crossed it — about two characters short. The node was unguarded
+            and one long handle from the app's failure, which is why cutting it is
+            right; but nobody saw it overlap on this surface, and a future round
+            reading the brief alone would go looking for a symptom that was never
+            here.
+            WHAT DID REPRODUCE is the truncation: two of the thirteen names
+            clipped at 320px and one at 344px. Both halves of the ruling were
+            right to ship — cutting the handle frees the vertical room the second
+            line needs, and the widening is what makes two lines enough. Neither
+            alone would have cleared every name. */}
+        <div className="sb-name" style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff' }}>
           {row.displayName}
           {isMe && (
             <span style={{ marginLeft: 8, fontFamily: LABEL, fontSize: '0.55rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(167,139,250,0.9)' }}>
@@ -529,24 +579,39 @@ function Row({ row, board, isMe, rowRef }) {
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-          {row.username && <span style={{ fontSize: '0.66rem', color: 'rgba(167,139,250,0.5)' }}>@{row.username}</span>}
-          {prize && (
+        {prize && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginTop: 3 }}>
             <span style={{
               fontFamily: LABEL, fontSize: '0.55rem', letterSpacing: '0.1em', textTransform: 'uppercase',
               color: '#c9a84c', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 6, padding: '1px 5px',
             }}>
               {money(prize.amount, board.currency)}
             </span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      <div style={{ flexShrink: 0, textAlign: 'right', minWidth: 58 }}>
-        <div style={{ fontFamily: DISPLAY, fontSize: '1.25rem', color: '#a78bfa', lineHeight: 1 }}>
+      {/* R34 — THE SCORE GOES GOLD, AND IT IS A CONSISTENCY CHANGE, NOT A FIX.
+          ⚠ CORRECTION TO THE R34 BRIEF, recorded here because this is where
+          anyone asking "why is this gold?" arrives.
+          The brief said the score measured 2.52:1 and had to change for
+          legibility. THAT IS THE APP'S NUMBER, carried across without being
+          checked against this codebase. The web's score was #a78bfa, which
+          measures 6.88:1 on the first-place tint and 7.27:1 on the page — well
+          past AA, and never #6b2fad (2.48:1 here) at all. There was no
+          accessibility emergency on the web.
+          Gold ships anyway, and the honest reason is consistency: #c9a84c is
+          already the board's colour — the kicker, the window pill, the prize
+          table and the prize pill — and this number was the one gold thing that
+          wasn't. It measures 8.19:1 on the first-place tint, 8.66:1 on the page,
+          so it is also an improvement; it simply was not a rescue.
+          See [[house-design-parity]]: the app's number is not this repo's
+          number, in either direction. */}
+      <div className="sb-score" style={{ flexShrink: 0, textAlign: 'right', minWidth: 58 }}>
+        <div style={{ fontFamily: DISPLAY, fontSize: '1.25rem', color: '#c9a84c', lineHeight: 1, whiteSpace: 'nowrap' }}>
           +{row.delta.toLocaleString()}
         </div>
-        <div style={{ fontSize: '0.55rem', color: 'rgba(167,139,250,0.4)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: DISPLAY, fontWeight: 500, marginTop: 2 }}>
+        <div style={{ fontSize: '0.55rem', color: 'rgba(201,168,76,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: DISPLAY, fontWeight: 500, marginTop: 2 }}>
           Scribbles
         </div>
       </div>

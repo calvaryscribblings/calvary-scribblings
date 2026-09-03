@@ -5,7 +5,10 @@ import { db } from '../lib/firebaseCore';
 import Navbar from '../components/Navbar';
 import { RARITY_STYLES, pickHighestBadge } from '../lib/badges';
 import { getDeletedUidSet } from '../lib/userVisibility';
-import { SUMMER_2026 } from '../lib/leaderboards';
+import {
+  SUMMER_2026, PROGRAM_NAME, PROGRAM_DETAILS_HREF,
+  SHOW_SUMMER_2026_BUTTON, programStatusLabel,
+} from '../lib/leaderboards';
 import { useContestPhase } from '../lib/useContestPhase';
 
 const BADGE_LADDER = [
@@ -112,31 +115,62 @@ function BadgeLadderTooltip({ anchorRef, currentTier, onClose }) {
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-function SummerProgramLink() {
+// R34 — THE PROGRAMME BANNER, AND THE EDITION BUTTON BESIDE IT.
+//
+// Two links, and the difference between them is the point of the rename. The
+// banner is THE PROGRAMME: permanent, and it goes to the page explaining how an
+// edition works. The button is ONE EDITION's board, and it is temporary — it is
+// gated on SHOW_SUMMER_2026_BUTTON in app/lib/leaderboards.js, which is the
+// single line to edit when Ikenna asks for it to go.
+//
+// The banner no longer self-hides outside the contest window. It used to, which
+// made sense when it was advertising a contest; it does not now that it names a
+// programme that runs every season. A banner that vanished for the months
+// between editions would take the only route to the details page with it. What
+// IS window-gated is the status chip: outside a window there is no honest word
+// for where the edition stands, so nothing is printed.
+function ProgramBanner() {
   const board = SUMMER_2026;
-  const { visible, open } = useContestPhase(board);
-  if (!visible) return null;
+  const { phase } = useContestPhase(board);
+  const status = programStatusLabel(phase);
 
   return (
-    <a href="/leaderboard/summer-2026" style={{
-      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-      textDecoration: 'none', margin: '0 0 1.1rem', padding: '0.7rem 0.95rem',
-      borderRadius: 10, border: '1px solid rgba(201,168,76,0.3)',
-      background: 'rgba(201,164,76,0.06)',
-    }}>
-      <span style={{
-        fontFamily: 'Cinzel, Georgia, serif', fontSize: '0.58rem', letterSpacing: '0.16em',
-        textTransform: 'uppercase', color: '#c9a84c', flexShrink: 0,
+    <div data-program-banner style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap', margin: '0 0 1.1rem' }}>
+      <a href={PROGRAM_DETAILS_HREF} style={{
+        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        textDecoration: 'none', padding: '0.7rem 0.95rem', flex: '1 1 260px', minWidth: 0,
+        borderRadius: 10, border: '1px solid rgba(201,168,76,0.3)',
+        background: 'rgba(201,164,76,0.06)',
       }}>
-        {open ? 'Now on' : '1 Aug'}
-      </span>
-      <span style={{ fontSize: '0.86rem', color: '#f5f0e8', flex: 1, minWidth: 0 }}>
-        {board.title} — {board.prizes.length} prize places
-      </span>
-      <span style={{ fontSize: '0.78rem', color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>
-        {open ? 'Standings →' : 'Prizes →'}
-      </span>
-    </a>
+        {status && (
+          <span data-program-status style={{
+            fontFamily: 'Cinzel, Georgia, serif', fontSize: '0.58rem', letterSpacing: '0.16em',
+            textTransform: 'uppercase', color: '#c9a84c', flexShrink: 0,
+          }}>
+            {status}
+          </span>
+        )}
+        <span style={{ fontSize: '0.86rem', color: '#f5f0e8', flex: 1, minWidth: 0 }}>
+          {PROGRAM_NAME}
+        </span>
+        <span style={{ fontSize: '0.78rem', color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>
+          How it works →
+        </span>
+      </a>
+
+      {SHOW_SUMMER_2026_BUTTON && (
+        <a data-edition-button href={`/leaderboard/${board.boardId}`} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          textDecoration: 'none', padding: '0.7rem 0.95rem', flexShrink: 0,
+          borderRadius: 10, border: '1px solid rgba(167,139,250,0.35)',
+          background: 'rgba(107,47,173,0.12)',
+          fontFamily: 'Cinzel, Georgia, serif', fontSize: '0.58rem', letterSpacing: '0.16em',
+          textTransform: 'uppercase', color: '#c4b5fd', whiteSpace: 'nowrap',
+        }}>
+          {board.edition} board →
+        </a>
+      )}
+    </div>
   );
 }
 
@@ -220,6 +254,27 @@ export default function LeaderboardPage() {
   return (
     <>
       <Navbar />
+      {/* R34a — the strip's own rules, applied to this board because Ikenna ruled
+          the two boards should not differ here. Cutting the handle frees the
+          vertical room; the two-line clamp and the tightened furniture are what
+          actually stop a long name being cut off, and neither works without the
+          other. Kept byte-for-byte in step with .sb-name / .sb-row in
+          app/components/SeasonBoard.js — if one moves, move both. */}
+      <style>{`
+        .lb-name {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          overflow-wrap: anywhere;
+        }
+        @media (max-width: 420px) {
+          .lb-row { gap: 0.5rem !important; padding: 0.6rem 0.5rem !important; }
+          .lb-rank { width: 20px !important; }
+          .lb-av { width: 34px !important; height: 34px !important; }
+          .lb-score { min-width: 0 !important; }
+        }
+      `}</style>
       <div style={{ minHeight: '100vh', background: '#0a0a0a', paddingTop: 68 }}>
         <div style={{ maxWidth: 760, margin: '0 auto', padding: '2.5rem 4%' }}>
 
@@ -230,12 +285,11 @@ export default function LeaderboardPage() {
             </p>
           </div>
 
-          {/* Seasonal board — a banner link, deliberately NOT a third tab. The
-              tabs here are two views over one readerScore dataset; the summer
+          {/* The programme — a banner link, deliberately NOT a third tab. The
+              tabs here are two views over one readerScore dataset; an edition
               board ranks a different quantity (Scribbles earned in a window)
-              and a tab would imply they are comparable. Self-hides outside the
-              contest window. */}
-          <SummerProgramLink />
+              and a tab would imply they are comparable. */}
+          <ProgramBanner />
 
           <p style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', margin: '0 0 1.25rem' }}>
             Don't want to be listed?{' '}
@@ -296,7 +350,7 @@ export default function LeaderboardPage() {
                 const initials = row.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
                 return (
-                  <a key={row.uid} href={`/user?id=${row.uid}`} data-reveal="up" data-reveal-delay={(i % 6) + 1} style={{
+                  <a key={row.uid} href={`/user?id=${row.uid}`} className="lb-row" data-reveal="up" data-reveal-delay={(i % 6) + 1} style={{
                     display: 'flex', alignItems: 'center', gap: '0.85rem',
                     textDecoration: 'none', padding: '0.7rem 0.85rem',
                     borderRadius: 10,
@@ -307,7 +361,7 @@ export default function LeaderboardPage() {
                   onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.4)'; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = tint.borderColor; }}>
 
-                    <div style={{
+                    <div className="lb-rank" style={{
                       flexShrink: 0, width: 32, textAlign: 'center',
                       fontFamily: 'Cormorant Garamond, Georgia, serif',
                       fontSize: rank <= 3 ? '1.4rem' : '1.05rem',
@@ -315,7 +369,7 @@ export default function LeaderboardPage() {
                       fontWeight: rank <= 3 ? 700 : 500,
                     }}>{rank}</div>
 
-                    <div style={{
+                    <div className="lb-av" style={{
                       width: 40, height: 40, borderRadius: '50%',
                       background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.22)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -328,18 +382,23 @@ export default function LeaderboardPage() {
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontSize: '0.88rem', fontWeight: 600, color: '#fff',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>{row.displayName}</div>
+                      {/* R34a — THE HANDLE IS CUT HERE TOO.
+                          R34 cut it from the seasonal strip and left this row's
+                          guarded with an ellipsis, on the reasoning that this board
+                          has no prize pill and the handle was its only identity
+                          beside the name. Ikenna's ruling, 3 Sept 2026, overrode
+                          that: the reasoning that cut it from the strip applies
+                          here unchanged — it is the least legible field at this
+                          size, and the whole row is a link to /user?id={uid} where
+                          the full identity is the heading. Consistency between the
+                          two boards beats this row keeping a second identity line.
+                          The badge stays; it is the thing the reader earned. */}
+                      <div className="lb-name" style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff' }}>{row.displayName}</div>
                       {(() => {
                         const badge = getBadge(row.readCount || 0);
-                        if (!row.username && !badge) return null;
+                        if (!badge) return null;
                         return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            {row.username && (
-                              <span style={{ fontSize: '0.66rem', color: 'rgba(167,139,250,0.5)' }}>@{row.username}</span>
-                            )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', minWidth: 0 }}>
                             {badge && (
                               <span
                                 onClick={e => {
@@ -374,10 +433,10 @@ export default function LeaderboardPage() {
                       </div>
                     )}
 
-                    <div style={{ flexShrink: 0, textAlign: 'right', minWidth: 60 }}>
+                    <div className="lb-score" style={{ flexShrink: 0, textAlign: 'right', minWidth: 60 }}>
                       <div style={{
                         fontFamily: 'Cormorant Garamond, Georgia, serif',
-                        fontSize: '1.25rem', color: '#a78bfa', lineHeight: 1,
+                        fontSize: '1.25rem', color: '#a78bfa', lineHeight: 1, whiteSpace: 'nowrap',
                       }}>{row.readerScore.toLocaleString()}</div>
                       <div style={{
                         fontSize: '0.55rem', color: 'rgba(167,139,250,0.4)',
