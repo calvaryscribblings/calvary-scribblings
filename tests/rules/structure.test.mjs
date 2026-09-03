@@ -115,15 +115,25 @@ const DELIBERATELY_OPEN = new Map([
   // are written by the same code path and any divergence between them is a bug waiting.
 ]);
 
-// NOT LISTED, and worth saying why: open_pages/$postId/readCount carries
-// `.write: "auth != null && newData.isNumber()"`. That is still R9.0 PL-3 — any
-// signed-in account can set any post's public read count — but it is NOT the
-// class this file catches. The isNumber() term makes a null write fail, so the
-// subtree cannot be WIPED, only forged. Type-constrained-but-not-owner-constrained
-// is a real finding and a lesser one; it needs a behavioural test, not a
-// structural one. Same for subscribers/$entry (`newData.exists()`), which is
-// deliberately writable by signed-out readers and equally un-wipeable — see
-// commit 456bf90.
+// R35 — THE open_pages/$postId/readCount ENTRY THAT STOOD HERE IS CLOSED, and the way it
+// closed is worth keeping. The note said the leaf carried `auth != null && newData.isNumber()`:
+// still R9.0 PL-3, any signed-in account could set any post's public read count to any number,
+// but un-wipeable (the isNumber() term makes a null write fail the GRANT, and .validate never
+// runs on a null write). It said the finding was real, lesser, and needed a behavioural test
+// rather than a structural one.
+//
+// It got one, and it turned out the posture could be better than "forgeable". The counter is
+// still owned by nobody — app/open-pages/[id]/page-client.js:221 bumps a stranger's post on
+// mount, so an owner rule would break every read count on the site — but the grant can demand
+// the exact SHAPE of that bump: `newData.val() === data.val() + 1`, or 1 where the field does
+// not exist yet. A runTransaction satisfies that on every retry; a set() to 10,000,000, a reset
+// to 0 and a decrement all fail. Owner-scoping was never available; monotonic-by-one always
+// was, and eleven months of "forgeable, not wipeable" went unchallenged because no test on this
+// node existed at all. That is the transferable lesson: "constrained as tightly as this node
+// permits" is a claim, and it decays.
+//
+// STILL NOT LISTED, and worth saying why: subscribers/$entry (`newData.exists()`) is
+// deliberately writable by signed-out readers and equally un-wipeable — see commit 456bf90.
 
 // A write expression is "constrained" if it references any of these.
 // Matched case-INSENSITIVELY, because `newData.` and `data.` differ only in case

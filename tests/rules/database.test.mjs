@@ -35,6 +35,10 @@ import { isEmailShaped } from '../../app/lib/bookstore/gate.js';
 import {
   AUTHOR_CAPS, isAuthorPhotoPath, normaliseAuthorFields, validateAuthorFields,
 } from '../../app/lib/bookstore/author.js';
+// R35 — same discipline for Open Pages: the pending record's field list is IMPORTED from the
+// module that builds it, so a key added to the writer and not to the rules fails in this
+// suite rather than on the first submission after the deploy.
+import { buildPendingPost } from '../../app/lib/openPages.js';
 // R21 — the tombstone. Same discipline again: what the writer PRODUCES is asserted against
 // what the rule ACCEPTS, in one test, so a field added to one and not the other is caught here
 // rather than by a founder watching a delete fail halfway through.
@@ -2521,5 +2525,281 @@ describe("R21 · a withdrawal never reaches a reader's library", () => {
     // And the denormalised fields My Library falls back to are still there.
     assert.equal(after.val().title, 'T');
     assert.equal(after.val().slug, 't1');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+describe('R35 · open_pages — a published piece cannot be rewritten out from under its verdict', () => {
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//
+// APP-O1 found three holes on this node. This block is the first rules test open_pages has
+// ever had, which is the whole explanation for how they survived: the node shipped in R19,
+// the behavioural suite next door covers fourteen other nodes, and nobody wrote these.
+//
+// THE SERIOUS ONE. `open_pages/$postId` granted `.write` to `data.child('authorUid').val()
+// === auth.uid`, and the only thing pinned across the write was authorUid itself. So the
+// author of an already-published piece could rewrite its BODY, its TITLE and its `moderation`
+// field — the record of the Haiku verdict — with no re-screening at all. A piece passes the
+// gate, is edited into anything, and the verdict is edited away behind it.
+//
+// The web's own edit UI did re-moderate. That was the trap: the re-screening was a property
+// of THAT CLIENT, not of the platform, so the moderation was only ever as good as whichever
+// client happened to be used, and anything holding the author's token — the app, a script, a
+// console tab — bypassed it by writing straight to the RTDB.
+//
+// WHY "REFUSE" AND NOT "REQUIRE A FRESH VERDICT". A rule cannot tell a real verdict from a
+// typed one. Whatever `moderation` object a rule demands, the client being constrained can
+// write it: `{decision:'pass', checkedAt: now}` costs one line, and RTDB rules have no way to
+// check a signature, call out, or know that a value came from the server. A freshness rule
+// would have looked like a fix and enforced nothing. The only enforceable form of "must
+// re-screen" is "the client cannot write the screened fields at all" — so the screening moved
+// to where the credentials are, functions/api/open-pages/moderate.js, which now takes an
+// optional postId and, on a pass, writes the new body and the FRESH verdict in one atomic
+// PATCH. That also restores the trust model app/lib/openPages.js has claimed in prose since
+// Stage 1 ("the public open_pages node is written EXCLUSIVELY by the server-side moderation
+// function... RTDB rules deny all client writes"), which the rules had quietly drifted from.
+//
+// MID-EDIT, SCREEN UNAVAILABLE: the endpoint fails closed to open_pages_pending and does not
+// write open_pages at all. The live piece keeps the body and the verdict it already had. An
+// unreachable screen costs the EDIT, never the gate.
+
+  const LIVE_POST = {
+    authorUid: OWNER,
+    authorName: 'A Reader',
+    authorHandle: 'areader',
+    authorAvatarUrl: 'https://firebasestorage.googleapis.com/v0/b/x/o/a.jpg',
+    title: 'Enough',
+    body: 'The screened body.',
+    coverImage: 'https://firebasestorage.googleapis.com/v0/b/x/o/c.jpg',
+    genre: 'Inspiring',
+    status: 'live',
+    moderation: { decision: 'pass', reason: 'clean', checkedAt: 1, model: 'claude-haiku-4-5' },
+    createdAt: 1,
+    readCount: 12,
+  };
+
+  // ---- POSITIVES FIRST. Case 4 is load-bearing: a rule that breaks the product is wrong. ----
+
+  test('LEGITIMATE: the whole live feed still works — publish, read, bump, moderate', async () => {
+    // The server publishes with admin credentials (rules bypassed); the founder's own
+    // client writes through the node-root grant, which is what admin/forum's approve()
+    // and removePost() use.
+    await assertSucceeds(founder.ref('open_pages/p1').set(LIVE_POST));
+    // The feed is public — /open-pages and /public-library read it signed-out.
+    await assertSucceeds(anon.ref('open_pages').get());
+    await assertSucceeds(anon.ref('open_pages/p1').get());
+    // Any signed-in reader bumps the counter on ANYONE's post: that is what
+    // app/open-pages/[id]/page-client.js:221 does on mount, and an owner-scoped
+    // rule here would break every read count on the site.
+    await assertSucceeds(stranger.ref('open_pages/p1/readCount').set(13));
+    await assertSucceeds(owner.ref('open_pages/p1/readCount').set(14));
+    // A post with no readCount yet starts at 1 rather than being refused.
+    await assertSucceeds(founder.ref('open_pages/p2').set({ ...LIVE_POST, readCount: null }));
+    await assertSucceeds(stranger.ref('open_pages/p2/readCount').set(1));
+    // And the founder keeps full control — approve overwrites, remove deletes.
+    await assertSucceeds(founder.ref('open_pages/p1').set({ ...LIVE_POST, title: 'Enough (edited by admin)' }));
+    await assertSucceeds(founder.ref('open_pages/p1').remove());
+  });
+
+  test('LEGITIMATE: all 7 shapes now live are accepted, including the 3 with no avatar', async () => {
+    // MEASURED against production on 2026-09-03, and it changed the rule. Only 4 of the 7
+    // live pieces carry `authorAvatarUrl` — buildAuthorSnapshot writes null when the author's
+    // profile has no avatarUrl, and RTDB drops nulls — so a hasChildren() that required it
+    // would have rejected 43% of the feed. `editedAt` is documented in app/lib/openPages.js
+    // and exists on ZERO records for the same reason.
+    //
+    // And 3 of the 7 carry moderation.decision === 'flag' while status === 'live': they hit
+    // the fail-closed path, went to the queue, and a founder approved them. A rule saying
+    // "live implies a passing verdict" would have rejected those three too. It is not written.
+    const { authorAvatarUrl, ...noAvatar } = LIVE_POST;
+    await assertSucceeds(founder.ref('open_pages/a').set(noAvatar));
+    await assertSucceeds(founder.ref('open_pages/b').set({
+      ...noAvatar,
+      status: 'live',
+      moderation: { decision: 'flag', categories: ['moderation-unavailable'], reason: 'moderation-unavailable', checkedAt: 1, model: 'claude-haiku-4-5' },
+      approvedBy: FOUNDER_A,
+      approvedAt: 2,
+    }));
+    await assertSucceeds(founder.ref('open_pages/c').set({ ...LIVE_POST, updatedAt: 3 }));
+  });
+
+  // ---- THE HOLE ----
+
+  test('THE HOLE: the author can no longer rewrite a published body, title or verdict', async () => {
+    await seed(env, { 'open_pages/p1': LIVE_POST });
+    // This is the attack in one line: the piece keeps its "pass", and says something else.
+    await assertFails(owner.ref('open_pages/p1/body').set('something that was never screened'));
+    await assertFails(owner.ref('open_pages/p1/title').set('A different piece entirely'));
+    // And the verdict itself cannot be edited away behind it.
+    await assertFails(owner.ref('open_pages/p1/moderation').set({ decision: 'pass', checkedAt: 9, reason: 'typed by hand' }));
+    await assertFails(owner.ref('open_pages/p1/moderation').remove());
+    await assertFails(owner.ref('open_pages/p1/status').set('live'));
+    // A whole-record set is the same write by another route.
+    await assertFails(owner.ref('open_pages/p1').set({ ...LIVE_POST, body: 'unscreened' }));
+    await assertFails(owner.ref('open_pages/p1').update({ body: 'unscreened', updatedAt: 2 }));
+    // .validate never runs on a null write, so the delete is checked separately.
+    await assertFails(owner.ref('open_pages/p1').remove());
+    // The stored record is untouched by all of the above.
+    const after = await anon.ref('open_pages/p1').get();
+    assert.equal(after.val().body, 'The screened body.');
+    assert.equal(after.val().moderation.decision, 'pass');
+  });
+
+  test('THE HOLE: the readCount leaf cannot be climbed to reach the body', async () => {
+    await seed(env, { 'open_pages/p1': LIVE_POST });
+    // The only client grant left on this node is the counter, so the interesting
+    // question is whether it can be used as a foothold. A multi-path update is
+    // evaluated per path, and the body path has no grant.
+    await assertFails(owner.ref('open_pages/p1').update({ readCount: 13, body: 'unscreened' }));
+    await assertFails(stranger.ref('open_pages/p1').update({ readCount: 13, title: 'defaced' }));
+    await assertFails(owner.ref().update({ 'open_pages/p1/readCount': 13, 'open_pages/p1/body': 'unscreened' }));
+    const after = await anon.ref('open_pages/p1').get();
+    assert.equal(after.val().body, 'The screened body.');
+    assert.equal(after.val().readCount, 12);
+  });
+
+  test('A STRANGER cannot touch a piece they did not write', async () => {
+    await seed(env, { 'open_pages/p1': LIVE_POST });
+    await assertFails(stranger.ref('open_pages/p1/body').set('defaced'));
+    await assertFails(stranger.ref('open_pages/p1').remove());
+    await assertFails(stranger.ref('open_pages').remove());
+    await assertFails(anon.ref('open_pages/p1/body').set('defaced'));
+    await assertFails(anon.ref('open_pages/p1/readCount').set(13));
+  });
+
+  test('READCOUNT: any signed-in account could set any post to any number', async () => {
+    await seed(env, { 'open_pages/p1': LIVE_POST });
+    // Hole 2. The old rule was `auth != null && newData.isNumber()`: type-constrained and
+    // nothing else, so a stranger could set a stranger's post to 10,000,000 or back to 0.
+    // The grant now demands the exact increment the client's runTransaction produces, which
+    // is the strongest shape available for a counter no account owns.
+    await assertFails(stranger.ref('open_pages/p1/readCount').set(10_000_000));
+    await assertFails(stranger.ref('open_pages/p1/readCount').set(0));      // reset
+    await assertFails(stranger.ref('open_pages/p1/readCount').set(11));     // decrement
+    await assertFails(stranger.ref('open_pages/p1/readCount').set(14));     // +2, skipping
+    await assertFails(stranger.ref('open_pages/p1/readCount').set(-1));
+    await assertFails(stranger.ref('open_pages/p1/readCount').set('13'));
+    await assertFails(stranger.ref('open_pages/p1/readCount').set(true));
+    await assertFails(stranger.ref('open_pages/p1/readCount').set({ n: 13 }));
+    // Un-wipeable: the numeric term is in the GRANT, not only in .validate, and
+    // .validate never runs on a null write.
+    await assertFails(stranger.ref('open_pages/p1/readCount').remove());
+    // Exactly one, from the number that is actually stored.
+    await assertSucceeds(stranger.ref('open_pages/p1/readCount').set(13));
+    const after = await anon.ref('open_pages/p1/readCount').get();
+    assert.equal(after.val(), 13);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+describe('R35 · open_pages_pending — the R33.1 catch-all, one node over', () => {
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//
+// Hole 3. `"$other": { ".validate": true }` — the exact shape R33.1 closed on square_posts.
+// Its blast radius is the admin queue rather than the public feed, but it is the same defect:
+// five fields were constrained and everything else was waved through, at any type and any
+// size, into a node a founder reads by hand.
+//
+// MEASURED: open_pages_pending held 0 records on 2026-09-03, so no live record can break.
+// The field list below is therefore taken from the WRITERS, not from the data — every key
+// buildPendingPost produces, plus the three the edit path adds.
+//
+// NOTE FOR A LATER ROUND: the author `.write` grant on this node has no writer anywhere in
+// this repo. moderate.js files pending records with the admin SDK, and admin/forum only ever
+// writes null. It is the Stage-1 affordance app/lib/openPages.js documents. It is left in
+// place because the React Native app is not visible from this container (see CLAUDE.md) and
+// removing a grant an unseen client may still use is not a call to make blind — but if the
+// app is confirmed not to use it, this grant should go, and the catch-all question with it.
+
+  const PENDING = {
+    authorUid: OWNER,
+    authorName: 'A Reader',
+    authorHandle: 'areader',
+    authorAvatarUrl: 'https://firebasestorage.googleapis.com/v0/b/x/o/a.jpg',
+    title: 'Enough',
+    body: 'A body awaiting review.',
+    coverImage: 'https://firebasestorage.googleapis.com/v0/b/x/o/c.jpg',
+    genre: 'Inspiring',
+    status: 'flagged',
+    moderation: { decision: 'flag', categories: ['explicit'], reason: 'held for review', checkedAt: 1, model: 'claude-haiku-4-5' },
+    createdAt: 1,
+  };
+
+  // ---- POSITIVES FIRST ----
+
+  test('LEGITIMATE: everything the two writers actually produce is accepted', async () => {
+    // buildPendingPost is the create-path record, imported rather than retyped so a field
+    // added to the writer and not to the rules fails HERE — the R18/R21 discipline.
+    const built = buildPendingPost(
+      { authorUid: OWNER, authorName: 'A Reader', authorHandle: 'areader', authorAvatarUrl: null },
+      { title: 'Enough', body: 'A body.', coverImage: null, genre: 'Inspiring' },
+      1,
+    );
+    // RTDB drops null children, which is exactly why coverImage/authorAvatarUrl/editedAt
+    // are absent from every live record. Strip them the way the wire does.
+    const onWire = Object.fromEntries(Object.entries(built).filter(([, v]) => v !== null));
+    await assertSucceeds(owner.ref('open_pages_pending/n1').set(onWire));
+    // And the rule must enumerate every key the writer CAN produce, including the ones
+    // RTDB dropped above — `$other: false` is per-child, so a key that is only ever
+    // written as null today becomes a refusal the day a profile gains an avatar.
+    const pendingRule = JSON.parse(readFileSync(DB_RULES_PATH, 'utf8'))
+      .rules.open_pages_pending.$postId;
+    const enumerated = new Set(Object.keys(pendingRule).filter((k) => !k.startsWith('.') && k !== '$other'));
+    assert.equal(pendingRule.$other['.validate'], false, 'the catch-all must stay closed');
+    const missing = Object.keys(built).filter((k) => !enumerated.has(k));
+    assert.deepEqual(missing, [], `buildPendingPost writes ${missing.join(', ')}, which the rules do not enumerate`);
+    // The edit path's REVISION record: the live post with the edit overlaid, plus the three
+    // fields that mode adds. approvedBy/approvedAt are stripped by moderate.js because a
+    // revision has not been approved — and they are NOT in the rules, so if that strip is
+    // ever dropped, this node stops accepting the write and the queue stops filling.
+    await assertSucceeds(owner.ref('open_pages_pending/n2').set({
+      ...PENDING, readCount: 12, updatedAt: 2, revision: true,
+    }));
+    // A founder clears the queue on approve/remove.
+    await assertSucceeds(founder.ref('open_pages_pending/n2').remove());
+    // The author reads their own; a stranger does not.
+    await assertSucceeds(owner.ref('open_pages_pending/n1').get());
+    await assertFails(stranger.ref('open_pages_pending/n1').get());
+  });
+
+  // ---- THE CATCH-ALL ----
+
+  test('THE CATCH-ALL: an unknown field is no longer waved through', async () => {
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, injected: 'x'.repeat(5000) }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, isAdmin: true }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, payload: { deeply: { nested: 'junk' } } }));
+    await assertSucceeds(owner.ref('open_pages_pending/n1').set(PENDING));
+    await assertFails(owner.ref('open_pages_pending/n1/injected').set('x'));
+  });
+
+  test('THE CATCH-ALL: every enumerated field is bounded by type, size or set', async () => {
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, authorName: 'x'.repeat(201) }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, authorHandle: 'x'.repeat(101) }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, authorAvatarUrl: 'x'.repeat(2001) }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, coverImage: 'x'.repeat(2001) }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, title: 'x'.repeat(201) }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, body: 'x'.repeat(50001) }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, genre: 'Erotica' }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, status: 'approved' }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, createdAt: 'yesterday' }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, readCount: -1 }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, revision: 'yes' }));
+    // The moderation subtree has its own catch-all, closed the same way.
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, moderation: { decision: 'pass', checkedAt: 1, smuggled: 'x'.repeat(5000) } }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, moderation: { decision: 'approved', checkedAt: 1 } }));
+    await assertFails(owner.ref('open_pages_pending/n1').set({ ...PENDING, moderation: { decision: 'pass' } }));
+    // Every one of the six real genres still passes, so the set is a fence and not a wall.
+    for (const g of ['Literary', 'Flash', 'Short Story', 'Poetry', 'Inspiring', 'General']) {
+      await assertSucceeds(owner.ref('open_pages_pending/n1').set({ ...PENDING, genre: g }));
+    }
+  });
+
+  test('a stranger cannot file a pending post under someone else Uid, or wipe the queue', async () => {
+    await assertFails(stranger.ref('open_pages_pending/n1').set(PENDING));      // authorUid is OWNER
+    await seed(env, { 'open_pages_pending/n1': PENDING });
+    await assertFails(stranger.ref('open_pages_pending/n1').remove());
+    await assertFails(stranger.ref('open_pages_pending/n1/body').set('x'));
+    await assertFails(anon.ref('open_pages_pending/n1').set(PENDING));
+    await assertFails(stranger.ref('open_pages_pending').remove());
   });
 });

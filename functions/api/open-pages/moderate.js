@@ -1,6 +1,7 @@
 // Open Pages — AI moderation Pages Function (Stage 2).
 //
-// POST /api/open-pages/moderate   body: { uid, title, body }  (body is Markdown)
+// POST /api/open-pages/moderate   body: { title, body, coverImage?, genre?, postId? }
+//                                 (body is Markdown; postId means EDIT this post)
 //
 // Reads a submitted post, asks Claude (Haiku) to moderate it, and routes it:
 //   pass  -> public open_pages/{postId} (status:'live')   + user_open_pages mirror -> { status:'published' }
@@ -42,6 +43,7 @@ import {
   OPEN_PAGE_STATUS,
   buildAuthorSnapshot,
   buildPendingPost,
+  normalizeGenre,
 } from '../../../app/lib/openPages.js';
 import { resolveHook, fire } from '../_deploy-hooks.js';
 
@@ -341,7 +343,7 @@ export async function onRequestPost(context) {
 
   // `uid` is deliberately NOT destructured from the body. A client that still
   // sends one is ignored; every use of `uid` below is the verified one.
-  const { title, body: postBody, coverImage, genre } = body || {};
+  const { title, body: postBody, coverImage, genre, postId: editId } = body || {};
   console.log('[open-pages/moderate] uid:', uid, '(verified) | ANTHROPIC set:', !!env.ANTHROPIC_API_KEY);
 
   // Server-side validation.
@@ -392,11 +394,93 @@ export async function onRequestPost(context) {
 
   const now = Date.now();
   const snapshot = buildAuthorSnapshot({ uid }, profile);
-  const postId = generatePushId(now);
 
-  // Base record (status PENDING, moderation null) — status + moderation set per decision below.
-  // genre is normalised inside buildPendingPost (falls back to 'General').
-  const base = buildPendingPost(snapshot, { title: cleanTitle, body: cleanBody, coverImage: cover, genre }, now);
+  // -------------------------------------------------------------------------
+  // CREATE or EDIT.
+  //
+  // R35. An edit used to be a client write: /open-pages/edit/[id] called this
+  // endpoint purely as an oracle, deleted the throwaway post the "published"
+  // verdict had just created, and then wrote title/body/genre/coverImage
+  // straight into open_pages/{id} itself — WITHOUT a moderation field. The
+  // record kept the verdict its ORIGINAL body earned. The rules permitted it
+  // (the author held .write on their own published post), so the re-screening
+  // was only as good as the client that happened to be used: anything speaking
+  // to the RTDB with the author's token could rewrite a screened piece into
+  // anything at all and leave the old "pass" sitting underneath it.
+  //
+  // The rules now refuse every client write to open_pages except the readCount
+  // leaf, which is the only enforceable form of "must re-screen": a rule cannot
+  // tell a real verdict from a typed one, because whatever moderation object it
+  // demands, the client being constrained can simply write. So the screening had
+  // to move to where the credentials are — here.
+  //
+  // An edit therefore re-enters the SAME gate as a new post, and only a `pass`
+  // reaches the public node. Anything else leaves the live piece exactly as it
+  // was: the endpoint is fail-closed for edits in the strong sense that failure
+  // changes nothing rather than publishing something unscreened.
+  // -------------------------------------------------------------------------
+  const isEdit = typeof editId === 'string' && editId.length > 0;
+
+  let existing = null;
+  if (isEdit) {
+    if (editId.length > 64 || /[.#$\[\]/]/.test(editId)) {
+      return json({ error: 'Invalid postId.' }, 400);
+    }
+    try {
+      const exRes = await fetch(`${fbDb}/${OPEN_PAGES_NODE}/${editId}.json`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (exRes.ok) {
+        const v = await exRes.json();
+        if (v && typeof v === 'object') existing = v;
+      }
+    } catch (e) {
+      console.error('[open-pages/moderate] edit: existing read failed:', e.message);
+      return json({ error: 'Could not load the post to edit.' }, 500);
+    }
+    if (!existing) return json({ error: 'Post not found.' }, 404);
+    // Authorship is decided here, from the stored record and the VERIFIED uid —
+    // never from the request.
+    if (existing.authorUid !== uid) return json({ error: 'Not your post.' }, 403);
+  }
+
+  const postId = isEdit ? editId : generatePushId(now);
+
+  // Base record. On create: a fresh pending record (genre normalised inside
+  // buildPendingPost, which falls back to 'General'). On edit: the STORED record
+  // with only the four editable fields overlaid — so createdAt, readCount and the
+  // author snapshot survive the edit rather than being rebuilt from a profile
+  // that may since have lost its displayName.
+  const base = isEdit
+    ? {
+        ...existing,
+        title: cleanTitle,
+        body: cleanBody,
+        coverImage: cover,
+        genre: normalizeGenre(genre),
+        updatedAt: now,
+      }
+    : buildPendingPost(snapshot, { title: cleanTitle, body: cleanBody, coverImage: cover, genre }, now);
+
+  // A pending record, for either mode. On an EDIT this is a PROPOSED REVISION filed
+  // under the live post's own id, so the admin queue's existing approve() — which
+  // writes open_pages_pending/{id} wholesale to open_pages/{id} — publishes the
+  // revision over the original with no new machinery. approvedBy/approvedAt are
+  // dropped because a revision has not been approved; `revision: true` is what lets
+  // the queue say "edit to a live post" rather than "new post". Note that the live
+  // readCount is carried in `base` and therefore snapshot at edit time: reads that
+  // accrue while a revision waits for review are lost when it is approved. That is
+  // a stated cost, not an oversight — the alternative is a per-field merge the
+  // admin queue has no way to express.
+  function pendingRecord(moderationValue) {
+    const rec = { ...base, status: OPEN_PAGE_STATUS.FLAGGED, moderation: moderationValue };
+    if (isEdit) {
+      delete rec.approvedBy;
+      delete rec.approvedAt;
+      rec.revision = true;
+    }
+    return rec;
+  }
 
   // Moderate — fail closed on any error.
   let mod;
@@ -404,24 +488,24 @@ export async function onRequestPost(context) {
     mod = await moderateWithClaude(env, cleanTitle, cleanBody);
   } catch (e) {
     console.error('[open-pages/moderate] moderation failed, failing closed to pending:', e.message);
-    const record = {
-      ...base,
-      status: OPEN_PAGE_STATUS.FLAGGED,
-      moderation: {
-        decision: 'flag',
-        categories: ['moderation-unavailable'],
-        reason: 'moderation-unavailable',
-        checkedAt: now,
-        model: MODEL,
-      },
-    };
+    // THE ANSWER TO "what happens mid-edit when the screen is unavailable": the
+    // revision is stored for a human, and open_pages/{postId} is not written at
+    // all. The live piece keeps the body and the verdict it already had. Nothing
+    // publishes unscreened — an unreachable screen costs the EDIT, never the gate.
+    const record = pendingRecord({
+      decision: 'flag',
+      categories: ['moderation-unavailable'],
+      reason: 'moderation-unavailable',
+      checkedAt: now,
+      model: MODEL,
+    });
     try {
       await writePaths(fbDb, accessToken, { [`${OPEN_PAGES_PENDING_NODE}/${postId}`]: record });
     } catch (writeErr) {
       console.error('[open-pages/moderate] fail-closed write failed:', writeErr.message);
       return json({ error: 'Failed to store submission.' }, 500);
     }
-    return json({ status: 'pending', postId });
+    return json({ status: 'pending', postId, edited: isEdit });
   }
 
   const moderation = {
@@ -443,23 +527,32 @@ export async function onRequestPost(context) {
   }
 
   if (mod.decision === 'flag') {
-    const record = { ...base, status: OPEN_PAGE_STATUS.FLAGGED, moderation };
+    const record = pendingRecord(moderation);
     try {
       await writePaths(fbDb, accessToken, { [`${OPEN_PAGES_PENDING_NODE}/${postId}`]: record });
     } catch (e) {
       console.error('[open-pages/moderate] pending write failed:', e.message);
       return json({ error: 'Failed to store submission.' }, 500);
     }
-    return json({ status: 'pending', postId });
+    return json({ status: 'pending', postId, edited: isEdit });
   }
 
   // pass -> publish to public feed + mirror to the per-author index.
+  //
+  // On an EDIT this is the ONLY path that writes open_pages/{postId}, and it writes
+  // the new body and the FRESH verdict in the same atomic PATCH — the two can never
+  // again come apart, which is the whole of R35's serious fix.
   const record = { ...base, status: OPEN_PAGE_STATUS.LIVE, moderation };
+  const paths = {
+    [`${OPEN_PAGES_NODE}/${postId}`]: record,
+    [`${USER_OPEN_PAGES_NODE}/${uid}/${postId}`]: record,
+  };
+  // A passing edit supersedes any revision of the same post still sitting in the
+  // queue. Left behind, an admin could later approve the stale one and silently
+  // revert the piece to an older body.
+  if (isEdit) paths[`${OPEN_PAGES_PENDING_NODE}/${postId}`] = null;
   try {
-    await writePaths(fbDb, accessToken, {
-      [`${OPEN_PAGES_NODE}/${postId}`]: record,
-      [`${USER_OPEN_PAGES_NODE}/${uid}/${postId}`]: record,
-    });
+    await writePaths(fbDb, accessToken, paths);
   } catch (e) {
     console.error('[open-pages/moderate] publish write failed:', e.message);
     return json({ error: 'Failed to publish post.' }, 500);
@@ -485,7 +578,7 @@ export async function onRequestPost(context) {
     hookStatus = shot.ok ? 'ok_' + shot.status : (shot.reason === 'refused' ? 'fail_' + shot.status : 'error_unreachable');
   }
 
-  return json({ status: 'published', postId, hookStatus });
+  return json({ status: 'published', postId, hookStatus, edited: isEdit });
 }
 
 // users/{uid} profile path helper (kept inline so the function is self-describing).

@@ -732,10 +732,10 @@
         "createdAt"
       ],
       "$postId": {
-        ".write": "auth != null && data.exists() && data.child('authorUid').val() === auth.uid",
         ".validate": "!newData.exists() || !data.exists() || newData.child('authorUid').val() === data.child('authorUid').val()",
         "readCount": {
-          ".write": "auth != null && newData.isNumber()"
+          ".write": "auth != null && newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.isNumber() && newData.val() === data.val() + 1))",
+          ".validate": "newData.isNumber() && newData.val() >= 0"
         }
       }
     },
@@ -748,11 +748,26 @@
         "authorUid": {
           ".validate": "newData.isString() && newData.val() === auth.uid"
         },
+        "authorName": {
+          ".validate": "newData.isString() && newData.val().length <= 200"
+        },
+        "authorHandle": {
+          ".validate": "newData.isString() && newData.val().length <= 100"
+        },
+        "authorAvatarUrl": {
+          ".validate": "newData.isString() && newData.val().length <= 2000"
+        },
         "title": {
           ".validate": "newData.isString() && newData.val().length <= 200"
         },
         "body": {
           ".validate": "newData.isString() && newData.val().length <= 50000"
+        },
+        "coverImage": {
+          ".validate": "newData.isString() && newData.val().length <= 2000"
+        },
+        "genre": {
+          ".validate": "newData.isString() && (newData.val() === 'Literary' || newData.val() === 'Flash' || newData.val() === 'Short Story' || newData.val() === 'Poetry' || newData.val() === 'Inspiring' || newData.val() === 'General')"
         },
         "status": {
           ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'live' || newData.val() === 'flagged' || newData.val() === 'removed')"
@@ -760,8 +775,43 @@
         "createdAt": {
           ".validate": "newData.isNumber()"
         },
+        "editedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "readCount": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "revision": {
+          ".validate": "newData.isBoolean()"
+        },
+        "moderation": {
+          ".validate": "newData.hasChildren(['decision', 'checkedAt'])",
+          "decision": {
+            ".validate": "newData.isString() && (newData.val() === 'pass' || newData.val() === 'flag' || newData.val() === 'block')"
+          },
+          "reason": {
+            ".validate": "newData.isString() && newData.val().length <= 2000"
+          },
+          "checkedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "model": {
+            ".validate": "newData.isString() && newData.val().length <= 100"
+          },
+          "categories": {
+            "$i": {
+              ".validate": "newData.isString() && newData.val().length <= 200"
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
         "$other": {
-          ".validate": true
+          ".validate": false
         }
       }
     },

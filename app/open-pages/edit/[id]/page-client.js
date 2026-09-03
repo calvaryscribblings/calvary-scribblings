@@ -8,14 +8,23 @@
 // edited content. The difference from create:
 //   • The form is PRE-FILLED from the existing open_pages/{id} post.
 //   • Only the original author may edit (ownership gate below).
-//   • On a passing moderation result we UPDATE the existing node in place (adding
-//     an updatedAt timestamp) rather than publishing a brand-new post.
+//   • On a passing moderation result the ENDPOINT updates the existing node in
+//     place (adding an updatedAt timestamp) rather than publishing a brand-new post.
 //
-// Note on the moderation endpoint: it is create-only and, on a "published"
-// verdict, writes a fresh post (returning its new postId). We must not modify that
-// shared function, so we use it purely as a moderation oracle here and immediately
-// remove the throwaway post it created, then apply the edit to the original id —
-// keeping the contract "editing does NOT create a new post".
+// Note on the moderation endpoint: it takes an optional `postId`, which puts it in
+// EDIT mode — it verifies from the STORED record that the caller's verified uid is
+// the author, re-screens, and on a pass writes the edited body and the fresh verdict
+// into the original id in one atomic PATCH with service credentials. This page no
+// longer writes to the database at all.
+//
+// It used to. The endpoint was create-only, so this page used it as an oracle: on a
+// "published" verdict it deleted the throwaway post the endpoint had just made and
+// then patched open_pages/{id} directly — with no moderation field. The record kept
+// the verdict its original body had earned. The rules permitted that write (the
+// author held .write on their own published post), so the re-screening was a
+// property of THIS CLIENT rather than of the platform: anything holding the author's
+// token could rewrite a screened piece and leave the old "pass" underneath it.
+// R35 closed the rule and moved the write.
 
 import { use, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -25,7 +34,6 @@ import { useAuth } from '../../../lib/AuthContext';
 import { db, storage } from '../../../lib/firebase';
 import {
   OPEN_PAGES_NODE,
-  USER_OPEN_PAGES_NODE,
   OPEN_PAGE_GENRES,
   DEFAULT_GENRE,
   normalizeGenre,
@@ -358,30 +366,21 @@ export default function EditPageClient({ params }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ title: title.trim(), body: body.trim(), coverImage, genre }),
+        // `postId` puts the endpoint in EDIT mode: it re-screens, checks from the
+        // STORED record that the verified uid is the author, and — only on a pass —
+        // writes the new body and the fresh verdict together, with service
+        // credentials.
+        body: JSON.stringify({ title: title.trim(), body: body.trim(), coverImage, genre, postId: id }),
       });
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.status === 'published') {
-        // The moderation endpoint is create-only: a "published" verdict has just
-        // written a throwaway post (data.postId). Remove it (best-effort) so the
-        // edit does NOT create a new post, then update the original in place.
-        const { ref, update, remove } = await import('firebase/database');
-        if (data.postId && data.postId !== id) {
-          try {
-            await remove(ref(db, `${OPEN_PAGES_NODE}/${data.postId}`));
-            await remove(ref(db, `${USER_OPEN_PAGES_NODE}/${user.uid}/${data.postId}`));
-          } catch (cleanupErr) {
-            console.warn('[open-pages] edit: throwaway cleanup failed:', cleanupErr);
-          }
-        }
-        await update(ref(db, `${OPEN_PAGES_NODE}/${id}`), {
-          title: title.trim(),
-          body: body.trim(),
-          genre: normalizeGenre(genre),
-          coverImage: coverImage || null,
-          updatedAt: Date.now(),
-        });
+        // Nothing to write here any more — the post is already saved by the time we
+        // get here. This branch used to delete a throwaway post the endpoint had
+        // just published and then patch open_pages/{id} itself: title, body, genre,
+        // coverImage, updatedAt, and NO moderation field, so the record kept the
+        // verdict its ORIGINAL body had earned. R35 moved that write server-side and
+        // the rules now refuse it from a client.
         router.push(`/open-pages/${id}`);
         return; // keep the spinner until navigation completes
       } else if (res.ok && data.status === 'pending') {

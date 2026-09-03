@@ -69,6 +69,9 @@ const s = {
   title: { fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '1.5rem', fontWeight: 600, color: '#f5f0e8', margin: '0 0 0.35rem', lineHeight: 1.2 },
   meta: { fontSize: '0.82rem', color: 'rgba(245,240,232,0.45)' },
   pill: { fontFamily: "'Cinzel', 'Cormorant Garamond', Georgia, serif", fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#c9a84c', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 999, padding: '0.2rem 0.65rem' },
+  // Same geometry as `pill`, in the alert red the AI-moderation box already uses,
+  // so "this replaces published text" reads as a warning rather than a category.
+  revisionPill: { fontFamily: "'Cinzel', 'Cormorant Garamond', Georgia, serif", fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#e87b7b', background: 'rgba(232,123,123,0.1)', border: '1px solid rgba(232,123,123,0.3)', borderRadius: 999, padding: '0.2rem 0.65rem' },
   excerpt: { fontSize: '0.96rem', lineHeight: 1.6, color: 'rgba(245,240,232,0.62)', margin: '0.9rem 0' },
   actions: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: '1.1rem', paddingTop: '1.1rem', borderTop: '1px solid rgba(245,240,232,0.07)' },
   btnApprove: { background: 'rgba(29,158,117,0.15)', color: '#3ecf9b', border: '1px solid rgba(29,158,117,0.4)', padding: '0.5rem 1.1rem', borderRadius: 7, fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit' },
@@ -153,6 +156,8 @@ export default function AdminForumPage() {
     try {
       const { ref, update } = await import('firebase/database');
       const { id, ...record } = item;
+      const wasRevision = record.revision === true;
+      delete record.revision; // a queue marker, not part of the published record
       record.status = 'live';
       record.approvedBy = user.uid;
       record.approvedAt = Date.now();
@@ -179,10 +184,11 @@ export default function AdminForumPage() {
         getIdToken: () => user?.getIdToken(),
         settleMs: 0,
       });
+      const what = wasRevision ? 'The edit is live' : 'The post is live';
       setMsg(
         verdict.ok
-          ? 'Approved — the post is live. A rebuild has started; its page URL works in about two minutes.'
-          : `Approved — the post is live, but no rebuild started. ${verdict.message}`
+          ? `Approved — ${what.toLowerCase()}. A rebuild has started; its page URL works in about two minutes.`
+          : `Approved — ${what.toLowerCase()}, but no rebuild started. ${verdict.message}`
       );
     } catch (e) {
       console.error('[admin/forum] approve failed:', e);
@@ -308,6 +314,11 @@ function CardHead({ post }) {
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
         <span style={s.pill}>{normalizeGenre(post.genre)}</span>
+        {/* R35 — a queued item is no longer always a NEW post. An edit to an
+            already-live piece is filed here under that piece's own id, so
+            approving it REPLACES the published text rather than publishing a
+            first version. Say which one this is: the two need different reading. */}
+        {post.revision ? <span style={s.revisionPill}>Edit to a live post</span> : null}
         <span style={s.meta}>{fmtDate(post.createdAt)}</span>
       </div>
       <h2 style={s.title}>{post.title || '(untitled)'}</h2>
