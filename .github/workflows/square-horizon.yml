@@ -66,10 +66,16 @@ jobs:
   sweep:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # R9.2 (c) — ACTION MAJORS PINNED OFF THE DEPRECATED node20 RUNTIME, and
+      # node 22 to match every other workflow in this repo. This file arrived on
+      # @v4/node20 because it was written on a branch cut before that ruling
+      # landed, and it was the only workflow here still on them. An untested
+      # toolchain is precisely the wrong thing to discover on the run that sweeps
+      # the room.
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
 
