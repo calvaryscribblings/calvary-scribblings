@@ -34,6 +34,9 @@ on:
       - 'tests/newsletter/**'
       - 'tests/bookstore/**'
       - 'tests/ci/**'
+      # R33.2 — the Square's horizon: its decision logic and the script that runs it.
+      - 'tests/square/**'
+      - 'scripts/square/**'
       # PL-12 — the build's liveness suite. Editing it must be able to start the job.
       - 'tests/build/**'
       - 'app/**'
@@ -96,6 +99,12 @@ jobs:
       - run: npm ci
       - name: Rules assertions — database.rules.json + storage.rules
         run: npm run test:rules
+
+      # R33.2 — the horizon's decision, asserted without a database. Hermetic and
+      # fast, and it sits beside the rules suite because both answer the same
+      # question: does the Square do what it was ruled to do?
+      - name: The Square's horizon
+        run: npm run test:square
 
       # R12.4 — THE SERIES ADMIN, DRIVEN IN A BROWSER AGAINST THE SAME EMULATORS.
       #

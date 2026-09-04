@@ -469,7 +469,11 @@
         "unpinnedAt": {
           ".validate": "newData.isNumber()"
         }
-      }
+      },
+      ".indexOn": [
+        "parentId",
+        "createdAt"
+      ]
     },
     "square_likes": {
       ".read": true,
@@ -1253,6 +1257,62 @@
           "$other": {
             ".validate": false
           }
+        }
+      }
+    },
+    "square_archive": {
+      ".read": true,
+      ".write": false,
+      ".indexOn": [
+        "parentId",
+        "createdAt"
+      ]
+    },
+    "square_archive_reactions": {
+      ".read": true,
+      ".write": false
+    },
+    "square_horizon": {
+      ".read": true,
+      ".write": false
+    },
+    "square_reports": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('canRemovePosts').val() === true",
+      "$postId": {
+        "$reporterUid": {
+          ".read": "auth != null && auth.uid === $reporterUid",
+          ".write": "auth != null && auth.uid === $reporterUid && !data.exists() && newData.exists()",
+          ".validate": "newData.hasChildren(['reason','reporterUid','createdAt']) && newData.child('reporterUid').val() === $reporterUid && newData.child('createdAt').isNumber() && newData.child('createdAt').val() <= now + 300000",
+          "reason": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "note": {
+            ".validate": "newData.isString() && newData.val().length <= 300"
+          },
+          "reporterUid": {
+            ".validate": "newData.isString()"
+          },
+          "postAuthorUid": {
+            ".validate": "newData.isString() && newData.val().length <= 128"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "resolved": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('canRemovePosts').val() === true",
+          ".validate": "newData.isBoolean()"
+        },
+        "resolvedBy": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('canRemovePosts').val() === true",
+          ".validate": "newData.isString() && newData.val().length <= 128"
+        },
+        "resolvedAt": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('canRemovePosts').val() === true",
+          ".validate": "newData.isNumber()"
         }
       }
     }

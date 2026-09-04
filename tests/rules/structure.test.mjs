@@ -144,6 +144,18 @@ const CONSTRAINT_SIGNALS = [
   'auth.uid ===',
   'data.',        // data. / newData. — shape or existence constrained
   'auth.token',
+  // R33.2 — PERMISSION BY SWITCH. `root.child('users').child(auth.uid).child('canPin')`
+  // is a capability check keyed to the writer's own record: it names auth.uid, but it
+  // never COMPARES it, so none of the signals above matched and three genuinely
+  // constrained grants were reported as wide open.
+  //
+  // This is added as a signal rather than as three DELIBERATELY_OPEN exceptions,
+  // because these grants are not open — an exception entry would have recorded a
+  // falsehood, and the next switch-gated node would have needed another one. The
+  // signal is deliberately narrow: it requires the lookup to be rooted at the
+  // WRITER's own record. A rule reading root.child('users').child($someOtherUid)
+  // still does not match, and still has to justify itself.
+  "root.child('users').child(auth.uid)",
 ];
 
 function isUnconditional(expr) {
