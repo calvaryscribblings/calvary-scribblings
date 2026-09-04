@@ -29,7 +29,7 @@ import { COMPOSER_NOTE, INDEX_INVITATION } from '../../lib/openPagesCopy';
 // forum all imported the shared module. Two renderers means a writer's PREVIEW can differ
 // from what a reader sees, which on a writing surface is the one divergence that matters.
 import { renderMarkdown } from '../../lib/openPagesMarkdown';
-import { ComposerRail, applyControl, RAIL_LEFT } from '../../components/ComposerRail';
+import { ComposerRail, ComposerBar, applyControl, RAIL_LEFT, BAR_HEIGHT, RAIL_MIN_WIDTH } from '../../components/ComposerRail';
 import { attachDropcap } from '../../lib/dropcap';
 
 const TITLE_MAX = 200;
@@ -119,6 +119,21 @@ const COMPOSER_CSS = `
      relative is what the rail hangs off — it is absolutely positioned in the margin
      this creates, and never inside it. */
   .op-measure { position: relative; max-width: 660px; margin: 0 auto; padding: 52px 24px 120px; }
+  /* ⚠ THE BAR MUST NOT COST THE MEASURE — a bar that overlays the last line of prose
+     is worse than no bar. At touch widths the measure reserves the bar's height plus
+     the home indicator ON TOP of its existing 120px of tail, so the document can
+     always scroll far enough for the last line to clear the bar. The reservation is
+     PADDING, not a shrunk column: the measure is still 660px and the words still set
+     to the same width, which is the whole point of a measure.
+     ⚠ WHAT HAPPENS WHEN THE KEYBOARD OPENS: the visual viewport shrinks, the browser
+     scrolls the focused field into it, and the bar rides the visual viewport's bottom
+     edge (see keyboardInset). Because the tail below the last line is deeper than the
+     bar is tall, the caret can always be scrolled clear of it — the failure mode this
+     avoids is a document that simply cannot scroll any further while its final line
+     sits under the bar. */
+  @media (max-width: 900px) {
+    .op-measure { padding-bottom: calc(120px + var(--op-bar, 52px) + env(safe-area-inset-bottom)); }
+  }
 
   .op-title { display: block; width: 100%; box-sizing: border-box; background: transparent; border: none; outline: none; padding: 0; margin: 0 0 26px; color: #f5f0e8; font-family: Cormorant Garamond, Georgia, serif; font-size: 2.9rem; font-weight: 600; line-height: 1.1; }
   .op-title::placeholder { color: rgba(245,240,232,0.48); }
@@ -261,6 +276,19 @@ export default function NewOpenPagePage() {
     setCoverImage(d.coverImage || null);
   }
   const [panelOpen, setPanelOpen] = useState(false);
+
+  // Which treatment this device gets. RAIL_MIN_WIDTH is the same number the CSS media
+  // query uses — the constant and the query must never disagree, or a writer gets both
+  // toolbars or neither. Matched with matchMedia rather than an innerWidth read so a
+  // rotation switches treatment without a reload.
+  const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${RAIL_MIN_WIDTH - 1}px)`);
+    const sync = () => setTouch(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
   const previewRef = useRef(null);
 
   // The word count sits quiet in Cinzel — words, not characters. A writer counts in
@@ -531,6 +559,8 @@ export default function NewOpenPagePage() {
     <div style={{ background: INK, minHeight: '100vh', color: CREAM, fontFamily: BODY_SERIF }}>
       <Navbar />
       <style>{COMPOSER_CSS}</style>
+      {/* The reservation above reads this, so the CSS and BAR_HEIGHT are one number. */}
+      <style>{`:root { --op-bar: ${BAR_HEIGHT}px; }`}</style>
 
       {/* ── THE CHROME. Three things, one line. ────────────────────────────────
           The imprint mark, the draft state, one gold action. Nothing else — no
@@ -574,6 +604,15 @@ export default function NewOpenPagePage() {
           disabled={submitting}
           imageBusy={imgUploading}
         />
+        {/* ⭑ THE SECOND TREATMENT. Not a fallback — see the note in
+            app/lib/composerRail.js. The two are mutually exclusive: the rail is hidden
+            by the media query below 900px and the bar renders only there, so a writer
+            never meets both and never meets neither. It is withheld while an overlay is
+            up (the publish panel, the screening moment, an outcome) because a
+            formatting bar over a modal is furniture with nothing to format. */}
+        {touch && !panelOpen && !submitting && !outcome ? (
+          <ComposerBar onControl={handleRailControl} disabled={submitting} imageBusy={imgUploading} />
+        ) : null}
 
         <input
           value={title}

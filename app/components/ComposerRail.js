@@ -38,12 +38,17 @@
 // for free. The rail is a <div role="toolbar"> with a label so a screen reader announces
 // what the group is before its seven buttons.
 
+import { useEffect, useState } from 'react';
 import {
   RAIL_ICON, RAIL_STROKE, RAIL_BUTTON, RAIL_LEFT, RAIL_MIN_WIDTH,
+  BAR_BUTTON, BAR_HEIGHT, keyboardInset,
   RAIL_CONTROLS, applyControl,
 } from '../lib/composerRail';
 
-export { RAIL_ICON, RAIL_STROKE, RAIL_BUTTON, RAIL_LEFT, RAIL_MIN_WIDTH, RAIL_CONTROLS, applyControl };
+export {
+  RAIL_ICON, RAIL_STROKE, RAIL_BUTTON, RAIL_LEFT, RAIL_MIN_WIDTH,
+  BAR_BUTTON, BAR_HEIGHT, keyboardInset, RAIL_CONTROLS, applyControl,
+};
 
 const svg = (paths) => (
   <svg
@@ -133,6 +138,107 @@ export function ComposerRail({ onControl, disabled, imageBusy, style, className 
           onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(245,240,232,0.45)'; }}
           onFocus={(e) => { e.currentTarget.style.color = '#c9a84c'; e.currentTarget.style.outline = '1px solid rgba(201,168,76,0.5)'; }}
           onBlur={(e) => { e.currentTarget.style.color = 'rgba(245,240,232,0.45)'; e.currentTarget.style.outline = 'none'; }}
+        >
+          {glyphFor(c)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+// THE PHONE BAR — the same seven controls, where the thumb is.
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Same set, same order, same weight as the rail: it maps RAIL_CONTROLS, so the two
+// treatments cannot drift into different toolbars. Letterforms for B, I, H and the
+// quotation mark; hairline SVG at one stroke width and one size for the three with no
+// letterform. Only the geometry differs — horizontal, 48px targets, pinned to the
+// bottom of the VISUAL viewport.
+export function ComposerBar({ onControl, disabled, imageBusy }) {
+  const [inset, setInset] = useState(0);
+
+  // ⚠ THE BAR TRACKS THE VISUAL VIEWPORT, NOT THE LAYOUT VIEWPORT. See keyboardInset().
+  // `scroll` matters as much as `resize`: on iOS the visual viewport moves within the
+  // layout viewport as the page is scrolled with the keyboard up, and a bar that only
+  // listens for resize drifts off the keyboard the moment the writer scrolls.
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!vv) return undefined;   // no support: the bar sits at the bottom, which is correct without a keyboard
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      setInset(keyboardInset({ innerHeight: window.innerHeight, height: vv.height, offsetTop: vv.offsetTop }));
+    };
+    const onChange = () => { if (!raf) raf = requestAnimationFrame(measure); };
+    vv.addEventListener('resize', onChange);
+    vv.addEventListener('scroll', onChange);
+    measure();
+    return () => {
+      vv.removeEventListener('resize', onChange);
+      vv.removeEventListener('scroll', onChange);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  return (
+    <div
+      role="toolbar"
+      aria-label="Formatting"
+      aria-orientation="horizontal"
+      data-composer-bar
+      data-keyboard-inset={inset}
+      style={{
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        // The lift IS the keyboard. transform rather than `bottom` so it composites and
+        // does not relayout on every scroll frame with the keyboard up.
+        transform: `translateY(${-inset}px)`,
+        zIndex: 1050,
+        height: BAR_HEIGHT,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        gap: 2,
+        padding: '0 6px',
+        background: 'rgba(8,6,16,0.94)',
+        backdropFilter: 'blur(12px)',
+        borderTop: '1px solid rgba(245,240,232,0.09)',
+        // Only when the keyboard is DOWN does the home indicator need clearing; with the
+        // keyboard up the bar sits above it and the inset would be a gap.
+        paddingBottom: inset ? 0 : 'env(safe-area-inset-bottom)',
+        boxSizing: 'content-box',
+      }}
+    >
+      {RAIL_CONTROLS.map((c) => (
+        <button
+          key={c.key}
+          type="button"
+          // ⚠ THE KEYBOARD MUST NOT CLOSE WHEN A CONTROL IS TAPPED. A <button> takes
+          // focus on press, the textarea blurs, iOS dismisses the keyboard, and the bar
+          // drops to the bottom of the screen mid-tap. Preventing the default on
+          // pointerdown keeps focus in the textarea, so the caret and the keyboard both
+          // survive the tap — which is what makes the control usable at all.
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={() => onControl(c)}
+          disabled={disabled || (c.action === 'image' && imageBusy)}
+          aria-label={c.name}
+          data-bar-control={c.key}
+          style={{
+            width: BAR_BUTTON,
+            height: BAR_BUTTON,
+            display: 'grid',
+            placeItems: 'center',
+            background: 'transparent',
+            border: 'none',
+            borderRadius: 8,
+            padding: 0,
+            color: 'rgba(245,240,232,0.62)',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            opacity: disabled ? 0.4 : 1,
+            WebkitTapHighlightColor: 'transparent',
+          }}
         >
           {glyphFor(c)}
         </button>

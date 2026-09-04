@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   RAIL_ICON, RAIL_STROKE, RAIL_BUTTON, RAIL_LEFT, RAIL_MIN_WIDTH,
+  BAR_BUTTON, BAR_HEIGHT, keyboardInset,
   RAIL_CONTROLS, applyControl,
 } from '../../app/lib/composerRail.js';
 import {
@@ -14,6 +15,7 @@ import {
 
 const composer = readFileSync('app/open-pages/new/page.js', 'utf8');
 const rail = readFileSync('app/components/ComposerRail.js', 'utf8');
+const bar = rail;   // both treatments live in the one component file
 
 // Strip line comments so the prose that EXPLAINS a rule is not mistaken for a breach
 // of it — this file's own docblocks name the things they forbid.
@@ -256,5 +258,113 @@ describe('R39 · contrast on the ink ground', () => {
     const action = composer.slice(composer.indexOf('.op-action {'), composer.indexOf('.op-action {') + 300);
     assert.equal(/#6b2fad|107,47,173/.test(action), false, 'the failing purple must not come back');
     assert.match(action, /#c9a84c/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('R41 · ⭐ THE PHONE TREATMENT — controls where the thumb is', () => {
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// R39's rail hides below RAIL_MIN_WIDTH because there is no margin to hold it. That
+// was correct and it was half a design: a writer on a phone got no controls at all.
+// The bar is the other half — the SAME seven, horizontally, above the keyboard.
+
+  test('⭐ SAME SET, SAME ORDER, SAME WEIGHT — one table drives both', () => {
+    // The two treatments map the same RAIL_CONTROLS, so they cannot drift into
+    // different toolbars. If a later round adds a control to one, it appears in both.
+    assert.match(bar, /RAIL_CONTROLS\.map/);
+    assert.match(rail, /RAIL_CONTROLS\.map/);
+    assert.equal(RAIL_CONTROLS.length, 7);
+    assert.deepEqual(RAIL_CONTROLS.map((c) => c.key), ['bold', 'italic', 'head', 'quote', 'list', 'link', 'image']);
+    // Both render through the same glyph mapper, so the letterforms stay letterforms.
+    const barBody = bar.slice(bar.indexOf('export function ComposerBar'));
+    assert.match(barBody, /\{glyphFor\(c\)\}/);
+  });
+
+  test('⭐ 48px TARGETS — the rail\'s 32 is a pointer target and a miss on a thumb', () => {
+    assert.equal(BAR_BUTTON, 48);
+    assert.ok(BAR_BUTTON >= 44, 'below the HIG and WCAG 2.2 target-size minimum');
+    assert.ok(BAR_BUTTON > RAIL_BUTTON, 'a thumb is not a cursor');
+    const barBody = bar.slice(bar.indexOf('export function ComposerBar'));
+    assert.match(barBody, /width: BAR_BUTTON/);
+    assert.match(barBody, /height: BAR_BUTTON/);
+    assert.ok(BAR_HEIGHT >= BAR_BUTTON, 'the bar must actually contain its buttons');
+  });
+
+  test('⭐⭐ THE INSET IS THE VISUAL VIEWPORT, NOT THE LAYOUT VIEWPORT', () => {
+    // The commonest way this is got wrong: `position: fixed; bottom: 0` sits at the
+    // bottom of the LAYOUT viewport, which on iOS Safari does not shrink when the
+    // keyboard opens — so the bar is underneath the keyboard and invisible.
+    //
+    // iPhone 14, keyboard up: layout 844, visual 508, offset 0 → 336px of keyboard.
+    assert.equal(keyboardInset({ innerHeight: 844, height: 508, offsetTop: 0 }), 336);
+    // Keyboard down: the visual viewport fills the layout viewport → no lift.
+    assert.equal(keyboardInset({ innerHeight: 844, height: 844, offsetTop: 0 }), 0);
+    // Scrolled with the keyboard up: the visual viewport has MOVED inside the layout
+    // one. A bar that only listened for `resize` would drift off the keyboard here.
+    assert.equal(keyboardInset({ innerHeight: 844, height: 508, offsetTop: 120 }), 216);
+  });
+
+  test('rubber-banding and browser-chrome settle never lift the bar off the screen', () => {
+    // iOS overscroll makes the visual viewport extend past the layout viewport, which
+    // is a NEGATIVE inset. Lifting by a negative number pushes the bar off-screen.
+    assert.equal(keyboardInset({ innerHeight: 844, height: 900, offsetTop: 0 }), 0);
+    assert.equal(keyboardInset({ innerHeight: 844, height: 843.4, offsetTop: 0 }), 0, 'sub-pixel settle is not a keyboard');
+    for (const junk of [undefined, {}, { innerHeight: 844 }, { innerHeight: NaN, height: 1, offsetTop: 0 }]) {
+      assert.equal(keyboardInset(junk), 0, 'a missing measurement must not move the bar');
+    }
+  });
+
+  test('it listens for scroll as well as resize, and cleans both up', () => {
+    const barBody = bar.slice(bar.indexOf('export function ComposerBar'));
+    assert.match(barBody, /vv\.addEventListener\('resize'/);
+    assert.match(barBody, /vv\.addEventListener\('scroll'/);
+    assert.match(barBody, /vv\.removeEventListener\('resize'/);
+    assert.match(barBody, /vv\.removeEventListener\('scroll'/);
+    // No visualViewport at all (older engines): the bar sits at the bottom, which is
+    // exactly right with no keyboard, rather than throwing.
+    assert.match(barBody, /if \(!vv\) return undefined;/);
+  });
+
+  test('⭐ TAPPING A CONTROL MUST NOT CLOSE THE KEYBOARD', () => {
+    // A <button> takes focus on press, the textarea blurs, iOS dismisses the keyboard,
+    // and the bar drops mid-tap. Preventing the default on pointerdown keeps focus —
+    // and the caret — in the textarea.
+    const barBody = bar.slice(bar.indexOf('export function ComposerBar'));
+    assert.match(barBody, /onPointerDown=\{\(e\) => e\.preventDefault\(\)\}/);
+  });
+
+  test('⭐ THE TWO TREATMENTS ARE MUTUALLY EXCLUSIVE — never both, never neither', () => {
+    // The CSS hides the rail at <= 900px; the JS renders the bar at <= 900px. One
+    // number, read twice, or a writer gets two toolbars or none.
+    assert.match(composer, /@media \(max-width: 900px\) \{ \.op-rail \{ display: none !important; \} \}/);
+    assert.match(composer, /max-width: \$\{RAIL_MIN_WIDTH - 1\}px/);
+    assert.equal(RAIL_MIN_WIDTH - 1, 900, 'the media query and the constant must agree');
+    assert.match(composer, /\{touch && !panelOpen && !submitting && !outcome \?/,
+      'and the bar is withheld under an overlay — a formatting bar over a modal formats nothing');
+  });
+
+  test('⭐ THE BAR MUST NOT COST THE MEASURE', () => {
+    // A bar that overlays the last line of prose is worse than no bar. The measure
+    // reserves the bar's height on TOP of its existing tail, as padding — the column
+    // is still 660px and the words still set to the same width.
+    assert.match(composer, /padding-bottom: calc\(120px \+ var\(--op-bar, 52px\) \+ env\(safe-area-inset-bottom\)\)/);
+    assert.match(composer, /--op-bar: \$\{BAR_HEIGHT\}px/, 'the CSS and BAR_HEIGHT are one number');
+    // The reservation is scoped to touch widths — the pointer surface has no bar.
+    const reservation = composer.slice(composer.indexOf('@media (max-width: 900px) {'));
+    assert.match(reservation.slice(0, 300), /\.op-measure \{ padding-bottom/);
+  });
+
+  test('the bar carries no emoji and every control is named', () => {
+    const barBody = bar.slice(bar.indexOf('export function ComposerBar'));
+    assert.match(barBody, /aria-label=\{c\.name\}/);
+    assert.match(barBody, /role="toolbar"/);
+    assert.match(barBody, /aria-orientation="horizontal"/);
+    // Comments stripped first — this file's own docblocks use ⚠ to name the rule.
+    for (const ch of codeOf(barBody)) {
+      const o = ch.codePointAt(0);
+      const picto = (o >= 0x1F000 && o <= 0x1FAFF) || (o >= 0x2700 && o <= 0x27BF) || (o >= 0x2600 && o <= 0x26FF) || (o >= 0x2B00 && o <= 0x2BFF);
+      assert.equal(picto, false, `the bar ships U+${o.toString(16)}`);
+    }
   });
 });

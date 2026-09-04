@@ -19,6 +19,53 @@ export const RAIL_LEFT = -64;
 // than overlapped. Kept here so the CSS media query and the test read one number.
 export const RAIL_MIN_WIDTH = 901;
 
+// ═══════════════════════════════════════════════════════════════════════════════════
+// THE SECOND TREATMENT — the phone bar. R41.
+// ═══════════════════════════════════════════════════════════════════════════════════
+// R39 built the rail and specified that it hides below RAIL_MIN_WIDTH because there is
+// no margin to hold it. That was correct and it was half a design: a writer on a phone
+// got NO formatting controls at all.
+//
+// ⚠ THE TWO TREATMENTS ARE NOT A PRIMARY AND A FALLBACK. They answer different
+// questions. On a pointer surface the keyboard is already present and the margin is
+// free, so the controls sit out of the reading path in the margin. On a phone there is
+// no margin and the thumb is at the bottom of the device, so the controls go where the
+// thumb already is. Same seven controls, same order, same weight — a different place,
+// for a reason that belongs to the device and not to the screen size.
+//
+// 48px targets. Apple's HIG and the WCAG 2.2 target-size minimum both land at ~44–48;
+// the rail's 32px is a pointer target and would be a miss on a thumb.
+export const BAR_BUTTON = 48;
+export const BAR_HEIGHT = 52;   // the button plus a hairline and a little air
+
+/**
+ * ⚠ HOW FAR THE KEYBOARD HAS COVERED THE PAGE — the whole of the phone treatment.
+ *
+ * A bar at `position: fixed; bottom: 0` sits at the bottom of the LAYOUT viewport,
+ * which on iOS Safari does NOT shrink when the keyboard opens. So the naive bar is
+ * underneath the keyboard and invisible, and that is the commonest way this is got
+ * wrong. What shrinks is the VISUAL viewport.
+ *
+ * The inset is the strip of layout viewport that the visual viewport no longer covers:
+ *
+ *     innerHeight ──────────── bottom of the layout viewport
+ *        ↑ inset               (the keyboard is in here)
+ *     offsetTop + height ───── bottom of the visual viewport   ← the bar goes here
+ *
+ * Pure so the arithmetic can be tested, because the thing it is protecting against is
+ * invisible in any harness without a real soft keyboard.
+ *
+ * @returns {number} px to lift the bar by; 0 when no keyboard is up.
+ */
+export function keyboardInset({ innerHeight, height, offsetTop } = {}) {
+  if (![innerHeight, height, offsetTop].every((n) => typeof n === 'number' && Number.isFinite(n))) return 0;
+  const inset = innerHeight - (offsetTop + height);
+  // Negative means the visual viewport extends past the layout viewport — overscroll
+  // rubber-banding does this on iOS. Never lift the bar off the bottom of the screen.
+  // A tiny positive value is browser chrome settling, not a keyboard.
+  return inset > 1 ? Math.round(inset) : 0;
+}
+
 // The seven controls, as data. `wrap` is [before, after] around the selection; `line`
 // is a prefix applied at the start of the line; `action` is handled by the composer.
 // `letter` is the character to set in Cormorant — a letter is not an emoji, and the
