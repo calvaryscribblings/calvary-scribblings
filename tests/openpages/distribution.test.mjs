@@ -70,33 +70,50 @@ describe('R38 · the copy promises ATTENTION, not outcome', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('R38 · ⭐ THE ROW IS OUT OF THE BASEMENT AND STAYS OUT', () => {
+describe('R38 · ⭐ THE ROW SITS BELOW THE CATALOGUE AND ABOVE THE FURNITURE', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 //
-// Measured on the LIVE page before the move: the Open Pages heading sat at 4,295px of
-// a 5,106px document — 84% down, twelve headings above it and none below, BELOW EVEN
-// THE NEWSLETTER SIGNUP. This asserts the source order that fixed it. A later round
-// may move the row deliberately; what it may not do is move it back by accident.
+// Asserted in BOTH directions, because the row has now been wrong in both.
+//
+// It was at the FOOT: measured live at 4,295px of 5,106px — 84.1% down, twelve
+// headings above and none below, BELOW THE SUBSCRIBE BLOCK. A row a reader only
+// reaches after passing the newsletter signup is not a row.
+//
+// R38 then over-corrected it ABOVE the genre rows, on the reading that Flash, Short
+// and Poetry are filters over the catalogue rather than curation. Ikenna's ruling:
+// those rows ARE the house's catalogue — the work it commissioned, edited and
+// published — and Open Pages above them tells a reader the island values community
+// writing more than its own published work. The 2026 ruling protects the house's
+// published work, ALL of it.
+//
+// The settled position is between the two: below everything the house published,
+// above the furniture. Not because Open Pages is lesser, but because it is the road
+// INTO the house — which is the whole reasoning behind this round's copy.
 
   const src = read('app/public-library/page.js');
   const at = (needle) => { const i = src.indexOf(needle); assert.notEqual(i, -1, `not found: ${needle}`); return i; };
+  const row = () => at('<OpenPagesRow />');
 
-  test('the row renders ABOVE the genre rows, the Series and the newsletter', () => {
-    const row = at('<OpenPagesRow />');
-    assert.ok(row < at('title="Flash Fiction"'), 'must be above Flash Fiction');
-    assert.ok(row < at('title="Short Stories"'), 'must be above Short Stories');
-    assert.ok(row < at('title="Poetry"'), 'must be above Poetry');
-    assert.ok(row < at('title="Inspiring Stories"'), 'must be above Inspiring Stories');
-    assert.ok(row < at('<SeriesRow />'), 'must be above The Series');
-    assert.ok(row < at('id="subscribe"'), 'MUST BE ABOVE THE NEWSLETTER — it was below it, which is why nobody saw it');
+  test('⭐ BELOW every genre row — the house\'s catalogue outranks it', () => {
+    for (const genre of ['Flash Fiction', 'Short Stories', 'Poetry', 'News & Updates', 'Inspiring Stories']) {
+      assert.ok(row() > at(`title="${genre}"`), `${genre} is house-published work and must stay above Open Pages`);
+    }
   });
 
-  test('and BELOW the editorial front, which the 2026 ruling protects', () => {
-    // The ruling — untested community writing must not outrank curated editorial — is
-    // kept, read as the editorial FRONT rather than as every row on the page.
-    const row = at('<OpenPagesRow />');
-    assert.ok(row > at('<JustAddedSkeleton />'), 'Just Added stays above it');
-    assert.ok(row > src.lastIndexOf('Top 10 Stories</h3>'), 'Top 10 stays above it');
+  test('⭐ BELOW The Series and the Book Reader collection — also house-published', () => {
+    assert.ok(row() > at('<SeriesRow />'), 'The Series is commissioned work');
+    assert.ok(row() > at('title="Book Reader"'), 'the Collection is house-published');
+  });
+
+  test('⭐ ABOVE THE SUBSCRIBE BLOCK — this is the defect that started the round', () => {
+    // At 84.1% it sat BELOW this. Everything else here is hierarchy; this one line is
+    // the difference between a row and no row.
+    assert.ok(row() < at('id="subscribe"'),
+      'below the newsletter signup a reader never reaches it — that is how three months produced seven pieces');
+  });
+
+  test('and above the footer, so it is the last CONTENT rather than the last thing', () => {
+    assert.ok(row() < at('{/* Footer */}'));
   });
 
   test('it is rendered exactly once', () => {

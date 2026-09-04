@@ -1852,31 +1852,6 @@ export default function Home() {
       </section>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          R38 — OPEN PAGES COMES OUT OF THE BASEMENT.
-          ═══════════════════════════════════════════════════════════════════════
-          IT USED TO BE LAST. Measured on the LIVE page before this moved: the
-          heading sat at 4,295px of a 5,106px document — 84% down, twelve headings
-          above it and none below, BELOW EVEN THE NEWSLETTER SIGNUP. A row a reader
-          only reaches after passing the subscribe block is not a row, and three
-          months produced seven pieces.
-
-          THE 2026 RULING IT ANSWERS TO — "untested community writing should not
-          outrank curated editorial" — is kept, but read precisely. What stays above
-          Open Pages is the editorial front: Just Added (the newest house work), the
-          Seasonal Program, Top Readers and Top 10. What moves below it is the long
-          tail of GENRE rows, which are filters over the same catalogue rather than a
-          further act of curation.
-
-          ⚠ THIS DOES CHANGE THE RULING'S EFFECT, and says so rather than pretending
-          to be a re-reading: Open Pages now sits above Flash, Short, Poetry, News,
-          Inspiring and The Series. That is the round — the thing the island wants to
-          grow was the one thing being starved on purpose.
-
-          ⚠ ITS POSITION IS ASSERTED in tests/openpages/distribution.test.mjs so a
-          later round cannot quietly return it to the basement. Moving it deliberately
-          is fine; moving it back by accident is what the test catches. */}
-      <OpenPagesRow />
 
       {allStories.length === 0 ? (
         <RowSkeleton title="Flash Fiction" kicker="THE FLASH" />
@@ -1919,6 +1894,43 @@ export default function Home() {
       {allStories.filter(s => s.readerMode === true).length > 0 && (
         <Row title="Book Reader" kicker="THE COLLECTION" stories={allStories.filter(s => s.readerMode === true)} seeAll="/book-reader" userTiersMap={userTiersMap} />
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          OPEN PAGES — BELOW EVERYTHING THE HOUSE PUBLISHED, ABOVE THE FURNITURE.
+          ═══════════════════════════════════════════════════════════════════════
+          THE DEFECT THIS FIXES, measured on the live page: the heading sat at
+          4,295px of a 5,106px document — 84.1% down, twelve headings above it and
+          none below, BELOW THE SUBSCRIBE BLOCK. A row a reader only reaches after
+          passing the newsletter signup is not a row, and three months produced seven
+          pieces.
+
+          ⚠ THE 2026 RULING, AS IKENNA HAS NOW SETTLED IT — READ THIS BEFORE MOVING
+          THE ROW AGAIN. It protects THE HOUSE'S PUBLISHED WORK, ALL OF IT, and not
+          merely the editorial front.
+
+          R38 first placed this row directly under Top 10 and above the genre rows, on
+          the reading that Flash Fiction, Short Stories and Poetry are FILTERS over the
+          catalogue rather than a further act of curation. That reading is defensible
+          and it is wrong: those rows ARE the house's catalogue — the work it
+          commissioned, edited and published. Open Pages above them tells a reader the
+          island values community writing more than its own published work, which is
+          neither true nor what the ruling was protecting. That placement was reverted
+          the same day.
+
+          ⚠ AND WHY HERE RATHER THAN AT THE FOOT, which is the other thing not to
+          re-argue: not because Open Pages is lesser, but because it is THE ROAD INTO
+          THE HOUSE. That is the whole reasoning behind R38's copy — "when a piece
+          belongs in the house, we come and ask". A road into the house belongs at the
+          end of the house's own shelves and before the furniture, where a reader who
+          has just finished looking at what the island publishes meets the invitation
+          to write for it. Below the signup it is furniture; above the catalogue it is
+          a claim the house does not make.
+
+          So: below every genre row, below The Series and the Book Reader collection,
+          ABOVE the subscribe block. ⚠ ASSERTED IN BOTH DIRECTIONS in
+          tests/openpages/distribution.test.mjs — a later round cannot quietly raise it
+          above the catalogue or drop it back beneath the furniture. */}
+      <OpenPagesRow />
 
       {/* Subscribe */}
       <section id="subscribe" style={{
