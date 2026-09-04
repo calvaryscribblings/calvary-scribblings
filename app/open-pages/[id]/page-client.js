@@ -17,6 +17,10 @@ import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
 import { OPEN_PAGES_NODE, normalizeGenre, isEdited } from '../../lib/openPages';
+// R38 — the reading treatment. THE TAGGER IS SHARED WITH THE STORY PAGE; the stylesheet
+// deliberately is not. See the note above OP_READING_CSS.
+import { attachDropcap } from '../../lib/dropcap';
+import { PUBLISHED_FOOTER } from '../../lib/openPagesCopy';
 // R36 — the blocking filter lives in a module so it can be tested directly; see its
 // note there for the ruling it implements and why it is not a write barrier.
 import { pruneBlocked, countNodes } from '../../lib/openPagesThread';
@@ -108,6 +112,48 @@ function removeReplyFromTree(nodes, parentPath, replyId) {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════
+// R38 — THE READING TREATMENT, AND WHY app/lib/proseCSS.js IS NOT IMPORTED.
+// ═══════════════════════════════════════════════════════════════════════════════════
+// A community piece read visibly cheaper than a house one — no drop cap, no reading
+// progress, no ending — on the surface whose whole new argument is that the house is
+// reading. That difference told a writer exactly what the house thought of their work.
+//
+// The obvious move is to import proseCSS.js, which the story page and the offline shelf
+// reader already share. IT CANNOT BE IMPORTED HERE AND THIS IS THE MEASURED REASON:
+// proseCSS is written for a LIGHT ground — `color: #1a1a1a`, `rgba(26,26,26,0.55)`,
+// HOUSE_GOLD_ON_LIGHT (#7f6726) — because the story page is cream. THIS PAGE IS INK
+// (#080610) with cream text. Importing it would set near-black type on a near-black
+// background: the whole body would vanish.
+//
+// So what is ported is the GEOMETRY AND THE GOLD, both copied exactly:
+//   · the drop cap's 4.2em / 0.78 line-height / 0.06em 0.12em margins, and #c9a84c —
+//     which is already the on-dark half of the house gold pair, so it needs no
+//     adaptation at all (the cream-ground page uses #7f6726 for the same reason).
+//   · the progress bar's 2px, its gradient, and its transform-origin.
+//   · the ending mark's 88px rule, its ✦, and its 14px gap.
+// What is NOT ported is every colour that assumed cream. The tagger — app/lib/dropcap.js
+// — IS shared, because deciding which paragraph is genuinely opening prose is ground-
+// agnostic and is the part with the real logic in it.
+//
+// ⚠ If proseCSS is ever made ground-aware, this block should be deleted in favour of it.
+// Two copies of a stylesheet drift; this one exists only because the two grounds differ.
+const OP_READING_CSS = `
+  .op-prose.has-dropcap p.dropcap-target::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: #c9a84c; font-family: Cormorant Garamond, Georgia, serif; }
+  .op-prose.has-dropcap p.dropcap-target { text-indent: 0; }
+  .op-reading-progress { position: fixed; top: 0; left: 0; right: 0; width: 100%; height: 2px; background: linear-gradient(90deg, #c9a84c, rgba(201,168,76,0.55)); transform: scaleX(0); transform-origin: left; opacity: 0; z-index: 1000; will-change: transform, opacity; transition: opacity 0.4s ease; pointer-events: none; }
+  .op-last-page { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 2.75rem 2rem 1rem; }
+  .op-lp-orn { color: #c9a84c; font-size: 0.9rem; line-height: 1; opacity: 0; transition: opacity 600ms ease 1400ms; }
+  .op-lp-rule { display: block; width: 88px; height: 1px; background: #c9a84c; transform: scaleX(0); transform-origin: center; transition: transform 700ms ease 400ms; }
+  .op-closed .op-lp-rule { transform: scaleX(1); }
+  .op-closed .op-lp-orn { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    .op-lp-rule { transform: scaleX(1); transition: none; }
+    .op-lp-orn { opacity: 1; transition: none; }
+    .op-reading-progress { transition: none; }
+  }
+`;
+
 function formatDate(ts) {
   if (!ts || typeof ts !== 'number') return '';
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -147,6 +193,12 @@ export default function OpenPageDetailClient({ params }) {
   // Guards the read-count increment to once per mount (effects can re-run, and
   // React strict mode double-invokes them in dev).
   const readCountedRef = useRef(false);
+
+  // R38 — the reading treatment's three moving parts.
+  const proseRef = useRef(null);      // the drop-cap tagger's container
+  const progressRef = useRef(null);   // the 2px bar
+  const endRef = useRef(null);        // the ending mark's sentinel
+  const [closed, setClosed] = useState(false);
 
   // Reactions — open_pages_reactions/{postId}/{uid} = true. Held as a uid->true
   // map; count and "did I like it" are derived at render so they react to auth.
@@ -468,6 +520,57 @@ export default function OpenPageDetailClient({ params }) {
     setPosting(false);
   }
 
+  // R38 — DROP CAP. The tagger is app/lib/dropcap.js, the same module the story page
+  // and the offline shelf reader run. It walks the container, decides which paragraph
+  // is genuinely opening prose (skipping epigraphs, content notes, section numerals)
+  // and tags it; the CSS above does the rest. Re-attached when the body changes,
+  // because the post arrives after the first render.
+  useEffect(() => {
+    if (!post || !proseRef.current) return;
+    return attachDropcap(proseRef.current);
+  }, [post]);
+
+  // R38 — READING PROGRESS. The same 2px gold bar the story page carries. It is a
+  // fraction of the ARTICLE, not of the document: a long comment thread underneath
+  // would otherwise mean the bar never fills while reading the piece, which reads as
+  // the piece being longer than it is.
+  useEffect(() => {
+    if (!post) return;
+    let raf = 0;
+    const paint = () => {
+      raf = 0;
+      const el = proseRef.current, bar = progressRef.current;
+      if (!el || !bar) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const span = Math.max(1, el.offsetHeight - window.innerHeight * 0.6);
+      const frac = Math.min(1, Math.max(0, (window.scrollY - top + window.innerHeight * 0.6) / span));
+      bar.style.transform = `scaleX(${frac})`;
+      bar.style.opacity = frac > 0.01 && frac < 0.995 ? '1' : '0';
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(paint); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    paint();
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [post]);
+
+  // R38 — THE ENDING. A piece that simply stops has not ended; the story page draws a
+  // rule and an ornament when the reader reaches the last line, and a community piece
+  // now earns the same. One-way: once closed it stays closed, so scrolling back up
+  // does not un-end the piece.
+  useEffect(() => {
+    if (!post || !endRef.current || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { setClosed(true); io.disconnect(); }
+    }, { threshold: 0.6 });
+    io.observe(endRef.current);
+    return () => io.disconnect();
+  }, [post]);
+
   // ---- Like a comment or reply (optimistic) ----
   // comment_likes/{postId}/{node.path}/{uid} = true. `node.path` already encodes
   // the full nesting, so the same code likes comments and replies at any depth.
@@ -766,6 +869,8 @@ export default function OpenPageDetailClient({ params }) {
 
   return (
     <Shell>
+      <style>{OP_READING_CSS}</style>
+      <div ref={progressRef} className="op-reading-progress" aria-hidden="true" />
       <article style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px 90px' }}>
         {/* Back */}
         <div style={{ marginBottom: 28 }}>
@@ -833,10 +938,27 @@ export default function OpenPageDetailClient({ params }) {
           </div>
         </AuthorLink>
 
-        {/* Body */}
-        <div style={{ fontFamily: BODY_SERIF, fontSize: '1.22rem', lineHeight: 1.8 }}>
+        {/* Body — R38: `.op-prose has-dropcap` is what the shared tagger scopes to. */}
+        <div
+          ref={proseRef}
+          className="op-prose has-dropcap"
+          style={{ fontFamily: BODY_SERIF, fontSize: '1.22rem', lineHeight: 1.8 }}
+        >
           {renderMarkdown(post.body)}
         </div>
+
+        {/* R38 — THE ENDING. Same 88px rule and ✦ the story page draws, on ink. */}
+        <div ref={endRef} className={`op-last-page${closed ? ' op-closed' : ''}`} aria-hidden="true">
+          <span className="op-lp-orn">✦</span>
+          <span className="op-lp-rule" />
+        </div>
+
+        {/* R38 — the thank-you. Attention, not outcome: it says the piece HAS been read
+            here, which is true of everything published, and promises nothing further.
+            See app/lib/openPagesCopy.js. */}
+        <p data-op-footer-note style={{ textAlign: 'center', fontFamily: BODY_SERIF, fontSize: '0.95rem', color: 'rgba(245,240,232,0.42)', margin: '0 0 8px', lineHeight: 1.6 }}>
+          {PUBLISHED_FOOTER}
+        </p>
 
         {/* Like — open_pages_reactions/{postId}/{uid}. A quiet heart + count, no
             chrome; the heart gives one small scale pulse when it turns gold. */}

@@ -58,12 +58,16 @@ export default function WeeklyDigest({
               );
             }
             if (block.type === "story") {
+              // R38 — a block may point anywhere on the island. The three hardcoded
+              // `${siteUrl}/stories/${block.slug}` links became one `href`, defaulted to
+              // the old path so every block saved before this round renders unchanged.
+              const href = `${siteUrl}${block.href || `/stories/${block.slug}`}`;
               return (
                 <Section key={block.id} style={{ padding: "12px 40px" }}>
                   <Row>
                     {block.cover && (
                       <Column style={{ width: "120px", verticalAlign: "top" }}>
-                        <Link href={`${siteUrl}/stories/${block.slug}`}>
+                        <Link href={href}>
                           <Img src={block.cover} width="110" height="70" alt={block.title} style={{ borderRadius: "6px", objectFit: "cover", display: "block" }} />
                         </Link>
                       </Column>
@@ -72,7 +76,7 @@ export default function WeeklyDigest({
                       <Text style={{ color: purple, fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", margin: "0 0 6px", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontWeight: "600" }}>
                         {block.category || "Fiction"}
                       </Text>
-                      <Link href={`${siteUrl}/stories/${block.slug}`} style={{ textDecoration: "none" }}>
+                      <Link href={href} style={{ textDecoration: "none" }}>
                         <Heading as="h2" style={{ color: darkText, fontSize: "17px", fontWeight: "700", margin: "0 0 6px", lineHeight: "1.3", fontFamily: "Georgia, 'Times New Roman', serif" }}>
                           {block.title}
                         </Heading>
@@ -85,7 +89,7 @@ export default function WeeklyDigest({
                           {block.excerpt.length > 120 ? block.excerpt.slice(0, 120) + "…" : block.excerpt}
                         </Text>
                       )}
-                      <Link href={`${siteUrl}/stories/${block.slug}`} style={{ color: purple, fontSize: "12px", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontWeight: "600", letterSpacing: "0.5px", textDecoration: "none" }}>
+                      <Link href={href} style={{ color: purple, fontSize: "12px", fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontWeight: "600", letterSpacing: "0.5px", textDecoration: "none" }}>
                         Read on Calvary Scribblings →
                       </Link>
                     </Column>

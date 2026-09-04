@@ -18,6 +18,7 @@ import Link from 'next/link';
 import Navbar from '../components/Navbar';
 import { db } from '../lib/firebase';
 import { OPEN_PAGES_NODE, OPEN_PAGE_GENRES, normalizeGenre } from '../lib/openPages';
+import { INDEX_INVITATION } from '../lib/openPagesCopy';
 import { stripMarkdown } from '../lib/openPagesMarkdown';
 
 // Brand palette.
@@ -168,6 +169,15 @@ export default function OpenPagesFeed() {
           </h1>
           <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '1.25rem', color: 'rgba(245,240,232,0.55)', marginTop: 14, marginBottom: 0 }}>
             Original writing, published by readers like you.
+          </p>
+          {/* R38 — THE REASON TO WRITE. Open Pages is not a rival to Calvary
+              Scribblings, it is the road into it. The copy promises ATTENTION, not
+              outcome — see app/lib/openPagesCopy.js for why that distinction is the
+              whole point and must not be "improved" into a promise. */}
+          <p data-op-invitation style={{ fontFamily: BODY_SERIF, fontSize: '1.05rem', color: 'rgba(245,240,232,0.75)', marginTop: 18, marginBottom: 0, maxWidth: 620, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
+            {INDEX_INVITATION.line1}
+            <br />
+            <span style={{ color: 'rgba(245,240,232,0.5)', fontSize: '0.95rem' }}>{INDEX_INVITATION.line2}</span>
           </p>
           <div style={{ marginTop: 22 }}>
             <a

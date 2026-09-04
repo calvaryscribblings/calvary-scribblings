@@ -23,6 +23,7 @@ import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/AuthContext';
 import { storage } from '../../lib/firebase';
 import { OPEN_PAGE_GENRES, DEFAULT_GENRE, normalizeGenre } from '../../lib/openPages';
+import { COMPOSER_NOTE } from '../../lib/openPagesCopy';
 
 const TITLE_MAX = 200;
 const BODY_MAX = 50000;
@@ -515,6 +516,15 @@ export default function NewOpenPagePage() {
               Dismiss
             </button>
           </div>
+        ) : null}
+
+        {/* R38 — quiet, near publish. A reassurance rather than a pitch: the writer
+            is already here and already writing; what they do not know is that anyone
+            reads it. Attention, not outcome — app/lib/openPagesCopy.js. */}
+        {!outcome ? (
+          <p data-op-composer-note style={{ margin: '0 0 1.25rem', fontFamily: BODY_SERIF, fontSize: '0.9rem', color: 'rgba(245,240,232,0.42)' }}>
+            {COMPOSER_NOTE}
+          </p>
         ) : null}
 
         {/* Outcome banner */}

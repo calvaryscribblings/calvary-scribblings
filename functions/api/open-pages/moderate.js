@@ -50,6 +50,9 @@ import {
 } from '../../../app/lib/openPages.js';
 import { resolveHook, fire } from '../_deploy-hooks.js';
 import { consume, refusalMessage } from './_rate-limit.js';
+// R38 — the Square announcement. Pure builder; the write happens below, inside the same
+// atomic PATCH that publishes the piece.
+import { buildAnnouncement } from '../../../app/lib/openPagesAnnounce.js';
 
 // Same budget the rebuild endpoint uses for the same third party. Stated here rather than
 // imported from bookstore/_lib.js so this file keeps its one-directory import surface.
@@ -602,6 +605,30 @@ export async function onRequestPost(context) {
     [`${OPEN_PAGES_NODE}/${postId}`]: record,
     [`${USER_OPEN_PAGES_NODE}/${uid}/${postId}`]: record,
   };
+
+  // R38 — ANNOUNCE IT IN THE SQUARE, IN THIS SAME PATCH.
+  //
+  // The room is the island's only daily habit, and a piece that publishes into silence
+  // reaches only whoever happens to scroll. Putting the write in the SAME multi-path
+  // PATCH as the publish is what makes the round's hard constraint structural rather
+  // than hopeful: the announcement cannot land before the piece, because it lands WITH
+  // it or not at all. And it is only ever reached on a `pass` — a flagged, pending,
+  // blocked or rate-limited submission returns long before this line, so nothing
+  // unscreened is ever announced.
+  //
+  // An EDIT is not announced. The room is told when a piece arrives, not every time its
+  // author fixes a typo — R37 made editing cheap on purpose, and an announcement per
+  // save would turn the one daily habit into a changelog.
+  if (!isEdit) {
+    const squareId = generatePushId(now);
+    const announcement = buildAnnouncement(snapshot, profile, { title: cleanTitle, postId, now });
+    paths[`square_posts/${squareId}`] = announcement;
+    // The per-author mirror holds the WHOLE record, exactly as app/square/page.js's
+    // mirrorToUserPosts does (it sets postData, not a stub) — a mirror row with a
+    // different shape from the client's is a divergence waiting to be found by a
+    // profile page rendering half a card.
+    paths[`user_square_posts/${uid}/${squareId}`] = announcement;
+  }
   // A passing edit supersedes any revision of the same post still sitting in the
   // queue. Left behind, an admin could later approve the stale one and silently
   // revert the piece to an older body.

@@ -111,11 +111,43 @@ export default function NewsletterPage() {
     if (!user) return;
     const app = getFirebaseApp();
     const db = getDatabase(app);
-    get(ref(db, "cms_stories")).then((snap) => {
-      if (snap.exists()) {
-        const list = Object.entries(snap.val()).map(([id, s]) => ({ id, ...s }));
-        setAllStories(list.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt)));
-      }
+    // R38 — the digest can now carry Open Pages pieces, and THE HOUSE PICKS THEM.
+    //
+    // Ikenna's read, and I agree: the newsletter is the house speaking, so it selects.
+    // The alternative — every published piece automatically in the digest — would make
+    // the digest a function of submission volume rather than of judgement, and the whole
+    // point of this round is to raise that volume. An auto-digest gets worse exactly as
+    // the round succeeds.
+    //
+    // ⚠ NO NEW SELECTION MECHANISM WAS INVENTED. This composer already IS the selection:
+    // a curator picks blocks by hand, and the live draft (issue #8) is block-composed
+    // exactly that way. Open Pages pieces simply join the pool the curator picks from.
+    //
+    // ⚠ ONLY `live` PIECES. open_pages holds nothing else today (all 7 are live, measured
+    // 4 Sep 2026), but the filter is explicit rather than assumed: a flagged piece must
+    // never be selectable, and this admin surface would otherwise be the one place a
+    // pending piece could reach readers.
+    Promise.all([get(ref(db, "cms_stories")), get(ref(db, "open_pages"))]).then(([sSnap, oSnap]) => {
+      const stories = sSnap.exists()
+        ? Object.entries(sSnap.val()).map(([id, s]) => ({ id, ...s, source: "story" }))
+        : [];
+      const pieces = oSnap.exists()
+        ? Object.entries(oSnap.val())
+            .filter(([, p]) => p && p.status === "live")
+            .map(([id, p]) => ({
+              id,
+              slug: id,
+              source: "openPages",
+              href: `/open-pages/${id}`,
+              title: p.title,
+              author: p.authorName || "Reader",
+              category: "Open Pages",
+              cover: p.coverImage || "",
+              excerpt: String(p.body || "").replace(/[#*_>`[\]()!]/g, " ").replace(/\s+/g, " ").trim().slice(0, 160),
+              publishedAt: new Date(p.createdAt || 0).toISOString(),
+            }))
+        : [];
+      setAllStories([...stories, ...pieces].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt)));
     });
     get(ref(db, "subscribers")).then((snap) => {
       if (snap.exists()) {
@@ -220,6 +252,12 @@ export default function NewsletterPage() {
       type: "story",
       id: uuid(),
       slug,
+      // R38 — an explicit href. The digest used to hardcode /stories/{slug} in three
+      // places; an Open Pages piece lives at /open-pages/{id}. Existing blocks carry no
+      // href and the renderer falls back to the old path, so issue #8's saved draft is
+      // untouched.
+      href: story.href || `/stories/${slug}`,
+      source: story.source || "story",
       title: story.title,
       author: story.author,
       category: story.category,

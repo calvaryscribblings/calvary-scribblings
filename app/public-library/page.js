@@ -1852,6 +1852,32 @@ export default function Home() {
       </section>
       )}
 
+      {/* ═══════════════════════════════════════════════════════════════════════
+          R38 — OPEN PAGES COMES OUT OF THE BASEMENT.
+          ═══════════════════════════════════════════════════════════════════════
+          IT USED TO BE LAST. Measured on the LIVE page before this moved: the
+          heading sat at 4,295px of a 5,106px document — 84% down, twelve headings
+          above it and none below, BELOW EVEN THE NEWSLETTER SIGNUP. A row a reader
+          only reaches after passing the subscribe block is not a row, and three
+          months produced seven pieces.
+
+          THE 2026 RULING IT ANSWERS TO — "untested community writing should not
+          outrank curated editorial" — is kept, but read precisely. What stays above
+          Open Pages is the editorial front: Just Added (the newest house work), the
+          Seasonal Program, Top Readers and Top 10. What moves below it is the long
+          tail of GENRE rows, which are filters over the same catalogue rather than a
+          further act of curation.
+
+          ⚠ THIS DOES CHANGE THE RULING'S EFFECT, and says so rather than pretending
+          to be a re-reading: Open Pages now sits above Flash, Short, Poetry, News,
+          Inspiring and The Series. That is the round — the thing the island wants to
+          grow was the one thing being starved on purpose.
+
+          ⚠ ITS POSITION IS ASSERTED in tests/openpages/distribution.test.mjs so a
+          later round cannot quietly return it to the basement. Moving it deliberately
+          is fine; moving it back by accident is what the test catches. */}
+      <OpenPagesRow />
+
       {allStories.length === 0 ? (
         <RowSkeleton title="Flash Fiction" kicker="THE FLASH" />
       ) : (
@@ -1985,9 +2011,6 @@ export default function Home() {
           )}
         </div>
       </section>
-
-      {/* Open Pages — community stories, the last content section before the footer */}
-      <OpenPagesRow />
 
       {/* Footer */}
       <Footer />
