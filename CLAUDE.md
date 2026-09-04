@@ -81,6 +81,36 @@ score was `#a78bfa` at 6.88:1 — passing. The change shipped for consistency, n
 The direction of travel is **app → web for look, web → app for systems**, and the hand-off
 notes in each round's report are the only interface between the two repos.
 
+## 🚨 PROBES THAT WRITE TO LIVE DATA
+
+A rules round proves itself against production with a real token. That is right, and it is
+how R33.1, R35 and R36 were verified. **But on 4 Sep 2026 an R36 probe destroyed a live
+record**: it wrote `R36 PROBE` into the body of Ikenna's published "welcome to 'open pages'"
+letter. The text was recovered from the automated backup an hour later — but only after the
+round had already reported it permanently lost and restored the wrong version from a stale
+mirror.
+
+Four rules, each of which would have prevented it on its own:
+
+1. **READ THE VALUE FIRST, and restore the moment a write you expected to fail succeeds.**
+   The probe asserted a refusal instead of checking for one. `const before = await get(...)`
+   costs nothing; `if (!denied) await set(ref, before)` is the whole fix.
+2. **NEVER TARGET A FOUNDER-AUTHORED RECORD.** The two founder uids hold node-level `.write`
+   on most nodes, so where the author is a founder, *author* and *admin* are the same account
+   and **a refusal cannot be assumed**. The R36 probe picked `Object.entries(posts)[0]`, which
+   happened to be founder-authored. Filter founders out, or assert the grant you actually
+   mean.
+3. **PREFER A RECORD THE PROBE CREATED ITSELF.** Write to a scratch id you seeded and will
+   delete. Use a human's record only when the test is specifically about a real one, and then
+   only under rule 1.
+4. **VERIFY INTEGRITY AFTERWARDS AND SAY SO.** Re-read every record touched and compare it to
+   the pre-probe read. R36's probe did print `live body unchanged (false)` — the check worked;
+   the round nearly shipped past it.
+
+And before concluding anything is unrecoverable: **check
+`calvary-scribblings-default-rtdb-backups`.** Daily archives, 30-day retention. See
+`scripts/backup/RESTORE.md`.
+
 ## Verification
 
 Before committing any new file, run `git status` and confirm the path is at the repo root (`app/…`, `emails/…`, `scripts/…`, `public/…`). If you see a path starting with `calvary-scribblings-next/` or `calvary-app/`, stop — that is a vestigial location, and nothing under it may be staged or committed.

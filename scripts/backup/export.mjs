@@ -8,14 +8,40 @@
 // WHY THIS EXISTS
 // ═══════════════════════════════════════════════════════════════════════════════════════
 //
-// The Fortress Audit (23 Aug 2026) found the project contains exactly ONE Cloud Storage
-// bucket — the live one. Realtime Database automated backups have never been enabled; they
-// would have created a second bucket, and there isn't one. No account export has ever been
-// run. The only safety net in existence is Google's default seven-day soft delete on the
-// file bucket, which nobody configured — it came with the bucket.
+// 🚨 CORRECTION, R37 (4 Sep 2026) — THE PARAGRAPH THAT STOOD HERE WAS TRUE FOR 48 MINUTES
+// AND THEN WRONG FOR TWELVE DAYS, AND IT COST REAL WORK.
 //
-// This script does not fix that. It does the part a script CAN do, so that the part which
-// needs a console (see RESTORE.md → WHAT ONLY IKENNA CAN DO) is the only thing left.
+// It said: "the project contains exactly ONE Cloud Storage bucket — the live one. Realtime
+// Database automated backups have never been enabled; they would have created a second
+// bucket, and there isn't one."
+//
+// The reasoning was sound and the conclusion became false almost immediately. This file was
+// written at 19:22 UTC on 23 Aug 2026. The bucket
+// calvary-scribblings-default-rtdb-backups was created at 20:10 UTC the same evening —
+// forty-eight minutes later — when the automated backup was switched on. Nobody came back
+// to this comment.
+//
+// WHAT IT COST. On 4 Sep 2026 a probe wrote test text into a live Open Pages piece. Acting
+// on this comment, that round concluded no backup existed, restored the record from a stale
+// mirror holding older text, and reported 267 characters of Ikenna's own writing as
+// permanently lost. They were sitting in that morning's automated backup the whole time and
+// were recovered byte-for-byte an hour later. A false statement about a safety net is worse
+// than no statement: it is believed, and the belief is what stops anyone looking.
+//
+// THE STATE TODAY, measured rather than reasoned:
+//   · The project is on the BLAZE plan (two buckets; automated backups are Blaze-only).
+//   · Firebase's scheduled RTDB backup is ENABLED and has run daily at ~00:13 UTC since
+//     23 Aug 2026, writing <ts>_..._data.json.gz and _rules.json.gz to that bucket, which
+//     carries a 30-day delete lifecycle rule.
+//   · scripts/backup/liveness.mjs watches it and FAILS a daily workflow if it stops,
+//     shrinks, or stops parsing. scripts/backup/restore-drill.mjs proves it restores.
+//
+// SO WHAT IS THIS SCRIPT FOR NOW? The two things the automated backup does NOT cover:
+// Firebase AUTH ACCOUNTS and the EPUBs. The database half is redundant with the automated
+// backup and is kept as a portable, off-Google copy. See RESTORE.md.
+//
+// ⚠ If you are about to write a comment asserting that some safety net does not exist,
+// check it at the source instead, and date the check.
 //
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // ⚠ WHAT THIS DOES NOT RECOVER — read before trusting it

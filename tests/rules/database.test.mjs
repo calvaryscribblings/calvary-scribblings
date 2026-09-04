@@ -2818,6 +2818,28 @@ describe('R35 · open_pages_pending — the R33.1 catch-all, one node over', () 
     }
   });
 
+  test('R37 · ops/backup_liveness is founder-readable and client-unwritable', async () => {
+    // The heartbeat the daily backup-liveness workflow writes. A founder must be able
+    // to read it — it is how a human checks the checker when GitHub has quietly
+    // disabled the cron after 60 days of repo inactivity, which is this system's real
+    // silent-failure mode. Nobody may WRITE it, including a founder: a heartbeat a
+    // person can forge is not evidence of anything.
+    await seed(env, { 'ops/backup_liveness': { checkedAt: 1, ok: true, archiveCount: 13 } });
+    await assertSucceeds(founder.ref('ops/backup_liveness').get());
+    await assertFails(owner.ref('ops/backup_liveness').get());
+    await assertFails(anon.ref('ops/backup_liveness').get());
+    await assertFails(founder.ref('ops/backup_liveness').set({ ok: true }));
+    await assertFails(founder.ref('ops/backup_liveness/ok').set(true));
+    await assertFails(owner.ref('ops/backup_liveness').set({ ok: true }));
+    await assertFails(anon.ref('ops/backup_liveness').remove());
+    await assertFails(founder.ref('ops/backup_liveness').remove());
+    let still;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      still = (await ctx.database().ref('ops/backup_liveness').get()).val();
+    });
+    assert.equal(still.archiveCount, 13, 'the heartbeat survived every attempt above');
+  });
+
   test('R36 · open_pages_rate is unreachable from any client, in either direction', async () => {
     // The submission counter. It is admin-SDK-only on purpose: a reader who could
     // write it could zero their own count, and a reader who could READ it would learn

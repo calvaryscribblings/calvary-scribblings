@@ -1,0 +1,97 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# BACKUP LIVENESS — watching a thing this repo does not own.
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# ⚠ THIS WORKFLOW DOES NOT TAKE THE BACKUP. Firebase's own scheduled Realtime
+# Database backup is enabled on this project (Blaze plan, no additional charge) and
+# has run daily at ~00:13 UTC since 2026-08-23, writing to the bucket
+# calvary-scribblings-default-rtdb-backups with a 30-day delete lifecycle. Do not
+# add a second exporter here: two backup systems means two things to believe and one
+# of them will rot.
+#
+# WHAT THIS DOES is notice when that stops. R33.2 found the Square's cleanup route had
+# never executed once and nothing noticed for months; a backup is the worst place for
+# that failure, because a stopped backup is BELIEVED and the belief is what stops
+# anyone looking for another copy on the day it matters.
+#
+# This project has already paid for that. scripts/backup/export.mjs carried a comment
+# asserting automated backups had never been enabled — written 48 minutes before they
+# were switched on, never corrected. Acting on it, R36 declared 267 characters of
+# Ikenna's writing permanently lost. They were in that morning's backup.
+#
+# THE OUTERMOST LAYER IS IRREDUCIBLE and worth stating rather than pretending away:
+# something has to be trusted to notice, and here it is GitHub's notification on a
+# failed scheduled run. GitHub also DISABLES cron schedules after 60 days without repo
+# activity — that is this system's real silent-failure mode. The heartbeat this job
+# writes to ops/backup_liveness is what a human can look at to check the checker.
+name: backup liveness
+
+on:
+  schedule:
+    # 09:00 UTC daily — well after the ~00:13 backup, at an hour someone reads mail.
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/backup/**'
+      - 'tests/backup/**'
+      - '.github/workflows/backup-liveness.yml'
+  pull_request:
+    paths:
+      - 'scripts/backup/**'
+      - 'tests/backup/**'
+      - '.github/workflows/backup-liveness.yml'
+
+concurrency:
+  group: backup-liveness
+  cancel-in-progress: false
+
+jobs:
+  # The unit tests run on every trigger, including before a scheduled check: a
+  # liveness check whose own thresholds are untested is not evidence of anything.
+  verify:
+    name: liveness logic
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:backup
+
+  # The live check. Schedule and manual dispatch only — a push must not be able to
+  # turn the alarm green by running it at a convenient moment.
+  check:
+    name: are the backups still running
+    needs: verify
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Materialise the service account
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set — the liveness check cannot read the backup bucket, which is indistinguishable from having no backup."
+            exit 1
+          fi
+          printf '%s' "$KEY" > "$GITHUB_WORKSPACE/serviceAccountKey.json"
+
+      - name: backup liveness
+        run: node scripts/backup/liveness.mjs
+
+      - name: Shred the key
+        if: always()
+        run: rm -f "$GITHUB_WORKSPACE/serviceAccountKey.json"

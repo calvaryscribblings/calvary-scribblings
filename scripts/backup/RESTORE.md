@@ -7,6 +7,73 @@ that has to be recorded now — see [What only Ikenna can do](#what-only-ikenna-
 
 ---
 
+## 🚨 START HERE — there IS an automated backup, and it is the fastest way back
+
+**The project is on the Blaze plan and Firebase's own scheduled Realtime Database backup is
+enabled.** It has run daily at ~00:13 UTC since 23 Aug 2026, writing to the bucket
+`calvary-scribblings-default-rtdb-backups` (30-day delete lifecycle). Nothing in this repo
+takes that backup and nothing should: it is a console setting, and two backup systems means
+two things to believe.
+
+> **This section exists because the opposite was written down and believed.** `export.mjs`
+> asserted for twelve days that automated backups had never been enabled — the comment was
+> written 48 minutes before they were switched on. On 4 Sep 2026 a probe damaged a live Open
+> Pages piece, that comment was trusted, the record was restored from a stale mirror, and 267
+> characters of Ikenna's writing were reported permanently lost. They were in that morning's
+> backup. **Check the bucket before you conclude anything is gone.**
+
+### Recovering ONE record (the common case, and what actually happened)
+
+Almost every real incident is one bad write, not a dead database. Do not restore the whole
+tree for it.
+
+```bash
+# 1. What have we got, and how fresh?
+npm run backup:liveness
+
+# 2. Pull the archive from just before the damage and take the record out of it.
+#    List archives, pick by timestamp, then:
+node -e '
+  const {mintToken}=await import("./scripts/rules-pull.mjs");
+  const {gunzipSync}=await import("node:zlib");
+  const B="calvary-scribblings-default-rtdb-backups";
+  const OBJ="<the _data.json.gz you want>";
+  const t=await mintToken();
+  const r=await fetch(`https://storage.googleapis.com/storage/v1/b/${B}/o/${encodeURIComponent(OBJ)}?alt=media`,{headers:{Authorization:`Bearer ${t}`}});
+  const db=JSON.parse(gunzipSync(Buffer.from(await r.arrayBuffer())));
+  console.log(JSON.stringify(db.open_pages["<postId>"],null,2));
+' --input-type=module
+```
+
+Then write just that path back with the admin SDK. **Verify the length or a checksum against
+the archive before and after** — this is exactly the step that was skipped.
+
+### Restoring the WHOLE database
+
+Rehearse it first; the drill is one command and it touches nothing live:
+
+```bash
+npm run backup:restore-drill      # restores the newest archive into the emulator and
+                                  # compares every node against the archive
+```
+
+Last proven: **4 Sep 2026** — 19.09 MB, 76 top-level nodes, whole tree canonically identical.
+
+For real, point the same PUT at production. See [The database](#1-the-database) below.
+
+### Is it still running?
+
+```bash
+npm run backup:liveness           # fails loudly if stale, shrinking, or unreadable
+```
+
+`.github/workflows/backup-liveness.yml` runs this daily at 09:00 UTC and writes a heartbeat
+to `ops/backup_liveness`. **GitHub disables cron schedules after 60 days of repo inactivity —
+that is this system's real silent-failure mode.** If the repo goes quiet, check the heartbeat
+by hand.
+
+---
+
 ## Taking a backup
 
 ```bash
@@ -26,6 +93,10 @@ hash, and it must never enter git.
 ---
 
 ## What is in it
+
+> Note: this section describes `export.mjs`, the PORTABLE off-Google copy. The automated
+> Firebase backup above covers the database and rules only — `export.mjs` exists for the two
+> things it does **not** cover, **auth accounts** and **the EPUBs**.
 
 | Part | Size today | Recovers |
 |---|---|---|
