@@ -11,6 +11,9 @@ import { advertisesQuiz } from '../lib/readerCollection';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { db } from '../lib/firebaseCore';
 import CoverImage from '../components/CoverImage';
+// R42 — the row shares the feed's opening rule. Two copies of "what is the opening" is
+// how the two surfaces start disagreeing; a character substring is measurably wrong.
+import { openingOf, readingTime } from '../lib/openPagesOpening';
 import { ref, get, onValue } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { normalizeGenre } from '../lib/openPages';
@@ -1192,79 +1195,139 @@ function opTimeAgo(ts) {
   if (weeks < 5) return `${weeks}w ago`;
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
+// ═══════════════════════════════════════════════════════════════════════════════════
+// ⭑ THE HOME ROW IS TEXT ONLY — AND THAT IS A DIFFERENT RULING FROM THE FEED'S.
+// ═══════════════════════════════════════════════════════════════════════════════════
+// R40 rebuilt /open-pages as a contents page and gave a cover its own treatment there:
+// a PLATE, a wide short band above the entry, because a plate is furniture with room
+// to breathe and it rewards a writer who made art. R38 only MOVED this row; nothing
+// restyled it, so it kept the pre-R40 card — a 210px bordered box with a 118px cover,
+// a feather-in-a-gradient where there was none, no opening lines at all, and the read
+// count Ikenna ruled out in R40.
+//
+// ⚠ THE ROW GETS THE OPPOSITE ANSWER ON COVERS, AND THE REASON IS THE NEIGHBOURS. On
+// the feed an entry has the page to itself. HERE it sits between the house's own
+// cover-led rows — Flash, Short Stories, Poetry, The Series — where every sibling is a
+// wall of commissioned artwork. A community thumbnail in that company makes community
+// writing compete with the catalogue ON THE CATALOGUE'S TERMS, and lose: the same
+// 118px box, next to a professionally art-directed one, reads as the weaker version of
+// the same thing.
+//
+// Text is not a lesser treatment here. It is the row saying it is a DIFFERENT KIND OF
+// THING — the one place on the page where the words themselves are the offer. Between
+// six rows of covers, a column of sentences is the thing that stops a scroll.
+//
+// ⚠ SO: NO IMAGES AT ALL. Not the cover, and not the 28px author avatar either. At that
+// size an avatar identifies nobody; it is a decoration, and the ruling's word is TEXT
+// ONLY. The writer's name is set in type instead, which reads better at row scale and
+// leaves the row with no <img> in it — which is the assertion.
+//
+// ⚠ AND IT IS STILL A ROW. It scrolls horizontally beside its siblings and must not
+// become a second feed: SIX entries, the same number it carried before, and the same
+// number the sibling rows show before a See-all. The feed is where all of them live.
 
-function OpenPagesCard({ post, counts, photo }) {
+// 330px, and the width is a MEASURED decision rather than a taste — it is the width at
+// which both live poems set their opening stanza without turning a line. See the note on
+// verse below for the numbers and for what 300px did. Entries are a fixed size because a row of ragged heights reads as
+// broken; without a cover to set the height, the clamps do it.
+const OP_ROW_W = 330;
+const OP_ROW_H = 190;
+
+function OpenPagesEntry({ post, author }) {
   const [hover, setHover] = useState(false);
-  const likeCount = counts?.reactionCount ?? 0;
-  const commentCount = counts?.commentCount ?? 0;
-  const initial = (post.authorName || '?').trim().charAt(0).toUpperCase();
-
-  // Real profile photo (28px circle) when present, else the gradient initial.
-  const avatarEl = photo ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={photo} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, display: 'block', border: '1px solid rgba(245,240,232,0.1)' }} />
-  ) : (
-    <span style={opAvatarDot}>{initial}</span>
-  );
+  // ⚠ THE SAME MODULE THE FEED USES. Two copies of "what is the opening" is how the two
+  // surfaces start disagreeing — and a character substring is measurably wrong: R40
+  // proved it shows a reader the section marker `**I. UNREAD**` and nothing else. The
+  // row passes a smaller budget through the module's own options rather than cutting
+  // the result itself.
+  const opening = openingOf(post.body, { maxLines: 3, maxChars: 150 });
+  const mins = readingTime(post.body);
+  // Identity resolves at render; the stored snapshot is the fallback. R38 measured
+  // 24.4% of stored identity copies already stale.
+  const name = author?.displayName || post.authorName || 'Reader';
 
   return (
     <a
       href={`/open-pages/${post.id}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      data-op-row-entry
+      data-op-row-kind={opening.kind}
       style={{
-        textDecoration: 'none', flexShrink: 0, width: 210, minWidth: 210,
+        textDecoration: 'none', flexShrink: 0,
+        width: OP_ROW_W, minWidth: OP_ROW_W, height: OP_ROW_H,
         display: 'flex', flexDirection: 'column',
-        background: hover ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.03)',
-        border: `1px solid ${hover ? 'rgba(201,168,76,0.3)' : 'rgba(255,255,255,0.06)'}`,
-        borderRadius: 10, overflow: 'hidden', transition: 'all 0.25s ease',
+        // A hairline on the left, not a box. The feed separates entries with a rule;
+        // laid on its side for a row, that rule becomes this.
+        borderLeft: `1px solid ${hover ? 'rgba(201,168,76,0.5)' : 'rgba(245,240,232,0.12)'}`,
+        padding: '2px 20px 2px 18px',
+        transition: 'border-color 0.25s ease',
+        background: 'transparent',
       }}
     >
-      {post.coverImage ? (
-        <img src={post.coverImage} alt="" style={{ width: '100%', height: 118, objectFit: 'cover', display: 'block', background: '#1a1326' }} />
-      ) : (
-        <div style={{ width: '100%', height: 118, background: 'linear-gradient(135deg, #1a1326, #0d0916)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="rgba(201,168,76,0.3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z" />
-            <path d="M16 8 2 22" />
-            <path d="M17.5 15H9" />
-          </svg>
-        </div>
-      )}
-      <div style={{ padding: '0.7rem 0.8rem 0.85rem', display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
-        <span style={{
-          alignSelf: 'flex-start', fontFamily: OP_CINZEL, fontSize: '0.56rem', letterSpacing: '0.1em',
-          textTransform: 'uppercase', color: OP_GOLD, background: 'rgba(201,168,76,0.1)',
-          border: '1px solid rgba(201,168,76,0.3)', borderRadius: 999, padding: '0.18rem 0.55rem',
-        }}>
-          {normalizeGenre(post.genre)}
+      <span style={{ fontFamily: OP_CINZEL, fontSize: '0.58rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: OP_GOLD, marginBottom: 8 }}>
+        {normalizeGenre(post.genre)}
+      </span>
+
+      <div style={{
+        fontFamily: OP_SERIF, fontSize: '1.18rem', fontWeight: 600, color: '#f5f0e8', lineHeight: 1.2,
+        marginBottom: 8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+      }}>
+        {post.title}
+      </div>
+
+      {/* ⚠ VERSE AT ROW WIDTH, AND THE WIDTH IS WHAT THE MEASUREMENT DECIDED.
+          A verse line that WRAPS reads as two lines and the stanza's shape becomes a
+          lie, so the question "is the row wide enough to set a stanza honestly?" had to
+          be answered by counting rendered line boxes, not by estimating characters.
+
+          At 300px it was NOT. Measured with a Range over the text: "THE SHAPE I BECAME"
+          set 2 written lines as 2, but "The Outliers' Mind" set 3 as 4 — the opening
+          line, "Somewhere between belonging and becoming," turned. And the cause was
+          this block's own hanging indent, which costs 12px of measure: verse had 249px
+          of content where prose had 261.
+
+          At 330px both set honestly — 2→2 and 3→3 — with the longest verse line
+          rendering at 267px in a 279px box. That is 12px of headroom, which is thin;
+          a poet who writes a longer opening line will turn one, and that is what the
+          hanging indent below is for.
+
+          THE HANGING INDENT is what print does with a turned line: it keeps the breaks
+          the writer typed while showing that the overflow is a turn and not a new line.
+          The alternative was running verse as prose at row width, and that is the one
+          that silently rewrites a poem. */}
+      <div
+        data-op-row-opening
+        style={{
+          fontFamily: OP_SERIF, fontSize: '0.92rem', lineHeight: 1.6, color: 'rgba(245,240,232,0.62)',
+          flex: 1, overflow: 'hidden',
+          display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+        }}
+      >
+        {opening.kind === 'verse'
+          /* ⚠ EACH VERSE LINE IS ITS OWN BLOCK, and that is the whole of the hanging
+             indent working correctly. The first attempt set the stanza as one block with
+             `white-space: pre-line` and a text-indent — and text-indent applies to the
+             FIRST line of a block, while the padding applies to all of them, so lines 2
+             and 3 of every stanza came out indented and line 1 did not. That is not a
+             hanging indent; it is a misprint of the poem, and it was visible the moment
+             the row was screenshotted rather than reasoned about.
+             Per line, the pair does what print does: the line sets flush, and only a
+             TURN — a line too long for the measure — is indented under it. */
+          ? opening.lines.map((line, i) => (
+              <span key={i} style={{ display: 'block', paddingLeft: 12, textIndent: -12 }}>{line}</span>
+            ))
+          : opening.lines[0] || ''}
+      </div>
+
+      <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 7, fontSize: '0.72rem', color: 'rgba(245,240,232,0.42)', minWidth: 0 }}>
+        <span style={{ fontFamily: DISPLAY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+        <span style={{ opacity: 0.5 }}>·</span>
+        {/* ⚠ READ COUNT STAYS OUT, per R40's ruling: a low number on a young platform
+            discourages the tap it exists to encourage. Reading time changes it. */}
+        <span style={{ fontFamily: OP_CINZEL, fontSize: '0.56rem', letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+          {mins} min read
         </span>
-        <div style={{
-          fontFamily: OP_SERIF, fontSize: '1.05rem', fontWeight: 600, color: '#fff', lineHeight: 1.2,
-          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-        }}>
-          {post.title}
-        </div>
-        <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
-          {avatarEl}
-          <span style={{ fontFamily: DISPLAY, flex: 1, minWidth: 0, fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {post.authorName || 'Reader'} · {opTimeAgo(post.createdAt)}
-          </span>
-          <span style={opCountRow}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              {post.readCount || 0}
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-              {likeCount}
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              {commentCount}
-            </span>
-          </span>
-        </div>
       </div>
     </a>
   );
@@ -1275,7 +1338,6 @@ function OpenPagesRow() {
   // Per-post engagement counts (postId -> { commentCount, reactionCount }) and
   // author photos (authorUid -> url|null) — fetched in a second pass, exactly as
   // the feed (app/open-pages/page.jsx) does it.
-  const [counts, setCounts] = useState({});
   const [authorPhotos, setAuthorPhotos] = useState({});
 
   useEffect(() => {
@@ -1292,31 +1354,19 @@ function OpenPagesRow() {
           .slice(0, 6);
         setPosts(list);
 
-        // Comment + like counts: one read each per post, count the keys.
-        const entries = await Promise.all(list.map(async (p) => {
-          try {
-            const [cSnap, rSnap] = await Promise.all([
-              get(ref(db, `comments/${p.id}`)),
-              get(ref(db, `open_pages_reactions/${p.id}`)),
-            ]);
-            const commentCount = cSnap.exists() ? Object.keys(cSnap.val()).length : 0;
-            const reactionCount = rSnap.exists() ? Object.keys(rSnap.val()).length : 0;
-            return [p.id, { commentCount, reactionCount }];
-          } catch {
-            return [p.id, { commentCount: 0, reactionCount: 0 }];
-          }
-        }));
-        if (cancelled) return;
-        setCounts(Object.fromEntries(entries));
+        // ⭑ THE COUNTS FETCH WENT WITH THE COUNTS — two extra reads PER POST, for a
+        // read count, a like count and a comment count that R40 ruled off the entry and
+        // this row no longer draws. Twelve requests a homepage load for nothing.
 
         // Author avatars: one read per unique author at users/{uid} for the real
-        // profile photo (avatarUrl/photoURL), same source as the feed.
+        // ⚠ THE READ STAYS, THE PHOTO GOES. The row is text only, so nothing renders an
+        // avatar — but the live displayName still has to win over the stored snapshot,
+        // which R38 measured as 24.4% stale. Same read, whole record kept.
         const uids = [...new Set(list.map((p) => p.authorUid).filter(Boolean))];
         const photoEntries = await Promise.all(uids.map(async (uid) => {
           try {
             const s = await get(ref(db, `users/${uid}`));
-            const v = s.exists() ? s.val() : null;
-            return [uid, v ? v.avatarUrl || v.photoURL || null : null];
+            return [uid, s.exists() ? s.val() : null];
           } catch {
             return [uid, null];
           }
@@ -1357,7 +1407,7 @@ function OpenPagesRow() {
         </a>
       </div>
       <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
-        {posts.map(p => <OpenPagesCard key={p.id} post={p} counts={counts[p.id]} photo={authorPhotos[p.authorUid]} />)}
+        {posts.map(p => <OpenPagesEntry key={p.id} post={p} author={authorPhotos[p.authorUid]} />)}
       </div>
     </section>
   );
