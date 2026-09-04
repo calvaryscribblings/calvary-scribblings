@@ -23,7 +23,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
-import { ref, get, set, remove, update } from 'firebase/database';
+import { ref, get, set, remove, update, serverTimestamp } from 'firebase/database';
 
 const FOUNDERS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 
@@ -35,6 +35,11 @@ const SWITCHES = [
   { key: 'canRemovePosts', label: "Remove someone else's post",
     why: 'The heaviest of the three. A reader can always withdraw their own words without it.' },
 ];
+
+// The liveness threshold the workflow uses, restated here so the page and the
+// job agree on what "stopped" means. 26h, not 24: the bell fires once a day, so
+// 24 sits exactly on the boundary and flaps on ordinary runner delay.
+const STALE_AFTER_MS = 26 * 60 * 60 * 1000;
 
 const FF = 'Cormorant Garamond, Georgia, serif';
 const S = {
@@ -70,6 +75,7 @@ export default function SquareAdmin() {
   const [holders, setHolders] = useState([]);
   const [reports, setReports] = useState([]);
   const [horizon, setHorizon] = useState(null);
+  const [stale, setStale] = useState(false);
 
   // Everyone who currently holds anything, so "who can do what" is a glance and
   // not an archaeology exercise.
@@ -96,12 +102,22 @@ export default function SquareAdmin() {
     setReports(rows);
   }, []);
 
+  // Read the clock HERE, at the read, not during render. The staleness of the
+  // bell is a fact about the moment the heartbeat was fetched, and rendering has
+  // to stay pure. Shaped as a loader like the other two so the file has one idiom.
+  const loadHorizon = useCallback(async () => {
+    const snap = await get(ref(db, 'square_horizon'));
+    const h = snap.exists() ? snap.val() : null;
+    setHorizon(h);
+    setStale(h?.lastBellAt ? Date.now() - h.lastBellAt > STALE_AFTER_MS : true);
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     loadHolders().catch(() => {});
     loadReports().catch(() => {});
-    get(ref(db, 'square_horizon')).then(s => setHorizon(s.exists() ? s.val() : null)).catch(() => {});
-  }, [user, loadHolders, loadReports]);
+    loadHorizon().catch(() => {});
+  }, [user, loadHolders, loadReports, loadHorizon]);
 
   // Reuse of the resolver the CMS already uses for story attribution: a handle
   // is what a person knows about another person; a uid is not.
@@ -137,7 +153,10 @@ export default function SquareAdmin() {
   const resolve = async (postId) => {
     setBusy(postId);
     try {
-      await update(ref(db, `square_reports/${postId}`), { resolved: true, resolvedBy: user.uid, resolvedAt: Date.now() });
+      // The server's clock, not the moderator's. resolvedAt is an audit field on
+      // a moderation record, so it must not be settable by a wrong device clock;
+      // serverTimestamp() resolves to a number before .validate sees it.
+      await update(ref(db, `square_reports/${postId}`), { resolved: true, resolvedBy: user.uid, resolvedAt: serverTimestamp() });
       await loadReports();
     } catch (e) { setErr('Could not resolve: ' + (e?.message || e)); }
     setBusy('');
@@ -152,8 +171,6 @@ export default function SquareAdmin() {
       </div></div>
     );
   }
-
-  const stale = horizon?.lastBellAt ? (Date.now() - horizon.lastBellAt) > 26 * 3600 * 1000 : true;
 
   return (
     <div style={S.page}><div style={S.wrap}>
@@ -249,7 +266,7 @@ export default function SquareAdmin() {
           </>
         )}
         {stale && <div style={{ color: '#e0574f', marginTop: 8, fontSize: '0.88rem' }}>
-          ⚠ No bell in the last 26 hours. The workflow also fails loudly when this happens — check Actions.
+          No bell in the last 26 hours. The workflow also fails loudly when this happens — check Actions.
         </div>}
       </div>
     </div></div>

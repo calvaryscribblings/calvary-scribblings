@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (342 of 2000 permitted) ───────────────
+# ── Static rules (344 of 2000 permitted) ───────────────
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
 /offline.html                                                /public-library                                              301
@@ -46,6 +46,8 @@
 /amor-s-cage.html                                            /stories/amor-s-cage                                         301
 /amvca-an-opinion-feature                                    /stories/amvca-an-opinion-feature                            301
 /amvca-an-opinion-feature.html                               /stories/amvca-an-opinion-feature                            301
+/apple-s-quiet-health-overhaul                               /stories/apple-s-quiet-health-overhaul                       301
+/apple-s-quiet-health-overhaul.html                          /stories/apple-s-quiet-health-overhaul                       301
 /arrival-again                                               /stories/arrival-again                                       301
 /arrival-again.html                                          /stories/arrival-again                                       301
 /asake-m-ney-album-review                                    /stories/asake-m-ney-album-review                            301

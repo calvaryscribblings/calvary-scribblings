@@ -56,9 +56,18 @@
 //
 //   A PINNED THREAD SURVIVES, AND SO DO ITS REPLIES.
 //
-// That is what tonight's winners announcement needs — the post must not vanish
-// on Friday, and neither should the thirteen congratulations underneath it.
-// Because replies were never aged separately, they simply come along.
+// That is what the winners announcement needs — the post must not vanish, and
+// neither should the replies underneath it. Because replies were never aged
+// separately, they simply come along.
+//
+// ⚠ RE-MEASURED 4 SEP 2026, BEFORE ARMING. This docblock previously said the
+// announcement carried "thirteen congratulations". It carries ONE reply, and
+// always did — the congratulations arrived as separate root posts, which are
+// NOT protected by the pin and DO go at the bell. The distinction matters
+// exactly here, so it is recorded rather than corrected away: pinning a post
+// protects its thread, not its subject. Verified against live square_posts —
+// the announcement (-P0YywQIAr-6lMaUpIU2, Ikenna, 2 Sep 22:17) is pinned, and
+// its thread is 2 records.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚠ WHY THIS IS A SCRIPT ON A CRON AND NOT AN ENDPOINT
