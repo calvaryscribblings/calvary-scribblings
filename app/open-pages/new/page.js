@@ -23,7 +23,7 @@ import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/AuthContext';
 import { storage } from '../../lib/firebase';
 import { OPEN_PAGE_GENRES, DEFAULT_GENRE, normalizeGenre } from '../../lib/openPages';
-import { COMPOSER_NOTE } from '../../lib/openPagesCopy';
+import { COMPOSER_NOTE, INDEX_INVITATION } from '../../lib/openPagesCopy';
 // R39 — THE PRIVATE COPY OF THE MARKDOWN RENDERER IS GONE. This file carried its own
 // safeHref/renderInline/renderMarkdown while /open-pages, /open-pages/[id] and the admin
 // forum all imported the shared module. Two renderers means a writer's PREVIEW can differ
@@ -671,7 +671,15 @@ export default function NewOpenPagePage() {
 
             {/* ⭑ R38's approved copy, at the panel's foot — the last thing read
                 before the piece goes. Attention, not outcome. */}
-            <p className="op-note" data-op-composer-note>{COMPOSER_NOTE}</p>
+            {/* ⭑ R40 — THE COMMISSIONING SENTENCE LIVES HERE NOW. It was the feed's
+                second standfirst line; Ikenna's ruling moved it to the composer, where
+                a writer is about to act and will read it once, rather than the feed,
+                where a weekly reader would meet it until it became wallpaper. */}
+            <p className="op-note" data-op-composer-note>
+              {COMPOSER_NOTE}
+              <br />
+              <span data-op-commissioning>{INDEX_INVITATION.line2}</span>
+            </p>
           </aside>
         </>
       ) : null}

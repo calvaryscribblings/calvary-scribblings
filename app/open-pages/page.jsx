@@ -19,7 +19,12 @@ import Navbar from '../components/Navbar';
 import { db } from '../lib/firebase';
 import { OPEN_PAGES_NODE, OPEN_PAGE_GENRES, normalizeGenre } from '../lib/openPages';
 import { INDEX_INVITATION } from '../lib/openPagesCopy';
-import { stripMarkdown } from '../lib/openPagesMarkdown';
+// R40 — the entry's opening comes from the SHARED prose predicate, not a character
+// count. See the note at the top of that module for why it is a third adapter rather
+// than a second excerpt rule.
+import { openingOf, readingTime } from '../lib/openPagesOpening';
+import { isEdited } from '../lib/openPages';
+import { getBadge } from '../components/conversation/ConversationKit';
 
 // Brand palette.
 const INK = '#080610';
@@ -33,7 +38,6 @@ const BODY_SERIF = "Cormorant Garamond, Georgia, serif";
 const CINZEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 
 const FILTERS = ['All', ...OPEN_PAGE_GENRES];
-const EXCERPT_LEN = 120;
 
 // Relative time — "just now", "5 minutes ago", "2 days ago", then a date.
 function timeAgo(ts) {
@@ -53,27 +57,12 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function excerpt(body) {
-  const text = stripMarkdown(body);
-  if (text.length <= EXCERPT_LEN) return text;
-  return text.slice(0, EXCERPT_LEN).replace(/\s+\S*$/, '') + '…';
-}
-
-// Estimated reading time in whole minutes (~200 wpm), floored at 1.
-function readTime(body) {
-  const wordCount = (body || '').trim().split(/\s+/).length;
-  return Math.max(1, Math.round(wordCount / 200));
-}
-
 // ---------------------------------------------------------------------------
 
 export default function OpenPagesFeed() {
   const [posts, setPosts] = useState(null); // null = loading, [] = loaded empty
   const [error, setError] = useState(false);
   const [filter, setFilter] = useState('All');
-  // Per-post engagement counts, keyed by postId: { commentCount, reactionCount }.
-  // Fetched in a second pass once the feed list is known.
-  const [counts, setCounts] = useState({});
   // Author profile photos, keyed by authorUid -> photo URL (or null). Fetched in
   // the same second pass so cards can show real avatars (same source as the
   // detail page: users/{uid} avatarUrl/photoURL).
@@ -97,45 +86,31 @@ export default function OpenPagesFeed() {
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         setPosts(list);
 
-        // Second pass: one parallel read per post for comment + reaction counts.
-        // comments/{postId} — count the keys. open_pages_reactions/{postId} —
-        // count the keys (one per reactor); falls back to a count stored on the
-        // post object, else 0. Both degrade gracefully when the node is absent.
-        const entries = await Promise.all(
-          list.map(async (p) => {
-            try {
-              const [cSnap, rSnap] = await Promise.all([
-                get(ref(db, `comments/${p.id}`)),
-                get(ref(db, `open_pages_reactions/${p.id}`)),
-              ]);
-              const commentCount = cSnap.exists() ? Object.keys(cSnap.val()).length : 0;
-              let reactionCount = rSnap.exists() ? Object.keys(rSnap.val()).length : 0;
-              if (!reactionCount && typeof p.reactionCount === 'number') reactionCount = p.reactionCount;
-              return [p.id, { commentCount, reactionCount }];
-            } catch {
-              return [p.id, { commentCount: 0, reactionCount: 0 }];
-            }
-          })
-        );
-        if (cancelled) return;
-        setCounts(Object.fromEntries(entries));
+        // ⭑ THE COUNTS FETCH IS GONE WITH THE COUNTS. It was two extra reads PER POST —
+        // comments/{id} and open_pages_reactions/{id} — for numbers the entry no longer
+        // shows. Ikenna's ruling took the read count, the likes and the comment count off
+        // the entry; leaving the reads behind would have been fourteen requests a load
+        // for nothing. If a later round wants a count back, it costs those reads again
+        // and should say so.
 
-        // Author avatars: one read per unique author at users/{authorUid} for the
-        // real profile photo (avatarUrl/photoURL), matching the detail page.
+        // ⚠ IDENTITY RESOLVES AT RENDER. One read per unique author at users/{uid}.
+        // The feed already did this for the avatar and threw the rest away, so the
+        // stored authorName — a snapshot R38 measured as 24.4% stale across the
+        // platform — was what a reader saw. It now keeps the whole record: the live
+        // name, handle, avatar, island standing and house flag. Same number of reads.
         const uids = [...new Set(list.map((p) => p.authorUid).filter(Boolean))];
-        const photoEntries = await Promise.all(
+        const authorEntries = await Promise.all(
           uids.map(async (uid) => {
             try {
               const s = await get(ref(db, `users/${uid}`));
-              const v = s.exists() ? s.val() : null;
-              return [uid, v ? v.avatarUrl || v.photoURL || null : null];
+              return [uid, s.exists() ? s.val() : null];
             } catch {
               return [uid, null];
             }
           })
         );
         if (cancelled) return;
-        setAuthorPhotos(Object.fromEntries(photoEntries));
+        setAuthorPhotos(Object.fromEntries(authorEntries));
       } catch (e) {
         console.error('[open-pages] feed read failed:', e);
         if (!cancelled) setError(true);
@@ -170,14 +145,14 @@ export default function OpenPagesFeed() {
           <p style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '1.25rem', color: 'rgba(245,240,232,0.55)', marginTop: 14, marginBottom: 0 }}>
             Original writing, published by readers like you.
           </p>
-          {/* R38 — THE REASON TO WRITE. Open Pages is not a rival to Calvary
-              Scribblings, it is the road into it. The copy promises ATTENTION, not
-              outcome — see app/lib/openPagesCopy.js for why that distinction is the
-              whole point and must not be "improved" into a promise. */}
+          {/* ⭑ THE STANDFIRST IS THE FIRST LINE ONLY. R38 put both lines here; Ikenna's
+              R40 ruling moves the second — the commissioning sentence — to the COMPOSER,
+              where a writer is about to act. On the feed a reader browsing weekly would
+              meet it until it turned into wallpaper, and an explanation that has become
+              wallpaper is not an explanation. The promise stays; the explanation moved
+              to where it does work. */}
           <p data-op-invitation style={{ fontFamily: BODY_SERIF, fontSize: '1.05rem', color: 'rgba(245,240,232,0.75)', marginTop: 18, marginBottom: 0, maxWidth: 620, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
             {INDEX_INVITATION.line1}
-            <br />
-            <span style={{ color: 'rgba(245,240,232,0.5)', fontSize: '0.95rem' }}>{INDEX_INVITATION.line2}</span>
           </p>
           <div style={{ marginTop: 22 }}>
             <a
@@ -253,9 +228,12 @@ export default function OpenPagesFeed() {
             Nothing in {filter} yet.
           </div>
         ) : (
-          <div style={cardGrid}>
-            {visible.map((p) => (
-              <PostCard key={p.id} post={p} counts={counts[p.id]} photo={authorPhotos[p.authorUid]} />
+          /* A COLUMN, not a grid. A contents page is read down. 720px is a touch wider
+             than the composer's 660 measure because an entry carries a footer beside the
+             words, not only the words. */
+          <div style={{ maxWidth: 720, margin: '0 auto' }}>
+            {visible.map((p, i) => (
+              <Entry key={p.id} post={p} author={authorPhotos[p.authorUid]} first={i === 0} />
             ))}
           </div>
         )}
@@ -266,117 +244,174 @@ export default function OpenPagesFeed() {
 
 // ---------------------------------------------------------------------------
 // Post card.
-// ---------------------------------------------------------------------------
+// ═══════════════════════════════════════════════════════════════════════════════════
+// ⭑⭑ OPEN PAGES IS A JOURNAL AND THE FEED IS ITS CONTENTS PAGE.
+// ═══════════════════════════════════════════════════════════════════════════════════
+// Not a card list and not a social feed. That is also exactly what an EDITOR reads,
+// which is why the surface argues R38's own case without saying anything: the road
+// into the house looks like the thing a house reads.
+//
+// ⭑ NO CARDS. Entries sit on the ink ground, separated by a hairline. A card is a
+// container for a summary; a contents page is a list of beginnings. A card also makes
+// a feed look like software, and the whole argument here is that this is a journal.
+//
+// ⭑ EVERY ENTRY SHOWS THE WRITING — the piece's real opening lines, via the SHARED
+// predicate (see app/lib/openPagesOpening.js). Nobody taps an unknown writer because
+// of a thumbnail; they tap because of a sentence.
+//
+// ⭑ READING TIME IS IN, READ COUNT IS OUT. Ikenna's ruling. Reading time genuinely
+// changes whether someone taps — "one minute" is an invitation and "nine minutes" is
+// an honest warning. A read count on a young platform is a low number on every piece
+// and so discourages the very tap it exists to encourage. The likes and comment counts
+// went with it, for the same reason and because they made an entry look like a post.
+//
+// ⭑ THE PIECE'S OWN SHAPE SETS THE ENTRY'S SHAPE — verse keeps its line breaks against
+// a gold rule, prose runs. Two treatments, not six.
+//
+// ⚠ IDENTITY RESOLVES AT RENDER. The stored authorName is a snapshot and R38 measured
+// 24.4% of stored identity copies already stale, so the live users/{uid} read wins and
+// the snapshot is only the fallback.
 
-function PostCard({ post, counts, photo }) {
+function Entry({ post, author, first }) {
   const genre = normalizeGenre(post.genre);
-  const likeCount = counts?.reactionCount ?? 0;
-  const commentCount = counts?.commentCount ?? 0;
-  const initial = (post.authorName || '?').trim().charAt(0).toUpperCase();
+  const opening = openingOf(post.body);
+  const mins = readingTime(post.body);
 
-  // Real profile photo (28px circular) when present, else the gradient initial.
-  const avatarEl = photo ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={photo}
-      alt=""
-      style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, display: 'block', border: '1px solid rgba(245,240,232,0.1)' }}
-    />
-  ) : (
-    <span style={avatarDot}>{initial}</span>
-  );
+  // Live first, snapshot second. See the note above.
+  const name = author?.displayName || post.authorName || 'Reader';
+  const handle = author?.username || post.authorHandle || '';
+  const avatar = author?.avatarUrl || author?.photoURL || null;
+  const badge = getBadge(author?.readCount || 0);
+  const isHouse = author?.isAuthor === true;
+  const initial = (name || '?').trim().charAt(0).toUpperCase();
 
-  // The whole card links to the post via a stretched overlay anchor (zIndex 1),
-  // while the author name/handle is its own Link (zIndex 2) to /u/{handle} — this
-  // keeps both clickable without nesting one anchor inside another.
   return (
-    <div
+    <article
+      data-op-entry
+      data-op-kind={opening.kind}
       style={{
         position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-        background: SURFACE,
-        border: '1px solid rgba(245,240,232,0.07)',
-        borderRadius: 14,
-        overflow: 'hidden',
-        color: CREAM,
-        transition: 'transform 0.18s, border-color 0.18s',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-3px)';
-        e.currentTarget.style.borderColor = 'rgba(201,168,76,0.35)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'none';
-        e.currentTarget.style.borderColor = 'rgba(245,240,232,0.07)';
+        padding: first ? '0 0 34px' : '34px 0',
+        borderTop: first ? 'none' : '1px solid rgba(245,240,232,0.08)',
       }}
     >
-      {/* Card-wide click target → post detail. */}
-      <a
-        href={`/open-pages/${post.id}`}
-        aria-label={post.title}
-        style={{ position: 'absolute', inset: 0, zIndex: 1 }}
-      />
-
+      {/* ⭑ A COVER IS A PLATE — a wide short band above the entry, the way a plate sits
+          in a printed journal. ⚠ NEVER LOAD-BEARING: an entry without one is COMPLETE,
+          not broken, which is why it is the only thing here that is conditional and why
+          nothing below it changes when it is absent. Pieces with art get more presence,
+          which is an honest reward for making it.
+          ⚠ Measured 4 Sep 2026: all seven live pieces happen to carry a cover, so the
+          no-cover path has no live example and is held by a test instead. */}
       {post.coverImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          data-op-plate
           src={post.coverImage}
           alt=""
-          style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block', background: SURFACE_2 }}
+          loading="lazy"
+          /* 4:1, and the ratio is the whole argument. Measured on the painted page at
+             720px: an entry's TEXT — kicker, title, opening, footer — is about 160px
+             tall. At 3:1 the plate was 240px, half again taller than the writing it
+             was supposed to introduce, and a feed whose premise is "every entry shows
+             the writing" was mostly photographs. At 4:1 it is 180px: still a band with
+             real presence, no longer outweighing the words. A plate in a printed
+             journal is short and wide, which is the shape being borrowed. */
+          style={{ width: '100%', aspectRatio: '4 / 1', objectFit: 'cover', display: 'block', marginBottom: 22, background: 'rgba(245,240,232,0.04)' }}
         />
-      ) : (
-        <div style={{ width: '100%', aspectRatio: '16 / 9', background: `linear-gradient(135deg, ${SURFACE_2}, #0d0916)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <IconFeather size={30} style={{ color: 'rgba(201,168,76,0.25)' }} />
-        </div>
-      )}
+      ) : null}
 
-      <div style={{ padding: '1.1rem 1.2rem 1.3rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-          <span style={genrePill}>{genre}</span>
-          <span style={{ fontSize: '0.74rem', color: 'rgba(245,240,232,0.4)' }}>{timeAgo(post.createdAt)}</span>
-        </div>
+      <Link href={`/open-pages/${post.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+        <span style={{ fontFamily: CINZEL, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: GOLD, display: 'block', marginBottom: 10 }}>
+          {genre}
+        </span>
 
-        <h2 style={{ fontFamily: SERIF, fontSize: '1.5rem', fontWeight: 600, color: CREAM, margin: '0 0 0.5rem', lineHeight: 1.2 }}>
+        <h2 style={{ fontFamily: SERIF, fontSize: '1.95rem', fontWeight: 600, color: CREAM, margin: '0 0 12px', lineHeight: 1.15 }}>
           {post.title}
         </h2>
 
-        <p style={{ margin: '0 0 1rem', fontSize: '0.98rem', lineHeight: 1.55, color: 'rgba(245,240,232,0.6)', flex: 1 }}>
-          {excerpt(post.body)}
-        </p>
+        {opening.kind === 'verse' ? (
+          /* A stanza, kept as a stanza. The gold rule is what tells a reader at a
+             glance that this one is a poem — before they have read a word of it. */
+          <div
+            data-op-verse
+            style={{
+              borderLeft: `1px solid ${GOLD}`,
+              paddingLeft: 18,
+              margin: '0 0 4px',
+              fontFamily: BODY_SERIF,
+              fontSize: '1.08rem',
+              lineHeight: 1.7,
+              color: 'rgba(245,240,232,0.72)',
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {opening.lines.join('\n')}
+          </div>
+        ) : (
+          <p
+            data-op-prose
+            style={{ margin: 0, fontFamily: BODY_SERIF, fontSize: '1.08rem', lineHeight: 1.7, color: 'rgba(245,240,232,0.72)' }}
+          >
+            {opening.lines[0] || ''}
+          </p>
+        )}
+      </Link>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 'auto' }}>
-          {post.authorHandle ? (
-            <Link
-              href={`/u/${post.authorHandle}`}
-              style={{ position: 'relative', zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'inherit' }}
-            >
-              {avatarEl}
-              <span style={{ fontSize: '0.9rem', color: 'rgba(245,240,232,0.8)' }}>
-                {post.authorName || 'Reader'}
-                <span style={{ color: 'rgba(245,240,232,0.4)' }}> · @{post.authorHandle}</span>
-              </span>
-            </Link>
-          ) : (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
-              {avatarEl}
-              <span style={{ fontSize: '0.9rem', color: 'rgba(245,240,232,0.8)' }}>{post.authorName || 'Reader'}</span>
-            </span>
-          )}
-
-          {/* Engagement counts. */}
-          <span style={countRow}>
-            <span style={{ fontSize: 11 }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline-block',verticalAlign:'middle',marginRight:3}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>{readTime(post.body)} min read</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              {post.readCount || 0}
-            </span>
-            <span>♡ {likeCount}</span>
-            <span>💬 {commentCount}</span>
+      {/* The quiet footer: who wrote it, their standing on the island, and how long it
+          will take. The writer's name is its own link — the entry's click target is the
+          piece, and a profile link inside it must not be swallowed by that. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
+        {handle ? (
+          <Link href={`/u/${handle}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'inherit' }}>
+            <Avatar src={avatar} initial={initial} />
+            <span style={{ fontFamily: BODY_SERIF, fontSize: '0.95rem', color: 'rgba(245,240,232,0.7)' }}>{name}</span>
+          </Link>
+        ) : (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+            <Avatar src={avatar} initial={initial} />
+            <span style={{ fontFamily: BODY_SERIF, fontSize: '0.95rem', color: 'rgba(245,240,232,0.7)' }}>{name}</span>
           </span>
-        </div>
+        )}
+
+        {isHouse || badge ? (
+          <span
+            data-op-badge
+            style={{ fontFamily: CINZEL, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: isHouse ? '#a78bfa' : badge.color, border: `1px solid ${isHouse ? 'rgba(167,139,250,0.4)' : badge.color}55`, borderRadius: 999, padding: '2px 8px' }}
+          >
+            {isHouse ? 'Calvary' : badge.label}
+          </span>
+        ) : null}
+
+        <span style={{ color: 'rgba(245,240,232,0.28)' }}>·</span>
+
+        <span style={{ fontFamily: CINZEL, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.45)' }}>
+          {mins} min read
+        </span>
+
+        {/* R36's edit mark, quietly at the right. It reads updatedAt and nothing else —
+            an admin APPROVAL is not an author edit, which is what the > createdAt
+            guard inside isEdited() is for. */}
+        {isEdited(post) ? (
+          <span
+            data-op-edited
+            style={{ marginLeft: 'auto', fontFamily: BODY_SERIF, fontStyle: 'italic', fontSize: '0.82rem', color: 'rgba(245,240,232,0.35)' }}
+          >
+            edited
+          </span>
+        ) : null}
       </div>
-    </div>
+    </article>
+  );
+}
+
+function Avatar({ src, initial }) {
+  return src ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+  ) : (
+    <span style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(107,47,173,0.28)', border: '1px solid rgba(107,47,173,0.45)', display: 'grid', placeItems: 'center', fontFamily: SERIF, fontSize: '0.8rem', color: '#c4b5fd' }}>
+      {initial}
+    </span>
   );
 }
 
@@ -384,53 +419,64 @@ function PostCard({ post, counts, photo }) {
 // Empty + skeleton states.
 // ---------------------------------------------------------------------------
 
+// ⚠ THE FEED MUST SURVIVE BEING NEARLY EMPTY, and this is where that is decided.
+//
+//   AT SEVEN — a contents page: seven entries down a 720px column, hairline-separated,
+//              each showing its own opening. That is a journal, and it is what ships.
+//   AT ONE   — one entry, the standfirst above it, and nothing else. Deliberately NOT
+//              padded out with skeletons, "coming soon" tiles or a recommended-reading
+//              rail: a journal with one piece in it is a journal with one piece in it,
+//              and pretending otherwise is the thing a reader notices.
+//   AT NONE  — this. And it is the one that matters, because an empty writing platform
+//              is worse than no writing platform: it tells a visitor nobody is here.
+//
+// So the empty state does NOT apologise and does not say "no stories yet" — a sentence
+// whose whole content is an absence. It makes the absence the offer. "Yours would be
+// the first" is true, is specific, and is the only moment on the island where being
+// early is worth something.
+//
+// ⚠ IT STILL PROMISES ATTENTION, NOT OUTCOME. "We read everything published here" is a
+// commitment that survives the platform being empty; anything about commissioning would
+// be a lottery ticket sold to someone who can see the room is empty.
 function EmptyState() {
   return (
-    <div style={{ textAlign: 'center', padding: '4.5rem 1.5rem' }}>
-      <div style={{ marginBottom: 18, opacity: 0.4 }}>
-        <IconFeather size={40} style={{ color: GOLD, margin: '0 auto' }} />
-      </div>
-      <div style={{ fontFamily: SERIF, fontSize: '1.9rem', color: CREAM, marginBottom: 10 }}>
-        No stories yet.
-      </div>
-      <p style={{ fontSize: '1.1rem', color: 'rgba(245,240,232,0.55)', marginBottom: '1.8rem' }}>
-        Be the first to write.
+    <div style={{ maxWidth: 620, margin: '0 auto', padding: '4rem 1.5rem 5rem', textAlign: 'center' }}>
+      <span aria-hidden="true" style={{ display: 'block', fontFamily: SERIF, fontSize: 22, color: GOLD, marginBottom: 22 }}>
+        {'\u2766\uFE0E'}
+      </span>
+      <h2 style={{ fontFamily: SERIF, fontSize: '2.1rem', fontWeight: 500, color: CREAM, margin: '0 0 12px', lineHeight: 1.2 }}>
+        Nothing has been published here yet.
+      </h2>
+      <p style={{ fontFamily: BODY_SERIF, fontSize: '1.1rem', lineHeight: 1.65, color: 'rgba(245,240,232,0.6)', margin: '0 0 30px' }}>
+        Yours would be the first. We read everything published here.
       </p>
-      <a
+      <Link
         href="/open-pages/new"
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          background: PURPLE,
-          color: CREAM,
-          textDecoration: 'none',
-          padding: '0.8rem 2.2rem',
-          borderRadius: 9,
-          fontWeight: 700,
-          fontSize: '1rem',
-          fontFamily: BODY_SERIF,
-          boxShadow: '0 8px 28px rgba(107,47,173,0.35)',
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          border: `1px solid ${GOLD}`, borderRadius: 999, padding: '11px 26px',
+          color: GOLD, textDecoration: 'none',
+          fontFamily: CINZEL, fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase',
         }}
       >
-        <IconFeather size={16} /> Start writing
-      </a>
+        Write the first piece
+      </Link>
     </div>
   );
 }
 
+// The skeleton is a COLUMN of entries now, not a grid of cards — a loading state that
+// resolves into a different shape is a flash of the wrong design.
 function SkeletonGrid() {
   return (
-    <div style={cardGrid} aria-hidden="true">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} style={{ background: SURFACE, border: '1px solid rgba(245,240,232,0.06)', borderRadius: 14, overflow: 'hidden' }}>
-          <div style={{ width: '100%', aspectRatio: '16 / 9', background: 'rgba(245,240,232,0.05)' }} className="op-shimmer" />
-          <div style={{ padding: '1.1rem 1.2rem 1.4rem' }}>
-            <div style={{ width: 70, height: 18, borderRadius: 999, background: 'rgba(245,240,232,0.06)', marginBottom: 14 }} className="op-shimmer" />
-            <div style={{ width: '85%', height: 22, borderRadius: 6, background: 'rgba(245,240,232,0.07)', marginBottom: 12 }} className="op-shimmer" />
-            <div style={{ width: '100%', height: 13, borderRadius: 6, background: 'rgba(245,240,232,0.05)', marginBottom: 8 }} className="op-shimmer" />
-            <div style={{ width: '60%', height: 13, borderRadius: 6, background: 'rgba(245,240,232,0.05)' }} className="op-shimmer" />
-          </div>
+    <div style={{ maxWidth: 720, margin: '0 auto' }} aria-hidden="true">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} style={{ padding: i === 0 ? '0 0 34px' : '34px 0', borderTop: i === 0 ? 'none' : '1px solid rgba(245,240,232,0.08)' }}>
+          <div style={{ width: 62, height: 10, borderRadius: 999, background: 'rgba(245,240,232,0.06)', marginBottom: 14 }} className="op-shimmer" />
+          <div style={{ width: '70%', height: 26, borderRadius: 6, background: 'rgba(245,240,232,0.07)', marginBottom: 14 }} className="op-shimmer" />
+          <div style={{ width: '100%', height: 13, borderRadius: 6, background: 'rgba(245,240,232,0.05)', marginBottom: 8 }} className="op-shimmer" />
+          <div style={{ width: '82%', height: 13, borderRadius: 6, background: 'rgba(245,240,232,0.05)', marginBottom: 20 }} className="op-shimmer" />
+          <div style={{ width: 160, height: 12, borderRadius: 6, background: 'rgba(245,240,232,0.04)' }} className="op-shimmer" />
         </div>
       ))}
       <style>{`
@@ -442,6 +488,7 @@ function SkeletonGrid() {
           animation: opShimmer 1.4s infinite;
         }
         @keyframes opShimmer { 100% { transform: translateX(100%); } }
+        @media (prefers-reduced-motion: reduce) { .op-shimmer::after { animation: none; } }
       `}</style>
     </div>
   );
@@ -450,35 +497,6 @@ function SkeletonGrid() {
 // ---------------------------------------------------------------------------
 // Shared styles + icon.
 // ---------------------------------------------------------------------------
-
-const cardGrid = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-  gap: '1.5rem',
-};
-
-const genrePill = {
-  fontFamily: CINZEL,
-  fontSize: '0.62rem',
-  letterSpacing: '0.1em',
-  textTransform: 'uppercase',
-  color: GOLD,
-  background: 'rgba(201,168,76,0.1)',
-  border: '1px solid rgba(201,168,76,0.3)',
-  borderRadius: 999,
-  padding: '0.22rem 0.7rem',
-};
-
-const countRow = {
-  marginLeft: 'auto',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 12,
-  fontFamily: CINZEL,
-  fontSize: 12,
-  color: 'rgba(245,240,232,0.45)',
-  flexShrink: 0,
-};
 
 const avatarDot = {
   width: 26,
