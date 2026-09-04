@@ -2605,8 +2605,10 @@ describe('R35 · open_pages — a published piece cannot be rewritten out from u
     // MEASURED against production on 2026-09-03, and it changed the rule. Only 4 of the 7
     // live pieces carry `authorAvatarUrl` — buildAuthorSnapshot writes null when the author's
     // profile has no avatarUrl, and RTDB drops nulls — so a hasChildren() that required it
-    // would have rejected 43% of the feed. `editedAt` is documented in app/lib/openPages.js
-    // and exists on ZERO records for the same reason.
+    // would have rejected 43% of the feed. (R35 also found an `editedAt` documented in
+    // app/lib/openPages.js and present on ZERO records for the same reason — R36 retired
+    // that field outright rather than leave two names for one idea; the reader-facing
+    // "edited" mark reads `updatedAt`.)
     //
     // And 3 of the 7 carry moderation.decision === 'flag' while status === 'live': they hit
     // the fail-closed path, went to the queue, and a founder approved them. A rule saying
@@ -2643,6 +2645,28 @@ describe('R35 · open_pages — a published piece cannot be rewritten out from u
     const after = await anon.ref('open_pages/p1').get();
     assert.equal(after.val().body, 'The screened body.');
     assert.equal(after.val().moderation.decision, 'pass');
+  });
+
+  test('R36 · A FOUNDER-AUTHORED piece is a different case, and it is not covered', async () => {
+    // Found by an R36 live probe that picked the first live piece, minted a token for
+    // its author, expected a refusal — and got a write, because that piece is authored
+    // by a FOUNDER. The two founder uids hold a node-level .write on open_pages for the
+    // admin queue (approve/remove), so where the author IS a founder, "author" and
+    // "admin" are one account and the R35 author rule cannot bite: they can rewrite
+    // their own published body with no re-screening, through the admin grant.
+    //
+    // That is not a hole to close — removing the grant would break admin/forum's
+    // approve() and removePost(), which are the only way a flagged piece ever goes
+    // live. It is a STATED LIMIT of R35: the rule protects the six live pieces by
+    // ordinary readers; the two founder-authored ones rely on the founder's own
+    // discipline, exactly as every other founder-writable node does.
+    //
+    // Written down here because the R35 report implied the protection was universal.
+    await seed(env, { 'open_pages/f1': { ...LIVE_POST, authorUid: FOUNDER_A } });
+    await assertSucceeds(founder.ref('open_pages/f1/body').set('a founder rewriting their own piece'));
+    // The ordinary-reader case is unchanged, which is the point of the comparison.
+    await seed(env, { 'open_pages/p1': LIVE_POST });
+    await assertFails(owner.ref('open_pages/p1/body').set('an ordinary author cannot'));
   });
 
   test('THE HOLE: the readCount leaf cannot be climbed to reach the body', async () => {
@@ -2735,8 +2759,8 @@ describe('R35 · open_pages_pending — the R33.1 catch-all, one node over', () 
       { title: 'Enough', body: 'A body.', coverImage: null, genre: 'Inspiring' },
       1,
     );
-    // RTDB drops null children, which is exactly why coverImage/authorAvatarUrl/editedAt
-    // are absent from every live record. Strip them the way the wire does.
+    // RTDB drops null children, which is exactly why coverImage and authorAvatarUrl are
+    // absent from live records. Strip them the way the wire does.
     const onWire = Object.fromEntries(Object.entries(built).filter(([, v]) => v !== null));
     await assertSucceeds(owner.ref('open_pages_pending/n1').set(onWire));
     // And the rule must enumerate every key the writer CAN produce, including the ones
@@ -2792,6 +2816,35 @@ describe('R35 · open_pages_pending — the R33.1 catch-all, one node over', () 
     for (const g of ['Literary', 'Flash', 'Short Story', 'Poetry', 'Inspiring', 'General']) {
       await assertSucceeds(owner.ref('open_pages_pending/n1').set({ ...PENDING, genre: g }));
     }
+  });
+
+  test('R36 · open_pages_rate is unreachable from any client, in either direction', async () => {
+    // The submission counter. It is admin-SDK-only on purpose: a reader who could
+    // write it could zero their own count, and a reader who could READ it would learn
+    // when every other account last published. Neither is worth the convenience of
+    // showing someone their own remaining quota — the refusal message carries that.
+    //
+    // Seeded with rules disabled, because no client may create it either.
+    await seed(env, { 'open_pages_rate/AAAAowner0000000000000000001/recent': [1, 2, 3] });
+    await assertFails(owner.ref(`open_pages_rate/${OWNER}/recent`).get());
+    await assertFails(owner.ref(`open_pages_rate/${OWNER}/recent`).set([]));
+    await assertFails(owner.ref(`open_pages_rate/${OWNER}/recent`).remove());
+    await assertFails(owner.ref(`open_pages_rate/${OWNER}`).remove());
+    await assertFails(stranger.ref(`open_pages_rate/${OWNER}/recent`).get());
+    await assertFails(stranger.ref(`open_pages_rate/${OWNER}/recent`).set([]));
+    await assertFails(anon.ref('open_pages_rate').get());
+    await assertFails(anon.ref('open_pages_rate').remove());
+    // Not even a founder — the Pages Function holds service credentials, and a
+    // founder's browser has no business rewriting anyone's spend counter.
+    await assertFails(founder.ref(`open_pages_rate/${OWNER}/recent`).set([]));
+    await assertFails(founder.ref(`open_pages_rate/${OWNER}/recent`).get());
+    // The seeded value is untouched by all of the above. (withSecurityRulesDisabled
+    // does not propagate its callback's return value — capture, don't return.)
+    let still;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      still = (await ctx.database().ref(`open_pages_rate/${OWNER}/recent`).get()).val();
+    });
+    assert.deepEqual(still, [1, 2, 3]);
   });
 
   test('a stranger cannot file a pending post under someone else Uid, or wipe the queue', async () => {

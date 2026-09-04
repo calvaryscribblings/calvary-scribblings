@@ -108,8 +108,15 @@ export function normalizeGenre(g) {
 //     status:          'pending' | 'live' | 'flagged' | 'removed',
 //     moderation:      { result, reason, checkedAt, model } | null,
 //     createdAt:       number,          // Date.now() (ms)
-//     editedAt:        number | null,   // Date.now() on edit, else null
+//     updatedAt:       number,          // Date.now() on a published edit; ABSENT if never edited
 //   }
+//
+// R36 — THERE IS ONE NAME FOR THIS AND IT IS `updatedAt`. This block used to document
+// an `editedAt` that no record has ever carried: buildPendingPost set it to null, RTDB
+// drops nulls, and the field never landed — measured at 0 of 7 live pieces on
+// 2026-09-04, while `updatedAt`, written by the edit path, was on 3 of 7 and greater
+// than createdAt on all three. Two names for one idea is how a reader-facing "edited"
+// mark ends up reading the field that is always empty, so the unused one is gone.
 //
 // `moderation` is null until the function screens the post. After screening:
 //   { result: 'clean'|'flagged'|'error', reason: string, checkedAt: number (ms),
@@ -118,6 +125,27 @@ export function normalizeGenre(g) {
 // ---------------------------------------------------------------------------
 // Helpers.
 // ---------------------------------------------------------------------------
+
+/**
+ * R36 — THE EDIT MARK. True when a reader should be told this piece has been edited.
+ *
+ * Ikenna's ruling is that a published piece stays editable FOREVER — Open Pages is a
+ * writing platform and writers fix things; a typo found six months later should be
+ * fixable, and R35 already guarantees every published edit passes back through the
+ * moderation function. What matters is not whether they edited but that a reader can
+ * see they did.
+ *
+ * Reads `updatedAt` and nothing else. The `> createdAt` comparison is load-bearing
+ * twice over: it keeps a record whose updatedAt was written equal to createdAt from
+ * claiming an edit, and it is what leaves the three founder-APPROVED live pieces
+ * unmarked — they carry `approvedAt`, not `updatedAt`, and approval by an admin is
+ * not an edit by the author.
+ */
+export function isEdited(post) {
+  const created = post?.createdAt;
+  const updated = post?.updatedAt;
+  return typeof created === 'number' && typeof updated === 'number' && updated > created;
+}
 
 /**
  * Build the denormalized author snapshot from a Firebase auth user + their
@@ -141,7 +169,9 @@ export function buildAuthorSnapshot(authUser, profile = {}) {
 /**
  * Build a complete pending-post record ready to push() to open_pages_pending.
  * Status is always PENDING and moderation is null at creation — the server
- * function fills moderation and decides live/flagged.
+ * function fills moderation and decides live/flagged. There is no editedAt: a
+ * record that has never been edited simply has no updatedAt (see the shape note
+ * above).
  *
  * @param {object} snapshot  Result of buildAuthorSnapshot().
  * @param {{ title: string, body: string, coverImage?: string|null, genre?: string }} content
@@ -165,6 +195,5 @@ export function buildPendingPost(snapshot, { title, body, coverImage, genre }, n
     status: OPEN_PAGE_STATUS.PENDING,
     moderation: null,
     createdAt: now,
-    editedAt: null,
   };
 }

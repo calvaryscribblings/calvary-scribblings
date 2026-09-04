@@ -16,7 +16,10 @@ import Navbar from '../../components/Navbar';
 import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
-import { OPEN_PAGES_NODE, normalizeGenre } from '../../lib/openPages';
+import { OPEN_PAGES_NODE, normalizeGenre, isEdited } from '../../lib/openPages';
+// R36 — the blocking filter lives in a module so it can be tested directly; see its
+// note there for the ruling it implements and why it is not a write barrier.
+import { pruneBlocked, countNodes } from '../../lib/openPagesThread';
 import { renderMarkdown } from '../../lib/openPagesMarkdown';
 import { indexedCommentWrite } from '../../lib/userComments';
 
@@ -169,11 +172,61 @@ export default function OpenPageDetailClient({ params }) {
   // Report flow. One report per user per post — the RTDB path is keyed by the
   // reporter's uid, so re-reporting just overwrites their own entry. We disable
   // the control for the session once submitted.
+  // blocked_users/{myUid} — a uid->true map of people this reader has blocked.
+  // Owner-readable only, so this is always MY list and never anyone else's.
+  const [blocked, setBlocked] = useState(() => new Set());
+  const [blockBusy, setBlockBusy] = useState('');
+
   const [reportOpen, setReportOpen] = useState(false);
   const [reported, setReported] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [reportError, setReportError] = useState('');
   const [showAuth, setShowAuth] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setBlocked(new Set()); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { ref, get } = await import('firebase/database');
+        const snap = await get(ref(db, `blocked_users/${user.uid}`));
+        if (cancelled) return;
+        const val = snap.exists() ? snap.val() : {};
+        setBlocked(new Set(Object.keys(val).filter((k) => val[k])));
+      } catch (e) {
+        // A failed read must not blank the thread — worst case the filter is not
+        // applied this session, which is visibly wrong to the blocker rather than
+        // silently wrong to everyone.
+        console.warn('[open-pages] block list read failed:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  async function toggleBlock(uid) {
+    if (!user || !uid || uid === user.uid) return;
+    setBlockBusy(uid);
+    const isBlocked = blocked.has(uid);
+    // Optimistic: the comment should vanish on the click, not after a round trip.
+    setBlocked((cur) => {
+      const next = new Set(cur);
+      if (isBlocked) next.delete(uid); else next.add(uid);
+      return next;
+    });
+    try {
+      const { ref, set, remove } = await import('firebase/database');
+      const r = ref(db, `blocked_users/${user.uid}/${uid}`);
+      if (isBlocked) await remove(r); else await set(r, true);
+    } catch (e) {
+      console.error('[open-pages] block toggle failed:', e);
+      setBlocked((cur) => {
+        const next = new Set(cur);
+        if (isBlocked) next.add(uid); else next.delete(uid);
+        return next;
+      });
+    }
+    setBlockBusy('');
+  }
 
   async function submitReport(reason) {
     if (!user) { setShowAuth(true); return; }
@@ -553,6 +606,21 @@ export default function OpenPageDetailClient({ params }) {
               >
                 <IconHeart size={13} style={{ fill: liked ? GOLD : 'none' }} /> {likeCount}
               </button>
+              {user && node.authorUid && node.authorUid !== user.uid ? (
+                <button
+                  type="button"
+                  onClick={() => toggleBlock(node.authorUid)}
+                  disabled={blockBusy === node.authorUid}
+                  data-block-btn
+                  style={{
+                    background: 'transparent', border: 'none', padding: 0, color: CREAM_MUTE,
+                    fontFamily: CINZEL, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    cursor: blockBusy === node.authorUid ? 'wait' : 'pointer', opacity: 0.6,
+                  }}
+                >
+                  Block
+                </button>
+              ) : null}
               {canReply ? (
                 <button
                   type="button"
@@ -678,6 +746,16 @@ export default function OpenPageDetailClient({ params }) {
   }
 
   const genre = normalizeGenre(post.genre);
+  // The thread as THIS reader sees it. Everyone else's view is unchanged, and the
+  // piece itself is never filtered — see pruneBlocked's note.
+  const visibleComments = comments === null ? null : pruneBlocked(comments, blocked);
+  const hiddenCount = comments === null ? 0 : countNodes(comments) - countNodes(visibleComments);
+  // Only the blocked people who actually appear in THIS thread — the note should not
+  // enumerate a reader's whole block list on an unrelated piece.
+  const hiddenAuthors =
+    comments === null || blocked.size === 0
+      ? []
+      : [...collectUids(comments, new Set())].filter((u) => blocked.has(u));
   // Prefer the live profile (Fix 4), falling back to the post's denormalized snapshot.
   const authorName = author?.displayName || post.authorName || 'Reader';
   const authorHandle = post.authorHandle || author?.username || '';
@@ -710,6 +788,26 @@ export default function OpenPageDetailClient({ params }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <span style={genrePill}>{genre}</span>
           <span style={{ fontSize: '0.82rem', color: 'rgba(245,240,232,0.45)' }}>{formatDate(post.createdAt)}</span>
+          {/* R36 — THE EDIT MARK. Ikenna's ruling: a published piece stays editable
+              forever, because writers fix things and a typo found six months later
+              should be fixable. What matters is not whether they edited but that a
+              reader can see they did.
+
+              It reads `updatedAt` and nothing else. `editedAt` was documented in
+              app/lib/openPages.js and existed on ZERO records — a mark wired to it
+              would have been invisible on every piece ever edited. The `> createdAt`
+              guard is what keeps the three founder-APPROVED pieces unmarked: they
+              carry approvedAt, not updatedAt, and approval by an admin is not an
+              edit by the author. */}
+          {isEdited(post) ? (
+            <span
+              data-edited-mark
+              title={`Edited ${formatDate(post.updatedAt)}`}
+              style={{ fontSize: '0.82rem', color: 'rgba(245,240,232,0.45)', fontStyle: 'italic' }}
+            >
+              · edited {formatDate(post.updatedAt)}
+            </span>
+          ) : null}
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: CINZEL, fontSize: 11, letterSpacing: '0.1em', color: CREAM_MUTE }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             {post.readCount || 0} reads
@@ -917,7 +1015,7 @@ export default function OpenPageDetailClient({ params }) {
         {/* Comments — comments/{postId} (shared platform node). */}
         <section style={{ marginTop: 56, paddingTop: 34, borderTop: '1px solid rgba(245,240,232,0.08)' }}>
           <div style={{ fontFamily: CINZEL, fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: GOLD, opacity: 0.7, marginBottom: 14 }}>
-            Comments{comments && comments.length ? ` · ${comments.length}` : ''}
+            Comments{visibleComments && visibleComments.length ? ` · ${countNodes(visibleComments)}` : ''}
           </div>
           <div style={{ borderBottom: '1px solid rgba(201,168,76,0.2)', marginBottom: 24 }} />
 
@@ -988,7 +1086,7 @@ export default function OpenPageDetailClient({ params }) {
           )}
 
           {/* List */}
-          {comments === null ? (
+          {visibleComments === null ? (
             <div style={{ color: CREAM_MUTE, fontStyle: 'italic', fontFamily: SERIF, fontSize: '1.1rem' }}>
               Loading comments…
             </div>
@@ -998,7 +1096,31 @@ export default function OpenPageDetailClient({ params }) {
             </div>
           ) : (
             <div>
-              {comments.map((c) => renderNode(c, 0))}
+              {visibleComments.map((c) => renderNode(c, 0))}
+              {/* R36 — WITHOUT THIS, A BLOCK IS ONE-WAY. Pruning the comment removes
+                  the only control that could undo it, which would leave the reader
+                  with no way back short of a settings page that does not exist. The
+                  note says what is hidden and offers it back, and it is visible to
+                  nobody but the blocker. */}
+              {hiddenAuthors.length ? (
+                <div data-hidden-note style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(245,240,232,0.08)', fontSize: '0.85rem', color: CREAM_MUTE, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                  <span>
+                    {hiddenCount} {hiddenCount === 1 ? 'comment is' : 'comments are'} hidden because you blocked{' '}
+                    {hiddenAuthors.length === 1 ? 'its author' : 'their authors'}.
+                  </span>
+                  {hiddenAuthors.map((uid) => (
+                    <button
+                      key={uid}
+                      type="button"
+                      onClick={() => toggleBlock(uid)}
+                      disabled={blockBusy === uid}
+                      style={{ background: 'transparent', border: '1px solid rgba(245,240,232,0.18)', borderRadius: 999, padding: '3px 10px', color: GOLD, fontFamily: CINZEL, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: blockBusy === uid ? 'wait' : 'pointer' }}
+                    >
+                      Unblock {commenterProfiles[uid]?.displayName || 'them'}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
         </section>

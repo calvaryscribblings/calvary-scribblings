@@ -8,6 +8,9 @@
 //   flag  -> open_pages_pending/{postId} (status:'flagged') for admin review        -> { status:'pending' }
 //   block -> stored nowhere; generic rejection returned                             -> { status:'rejected' }
 //
+// Before any of that, a per-account rate limit is consulted (see _rate-limit.js):
+//   over limit -> HTTP 429, nothing stored, NO model call -> { status:'rate_limited' }
+//
 // FAIL CLOSED: if the Claude call fails or returns unparseable output, the post is
 // routed to open_pages_pending (status:'flagged', reason:'moderation-unavailable').
 // Nothing un-screened ever reaches the public feed.
@@ -46,6 +49,7 @@ import {
   normalizeGenre,
 } from '../../../app/lib/openPages.js';
 import { resolveHook, fire } from '../_deploy-hooks.js';
+import { consume, refusalMessage } from './_rate-limit.js';
 
 // Same budget the rebuild endpoint uses for the same third party. Stated here rather than
 // imported from bookstore/_lib.js so this file keeps its one-directory import surface.
@@ -461,6 +465,57 @@ export async function onRequestPost(context) {
         updatedAt: now,
       }
     : buildPendingPost(snapshot, { title: cleanTitle, body: cleanBody, coverImage: cover, genre }, now);
+
+  // -------------------------------------------------------------------------
+  // R36 — AN EDIT THAT CHANGES NO SCREENED TEXT NEEDS NO SCREEN.
+  //
+  // The gate reads title + body and nothing else, so an edit that leaves both
+  // byte-identical and only swaps the cover or the genre has nothing new to
+  // screen. Publishing it directly is not a hole: the comparison is made
+  // server-side against the STORED record, so the verdict stays attached to
+  // exactly the text it was issued for, and the write still goes through service
+  // credentials. It also keeps the commonest honest edit — fixing a cover — from
+  // spending a slot of the limiter below, which is what would otherwise make five
+  // an hour bite a writer who is polishing rather than posting.
+  // -------------------------------------------------------------------------
+  if (isEdit && existing.title === cleanTitle && existing.body === cleanBody) {
+    const record = { ...base, status: OPEN_PAGE_STATUS.LIVE };
+    try {
+      await writePaths(fbDb, accessToken, {
+        [`${OPEN_PAGES_NODE}/${postId}`]: record,
+        [`${USER_OPEN_PAGES_NODE}/${uid}/${postId}`]: record,
+      });
+    } catch (e) {
+      console.error('[open-pages/moderate] unchanged-text edit write failed:', e.message);
+      return json({ error: 'Failed to save your changes.' }, 500);
+    }
+    return json({ status: 'published', postId, edited: true, rescreened: false });
+  }
+
+  // -------------------------------------------------------------------------
+  // R36 — THE RATE LIMIT, AND IT IS CHECKED HERE FOR A REASON.
+  //
+  // Everything above this line is free: parsing, validation, the authorship read.
+  // Everything below it costs money. So the check sits exactly at that seam — a
+  // limiter placed after the Anthropic call would refuse the response while still
+  // having paid for it, which protects nothing at all.
+  //
+  // A 400 or a 403 above therefore never consumes a slot, and neither does the
+  // unchanged-text edit, because neither of them reaches the model.
+  // -------------------------------------------------------------------------
+  const gate = await consume(fbDb, accessToken, uid, now);
+  if (!gate.ok) {
+    console.log('[open-pages/moderate] RATE LIMITED', uid, gate.scope, 'until', gate.retryAt);
+    return json(
+      {
+        status: 'rate_limited',
+        scope: gate.scope,
+        retryAt: gate.retryAt,
+        reason: refusalMessage(gate.scope, gate.retryAt, now),
+      },
+      429,
+    );
+  }
 
   // A pending record, for either mode. On an EDIT this is a PROPOSED REVISION filed
   // under the live post's own id, so the admin queue's existing approve() — which

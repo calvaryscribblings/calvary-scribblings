@@ -43,6 +43,7 @@
     "test:spectrum": "node --test tests/bookstore/spectrum.test.mjs",
     "test:withdrawals": "node --test tests/bookstore/withdrawal.test.mjs",
     "test:membership": "node --test \"tests/membership/*.test.mjs\"",
+    "test:openpages": "node --test \"tests/openpages/*.test.mjs\"",
     "test:rules": "firebase emulators:exec --only database,storage --project demo-calvary-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
     "test:sponsor": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.sponsor.config.mjs\"",
     "test:r31": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.r31.config.mjs\"",

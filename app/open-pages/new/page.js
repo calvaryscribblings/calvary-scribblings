@@ -357,6 +357,14 @@ export default function NewOpenPagePage() {
           kind: 'rejected',
           message: data.reason || 'This post can’t be published because it appears to violate our community guidelines.',
         });
+      } else if (res.status === 429 && data.status === 'rate_limited') {
+        // Not an error, and it must not read like one: the piece is still in the
+        // textarea and the message says so and says when they can try again. A
+        // writing surface that fails silently reads as the platform losing the work.
+        setOutcome({
+          kind: 'rate_limited',
+          message: data.reason || 'You’ve submitted a lot in a short time. Your work is safe — please try again shortly.',
+        });
       } else {
         setOutcome({
           kind: 'error',
@@ -439,14 +447,14 @@ export default function NewOpenPagePage() {
               border: `1px solid ${
                 outcome.kind === 'published'
                   ? 'rgba(201,168,76,0.5)'
-                  : outcome.kind === 'pending'
+                  : outcome.kind === 'pending' || outcome.kind === 'rate_limited'
                   ? 'rgba(107,47,173,0.55)'
                   : 'rgba(220,90,90,0.5)'
               }`,
               background:
                 outcome.kind === 'published'
                   ? 'rgba(201,168,76,0.08)'
-                  : outcome.kind === 'pending'
+                  : outcome.kind === 'pending' || outcome.kind === 'rate_limited'
                   ? 'rgba(107,47,173,0.1)'
                   : 'rgba(220,90,90,0.08)',
               borderRadius: 10,
@@ -459,6 +467,7 @@ export default function NewOpenPagePage() {
               {outcome.kind === 'pending' && 'Under review'}
               {outcome.kind === 'rejected' && 'Couldn’t publish this'}
               {outcome.kind === 'error' && 'Hmm — that didn’t work'}
+              {outcome.kind === 'rate_limited' && 'Just a moment'}
             </div>
             {outcome.kind === 'published' && <DeployStatusPulse hookStatus={outcome.hookStatus} />}
             <p style={{ margin: 0, lineHeight: 1.6, color: 'rgba(245,240,232,0.9)' }}>{outcome.message}</p>

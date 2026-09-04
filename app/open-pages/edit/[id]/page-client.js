@@ -394,6 +394,11 @@ export default function EditPageClient({ params }) {
           kind: 'rejected',
           message: data.reason || 'These changes can’t be published because they appear to violate our community guidelines. Your published story is unchanged.',
         });
+      } else if (res.status === 429 && data.status === 'rate_limited') {
+        setOutcome({
+          kind: 'rate_limited',
+          message: data.reason || 'You’ve submitted a lot in a short time. Your changes are safe — please try again shortly.',
+        });
       } else {
         setOutcome({ kind: 'error', message: data.error || 'Something went wrong, please try again.' });
       }
@@ -513,17 +518,18 @@ export default function EditPageClient({ params }) {
           <div
             role="status"
             style={{
-              border: `1px solid ${outcome.kind === 'pending' ? 'rgba(107,47,173,0.55)' : 'rgba(220,90,90,0.5)'}`,
-              background: outcome.kind === 'pending' ? 'rgba(107,47,173,0.1)' : 'rgba(220,90,90,0.08)',
+              border: `1px solid ${outcome.kind === 'pending' || outcome.kind === 'rate_limited' ? 'rgba(107,47,173,0.55)' : 'rgba(220,90,90,0.5)'}`,
+              background: outcome.kind === 'pending' || outcome.kind === 'rate_limited' ? 'rgba(107,47,173,0.1)' : 'rgba(220,90,90,0.08)',
               borderRadius: 10,
               padding: '1rem 1.2rem',
               marginBottom: '1.5rem',
             }}
           >
-            <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: '1.2rem', color: outcome.kind === 'pending' ? GOLD : '#e88', marginBottom: '0.25rem' }}>
+            <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: '1.2rem', color: outcome.kind === 'pending' || outcome.kind === 'rate_limited' ? GOLD : '#e88', marginBottom: '0.25rem' }}>
               {outcome.kind === 'pending' && 'Under review'}
               {outcome.kind === 'rejected' && 'Couldn’t save these changes'}
               {outcome.kind === 'error' && 'Hmm — that didn’t work'}
+              {outcome.kind === 'rate_limited' && 'Just a moment'}
             </div>
             <p style={{ margin: 0, lineHeight: 1.6, color: 'rgba(245,240,232,0.9)' }}>{outcome.message}</p>
           </div>
