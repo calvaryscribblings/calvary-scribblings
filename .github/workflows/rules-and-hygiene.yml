@@ -117,8 +117,28 @@ jobs:
       # It exists because a control can be correctly wired, correctly keyed and correctly
       # validated and still be DEAD on every record in the database. That is what shipped in
       # R12.4 and no unit test on this platform could have seen it.
-      - name: Chromium for the Series admin suite
+      - name: Chromium for the Series admin and Square room suites
         run: npx playwright install --with-deps chromium
+
+      # R43.1 — THE SQUARE ACTUALLY LOADS. The step that would have caught the hang.
+      #
+      # R33.2 shipped an effect calling onChildAdded/onChildChanged/onChildRemoved/get
+      # out of a lazy import that destructured only { ref, onValue }. It threw on every
+      # load and the room never left its spinner — in production, signed in and signed
+      # out. 78 green tests and a green build saw nothing, because nothing in the repo
+      # EXECUTED app/square/page.js: tests/square/postbody.test.mjs renders the eight
+      # surfaces through react-dom/server and reads the page only as a string, and
+      # `next build` compiles an effect without ever running one.
+      #
+      # So this step pays for a real build and a real browser, which is the only thing
+      # that closes that gap. It drives the static export against LIVE Firebase —
+      # square_posts is `.read: true`, so the signed-out case is the whole case, and
+      # the failing effect has [] deps and no auth branch anyway.
+      #
+      # It runs BEFORE test:sponsor deliberately: sponsor wraps itself in
+      # `firebase emulators:exec`, and this suite must reach production.
+      - name: The Square loads, in a browser, reaching a drawn post
+        run: npm run test:square:room
       - name: Series admin — the sponsor logo upload, end to end
         run: npm run test:sponsor
 

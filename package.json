@@ -72,7 +72,8 @@
     "covers:lock": "node scripts/covers/design-lock.mjs --write",
     "covers:lock:check": "node scripts/covers/design-lock.mjs",
     "covers:descriptors": "node scripts/covers/descriptor-sheet.mjs",
-    "test:square": "node --test tests/square/*.test.mjs"
+    "test:square": "node --test tests/square/*.test.mjs",
+    "test:square:room": "next build && playwright test -c tests/square/playwright.room.config.mjs"
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",

@@ -998,7 +998,12 @@ export default function SquarePage() {
     let cancelled = false;
     (async () => {
       const db = await getDB();
-      const { ref, onValue } = await import('firebase/database');
+      // R33.2 rewrote this effect from one whole-node onValue to three per-child
+      // listeners and a settling get(), but left the destructure at { ref, onValue }.
+      // The IIFE threw `onChildAdded is not defined` before setLoading(false) could
+      // run, so the room hung on its spinner for every reader, signed in or out.
+      // Widen the binding list whenever the body of a lazy import gains a call.
+      const { ref, get, onChildAdded, onChildChanged, onChildRemoved } = await import('firebase/database');
       if (cancelled) return;
       // R33.2 — THE PAYLOAD. This was one onValue on the whole square_posts
       // node, which re-delivers EVERY post to EVERY connected reader on any
