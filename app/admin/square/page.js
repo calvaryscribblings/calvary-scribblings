@@ -76,6 +76,7 @@ export default function SquareAdmin() {
   const [reports, setReports] = useState([]);
   const [horizon, setHorizon] = useState(null);
   const [stale, setStale] = useState(false);
+  const [awaitingFirstBell, setAwaitingFirstBell] = useState(false);
 
   // Everyone who currently holds anything, so "who can do what" is a glance and
   // not an archaeology exercise.
@@ -109,7 +110,18 @@ export default function SquareAdmin() {
     const snap = await get(ref(db, 'square_horizon'));
     const h = snap.exists() ? snap.val() : null;
     setHorizon(h);
-    setStale(h?.lastBellAt ? Date.now() - h.lastBellAt > STALE_AFTER_MS : true);
+    // ⚠ A BELL THAT HAS NOT HAPPENED YET IS NOT A MISSED BELL, AND THIS PANEL USED
+    // TO DISAGREE WITH THE SCRIPT ABOUT THAT. It defaulted `stale` to TRUE whenever
+    // lastBellAt was absent, so from the moment the cron was armed until the first
+    // 20:00 London — up to 24 hours — the card would have shown a red border and
+    // "No bell in the last 26 hours" while nothing whatever was wrong. And because
+    // 23 of the 24 daily runs write lastRunAt WITHOUT lastBellAt, the heartbeat
+    // arrives long before the first bell does, so the false alarm was guaranteed
+    // rather than unlikely. scripts/square/horizon-liveness.mjs already got this
+    // right (`if (!hb.lastBellAt) … exit 0`); the two now agree, which matters
+    // because a red that cries wolf on day one is a red nobody reads on day sixty.
+    setStale(h?.lastBellAt ? Date.now() - h.lastBellAt > STALE_AFTER_MS : false);
+    setAwaitingFirstBell(!h?.lastBellAt);
   }, []);
 
   useEffect(() => {
@@ -259,14 +271,20 @@ export default function SquareAdmin() {
           <div>Never run. The first bell lands at the next 20:00 London.</div>
         ) : (
           <>
-            <div>Last bell: <strong>{horizon.lastBellAt ? new Date(horizon.lastBellAt).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : 'never'}</strong></div>
+            <div>Last bell: <strong>{horizon.lastBellAt ? new Date(horizon.lastBellAt).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : 'not yet'}</strong></div>
             <div style={{ color: 'rgba(240,236,228,0.55)', fontSize: '0.88rem', marginTop: 4 }}>
-              Swept {horizon.sweptAtLastRun ?? 0} records, {horizon.remaining ?? '?'} remain in the room.
+              Last run {horizon.lastRunAt ? new Date(horizon.lastRunAt).toLocaleString('en-GB', { timeZone: 'Europe/London' }) : 'never'}.
+              {' '}Swept {horizon.sweptAtLastRun ?? 0} records, {horizon.remaining ?? '?'} remain in the room.
             </div>
           </>
         )}
+        {awaitingFirstBell && horizon && <div style={{ color: 'rgba(240,236,228,0.55)', marginTop: 8, fontSize: '0.88rem' }}>
+          The worker is running and leaving a heartbeat; no 20:00 London has come round yet. This is the
+          expected state between arming the cron and the first bell, and it is not a fault.
+        </div>}
         {stale && <div style={{ color: '#e0574f', marginTop: 8, fontSize: '0.88rem' }}>
           No bell in the last 26 hours. The workflow also fails loudly when this happens — check Actions.
+          {' '}GitHub disables a cron after 60 days without repo activity, and that is the likeliest cause.
         </div>}
       </div>
     </div></div>

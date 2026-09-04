@@ -21,30 +21,43 @@
 name: square horizon
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ⚠ THE BELL IS NOT ARMED. THIS IS DELIBERATE, AND UNCOMMENTING IS THE ARMING.
+# ⭑ ARMED — 4 SEP 2026, ON IKENNA'S RULING
 # ═══════════════════════════════════════════════════════════════════════════
 #
-# The `Sweep` step below passes --apply on ANY scheduled run. So restoring the
-# cron is not "enabling a workflow" — it is arming the sweep, and the first
-# London 20:00 after it lands clears the room down to what is pinned. There is
-# no second switch behind this one.
+# ⚠ THE CRON IS THE SWITCH. The `Sweep` step passes --apply on ANY scheduled run,
+# so commenting the schedule out is the only thing that disarms this workflow and
+# restoring it is the arming. There is no second switch behind it. If you ever
+# need to stop the horizon, comment the two lines below again — do not rely on
+# disabling the workflow in the Actions UI, which someone can re-enable without
+# reading any of this.
 #
-# It lands disarmed because R33.2 ships in two steps by ruling: the code and the
-# rules go out first and are verified on the live page — identity resolving at
-# render, the Report button recording a report — and only then does the horizon
-# get armed, as its own decision, by Ikenna.
+# What was verified before arming, in this order:
+#   · a dispatch dry run on a real runner: 40s, success, credential resolved for
+#     the first time, and its plan matched the local run exactly.
+#   · that run printed "at the bell: no (hour 21) — a sweep would no-op", so the
+#     London gate is real rather than aspirational.
+#   · square_horizon HAS a deployed rule — {".read": true, ".write": false} — and
+#     the heartbeat write was proved end to end: the Admin SDK service account
+#     writes it (rules do not apply to a service account), an unauthenticated
+#     write is refused 401, and an unauthenticated read is allowed so the admin
+#     page can see the bell. Without that rule the heartbeat would have failed
+#     silently and the liveness check would have been measuring its own absence.
 #
-# TO ARM: delete the two comment markers on the `schedule:` block below. Nothing
-# else changes. Measured 4 Sep 2026, that sweep moves 113 records to
-# square_archive and leaves 5 — see the round's report for what the room looks
-# like the morning after.
+# ⚠ THE FIRST REAL BELL IS SATURDAY 5 SEPTEMBER 2026, 20:05 LONDON (19:05 UTC).
+# It moves 114 records to square_archive and leaves 4 — the two pinned threads
+# and their one reply each. NOT the 113/5 of the dispatch dry run: that was
+# measured on the Friday evening, and the one unpinned thread still inside the
+# horizon then is ~70 hours old by Saturday's bell and goes with the rest.
 #
-# Until then `workflow_dispatch` still runs it, and unticking `apply` (the
-# default) reports what WOULD move without writing anything.
+# NOTHING IS DELETED. Records move to square_archive, which is world-readable and
+# reachable at /square/p?id=… Ikenna is accepting that the thirteen
+# congratulations on the winners announcement arrived as separate ROOT posts, so
+# the pin does not protect them and they go; the announcement itself survives with
+# its one reply, because a pin protects the thread and not the subject.
 
 on:
-  # schedule:
-  #   - cron: '5 * * * *'   # hourly at :05; the script acts only at London 20:00
+  schedule:
+    - cron: '5 * * * *'   # hourly at :05 UTC; the script acts only at London 20:00
   workflow_dispatch:
     inputs:
       apply:
