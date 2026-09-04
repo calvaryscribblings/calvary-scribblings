@@ -13,11 +13,16 @@
 // tiny inline renderer (no dangerouslySetInnerHTML, no raw HTML — XSS-safe).
 
 import { useState, useRef, useEffect } from 'react';
+// R37 — drafts. Device first, synced when signed in; never screened (a draft is not
+// published, so it costs no model call and no rate-limit slot). See app/lib/openPagesDrafts.js
+// for the contract the app composer reads too.
+import { useOpenPagesDraft } from '../../lib/useOpenPagesDraft';
+import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import AuthModal from '../../components/AuthModal';
 import { useAuth } from '../../lib/AuthContext';
 import { storage } from '../../lib/firebase';
-import { OPEN_PAGE_GENRES, DEFAULT_GENRE } from '../../lib/openPages';
+import { OPEN_PAGE_GENRES, DEFAULT_GENRE, normalizeGenre } from '../../lib/openPages';
 
 const TITLE_MAX = 200;
 const BODY_MAX = 50000;
@@ -235,6 +240,42 @@ export default function NewOpenPagePage() {
   // outcome: { kind: 'published'|'pending'|'rejected'|'error', message, link? }
   const [outcome, setOutcome] = useState(null);
 
+  // R37 — the draft. `enabled` is false while an outcome banner is showing so a
+  // published piece cannot be re-saved as a draft on its way out of the composer.
+  const draft = useOpenPagesDraft({
+    uid: user?.uid || null,
+    title, body, genre, coverImage,
+    enabled: !outcome,
+  });
+
+  // Restoring a draft into the composer. The composer owns the fields, so the hook
+  // hands back the record and this puts it in the boxes.
+  function restoreDraft(slot) {
+    const d = draft.openDraft(slot);
+    if (!d) return;
+    setTitle(d.title || '');
+    setBody(d.body || '');
+    setGenre(normalizeGenre(d.genre));
+    setCoverImage(d.coverImage || null);
+    setDraftsOpen(false);
+  }
+  const [draftsOpen, setDraftsOpen] = useState(false);
+
+  // /open-pages/drafts links here with ?draft=dN. Restore once, when the hook has read
+  // the device copy — before that the slot is not there to open yet.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || !draft.ready) return;
+    const slot = new URLSearchParams(window.location.search).get('draft');
+    if (!slot) { restoredRef.current = true; return; }
+    if (!draft.drafts || !draft.drafts[slot]) return;
+    restoredRef.current = true;
+    // Deferred by a tick so the restore runs as a callback rather than a synchronous
+    // cascade out of the effect body — the same shape the hook's own loader uses.
+    const id = setTimeout(() => restoreDraft(slot), 0);
+    return () => clearTimeout(id);
+  }, [draft.ready, draft.drafts]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const inlineCount = countInlineImages(body);
   const inlineCapReached = inlineCount >= MAX_INLINE_IMAGES;
 
@@ -329,6 +370,14 @@ export default function NewOpenPagePage() {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.status === 'published') {
+        // ⭐ RULING 3 — THE DRAFT DIES WITH THE PUBLICATION. A kept draft and a
+        // published piece diverge, and then nobody knows which is the work. The
+        // published piece is the record.
+        //
+        // Only on `published`. A `pending` verdict below leaves the draft exactly where
+        // it is — nothing was published, the composer has been cleared, and that draft
+        // is now the only copy of the writing. Same for `rejected` and `rate_limited`.
+        await draft.discardOnPublish();
         setOutcome({
           kind: 'published',
           message: 'Your post is live on Open Pages.',
@@ -438,6 +487,35 @@ export default function NewOpenPagePage() {
             A story, a poem, a reflection — checked before it goes live.
           </p>
         </div>
+
+        {/* R37 — the draft strip. A writing surface has to SAY that it is keeping the
+            work, or the writer does not believe it and copies into a notes app. The
+            notice half is never optional: a fork, a full slot set, an oversize draft
+            and a browser that stores nothing are all things a writer must be told. */}
+        {user && !outcome ? (
+          <div data-draft-strip style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: '1rem', fontFamily: CINZEL, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(245,240,232,0.45)' }}>
+            <span data-draft-status>
+              {draft.status === 'saving' ? 'Saving…'
+                : draft.status === 'local-only' ? 'Saved on this device'
+                : draft.status === 'saved' ? 'Draft saved'
+                : 'Drafts on'}
+            </span>
+            {Object.keys(draft.drafts || {}).length ? (
+              <Link href="/open-pages/drafts" style={{ color: GOLD, textDecoration: 'none' }}>
+                {Object.keys(draft.drafts).length} draft{Object.keys(draft.drafts).length === 1 ? '' : 's'} →
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+
+        {draft.notice ? (
+          <div role="status" data-draft-notice style={{ border: '1px solid rgba(232,184,123,0.4)', background: 'rgba(232,184,123,0.08)', borderRadius: 10, padding: '0.85rem 1rem', marginBottom: '1.25rem', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <p style={{ margin: 0, lineHeight: 1.6, color: 'rgba(245,240,232,0.9)', flex: 1 }}>{draft.notice.message}</p>
+            <button type="button" onClick={draft.dismissNotice} style={{ background: 'transparent', border: 'none', padding: 0, color: 'rgba(245,240,232,0.5)', fontFamily: CINZEL, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              Dismiss
+            </button>
+          </div>
+        ) : null}
 
         {/* Outcome banner */}
         {outcome && (

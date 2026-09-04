@@ -2529,6 +2529,131 @@ describe("R21 · a withdrawal never reaches a reader's library", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
+describe('R37 · open_pages_drafts — unfinished writing, and the only node founders cannot read', () => {
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//
+// WHY IT IS NOT UNDER users/{uid}, measured rather than assumed. `users/$uid` carries
+// `".read": true`. RTDB read rules CASCADE and cannot be tightened deeper — a `.read: false`
+// on a child of a readable parent is ignored — so every child of users/{uid} is world-readable.
+// That is why users/{uid}/readerProgress is public, and it is why a draft filed there would be
+// too. This block asserts the cascade directly, so a later round that "tidies" drafts into the
+// user record fails here instead of publishing everyone's unfinished work.
+//
+// THE COUNT CAP IS IN THE RULE, not in the client. RTDB cannot count children — there is no
+// numChildren() — so the usual answer is "the client enforces it", which is not enforcement.
+// The key is instead one of twenty fixed slots and the rule matches it against a regex, which
+// makes twenty a ceiling a hostile client cannot climb: there is no twenty-first name.
+
+  const DRAFT = { title: 'Half a piece', body: 'The first two paragraphs.', genre: 'Literary', createdAt: 1, updatedAt: 2, rev: 1, deviceId: 'dev1' };
+
+  // ---- POSITIVES FIRST ----
+
+  test('LEGITIMATE: an author writes, reads, edits and deletes their own drafts', async () => {
+    await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d0`).set(DRAFT));
+    await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d0`).get());
+    await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d0/body`).set('Three paragraphs now.'));
+    await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}`).get());
+    await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d0`).remove());
+    // All twenty slots, because the cap is only right if the twentieth actually works.
+    for (let i = 0; i < 20; i++) {
+      await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d${i}`).set({ ...DRAFT, rev: i + 1 }));
+    }
+    // A cover URL and every real genre.
+    await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, coverImage: 'https://firebasestorage.googleapis.com/v0/b/x/o/c.jpg' }));
+    for (const g of ['Literary', 'Flash', 'Short Story', 'Poetry', 'Inspiring', 'General']) {
+      await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d1`).set({ ...DRAFT, genre: g }));
+    }
+    // A fork carries the slot it came from.
+    await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d2`).set({ ...DRAFT, forkedFrom: 'd0' }));
+  });
+
+  // ---- THE PRIVACY, WHICH IS THE WHOLE POINT OF THE NODE ----
+
+  test('⭐ NOBODY ELSE CAN READ A DRAFT — NOT A STRANGER, NOT A FOUNDER, NOT THE WORLD', async () => {
+    await seed(env, { [`open_pages_drafts/${OWNER}/d0`]: DRAFT });
+    await assertFails(stranger.ref(`open_pages_drafts/${OWNER}/d0`).get());
+    await assertFails(stranger.ref(`open_pages_drafts/${OWNER}`).get());
+    await assertFails(anon.ref(`open_pages_drafts/${OWNER}/d0`).get());
+    await assertFails(anon.ref('open_pages_drafts').get());
+    // The founder clause that appears on almost every other node is DELIBERATELY absent.
+    // Unfinished writing is not moderation surface: it has not been published to anyone.
+    await assertFails(founder.ref(`open_pages_drafts/${OWNER}/d0`).get());
+    await assertFails(founder.ref(`open_pages_drafts/${OWNER}`).get());
+    await assertFails(founder.ref('open_pages_drafts').get());
+  });
+
+  test('nobody else can write or wipe a draft either', async () => {
+    await seed(env, { [`open_pages_drafts/${OWNER}/d0`]: DRAFT });
+    await assertFails(stranger.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, body: 'defaced' }));
+    await assertFails(stranger.ref(`open_pages_drafts/${OWNER}/d0`).remove());
+    await assertFails(stranger.ref(`open_pages_drafts/${OWNER}`).remove());
+    await assertFails(founder.ref(`open_pages_drafts/${OWNER}/d0`).remove());
+    await assertFails(anon.ref(`open_pages_drafts/${OWNER}/d0`).set(DRAFT));
+    await assertFails(anon.ref('open_pages_drafts').remove());
+    let still;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      still = (await ctx.database().ref(`open_pages_drafts/${OWNER}/d0`).get()).val();
+    });
+    assert.equal(still.body, 'The first two paragraphs.', 'the draft survived every attempt above');
+  });
+
+  test('⭐ THE CASCADE THAT FORCED THIS NODE: users/$uid is world-readable', async () => {
+    // Not a test of drafts — a test of the reason they are not filed in the obvious place.
+    // If this ever starts failing because users/$uid was closed, drafts could move; until
+    // then, anything under users/ is public and this is the proof.
+    await seed(env, { [`users/${OWNER}`]: { displayName: 'A', readerProgress: { secret: 1 } } });
+    await assertSucceeds(anon.ref(`users/${OWNER}/readerProgress`).get());
+    await assertSucceeds(stranger.ref(`users/${OWNER}`).get());
+  });
+
+  // ---- THE CAPS ----
+
+  test('⭐ THE 21st SLOT DOES NOT EXIST — the count cap is enforced by the rule', async () => {
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d20`).set(DRAFT));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d99`).set(DRAFT));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d1x`).set(DRAFT));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/draft-21`).set(DRAFT));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/D0`).set(DRAFT));
+    // A push-id is the shape an unbounded implementation would use, and it is refused.
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}`).push(DRAFT));
+    // The twentieth still works, so the ceiling is 20 and not 19.
+    await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d19`).set(DRAFT));
+  });
+
+  test('⭐ THE SIZE CAP REFUSES — it does not silently truncate', async () => {
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, body: 'x'.repeat(50001) }));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, title: 'x'.repeat(201) }));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, coverImage: 'x'.repeat(2001) }));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d0/body`).set('x'.repeat(50001)));
+    // Nothing was written, so nothing was cut down to fit.
+    let after;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      after = (await ctx.database().ref(`open_pages_drafts/${OWNER}/d0`).get()).val();
+    });
+    assert.equal(after, null, 'a refused oversize write must leave NOTHING, not a truncation');
+    // Exactly at the cap is fine — the limit is the publish limit, not one below it.
+    await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, body: 'x'.repeat(50000) }));
+  });
+
+  test('the field list is closed, and the shape is required', async () => {
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, injected: 'x'.repeat(5000) }));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, moderation: { decision: 'pass' } }));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, genre: 'Erotica' }));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, rev: -1 }));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ ...DRAFT, updatedAt: 'soon' }));
+    await assertFails(owner.ref(`open_pages_drafts/${OWNER}/d0`).set({ body: 'no rev, no updatedAt' }));
+    await assertSucceeds(owner.ref(`open_pages_drafts/${OWNER}/d0`).set(DRAFT));
+  });
+
+  test('a draft is not a published piece — the two nodes never touch', async () => {
+    // A draft carries no moderation verdict and no authorUid, and writing one must not
+    // be a route to the public feed. R35's rule still holds above it.
+    await seed(env, { [`open_pages_drafts/${OWNER}/d0`]: DRAFT });
+    await assertFails(owner.ref(`open_pages/newpost`).set({ ...DRAFT, authorUid: OWNER, status: 'live' }));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
 describe('R35 · open_pages — a published piece cannot be rewritten out from under its verdict', () => {
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 //

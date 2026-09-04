@@ -745,6 +745,45 @@
         ".write": false
       }
     },
+    "open_pages_drafts": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$slot": {
+          ".validate": "$slot.matches(/^d([0-9]|1[0-9])$/) && (!newData.exists() || newData.hasChildren(['body', 'updatedAt', 'rev']))",
+          "title": {
+            ".validate": "newData.isString() && newData.val().length <= 200"
+          },
+          "body": {
+            ".validate": "newData.isString() && newData.val().length <= 50000"
+          },
+          "genre": {
+            ".validate": "newData.isString() && (newData.val() === 'Literary' || newData.val() === 'Flash' || newData.val() === 'Short Story' || newData.val() === 'Poetry' || newData.val() === 'Inspiring' || newData.val() === 'General')"
+          },
+          "coverImage": {
+            ".validate": "newData.isString() && newData.val().length <= 2000"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "rev": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "deviceId": {
+            ".validate": "newData.isString() && newData.val().length <= 64"
+          },
+          "forkedFrom": {
+            ".validate": "newData.isString() && newData.val().length <= 64"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
     "open_pages_rate": {
       ".read": false,
       ".write": false
