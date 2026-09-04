@@ -22,16 +22,23 @@
 // ⚠ THE HORIZON, MEASURED AND REPORTED RATHER THAN ASSUMED. The Square's stated
 // horizon is two days (app/api/square-cleanup/route.js, TWO_DAYS). It has never run:
 // measured on live 4 Sep 2026, the room holds 118 posts, the oldest 152 days old, and
-// 114 of them are past the horizon and unpinned. That route is one of the stale Next
-// Route Handlers CLAUDE.md names — `output: 'export'` means it is not in the deployed
-// build, so there is nothing to execute it. So an announcement written today will sit
-// in the room indefinitely, exactly like every other post. It is written to be
-// horizon-SAFE anyway — short, dated by its own createdAt, never pinned — so that if
-// the cleanup is ever made real, announcements age out with everything else.
+// 114 of them were past the horizon and unpinned. ⚠ THAT PARAGRAPH IS NOW OUT OF DATE
+// AND IS CORRECTED RATHER THAN DELETED: R33.2 built the horizon for real
+// (scripts/square/horizon.mjs on a GitHub Actions cron) and R43's round found the dead
+// route it replaced still sitting in app/api/ and removed it. The horizon is NOT ARMED
+// — the cron ships commented out, pending Ikenna — so an announcement written today
+// still sits in the room indefinitely. The moment it is armed, announcements age out
+// with everything else, which this record was always written to survive: short, dated
+// by its own createdAt, and NEVER pinned, so it cannot grant itself permanence.
 
-/** The Square's own caps, from database.rules.json. A top-level post is 500. */
-export const SQUARE_MAX = 500;
-export const ANNOUNCE_TITLE_MAX = 120;   // leaves room for the URL and the frame
+// R43 — the cap is IMPORTED now. This file used to declare its own `SQUARE_MAX =
+// 500`, app/square/page.js declared its own, and database.rules.json held a third.
+// Three copies that happened to agree is not one number.
+import { MAX_POST_CHARS } from './squarePostBody.js';
+
+/** The Square's own cap, from database.rules.json via the contract module. */
+export const SQUARE_MAX = MAX_POST_CHARS;
+export const ANNOUNCE_TITLE_MAX = 120;   // leaves room for the frame
 export const SITE = 'https://calvaryscribblings.co.uk';
 
 /**
@@ -45,11 +52,27 @@ export const SITE = 'https://calvaryscribblings.co.uk';
  * Truncation is on the TITLE only and is measured against the real cap, so a
  * 200-character title (the publish limit) cannot push the post past the Square's 500.
  */
-export function announcementText(title, postId) {
+// ⚠ R43 — THE URL CAME OUT OF THE BODY AND BECAME A CARD.
+//
+// This used to end `\n\n${SITE}/open-pages/${postId}`. Under Ikenna's no-links
+// ruling (see app/lib/squarePostBody.js) that URL renders as DEAD TEXT — and the
+// announcement's entire purpose is to send someone to the piece, so it would have
+// posted an unreachable pointer into the room. The announcer has never fired, so
+// nothing live was damaged; the first approved piece would have been the first
+// broken one.
+//
+// The destination moved to `attachedOpenPage`, drawn by AttachmentCard — a link the
+// HOUSE authored, rendered as a card, the same machinery attachedStory already uses
+// on 15 of the 118 live posts. The ruling holds exactly: no reader link is ever
+// rendered and the room gains no moderation surface.
+//
+// `postId` is still taken so the signature does not change under its callers, and
+// because the id is what the card points at.
+export function announcementText(title) {
   const t = String(title || '').trim();
   const short = t.length > ANNOUNCE_TITLE_MAX ? `${t.slice(0, ANNOUNCE_TITLE_MAX - 1)}…` : t;
-  const text = `New on Open Pages — “${short}”\n\n${SITE}/open-pages/${postId}`;
-  // A belt-and-braces clamp: if the URL shape ever grows, the post is still legal
+  const text = `New on Open Pages — “${short}”`;
+  // A belt-and-braces clamp: if the frame ever grows, the post is still legal
   // rather than silently refused by the rules at the moment of publishing.
   return text.length <= SQUARE_MAX ? text : `${text.slice(0, SQUARE_MAX - 1)}…`;
 }
@@ -65,7 +88,12 @@ export function announcementText(title, postId) {
 export function buildAnnouncement(snapshot, profile, { title, postId, now }) {
   const name = snapshot?.authorName || 'Reader';
   return {
-    text: announcementText(title, postId),
+    text: announcementText(title),
+    // ⚠ THE PIECE IS NOT SHAPED LIKE A STORY — no category, no cover guaranteed, and
+    // the author is the writer rather than a byline field. attachmentOf() normalises
+    // the two into the one shape AttachmentCard draws, so the card does not have to
+    // learn about two record layouts.
+    attachedOpenPage: { id: postId, title: String(title || '').trim() || 'Untitled', author: name },
     authorUid: snapshot?.authorUid || '',
     authorName: name,
     authorInitials: name.split(' ').map((n) => n[0]).filter(Boolean).join('').slice(0, 2).toUpperCase() || 'R',

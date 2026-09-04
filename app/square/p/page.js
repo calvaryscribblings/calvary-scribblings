@@ -23,6 +23,9 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Avatar, UserBadge, timeAgo } from '../../components/conversation/ConversationKit';
 import { resolveIdentities, identityOf } from '../../lib/squareIdentity';
+import PostBody from '../../components/conversation/PostBody';
+import AttachmentCard from '../../components/conversation/AttachmentCard';
+import { attachmentOf } from '../../lib/squarePostBody';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -65,13 +68,13 @@ function Row({ post, who, small }) {
           <UserBadge uid={post.authorUid} readCount={id.readCount} isAuthor={id.isAuthor} />
           <span style={{ fontFamily: FF, fontSize: '0.72rem', color: 'rgba(245,240,232,0.3)' }}>{timeAgo(post.createdAt)}</span>
         </div>
-        {post.withdrawn ? (
-          <div style={{ fontFamily: FF, fontStyle: 'italic', fontSize: '0.9rem', color: 'rgba(245,240,232,0.35)' }}>
-            The author withdrew this post. The replies below are not theirs to remove.
-          </div>
-        ) : (
-          <div style={{ fontFamily: FF, fontSize: small ? '0.9rem' : '1rem', lineHeight: 1.6, color: 'rgba(245,240,232,0.86)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{post.text}</div>
-        )}
+        {/* R43 — this surface was the ONLY one of the eight that already rendered
+            paragraphs, via whiteSpace: pre-wrap, and the only one that did NOT render
+            @mentions. Both now come from the shared renderer, so the feed and the
+            permalink stopped being wrong in opposite directions. Its tombstone, which
+            was the only one that existed, moved into that renderer with it. */}
+        <PostBody text={post.text} surface="permalink" withdrawn={post.withdrawn === true} style={small ? { fontSize: '0.9rem' } : null} />
+        {!post.withdrawn && <AttachmentCard attachment={attachmentOf(post)} />}
       </div>
     </div>
   );

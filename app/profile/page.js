@@ -9,6 +9,7 @@ import OpenPagesProfileSection from '../components/OpenPagesProfileSection';
 import { BADGES, RARITY_STYLES, getStreakDisplay } from '../lib/badges';
 import { checkAndAwardBadges } from '../lib/badgeEngine';
 import { USER_COMMENTS_PATH, loadCommentsFor, commentCountOf } from '../lib/userComments';
+import PostBody from '../components/conversation/PostBody';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -233,9 +234,9 @@ function SquarePostCard({ post, profileData, isAuthor, badge }) {
         <div style={{ fontSize: '0.66rem', color: 'rgba(255,255,255,0.25)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', flexShrink: 0 }}>{timeAgo(post.createdAt)}</div>
       </div>
 
-      <div style={{ fontSize: '0.92rem', color: '#f0ece6', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, marginBottom: '0.55rem', paddingLeft: '2.75rem' }}>
-        {post.text}
-      </div>
+      {/* R43 — a post drew here as one run-on line too. Same renderer as the
+          feed, the permalink and the rest: paragraphs, mentions, no links. */}
+      <PostBody text={post.text} surface="profile-own" withdrawn={post.withdrawn === true} style={{ marginBottom: '0.55rem', paddingLeft: '2.75rem' }} />
 
       {post.attachedStory && (
         <div onClick={e => { e.stopPropagation(); window.location.href = `/stories/${post.attachedStory.slug}`; }}

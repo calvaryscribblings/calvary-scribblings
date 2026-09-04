@@ -6,6 +6,7 @@ import { BADGES, RARITY_STYLES, getStreakDisplay } from '../lib/badges';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import OpenPagesProfileSection from '../components/OpenPagesProfileSection';
 import { USER_COMMENTS_PATH, loadCommentsFor, commentCountOf } from '../lib/userComments';
+import PostBody from '../components/conversation/PostBody';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -149,7 +150,9 @@ function SquarePostsModal({ uid, profileData, isAuthor, badge, onClose }) {
                     </div>
                     <div style={{ fontSize: '0.66rem', fontWeight: 500, color: 'rgba(255,255,255,0.25)', fontFamily: 'Cormorant Garamond, Georgia, serif', flexShrink: 0 }}>{timeAgo(p.createdAt)}</div>
                   </div>
-                  <div style={{ fontSize: '0.92rem', color: '#f0ece6', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.7, marginBottom: '0.55rem', paddingLeft: '2.75rem' }}>{p.text}</div>
+                  {/* R43 — a post drew here as one run-on line too. Same renderer as the
+                      feed, the permalink and the rest: paragraphs, mentions, no links. */}
+                  <PostBody text={p.text} surface="profile-other" withdrawn={p.withdrawn === true} style={{ marginBottom: '0.55rem', paddingLeft: '2.75rem' }} />
                   {p.attachedStory && (
                     <div onClick={e => { e.stopPropagation(); window.location.href = `/stories/${p.attachedStory.slug}`; }}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '2.75rem', marginBottom: '0.55rem', padding: '0.4rem 0.65rem', background: 'rgba(107,47,173,0.07)', border: '1px solid rgba(107,47,173,0.16)', borderRadius: '7px', cursor: 'pointer' }}>

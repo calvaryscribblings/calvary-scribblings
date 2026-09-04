@@ -4,7 +4,10 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { stories as allStaticStories } from '../lib/stories';
 import { useDeletedUids } from '../lib/userVisibility';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
-import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions, BADGE_SVG_PATH, CHECK_PATH } from '../components/conversation/ConversationKit';
+import { Avatar, UserBadge, timeAgo, ReactionRow, buildReactions, BADGE_SVG_PATH, CHECK_PATH } from '../components/conversation/ConversationKit';
+import PostBody from '../components/conversation/PostBody';
+import AttachmentCard from '../components/conversation/AttachmentCard';
+import { MAX_POST_CHARS, MAX_REPLY_CHARS, showCounter, refusalFor, attachmentOf } from '../lib/squarePostBody';
 import TabBar, { TabLinks } from '../components/TabBar';
 import { resolveIdentities, identityOf } from '../lib/squareIdentity';
 
@@ -80,15 +83,17 @@ function isMonday() { return getLondonTime().day === 1; }
 //
 // Replies are 300 and had NO limit at all before this — not in the client, not
 // in the rules, which permitted 10,000.
-export const MAX_POST_CHARS = 500;
-export const MAX_REPLY_CHARS = 300;
-
-// ⚠ THE COUNTER ARRIVES LATE. It used to be on screen from the first keystroke,
-// counting down at someone who was still writing. It now appears at 80% — 400
-// on a post, 240 on a reply — so a writer who never approaches the limit never
-// sees it, and one who does gets about a sentence of warning.
-export const COUNTER_AT = 0.8;
-const showCounter = (len, max) => len >= Math.floor(max * COUNTER_AT);
+// R43 — THE NUMBERS NOW LIVE IN app/lib/squarePostBody.js AND ARE IMPORTED.
+// They used to be declared here and independently in app/lib/openPagesAnnounce.js,
+// with the rules holding a third copy. Three places that happened to agree is not
+// the same as one number, and only two of the three could ever import; the rules
+// file cannot, so the test reads database.rules.json and asserts the match.
+//
+// ⚠ THE COUNTER ARRIVES LATE, and now on all four inputs rather than two. It
+// appears at 80% — 400 on a post, 240 on a reply — so a writer who never
+// approaches the limit never sees it, and one who does gets about a sentence of
+// warning. Composing had this; editing had no cap, no counter and no error at
+// all, which is where the silent rejection actually lived.
 
 function VerifiedBadge({ size = 11 }) {
   return (
@@ -99,7 +104,20 @@ function VerifiedBadge({ size = 11 }) {
   );
 }
 
-function QuotedCard({ quotedPost, onClear }) {
+// ⚠ R43 — THE QUOTED CARD TAKES `who`, AND THAT IS THE POINT OF THE PROP.
+//
+// R33.2 added the island badge here and left a comment saying this surface had
+// been brought in line with the others. It had not: every field it drew —
+// authorName, authorHandle, authorAvatarUrl, and the badge's authorReadCount —
+// came from the STORED COPY on the quoted record, so this was the one Square
+// surface still photographing identity at write time, three feet below a comment
+// claiming it was fixed. Measured 4 Sep 2026, 113 of 118 live records carry a
+// stale read count, so the badge here was wrong on almost every quote.
+//
+// It now resolves through the same identityOf() as everywhere else, which is why
+// the resolver is passed in rather than the component reaching for it: QuotedCard
+// sits outside the page component and cannot see the identity map.
+function QuotedCard({ quotedPost, who, onClear }) {
   const cardStyle = {
     background: 'rgba(255,255,255,0.03)',
     border: '0.5px solid rgba(245,240,230,0.08)',
@@ -124,8 +142,13 @@ function QuotedCard({ quotedPost, onClear }) {
       </div>
     );
   }
-  const raw = quotedPost.text || '';
-  const excerpt = raw.length > 100 ? raw.slice(0, 100).trimEnd() + '…' : raw;
+  const id = who ? who(quotedPost) : null;
+  const name     = id ? id.displayName : quotedPost.authorName;
+  const handle   = id ? id.handle      : quotedPost.authorHandle;
+  const avatar   = id ? id.avatarUrl   : quotedPost.authorAvatarUrl;
+  const reads    = id ? id.readCount   : quotedPost.authorReadCount;
+  const isWriter = id ? id.isAuthor    : quotedPost.isAuthor;
+  const initials = id ? id.initials    : (quotedPost.authorInitials || (quotedPost.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase());
   const handleViewPost = (e) => {
     const el = typeof document !== 'undefined' ? document.getElementById(quotedPost.id) : null;
     if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
@@ -133,17 +156,15 @@ function QuotedCard({ quotedPost, onClear }) {
   return (
     <div style={cardStyle}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap', paddingRight: onClear ? 18 : 0 }}>
-        <Avatar uid={quotedPost.authorUid} initials={quotedPost.authorInitials || (quotedPost.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()} size={24} isAuthor={quotedPost.isAuthor} avatarUrl={quotedPost.authorAvatarUrl} />
-        <span style={{ fontSize: '0.81rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500 }}>{quotedPost.authorName}</span>
-        {quotedPost.authorHandle && <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{quotedPost.authorHandle}</span>}
-        {/* R33.2 — the island badge. This surface drew the writer tick and the
-            handle but never the badge: the one case the audit predicted would
-            have been skipped, and it had been. */}
-        <UserBadge uid={quotedPost.authorUid} readCount={quotedPost.authorReadCount} isAuthor={quotedPost.isAuthor} />
+        <Avatar uid={quotedPost.authorUid} initials={initials} size={24} isAuthor={isWriter} avatarUrl={avatar} />
+        <span style={{ fontSize: '0.81rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500 }}>{name}</span>
+        {handle && <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{handle}</span>}
+        {/* R33.2 added this badge; R43 gave it a number that is true. It reads the
+            LIVE record now, so it changes when the reader reads and not when the
+            quote was written. */}
+        <UserBadge uid={quotedPost.authorUid} readCount={reads} isAuthor={isWriter} />
       </div>
-      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', fontSize: '0.86rem', lineHeight: 1.55, color: 'rgba(255,255,255,0.65)' }}>
-        {excerpt}
-      </div>
+      <PostBody text={quotedPost.text} surface="quoted-card" />
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
         <a href={`#${quotedPost.id}`} onClick={handleViewPost}
           style={{ fontSize: '0.74rem', color: '#6b2fad', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none', fontWeight: 500 }}>
@@ -494,25 +515,11 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
   );
 }
 
-function StoryEmbed({ story }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <a href={story.url || `/stories/${story.id}`}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      style={{ display: 'flex', gap: 10, background: hovered ? 'rgba(107,47,173,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${hovered ? 'rgba(107,47,173,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 10, padding: '9px 12px', marginTop: 8, alignItems: 'center', textDecoration: 'none', transition: 'all 0.15s' }}>
-      <div style={{ width: 32, height: 46, borderRadius: 3, overflow: 'hidden', flexShrink: 0, background: 'rgba(107,47,173,0.2)' }}>
-        {story.cover && <img src={story.cover} alt={story.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '0.62rem', color: 'rgba(155,109,255,0.6)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{story.categoryName}</div>
-        <div style={{ fontSize: '0.82rem', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.3 }}>{story.title}</div>
-        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.95)', marginTop: 1 }}>by {story.author}</div>
-      </div>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f5f0e8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-    </a>
-  );
-}
-
+// R43 — StoryEmbed lived here and drew only stories, from the story record's own
+// field names. It is now AttachmentCard, fed by attachmentOf(), because the Open
+// Pages announcement needs the same card and a piece is not shaped like a story.
+// One card component, one normalising function, and the no-links ruling intact:
+// see app/lib/squarePostBody.js.
 // ── DM Panel ──────────────────────────────────────────────────────────────────
 function DMPanel({ user, onClose }) {
   const [conversations, setConversations] = useState([]);
@@ -715,9 +722,16 @@ function DMPanel({ user, onClose }) {
                     </div>
                     <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', gap: 4, alignItems: isMine ? 'flex-end' : 'flex-start' }}>
                       {msg.imageUrl && <img src={msg.imageUrl} alt="shared" style={{ maxWidth: 180, borderRadius: 10, display: 'block' }} />}
+                      {/* R43 — A DM JOINS THE PARAGRAPH RULE. Ikenna's ruling: it is a
+                          different node (dm_messages) and not a post, and it is the same
+                          room and the same complaint — a reader typing four lines and
+                          seeing one run-on line does not care which node it landed in.
+                          Mentions and the no-links rule come with it; no reason was found
+                          to except them, and a mention pointing at a reader's profile is
+                          as useful in a message as in the feed. */}
                       {msg.text && (
-                        <div style={{ padding: '8px 12px', borderRadius: isMine ? '12px 12px 3px 12px' : '12px 12px 12px 3px', background: isMine ? '#6b2fad' : 'rgba(255,255,255,0.06)', color: isMine ? '#f5f0e8' : 'rgba(232,224,212,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.88rem', lineHeight: 1.6 }}>
-                          {msg.text}
+                        <div style={{ padding: '8px 12px', borderRadius: isMine ? '12px 12px 3px 12px' : '12px 12px 12px 3px', background: isMine ? '#6b2fad' : 'rgba(255,255,255,0.06)', color: isMine ? '#f5f0e8' : 'rgba(232,224,212,0.85)' }}>
+                          <PostBody text={msg.text} surface="dm-bubble" />
                         </div>
                       )}
                     </div>
@@ -863,6 +877,8 @@ export default function SquarePage() {
   const [showAuth, setShowAuth] = useState(false);
   const [reactions, setReactions] = useState({});
   const [editingPost, setEditingPost] = useState(null);
+  // R43 — the edit path had no way to say no. See saveEdit().
+  const [editErr, setEditErr] = useState('');
   const [editText, setEditText] = useState('');
   const [quotedPostId, setQuotedPostId] = useState(null);
   const [identities, setIdentities] = useState({});
@@ -874,6 +890,19 @@ export default function SquarePage() {
   // Two separate capabilities where there was one role.
   const canPin        = can(userData, 'canPin');
   const canRemove     = can(userData, 'canRemovePosts');
+  // 🚨 R43 — canPostImages IS READ AND DELIBERATELY NOT USED. DO NOT WIRE A BUTTON
+  // TO IT WITHOUT BUILDING THE UPLOAD FIRST.
+  //
+  // Lane A (R33.2) shipped the switch and the admin control; the upload path was
+  // never built and Lane B did not build it either. There is no image control here,
+  // no `imageUrl` on any of the 118 live records, no `square/` prefix in
+  // storage.rules and no Function. The blocker is structural: STORAGE RULES CANNOT
+  // READ RTDB, so "allow if users/{uid}/canPostImages" is not expressible as a
+  // storage rule and needs a Function to mint the write. That is its own round.
+  //
+  // It stays read rather than deleted so the switch keeps one honest reference and
+  // the gap is documented where somebody would go looking for it. Until then images
+  // are ungated BY ABSENCE — which from the admin page looks exactly like working.
   const canPostImages = can(userData, 'canPostImages');
   const isMod = canPin || canRemove;   // "shows a moderation menu at all"
 
@@ -1067,7 +1096,7 @@ export default function SquarePage() {
   const post = async (pollData = null) => {
     if (!text.trim() && !pollData) return;
     if (!user) return;
-    if (text.length > MAX_POST_CHARS) return;
+    if (!refusalFor(text, { isReply: false }).ok) return;   // R43 — one function, four inputs
     setPosting(true);
     try {
       const db = await getDB();
@@ -1103,7 +1132,7 @@ export default function SquarePage() {
 
   const reply = async (parentPost) => {
     if (!replyText.trim() || !user) return;
-    if (replyText.length > MAX_REPLY_CHARS) return;   // R33.2 — there was no check here at all
+    if (!refusalFor(replyText, { isReply: true }).ok) return;   // R33.2 added a check; R43 made it the same check
     setPosting(true);
     try {
       const db = await getDB();
@@ -1161,14 +1190,30 @@ export default function SquarePage() {
     }
   };
 
-  const handleEdit = (p) => { setEditingPost(p.id); setEditText(p.text); setMentionQueryEdit(''); };
+  const handleEdit = (p) => { setEditingPost(p.id); setEditText(p.text); setMentionQueryEdit(''); setEditErr(''); };
 
-  const saveEdit = async (postId) => {
-    if (!editText.trim()) return;
-    const db = await getDB();
-    const { ref, update } = await import('firebase/database');
-    await update(ref(db, `square_posts/${postId}`), { text: editText.trim(), edited: true });
-    setEditingPost(null); setEditText(''); setMentionQueryEdit('');
+  // ⚠ R43 — THE SILENT REJECTION LIVED HERE, NOT IN THE COMPOSER.
+  //
+  // Composing was guarded: a counter at 80%, a Post button that disables past the
+  // cap. Editing had NO cap check on either textarea, no counter and no catch. The
+  // rules permit an edit only when it is within the cap OR no longer than what was
+  // already stored, so growing an over-cap edit was refused by the SERVER — and the
+  // write rejected into nothing, the editor never closed, and the writer was told
+  // nothing at all. On a surface with no drafts that is the failure that loses a
+  // post. All four inputs now ask refusalFor(), and the server's refusal is caught
+  // and shown rather than swallowed.
+  const saveEdit = async (record, { isReply = false } = {}) => {
+    const verdict = refusalFor(editText, { isReply, previousLength: (record.text || '').length });
+    if (!verdict.ok) { setEditErr(verdict.message); return; }
+    try {
+      const db = await getDB();
+      const { ref, update } = await import('firebase/database');
+      await update(ref(db, `square_posts/${record.id}`), { text: editText.trim(), edited: true });
+      setEditingPost(null); setEditText(''); setMentionQueryEdit(''); setEditErr('');
+    } catch (e) {
+      setEditErr('That edit was refused. Nothing was changed — your text is still here.');
+      console.error('Edit error:', e);
+    }
   };
 
   // R33.2 — DELETING YOUR OWN POST NO LONGER DESTROYS EVERYONE ELSE'S REPLIES.
@@ -1182,6 +1227,15 @@ export default function SquarePage() {
   // thread standing. The words go; the conversation and its authors do not. A
   // withdrawn post renders as a tombstone, its replies keep their parent, and
   // the record is still there to be recovered.
+  //
+  // ⚠ THAT LAST SENTENCE WAS FALSE FROM R33.2 UNTIL R43, AND IS RECORDED HERE RATHER
+  // THAN QUIETLY REPAIRED. `withdrawn` was written by the line below and read ZERO
+  // times in this file: the feed drew an avatar above an EMPTY DIV, not a tombstone.
+  // The branch existed only on /square/p, which was written later and separately. It
+  // now lives inside PostBody, so every surface has it. Nothing live was affected —
+  // no post carried `withdrawn` when this was found — but the comment had been
+  // asserting the fix for as long as the fix had not existed, which is the specific
+  // thing worth not repeating.
   const handleDelete = async (p) => {
     const replies = posts.filter(r => r.parentId === p.id).length;
     const msg = replies > 0
@@ -1416,7 +1470,7 @@ export default function SquarePage() {
                       {who(p).handle && <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{who(p).handle}</span>}
                       <UserBadge uid={p.authorUid} readCount={who(p).readCount} isAuthor={who(p).isAuthor} />
                     </div>
-                    <div style={{ fontSize: '0.88rem', color: 'rgba(232,224,212,0.5)', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.6 }}>{p.text}</div>
+                    <PostBody text={p.text} surface="closed-preview" />
                   </div>
                 </div>
               ))}
@@ -1435,13 +1489,40 @@ export default function SquarePage() {
                 <Avatar uid={user.uid} initials={userInitials} size={36} isAuthor={userData?.isAuthor} avatarUrl={userData?.avatarUrl} />
                 <div style={{ flex: 1, position: 'relative' }}>
                   {quotedPostId && (
-                    <QuotedCard quotedPost={visiblePosts.find(p => p.id === quotedPostId)} onClear={() => setQuotedPostId(null)} />
+                    <QuotedCard quotedPost={visiblePosts.find(p => p.id === quotedPostId)} who={who} onClear={() => setQuotedPostId(null)} />
                   )}
+                  {/* ═════════════════════════════════════════════════════════════
+                      ⭑ A SQUARE POST IS A CONVERSATION, NOT A PIECE OF WRITING — R43
+                      ═════════════════════════════════════════════════════════════
+
+                      Ikenna's ruling. 500 characters in a room that clears every 48
+                      hours, so it gets PARAGRAPHS AND NOTHING ELSE: no bold, no
+                      headings, no markdown rail, no formatting bar. A plain textarea
+                      is the correct control here and its plainness is the design.
+
+                      ⚠ "ADD FORMATTING TO THE SQUARE" IS THE OBVIOUS NEXT REQUEST AND
+                      THE ANSWER IS ALREADY REASONED — do not reach for ComposerRail.
+                      That is Open Pages' surface and Open Pages is a WRITING surface:
+                      long, kept, read once and carefully. Nobody bolds a sentence they
+                      are saying out loud to a room, and nothing here lives long enough
+                      to be worth typesetting. The rail is not missing; it is declined.
+
+                      ⚠ NO LINKS EITHER, and the reason is capacity rather than taste:
+                      square_posts has NO rate limit and NO blocking, where Open Pages
+                      has both (R36). A URL typed here stays plain text on every
+                      surface. The full reasoning, and the two-kinds-only segment
+                      contract that enforces it, are in app/lib/squarePostBody.js.
+
+                      ⚠ AND IMAGES DO NOT WORK, whatever the admin page suggests.
+                      canPostImages grants a capability with no surface: there is no
+                      upload path, because storage rules cannot read RTDB and the
+                      Function that would mint the write does not exist. Its own round.
+                  */}
                   <textarea ref={textareaRef} className="sq-textarea" placeholder="What's on your mind? Type @ to mention someone…" value={text} onChange={e => handleTextChange(e.target.value)} rows={3} />
                   {mentionQuery !== '' && <MentionDropdown query={mentionQuery} onSelect={insertMention} />}
                   {attachedStory && (
                     <div style={{ marginTop: 8 }}>
-                      <StoryEmbed story={attachedStory} />
+                      <AttachmentCard attachment={attachmentOf({ attachedStory })} />
                       <button onClick={() => setAttachedStory(null)} style={{ marginTop: 4, background: 'none', border: 'none', color: 'rgba(255,255,255,0.92)', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Remove story</button>
                     </div>
                   )}
@@ -1510,17 +1591,30 @@ export default function SquarePage() {
                           <div style={{ marginBottom: 8, position: 'relative' }}>
                             <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={3} autoFocus style={{ marginBottom: 6 }} />
                             {mentionQueryEdit !== '' && <MentionDropdown query={mentionQueryEdit} onSelect={insertMentionEdit} />}
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                              <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 12px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Cancel</button>
-                              <button className="sq-post-btn" onClick={() => saveEdit(p.id)} disabled={!editText.trim()}>Save</button>
+                            {editErr && <div style={{ fontSize: '0.72rem', color: '#f87171', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 6 }}>{editErr}</div>}
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+                              {showCounter(editText.length, MAX_POST_CHARS) && (
+                                <span style={{ fontSize: '0.65rem', marginRight: 'auto', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500,
+                                  color: editText.length > MAX_POST_CHARS ? '#f87171' : (editText.length >= MAX_POST_CHARS * 0.9 ? '#d99a3c' : 'rgba(255,255,255,0.45)') }}>
+                                  {editText.length} / MAX_POST_CHARS
+                                </span>
+                              )}
+                              <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); setEditErr(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 12px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Cancel</button>
+                              <button className="sq-post-btn" onClick={() => saveEdit(p, { isReply: false })} disabled={!refusalFor(editText, { isReply: false, previousLength: (p.text || '').length }).ok}>Save</button>
                             </div>
                           </div>
                         ) : (
                           <>
-                            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.98rem', color: '#f5f0e8', lineHeight: 1.68, marginTop: 0, marginBottom: 6 }}>{renderMentions(p.text)}</div>
-                            {p.attachedStory && <StoryEmbed story={p.attachedStory} />}
+                            {/* R43 — THE TOMBSTONE THIS FILE ALREADY CLAIMED TO DRAW.
+                                R33.2's docblock on handleDelete says "a withdrawn post
+                                renders as a tombstone". It did not: `withdrawn` was
+                                WRITTEN here and read zero times, so a withdrawn post drew
+                                an avatar above an empty div. The branch now lives inside
+                                PostBody, so all eight surfaces have it or none does. */}
+                            <PostBody text={p.text} surface="feed-post" withdrawn={p.withdrawn === true} style={{ marginBottom: 6 }} />
+                            {!p.withdrawn && <AttachmentCard attachment={attachmentOf(p)} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
-                            {p.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === p.quotedPostId)} />}
+                            {p.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === p.quotedPostId)} who={who} />}
                           </>
                         )}
 
@@ -1537,7 +1631,10 @@ export default function SquarePage() {
                             )}
                             {mentionQueryReply !== '' && <MentionDropdown query={mentionQueryReply} onSelect={insertMentionReply} />}
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-                              <button className="sq-post-btn" onClick={() => reply(p)} disabled={posting || !replyText.trim()}>{posting ? '…' : 'Reply'}</button>
+                              {/* R43 — the reply BUTTON never checked the cap. The counter
+                                  was there and reply() returned silently past 300, so the
+                                  button stayed live and clicking it did nothing at all. */}
+                              <button className="sq-post-btn" onClick={() => reply(p)} disabled={posting || !refusalFor(replyText, { isReply: true }).ok}>{posting ? '…' : 'Reply'}</button>
                             </div>
                           </div>
                         )}
@@ -1563,15 +1660,22 @@ export default function SquarePage() {
                                       <div style={{ position: 'relative' }}>
                                         <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem', marginBottom: 6 }} />
                                         {mentionQueryEdit !== '' && <MentionDropdown query={mentionQueryEdit} onSelect={insertMentionEdit} />}
-                                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                          <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Cancel</button>
-                                          <button className="sq-post-btn" onClick={() => saveEdit(r.id)} disabled={!editText.trim()}>Save</button>
+                                        {editErr && <div style={{ fontSize: '0.7rem', color: '#f87171', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 6 }}>{editErr}</div>}
+                                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                          {showCounter(editText.length, MAX_REPLY_CHARS) && (
+                                            <span style={{ fontSize: '0.65rem', marginRight: 'auto', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500,
+                                              color: editText.length > MAX_REPLY_CHARS ? '#f87171' : (editText.length >= MAX_REPLY_CHARS * 0.9 ? '#d99a3c' : 'rgba(255,255,255,0.45)') }}>
+                                              {editText.length} / {MAX_REPLY_CHARS}
+                                            </span>
+                                          )}
+                                          <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); setEditErr(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Cancel</button>
+                                          <button className="sq-post-btn" onClick={() => saveEdit(r, { isReply: true })} disabled={!refusalFor(editText, { isReply: true, previousLength: (r.text || '').length }).ok}>Save</button>
                                         </div>
                                       </div>
                                     ) : (
                                       <>
-                                        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', color: '#f5f0e8', lineHeight: 1.68, marginTop: 0 }}>{renderMentions(r.text)}</div>
-                                        {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} />}
+                                        <PostBody text={r.text} surface="feed-reply" withdrawn={r.withdrawn === true} />
+                                        {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} who={who} />}
                                       </>
                                     )}
                                     <ReactionBar p={r} size={14} />
