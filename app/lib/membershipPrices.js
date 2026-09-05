@@ -136,6 +136,25 @@ export function paystackAmounts() {
 // direction, which is what makes a single boolean safe: it CANNOT silently drift, because the
 // build stops.
 //
+// ⚠ THE PARAGRAPH ABOVE WAS FALSE FROM R11.7 UNTIL R9.1 (5 Sept 2026), AND IS TRUE NOW.
+//
+// tests/membership/on-sale.test.mjs did not exist. Not renamed, not moved, not skipped —
+// `git log --all --diff-filter=A` finds no commit that ever added it, and nothing anywhere
+// imported MEMBERSHIPS_ON_SALE alongside isConfigured, in any test or any build step. What
+// DID exist was worse than nothing: stripe-rail.test.mjs and paystack-rail.test.mjs each
+// hard-asserted `isConfigured('live') === false`, so the launch commit would have reddened
+// them both with a message reading 'live is unconfigured in this build' — and the fix a
+// launch-day reader reaches for is to delete the line.
+//
+// It is recorded here rather than quietly repaired because the failure was not the missing
+// file. It was this paragraph: a comment that describes a safety net is believed, and the
+// belief is what stops anyone checking. Nobody looked for four rounds. If you are about to
+// write "asserted by <file>" anywhere in this repo, open the file first.
+//
+// R9.1 built the test the sentence promised and ran both mutations against it — paste without
+// flipping, flip without pasting — plus the half-pasted state. All three redden. Run them
+// again after touching this constant, either price book, or that file.
+//
 // FLIP IT IN THE SAME COMMIT that pastes the live PRICE_BOOK and PLAN_BOOK blocks. Not before
 // — a true flag with null ids puts buttons on the page that 409 — and not after, or the store
 // is open and the page still says it is not.
@@ -149,7 +168,11 @@ export const MEMBERSHIPS_ON_SALE = false;
 // The launch sentence, in ONE place. Both rails answer 409 with it and the pricing page prints
 // it; before R11.7 it was typed out separately in checkout.js and paystack-checkout.js, which
 // is exactly the drift this export exists to prevent.
-export const LAUNCH_NOTICE = 'Memberships open on 30 September.';
-
-/** Just the date, for copy that puts it in a sentence of its own shape. */
-export const LAUNCH_DATE_LABEL = '30 September';
+//
+// ⚠ R9.1 — THESE TWO ARE NOW RE-EXPORTS, NOT DEFINITIONS. The date itself moved to
+// app/lib/launch.js, which is the only file in the tree permitted to write one (enforced by
+// tests/build/launch-literals.test.mjs). They are re-exported from here rather than deleted
+// because eight modules already import them from this path — including both Pages Functions
+// rails — and repointing those imports would be churn with no reader benefit. This file stays
+// the place you ask about a PRICE; launch.js is the place you ask about the DATE.
+export { LAUNCH_NOTICE, LAUNCH_DATE_LABEL } from './launch.js';

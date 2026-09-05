@@ -27,10 +27,13 @@ const CHOICE_KEY = 'cs_gateway_choice';
 // sessionStorage, not local: it must not survive the tab, and a refresh must load plainly.
 const ARRIVING_KEY = 'cs_arriving';
 const LIBRARY = '/public-library';
+import { LAUNCH_TEXT, LAUNCH_DATE_LABEL, BOOKSTORE_OPENS, daysUntilLaunch } from '../lib/launch';
 
-// The Book Store opens on this date, read in London — the Square's clock (item 4).
-const LAUNCH = { y: 2026, m: 9, d: 30 }; // 2026-09-30
-const LAUNCH_TEXT = 'Opens 30 September'; // server-rendered / no-JS / post-launch fallback
+// ⚠ R9.1 — `const LAUNCH = { y: 2026, m: 9, d: 30 }` AND A BYTE-IDENTICAL daysUntilLaunch()
+// STOOD HERE, hand-copied into app/my-library/page.js under a comment saying so. Both fed a
+// COUNTDOWN THE READER CAN SEE, and neither was visible to a grep for "September" — which is
+// why R34's nine-file launch-date inventory missed the two sites that mattered most. The date
+// and the arithmetic now come from app/lib/launch.js; nothing here may name a date again.
 
 // Press grammar, adopted from the CANONICAL source of truth founded in the Voices commit
 // (app/voices/voices-client.js — PRESS_SCALE / CHOSEN_SCALE). The chosen door yields under
@@ -118,22 +121,6 @@ function londonHour() {
     return h === 24 ? 0 : h;
   } catch {
     return -1;
-  }
-}
-
-// Whole days from today (London) to the launch date (London). Date-only, so it ticks over
-// at London midnight rather than on a rolling 24h boundary.
-function daysUntilLaunch() {
-  try {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit',
-    }).formatToParts(new Date());
-    const get = (t) => Number(parts.find((p) => p.type === t).value);
-    const today = Date.UTC(get('year'), get('month') - 1, get('day'));
-    const target = Date.UTC(LAUNCH.y, LAUNCH.m - 1, LAUNCH.d);
-    return Math.round((target - today) / 86400000);
-  } catch {
-    return null;
   }
 }
 
@@ -802,8 +789,7 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
             <p>
               Calvary Scribblings publishes original fiction, poetry and essays from a new
               generation of writers. The Public Library is open to everyone — flash fiction,
-              short stories, poetry and news, free to read. The Book Store opens on
-              30 September.
+              short stories, poetry and news, free to read. {BOOKSTORE_OPENS}
             </p>
           </div>
         </div>
@@ -819,7 +805,7 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
         <Modal id="cs-gw-store" titleId="cs-gw-store-title" title="THE BOOK STORE" onClose={closeModal}>
           <p>
             The shelves are being built and the ink is drying.<br />
-            <em>The Book Store opens its doors on 30 September.</em>
+            <em>The Book Store opens its doors on {LAUNCH_DATE_LABEL}.</em>
           </p>
           <p className="cs-gw-modal-fine">
             Your favourite books, from your favourite authors — human-made, cover to cover.

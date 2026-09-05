@@ -189,14 +189,20 @@ export default function RewardsPage() {
                   The Scribbles Catalogue
                 </div>
               </div>
-              {/* ⚠ "opens September 2026" is STALE as of 3 Sept 2026 and is left
-                  standing on purpose. It is one of nine launch-date sites, listed
-                  in full at OPENING_DATE in app/bookstore/components/LaunchGate.js,
-                  and they want sweeping together — fixing this one alone leaves the
-                  site saying two different things about the same date. Ikenna's
-                  call, R34. Do not edit this line in isolation. */}
+              {/* ⚠ R9.1 — THE DATE CAME OUT, BY RULING, and this note replaces R34's.
+                  R34 left "opens September 2026" standing as one of nine launch-date
+                  sites to be swept together. R9 found it is NOT one of them: the other
+                  eight are the Book Store and memberships, both of which open on 30
+                  September, and this is the SCRIBBLES CATALOGUE, which has no announced
+                  date and is on nobody's board. Sweeping it with the rest would have
+                  given it a date it does not have.
+                  So it loses the date and keeps the promise. It comes back when there
+                  is a real one.
+                  ⚠ PAIRED with app/components/QuizGuidelinesModal.js — same wording,
+                  same ruling. Change one, change the other. And do NOT wire either to
+                  app/lib/launch.js: that file is the Book Store's date, not this. */}
               <p style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', color: 'rgba(240,234,216,0.6)', lineHeight: 1.7, margin: 0 }}>
-                The Scribbles catalogue — perks you can unlock with your Scribbles — opens September 2026.
+                The Scribbles catalogue — perks you can unlock with your Scribbles — is coming soon.
                 Until then, your Scribbles accumulate. Perks include exclusive stories, signed prints,
                 member-only events, and more.
               </p>

@@ -6,6 +6,7 @@
 // metadataBase repeated here is the same value and is kept only so this block reads
 // standalone.
 import Gateway from './components/Gateway';
+import { BOOKSTORE_OPENS } from './lib/launch';
 import { fetchGatewayData } from './lib/gateway-build';
 
 const BASE_URL = 'https://calvaryscribblings.co.uk';
@@ -19,7 +20,7 @@ export const metadata = {
   // writers everywhere, and the title must not read as an African-only shelf.
   title: 'Calvary Scribblings — The Story Island | Fiction, Poetry & Short Stories',
   description:
-    'Original short stories, flash fiction, poetry and essays from a new generation of writers — with roots in Nigeria and writers everywhere. The Public Library is free to read, and Open Pages is open to your own writing. The Book Store opens 30 September.',
+    `Original short stories, flash fiction, poetry and essays from a new generation of writers — with roots in Nigeria and writers everywhere. The Public Library is free to read, and Open Pages is open to your own writing. ${BOOKSTORE_OPENS}`,
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
@@ -27,7 +28,7 @@ export const metadata = {
     siteName: 'Calvary Scribblings',
     title: 'Calvary Scribblings — The Story Island',
     description:
-      'Original short stories, flash fiction, poetry and essays from a new generation of writers — with roots in Nigeria and writers everywhere. Free to read. The Book Store opens 30 September.',
+      `Original short stories, flash fiction, poetry and essays from a new generation of writers — with roots in Nigeria and writers everywhere. Free to read. ${BOOKSTORE_OPENS}`,
     images: [{ url: OG_IMAGE, width: 1206, height: 1168, alt: 'Calvary Scribblings' }],
   },
   twitter: {

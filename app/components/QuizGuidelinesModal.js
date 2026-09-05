@@ -86,7 +86,17 @@ export default function QuizGuidelinesModal({ onBegin, onCancel, mode = 'story' 
             perks: exclusive stories, signed prints, member-only events, and more.
           </p>
 
-          <p style={{ margin: 0 }}>The Scribbles catalogue — what you can spend them on — opens September 2026.</p>
+          {/* ⚠ R9.1 — THE DATE CAME OUT, BY RULING. This read "opens September 2026" until
+              5 Sept 2026, when it was September 2026, the catalogue had not opened, and
+              nothing on the board opened it. A date that has ARRIVED WITHOUT THE THING is
+              worse than no date: it stops being a promise and becomes a claim about the
+              present that the reader can check and find false.
+              The promise stays; only the date goes. It comes back when there is a real one.
+              ⚠ THIS SENTENCE IS PAIRED with app/rewards/page.js — same wording, same ruling.
+              Change one, change the other. This is NOT one of the launch-date sites:
+              the Scribbles catalogue has no announced date and does not open on 30 September,
+              so it must NOT be wired to app/lib/launch.js. */}
+          <p style={{ margin: 0 }}>The Scribbles catalogue — what you can spend them on — is coming soon.</p>
 
           <p style={{ margin: 0 }}>
             The first question is a close-reading comprehension check — and it is strict.

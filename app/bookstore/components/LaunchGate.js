@@ -28,41 +28,29 @@ import { useState, useRef, useEffect } from 'react';
 import { ref, push } from 'firebase/database';
 import { db } from '../../lib/firebase';
 import { isPasscodeCorrect, grantGatePass, isEmailShaped } from '../../lib/bookstore/gate';
+import { OPENING_DATE } from '../../lib/launch';
 
-// ⚠ THE LAUNCH-DATE SWEEP — NOT DONE, DELIBERATELY, AND THIS IS THE INVENTORY.
+// ⚠ R34's LAUNCH-DATE NOTE STOOD HERE, AND IT IS SUPERSEDED. R9.1, 5 Sept 2026.
 //
-// Noted 3 Sept 2026 during R34, on Ikenna's instruction to record it once rather
-// than have it found twice. R34 did NOT touch any of it: the launch-date copy
-// wants sweeping in one pass, with a decision behind it, not fixed a line at a
-// time by whoever trips over a line.
+// It listed nine files carrying a launch date and said the sweep's real job was "deciding
+// which one wins" between OPENING_DATE and LAUNCH_DATE_LABEL, which were "pulling in opposite
+// directions". TWO CORRECTIONS, BOTH RULED BY IKENNA AT R9.1:
 //
-// THE TRIGGER: /rewards and the quiz guidelines both say the Scribbles catalogue
-// "opens September 2026". It is now September 2026 and the catalogue has not
-// opened, so the sentence has quietly become a claim about the present rather
-// than a promise about the future. The bookstore's "Available September 2026" on
-// the detail page has the same problem and the same fix.
+//   · ⚠ THEY WERE NEVER IN CONFLICT. '30 September 2026' and '30 September' agree on the date
+//     and differ only in whether the year is printed. There was no ruling to make. A round
+//     sent to find the disagreement would have found none and either invented one or reported
+//     the sweep unnecessary — which is why the wrong claim is corrected here rather than
+//     quietly dropped.
 //
-// NINE FILES CARRY A LAUNCH DATE, and no two of them share a source of truth:
+//   · ⚠ THE INVENTORY WAS SHORT BY THE TWO THAT MATTERED. Gateway.js:32 and
+//     my-library/page.js:42 each held `const LAUNCH = { y: 2026, m: 9, d: 30 }` over a
+//     byte-identical daysUntilLaunch(), feeding a LIVE COUNTDOWN on the homepage and in My
+//     Library. A grep for "September" cannot see either. The nine prose sites were the
+//     visible half of an eleven-site problem.
 //
-//   1. app/bookstore/components/LaunchGate.js   OPENING_DATE, right below
-//   2. app/lib/membershipPrices.js              LAUNCH_NOTICE, LAUNCH_DATE_LABEL
-//   3. app/components/Gateway.js                LAUNCH_TEXT + two prose sites
-//   4. app/my-library/page.js                   LAUNCH_TEXT, 'opens 30 Sept', a comment
-//   5. app/links/page.js                        BOOKSTORE_LABEL + the membership line
-//   6. app/page.js                              two metadata descriptions
-//   7. app/bookstore/[slug]/page-detail.js      'Available September 2026'
-//   8. app/components/QuizGuidelinesModal.js    the catalogue sentence
-//   9. app/rewards/page.js                      the same catalogue sentence again
-//
-// Two of those are already exported constants pulling in opposite directions —
-// OPENING_DATE here and LAUNCH_DATE_LABEL in membershipPrices — so the sweep's
-// real job is deciding which one wins and retiring the other, not editing prose.
-//
-// ⚠ Do not fix one of these on its own. A partial pass leaves the site saying
-// two different things about the same date, which is worse than saying one stale
-// thing consistently. See [[membership-tiers]] and [[view-transitions-launch-gate]]
-// for what else is gated on this date.
-const OPENING_DATE = '30 September 2026';
+// THE DATE NOW LIVES IN app/lib/launch.js AND NOWHERE ELSE, and
+// tests/build/launch-literals.test.mjs fails if anyone types one here again.
+
 
 // R9.2 PL-21 — NO @import HERE, AND NONE MAY COME BACK.
 //

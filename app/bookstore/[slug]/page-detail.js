@@ -35,6 +35,7 @@ const BUY_ASIDE_STYLE = {
 };
 import LaunchGate from '../components/LaunchGate';
 import { isStoreUnlocked } from '../../lib/bookstore/gate';
+import { LAUNCH_MONTH_YEAR } from '../../lib/launch';
 // R20 — the grain, its ruling and its one definition. Superseded:
 // R22.1 — the grain import is gone; the layer was ruled out entirely. The record lives
 // at ../components/grain.js and is imported by nothing.
@@ -577,7 +578,7 @@ export default function BookDetailClient({ params, seed = null }) {
                           {fallbackLine}
                         </p>
                       )}
-                      <span className="bd-availability" data-testid="availability-note">Available September 2026</span>
+                      <span className="bd-availability" data-testid="availability-note">Available {LAUNCH_MONTH_YEAR}</span>
                     </div>
                     </>
                     )}

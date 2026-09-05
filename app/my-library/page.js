@@ -10,7 +10,7 @@
 //   ❦ BOOKS   — purchased books, ported verbatim from the retired /library: reads
 //               bookstore_purchases/{uid}, resolves display fields from bookstore_titles/{id}
 //               (keyed by the same slug), 'Read now' → /reader/{slug}. Since the Book Store
-//               doesn't open until 30 September 2026 there are no purchases yet, so the
+//               doesn't open until launch (app/lib/launch.js) there are no purchases yet, so the
 //               countdown IS the empty state.
 //
 // /library is retired into this page (redirect in scripts/generate-redirects.mjs). It was
@@ -37,24 +37,14 @@ import { useOffline } from '../lib/useOffline';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
+import { LAUNCH_TEXT, LAUNCH_DATE_LABEL, OPENS_SHORT, daysUntilLaunch } from '../lib/launch';
 
-// Mirrors app/components/Gateway.js — same date, same fallback sentence.
-const LAUNCH = { y: 2026, m: 9, d: 30 };
-const LAUNCH_TEXT = 'Opens 30 September';
-
-function daysUntilLaunch() {
-  try {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit',
-    }).formatToParts(new Date());
-    const get = (t) => Number(parts.find((p) => p.type === t).value);
-    const today = Date.UTC(get('year'), get('month') - 1, get('day'));
-    const target = Date.UTC(LAUNCH.y, LAUNCH.m - 1, LAUNCH.d);
-    return Math.round((target - today) / 86400000);
-  } catch {
-    return null;
-  }
-}
+// ⚠ R9.1 — THIS FILE HELD THE SECOND HAND-COPY of the launch date and of daysUntilLaunch(),
+// under a comment reading "Mirrors app/components/Gateway.js — same date, same fallback
+// sentence." The comment was accurate and that was the problem: a duplicate that ANNOUNCES
+// itself still has to be found twice, and neither copy was reachable by a grep for
+// "September". Both fed a countdown the reader can see. app/lib/launch.js owns the date and
+// the arithmetic now.
 
 // Cover fallback gradients, carried over from /library so a title with no artwork still
 // reads as a book rather than a hole in the grid.
@@ -888,7 +878,7 @@ export default function MyLibraryPage() {
               >
                 <span className="ml-sw-g" aria-hidden="true">❦</span>
                 <span className="ml-sw-t">BOOKS</span>
-                <span className="ml-sw-n">{ownedCount > 0 ? `${ownedCount} owned` : 'opens 30 Sept'}</span>
+                <span className="ml-sw-n">{ownedCount > 0 ? `${ownedCount} owned` : OPENS_SHORT}</span>
               </button>
             </div>
 
@@ -1024,7 +1014,7 @@ export default function MyLibraryPage() {
                 <div className="ml-soon-g" aria-hidden="true">❦</div>
                 <div className="ml-soon-d">{opensLabel}</div>
                 <p className="ml-soon-p">Books you buy from the Book Store live here — yours to keep, on every device you read on.</p>
-                <div className="ml-soon-note">THE BOOK STORE OPENS 30 SEPTEMBER</div>
+                <div className="ml-soon-note">{`THE BOOK STORE OPENS ${LAUNCH_DATE_LABEL}`.toUpperCase()}</div>
               </div>
             )}
           </>

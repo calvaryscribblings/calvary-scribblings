@@ -49,6 +49,8 @@ const OG_IMAGE = `${BASE_URL}/favicon.png`;
 // admits a value only if it is an absolute https:// URL or a site-relative path, so a
 // half-finished entry ('instagram.com/calvary', 'coming soon', an empty string, a note to
 // self) fails closed and renders as 'coming soon' rather than as a broken link.
+import { OPENS_SHORT, LAUNCH_DATE_LABEL } from '../lib/launch';
+
 const LINKS = {
   // The reading app. Both listings are public, so both are live.
   app: {
@@ -89,7 +91,7 @@ const LINKS = {
 // The Book Store is built and browsable, so the link is live — only the label carries the date.
 // Flip this one boolean on launch day and the suffix goes; nothing else changes.
 const BOOKSTORE_LAUNCHED = false;
-const BOOKSTORE_LABEL = BOOKSTORE_LAUNCHED ? 'Book Store' : 'Book Store · opens 30 Sept';
+const BOOKSTORE_LABEL = BOOKSTORE_LAUNCHED ? 'Book Store' : `Book Store · ${OPENS_SHORT}`;
 
 // The membership page is built and readable, so the link is live from today — only the wording
 // changes on launch day. Mirrors BOOKSTORE_LAUNCHED above deliberately: one boolean, flipped in
@@ -102,7 +104,7 @@ const BOOKSTORE_LABEL = BOOKSTORE_LAUNCHED ? 'Book Store' : 'Book Store · opens
 const MEMBERSHIP_LAUNCHED = false;
 const MEMBERSHIP_LABEL = MEMBERSHIP_LAUNCHED
   ? <><strong>Membership</strong> — open the archive →</>
-  : <><strong>Membership</strong> — opens 30 September. Read the tiers →</>;
+  : <><strong>Membership</strong> — opens {LAUNCH_DATE_LABEL}. Read the tiers →</>;
 
 /**
  * A destination is live only if it is unambiguously a destination: an absolute https:// URL or
