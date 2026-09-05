@@ -548,6 +548,42 @@ export function buildGrantPayload({ amount, currency, refField, refValue, fields
     // NOT A HISTORY LOSS. The refund itself lives in Stripe and in Paystack, permanently and
     // authoritatively; this node is an ENTITLEMENT, not a ledger. If a purchase history is ever
     // wanted here it wants an append-only child, not a pair of fields that survive by accident.
+    //
+    // ── ⭑ THE LIVE RECORD ABOVE IS DELIBERATELY NOT REPAIRED. IKENNA'S RULING, R9.1. ─────
+    //
+    // The repair is obvious and it is written out below so the round that does it inherits the
+    // reasoning rather than re-deriving it. It was NOT done at R9.1 because that record is a
+    // `cs_test_…` session, and it is one of the SEVEN TEST PURCHASES ALREADY SLATED FOR
+    // DELETION BEFORE LAUNCH. The repair and the cleanup are the same act. Writing to a money
+    // record now in order to delete it in three weeks is two touches where one will do.
+    //
+    // THE REPAIR, if it is ever wanted on its own: read the record, confirm `revokedAt` is
+    // EARLIER than `purchasedAt` — which is what proves the stamp belongs to the PRIOR
+    // purchase and not to this one — then PATCH `{ revokedAt: null, revokedReason: null }`.
+    // Nothing else moves. If revokedAt is LATER than purchasedAt the record is not this bug:
+    // it is a genuine refund that failed to set status, and clearing the stamps would hide it.
+    //
+    // ── ⚠⚠ CARRY-FORWARD FOR THE CLEANUP ROUND — IT CHANGES YOUR DELETE PREDICATE ────────
+    //
+    // The honest filter for "this is a test purchase" is the TRANSACTION ID PREFIX:
+    //
+    //     stripeSessionId        starts with `cs_test_`
+    //     stripePaymentIntent    starts with `pi_test`
+    //     paystackRef            confirmed as a Test transaction in the Paystack dashboard
+    //                            — Paystack references carry NO mode marker of their own, so
+    //                            this one cannot be decided from the record alone
+    //
+    // ⚠ NOT "lacks stripePaymentIntent". That predicate is tempting because it is checkable in
+    // one line and it looked, on today's data, like it separated the set — it does not. It
+    // catches 2 of the 7. It is a SHAPE signal (which fields a given rail's grant happened to
+    // write) wearing the clothes of a MODE signal (whether real money moved), and the two are
+    // unrelated: a live purchase down the same code path writes the same shape.
+    //
+    // Today, prefix-matching selects all seven, so it is EQUIVALENT to deleting the node
+    // outright — and that equivalence is exactly why it is worth writing the slower one. It
+    // stays correct the moment a real purchase lands first; `remove('bookstore_purchases')`
+    // does not, and it would take a paying reader's book with it and read as a tidy-up in the
+    // diff. Match the prefix, print what matched, and delete only that.
     revokedAt: null,
     revokedReason: null,
     ...(fields || {}),
