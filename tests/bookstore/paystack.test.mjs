@@ -200,9 +200,20 @@ test('grant payload: the naira rail', () => {
   assert.equal(p.author, 'A Scribbler');
   assert.equal(p.coverUrl, 'https://example.test/c.jpg');
   assert.equal(p.prices, undefined, 'only the four display fields are denormalised');
+  // R9.1 — every grant clears the refund stamps, on BOTH rails. See the note in
+  // functions/api/bookstore/_lib.js: a null in an RTDB PATCH deletes the child, and a
+  // repurchase that inherited revokedReason:'refunded' is what this ends.
+  assert.equal(p.revokedAt, null, 'a grant clears any refund stamp underneath it');
+  assert.equal(p.revokedReason, null, 'a grant clears any refund stamp underneath it');
 });
 
-test('grant payload: the Stripe rail is unchanged', () => {
+// ⚠ R9.1 — THIS TEST IS A CLOSED KEY SET, WHICH IS WHY IT REDDENED AND WHY IT SHOULD HAVE.
+//
+// It pins the EXACT shape of a Stripe grant, so adding `revokedAt: null, revokedReason: null`
+// to buildGrantPayload() broke it — correctly. A payload written into a live money record is
+// the one place a new key must be noticed rather than absorbed, and a deepEqual on the sorted
+// keys is the cheapest guard that notices. Keep the list closed; widen it deliberately.
+test('grant payload: the Stripe rail, and the two refund stamps every grant clears', () => {
   const p = buildGrantPayload({
     amount: 199,
     currency: 'gbp',
@@ -211,9 +222,13 @@ test('grant payload: the Stripe rail is unchanged', () => {
     fields: FIELDS,
   });
   assert.deepEqual(Object.keys(p).sort(), [
-    'amount', 'author', 'coverUrl', 'currency', 'purchasedAt', 'slug', 'status',
-    'stripeSessionId', 'title',
+    'amount', 'author', 'coverUrl', 'currency', 'purchasedAt', 'revokedAt', 'revokedReason',
+    'slug', 'status', 'stripeSessionId', 'title',
   ]);
+  // Present AND null, not absent — the two are the same fact on read but opposite acts on a
+  // PATCH: absent leaves the old stamp standing, null deletes it. That difference is the fix.
+  assert.equal(p.revokedAt, null);
+  assert.equal(p.revokedReason, null);
   assert.equal(p.stripeSessionId, 'cs_test_123');
   assert.equal(p.paystackRef, undefined);
   assert.equal(p.currency, 'gbp');

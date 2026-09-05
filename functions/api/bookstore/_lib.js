@@ -525,6 +525,31 @@ export function buildGrantPayload({ amount, currency, refField, refValue, fields
       Object.entries(extraRefs || {}).filter(([, v]) => typeof v === 'string' && v),
     ),
     status: 'active',
+    // ── ⚠ R9.1 — THE REFUND STAMPS ARE CLEARED HERE, AND NOWHERE ELSE ────────────────────
+    //
+    // patchPurchase() writes this payload as a multi-path PATCH, which MERGES. So a record that
+    // was revoked and then re-bought kept the old revokedAt/revokedReason underneath a fresh
+    // status:'active', because nothing ever removed them. Found live on 5 Sept 2026:
+    //
+    //     bookstore_purchases/XaG6…/the-fire-in-the-flint
+    //       { status: 'active', revokedAt: 1785311899256, revokedReason: 'refunded',
+    //         purchasedAt: 1785312235351 }
+    //
+    // — bought, refunded, and bought again five and a half minutes later. The entitlement was
+    // correct throughout; the record simply read as though the reader had been refunded and
+    // still had the book. That is a support answer that is FALSE, on a question ("was this
+    // person refunded?") that only ever gets asked when somebody is already upset.
+    //
+    // `null` in an RTDB PATCH DELETES the child, which is why these are null rather than
+    // absent: omitting them is what the bug was. They belong in the grant payload rather than
+    // in the repurchase branch of the caller because EVERY grant should leave a record with no
+    // refund on it — a first purchase has nothing to clear and pays nothing for the attempt.
+    //
+    // NOT A HISTORY LOSS. The refund itself lives in Stripe and in Paystack, permanently and
+    // authoritatively; this node is an ENTITLEMENT, not a ledger. If a purchase history is ever
+    // wanted here it wants an append-only child, not a pair of fields that survive by accident.
+    revokedAt: null,
+    revokedReason: null,
     ...(fields || {}),
   };
 }

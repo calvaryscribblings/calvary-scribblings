@@ -39,10 +39,26 @@ import {
 } from '../../functions/api/bookstore/_lib.js';
 import { revocationCandidates } from '../../functions/api/bookstore/stripe-webhook.js';
 
-// PATCH semantics: sibling fields survive, named fields are replaced. This is why a revoke
-// leaves revokedAt/revokedReason lying beside a later grant's status:'active', and why the
-// repurchase assertions below check status rather than the absence of revoke fields.
-const applyPatch = (record, payload) => ({ ...(record || {}), ...payload });
+// PATCH semantics: sibling fields survive, named fields are replaced — and a `null` DELETES
+// the child, which is how RTDB's REST PATCH behaves and what applyPatch models below.
+//
+// ⚠ R9.1 — THIS COMMENT USED TO END DIFFERENTLY, and the difference is the fix. It said the
+// merge "is why a revoke leaves revokedAt/revokedReason lying beside a later grant's
+// status:'active', and why the repurchase assertions below check status rather than the
+// absence of revoke fields." That was an accurate description of a DEFECT, written up as a
+// property to work around. It was found on a live record on 5 Sept 2026 — bought, refunded,
+// re-bought five minutes later, and reading `revokedReason: 'refunded'` under an active
+// status ever since.
+//
+// buildGrantPayload() now sends `revokedAt: null, revokedReason: null` on every grant, so the
+// stamps are deleted rather than inherited, and the assertions below check exactly what the
+// old comment said they could not.
+const applyPatch = (record, payload) => {
+  const out = { ...(record || {}), ...payload };
+  // RTDB deletes a child written as null. Modelling that is what makes these assertions real.
+  for (const [k, v] of Object.entries(payload || {})) if (v === null) delete out[k];
+  return out;
+};
 
 const FIELDS = { slug: 's', title: 'T', author: 'A', coverUrl: null };
 
@@ -127,9 +143,12 @@ for (const rail of RAILS) {
     assert.equal(after[rail.refField], rail.refB, 'the record names the NEW transaction');
     assert.equal(after.amount, rail.amount);
     assert.equal(after.currency, rail.currency);
-    // PATCH leaves the old revoke fields as sediment; status is what the reader gate reads
-    // (functions/api/bookstore/stream.js checks purchase.status !== 'active').
-    assert.equal(after.revokedReason, 'refunded');
+    // ⭑ R9.1 — AND THE REFUND IS GONE FROM THE RECORD. It used to survive as sediment, so a
+    // repurchased book read `revokedReason: 'refunded'` under `status: 'active'` forever. The
+    // entitlement was always right; the record was not, and it is the record a human reads
+    // when somebody asks whether they were refunded.
+    assert.equal(after.revokedReason, undefined, 'a repurchase must not inherit the old refund');
+    assert.equal(after.revokedAt, undefined, 'a repurchase must not inherit the old refund date');
   });
 
   // ── (c) REPLAY against an active record — unchanged behaviour ──────────────
@@ -178,7 +197,10 @@ for (const rail of RAILS) {
     // The webhook returns before patching, so the record is untouched.
     const after = verdict === 'revoke' ? applyPatch(record, buildRevokePayload('disputed')) : record;
     assert.equal(after.status, 'active', 'the reader keeps the book they paid for');
-    assert.equal(after.revokedReason, 'refunded', 'only the ORIGINAL refund is on the record');
+    // R9.1 — the repurchase cleared the original refund, so there is no revoke on the record
+    // at all. The verdict above is the assertion that matters: an old transaction's dispute
+    // must not revoke the current one.
+    assert.equal(after.revokedReason, undefined, 'the repurchase cleared the original refund');
     assert.equal(after[rail.refField], rail.refB);
   });
 
