@@ -29,7 +29,7 @@
 
 // R5b: json() and the token verifier moved to ./_lib.js when stream.js became the third
 // caller. Behaviour is unchanged — the move exists so the three endpoints cannot drift.
-import { json, dbBase, verifyIdToken, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } from './_lib.js';
+import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } from './_lib.js';
 // R8.4 — the SAME country resolver the region endpoint serves to the client, and the SAME
 // matcher the storefront marks with. Importing them rather than re-deriving is the point: a
 // shelf that says "not sold in your region" and a till that disagrees is worse than either
@@ -82,8 +82,39 @@ export async function onRequestPost(context) {
   }
 
   // ── identity ───────────────────────────────────────────────────────────────
-  const uid = await verifyIdToken(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  //
+  // ⚠ R9.1 — lookupUser(), NOT verifyIdToken(). SAME REQUEST, ONE MORE FIELD.
+  //
+  // verifyIdToken() is a two-line wrapper around lookupUser() that returns `localId` and
+  // discards everything else — including the EMAIL. This endpoint used to call it, so the
+  // Checkout Session it built carried no `customer_email` and no `receipt_email`, and Stripe
+  // had no address to send anything to.
+  //
+  // The consequence, found by the R9 launch audit: A BOOK BUYER RECEIVED NO EMAIL FROM ANYONE.
+  // Not from us — there is no purchase receipt anywhere in this repo, and the two Workers that
+  // hold the Resend key (calvary-newsletter, calvary-auth) never see a purchase. Not from
+  // Stripe either, because Stripe's own receipt needs an address it was never given. Their only
+  // confirmation of a completed sale was the ?purchase=success redirect, which is lost the
+  // moment the tab is closed.
+  //
+  // Both membership rails already did this — membership/checkout.js:177 and
+  // pass-checkout.js:137 — so the book rail, the one that has actually taken money, was the
+  // only one getting it wrong.
+  //
+  // NO EXTRA ROUND TRIP: verifyIdToken() was already making this exact call. The email comes
+  // from the VERIFIED TOKEN and never from the request body — the same rule
+  // paystack-checkout.js:98 states, because a body-supplied address would let a buyer post
+  // somebody else's receipt to themselves.
+  //
+  // ⚠ AN EMAIL IS NOT REQUIRED HERE, and must not become required. Paystack refuses a
+  // transaction without one (paystack-checkout.js:104 answers 409 no_email), but that is
+  // Paystack's constraint, not ours: an anonymous or phone-only account can still buy a book
+  // on this rail and simply gets no receipt. Turning a missing address into a refusal would
+  // block a sale that works today to fix a courtesy.
+  const user = await lookupUser(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  const uid = user?.localId ?? null;
   if (!uid) return json({ error: 'Your session has expired. Please sign in again.' }, 401);
+  const email = typeof user.email === 'string' && user.email.trim() ? user.email.trim() : null;
 
   // ── the title, and its price ───────────────────────────────────────────────
   // bookstore_titles is world-readable (database.rules.json), so this needs no credential.
@@ -168,6 +199,11 @@ export async function onRequestPost(context) {
 
   form.set('metadata[uid]', uid);
   form.set('metadata[titleId]', titleId);
+
+  // R9.1 — the address Stripe sends its receipt to. See the identity block above for why this
+  // was missing and what it cost. Omitted entirely when the account has no email, rather than
+  // set to an empty string, which Stripe rejects the whole session for.
+  if (email) form.set('customer_email', email);
 
   // The same pair on the PaymentIntent. Stripe copies PaymentIntent metadata onto the
   // Charge, which is the only way charge.refunded / charge.dispute.created reach the webhook
