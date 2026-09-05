@@ -128,11 +128,36 @@ describe('R38 · the Square announcement', () => {
   const snap = { authorUid: 'u1', authorName: 'Akuma Chikere', authorHandle: 'akuma', authorAvatarUrl: 'https://x/a.jpg' };
   const NOW = 1_800_000_000_000;
 
-  test('it names the piece and links to it', () => {
+  // ⚠ R9.1 — THIS TEST ASSERTED THE URL IN THE BODY TEXT AND WENT RED AT R43.
+  //
+  // R43 ruled that a Square post carries NO LINKS AT ALL — "a link is the cheapest way to put
+  // something the house cannot see in front of readers", and square_posts has no rate limit and
+  // no blocking where Open Pages has both. The announcement's destination moved out of the body
+  // and into `attachedOpenPage`, drawn by AttachmentCard as a link the HOUSE authored.
+  //
+  // R43 shipped tests/square/postbody.test.mjs (78 assertions) for the new behaviour but did
+  // not update this file, so `npm run test:openpages` was red on main for a day. It went unseen
+  // because — until R9.1 wired it in — NO WORKFLOW RAN THIS SUITE.
+  //
+  // THE BEHAVIOUR WAS RIGHT AND THE ASSERTION WAS STALE. So the text assertion now checks the
+  // URL is ABSENT, and the destination is asserted where it actually lives.
+  test('it names the piece, and the destination is an attachment rather than a link', () => {
     const t = announcementText('The Outliers’ Mind', '-Oz6');
     assert.match(t, /New on Open Pages/);
     assert.match(t, /The Outliers/);
-    assert.match(t, /calvaryscribblings\.co\.uk\/open-pages\/-Oz6/);
+    assert.equal(/https?:\/\/|calvaryscribblings\.co\.uk|\/open-pages\//.test(t), false,
+      'R43: a Square post body carries no links — the destination belongs on attachedOpenPage');
+  });
+
+  test('⭐ THE DESTINATION SURVIVES — attachedOpenPage names the piece the card points at', () => {
+    // The half that must not be lost while removing a URL from a body: an announcement whose
+    // destination went nowhere would be worse than the link it replaced. R43 shipped this
+    // untested from the Open Pages side — postbody.test.mjs asserts the RENDERER, not that the
+    // announcement record carries the id.
+    const post = buildAnnouncement(snap, {}, { postId: '-Oz6', title: 'The Outliers’ Mind', now: NOW });
+    assert.equal(post.attachedOpenPage.id, '-Oz6', 'the card has nothing to point at');
+    assert.equal(post.attachedOpenPage.title, 'The Outliers’ Mind');
+    assert.ok(post.attachedOpenPage.author, 'the card draws the writer, not a byline field');
   });
 
   test('⭐ A 200-CHARACTER TITLE CANNOT PUSH THE POST PAST THE SQUARE CAP', () => {
@@ -255,7 +280,10 @@ describe('R38 · ⭐ NOTHING UNSCREENED IS EVER DISTRIBUTED', () => {
       'the announcement and the piece are in ONE atomic write, so ordering cannot go wrong');
     const announcement = patch[sq[0]];
     assert.match(announcement.text, /Enough/);
-    assert.match(announcement.text, new RegExp(data.postId.replace(/[-[\]]/g, '\\$&')));
+    // R9.1 — the id moved out of the TEXT and onto the attachment at R43. Asserting it here is
+    // what keeps "the announcement can actually be followed" pinned to the atomic patch.
+    assert.equal(announcement.attachedOpenPage?.id, data.postId,
+      'the announcement in the published patch does not point at the piece it announces');
     assert.equal(announcement.authorUid, UID, 'attributed to the verified uid, never a body-supplied one');
     assert.equal(announcement.pinned, false);
     assert.ok(announcement.text.length <= SQUARE_MAX);

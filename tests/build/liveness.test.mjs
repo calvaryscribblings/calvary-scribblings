@@ -24,6 +24,30 @@
 //     sentinel), out/reader/*.html = 188. The shelf is a live client query and shipped listing
 //     all nineteen titles. Every "Full details" link 404'd. That is the case the last group
 //     below reproduces and now demands a non-zero exit for.
+// ── ⚠⚠ THIS SUITE MUTATES A TRACKED SOURCE FILE. DO NOT RUN TWO COPIES AT ONCE. ─────────
+//
+// To prove the build's fault handling, the PL-12 case below EDITS app/bookstore/[slug]/page.js
+// in place — injecting a throw into generateStaticParams — runs a real `next build` against
+// it, and restores the original from app/bookstore/[slug]/.page.js.pl12-backup. A single run
+// is clean and leaves the tree exactly as it found it.
+//
+// TWO CONCURRENT RUNS RACE, AND THE TREE LOSES. Both write the backup, both inject, and the
+// first to finish restores while the second is still building — so the second's restore writes
+// an already-restored file and the INJECTED SOURCE can be left in the working tree, staged by
+// anyone who runs `git add -A` without looking. It happened during the R9 audit, from nothing
+// more exotic than a `npm run test:build` in a second terminal while the first was still
+// going; the injected `throw new Error('PL12-INJECTED: bookstore_titles unreadable')` sat in
+// the tree with a `.page.js.pl12-backup` beside it.
+//
+// It is recorded rather than fixed because the fix is not obvious and the cost is not the
+// hazard's: this suite has to mutate the real file, because the thing under test is what
+// `next build` does with the real route. A lock file, or a copy of the app, would each cost
+// more than the rule does.
+//
+// SO: ONE RUN AT A TIME, and if a build ever fails midway, check `git status` before staging
+// anything. A stray `.page.js.pl12-backup` in `git status` is the tell that a run did not
+// finish — the file is deleted on a clean exit and exists only mid-run.
+
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';

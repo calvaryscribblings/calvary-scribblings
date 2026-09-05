@@ -66,10 +66,16 @@ export const PLAN_BOOK = {
 /**
  * Which mode a Paystack secret key belongs to.
  *
- * Paystack keys are sk_test_… / sk_live_…, the same convention Stripe uses. NOTE that the
- * webhook cannot use this to tell test events from live ones — Paystack sends BOTH to the one
- * configured URL and distinguishes them with `domain: 'test' | 'live'` on the payload. That is
- * a property of the event, not of our key, and is read separately.
+ * Paystack keys are sk_test_… / sk_live_…, the same convention Stripe uses. The webhook cannot
+ * use this to tell test events from live ones: `domain: 'test' | 'live'` on the PAYLOAD is the
+ * honest signal, because it is a property of the event rather than of our key, and it is read
+ * separately by domainOf() below.
+ *
+ * ⚠ R9.1 — THIS NOTE USED TO SAY "Paystack sends BOTH to the one configured URL". That is not
+ * established, and it contradicts the signature check in bookstore/paystack-webhook.js, which
+ * verifies with this same per-mode key and so cannot verify both modes at one endpoint. The
+ * correction is written up in full at the delegation site in that file. Reading `domain` is
+ * right regardless — it costs nothing and it is the only field that cannot lie about itself.
  */
 export const modeOf = (secretKey) =>
   (typeof secretKey === 'string' && secretKey.startsWith('sk_live')) ? 'live' : 'test';

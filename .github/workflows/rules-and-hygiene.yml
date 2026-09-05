@@ -37,8 +37,20 @@ on:
       # R33.2 — the Square's horizon: its decision logic and the script that runs it.
       - 'tests/square/**'
       - 'scripts/square/**'
-      # PL-12 — the build's liveness suite. Editing it must be able to start the job.
+      # PL-12 — the build's liveness suite, and R9.1's launch-date guard. Editing either must
+      # be able to start the job.
       - 'tests/build/**'
+      # ⭑ R9.1 — THE FOUR SUITES CI HAD NEVER RUN, now that it runs them. Adding the step
+      # without adding the path is only half a wiring: `app/**` and `functions/**` catch most
+      # real changes, but an edit to a SUITE ALONE would still start no job — which is precisely
+      # how R43's stale Open Pages assertion sat red on main with nothing to say so, and how a
+      # future edit to tests/membership/on-sale.test.mjs could quietly defang the launch
+      # interlock. A step whose own test file cannot trigger it is a step that trusts the
+      # neighbours.
+      - 'tests/membership/**'
+      - 'tests/openpages/**'
+      - 'tests/leaderboard/**'
+      - 'tests/voices/**'
       - 'app/**'
       - 'functions/**'
       - 'scripts/**'
@@ -242,6 +254,36 @@ jobs:
       - name: Bookstore suites (purchases, streaming, the position pin)
         run: npm run test:purchases
 
+      # ⭑⭑ R9.1 — THE MEMBERSHIP SUITES, AND WHY THIS ONE IS THE LAUNCH BLOCKER OF THE THREE.
+      #
+      # 233 node-only assertions covering both subscription rails, the founding lock, the
+      # billing facts /settings reads, and the pass catalogue. NO WORKFLOW HAS EVER RUN THEM.
+      #
+      # It matters more than the count, because R9.1 put THE ON-SALE INTERLOCK in this suite —
+      # tests/membership/on-sale.test.mjs, which fails if MEMBERSHIPS_ON_SALE and the live price
+      # books disagree in either direction. That interlock exists because
+      # app/lib/membershipPrices.js claimed for four rounds that it was enforced by a file that
+      # did not exist. Building the test and leaving it out of CI would have reproduced exactly
+      # the failure it was written to end: a safety net nobody runs, described as if it ran.
+      #
+      # Offline, no secrets, no browser, ~1.3s.
+      - name: Membership suites — both rails, and the on-sale interlock
+        run: npm run test:membership
+
+      # R9.1 — OPEN PAGES. 162 node-only assertions, in no workflow until now, and it had ALREADY
+      # COST SOMETHING: R43 moved the Square announcement's URL out of the post body (a post
+      # carries no links) and shipped its own suite for the new behaviour without updating
+      # tests/openpages/distribution.test.mjs, which still asserted the URL. main was red for a
+      # day and nothing said so. Both assertions are corrected in this round.
+      - name: Open Pages suites — moderation, drafts, distribution
+        run: npm run test:openpages
+
+      # R9.1 — THE SEASONAL PROGRAM (20) and READER VOICES (32). Same position as the two above:
+      # node-only, fast, offline, unwatched. Added together because a job that runs three of the
+      # five unwired node suites is a job somebody has to audit again.
+      - name: Seasonal program and reader voices
+        run: npm run test:program && npm run test:voices
+
       # R9.2 (c). The workflows check themselves: action majors held above the node24 floor,
       # nothing pinned to a floating tag, and no new action slipping in unrecorded.
       - name: Workflow hygiene (action runtimes)
@@ -276,6 +318,13 @@ jobs:
       # four generator runs that prove the gate stops a build rather than merely reporting.
       - name: Redirect limits — every rule in _redirects is actually served
         run: npm run test:redirects
+
+      # R9.1 — THE LAUNCH DATE IS WRITTEN IN ONE FILE. R34 inventoried nine launch-date sites by
+      # searching for "September" and missed the two that fed a countdown the reader can see,
+      # because `{ y: 2026, m: 9, d: 30 }` contains no month name. This scans every shipped form
+      # — prose, object literal, ISO, Date.UTC — outside app/lib/launch.js. Under a second.
+      - name: The launch date is written in one file
+        run: npm run test:launch
 
       # R24.1 — THE /u PRERENDER MUST STAY GONE. app/u/[handle] emitted 98 pages that Cloudflare
       # had never served once, because a _redirects rule is applied whether or not an asset

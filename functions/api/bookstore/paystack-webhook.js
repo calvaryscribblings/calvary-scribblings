@@ -383,11 +383,28 @@ export async function onRequestPost(context) {
   // Past this line the request is provably from Paystack, so every exit is a 200.
   try {
     // ── R10.5: MEMBERSHIP DELEGATION ────────────────────────────────────────────────────
-    // PAYSTACK ALLOWS ONE WEBHOOK URL PER ACCOUNT — test and live share it, told apart by
-    // `domain` on the payload. So membership events cannot have an endpoint of their own the
-    // way the Stripe rail does; they arrive HERE, at the single configured URL, and this hands
-    // them on. Repointing the dashboard at a new dispatcher would mean a cutover on a live
-    // money path in exchange for nothing.
+    // ⚠ R9.1 — THE CLAIM THAT USED TO OPEN THIS NOTE IS NOT RELIABLE, AND IS NOT LOAD-BEARING.
+    //
+    // It said: "PAYSTACK ALLOWS ONE WEBHOOK URL PER ACCOUNT — test and live share it, told
+    // apart by `domain` on the payload." The R9 launch audit could not reconcile that with the
+    // code three lines above it: the signature is verified with PAYSTACK_SECRET_KEY, which is
+    // per-mode, so ONE endpoint holding ONE key cannot verify both modes' deliveries. If test
+    // and live genuinely shared this URL, every event from the mode we are not keyed for would
+    // fail signature verification and 400 — which is not what the comment describes.
+    //
+    // The Paystack dashboard has a webhook URL field PER MODE, behind the test/live toggle.
+    // Nothing in this repo can read it, so the claim is not resolved here; what matters is that
+    // it was never the reason for the delegation.
+    //
+    // ⭑ THE DELEGATION IS RIGHT EITHER WAY, and for a reason that does not depend on the
+    // count: there is ONE URL PER MODE and both rails' events arrive at it, so membership
+    // events cannot have an endpoint of their own the way the Stripe rail does. They arrive
+    // HERE and this hands them on. Repointing the dashboard at a new dispatcher would mean a
+    // cutover on a live money path in exchange for nothing.
+    //
+    // ⚠ WHAT THIS MEANS FOR LAUNCH: registering the LIVE webhook URL is a separate dashboard
+    // action from registering the test one, and swapping PAYSTACK_SECRET_KEY to a live key does
+    // not perform it. Neither is done in this round — both are Ikenna's hands on the day.
     //
     // isMembershipEvent() is conservative: a subscription/invoice event, an `ms.` reference, or
     // a `plan` object — which a book purchase never carries. A book charge cannot match, so
