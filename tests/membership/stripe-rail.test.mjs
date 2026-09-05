@@ -20,6 +20,7 @@ import {
   AMOUNTS, PRICE_BOOK, PORTAL_CONFIGURATION, TIERS, INTERVALS, STRIPE_CURRENCIES,
   priceIdFor, describePrice, isFoundingPrice, isConfigured, priceIdsForGeneration, modeOf,
 } from '../../functions/api/membership/prices.js';
+import { MEMBERSHIPS_ON_SALE } from '../../app/lib/membershipPrices.js';
 import { validateSelection } from '../../functions/api/membership/checkout.js';
 import { noCustomerResponse } from '../../functions/api/membership/portal.js';
 import {
@@ -104,7 +105,27 @@ describe('the price book', () => {
     assert.equal(priceIdsForGeneration('founding', 'test').length, 8);
     PRICE_BOOK.founding.test.platinum.annual.usd = null;
     assert.equal(isConfigured('test'), false, 'one missing id must fail the whole check');
-    assert.equal(isConfigured('live'), false, 'live is unconfigured in this build');
+  });
+
+  // ⚠ R9.1 — THIS ASSERTION USED TO READ `assert.equal(isConfigured('live'), false)`, with the
+  // message 'live is unconfigured in this build'. That hard-codes TODAY'S ANSWER into a suite
+  // that runs on the launch commit: the moment the live ids are pasted this file reddened, for
+  // the right reason but with a message that reads like a bug, and the obvious fix under
+  // launch-day pressure is to delete the line — which would have removed the only coupling of
+  // any kind between the flag and the ids. (There was no other: the interlock
+  // app/lib/membershipPrices.js claims is enforced by tests/membership/on-sale.test.mjs did not
+  // exist until R9.1 built it.)
+  //
+  // So it asserts the INVARIANT instead, and passes on both sides of the flip. on-sale.test.mjs
+  // holds the same iff across BOTH rails together and owns the failure messages; this is the
+  // Stripe half restated where a reader of this file will meet it.
+  test('live is configured IFF MEMBERSHIPS_ON_SALE — no hard-coded pre-launch answer', () => {
+    assert.equal(
+      isConfigured('live'), MEMBERSHIPS_ON_SALE,
+      `stripe live=${isConfigured('live')} MEMBERSHIPS_ON_SALE=${MEMBERSHIPS_ON_SALE}. `
+      + 'Paste the live ids and flip the flag in the SAME commit — and paste Paystack\'s in it '
+      + 'too, or tests/membership/on-sale.test.mjs will redden on the half-pasted state.',
+    );
   });
 
   test('modeOf reads the key prefix, and defaults to test', () => {

@@ -25,6 +25,7 @@ import {
 import { validateSelection } from '../../functions/api/membership/paystack-checkout.js';
 import { SCALAR_PATH, DETAIL_PATH } from '../../functions/api/membership/_membership.js';
 import { parsePaystackReference } from '../../functions/api/bookstore/_lib.js';
+import { MEMBERSHIPS_ON_SALE } from '../../app/lib/membershipPrices.js';
 
 const UID = 'readerUid0001';
 const NOW = 1786000000000;
@@ -67,11 +68,23 @@ describe('the plan book — naira only, hand-set, in kobo', () => {
     }
   });
 
-  test('isConfigured needs all four codes; live is unconfigured in this build', () => {
+  test('isConfigured needs all four codes', () => {
     assert.equal(isConfigured('test'), true);
-    assert.equal(isConfigured('live'), false);
     PLAN_BOOK.founding.test.platinum.annual = null;
     assert.equal(isConfigured('test'), false);
+  });
+
+  // ⚠ R9.1 — the `assert.equal(isConfigured('live'), false)` that used to sit in the test above
+  // hard-coded today's answer into a suite that runs on the launch commit. See the longer note
+  // at the same site in stripe-rail.test.mjs; the invariant, and both rails together, live in
+  // tests/membership/on-sale.test.mjs.
+  test('live is configured IFF MEMBERSHIPS_ON_SALE — no hard-coded pre-launch answer', () => {
+    assert.equal(
+      isConfigured('live'), MEMBERSHIPS_ON_SALE,
+      `paystack live=${isConfigured('live')} MEMBERSHIPS_ON_SALE=${MEMBERSHIPS_ON_SALE}. `
+      + 'Paste the live plan codes and flip the flag in the SAME commit — and paste Stripe\'s '
+      + 'in it too, or tests/membership/on-sale.test.mjs will redden on the half-pasted state.',
+    );
   });
 
   test('the event DOMAIN decides mode, not our key — one URL serves test and live', () => {
