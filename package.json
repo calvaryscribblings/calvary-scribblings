@@ -12,6 +12,7 @@
     "rules:deploy:storage": "GOOGLE_APPLICATION_CREDENTIALS=serviceAccountKey.json firebase deploy --only storage --project calvary-scribblings --non-interactive",
     "rules:pull": "node scripts/rules-pull.mjs",
     "rules:check": "node scripts/rules-check.mjs",
+    "og:rescrape": "node scripts/og-rescrape.mjs",
     "foliate:check": "node scripts/foliate-lock.mjs --check",
     "foliate:write": "node scripts/foliate-lock.mjs --write",
     "foliate:list": "node scripts/foliate-lock.mjs --list",

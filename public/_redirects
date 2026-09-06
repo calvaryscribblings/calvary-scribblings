@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (344 of 2000 permitted) ───────────────
+# ── Static rules (348 of 2000 permitted) ───────────────
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
 /offline.html                                                /public-library                                              301
@@ -152,6 +152,8 @@
 /may-nigeria-never-happen-to-you.html                        /stories/may-nigeria-never-happen-to-you                     301
 /meet-the-top-readers                                        /stories/meet-the-top-readers                                301
 /meet-the-top-readers.html                                   /stories/meet-the-top-readers                                301
+/midday-in-peckham                                           /stories/midday-in-peckham                                   301
+/midday-in-peckham.html                                      /stories/midday-in-peckham                                   301
 /miss-lady                                                   /stories/miss-lady                                           301
 /miss-lady.html                                              /stories/miss-lady                                           301
 /mother-and-other-poems                                      /stories/mother-and-other-poems                              301
@@ -176,6 +178,8 @@
 /nollywood-on-youtube-new-era-or-creative-decline.html       /stories/nollywood-on-youtube-new-era-or-creative-decline    301
 /nostalgia-still-sells                                       /stories/nostalgia-still-sells                               301
 /nostalgia-still-sells.html                                  /stories/nostalgia-still-sells                               301
+/notes                                                       /stories/notes                                               301
+/notes.html                                                  /stories/notes                                               301
 /notting-hill-carnival-a-new-spin                            /stories/notting-hill-carnival-a-new-spin                    301
 /notting-hill-carnival-a-new-spin.html                       /stories/notting-hill-carnival-a-new-spin                    301
 /odds-and-ends                                               /stories/odds-and-ends                                       301

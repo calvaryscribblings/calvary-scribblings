@@ -1,6 +1,10 @@
 import { stories } from '../../lib/stories';
 import { hasStaticPage } from '../../lib/storyAccess';
 import { buildRead } from '../../lib/build-read.mjs';
+// The generator's own canvas constant, imported rather than transcribed so the declared
+// og:image size cannot drift from the size the renderer actually produces. layout.mjs is pure
+// frozen constants with no imports of its own, so this pulls no build machinery into the app.
+import { CANVAS as COVER_CANVAS } from '../../../scripts/covers/layout.mjs';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -71,6 +75,31 @@ export async function generateMetadata({ params }) {
   if (!story) return {};
   const url = `https://calvaryscribblings.co.uk/stories/${slug}`;
   const image = `https://og.calvaryscribblings.co.uk/?slug=${slug}`;
+  // THE DECLARED SIZE MUST BE THE FILE'S REAL SIZE, and for four months it was not: this
+  // said 1200 × 675 while every generated cover is CANVAS — 1600 × 2400. The 1200 × 675 was
+  // presumably written in the belief that the OG worker composites a landscape card. It does
+  // not. og.calvaryscribblings.co.uk is a BYTE PASSTHROUGH: it resolves cms_stories/{slug}/cover
+  // and returns those bytes unchanged, verified byte-for-byte against the stored object. What
+  // a scraper receives is the cover itself, at its own dimensions.
+  //
+  // ⚠ SO THE CARD IS NOW RIGHT-BUT-CROPPED, and that is a known, accepted state rather than a
+  // finished one. `summary_large_image` and Facebook's large card both want a landscape frame
+  // near 1200 × 630; a 2:3 portrait dropped into one is CENTRE-CROPPED HARD — roughly the
+  // middle third of the cover survives, so the title band usually reads and the ornament and
+  // lower rule are cut away. That is a real improvement on the bare link it replaces and it is
+  // not the final answer. Making it a true 1200 × 630 composite means changing the OG worker,
+  // whose source is in no repository here, and it is a separate editorial decision about what
+  // the card should BE — a cropped cover, a letterboxed cover on a house ground, or a
+  // purpose-composed card. Do not fake it from this side by declaring landscape numbers again.
+  //
+  // Dimensions are declared ONLY for the generated covers, whose size is known from the
+  // generator's own constant. A legacy `covers/` cover is a photograph of arbitrary size, so
+  // this omits width/height there and lets the scraper measure rather than assert a number it
+  // cannot stand behind.
+  const generated = /covers-typographic/.test(story.cover || '');
+  const imageEntry = generated
+    ? { url: image, width: COVER_CANVAS.w, height: COVER_CANVAS.h, type: 'image/png', alt: story.title }
+    : { url: image, alt: story.title };
   return {
     title: `${story.title} — Calvary Scribblings`,
     description: `By ${story.author} · ${story.categoryName} · Calvary Scribblings`,
@@ -79,7 +108,7 @@ export async function generateMetadata({ params }) {
       description: `By ${story.author} · ${story.categoryName}`,
       url,
       siteName: 'Calvary Scribblings',
-      images: [{ url: image, width: 1200, height: 675, alt: story.title }],
+      images: [imageEntry],
       type: 'article',
     },
     twitter: {

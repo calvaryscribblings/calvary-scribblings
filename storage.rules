@@ -5,6 +5,49 @@ service firebase.storage {
       allow read: if true;
       allow write: if request.auth != null && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
     }
+    // ⭑ THE GENERATED TYPOGRAPHIC COVERS. `read: if true`, and the absence of this block is
+    // the whole of a bug that broke link previews on every published story for weeks.
+    //
+    // R12.6 moved every cover from `covers/` to this prefix. `covers/` above is world-readable;
+    // this prefix had NO MATCHING RULE AT ALL, and an unmatched path in Storage is denied. So
+    // the generated covers were reachable only through the download token that
+    // scripts/covers/store.mjs:uploadCoverSet writes into each object's metadata — and a token
+    // in a URL only helps a client that fetches that exact URL.
+    //
+    // The OG image worker (og.calvaryscribblings.co.uk, source in no repository) is a byte
+    // passthrough that re-fetches the `cover` URL WITHOUT its token, so every story's
+    // og:image returned `502 Image fetch failed`. Facebook and WhatsApp scrape server-side and
+    // tokenless and were denied; Apple's iMessage renders previews on-device against the
+    // stored URL and unfurled the very same links correctly. Two platforms, opposite results,
+    // one cause — that split is the cheapest proof that the missing rule was the entire fault
+    // and the worker is doing nothing further wrong.
+    //
+    // Measured before opening it: 1011 objects, 175 slugs, 243.4 MiB, and exactly three leaf
+    // filenames — cover.png, w360.webp, w720.webp — every one image/png or image/webp. Two
+    // generations coexist (flat `{slug}/cover.png` from generation one, `{slug}/{sha12}/…`
+    // since; see scripts/covers/migrate.mjs:321). There is nothing else under this prefix, so
+    // `read: if true` publishes exactly the cover art the site already prints on every shelf.
+    //
+    // ⚠ THE WRITE TERMS BELOW GUARD NOTHING TODAY, and that is worth knowing rather than
+    // discovering. The only writers are scripts/covers/{migrate,on-publish}.mjs via
+    // bucket.file().save() on a service account, which bypasses rules entirely. No browser
+    // client writes here — app/admin/page.js only regex-tests the path to ask whether a cover
+    // was generated. The terms are the founder-only shape every sibling prefix carries, kept so
+    // that a future client-side writer inherits the house default instead of an open door.
+    //
+    // ⚠ WRITE IS SPLIT FROM DELETE, per the R21 convention documented above the three
+    // bookstore_ rules: `request.resource` is null on a delete, so a combined `allow write`
+    // guarded on size or contentType denies every delete, founders included. There are no
+    // content guards here — the covers are 700 KB–1 MB PNGs, larger than the 5 MB image cap
+    // would be comfortable with only by luck — so the split costs nothing and prevents the
+    // trap outright.
+    match /covers-typographic/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
+      allow delete: if request.auth != null
+                   && (request.auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || request.auth.uid == 'GfXFIc0dThZ1cs2SBBQIFao4aSz1');
+    }
     match /authors/{allPaths=**} {
       allow read: if true;
       allow write: if request.auth != null
