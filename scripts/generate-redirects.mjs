@@ -25,6 +25,21 @@ const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedat
 // 1:1 to a current category. Kept hand-maintained because they're stable
 // and few; new entries only get added if a route is renamed/removed.
 const STATIC_LEGACY_REDIRECTS = [
+  // ── R46.2: arthor-eze → arthur-eze ─────────────────────────────────────────────────
+  // The roster slug was a typo ("arthor") frozen as a KEY, so correcting it is a new record
+  // plus this rule — there is no rename. /voices/arthor-eze was live and linkable for months
+  // and may sit in a bookmark, a share or a search result, none of which this repo can
+  // enumerate: a sweep of all 81 RTDB nodes found the old slug in cms_voices and nowhere else
+  // (no story, no index entry, no newsletter carries it as a foreign key), so the ONLY
+  // exposure is external and this rule is the whole of the mitigation.
+  //
+  // ⚠ It is a STATIC rule and must stay one. R24 found that a single dynamic rule near the
+  // top caps the entire file at Cloudflare's 100-rule dynamic limit; the generator partitions
+  // static-before-dynamic to prevent it, and a literal path like this one costs nothing.
+  // ⚠ R24.1: a redirect BEATS a matching static asset, so this keeps working even while a
+  // stale out/voices/arthor-eze.html is still in a deployed build — which is what makes the
+  // cutover safe in either order.
+  ['/voices/arthor-eze', '/voices/arthur-eze'],
   // Legacy "Creative Writing" category — folded into /inspiring at migration.
   ['/creative',       '/inspiring'],
   ['/creative.html',  '/inspiring'],

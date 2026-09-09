@@ -205,8 +205,13 @@ describe('the generator STOPS THE BUILD rather than emitting a file that cannot 
     try {
       const r = await attempt(process.execPath, [makeProbe(rig.url)]);
       assert.equal(r.code, 0);
-      assert.match(r.stdout, /\(3 slugs from CMS, 9 static\)/);
-      assert.match(r.stdout, /15\/15 rules servable — 14 static, 1 dynamic/);
+      // ⚠ THESE COUNTS TRACK STATIC_LEGACY_REDIRECTS AND ARE MEANT TO. They are hardcoded so
+      // that adding or losing a hand-maintained legacy rule cannot pass unnoticed — the list is
+      // the one part of this file a human edits. R46.2 took it from 9 to 10 by adding
+      // /voices/arthor-eze → /voices/arthur-eze; 10 legacy + 3 CMS slugs × 2 forms = 16, of
+      // which one is dynamic. If this fails, check the list changed on purpose, then move it.
+      assert.match(r.stdout, /\(3 slugs from CMS, 10 static\)/);
+      assert.match(r.stdout, /16\/16 rules servable — 15 static, 1 dynamic/);
       const written = readFileSync(REDIRECTS, 'utf8');
       assert.deepEqual(analyseRedirects(written).violations, []);
       assert.doesNotMatch(written, /\/hidden\s/, 'an unpublished story gets no redirect');
