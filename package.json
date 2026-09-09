@@ -53,6 +53,7 @@
     "test:r31": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.r31.config.mjs\"",
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",
     "test:taxonomy": "node --test tests/ci/taxonomy.test.mjs",
+    "test:quiz-marker": "next build && playwright test -c tests/quizmarker/playwright.config.mjs",
     "test:program": "node --test tests/leaderboard/program.test.mjs",
     "test:strip": "next build && playwright test -c tests/leaderboard/playwright.config.mjs --grep 'seasonal board strip'",
     "test:phase": "next build && playwright test -c tests/leaderboard/playwright.config.mjs --grep-invert 'seasonal board strip'",

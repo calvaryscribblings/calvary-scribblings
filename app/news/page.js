@@ -4,7 +4,6 @@ import Navbar from '../components/Navbar';
 import TabBar from '../components/TabBar';
 import { stories } from '../lib/stories';
 import StoryCard from '../components/StoryCard';
-import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { tabsPresentIn, inSubcategory } from '../lib/taxonomy';
 
@@ -30,7 +29,6 @@ function sortBtnStyle(active) {
 }
 
 export default function NewsPage() {
-  const userTiersMap = useUserStoryTiers();
   const [allStories, setAllStories] = useState(_filtered);
   const [activeTab, setActiveTab] = useState('all');
   const [sortMode, setSortMode] = useState('hits');
@@ -148,8 +146,6 @@ export default function NewsPage() {
             <StoryCard
               key={s.id}
               story={s}
-              userTier={userTiersMap[s.id]?.tier ?? null}
-              scorePct={userTiersMap[s.id]?.scorePct}
               rank={sortMode === 'hits' ? i + 1 : null}
               data-reveal="up"
               data-reveal-delay={(i % 6) + 1}

@@ -1,11 +1,17 @@
 'use client';
 import { useState } from 'react';
 import { isNew } from '../lib/stories';
-import QuizPill from './QuizPill';
-import { advertisesQuiz } from '../lib/readerCollection';
 import CoverImage from './CoverImage';
 
-export default function StoryCard({ story, userTier = null, scorePct, rank = null, ...rest }) {
+// R45 — THE QUIZ MARKER IS OFF THE CARDS, and the quiz is NOT retired.
+// Ikenna's ruling: the badge that told a card its story has a quiz comes off. The pill
+// component lives on — /search and /quizzes still mount it — and the FEATURE is untouched:
+// quizzes still generate, still score, still feed Scribbles and the leaderboards, and the
+// story page keeps both its "This story has a quiz" jump link and the card it lands on.
+// quizMeta.hasQuiz is unchanged in the database and still read by the admin picker,
+// /quizzes, the index projection and the newsletter. An absent badge is not a dead feature.
+
+export default function StoryCard({ story, rank = null, ...rest }) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -41,12 +47,6 @@ export default function StoryCard({ story, userTier = null, scorePct, rank = nul
             padding: '2px 6px', borderRadius: 4,
           }}>New</span>
         )}
-        <QuizPill
-          hasQuiz={advertisesQuiz(story)}
-          userTier={userTier}
-          scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50}
-          scorePct={scorePct}
-        />
       </div>
 
       {/* Text block */}

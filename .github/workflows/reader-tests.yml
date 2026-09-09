@@ -82,6 +82,23 @@ on:
       # header calls it "the riskiest thing in the repo" (public/sw.js:5). The app suite
       # drives the real out/, so a broken worker surfaces here.
       - 'public/sw.js'
+      # R45 — THE QUIZ MARKER. The surfaces the marker suite renders and measures. tests/**
+      # below already lets an edit to the SUITE start this job; without these, an edit to a
+      # CARD — putting the pill back on StoryCard.js, say — would start nothing, and the
+      # removal would be undone with CI green. app/lib/readerCollection.js, which holds the
+      # advertisesQuiz predicate the marker read from, is already listed further up.
+      - 'app/components/StoryCard.js'
+      - 'app/components/QuizPill.js'
+      - 'app/public-library/page.js'
+      - 'app/search/page.js'
+      - 'app/quizzes/page.js'
+      - 'app/stories/**'
+      - 'app/poetry/page.js'
+      - 'app/short/page.js'
+      - 'app/flash/page.js'
+      - 'app/news/page.js'
+      - 'app/inspiring/page.js'
+      - 'app/book-reader/page.js'
       - 'tests/**'
       # R8.0 — the sample splitter, which tests/reader/sample-epub.spec.mjs imports directly.
       - 'scripts/make-sample-epub.mjs'
@@ -434,6 +451,21 @@ jobs:
       # bundle. Read the header of tests/ci/deploy-hook-secrecy.test.mjs before touching it.
       - name: Deploy hook secrecy (sources + the built export)
         run: node --test tests/ci/deploy-hook-secrecy.test.mjs
+        if: ${{ !cancelled() }}
+
+      # R45 — THE QUIZ MARKER IS OFF THE CARDS, proved against what PAINTS.
+      #
+      # It runs HERE, after the build, and not in the hygiene job, for the same reason as the
+      # step above: the source half (tests/ci/quiz-marker.test.mjs, under test:ci) can be
+      # perfectly clean while a card still draws a chip. That is not hypothetical — it is the
+      # exact failure this repo has shipped twice, a census that read the CALLER rather than
+      # what the caller renders. The mutation was run: a marker assembled at runtime from
+      # String.fromCharCode passes the whole source suite and fails this one on both viewports.
+      #
+      # Six card surfaces × two viewports, plus the two surfaces that KEEP the marker, so a
+      # sweep that goes too far is caught by the same run.
+      - name: Quiz marker (no card paints it; /search and the story page still do)
+        run: npx playwright test -c tests/quizmarker/playwright.config.mjs
         if: ${{ !cancelled() }}
 
       - name: Upload traces and reports

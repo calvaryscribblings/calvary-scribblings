@@ -6,9 +6,13 @@ import AuthModal from '../components/AuthModal';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import TabBar from '../components/TabBar';
-import QuizPill from '../components/QuizPill';
-import { advertisesQuiz } from '../lib/readerCollection';
-import { useUserStoryTiers } from '../lib/useUserStoryTiers';
+// R45 — THE QUIZ MARKER IS OFF THE CARDS, and the quiz is NOT retired.
+// Ikenna's ruling: the badge that told a card its story has a quiz comes off. The pill
+// component lives on — /search and /quizzes still mount it — and the FEATURE is untouched:
+// quizzes still generate, still score, still feed Scribbles and the leaderboards, and the
+// story page keeps both its "This story has a quiz" jump link and the card it lands on.
+// quizMeta.hasQuiz is unchanged in the database and still read by the admin picker,
+// /quizzes, the index projection and the newsletter. An absent badge is not a dead feature.
 import { db } from '../lib/firebaseCore';
 import CoverImage from '../components/CoverImage';
 // R42 — the row shares the feed's opening rule. Two copies of "what is the opening" is
@@ -505,7 +509,7 @@ function HeroTrailer({ story, dissolving, voice, person, pin }) {
   );
 }
 
-function StoryCard({ story, userTier = null, scorePct, ...rest }) {
+function StoryCard({ story, ...rest }) {
   const [hovered, setHovered] = useState(false);
   return (
     <a {...rest} href={story.url}
@@ -524,7 +528,6 @@ function StoryCard({ story, userTier = null, scorePct, ...rest }) {
       {isNew(story) && (
         <span style={{ ...newBadgeStyle, top: 8, left: 8 }}>New</span>
       )}
-      <QuizPill hasQuiz={advertisesQuiz(story)} userTier={userTier} scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 8px 8px' }}>
         <div style={{ fontFamily: DISPLAY, fontSize: '0.75rem', fontWeight: 600, color: '#f5f0e8', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{story.title}</div>
         <div style={{ ...cardAuthorStyle, fontSize: '0.6rem', marginTop: 2 }}>{story.author}</div>
@@ -533,7 +536,7 @@ function StoryCard({ story, userTier = null, scorePct, ...rest }) {
   );
 }
 
-function JustAddedCard({ story, userTier = null, scorePct, ...rest }) {
+function JustAddedCard({ story, ...rest }) {
   const [hovered, setHovered] = useState(false);
   return (
     <a {...rest} href={story.url}
@@ -549,7 +552,6 @@ function JustAddedCard({ story, userTier = null, scorePct, ...rest }) {
         {isNew(story) && (
           <span style={{ ...newBadgeStyle, top: 10, left: 10 }}>New</span>
         )}
-        <QuizPill hasQuiz={advertisesQuiz(story)} userTier={userTier} scribblesReward={(story.quiz || story.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
       </div>
       <div style={{ marginTop: 10, padding: '0 2px' }}>
         <div style={{ fontFamily: DISPLAY, fontSize: '0.88rem', fontWeight: 600, lineHeight: 1.3, color: '#f5f0e8', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{story.title}</div>
@@ -652,7 +654,7 @@ function SeriesRow() {
   );
 }
 
-function Row({ title, kicker, stories, seeAll, userTiersMap = {} }) {
+function Row({ title, kicker, stories, seeAll }) {
   return (
     <section style={{ padding: '0.75rem 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', padding: '0 4%' }}>
@@ -665,13 +667,13 @@ function Row({ title, kicker, stories, seeAll, userTiersMap = {} }) {
         </a>
       </div>
       <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
-        {stories.slice(0, 12).map((s, i) => <StoryCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} data-reveal="up" data-reveal-delay={(i % 6) + 1} />)}
+        {stories.slice(0, 12).map((s, i) => <StoryCard key={s.id} story={s} data-reveal="up" data-reveal-delay={(i % 6) + 1} />)}
       </div>
     </section>
   );
 }
 
-function Top10Card({ s, i, userTier = null, scorePct, ...rest }) {
+function Top10Card({ s, i, ...rest }) {
   const [active, setActive] = useState(false);
   const CARD_WIDTH = 120;
   const CARD_HEIGHT = 180;
@@ -713,7 +715,6 @@ function Top10Card({ s, i, userTier = null, scorePct, ...rest }) {
           <CoverImage fill cover={s.cover} coverSizes={s.coverSizes} coverHash={s.coverHash} alt={s.title} sizes="120px"
             imgStyle={{ filter: active ? 'brightness(0.85)' : 'brightness(1)', transition: 'filter 0.3s' }} />
         </div>
-        <QuizPill hasQuiz={advertisesQuiz(s)} userTier={userTier} scribblesReward={(s.quiz || s.quizMeta)?.scribblesReward || 50} scorePct={scorePct} />
       </div>
       <div style={{ marginTop: 10, marginLeft: NUM_W, width: CARD_WIDTH }}>
         <div style={{ fontFamily: DISPLAY, fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: '#f5f0e8', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{s.title}</div>
@@ -1415,7 +1416,6 @@ function OpenPagesRow() {
 
 export default function Home() {
   const { user, logout } = useAuth();
-  const userTiersMap = useUserStoryTiers();
   const [seqIdx, setSeqIdx] = useState(0);
   const [heroTransition, setHeroTransition] = useState(true);
   // Trailer layer lingering over the entering card during the 900ms dissolve.
@@ -1874,7 +1874,7 @@ export default function Home() {
           <h3 style={sectionTitleStyle}>Just Added</h3>
         </div>
         <div className="just-added-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
-          {[...allStories].sort((a,b) => getStorySortTime(b)-getStorySortTime(a)).slice(0,8).map((s, i) => <JustAddedCard key={s.id} story={s} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} data-reveal="up" data-reveal-delay={(i % 4) + 1} />)}
+          {[...allStories].sort((a,b) => getStorySortTime(b)-getStorySortTime(a)).slice(0,8).map((s, i) => <JustAddedCard key={s.id} story={s} data-reveal="up" data-reveal-delay={(i % 4) + 1} />)}
         </div>
       </section>
       )}
@@ -1897,7 +1897,7 @@ export default function Home() {
           <h3 style={sectionTitleStyle}>Top 10 Stories</h3>
         </div>
         <div className="top10-scroll" style={{ display: 'flex', gap: '0', overflowX: 'auto', paddingLeft: '4%', paddingRight: '4%', paddingBottom: '0.5rem' }}>
-          {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} userTier={userTiersMap[s.id]?.tier ?? null} scorePct={userTiersMap[s.id]?.scorePct} data-reveal="up" data-reveal-delay={(i % 6) + 1} />)}
+          {top10.map((s, i) => <Top10Card key={s.id} s={s} i={i} data-reveal="up" data-reveal-delay={(i % 6) + 1} />)}
         </div>
       </section>
       )}
@@ -1906,27 +1906,27 @@ export default function Home() {
       {allStories.length === 0 ? (
         <RowSkeleton title="Flash Fiction" kicker="THE FLASH" />
       ) : (
-        <Row title="Flash Fiction" kicker="THE FLASH" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" userTiersMap={userTiersMap} />
+        <Row title="Flash Fiction" kicker="THE FLASH" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" />
       )}
       {allStories.length === 0 ? (
         <RowSkeleton title="Short Stories" kicker="THE SHELF" />
       ) : (
-        <Row title="Short Stories" kicker="THE SHELF" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" userTiersMap={userTiersMap} />
+        <Row title="Short Stories" kicker="THE SHELF" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" />
       )}
       {allStories.length === 0 ? (
         <RowSkeleton title="Poetry" kicker="THE VERSE" />
       ) : (
-        <Row title="Poetry" kicker="THE VERSE" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" userTiersMap={userTiersMap} />
+        <Row title="Poetry" kicker="THE VERSE" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
       )}
       {allStories.length === 0 ? (
         <RowSkeleton title="News & Updates" kicker="THE BRIEF" />
       ) : (
-        <Row title="News & Updates" kicker="THE BRIEF" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" userTiersMap={userTiersMap} />
+        <Row title="News & Updates" kicker="THE BRIEF" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" />
       )}
       {allStories.length === 0 ? (
         <RowSkeleton title="Inspiring Stories" kicker="THE LIGHT" />
       ) : (
-        <Row title="Inspiring Stories" kicker="THE LIGHT" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" userTiersMap={userTiersMap} />
+        <Row title="Inspiring Stories" kicker="THE LIGHT" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />
       )}
       {/* THE SERIES — in the slot the Book Reader Collection held, which was the last content
           row, after Inspiring Stories and before Subscribe. That row was
@@ -1942,7 +1942,7 @@ export default function Home() {
       <SeriesRow />
 
       {allStories.filter(s => s.readerMode === true).length > 0 && (
-        <Row title="Book Reader" kicker="THE COLLECTION" stories={allStories.filter(s => s.readerMode === true)} seeAll="/book-reader" userTiersMap={userTiersMap} />
+        <Row title="Book Reader" kicker="THE COLLECTION" stories={allStories.filter(s => s.readerMode === true)} seeAll="/book-reader" />
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════

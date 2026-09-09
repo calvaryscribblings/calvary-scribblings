@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import StoryCard from '../components/StoryCard';
-import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { tabsPresentIn, inSubcategory } from '../lib/taxonomy';
 
@@ -40,7 +39,6 @@ function sortBtnStyle(active) {
 }
 
 export default function BookReaderPage() {
-  const userTiersMap = useUserStoryTiers();
   const [allStories, setAllStories] = useState([]);
   const [sortMode, setSortMode] = useState('hits');
   const [activeTab, setActiveTab] = useState('all');
@@ -156,8 +154,6 @@ export default function BookReaderPage() {
           <StoryCard
             key={s.id}
             story={s}
-            userTier={userTiersMap[s.id]?.tier ?? null}
-            scorePct={userTiersMap[s.id]?.scorePct}
             rank={sortMode === 'hits' ? i + 1 : null}
             data-reveal="up"
             data-reveal-delay={(i % 6) + 1}
