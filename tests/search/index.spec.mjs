@@ -134,6 +134,32 @@ test.describe('the resting index', () => {
     }
   });
 
+  test('a register begins on its own line, under the name', async ({ page }) => {
+    await rest(page, 390);
+    // ⚠ THE DEFECT THIS CATCHES SHIPPED FOR EXACTLY AS LONG AS THE FIELD WAS EMPTY.
+    // .ix-voice-n and .ix-voice-r are <span>s (the row is an <a> and may not hold <div>s), so
+    // they default to inline. With no register in the data every row had one child and looked
+    // perfect; the moment the ten approved lines landed, every row read "Tricia AjaxReal lives
+    // and invented ones…". A source check cannot see this and neither can a render taken
+    // before the copy exists — so the assertion is geometric and it runs on live data.
+    const rows = await page.evaluate(() => {
+      const out = [];
+      for (const v of document.querySelectorAll('.ix-voice')) {
+        const n = v.querySelector('.ix-voice-n');
+        const r = v.querySelector('.ix-voice-r');
+        if (!n || !r) continue;
+        const nb = n.getBoundingClientRect();
+        const rb = r.getBoundingClientRect();
+        out.push({ name: n.textContent.trim(), nameBottom: +nb.bottom.toFixed(1), regTop: +rb.top.toFixed(1) });
+      }
+      return out;
+    });
+    expect(rows.length, 'no voice carries a register — this check would pass vacuously')
+      .toBeGreaterThan(0);
+    const overlapping = rows.filter((r) => r.regTop < r.nameBottom - 1);
+    expect(overlapping, `name and register share a line: ${JSON.stringify(overlapping)}`).toEqual([]);
+  });
+
   test('every row clears the 48px floor — box AND effective target reported', async ({ page }) => {
     await rest(page, 390);
     const rows = await page.evaluate(() => {

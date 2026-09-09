@@ -486,15 +486,22 @@ export default function SearchPage() {
            initials. A missing portrait sits back instead of announcing itself. */
         .ix-portrait-none { border: 1px solid #d6d1c6; background: none; color: #8d887e;
                             font-size: 0.78rem; letter-spacing: 0.06em; }
-        .ix-voice-b { min-width: 0; flex: 1 1 auto; }
-        .ix-voice-n { font-size: 1.1rem; color: #1a1a2e; line-height: 1.25; }
+        /* ⚠ ALL THREE ARE BLOCKS, and the reason is worth keeping. These are <span>s — the row
+           is an <a>, so it may not contain <div>s — and a span defaults to inline. While no
+           voice had a register the block held one child and nothing looked wrong; the moment
+           the ten approved lines landed, every row read "Tricia AjaxReal lives and invented
+           ones…", the name and the line run together with no break between them. No source
+           check could have caught it and no earlier render could either, because the defect
+           needed real copy in the field to appear at all. */
+        .ix-voice-b { min-width: 0; flex: 1 1 auto; display: block; }
+        .ix-voice-n { font-size: 1.1rem; color: #1a1a2e; line-height: 1.25; display: block; }
         /* ⭑ A VOICE WITH NO REGISTER SHOWS THE NAME ALONE, and it must look deliberate.
            There is no fallback line: the bio's opening clause ("X is a writer and
            storyteller who…") is a paragraph's first words, not a line, and reads worse than
            nothing; genreTag is a form list and is empty on four of the ten anyway. So the
            name simply centres in the row and the row is shorter. */
         .ix-voice-r { font-size: 0.93rem; color: #6f6a60; font-style: italic; line-height: 1.35;
-                      margin-top: 0.1rem; }
+                      margin-top: 0.1rem; display: block; }
 
         .ix-close { margin-top: 3rem; padding-top: 1.4rem; border-top: 1px solid #e6e2d8; }
         .ix-random { background: none; border: none; cursor: pointer; padding: 0.6rem 0;
