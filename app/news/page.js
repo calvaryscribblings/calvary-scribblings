@@ -6,6 +6,7 @@ import { stories } from '../lib/stories';
 import StoryCard from '../components/StoryCard';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
+import { tabsPresentIn, inSubcategory } from '../lib/taxonomy';
 
 const cat = 'news';
 
@@ -15,21 +16,6 @@ const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 const BODY = "Cormorant Garamond, Georgia, serif";
 const KICKER = 'THE BRIEF';
 const DESCRIPTION = "What's happening on the Island and beyond. Straight to the point.";
-
-const SUBCATEGORIES = [
-  { value: 'all', label: 'All' },
-  { value: 'Op-Ed', label: 'Op-Ed' },
-  { value: 'Essay', label: 'Essay' },
-  { value: 'Music', label: 'Music' },
-  { value: 'Film', label: 'Film' },
-  { value: 'Tech', label: 'Tech' },
-  { value: 'Science', label: 'Science' },
-  { value: 'Business', label: 'Business' },
-  { value: 'Finance', label: 'Finance' },
-  { value: 'Sport', label: 'Sport' },
-  { value: 'Politics', label: 'Politics' },
-  { value: 'Culture', label: 'Culture' },
-];
 
 const _filtered = stories.filter(s => s.category === cat).sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -92,17 +78,15 @@ export default function NewsPage() {
   // within that filtered set (sort never replaces the tab filter).
   const filtered = activeTab === 'all'
     ? allStories
-    : allStories.filter(s => s.subcategory === activeTab || s.categoryName === activeTab);
+    : allStories.filter(s => inSubcategory(s, activeTab));
   const displayed = [...filtered].sort((a, b) =>
     sortMode === 'hits'
       ? (b.hits - a.hits) || (new Date(b.date) - new Date(a.date))
       : (new Date(b.date) - new Date(a.date))
   );
 
-  // Only show tabs that have at least one story
-  const availableTabs = SUBCATEGORIES.filter(tab =>
-    tab.value === 'all' || allStories.some(s => s.subcategory === tab.value || s.categoryName === tab.value)
-  );
+  // The house rule, now shared with every other category page. See app/lib/taxonomy.js.
+  const availableTabs = tabsPresentIn(cat, allStories);
 
   return (
     <div style={{ background: '#080610', minHeight: '100vh', color: '#fff', fontFamily: BODY }}>

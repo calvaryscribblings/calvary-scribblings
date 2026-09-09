@@ -132,6 +132,10 @@ export default function SearchPage() {
       s.title.toLowerCase().includes(q) ||
       s.author.toLowerCase().includes(q) ||
       (s.categoryName || '').toLowerCase().includes(q) ||
+      // R44 — the subcategory joins the corpus. Search matched a story's CATEGORY but never
+      // the shelf it actually sits on, so "elegy" or "slice of life" found nothing while the
+      // tab row filed stories under exactly those words. The field is on every index record.
+      (s.subcategory || '').toLowerCase().includes(q) ||
       (s.date || '').toLowerCase().includes(q)
     );
     setStoryResults(matchedStories);

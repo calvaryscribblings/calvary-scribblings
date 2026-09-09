@@ -5,6 +5,7 @@ import StoryCard from '../components/StoryCard';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import TabBar, { TabLinks } from '../components/TabBar';
+import { tabsPresentIn, inSubcategory } from '../lib/taxonomy';
 
 // Typography — matches the homepage overhaul (DISPLAY title + gold LABEL kicker).
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
@@ -15,16 +16,6 @@ const cat = 'flash';
 const meta = categoryMeta[cat];
 const KICKER = 'THE FLASH';
 const DESCRIPTION = 'Stories that arrive fast and leave a mark. Under 300 words — every one counts.';
-
-const SUBCATEGORIES = [
-  { value: 'all', label: 'All' },
-  { value: 'Romance', label: 'Romance' },
-  { value: 'Horror', label: 'Horror' },
-  { value: 'Humour', label: 'Humour' },
-  { value: 'Drama', label: 'Drama' },
-  { value: 'Thriller', label: 'Thriller' },
-  { value: 'Slice of Life', label: 'Slice of Life' },
-];
 
 function sortBtnStyle(active) {
   return {
@@ -86,7 +77,7 @@ export default function FlashPage() {
   // no subcategory only appear under "All".
   const filtered = activeTab === 'all'
     ? allStories
-    : allStories.filter(s => s.subcategory === activeTab);
+    : allStories.filter(s => inSubcategory(s, activeTab));
   const sorted = [...filtered].sort((a, b) =>
     sortMode === 'hits'
       ? (b.hits - a.hits) || (new Date(b.date) - new Date(a.date))
@@ -136,7 +127,7 @@ export default function FlashPage() {
 
       {/* Subcategory filter tabs. */}
       <div data-reveal="up" data-reveal-delay="2" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        {SUBCATEGORIES.map(tab => (
+        {tabsPresentIn(cat, allStories).map(tab => (
           <button
             key={tab.value}
             className={`cat-tab${activeTab === tab.value ? ' active' : ''}`}

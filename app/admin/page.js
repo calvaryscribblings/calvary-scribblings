@@ -4,6 +4,7 @@ import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { extractEpubText } from '../lib/epubExtract';
 import { indexUpdatePaths } from '../lib/storyIndex';
+import { CATEGORIES, SUBCATEGORIES as SUBCATEGORY_MAP } from '../lib/taxonomy';
 import { publishedAtMsFor } from '../lib/storyAccess';
 import { validateBody } from '../lib/htmlBlocks';
 import { buildCoverDerivatives, COVER_CACHE_CONTROL } from '../lib/coverDerivatives';
@@ -16,29 +17,6 @@ import { validateDescriptor, canonicalDescriptor, wordsEchoingTitle } from '../l
 import { fireRebuild, HOOKS } from '../lib/rebuild';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
-
-const CATEGORIES = [
-  { value: 'flash', label: 'Flash Fiction' },
-  { value: 'short', label: 'Short Story' },
-  { value: 'poetry', label: 'Poetry' },
-  { value: 'news', label: 'News & Updates' },
-  { value: 'inspiring', label: 'Inspiring' },
-  { value: 'novel', label: 'Novel' },
-];
-
-// Subcategory options keyed by the selected category. The picker is populated
-// dynamically from this map. Book Reader (readerMode) content is authored under
-// the 'novel' category, so its subcategories live there (with a 'serial' alias
-// in case a dedicated category is ever added).
-const SUBCATEGORY_MAP = {
-  news: ['Op-Ed', 'Essay', 'Music', 'Film', 'Tech', 'Science', 'Business', 'Finance', 'Sport', 'Politics', 'Culture'],
-  flash: ['Romance', 'Horror', 'Humour', 'Drama', 'Thriller', 'Slice of Life'],
-  short: ['Romance', 'Horror', 'Humour', 'Drama', 'Thriller', 'Slice of Life', 'Mystery', 'Sci-Fi', 'Historical', 'Fantasy'],
-  poetry: ['Love', 'Grief', 'Political', 'Nature', 'Spiritual', 'Spoken Word'],
-  inspiring: ['Personal Essay', 'Essay', 'Overcoming', 'Faith', 'Ambition', 'Loss & Recovery'],
-  novel: ['Novel', 'Novella', 'Serial'],
-  serial: ['Novel', 'Novella', 'Serial'],
-};
 
 function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');

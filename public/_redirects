@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (348 of 2000 permitted) ───────────────
+# ── Static rules (350 of 2000 permitted) ───────────────
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
 /offline.html                                                /public-library                                              301
@@ -70,6 +70,8 @@
 /bruno.html                                                  /stories/bruno                                               301
 /can-a-movie-be-over-marketed                                /stories/can-a-movie-be-over-marketed                        301
 /can-a-movie-be-over-marketed.html                           /stories/can-a-movie-be-over-marketed                        301
+/can-marvel-s-new-x-men-escape-the-shadow-of-hugh-jackman-and-the-original-cast /stories/can-marvel-s-new-x-men-escape-the-shadow-of-hugh-jackman-and-the-original-cast 301
+/can-marvel-s-new-x-men-escape-the-shadow-of-hugh-jackman-and-the-original-cast.html /stories/can-marvel-s-new-x-men-escape-the-shadow-of-hugh-jackman-and-the-original-cast 301
 /can-t-challa-s-son-carry-wakanda                            /stories/can-t-challa-s-son-carry-wakanda                    301
 /can-t-challa-s-son-carry-wakanda.html                       /stories/can-t-challa-s-son-carry-wakanda                    301
 /chaff                                                       /stories/chaff                                               301

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import StoryCard from '../components/StoryCard';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
+import { tabsPresentIn, inSubcategory } from '../lib/taxonomy';
 
 // Typography — matches the homepage overhaul (DISPLAY title + gold LABEL kicker).
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
@@ -12,13 +13,6 @@ const BODY = "Cormorant Garamond, Georgia, serif";
 const KICKER = 'THE COLLECTION';
 const TITLE = 'Book Reader';
 const DESCRIPTION = 'Long-form fiction for the committed reader. Pull up a chair.';
-
-const SUBCATEGORIES = [
-  { value: 'all', label: 'All' },
-  { value: 'Novel', label: 'Novel' },
-  { value: 'Novella', label: 'Novella' },
-  { value: 'Serial', label: 'Serial' },
-];
 
 // Decorative book spines for the hero — left edge, width, fill colour.
 const SPINES = [
@@ -95,7 +89,7 @@ export default function BookReaderPage() {
   // no subcategory only appear under "All".
   const filtered = activeTab === 'all'
     ? allStories
-    : allStories.filter(s => s.subcategory === activeTab);
+    : allStories.filter(s => inSubcategory(s, activeTab));
   const sorted = [...filtered].sort((a, b) =>
     sortMode === 'hits'
       ? (b.hits - a.hits) || (new Date(b.date) - new Date(a.date))
@@ -146,7 +140,7 @@ export default function BookReaderPage() {
 
       {/* Subcategory filter tabs. */}
       <div data-reveal="up" data-reveal-delay="2" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', padding: '1.25rem 4%', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        {SUBCATEGORIES.map(tab => (
+        {tabsPresentIn('novel', allStories).map(tab => (
           <button
             key={tab.value}
             className={`cat-tab${activeTab === tab.value ? ' active' : ''}`}
