@@ -206,7 +206,7 @@ const s = {
 const optionalTagInline = <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>;
 
 const emptyForm = {
-  slug: '', displayName: '', matchUid: '', matchNames: '', genreTag: '',
+  slug: '', displayName: '', matchUid: '', matchNames: '', genreTag: '', register: '',
   message: '', bio: '', cardImage: '', cardSizes: {}, portrait: '', order: '', published: false,
 };
 
@@ -315,6 +315,7 @@ export default function VoicesAdmin() {
       matchUid: v.matchUid || '',
       matchNames: readMatchNames(v.matchNames).join(', '),
       genreTag: v.genreTag || '',
+      register: v.register || '',
       message: v.message || '',
       bio: v.bio || '',
       cardImage: v.cardImage || '',
@@ -411,6 +412,7 @@ export default function VoicesAdmin() {
         matchUid: form.matchUid.trim(),
         matchNames: parseMatchNames(form.matchNames),
         genreTag: form.genreTag.trim(),
+        register: form.register.trim(),
         message: form.message.trim(),
         bio: form.bio.trim(),
         cardImage: form.cardImage,
@@ -644,6 +646,34 @@ export default function VoicesAdmin() {
                 <div style={s.hint}>
                   Comma-separated. Only needed for the few stories saved with no authorUid — guest or
                   collaboration pieces — which the uid match cannot reach. Leave empty otherwise.
+                </div>
+              </div>
+
+              {/* ── THE EDITORIAL REGISTER ──────────────────────────────────────────
+                  R46. The line a reader gets instead of a handle on the search index.
+                  "Short fiction that waits until the last line to hurt" is a reason to
+                  tap; a name and an @ is a contact list.
+
+                  ⭑ THE VOICE IS IKENNA'S AND CLAUDE'S, NOT THE BUILD'S. This round shipped
+                  the field, the input, the render and the absence — deliberately not the
+                  ten lines. Nothing here writes a default.
+
+                  ⚠ AND THERE IS NO FALLBACK BY DESIGN. A voice with no register renders
+                  its NAME ALONE on the index, and that is meant to look deliberate. Do not
+                  wire `bio` in behind it — "Tricia Ajax is a writer and storyteller who
+                  blends…" is a paragraph's opening, not a line, and reads worse than the
+                  name on its own. genreTag is not a candidate either: it is a form list
+                  ("SHORT STORY. POETRY") and it is empty on four of the ten. */}
+              <div style={s.fg}>
+                <label style={s.label}>Editorial register {optionalTagInline}</label>
+                <input style={s.input} value={form.register}
+                  placeholder="Short fiction that waits until the last line to hurt"
+                  onChange={(e) => setForm((f) => ({ ...f, register: e.target.value }))} />
+                <div style={s.hint}>
+                  One line, on the search index, in place of a handle. Say what the work
+                  DOES to a reader, not which forms it comes in — the genre tag already
+                  carries that. Left empty, the index shows the name alone, which is a
+                  finished state and not a gap.
                 </div>
               </div>
 

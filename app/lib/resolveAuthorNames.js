@@ -78,3 +78,69 @@ export function currentAuthorName(story, map) {
 export function withCurrentAuthorNames(storyList, map) {
   return (storyList || []).map((s) => ({ ...s, author: currentAuthorName(s, map) }));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// R46 — THE SAME RULE, WIDENED TO THE WHOLE IDENTITY.
+//
+// resolveAuthorNames() above reads users/{uid}/displayName and nothing else,
+// which is right for the fifteen list surfaces that only print a name. The
+// search index needs a name AND A PICTURE for the same people, so it takes the
+// whole record instead — one read per DISTINCT uid, shared across every block on
+// the screen.
+//
+// ⚠ WHY THIS EXISTS RATHER THAN A STORED COPY. Every identity on this platform
+// resolves at render. The measurements that forced the rule:
+//
+//   · the Square audit found 113 of 118 stored name copies stale, one reader
+//     carrying 28 different values for a single field;
+//   · Stanley Princewill McDaniels is currently spelled THREE ways in three
+//     nodes — cms_voices says "Stanley Princewill Mcdaniels", user_search says
+//     "Stanley P. Balogun", and users/{uid} — the record he controls — says
+//     "Stanley Princewill McDaniels".
+//
+// So a copy is never rendered when a uid is in hand. ⚠ If the roster's spelling
+// looks wrong on screen, the fix is NOT to edit cms_voices: the roster copy is
+// not read for display at all, and correcting it would only make two stale
+// copies agree. See app/search/page.js, the VOICES block.
+//
+// ⚠ ONCE PER DISTINCT UID, NEVER ONCE PER ROW. The search screen's story rows
+// and its Voices block overlap almost completely — 9 of the 10 voices are also
+// index authors, so the union of 13 author uids and 10 voice uids is 14, not 23.
+// Resolving per row would be 171 + 10.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Live { displayName, username, avatarUrl } for each distinct uid, keyed by uid.
+ *
+ * Never throws and never rejects: a uid that fails to read is simply absent from
+ * the map, and every caller is required to have a fallback for that. An empty
+ * map is a valid answer and must render a correct (if less current) screen.
+ */
+export async function resolveIdentities(uidList) {
+  const map = {};
+  const uids = [...new Set((uidList || []).map((u) => (u ? String(u).trim() : '')).filter(Boolean))];
+  if (uids.length === 0) return map;
+  try {
+    const db = await getDB();
+    const { ref, get } = await import('firebase/database');
+    await Promise.all(
+      uids.map(async (uid) => {
+        try {
+          const snap = await get(ref(db, `users/${uid}`));
+          if (!snap.exists()) return;
+          const v = snap.val() || {};
+          map[uid] = {
+            displayName: String(v.displayName || '').trim(),
+            username: String(v.username || v.handle || '').trim(),
+            avatarUrl: String(v.avatarUrl || v.photoURL || '').trim(),
+          };
+        } catch (e) {
+          /* leave this uid unresolved → the caller's stored fallback stands */
+        }
+      })
+    );
+  } catch (e) {
+    /* whole resolution failed → empty map → every row falls back */
+  }
+  return map;
+}

@@ -234,10 +234,29 @@ describe('R44 — ONE PREDICATE', () => {
     }
   });
 
-  test('a story filed under Elegy is findable — search reads the subcategory', () => {
+  test('a story filed under Elegy is findable — search reads the subcategory', async () => {
     // The other half of "findable": the tab row shows it, and search matches the word.
-    assert.match(code('app/search/page.js'), /\(s\.subcategory \|\| ''\)\.toLowerCase\(\)\.includes\(q\)/,
-      'search does not match a story on its subcategory');
+    //
+    // ⚠ THIS USED TO ASSERT A SOURCE LITERAL — the exact text
+    // `(s.subcategory || '').toLowerCase().includes(q)` in app/search/page.js. R46 moved the
+    // matching into app/lib/searchIndex.js:matchStories, and the guard failed on a change
+    // that preserved the behaviour perfectly. A literal-matching guard is pinned to one
+    // spelling in one file: it goes red on a refactor and, worse, it goes GREEN forever if
+    // the line survives as dead code. So it now asserts the BEHAVIOUR, which is what R44
+    // actually ruled — a subject word finds the stories filed under it.
+    const { matchStories } = await import('../../app/lib/searchIndex.js');
+    for (const label of ALL_LABELS) {
+      const shelf = [
+        { title: 'unrelated', author: '', categoryName: '', subcategory: label, date: '' },
+        { title: 'unrelated', author: '', categoryName: '', subcategory: '', date: '' },
+      ];
+      const found = matchStories(shelf, label.toLowerCase());
+      assert.equal(found.length, 1, `search does not match a story on the subcategory "${label}"`);
+      assert.equal(found[0].subcategory, label);
+    }
+    // and the surface really does route its matching through that function
+    assert.match(code('app/search/page.js'), /matchStories\(/,
+      'the search page no longer runs the shared matcher');
   });
 });
 

@@ -55,6 +55,17 @@ on:
       # the checkout or stream CLIENT — the two modules that carry a purchase — ran
       # nothing at all. The whole directory is in scope now.
       - 'app/lib/bookstore/**'
+      # R46 — THE ISLAND'S INDEX. The rendered half of /search rides this workflow for the
+      # same reason as every browser suite above: it needs a built out/ and a Chromium, and
+      # both are already paid for here. The paths are the surface, its two pure modules, and
+      # the suite itself — a suite with no path of its own only runs when somebody remembers,
+      # which is the wiring R9.1 found four suites missing.
+      - 'app/search/**'
+      - 'app/lib/searchIndex.js'
+      - 'app/lib/houseMotion.js'
+      - 'app/lib/prosePredicate.js'
+      - 'app/lib/storyIndex.js'
+      - 'tests/search/**'
       # R11.17 — MEMBERSHIP AND /links. Three suites existed under tests/membership/ and CI ran
       # none of them: nothing under .github/workflows/ mentioned membership at all, so the deck
       # parity check and both browser suites only ran when somebody remembered. They ride this
@@ -466,6 +477,25 @@ jobs:
       # sweep that goes too far is caught by the same run.
       - name: Quiz marker (no card paints it; /search and the story page still do)
         run: npx playwright test -c tests/quizmarker/playwright.config.mjs
+        if: ${{ !cancelled() }}
+
+      # R46 — THE ISLAND'S INDEX, the half no source grep can settle.
+      #
+      # tests/ci/search-index.test.mjs (under test:ci, in the hygiene job) proves the data and
+      # the source: that the subject run is a list of labels and not a joined string, that each
+      # item is declared nowrap, that every count carries the oldstyle class. None of that is
+      # what a reader sees, and the three questions that decide this screen are all rendered
+      # ones — does a subject BREAK MID-NAME at 390 and 430, do the counts actually SET in
+      # oldstyle (font-variant-numeric is inert on a fallback and fails silently to lining),
+      # and does the Voices row hold up with six photographs and four fallback discs beside
+      # each other.
+      #
+      # The mutations were run against this suite and both were killed: restoring the violet
+      # fallback disc fails the Voices row, and pointing reader search back at the founder-only
+      # `users` root fails the signed-out reader test — the exact defect this round fixed, which
+      # every source check in the repo was blind to.
+      - name: Search index (subjects unbroken, oldstyle counts, the Voices row as a row)
+        run: npx playwright test -c tests/search/playwright.config.mjs
         if: ${{ !cancelled() }}
 
       - name: Upload traces and reports
