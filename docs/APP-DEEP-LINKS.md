@@ -196,12 +196,32 @@ work. Run `npm run test:association`; it also runs in `rules-and-hygiene.yml`.
 
 ## 7. The order of operations
 
-1. ✅ **Probe deploy** — these two files and two rules alone. Then `curl` the origin and Apple's
-   CDN: 200, `application/json`, no redirect.
+1. ✅ **Probe deploy — DONE AND PASSED, 10 Sep 2026** (`461408c7`). Measured, not assumed:
+
+   ```
+   /.well-known/apple-app-site-association   HTTP/2 200 · application/json · 0 redirects
+   /.well-known/assetlinks.json              HTTP/2 200 · application/json · 0 redirects
+   app-site-association.cdn-apple.com/a/v1/calvaryscribblings.co.uk
+                                             HTTP/1.1 200 · application/json
+                                             Cache-Control: max-age=21600, public
+   ```
+
+   The content type is right **with no `_headers` rule** — the `.json` extension on the rewrite
+   target does it, so nothing needs adding. Apple can reach and parse the file, and the
+   exclusion comment round-trips intact. The dot-directory question never had to be answered.
+
+   ⚠ **Apple's CDN TTL is six hours, and that probe primed it with the PLACEHOLDER file.** No
+   device can be affected — nothing carries the entitlement yet — but see step 3.
+
+   R24 tail check against production, because the file grew by four rules: the file's **final**
+   rule (`/u/:handle` → `/user?handle=ikenna`) answers, which proves every rule above it was
+   parsed. Fallback unchanged: `/stories/a-daub-of-blue`, `/bookstore` and `/` all 200.
 2. **Ikenna fetches** the Team ID and the Play App Signing SHA-256.
 3. **Land the real values**, flip both `_PENDING` flags in the same commit, deploy, re-verify the
-   origin **and Apple's CDN** — the CDN may still hold the placeholder version from step 1, and
-   the binary must not be submitted until it holds the real one.
+   origin **and Apple's CDN**. ⚠ **The CDN holds the placeholder version from step 1 for up to
+   six hours** (`max-age=21600`, measured). The binary must not be submitted until a fetch of
+   that CDN URL shows the real Team ID — not until the origin does, which is sooner and is not
+   the thing a device reads.
 4. **Then** the binary: runtime pinned first, then the version bump, then the two config blocks —
    in one commit.
 5. Cut, submit, and re-run `node scripts/adoption-report.mjs` the day after it lands
