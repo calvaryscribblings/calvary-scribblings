@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (353 of 2000 permitted) ───────────────
+# ── Static rules (357 of 2000 permitted) ───────────────
 /voices/arthor-eze                                           /voices/arthur-eze                                           301
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
@@ -17,6 +17,8 @@
 /serial                                                      /series                                                      301
 /serial.html                                                 /series                                                      301
 /summer-reading                                              /leaderboard/summer-2026                                     301
+/.well-known/apple-app-site-association                      /app-association/apple-app-site-association.json             200
+/.well-known/assetlinks.json                                 /app-association/assetlinks.json                             200
 /1967                                                        /stories/1967                                                301
 /1967.html                                                   /stories/1967                                                301
 /47-sessions                                                 /stories/47-sessions                                         301
@@ -47,6 +49,8 @@
 /amor-s-cage.html                                            /stories/amor-s-cage                                         301
 /amvca-an-opinion-feature                                    /stories/amvca-an-opinion-feature                            301
 /amvca-an-opinion-feature.html                               /stories/amvca-an-opinion-feature                            301
+/apple-s-foldable-arrives-the-iphone-18-doesn-t              /stories/apple-s-foldable-arrives-the-iphone-18-doesn-t      301
+/apple-s-foldable-arrives-the-iphone-18-doesn-t.html         /stories/apple-s-foldable-arrives-the-iphone-18-doesn-t      301
 /apple-s-quiet-health-overhaul                               /stories/apple-s-quiet-health-overhaul                       301
 /apple-s-quiet-health-overhaul.html                          /stories/apple-s-quiet-health-overhaul                       301
 /arrival-again                                               /stories/arrival-again                                       301

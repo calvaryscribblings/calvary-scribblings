@@ -56,6 +56,12 @@ on:
       # is the one that says out loud which flag state the platform is in. The day someone
       # flips ANDROID_APP_LIVE they will edit both, and both must be able to start this.
       - 'tests/applinks/**'
+      # APP-DL1 — the two association files. Same reasoning again, and it bites harder here:
+      # these files fail SILENTLY (a wrong Team ID or a 301 just opens the browser, exactly as
+      # today), so an edit to one of them with no job to notice is the whole failure mode. The
+      # generator is covered by scripts/**, but the JSON lives under public/ and nothing in
+      # this list watched public/ except sw.js.
+      - 'public/app-association/**'
       # R49 — the index reconciler. Its own workflow runs the suite too, but this job is where
       # the whole hygiene set lives and a suite that can only be started by its own workflow is
       # a suite one path filter away from never running.
@@ -305,6 +311,21 @@ jobs:
       # before and after flipping a flag; see tests/applinks/matrix.mjs.
       - name: App links (flags, platform detection, verified URLs)
         run: npm run test:applinks
+
+      # APP-DL1 — THE TWO ASSOCIATION FILES AND THE PLACEHOLDER GATE. Node-only, offline, ~100ms.
+      #
+      # ⚠ IT IS HERE BECAUSE BOTH FILES FAIL SILENTLY. A wrong Team ID, an upload-key
+      # fingerprint where the app-signing one belongs, or a 301 where the 200 rewrite belongs
+      # produces no error anywhere — the link just opens the browser, exactly as it does today,
+      # and the only symptom is that nothing changed. Same class as R48's isLive(url).
+      #
+      # ⭑ AND IT IS THE GATE ON SUBMISSION. Two values (Apple Team ID, Play App Signing SHA-256)
+      # cannot be derived from this repo and ship as literal placeholders; the suite asserts
+      # that state OUT LOUD, so the day they land the assertion flips in the same commit. iOS
+      # caches a wrong AASA stickily enough to need a reinstall, so this has to be right BEFORE
+      # a binary claims it — which means before, not after, the cut.
+      - name: Association files (claim set, the ruling at the site, the placeholder gate)
+        run: npm run test:association
 
       # R49 — THE INDEX RECONCILER'S INSTRUMENT CHECK. Node-only, offline, ~200ms.
       # ⚠ WHAT IT IS ACTUALLY FOR: a reconciler that finds nothing on a clean corpus is

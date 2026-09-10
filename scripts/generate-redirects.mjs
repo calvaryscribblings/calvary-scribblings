@@ -83,6 +83,36 @@ const STATIC_LEGACY_REDIRECTS = [
   // partitions so it is emitted LAST. A second dynamic rule is fine; a dynamic rule that ends
   // up ahead of the static ones caps the whole file at ~100. See redirects-limits.mjs.
   ['/u/:handle',      '/user?handle=:handle'],
+
+  // ── APP-DL1 — THE TWO ASSOCIATION FILES, SERVED BY REWRITE RATHER THAN BY ASSET ──────────
+  //
+  // These are the only 200s in this list, and the 200 is the whole point: a REWRITE keeps the
+  // URL and the status, so neither Apple's CDN nor Google's verifier ever sees a 3xx. Both
+  // refuse a redirect outright, and Apple caches the refusal.
+  //
+  // ⚠ WHY NOT JUST PUT THE FILE AT public/.well-known/. Because whether Cloudflare Pages
+  // uploads a dot-directory at all is UNRESOLVED and must not be bet on. Next 16.2.1 would
+  // copy it — next/dist/export/index.js:523 passes recursiveCopy exactly one filter, "exclude
+  // paths used by pages", and there is no dotfile exclusion anywhere in recursive-copy.js —
+  // but Pages is the second half of that journey and multiple reports say it treats a
+  // dot-prefixed directory as hidden. Cloudflare's own Known Issues page says nothing either
+  // way, which is the worst of the three answers.
+  //
+  // ⭑ SO THE REWRITE IS IMMUNE TO THE QUESTION, and R24.1 is why: a rule BEATS a matching
+  // static asset ("Redirects are always followed, regardless of whether or not an asset
+  // matches the incoming request"). If Pages does upload the dot-directory, the rule still
+  // wins and the served bytes are the same bytes. One source of truth, either way.
+  //
+  // The .json extension on the TARGET is load-bearing too: it is what makes Pages type the
+  // response application/json without anyone having to guess how it types an extensionless
+  // file. Apple requires that type; Google requires it.
+  //
+  // ⚠ BOTH ARE STATIC RULES — no * and no :placeholder in the SOURCE — so they cost nothing
+  // against the 100-rule dynamic cap and cannot trip R24's latch. They sit here, above
+  // /u/:handle in the source list, only because the partition below re-orders by construction;
+  // position in this array is not position in the emitted file.
+  ['/.well-known/apple-app-site-association', '/app-association/apple-app-site-association.json', 200],
+  ['/.well-known/assetlinks.json',            '/app-association/assetlinks.json',                 200],
 ];
 
 // ⛔ PL-12 — THIS READ IS NOT ALLOWED TO DEGRADE, AND IT USED TO.
@@ -168,16 +198,21 @@ async function main() {
     '',
     `# ── Static rules (${staticRules.length} of ${LIMITS.maxStatic} permitted) ───────────────`,
   ];
-  for (const [from, to] of staticRules) {
-    lines.push(formatRedirect(from, to));
+  // ⚠ THE THIRD ELEMENT IS OPTIONAL AND MUST STAY CARRIED. Every rule in this file was a 301
+  // until APP-DL1 needed two 200 REWRITES, and the emitter destructured two elements — so a
+  // three-element entry would have silently emitted a 301 and sent Apple's CDN a redirect it
+  // refuses. formatRedirect defaults to 301, so `undefined` from a two-element entry still
+  // means 301 and nothing else in the list changes.
+  for (const [from, to, code] of staticRules) {
+    lines.push(formatRedirect(from, to, code));
   }
 
   lines.push(
     '',
     `# ── Dynamic rules — MUST STAY LAST (${dynamicRules.length} of ${LIMITS.maxDynamic} permitted) ──`,
   );
-  for (const [from, to] of dynamicRules) {
-    lines.push(formatRedirect(from, to));
+  for (const [from, to, code] of dynamicRules) {
+    lines.push(formatRedirect(from, to, code));
   }
 
   lines.push('');

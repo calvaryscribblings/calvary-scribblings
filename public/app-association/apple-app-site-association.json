@@ -1,0 +1,20 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["<TEAM_ID>.uk.co.storyisland.app"],
+        "components": [
+          {
+            "/": "/bookstore/*",
+            "exclude": true,
+            "comment": "THE BOOK STORE IS EXCLUDED BY RULING (APP-DL1, Ikenna, 10 Sep 2026). App Store guideline 3.1.1 - the iPhone app shows no prices and no buy button. Three influencers publish on the 28th telling readers to buy on the website. A deep link that pulls those readers into an app where they cannot buy costs the sale and contradicts the brief. This stays on the web deliberately. ANDROID DOES NOT DIFFER, for two reasons. First: a link that behaves differently by phone is a support problem nobody can reproduce. Second: 'Android can buy' is a legal assumption, not a technical one - Play Billing makes an embedded web checkout its own policy question, and there is no evidence in the web repo that the Android build has a purchase path at all. This entry is FIRST because components are evaluated in order and the first match wins; it is inert against the allow-list below, and it is already correctly positioned if the claim is ever widened."
+          },
+          {
+            "/": "/stories/*",
+            "comment": "TIER 1, AND THE WHOLE OF THE CLAIM. Story pages. The only path with contract-grade evidence on both sides (STORY-SERVING-CONTRACT.md section 9; app/lib/storyIndex.js:5 storyHref) and the only URL shape emitted by emails/ and workers-external/, so it carries the newsletter and almost the whole influencer push. Everything else on the site is unclaimed BY OMISSION, which is the strongest form: see docs/APP-DEEP-LINKS.md for the tier-2 ask list and the full exclusion list with a reason each."
+          }
+        ]
+      }
+    ]
+  }
+}
