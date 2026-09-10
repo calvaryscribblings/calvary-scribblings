@@ -1327,7 +1327,12 @@ const TITLE_BASE = {
   synopsis: 'A synopsis.',
   prices: { gbp: 199 },
   genre: 'fiction',
-  publishedDate: '2026-09-30',
+  // ⚠ NOT THE LAUNCH DATE, AND DELIBERATELY NOT EQUAL TO IT. This was '2026-09-30', which
+  // is arbitrary fixture data that happened to collide with the launch date — so when R50
+  // extended tests/build/launch-literals.test.mjs over tests/, it reddened here for a reason
+  // that has nothing to do with launch. Moving the fixture is the right fix rather than
+  // granting the guard an exemption: an allowlist would be a hatch the next collision widens.
+  publishedDate: '2026-05-14',
   addedAt: 1,
   updatedAt: 1,
   status: 'published',

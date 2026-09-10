@@ -25,9 +25,37 @@
 // carries seven "View in the Book Store" links. Three titles are published, so the A0 gate is
 // already open and the storefront answers 200 today. The curtain is doing real work.
 
-// R9 (launch day) FLIPS THIS ONE LINE — and then deletes, rather than keeps, everything the
-// flip made dead. See the delete list at the foot of this file.
-export const GATE_ENABLED = true;
+// ⚠⚠ THIS WAS A HAND-FLIPPED BOOLEAN AND IT WAS THE LAUNCH-DAY RISK.
+//
+// `export const GATE_ENABLED = true` meant that on 30 September the countdown on the gateway
+// would reach zero, the page would say "Opens 30 September" — and THE SHOP WOULD STAY SHUT,
+// because opening it was a manual edit somebody had to remember on the morning. That is not a
+// copy defect. That is the doors not opening, on the day, with the page announcing that they
+// had.
+//
+// The curtain now derives from the calendar, like everything else that answers "is it open":
+// doorsOpen() in app/lib/launch.js, over the single LAUNCH constant. MOVING THE DATE MOVES THE
+// DOORS. There is deliberately no override — an override is a second opinion about the same
+// fact, and two opinions about opening day is the shape of the bug that was just removed.
+//
+// ⚠ AND IT OPENS WITHOUT A DEPLOY, which is the reason this had to be a runtime call rather
+// than a build-time constant. isStoreUnlocked() runs in the reader's browser (it touches
+// localStorage), so the curtain lifts at London midnight on whatever bytes are already on the
+// CDN. The metadata and the crawlable prose CANNOT do that — see docs/LAUNCH-RUNBOOK.md.
+// ⚠ THE .js EXTENSION IS REQUIRED, not stylistic. Next's bundler resolves an extensionless
+// specifier; plain Node ESM does not — and tests/build/doors-open.test.mjs imports THIS FILE
+// directly, under a moved clock, to prove the curtain follows the calendar. Without the
+// extension that sweep dies with ERR_MODULE_NOT_FOUND on every one of its fourteen days.
+// Every other app/lib module a node test loads carries it for the same reason.
+import { doorsOpen } from '../launch.js';
+
+/**
+ * Is the curtain still up? The inverse of the calendar question, named so there is still one
+ * thing to reason about — the harness asserts this file is its only point of use.
+ */
+export function isCurtainUp() {
+  return !doorsOpen();
+}
 
 // The key itself. Change it here and nowhere else; nothing else in the tree holds a copy, and
 // the harness reads this file rather than repeating the literal.
@@ -71,12 +99,18 @@ export function grantGatePass() {
 }
 
 /**
- * THE SINGLE POINT OF USE of GATE_ENABLED, and deliberately the only one: the harness asserts
- * that no other file in app/ reads the flag, so "what does R9 flip?" has exactly one answer.
- * Call this from the browser only — it touches localStorage.
+ * THE SINGLE POINT OF USE of the curtain state, and deliberately the only one: the harness
+ * asserts that no other file in app/ reads it, so "what decides whether the shop is shut?" has
+ * exactly one answer. Call this from the browser only — it touches localStorage, and calling
+ * it at build time would bake an answer that the calendar is supposed to keep changing.
  */
 export function isStoreUnlocked() {
-  if (!GATE_ENABLED) return true;
+  // Open to everyone, from London midnight on opening day.
+  if (!isCurtainUp()) return true;
+  // Before that, a keyholder only. ⭑ NOTE WHAT THIS DOES NOT DO: it does not tell the
+  // keyholder they are early. That is the early-access NOTE's job, and the note is gated on
+  // the CALENDAR rather than on this — a reader who typed the passcode in August is genuinely
+  // early, and is exactly the reader who most wants to know when the general opening is.
   return hasGatePass();
 }
 
@@ -121,9 +155,14 @@ export function isEmailShaped(value) {
 
 // ── WHAT R9 DOES, IN FULL ────────────────────────────────────────────────────
 //
-// The flip is `GATE_ENABLED = false`, and it is one line. But leaving it at that would leave a
-// gate page, a passcode and a storage key in the tree, all reachable, none reached — the kind
-// of dead machinery that gets re-enabled by accident two rounds later. So R9 DELETES:
+// ⭑ THERE IS NO LONGER A FLIP. The curtain lifts by itself at London midnight on the LAUNCH
+// date, because isCurtainUp() derives from doorsOpen(). R9 is now a CLEAN-UP round rather than
+// a switch-throwing one, and it can happen the week after opening day without the shop having
+// stayed shut in the meantime.
+//
+// Leaving the machinery in place would leave a gate page, a passcode and a storage key in the
+// tree, all reachable, none reached — the kind of dead machinery that gets re-enabled by
+// accident two rounds later. So R9 DELETES:
 //
 //   · this file (app/lib/bookstore/gate.js)
 //   · app/bookstore/components/LaunchGate.js

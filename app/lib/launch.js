@@ -126,3 +126,70 @@ export function daysUntilLaunch() {
     return null;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// ⭑ HAVE THE DOORS OPENED? — the ACCESS-STATE question, which is not the DATE question.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+//
+// ⚠ R9.1 CONSOLIDATED THE DATES AND NOT THE ACCESS STATE, and that gap is what this function
+// closes. Everything above answers "WHEN does it open" and every consumer of it renders a
+// label. Nothing above answered "IS IT OPEN", so the platform answered that three
+// incompatible ways at once:
+//
+//     · a clock          daysUntilLaunch(), in the gateway and My Library
+//     · manual booleans  GATE_ENABLED, BOOKSTORE_LAUNCHED, MEMBERSHIP_LAUNCHED,
+//                        MEMBERSHIPS_ON_SALE
+//     · nothing at all   eight static sentences that simply assert the shop is shut
+//
+// THE REAL DEFECT WAS NOT THE COPY. It was the curtain: GATE_ENABLED was a hand-flipped
+// boolean, so on 30 September the countdown would reach zero, the page would say "Opens
+// 30 September", and the shop would STAY SHUT because nobody had flipped a flag. That is not
+// a sentence being wrong. That is the doors not opening.
+//
+// ── WHAT THIS ASKS, EXACTLY ──────────────────────────────────────────────────────────────
+//
+// ⭑ "HAS THE SHOP OPENED TO EVERYONE?" — and to EVERYONE is the load-bearing half.
+//
+// It is deliberately NOT "can this reader get in". A reader who typed the passcode in August
+// is INSIDE the shop and is genuinely EARLY: "the doors open to everyone on 30 September" is
+// true for them and worth saying. So the early-access note is gated on THE CALENDAR, never on
+// the reader's own access — a keyholder should still be told when the general opening is.
+// Gate a note on hasGatePass() and the one reader who most needs the date stops seeing it.
+//
+// ── WHAT THIS IS NOT, AND MUST NEVER BECOME ──────────────────────────────────────────────
+//
+// ⚠⚠ TWO OF THE FOUR BOOLEANS ARE NOT CALENDAR QUESTIONS AND MUST NOT BE WIRED TO THIS.
+//
+//   MEMBERSHIPS_ON_SALE (app/lib/membershipPrices.js) asks "DO THE LIVE STRIPE AND PAYSTACK
+//   PRICE IDS EXIST YET". That is a question about configuration, and its own file spends
+//   thirty lines on why it is a constant rather than a date. It is asserted against
+//   isConfigured('live') by tests/membership/on-sale.test.mjs, which is what makes a single
+//   boolean safe: it CANNOT silently drift, because the build stops. Wiring it to a clock
+//   would sell subscriptions on a day the prices do not exist — buttons that 409 — and would
+//   replace an interlock that fails loudly with a date that fails silently.
+//
+//   MEMBERSHIP_LAUNCHED (app/links/page.js) reads like a calendar flag and is not one. It
+//   chooses between "opens 30 September. Read the tiers" and "open the archive", and the
+//   second is a LIE unless memberships are actually purchasable. Its own comment already
+//   rules that it is not MEMBERSHIPS_ON_SALE — kept separate so a copy change need not ship
+//   with a payments change — and that ruling stands. It stays a hand-flipped boolean because
+//   the thing it describes is a configuration, not a date.
+//
+// The two that ARE calendar questions — the curtain, and the /links Book Store label — now
+// derive from here. See app/lib/bookstore/gate.js and app/links/page.js.
+//
+// ── THE NULL DIRECTION IS CHOSEN, NOT INHERITED ──────────────────────────────────────────
+//
+// daysUntilLaunch() returns null when Intl is unavailable or throws. Here that means THE
+// DOORS ARE SHUT, which is the conservative direction for every consumer: a curtain that
+// cannot read the clock stays up, and a shop that opens early because a browser lacks a
+// timezone database is a worse failure than one that opens a moment late for one reader.
+//
+// ⚠ AND IT IS EVALUATED WHERE IT IS CALLED, WHICH IS THE WHOLE POINT. In a client component
+// this runs in the reader's browser, so the doors open at London midnight with no deploy. In
+// a `metadata` export or at module scope in a server component it is BAKED AT BUILD TIME —
+// see docs/LAUNCH-RUNBOOK.md, which lists what that leaves stale and what to do about it.
+export function doorsOpen() {
+  const n = daysUntilLaunch();
+  return n === null ? false : n <= 0;
+}

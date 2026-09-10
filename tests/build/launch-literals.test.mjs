@@ -59,7 +59,14 @@ import { LAUNCH, LAUNCH_DATE_LABEL, LAUNCH_DATE_SHORT, LAUNCH_MONTH_YEAR, OPENIN
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const SOURCE_OF_TRUTH = join('app', 'lib', 'launch.js');
 
-const ROOTS = ['app', 'functions', 'emails'];
+// ⚠ R50 — tests/ AND scripts/ ARE WALKED NOW, AND THAT IS THE THIRD-COPY FINDING.
+// The app repo found the same shape in its own harness: three storefront scenes carrying the
+// literal, which would have gone on photographing the pre-launch shop for ever while the
+// screen derived correctly — and a date mutation would not have moved a single picture. This
+// repo had five: tests/membership/links.spec.mjs, copy.spec.mjs, bookstore/pair.spec.mjs and
+// gate.spec.mjs all typed the date out. A guard scoped to shipped code cannot see them, and a
+// harness that hardcodes what the code derives is a harness that pins the wrong answer.
+const ROOTS = ['app', 'functions', 'emails', 'tests', 'scripts'];
 const EXTS = ['.js', '.jsx', '.mjs', '.ts', '.tsx'];
 const SKIP_DIRS = new Set([
   'node_modules', '.git', 'out', '.next', 'vendor',
@@ -141,21 +148,42 @@ const M = LAUNCH.m;
 const Y = LAUNCH.y;
 const pad = (v) => String(v).padStart(2, '0');
 
+// ⚠⚠ THE EXEMPTION IS PER FORM, NOT PER FILE — R50, taking the app's rule.
+//
+// app/lib/launch.js used to be skipped WHOLESALE: `if (rel === SOURCE_OF_TRUTH) continue`.
+// The app repo's sharpest mutation survived exactly that shape — giving a note its OWN
+// CONSTRUCTED DATE inside the owner file, which is correct on every date today, so no
+// behavioural test can see it and the guard was told not to look.
+//
+// So each pattern now carries `ownerMayHold`:
+//
+//   · A SPOKEN date may live where the copy lives. launch.js exists to BUILD '30 September'
+//     out of the constant, so its own output appearing in it is not a second opinion.
+//   · A CONSTRUCTED date — an ISO string, a slashed date, a Date.UTC call, a `new Date`
+//     literal — IS BANNED EVERYWHERE, THE OWNER INCLUDED. There is no legitimate reason for a
+//     second machine-readable date in the file whose whole job is to hold the first one.
+//   · The ONE exception is the {y,m,d} object, because that IS the definition. It is exempt in
+//     the owner and banned everywhere else — which is how R9 caught the two hand-copies.
 const PATTERNS = [
-  ['the full date', new RegExp(escape(OPENING_DATE), 'i')],
-  ['day and month', new RegExp(escape(LAUNCH_DATE_LABEL), 'i')],
-  ['abbreviated day and month', new RegExp(escape(LAUNCH_DATE_SHORT), 'i')],
-  ['month and year', new RegExp(escape(LAUNCH_MONTH_YEAR), 'i')],
+  ['the full date', new RegExp(escape(OPENING_DATE), 'i'), { ownerMayHold: true }],
+  ['day and month', new RegExp(escape(LAUNCH_DATE_LABEL), 'i'), { ownerMayHold: true }],
+  ['abbreviated day and month', new RegExp(escape(LAUNCH_DATE_SHORT), 'i'), { ownerMayHold: true }],
+  ['month and year', new RegExp(escape(LAUNCH_MONTH_YEAR), 'i'), { ownerMayHold: true }],
   // ⭑ THE ONE THAT WAS MISSED. A {y,m,d} object literal in any spacing or key order.
   ['a {y,m,d} date object', new RegExp(
-    `\\{[^{}]*\\by\\s*:\\s*${Y}\\b[^{}]*\\bm\\s*:\\s*${M}\\b[^{}]*\\bd\\s*:\\s*${D}\\b[^{}]*\\}`)],
+    `\\{[^{}]*\\by\\s*:\\s*${Y}\\b[^{}]*\\bm\\s*:\\s*${M}\\b[^{}]*\\bd\\s*:\\s*${D}\\b[^{}]*\\}`),
+    { ownerMayHold: true }],   // ⭑ THE DEFINITION. Exempt in the owner, banned everywhere else.
   ['a {y,m,d} date object (any order)', new RegExp(
-    `\\{[^{}]*\\bd\\s*:\\s*${D}\\b[^{}]*\\bm\\s*:\\s*${M}\\b[^{}]*\\by\\s*:\\s*${Y}\\b[^{}]*\\}`)],
-  ['an ISO date', new RegExp(`${Y}-${pad(M)}-${pad(D)}`)],
-  ['a slashed date', new RegExp(`\\b${pad(D)}/${pad(M)}/${Y}\\b`)],
+    `\\{[^{}]*\\bd\\s*:\\s*${D}\\b[^{}]*\\bm\\s*:\\s*${M}\\b[^{}]*\\by\\s*:\\s*${Y}\\b[^{}]*\\}`),
+    { ownerMayHold: true }],
+  // ⚠ FROM HERE DOWN, NOTHING IS EXEMPT — INCLUDING app/lib/launch.js ITSELF.
+  ['an ISO date', new RegExp(`${Y}-${pad(M)}-${pad(D)}`), { ownerMayHold: false }],
+  ['a slashed date', new RegExp(`\\b${pad(D)}/${pad(M)}/${Y}\\b`), { ownerMayHold: false }],
   // Date.UTC(2026, 8, 30) — month is zero-based here, which is its own trap.
-  ['a Date.UTC call', new RegExp(`Date\\.UTC\\(\\s*${Y}\\s*,\\s*${M - 1}\\s*,\\s*${D}\\s*\\)`)],
-  ['a new Date literal', new RegExp(`new\\s+Date\\(\\s*['"\`]${Y}-${pad(M)}-${pad(D)}`)],
+  ['a Date.UTC call', new RegExp(`Date\\.UTC\\(\\s*${Y}\\s*,\\s*${M - 1}\\s*,\\s*${D}\\s*\\)`),
+    { ownerMayHold: false }],
+  ['a new Date literal', new RegExp(`new\\s+Date\\(\\s*['"\`]${Y}-${pad(M)}-${pad(D)}`),
+    { ownerMayHold: false }],
 ];
 
 function escape(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -175,10 +203,13 @@ describe('⭑ THE LAUNCH DATE IS WRITTEN IN ONE FILE', () => {
     const hits = [];
     for (const file of FILES) {
       const rel = relative(ROOT, file).split(sep).join('/');
-      if (rel === SOURCE_OF_TRUTH.split(sep).join('/')) continue;
+      const isOwner = rel === SOURCE_OF_TRUTH.split(sep).join('/');
       const code = stripComments(readFileSync(file, 'utf8'));
       const lines = code.split('\n');
-      for (const [what, re] of PATTERNS) {
+      for (const [what, re, opts] of PATTERNS) {
+        // ⚠ PER FORM, NOT PER FILE. The owner is skipped only for the forms it is allowed to
+        // hold; a constructed date inside it reddens like anywhere else.
+        if (isOwner && opts.ownerMayHold) continue;
         for (let i = 0; i < lines.length; i++) {
           if (re.test(lines[i])) hits.push(`  ${rel}:${i + 1}  ${what}\n      ${lines[i].trim().slice(0, 110)}`);
         }
@@ -192,7 +223,17 @@ describe('⭑ THE LAUNCH DATE IS WRITTEN IN ONE FILE', () => {
       + '  BOOKSTORE_OPENS and daysUntilLaunch().\n\n'
       + '  If what you are writing is NOT the Book Store / membership launch — the Scribbles\n'
       + '  catalogue is the standing example — do not wire it to launch.js and do not give it\n'
-      + '  a date it does not have. See the note in app/rewards/page.js.',
+      + '  a date it does not have. See the note in app/rewards/page.js.\n\n'
+      + '  ⚠ AND IF YOU HAVE JUST MOVED THE LAUNCH DATE AND THIS REDDENED UNDER tests/ OR\n'
+      + '  scripts/, CHECK FOR A COINCIDENTAL COLLISION BEFORE CHANGING ANYTHING ELSE. Since\n'
+      + '  R50 this guard walks the harness, and the harness is full of dates that have nothing\n'
+      + '  to do with launch. Two are known: a bookstore rules fixture in tests/rules/\n'
+      + '  database.test.mjs held the ISO form of the 2026 launch date as arbitrary story data,\n'
+      + '  and tests/bookstore/sections.test.mjs asserts on a Book-of-the-Month label that\n'
+      + '  collides if launch is ever moved into that month.\n'
+      + '  THE FIX IS TO MOVE THE FIXTURE, NEVER TO EXEMPT THE FILE. An allowlist is a hatch\n'
+      + '  the next collision widens until the guard sees nothing; an arbitrary fixture date is\n'
+      + '  arbitrary and can simply be a different day.',
     );
   });
 

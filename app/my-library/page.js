@@ -37,7 +37,7 @@ import { useOffline } from '../lib/useOffline';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
-import { LAUNCH_TEXT, LAUNCH_DATE_LABEL, OPENS_SHORT, daysUntilLaunch } from '../lib/launch';
+import { LAUNCH_TEXT, LAUNCH_DATE_LABEL, OPENS_SHORT, daysUntilLaunch, doorsOpen } from '../lib/launch';
 
 // ⚠ R9.1 — THIS FILE HELD THE SECOND HAND-COPY of the launch date and of daysUntilLaunch(),
 // under a comment reading "Mirrors app/components/Gateway.js — same date, same fallback
@@ -271,7 +271,8 @@ export default function MyLibraryPage() {
   const { user, loading } = useAuth();
   const [section, setSection] = useState('stories');
   const [showAuth, setShowAuth] = useState(false);
-  const [opensLabel, setOpensLabel] = useState(LAUNCH_TEXT);
+  // Derived for the same reason as the gateway's: this is the value the static export bakes.
+  const [opensLabel, setOpensLabel] = useState(() => (doorsOpen() ? null : LAUNCH_TEXT));
   const [books, setBooks] = useState(null); // null = not loaded, [] = none owned
   // titleId -> fraction (0–1). {} once read; a titleId absent from it has never been opened.
   const [progress, setProgress] = useState({});
@@ -349,7 +350,10 @@ export default function MyLibraryPage() {
   useEffect(() => {
     const tick = () => {
       const n = daysUntilLaunch();
-      if (n === null || n <= 0) setOpensLabel(LAUNCH_TEXT);
+      // ⭑ null once the doors are open — the note goes and the space closes. See the note on
+      // the same branch in app/components/Gateway.js.
+      if (doorsOpen()) setOpensLabel(null);
+      else if (n === null) setOpensLabel(LAUNCH_TEXT);
       else if (n === 1) setOpensLabel('Opens tomorrow');
       else setOpensLabel(`Opens in ${n} days`);
     };
@@ -878,7 +882,11 @@ export default function MyLibraryPage() {
               >
                 <span className="ml-sw-g" aria-hidden="true">❦</span>
                 <span className="ml-sw-t">BOOKS</span>
-                <span className="ml-sw-n">{ownedCount > 0 ? `${ownedCount} owned` : OPENS_SHORT}</span>
+                {/* Before opening day an empty shelf says when the shop opens; after it, an
+                    empty shelf simply says nothing rather than naming a date that has gone. */}
+                <span className="ml-sw-n">
+                  {ownedCount > 0 ? `${ownedCount} owned` : (doorsOpen() ? '' : OPENS_SHORT)}
+                </span>
               </button>
             </div>
 
@@ -1012,9 +1020,13 @@ export default function MyLibraryPage() {
             {section === 'books' && books !== null && books.length === 0 && (
               <div className="ml-soon">
                 <div className="ml-soon-g" aria-hidden="true">❦</div>
-                <div className="ml-soon-d">{opensLabel}</div>
+                {opensLabel && <div className="ml-soon-d">{opensLabel}</div>}
                 <p className="ml-soon-p">Books you buy from the Book Store live here — yours to keep, on every device you read on.</p>
-                <div className="ml-soon-note">{`THE BOOK STORE OPENS ${LAUNCH_DATE_LABEL}`.toUpperCase()}</div>
+                {/* ⭑ CALENDAR COPY: gone the moment the doors are open. The paragraph above it
+                    is not — "books you buy live here" is true on both sides of opening day. */}
+                {!doorsOpen() && (
+                  <div className="ml-soon-note">{`THE BOOK STORE OPENS ${LAUNCH_DATE_LABEL}`.toUpperCase()}</div>
+                )}
               </div>
             )}
           </>

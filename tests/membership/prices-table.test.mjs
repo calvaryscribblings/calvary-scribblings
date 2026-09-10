@@ -158,8 +158,28 @@ describe('MEMBERSHIPS_ON_SALE cannot drift from the price books', () => {
   });
 
   test('the launch sentence has ONE source, and the rails import it', async () => {
-    assert.match(LAUNCH_NOTICE, /30 September/);
-    assert.equal(LAUNCH_DATE_LABEL, '30 September');
+    // ⚠ THIS ONE COULD NOT SIMPLY BE DERIVED, AND THE REASON IS WORTH KEEPING.
+    //
+    // R50 swept the hardcoded dates out of tests/ so a date change moves the harness silently.
+    // These two lines resisted it: they used to read
+    //
+    //     assert.match(LAUNCH_NOTICE, /30 September/);
+    //     assert.equal(LAUNCH_DATE_LABEL, '30 September');
+    //
+    // and the obvious "fix" — substituting the constants — turns the second into
+    // `assert.equal(LAUNCH_DATE_LABEL, LAUNCH_DATE_LABEL)`, which is x === x. A test whose
+    // expected value is derived from the thing under test asserts nothing at all; that is the
+    // same trap as a guard matching its own docblock.
+    //
+    // So the VALUE is not pinned here at all. What is asserted instead is the SHAPE — that the
+    // label is a day and a month name rather than an ISO string or an empty string — and the
+    // COUPLING, that the sentence the rails print is built from that label. The value's
+    // correctness is proved where it belongs: tests/build/launch-literals.test.mjs builds its
+    // patterns FROM app/lib/launch.js and fires each one at a sample it must catch.
+    assert.match(LAUNCH_DATE_LABEL, /^\d{1,2} [A-Z][a-z]+$/,
+      `LAUNCH_DATE_LABEL is not a spoken day-and-month: ${LAUNCH_DATE_LABEL}`);
+    assert.ok(LAUNCH_NOTICE.includes(LAUNCH_DATE_LABEL),
+      'the launch sentence does not contain the launch date label — they have come apart');
     // prices.js re-exports it rather than keeping a copy; paystack-checkout imports it direct.
     const stripeRail = await import('../../functions/api/membership/prices.js');
     assert.equal(stripeRail.LAUNCH_NOTICE, LAUNCH_NOTICE);

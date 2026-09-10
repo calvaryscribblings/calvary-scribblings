@@ -43,6 +43,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { liveDetailSlug } from './live-slug.mjs';
+import { LAUNCH_MONTH_YEAR } from '../../app/lib/launch.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const GATE_SRC = readFileSync(join(ROOT, 'app/lib/bookstore/gate.js'), 'utf8');
@@ -230,7 +231,7 @@ test.describe('the availability note', () => {
     // Launch is confirmed for 30 September 2026, so this sentence is correct and R19.8 moved it
     // without editing it. Pinned here so a geometry round cannot quietly become a copy round.
     await openPair(page, VIEWPORTS[2]);
-    await expect(page.getByTestId('availability-note')).toHaveText('Available September 2026');
+    await expect(page.getByTestId('availability-note')).toHaveText(`Available ${LAUNCH_MONTH_YEAR}`);
   });
 });
 

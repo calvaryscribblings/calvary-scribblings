@@ -65,6 +65,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { MEMBERSHIPS_ON_SALE, LAUNCH_NOTICE } from '../../app/lib/membershipPrices.js';
+import { LAUNCH_DATE_LABEL } from '../../app/lib/launch.js';
 import {
   isConfigured as stripeIsConfigured, PRICE_BOOK, CURRENT_GENERATION as STRIPE_GENERATION,
   PORTAL_CONFIGURATION,
@@ -115,7 +116,7 @@ describe('⭑ THE ON-SALE INTERLOCK — the flag and the live ids cannot drift a
       STRIPE_LIVE, PAYSTACK_LIVE,
       `one rail is live-configured and the other is not (${state()}).\n\n` +
       '  The flag is ONE boolean for both, deliberately: on sale in GBP and USD and "opens\n' +
-      '  30 September" in NGN, on the same page on the same day, is a worse thing to ship\n' +
+      `  ${LAUNCH_DATE_LABEL}" in NGN, on the same page on the same day, is a worse thing to ship\n` +
       '  than waiting for the second rail. Paste both, or neither.',
     );
   });

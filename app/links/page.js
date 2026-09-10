@@ -49,7 +49,7 @@ const OG_IMAGE = `${BASE_URL}/favicon.png`;
 // admits a value only if it is an absolute https:// URL or a site-relative path, so a
 // half-finished entry ('instagram.com/calvary', 'coming soon', an empty string, a note to
 // self) fails closed and renders as 'coming soon' rather than as a broken link.
-import { OPENS_SHORT, LAUNCH_DATE_LABEL } from '../lib/launch';
+import { OPENS_SHORT, LAUNCH_DATE_LABEL, doorsOpen } from '../lib/launch';
 import { liveStores } from '../lib/appLinks';
 
 const LINKS = {
@@ -103,18 +103,38 @@ const LINKS = {
 };
 
 // The Book Store is built and browsable, so the link is live — only the label carries the date.
-// Flip this one boolean on launch day and the suffix goes; nothing else changes.
-const BOOKSTORE_LAUNCHED = false;
-const BOOKSTORE_LABEL = BOOKSTORE_LAUNCHED ? 'Book Store' : `Book Store · ${OPENS_SHORT}`;
+//
+// ⭑ THIS IS A CALENDAR QUESTION, SO IT IS DERIVED. `const BOOKSTORE_LAUNCHED = false` was a
+// second hand-flipped opinion about opening day, and two opinions about opening day is exactly
+// what put the shop behind a curtain on the morning it was supposed to open. It now reads
+// doorsOpen() over the one LAUNCH constant, like the curtain does.
+//
+// ⚠ BUT THIS PAGE IS A SERVER COMPONENT, so this is evaluated AT BUILD TIME and baked into the
+// static export. The label is therefore correct on any build made on or after opening day and
+// stale on one made before — which is a deploy on the morning, not a code change. It is in
+// docs/LAUNCH-RUNBOOK.md for exactly that reason. The alternative — making the link-in-bio page
+// a client component so one suffix could update itself — is a worse trade than a deploy.
+const BOOKSTORE_LABEL = doorsOpen() ? 'Book Store' : `Book Store · ${OPENS_SHORT}`;
 
 // The membership page is built and readable, so the link is live from today — only the wording
-// changes on launch day. Mirrors BOOKSTORE_LAUNCHED above deliberately: one boolean, flipped in
-// the SAME change that creates the live prices, and nothing else moves.
+// changes on launch day.
 //
-// ⚠ THIS IS NOT MEMBERSHIPS_ON_SALE. That flag (app/lib/membershipPrices.js) governs whether a
-// buy button exists anywhere; this one governs a sentence on /links. They flip on the same day
+// ⚠⚠ THIS ONE IS DELIBERATELY *NOT* DERIVED FROM doorsOpen(), AND THE DISTINCTION IS THE WHOLE
+// POINT OF THE ROUND THAT DERIVED THE OTHERS.
+//
+// The Book Store label above asks "has the calendar reached the day". This one does not. It
+// chooses between "opens 30 September. Read the tiers" and "OPEN THE ARCHIVE" — and the second
+// is a LIE unless memberships are actually purchasable, which is a question about whether live
+// Stripe and Paystack price ids exist, not about what day it is. A clock here would promise an
+// open archive on a morning when every checkout answers 409.
+//
+// ⚠ AND IT IS NOT MEMBERSHIPS_ON_SALE EITHER. That flag (app/lib/membershipPrices.js) governs
+// whether a buy button exists anywhere; this one governs a sentence. They flip on the same day
 // but they are not the same switch, and wiring this to that would mean a copy change could not
-// ship without a payments change.
+// ship without a payments change. That ruling stands.
+//
+// So this stays a hand-flipped boolean, on purpose, because the thing it describes is a
+// CONFIGURATION and not a date. Flip it beside MEMBERSHIPS_ON_SALE.
 const MEMBERSHIP_LAUNCHED = false;
 const MEMBERSHIP_LABEL = MEMBERSHIP_LAUNCHED
   ? <><strong>Membership</strong> — open the archive →</>

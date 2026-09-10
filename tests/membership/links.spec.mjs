@@ -13,12 +13,13 @@
 // being checked.
 
 import { test, expect } from '@playwright/test';
+import { LAUNCH_DATE_LABEL, OPENS_SHORT } from '../../app/lib/launch.js';
 
 const STATE = process.env.MEMBERSHIP_STATE || 'pre';
 
 // The deck's two entries (§10), verbatim. The em dash and the arrow are part of the string.
 const ENTRY = {
-  pre: 'Membership — opens 30 September. Read the tiers →',
+  pre: `Membership — opens ${LAUNCH_DATE_LABEL}. Read the tiers →`,
   post: 'Membership — open the archive →',
 };
 
@@ -129,7 +130,7 @@ test('the group takes no flag — it is live today, unlike the Book Store and Me
   await page.goto('/links');
   // The two flagged rows still carry their dates; the group carries none and is a live anchor.
   await expect(page.locator('.cs-lk-stack .cs-lk-btn').filter({ hasText: 'Book Store' }))
-    .toHaveText(/opens 30 Sept/);
+    .toHaveText(new RegExp(OPENS_SHORT));
   await expect(page.locator('.cs-lk-group')).not.toHaveText(/soon|opens/i);
   await expect(page.locator('.cs-lk-socials .is-soon a[href*="whatsapp"]')).toHaveCount(0);
 });
@@ -138,5 +139,5 @@ test('the Book Store entry is untouched by this round', async ({ page }) => {
   await page.goto('/links');
   // BOOKSTORE_LAUNCHED is false and this round must not have moved it.
   await expect(page.locator('.cs-lk-stack .cs-lk-btn').filter({ hasText: 'Book Store' }))
-    .toHaveText(/Book Store · opens 30 Sept/);
+    .toHaveText(new RegExp(`Book Store · ${OPENS_SHORT}`));
 });

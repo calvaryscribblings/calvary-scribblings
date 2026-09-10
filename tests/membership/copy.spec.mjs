@@ -21,6 +21,7 @@
 //      possible outcome of a copy round, so it is checked rather than assumed.
 
 import { test, expect } from '@playwright/test';
+import { LAUNCH_NOTICE } from '../../app/lib/launch.js';
 
 // The selector's own labels, from CURRENCY_LABELS in app/lib/currency.js — '£ GBP', not 'GBP'.
 // The symbol is part of the button text, and a test that matched on the code alone found
@@ -103,7 +104,7 @@ test('short answers ship as three pairs, and the writers-pay question is absent'
 });
 
 test('both boxes lost their headings and kept their sentences', async ({ page }) => {
-  await expect(page.locator('.mb-notice-p')).toContainText('Memberships open on 30 September.');
+  await expect(page.locator('.mb-notice-p')).toContainText(LAUNCH_NOTICE);
   await expect(page.locator('.mb-notice-p')).toContainText('Everything on this page is the real price');
   await expect(page.locator('.mb-founding-p')).toContainText('Join before we open and your price never goes up');
   await expect(page.locator('body')).not.toContainText('NOT YET ON SALE');
@@ -188,7 +189,7 @@ for (const { code: currency, button } of CURRENCIES) {
       await expect(page.locator('button', { hasText: /CHOOSE|BUY THE/ })).toHaveCount(0);
       await expect(page.locator('.mb-btn')).toHaveCount(0);
       // Every card's CTA slot carries the launch notice instead.
-      await expect(page.locator('.mb-flat').first()).toHaveText('Memberships open on 30 September.');
+      await expect(page.locator('.mb-flat').first()).toHaveText(LAUNCH_NOTICE);
     });
   }
 }

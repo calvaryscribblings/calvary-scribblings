@@ -317,6 +317,16 @@ jobs:
       - name: Index reconciler (it sees damage, and refuses what it should)
         run: npm run test:reconcile
 
+      # R50 — THE DOORS. test:launch proves the date is written in one file; test:doors proves
+      # the ACCESS STATE derives from it, which is the half R9.1 did not consolidate.
+      # ⚠ THE LAUNCH-DAY RISK THIS CLOSED: GATE_ENABLED was a hand-flipped boolean, so on
+      # opening day the countdown would reach zero, the gateway would say the shop had opened,
+      # and the shop would stay shut until somebody remembered to edit a file. test:doors moves
+      # the clock across a fortnight BUILT FROM the constant and asserts the coupling in both
+      # directions — never open early, never shut late.
+      - name: The doors derive from the calendar (fortnight sweep)
+        run: npm run test:launch && npm run test:doors
+
       # R9.2 (c). The workflows check themselves: action majors held above the node24 floor,
       # nothing pinned to a floating tag, and no new action slipping in unrecorded.
       - name: Workflow hygiene (action runtimes)

@@ -27,7 +27,7 @@ const CHOICE_KEY = 'cs_gateway_choice';
 // sessionStorage, not local: it must not survive the tab, and a refresh must load plainly.
 const ARRIVING_KEY = 'cs_arriving';
 const LIBRARY = '/public-library';
-import { LAUNCH_TEXT, LAUNCH_DATE_LABEL, BOOKSTORE_OPENS, daysUntilLaunch } from '../lib/launch';
+import { LAUNCH_TEXT, LAUNCH_DATE_LABEL, BOOKSTORE_OPENS, daysUntilLaunch, doorsOpen } from '../lib/launch';
 
 // ⚠ R9.1 — `const LAUNCH = { y: 2026, m: 9, d: 30 }` AND A BYTE-IDENTICAL daysUntilLaunch()
 // STOOD HERE, hand-copied into app/my-library/page.js under a comment saying so. Both fed a
@@ -199,7 +199,12 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
   // ── Item 4: the countdown. Server renders LAUNCH_TEXT (SEO / no-JS); the client swaps in
   //    the live days once it knows the date. Init matches the server string so hydration is
   //    clean; the effect updates only after mount.
-  const [opensLabel, setOpensLabel] = useState(LAUNCH_TEXT);
+  // ⚠ THE INITIAL VALUE IS WHAT THE STATIC EXPORT BAKES INTO THE HTML, so it is derived too.
+  // A build made before opening day ships "Opens 30 September" and the effect corrects it in
+  // the reader's browser the moment London midnight has passed; a build made after opening day
+  // ships nothing there at all. Leaving this a bare LAUNCH_TEXT would mean every post-launch
+  // page load painted a stale note for one frame before hydration removed it.
+  const [opensLabel, setOpensLabel] = useState(() => (doorsOpen() ? null : LAUNCH_TEXT));
 
   // ── Item 6: the tint + the London evening line. Defaults match a no-JS render (current
   //    violet, no amber, closed) so nothing shifts before the clock is read.
@@ -253,8 +258,14 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
       setSquareOpen(lh >= 20 && lh < 24);
 
       const n = daysUntilLaunch();
-      if (n === null) setOpensLabel(LAUNCH_TEXT);
-      else if (n <= 0) setOpensLabel(LAUNCH_TEXT); // launch-day handling comes later
+      // ⭑ THE DOORS ARE OPEN — THE NOTE GOES, AND NOTHING REPLACES IT.
+      // This branch used to read `setOpensLabel(LAUNCH_TEXT); // launch-day handling comes
+      // later`. It never came, and the effect was that from opening day onward the entry door
+      // told every reader the shop opened on a date that had already passed. Returning null
+      // closes the space instead: the label is not rendered, the row shortens, and only that
+      // note moves — nothing takes its place, because there is nothing left to announce.
+      if (doorsOpen()) setOpensLabel(null);
+      else if (n === null) setOpensLabel(LAUNCH_TEXT);
       else if (n === 1) setOpensLabel('Opens tomorrow');
       else setOpensLabel(`Opens in ${n} days`);
     };
@@ -767,7 +778,7 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
               <span className="cs-gw-door-glyph" aria-hidden="true">❦</span>
               <span className="cs-gw-door-text">
                 <span className="cs-gw-door-title">THE BOOK STORE</span>
-                <span className="cs-gw-door-meta cs-gw-opens">{opensLabel}</span>
+                {opensLabel && <span className="cs-gw-door-meta cs-gw-opens">{opensLabel}</span>}
               </span>
             </button>
           </div>
@@ -789,7 +800,14 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
             <p>
               Calvary Scribblings publishes original fiction, poetry and essays from a new
               generation of writers. The Public Library is open to everyone — flash fiction,
-              short stories, poetry and news, free to read. {BOOKSTORE_OPENS}
+              short stories, poetry and news, free to read.{' '}
+              {/* ⚠ CRAWLABLE PROSE, AND THEREFORE HALF-BAKED. Gateway is a client component,
+                  so this re-renders in the reader's browser and the sentence disappears on
+                  opening day without a deploy — but the STATIC EXPORT still ships the
+                  pre-launch sentence in the HTML, which is what a crawler that does not run JS
+                  reads. A deploy on the morning is what fixes the crawled copy; see
+                  docs/LAUNCH-RUNBOOK.md. The reader sees the right thing either way. */}
+              {doorsOpen() ? 'The Book Store is open.' : BOOKSTORE_OPENS}
             </p>
           </div>
         </div>
@@ -805,7 +823,9 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
         <Modal id="cs-gw-store" titleId="cs-gw-store-title" title="THE BOOK STORE" onClose={closeModal}>
           <p>
             The shelves are being built and the ink is drying.<br />
-            <em>The Book Store opens its doors on {LAUNCH_DATE_LABEL}.</em>
+            {!doorsOpen() && (
+              <em>The Book Store opens its doors on {LAUNCH_DATE_LABEL}.</em>
+            )}
           </p>
           <p className="cs-gw-modal-fine">
             Your favourite books, from your favourite authors — human-made, cover to cover.

@@ -27,6 +27,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 import { liveDetailSlug } from './live-slug.mjs';
+import { OPENING_DATE } from '../../app/lib/launch.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const GATE_MODULE = join(ROOT, 'app/lib/bookstore/gate.js');
@@ -161,7 +162,7 @@ test.describe('the curtain', () => {
   test('/bookstore renders the gate and no shelf DOM', async ({ page }) => {
     await page.goto('/bookstore');
     await expect(page.getByTestId('bookstore-gate')).toBeVisible();
-    await expect(page.getByText('30 September 2026')).toBeVisible();
+    await expect(page.getByText(OPENING_DATE)).toBeVisible();
     await expect(page.getByText('Keyholders may enter')).toBeVisible();
     await expectNoShelfDom(page);
   });
