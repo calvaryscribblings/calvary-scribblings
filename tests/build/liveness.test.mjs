@@ -195,7 +195,18 @@ describe('the REST pre-build script: 5xx, malformed, empty, and a host that neve
     try {
       const r = await attempt(process.execPath, [makeProbe(rig.url)]);
       assert.equal(r.code, 0, 'an empty catalogue is a valid answer');
-      assert.match(r.stdout, /\(0 slugs from CMS, 9 static\)/);
+      // ⚠ THE SLUG COUNT IS EXACT AND THE LEGACY COUNT IS DELIBERATELY NOT. This suite's
+      // subject is THE READ — "0 slugs" is the whole assertion, and it is the number PL-12
+      // exists to protect. The hand-maintained legacy count belongs to
+      // tests/build/redirects-limits.test.mjs, which pins it on purpose so that adding or
+      // losing a legacy rule cannot pass unnoticed.
+      //
+      // ⭑ IT WAS PINNED IN BOTH, AND THAT IS WHY MAIN WAS RED. R46.2 took the list from 9 to
+      // 10 and updated the suite that owns the number; this copy kept asserting 9 and went
+      // red with nothing to say so — the same shape as R43's stale Open Pages assertion.
+      // Found by APP-DL1, which took the list to 12 and would have been blamed for it.
+      // One number, one owner: do not re-pin it here.
+      assert.match(r.stdout, /\(0 slugs from CMS, \d+ static\)/);
       assert.doesNotMatch(r.stdout, /BUILD FAILED/);
     } finally { await rig.close(); }
   });
@@ -205,8 +216,9 @@ describe('the REST pre-build script: 5xx, malformed, empty, and a host that neve
     try {
       const r = await attempt(process.execPath, [makeProbe(rig.url)]);
       assert.equal(r.code, 0);
-      // Two published, one published:false. The filter is doing its job.
-      assert.match(r.stdout, /\(2 slugs from CMS, 9 static\)/);
+      // Two published, one published:false. The filter is doing its job — and that "2" is the
+      // assertion. The legacy count is owned by redirects-limits.test.mjs; see the note above.
+      assert.match(r.stdout, /\(2 slugs from CMS, \d+ static\)/);
       const written = readFileSync(REDIRECTS, 'utf8');
       assert.match(written, /alpha-tale/);
       assert.doesNotMatch(written, /\/hidden\s/);
