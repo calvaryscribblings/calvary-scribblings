@@ -56,6 +56,10 @@ on:
       # is the one that says out loud which flag state the platform is in. The day someone
       # flips ANDROID_APP_LIVE they will edit both, and both must be able to start this.
       - 'tests/applinks/**'
+      # R49 — the index reconciler. Its own workflow runs the suite too, but this job is where
+      # the whole hygiene set lives and a suite that can only be started by its own workflow is
+      # a suite one path filter away from never running.
+      - 'tests/reconcile/**'
       - 'app/**'
       - 'functions/**'
       - 'scripts/**'
@@ -301,6 +305,17 @@ jobs:
       # before and after flipping a flag; see tests/applinks/matrix.mjs.
       - name: App links (flags, platform detection, verified URLs)
         run: npm run test:applinks
+
+      # R49 — THE INDEX RECONCILER'S INSTRUMENT CHECK. Node-only, offline, ~200ms.
+      # ⚠ WHAT IT IS ACTUALLY FOR: a reconciler that finds nothing on a clean corpus is
+      # indistinguishable from one that cannot see, and the live index is clean most days. This
+      # damages a corpus on purpose and asserts the damage is found — plus the three rails
+      # (import the real builder, refuse to drop a field, refuse a mass diff). Every one of
+      # them was mutation-tested; see the round's report.
+      # ⚠ tests/reconcile/live-probe.mjs is NOT run here and must never be: it writes to
+      # production. It is the manual end-to-end proof.
+      - name: Index reconciler (it sees damage, and refuses what it should)
+        run: npm run test:reconcile
 
       # R9.2 (c). The workflows check themselves: action majors held above the node24 floor,
       # nothing pinned to a floating tag, and no new action slipping in unrecorded.

@@ -1,0 +1,217 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# INDEX RECONCILE — the net under the scheduled-publish cron.
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# WHAT IS BROKEN, AND WHERE
+# ─────────────────────────
+# cms_stories_index has two writers. The admin dual-write calls indexUpdatePaths()
+# and is complete by construction. The scheduled-publish cron is an external
+# Cloudflare Worker (calvary-newsletter) that CANNOT import app/lib/storyIndex.js,
+# so its projection is a hand-copy — and it has drifted. It emits no `opening` at
+# all, and the live Worker in the Cloudflare dashboard is behind even this repo's
+# mirror at workers-external/calvary-newsletter.worker.js and also drops
+# `publishedAtMs`. About four stories a week publish through it.
+#
+# ⚠⚠ WHY A RECONCILER AND NOT A SECOND HAND-COPY
+# ───────────────────────────────────────────────
+# THE ~200-LINE TRANSCRIPTION IS THE THING BEING AVOIDED. Teaching the Worker to
+# carry `opening` means hand-copying parseBlocks() from app/lib/htmlBlocks.js AND
+# walkToProse() from app/lib/prosePredicate.js — roughly two hundred lines across
+# two modules — into a file edited in a web dashboard.
+#
+# THE OPENING LINE AND THE DROP CAP MUST PICK THE SAME PARAGRAPH. That is stated
+# where `opening` is defined, and it is why indexOpening() goes through
+# walkToProse() rather than cutting characters: 17 live stories open on
+# front-matter a character cutter would print instead of the story. TWO HAND-COPIES
+# OF ONE PREDICATE IS PRECISELY HOW THEY STOP AGREEING — and the drift would be
+# invisible, because the search result and the story page each look fine alone.
+#
+# This project has already lost a year to a hand-copied list that drifted by one
+# entry. scripts/reconcile-index.mjs imports the real buildIndexRecord and copies
+# nothing; tests/reconcile/reconcile.test.mjs fails if it ever grows a projection,
+# a *Mirror function, or a local walkToProse.
+#
+# ⭑ AND IT CHANGES THE CLASS OF THE PROBLEM. The Worker never needs a new field
+# again: anything added to buildIndexRecord lands on scheduled publishes within one
+# tick, with no cross-repo dashboard edit. "Every projection change is a dashboard
+# edit" becomes "no action".
+#
+# ⚠ IT IS A NET, NOT A FIX — THE DASHBOARD PASTE IS STILL OWED
+# ─────────────────────────────────────────────────────────────
+# A */15 tick means a record can be wrong for UP TO FIFTEEN MINUTES, and longer
+# when GitHub's scheduler is busy: its floor is five minutes and it is best-effort,
+# not guaranteed.
+#
+# For `opening` that is a search result briefly missing a line — cosmetic. For
+# `publishedAtMs` it is FIFTEEN MINUTES OF WRONG ENTITLEMENT every time a story
+# publishes, once GATING_ENABLED is switched back on. That is not something to
+# leave to a net, and this workflow existing is NOT a reason to skip fixing the
+# live Worker. Fix publishedAtMs at source; let this catch what source-fixing
+# misses.
+#
+# ⚠ THE MECHANISM, BECAUSE IT IS COUNTER-INTUITIVE AND SOMEONE WILL NEED IT
+# ─────────────────────────────────────────────────────────────────────────
+# A record with NO publishedAtMs is INVISIBLE to orderBy="publishedAtMs". Firebase
+# does not return nodes missing the ordered key in the tail of a limitToLast query,
+# so such a record cannot appear in the most-recent-N floor at all.
+#
+# The consequence runs BACKWARDS from what anyone expects. The floor is "the five
+# newest gateable stories are always free". A newly published story with no
+# publishedAtMs cannot take a slot, so:
+#
+#     · THE NEWEST STORY IS GATED — the one that should most certainly be free.
+#     · AN OLDER STORY KEEPS A FREE SLOT it should have just lost.
+#
+# Both silently. Nothing errors; the query succeeds and returns five slugs. They
+# are simply the wrong five. See functions/api/story.js:loadRecentFloor and
+# STORY-SERVING-CONTRACT.md §3.2.
+#
+# ⚠ DOES THIS NEED A HEARTBEAT? YES. ITS DRIFT CHECK DOES NOT SELF-ANNOUNCE.
+# ─────────────────────────────────────────────────────────────────────────
+# GitHub DISABLES cron schedules after 60 days without repo activity, which is the
+# real silent-failure mode for everything scheduled here — .github/workflows/
+# backup-liveness.yml and square-horizon.yml both carry a heartbeat for exactly
+# this reason.
+#
+# It is tempting to argue this one is self-announcing because it goes red when it
+# finds drift. IT IS NOT, and the reason is worth being precise about: A DISABLED
+# CRON PRODUCES NO RUN AT ALL. Silence is what a healthy night looks like AND what
+# a dead schedule looks like — they are the same observation. Worse, publishing is
+# editorial and continues through the CMS whether or not anyone pushes to this
+# repo, so a 60-day quiet spell is precisely when drift accumulates unattended.
+#
+# What partly covers it today, honestly stated: tests/ci/search-index.test.mjs
+# asserts on LIVE data that every published story carries an opening line — it is
+# what caught this defect in the first place — and it runs under `npm run test:ci`
+# in rules-and-hygiene.yml. So the drift is not invisible; it is invisible UNTIL
+# SOMEBODY PUSHES. That is a worse guarantee than a heartbeat and a better one than
+# nothing.
+#
+# ⭑ THE HEARTBEAT IS NOT BUILT HERE, DELIBERATELY. It needs a new RTDB node
+# (ops/index_reconcile, mirroring ops/backup_liveness: founder-only .read,
+# ".write": false because the writer is an Admin SDK) and therefore a
+# database.rules.json change and a rules deploy against production. That is a
+# separate decision touching live rules, not something to slip into the round that
+# builds the job. Until it exists, the check on the checker is the Actions run
+# history for this workflow.
+#
+# THE CREDENTIAL
+# ──────────────
+# FIREBASE_SERVICE_ACCOUNT already exists — covers.yml uses it. No new secret.
+name: index reconcile
+
+on:
+  schedule:
+    # Every 15 minutes, matching covers.yml so there is one cadence to reason about.
+    # A clean tick costs two RTDB reads (cms_stories_index at ~236 KB, cms_stories
+    # only because the projection needs the bodies) and no writes, which is almost
+    # always what happens.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: 'One slug only (blank = every eligible story)'
+        required: false
+        type: string
+      apply:
+        description: 'Write. Unticked, this only reports what would change.'
+        required: false
+        default: true
+        type: boolean
+      max:
+        description: 'Mass-diff refusal limit (default 10). Raise only after reading the plan.'
+        required: false
+        default: '10'
+        type: string
+  # A change to the reconciler or to the projection it depends on gets CHECKED and
+  # never applied: the suite runs, the reconcile job does not. A push is exactly
+  # when the projection may have changed, and a projection change is a backfill —
+  # which is the one thing rail 3 exists to refuse.
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/reconcile-index.mjs'
+      - 'app/lib/storyIndex.js'
+      - 'tests/reconcile/**'
+      - '.github/workflows/index-reconcile.yml'
+  pull_request:
+    paths:
+      - 'scripts/reconcile-index.mjs'
+      - 'app/lib/storyIndex.js'
+      - 'tests/reconcile/**'
+      - '.github/workflows/index-reconcile.yml'
+
+# Two overlapping runs would both read the same drift and both write the same
+# complete record. The write is idempotent so that is survivable, but pointless.
+# cancel-in-progress is FALSE: cancelling mid-repair is the thing not to do.
+concurrency:
+  group: index-reconcile
+  cancel-in-progress: false
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────────
+  # The suite. Runs on every trigger, INCLUDING before a reconcile — a repairer
+  # that cannot prove it detects damage must not write.
+  # ───────────────────────────────────────────────────────────────────────────────
+  verify:
+    name: reconciler suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # ⚠ THE INSTRUMENT CHECK IS THE POINT OF RUNNING THIS FIRST. A reconciler that
+      # finds nothing on a clean corpus is indistinguishable from one that cannot
+      # see, and the live index is clean most days — so the suite damages a corpus
+      # on purpose and asserts the damage is found.
+      - name: The reconciler sees damage, and refuses what it should
+        run: npm run test:reconcile
+      # The mirror's key-set guard lives here too: it is the thing that says WHICH
+      # fields the Worker is short of, and it is why KNOWN_GAPS is not a stale list.
+      - name: The Worker mirror still projects the same key set
+        run: node --test tests/ci/index-mirror.test.mjs
+
+  reconcile:
+    name: repair drifted index records
+    needs: verify
+    # Never on a push or a PR — see the trigger note above.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Write the service account
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set — the reconciler cannot write."
+            exit 1
+          fi
+          printf '%s' "$KEY" > "${RUNNER_TEMP}/serviceAccountKey.json"
+
+      - name: Reconcile
+        env:
+          RECONCILE_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+        run: |
+          ARGS=""
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.apply }}" = "true" ]; then
+            ARGS="$ARGS --apply"
+          fi
+          if [ -n "${{ inputs.slug }}" ]; then ARGS="$ARGS --slug ${{ inputs.slug }}"; fi
+          if [ -n "${{ inputs.max }}" ]; then ARGS="$ARGS --max ${{ inputs.max }}"; fi
+          node scripts/reconcile-index.mjs $ARGS
+
+      - name: Remove the service account
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/serviceAccountKey.json"

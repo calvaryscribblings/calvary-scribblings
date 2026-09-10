@@ -83,6 +83,9 @@
     "test:applinks:matrix": "node tests/applinks/matrix.mjs",
     "test:applinks:render": "node tests/applinks/render-matrix.mjs",
     "test:applinks:devices": "node tests/applinks/devices.mjs",
+    "test:reconcile": "node --test tests/reconcile/reconcile.test.mjs",
+    "reconcile:index": "node scripts/reconcile-index.mjs",
+    "test:reconcile:live": "node tests/reconcile/live-probe.mjs",
     "test:search:render": "next build && playwright test -c tests/search/playwright.config.mjs"
   },
   "dependencies": {
