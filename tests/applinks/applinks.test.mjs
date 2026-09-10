@@ -81,9 +81,11 @@ test('THIS BUILD offers exactly what its flags say, to every platform', () => {
   assert.deepEqual(hrefs(storesFor('desktop')), hrefs(live));
 });
 
-test('TODAY: iOS only — no Google Play URL is produced for ANY platform', () => {
-  // Guarded so this states a fact rather than a wish: it asserts the iOS-only behaviour only
-  // while the repo is in the iOS-only state, and matrix.mjs covers the other three.
+// ⚠ THESE TWO ARE GUARDED ON THE FLAG STATE SO THEY STATE A FACT RATHER THAN A WISH: each
+// runs only while the repo is in the state it describes, and matrix.mjs covers the rest by
+// rebuilding. Both are kept even though only one can run today — the asymmetric state returns
+// the next time a version ships to one store before the other.
+test('iOS only — no Google Play URL is produced for ANY platform', () => {
   if (!(IOS_APP_LIVE && !ANDROID_APP_LIVE)) return;
   const seen = [];
   for (const p of ['ios', 'android', 'desktop', 'something-else', undefined]) seen.push(...hrefs(storesFor(p)));
@@ -93,6 +95,19 @@ test('TODAY: iOS only — no Google Play URL is produced for ANY platform', () =
   }
   assert.deepEqual([...new Set(seen)], [APP_STORE_URL]);
   assert.deepEqual(hrefs(storesFor('android')), [APP_STORE_URL]);
+});
+
+test('TODAY: both live — each phone gets its own store, the desktop gets both', () => {
+  if (!(IOS_APP_LIVE && ANDROID_APP_LIVE)) return;
+  // ⭑ THE NARROWING IS THE WHOLE POINT OF THIS STATE, and it is the state in which it can
+  // finally be wrong. With one store live there is nothing to narrow and every platform gets
+  // the same answer; with both live, an iPhone reader being shown a Google Play link is a
+  // real, reachable defect.
+  assert.deepEqual(hrefs(storesFor('ios')), [APP_STORE_URL]);
+  assert.deepEqual(hrefs(storesFor('android')), [GOOGLE_PLAY_URL]);
+  assert.deepEqual(hrefs(storesFor('desktop')), [APP_STORE_URL, GOOGLE_PLAY_URL]);
+  // Anything unrecognised is treated as a desktop and offered both — never guessed at.
+  assert.deepEqual(hrefs(storesFor('something-else')), [APP_STORE_URL, GOOGLE_PLAY_URL]);
 });
 
 test('the platform is DETECTED, and iPadOS 13+ does not slip through as a desktop', () => {
@@ -158,14 +173,17 @@ test('the deep-link caveat exists as COPY, not only as a comment', () => {
   assert.ok(/opens the website|opens the store/i.test(NO_DEEP_LINK_NOTE));
 });
 
-test('the flags today are iOS live, Android in review — and this test says so out loud', () => {
-  // ⚠ THIS ASSERTION IS EXPECTED TO FAIL ON THE DAY GOOGLE APPROVES, AND THAT IS ITS JOB.
-  // When it does, the fix is one line here and one line in app/lib/appLinks.js — and the
-  // failure is the reminder that the second line exists. Flipping the flag without flipping
-  // this leaves a green suite lying about the state of the platform.
-  assert.equal(IOS_APP_LIVE, true, 'iOS 1.5.0 is live in the App Store');
-  assert.equal(ANDROID_APP_LIVE, false,
-    'ANDROID_APP_LIVE is true — if Google Play has approved, update this assertion in the same commit');
+test('the flags today are BOTH live — and this test says so out loud', () => {
+  // ⚠ THIS ASSERTION IS EXPECTED TO FAIL WHENEVER A STORE FLAG MOVES, AND THAT IS ITS JOB.
+  // It did exactly that on 11 Sep 2026: written on the 10th with ANDROID_APP_LIVE pinned
+  // false, it failed on the morning Google Play approved the build, which is how the second
+  // half of the flip — this line — got made in the same commit as the first. A flag flipped
+  // without this leaves a green suite lying about the state of the platform.
+  //
+  // ⭑ IT STAYS SHARP NOW THAT BOTH ARE TRUE. The next move is downward — a pulled build, a
+  // rejected update, a store taken back for a version — and it will fail then too.
+  assert.equal(IOS_APP_LIVE, true, 'iOS 1.5.0 is live in the App Store since 10 Sep 2026');
+  assert.equal(ANDROID_APP_LIVE, true, 'Android versionCode 15 is live in Google Play since 11 Sep 2026');
 });
 
 test('NO SURFACE DECLARES A STORE URL OF ITS OWN — appLinks.js is the only source', async () => {

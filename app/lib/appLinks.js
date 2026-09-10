@@ -3,16 +3,22 @@
 // ── THE TWO FLAGS ARE THE WHOLE DISCIPLINE ───────────────────────────────────────────────
 //
 // iOS 1.5.0 is LIVE in the App Store (verified 10 Sep 2026: the listing returns HTTP 200 and
-// prints "Version 1.5.0"). Android versionCode 15 is IN GOOGLE PLAY REVIEW. A page that
-// offers both when only one works is worse than a page that offers neither — a dead store
-// link on launch week is a bad first impression from the one surface meant to be inviting.
+// prints "Version 1.5.0"). Android versionCode 15 was IN GOOGLE PLAY REVIEW on 10 Sep and was
+// APPROVED AND PUBLISHED on the morning of 11 Sep 2026 — the Play Console approval mail, which
+// is the trigger this file named and the only trigger it accepts.
+//
+// ⭑ BOTH FLAGS ARE NOW TRUE. The structure below stays exactly as it is anyway, because the
+// asymmetric state is not hypothetical: it is where the platform will be again on the next
+// major version that ships to one store before the other, and it is where it was for the
+// twenty-four hours this file was written for.
 //
 // So there are TWO booleans, never one. If exactly one is true the surface offers only that
 // one, honestly, and says NOTHING about the other. There is no "coming soon" here: a reader
 // who cannot install on their phone today does not need to be told they are second.
 //
-//   ⭑ TO FLIP ON APPROVAL DAY: set ANDROID_APP_LIVE to true, below. One edit, one file,
-//     one word. Nothing else moves — no copy, no layout, no other file.
+//   ⭑ TO TAKE A STORE BACK DOWN (a pulled build, a rejected update): set its flag to false.
+//     One edit, one file, one word — and update the matching assertion in
+//     tests/applinks/applinks.test.mjs, which states the current pair out loud on purpose.
 //
 // Same shape as BOOKSTORE_LAUNCHED / MEMBERSHIP_LAUNCHED in app/links/page.js: a build-time
 // constant, not an env var and not a remote read. The static export inlines it, which is what
@@ -29,8 +35,8 @@
 /** iOS 1.5.0 — LIVE in the App Store since the morning of 10 Sep 2026. */
 export const IOS_APP_LIVE = true;
 
-/** Android versionCode 15 — IN REVIEW. ⭑ FLIP TO true WHEN GOOGLE PLAY APPROVES. */
-export const ANDROID_APP_LIVE = false;
+/** Android versionCode 15 — LIVE in Google Play since the morning of 11 Sep 2026. */
+export const ANDROID_APP_LIVE = true;
 
 // ── THE URLS ─────────────────────────────────────────────────────────────────────────────
 //
@@ -41,10 +47,14 @@ export const ANDROID_APP_LIVE = false;
 //                a home for stories worth keeping." A nonexistent package on the same fetch
 //                returns HTTP 404 with <title>Not Found</title>, so the listing page is real.
 //
-// ⚠ THE PLAY LISTING RESOLVING DOES NOT MEAN THE APP IS APPROVED. Play serves a listing page
-// for an app in review; it looks, over HTTP, exactly like a published one. ANDROID_APP_LIVE
-// is therefore flipped on the Play Console approval mail and on nothing else — never on the
-// strength of a fetch from this repo.
+// ⚠ THE PLAY LISTING RESOLVING DOES NOT MEAN THE APP IS APPROVED, AND THAT IS NOT A HISTORICAL
+// NOTE — IT IS THE RULE. On 10 Sep, with the app sitting in review, this listing already
+// returned HTTP 200 with a full description block and an install control, indistinguishable
+// over HTTP from a published one (a nonexistent package, by contrast, returns 404 with
+// <title>Not Found</title> — that check separates "real" from "imaginary", never "published"
+// from "pending"). ANDROID_APP_LIVE was therefore flipped on 11 Sep on the Play Console
+// approval mail and on nothing else. Never flip a store flag on the strength of a fetch from
+// this repo; the fetch cannot tell you the thing you need to know.
 //
 // ⚠⚠ THESE TWO ARE MODULE-PRIVATE, AND THAT IS LOAD-BEARING, NOT TIDINESS.
 //
