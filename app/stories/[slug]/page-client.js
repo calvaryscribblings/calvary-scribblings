@@ -19,6 +19,7 @@ import QuizCard from '../../components/QuizCard';
 import { quizAllowed, advertisesQuiz } from '../../lib/readerCollection';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import NewsletterInvite from '../../components/NewsletterInvite';
+import AppInvite from '../../components/AppInvite';
 import ReadSeal from '../../components/ReadSeal';
 import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
 import { getReaderId } from '../../lib/readerId';
@@ -1588,6 +1589,16 @@ useEffect(() => {
             <main> on cream, three sections above. Story pages only — the
             immersive reader at /reader/[slug] renders ReaderGate, not this
             tree, so it cannot appear there. */}
+        {/* ⚠ NOT WHILE THE PAYWALL IS UP. One story on the shelf sells for money on this very
+            page (PAYWALL_SLUG, above), and when it is locked the reader is looking at a buy
+            button with AboutTheAuthor, this section and the comments all still rendered below
+            it. Offering an iPhone reader the app in that breath is exactly the 3.1.1
+            adjacency the round was told to avoid — the app shows no prices and no buy button,
+            so it cannot finish what the button in front of them starts.
+            A reader who HAS purchased, or who is on any of the other 171 stories, sees it:
+            they are at the end of something they just read, which is the moment the offer is
+            about. */}
+        {!(slug === PAYWALL_SLUG && !hasPurchased) && <AppInvite variant="panel" />}
         <NewsletterInvite user={storyUser} />
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
         {showAuthModal && (

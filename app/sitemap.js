@@ -17,6 +17,12 @@ export default async function sitemap() {
     // app/series/layout.js must gain robots:{index:false}. A sitemap entry pointing at a wall
     // is a soft-404 signal; the two halves must not drift.
     '/poetry', '/news', '/inspiring', '/series', '/square', '/search', '/rewards',
+    // '/app' — the reading app's own page. It is listed unconditionally, unlike the gated
+    // surfaces above, because it resolves and reads correctly in EVERY flag state: with both
+    // flags false it says the app is not in the stores yet rather than 404ing. A page whose
+    // URL is printed in a bio must never stop existing, so there is no state in which this
+    // entry becomes a soft-404 — which is exactly the drift the /series note guards against.
+    '/app',
   ].map(route => ({
     url: `${BASE_URL}${route}`,
     lastModified: new Date(),

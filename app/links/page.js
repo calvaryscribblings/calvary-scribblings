@@ -50,13 +50,27 @@ const OG_IMAGE = `${BASE_URL}/favicon.png`;
 // half-finished entry ('instagram.com/calvary', 'coming soon', an empty string, a note to
 // self) fails closed and renders as 'coming soon' rather than as a broken link.
 import { OPENS_SHORT, LAUNCH_DATE_LABEL } from '../lib/launch';
+import { liveStores } from '../lib/appLinks';
 
 const LINKS = {
-  // The reading app. Both listings are public, so both are live.
-  app: {
-    appStore: 'https://apps.apple.com/gb/app/story-island/id6769357370',
-    googlePlay: 'https://play.google.com/store/apps/details?id=uk.co.storyisland.app',
-  },
+  // ⚠ THE APP URLS ARE NO LONGER DECLARED HERE. They live in app/lib/appLinks.js with the two
+  // flags that decide whether either may render, because THIS PAGE HAD THE BUG THAT MODULE
+  // EXISTS TO CLOSE. The comment that used to sit here said "Both listings are public, so both
+  // are live" and the badges were gated on isLive() — a check on the SHAPE OF THE STRING. Both
+  // URLs have been well-formed since July, so on 10 Sep 2026, with Android sitting in Google
+  // Play review, this page was rendering a live, tappable Google Play badge from the link in
+  // Ikenna's Instagram bio.
+  //
+  // isLive() is still exactly right for the socials and the own-site rows below: those are
+  // config that is either filled in or not. It was never a test of whether a STORE had
+  // approved an app, and it cannot be made into one.
+  //
+  // ⚠ AND THE URLS ARE NOT IMPORTED INTO THIS OBJECT EITHER. appLinks.js keeps them
+  // module-private and hands them out only through liveStores(), because an exported binding
+  // that this file imports SURVIVES TREE-SHAKING whatever the flag says — putting
+  // GOOGLE_PLAY_URL in this literal was, on its own, enough to ship the Play link in three
+  // JS chunks with ANDROID_APP_LIVE false. There is no `app` key here any more; the badges
+  // below read liveStores() directly.
   // The social accounts. Paste the full profile URL, not the handle. YouTube is the one channel
   // that does not exist yet; it stays on its TODO value so the row renders it dimmed rather
   // than pointing at a handle nobody has claimed.
@@ -687,19 +701,24 @@ function SocialGlyph({ icon, label }) {
 }
 
 export default function LinksPage() {
-  // The 'coming soon' captions are written for the state the page is actually in. Two captions
-  // under two badges reads as a fault; one line under both reads as a date — and when exactly
-  // one store goes live, the line names the one still missing rather than disappearing and
-  // leaving a dimmed badge unexplained.
-  const appleLive = isLive(LINKS.app.appStore);
-  const googleLive = isLive(LINKS.app.googlePlay);
-  const appNote = appleLive && googleLive
-    ? null
-    : !appleLive && !googleLive
-      ? 'coming soon to both stores'
-      : appleLive
-        ? 'Google Play coming soon'
-        : 'App Store coming soon';
+  // ⭑ THE STORES ARE GATED ON THE FLAGS, AND A STORE THAT IS NOT LIVE IS NOT MENTIONED.
+  //
+  // This block used to derive liveness from isLive(url) and then caption the gap — 'Google Play
+  // coming soon' under a dimmed badge. Both halves are now wrong:
+  //
+  //   · the gate is IOS_APP_LIVE / ANDROID_APP_LIVE, which are about the STORES rather than
+  //     about whether someone has pasted a URL. See app/lib/appLinks.js.
+  //   · there is no 'coming soon' any more. The ruling for this round is that when exactly one
+  //     store is live the page offers that one HONESTLY AND WITHOUT APOLOGY, and says nothing
+  //     whatever about the other. A reader on an Android phone in launch week does not need a
+  //     dimmed badge telling them they are second; they need the page not to waste their tap.
+  //
+  // The all-missing caption survives, because a section headed 'the reading app' with nothing
+  // under it at all is the one state that genuinely reads as broken rather than as quiet.
+  const stores = liveStores();
+  const appStoreHref = stores.find((s) => s.platform === 'ios')?.href;
+  const googlePlayHref = stores.find((s) => s.platform === 'android')?.href;
+  const appNote = stores.length ? null : 'coming soon to both stores';
 
   // Same rule for the socials row: all four missing is one line under the row; a partial state
   // marks the individual entries instead, since a shared line could not say which.
@@ -759,23 +778,33 @@ export default function LinksPage() {
           <h2 className="cs-lk-app-h cs-lk-rise" id="cs-lk-app-h" style={{ '--lk-at': AT.appHead }}>
             Story Island — the reading app
           </h2>
+          {/* ⚠ A STORE THAT IS NOT LIVE RENDERS NO BADGE AT ALL — not a dimmed one. The badge
+              is the artwork Apple and Google license for POINTING AT A LIVE LISTING, and a
+              greyed-out Play badge over a caption is both a worse reader experience and a
+              looser reading of their guidelines than simply not drawing it.
+              ⭑ With both flags false this collapses to an empty row under the caption below,
+              which is the state the note is written for. */}
           <div className="cs-lk-badges cs-lk-rise" style={{ '--lk-at': AT.badges }}>
-            <Badge
-              href={LINKS.app.appStore}
-              src="/badges/download-on-the-app-store.svg"
-              className="cs-lk-badge-apple"
-              alt={appleLive ? 'Download Story Island on the App Store' : 'Download on the App Store — coming soon'}
-              width="120"
-              height="40"
-            />
-            <Badge
-              href={LINKS.app.googlePlay}
-              src="/badges/google-play-badge.png"
-              className="cs-lk-badge-google"
-              alt={googleLive ? 'Get Story Island on Google Play' : 'Get it on Google Play — coming soon'}
-              width="646"
-              height="250"
-            />
+            {appStoreHref && (
+              <Badge
+                href={appStoreHref}
+                src="/badges/download-on-the-app-store.svg"
+                className="cs-lk-badge-apple"
+                alt="Download Story Island on the App Store"
+                width="120"
+                height="40"
+              />
+            )}
+            {googlePlayHref && (
+              <Badge
+                href={googlePlayHref}
+                src="/badges/google-play-badge.png"
+                className="cs-lk-badge-google"
+                alt="Get Story Island on Google Play"
+                width="646"
+                height="250"
+              />
+            )}
           </div>
           {appNote ? (
             <p className="cs-lk-soon-line cs-lk-rise" style={{ '--lk-at': AT.badges }}>

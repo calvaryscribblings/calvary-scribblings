@@ -79,6 +79,10 @@
     "test:square": "node --test tests/square/*.test.mjs",
     "test:square:room": "next build && playwright test -c tests/square/playwright.room.config.mjs",
     "test:search": "node --test tests/ci/search-index.test.mjs",
+    "test:applinks": "node --test tests/applinks/applinks.test.mjs",
+    "test:applinks:matrix": "node tests/applinks/matrix.mjs",
+    "test:applinks:render": "node tests/applinks/render-matrix.mjs",
+    "test:applinks:devices": "node tests/applinks/devices.mjs",
     "test:search:render": "next build && playwright test -c tests/search/playwright.config.mjs"
   },
   "dependencies": {

@@ -51,6 +51,11 @@ on:
       - 'tests/openpages/**'
       - 'tests/leaderboard/**'
       - 'tests/voices/**'
+      # R48 — the app links. Same reasoning as the block above: `app/**` catches a change to
+      # app/lib/appLinks.js, but an edit to the SUITE alone would start no job, and this suite
+      # is the one that says out loud which flag state the platform is in. The day someone
+      # flips ANDROID_APP_LIVE they will edit both, and both must be able to start this.
+      - 'tests/applinks/**'
       - 'app/**'
       - 'functions/**'
       - 'scripts/**'
@@ -283,6 +288,19 @@ jobs:
       # five unwired node suites is a job somebody has to audit again.
       - name: Seasonal program and reader voices
         run: npm run test:program && npm run test:voices
+
+      # R48 — THE APP LINKS. Node-only, offline, ~100ms. It proves the platform detection, the
+      # copy, the verified URLs and the single-source rule, and it asserts OUT LOUD which flag
+      # state the repo is in — so flipping ANDROID_APP_LIVE without updating the assertion
+      # fails here rather than leaving a green suite lying about the platform.
+      #
+      # ⚠ THIS IS THE CHEAP HALF. The four-state guarantee ("no Play URL in the tree while the
+      # flag is down") is only observable in the BUILT OUTPUT, because the design depends on
+      # the minifier folding the dead branch away. That is `npm run test:applinks:matrix` —
+      # four real builds, ~3 minutes — and it is deliberately NOT wired here. Run it by hand
+      # before and after flipping a flag; see tests/applinks/matrix.mjs.
+      - name: App links (flags, platform detection, verified URLs)
+        run: npm run test:applinks
 
       # R9.2 (c). The workflows check themselves: action majors held above the node24 floor,
       # nothing pinned to a floating tag, and no new action slipping in unrecorded.
