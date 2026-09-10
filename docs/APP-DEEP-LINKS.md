@@ -17,16 +17,25 @@ stickily enough to need a reinstall to clear, so a wrong file cannot be fixed af
 | Live iOS | 1.5.0, 10 Sep 2026; min iOS 15.1 | iTunes Lookup |
 | Live Android | versionCode 15, 11 Sep 2026 | `app/lib/appLinks.js` |
 
-**Two values are not derivable from this repo and ship as placeholders** — see §6.
+**Two values were not derivable from this repo. Both landed 10 Sep 2026** and are in the files.
+Neither is a secret — both are served publicly, which is the whole point of them.
 
-- **`<TEAM_ID>`** — Apple Developer → **Membership details** → Team ID. Ten alphanumerics.
-  ⚠ Not the App Store artist id (`1896652339`), which is ten *digits* and a different number.
-- **`<PLAY_APP_SIGNING_SHA256>`** — Play Console → app → **Test and release → Setup → App
-  integrity → App signing** → **"App signing key certificate" → SHA-256 certificate
-  fingerprint**. 32 uppercase hex pairs, colon-separated, exactly as the Console prints them.
-  ⚠ **Not the "Upload key certificate" on the same page.** Google re-signs every upload with the
-  app signing key, and that is what lands on the device. Using the upload key is the commonest
-  App Links failure there is.
+| | value | where it came from |
+|---|---|---|
+| Apple Team ID | `287PRDDG5J` | Apple Developer → **Membership details** |
+| Play app signing SHA-256 | `93:F8:FD:08:7A:41:49:28:1F:EE:87:1A:E7:06:DA:92:F0:B0:C6:24:E5:8A:A8:EF:B6:57:6A:E9:AD:0C:B9:37` | Play Console → **Test and release → Setup → App integrity → App signing → "App signing key certificate"** |
+
+Checked before they were written, not after: the Team ID is exactly 10 characters, uppercase
+alphanumeric, and is not the App Store artist id `1896652339` (ten *digits*, a different
+number); the fingerprint is exactly 32 colon-separated uppercase hex pairs, 95 characters,
+i.e. a 256-bit digest.
+
+⚠ **The fingerprint must be the "App signing key certificate", not the "Upload key
+certificate" directly below it on the same Console page.** Google re-signs every upload with
+the app signing key and that is what lands on the device. Using the upload key is the
+commonest App Links failure there is — and **no automated check can catch it**, because the
+wrong key is just as well-formed as the right one. That one is verified by a human reading the
+Console, and by §7's CDN gate.
 
 ---
 
@@ -183,14 +192,28 @@ public/app-association/assetlinks.json
   `tests/applinks/association.test.mjs`. Two sets of bytes that can drift, one of which nobody
   serves, is worse than the question it would answer.
 
-### The placeholder gate
+### The placeholder gate — both flags are now `false`
 
-Both files ship with literal placeholders. `tests/applinks/association.test.mjs` asserts that
-state **out loud** (`TEAM_ID_PENDING`, `FINGERPRINT_PENDING`), so the day the real values land
-the assertion flips in the same commit — and the well-formedness checks behind it start doing the
-work. Run `npm run test:association`; it also runs in `rules-and-hygiene.yml`.
+`tests/applinks/association.test.mjs` holds `TEAM_ID_PENDING` and `FINGERPRINT_PENDING` and
+states the pair **out loud**, the way `applinks.test.mjs` holds the two store flags. The gate
+stays now the values have landed, because it is what makes the two halves inseparable **in both
+directions**. Proved by mutation before the values were pushed — all four ways, plus two more:
 
-**Nothing is submitted to either store while those two flags are `true`.**
+| mutation | result |
+|---|---|
+| Team value landed, its flag left `true` | 1 fail |
+| Team flag flipped `false`, value still the placeholder | 2 fail |
+| Fingerprint landed, its flag left `true` | 1 fail |
+| Fingerprint flag flipped `false`, value still the placeholder | 2 fail |
+| fingerprint in lowercase hex | 1 fail |
+| Team ID nine characters instead of ten | 1 fail |
+
+The last two are the well-formedness checks, which only became live when the flags went
+`false`. ⚠ **What no check can catch is a well-formed value that is simply the wrong one** — the
+upload key for the app signing key, or the artist id for the Team ID. That is what §7's CDN gate
+and a human reading the Console are for.
+
+Run `npm run test:association`; it also runs in `rules-and-hygiene.yml`.
 
 ---
 
@@ -216,12 +239,25 @@ work. Run `npm run test:association`; it also runs in `rules-and-hygiene.yml`.
    R24 tail check against production, because the file grew by four rules: the file's **final**
    rule (`/u/:handle` → `/user?handle=ikenna`) answers, which proves every rule above it was
    parsed. Fallback unchanged: `/stories/a-daub-of-blue`, `/bookstore` and `/` all 200.
-2. **Ikenna fetches** the Team ID and the Play App Signing SHA-256.
-3. **Land the real values**, flip both `_PENDING` flags in the same commit, deploy, re-verify the
-   origin **and Apple's CDN**. ⚠ **The CDN holds the placeholder version from step 1 for up to
-   six hours** (`max-age=21600`, measured). The binary must not be submitted until a fetch of
-   that CDN URL shows the real Team ID — not until the origin does, which is sooner and is not
-   the thing a device reads.
+2. ✅ **Both values fetched and landed, 10 Sep 2026**, with both `_PENDING` flags flipped in the
+   same commit and the gate mutation-proved in both directions first. See §1 and §6.
+
+3. ⚠⚠ **THE CDN GATE — THIS IS WHAT DECIDES WHEN THE BINARY IS CUT.**
+
+   ```
+   curl -s https://app-site-association.cdn-apple.com/a/v1/calvaryscribblings.co.uk
+   ```
+
+   **Nothing is submitted to App Store Connect until that returns `287PRDDG5J`.** Step 1's
+   probe primed Apple's cache with the placeholder and the TTL is six hours (`max-age=21600`,
+   measured off the response), so there is a window in which the origin is right and Apple is
+   still serving `<TEAM_ID>`.
+
+   ⚠ **Checking the origin does not discharge this.** The origin flips within a minute of the
+   deploy and **the origin is not what a device reads** — a device reads Apple's CDN, and a
+   device that reads a wrong file caches it stickily enough to need a reinstall. The app round
+   starts from the moment this fetch flips, not from the moment the deploy lands.
+
 4. **Then** the binary: runtime pinned first, then the version bump, then the two config blocks —
    in one commit.
 5. Cut, submit, and re-run `node scripts/adoption-report.mjs` the day after it lands
@@ -258,6 +294,27 @@ the version is the same shape as R48's `isLive(url)`: a property of the config s
 the property you actually need.
 
 ### Riding this cut
+
+**⚠ TWO WEB-SIDE CORRECTIONS THAT BELONG TO THE RELEASE, NOT TO THIS ROUND.** On the board so the
+app round inherits them rather than rediscovering them:
+
+1. **`app/lib/appLinks.js`** — the block headed "THESE ARE STORE LINKS. THEY ARE NOT DEEP LINKS."
+   asserts *"There is no apple-app-site-association file and no assetlinks.json"* and records the
+   risk as accepted with a post-launch review. **The first half is false as of 10 Sep 2026**; the
+   review happened and this is it.
+2. **`app/app/page.js`** — reason (1) in its header makes the same claim, and it drives
+   `NO_DEEP_LINK_NOTE`, which is rendered to readers on `/app`.
+
+⭑ **The reader-facing sentence is still TRUE and must not be changed early.** *"Story Island has
+no deep links yet, so a link shared from the site opens the website — even on a phone that
+already has the app"* is accurate until a binary carries the entitlement, and it stays accurate
+for every existing install until that install updates. **It becomes false the day the cut goes
+live, and it must change in that same release** — not before, or the site promises something the
+binary cannot do; not after, or it tells readers the opposite of the truth.
+
+Both were left untouched deliberately so the probe deploy shipped no page change.
+
+---
 
 - `c86cc1c` — the banner fix, ruled not worth its own cut. ⚠ Not an object in this repo; confirm
   it is on the app's main before cutting.

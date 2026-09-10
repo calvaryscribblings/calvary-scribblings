@@ -12,18 +12,26 @@
 // So the file has to be right BEFORE a binary claims it, which means the only place the
 // wrongness can be caught is here.
 //
-// ── THE PLACEHOLDER GATE, WHICH IS THE POINT OF THIS FILE TODAY ──────────────────────────
+// ── THE PLACEHOLDER GATE — BOTH VALUES HAVE NOW LANDED ───────────────────────────────────
 //
-// Two values cannot be derived from anything this repo can reach: the Apple Team ID (Apple
+// Two values could not be derived from anything this repo can reach: the Apple Team ID (Apple
 // Developer → Membership details) and the Play App Signing SHA-256 (Play Console → Test and
 // release → Setup → App integrity → App signing → *App signing key certificate*, NOT the
-// upload key). Ikenna is fetching both.
+// upload key). Ikenna supplied both on 10 Sep 2026 and they are in the files.
 //
-// Until they land, the files ship with literal placeholders and TWO ASSERTIONS SAY SO OUT
-// LOUD — same idiom as tests/applinks/applinks.test.mjs stating the flag pair. The day the
-// real values land, these two assertions flip to false in the SAME COMMIT, and the
-// well-formedness checks below start doing the work. A suite that quietly passed in both
-// states would be the could-not-fail shape this project keeps finding.
+// ⭑ THE GATE STAYS, AND THE PAIR STAYS STATED OUT LOUD — same idiom as
+// tests/applinks/applinks.test.mjs holding the two store flags. It is not a leftover from the
+// pending state: it is what makes the two halves inseparable in BOTH directions. Landing a
+// value without flipping its flag fails; flipping a flag without landing its value fails.
+// Proved by mutation, all four ways, before the values were pushed.
+//
+// ⚠ AND THIS IS WHAT THE FLAGS BUY NOW THEY ARE FALSE: the well-formedness checks below are
+// live. A Team ID that is not ten alphanumerics, or a fingerprint that is not 32 uppercase
+// hex pairs, now fails here rather than in six months when somebody wonders why links open
+// the browser. What NO check can catch is a well-formed value that is simply the WRONG one —
+// the upload key instead of the app signing key, or the artist id instead of the Team ID.
+// Those two are verified by a human reading the Console, and by the CDN gate in
+// docs/APP-DEEP-LINKS.md §7.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
@@ -50,8 +58,8 @@ const APP_ID = 'uk.co.storyisland.app';
 const CLAIMED = ['/stories/*'];
 
 // ── THE PENDING VALUES. FLIP BOTH WHEN THE REAL ONES LAND. ───────────────────────────────
-const TEAM_ID_PENDING = true;
-const FINGERPRINT_PENDING = true;
+const TEAM_ID_PENDING = false;
+const FINGERPRINT_PENDING = false;
 
 describe('the AASA is exactly the claim that was ruled, and nothing wider', () => {
   test('it parses, and the shape is the one Apple reads', () => {

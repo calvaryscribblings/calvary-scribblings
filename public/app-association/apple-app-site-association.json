@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["<TEAM_ID>.uk.co.storyisland.app"],
+        "appIDs": ["287PRDDG5J.uk.co.storyisland.app"],
         "components": [
           {
             "/": "/bookstore/*",

@@ -4,7 +4,7 @@
     "target": {
       "namespace": "android_app",
       "package_name": "uk.co.storyisland.app",
-      "sha256_cert_fingerprints": ["<PLAY_APP_SIGNING_SHA256>"]
+      "sha256_cert_fingerprints": ["93:F8:FD:08:7A:41:49:28:1F:EE:87:1A:E7:06:DA:92:F0:B0:C6:24:E5:8A:A8:EF:B6:57:6A:E9:AD:0C:B9:37"]
     }
   }
 ]
