@@ -30,6 +30,35 @@
 // The fix is to read the index that already existed for this: `user_search`, world-readable,
 // 165 records of { displayName, username, avatarUrl }. See the VOICES/readers note below for
 // why the row still resolves its identity from users/{uid} afterwards.
+//
+// ── AND THE GROUND IS INK, BY RULING — THE SET WAS ALREADY UNANIMOUS ─────────────────────
+//
+// Ikenna, on walking the app's version: "search looks so good". The web's white surface read
+// as the odd one out, and the survey said it WAS the odd one out — not one of four light
+// pages but the only light page in the whole spine. Rendered and sampled, the tab set paints:
+//
+//   Home        /public-library   #0a0a0a
+//   Search      /search           #faf9f7   <- this, and only this
+//   Square      /square           #0a0a0a
+//   Book Store  /bookstore        #070707
+//   My Library  /my-library       radial #241347 -> #0b0716 -> #080610
+//   the gateway /                 the same night-violet wash
+//
+// So this is not one dark page joining four light ones — it is the last light page joining
+// five ink ones. The ground taken is #0a0a0a, the exact value Home, The Square and
+// globals.css already paint, rather than a sixth near-black of its own.
+//
+// ⚠ THE HEAD BAND IS UNCHANGED AND THAT IS THE POINT. It was #1a1a2e before this round and
+// it is #1a1a2e after. On the white page it was a hard slab; on ink it measures 1.16:1
+// against the body and separates by HUE (navy against neutral black) rather than by
+// lightness, so the field keeps a plate to sit on and the page still has a top. Every colour
+// inside the band was already an on-dark colour and none of them was touched.
+//
+// ⭑ NOTHING ELSE MOVED. No layout, no type, no copy, no weight, no spacing. The one thing
+// the round found and did NOT fix is recorded here rather than adjusted: the standfirst
+// (4.03:1) and the magnifier glyph (4.31:1) both fall short of AA inside the head band. Both
+// were already there, both are on a ground this round did not touch, and both are a separate
+// ruling about the band — not about the ground under it.
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -48,7 +77,7 @@ import QuizPill from '../components/QuizPill';
 import { advertisesQuiz } from '../lib/readerCollection';
 import { useUserStoryTiers } from '../lib/useUserStoryTiers';
 import { PRESS_SCALE, PRESS_MS, MOTION } from '../lib/houseMotion';
-import { HOUSE_GOLD_ON_DARK, HOUSE_GOLD_ON_LIGHT } from '../lib/houseGold';
+import { HOUSE_GOLD_ON_DARK } from '../lib/houseGold';
 import {
   formRows,
   subjectRuns,
@@ -60,6 +89,44 @@ import {
   highlightParts,
   capGroup,
 } from '../lib/searchIndex';
+
+/* ── THE INDEX SITS ON THE INK GROUND, AND GOLD IS A TOKEN PAIR BY SURFACE ──────────────
+   Ikenna's ruling: the white surface read as the odd one out. It was — of the five tabs and
+   the gateway, this was the ONLY light page. Home paints #0a0a0a, Square #0a0a0a, Book Store
+   #070707, My Library a violet-black gradient closing on #080610, the gateway the same wash.
+   Search now paints the house ink the other two #0a0a0a surfaces paint.
+
+   ⚠ THE TRAP, AND IT IS ARITHMETIC, NOT TASTE. HOUSE_GOLD_ON_LIGHT (#7f6726) no longer
+   appears in this file and must never come back to it. That tone was DERIVED for cream — it
+   is the lightest step of house gold's hue that clears AA on #f0ead8, and it clears it at
+   4.51:1 with one step lighter failing at 4.47 (app/lib/houseGold.js records the walk). On
+   #0a0a0a the same swatch measures 3.65:1 — it FAILS AA outright and reads as a muddy brown
+   where gold is meant to be. Display gold on this ground measures 8.66:1. Every gold on this
+   page is therefore HOUSE_GOLD_ON_DARK: the kickers, the dot leaders, the hairline under the
+   field, both ✦, the random line, the matched word in a result, the fallback disc's ring.
+
+   ⚠ AND THE TEXT LADDER IS THE APP'S, NOT THE LIGHT-GROUND COLOURS DIMMED. Cream #f5f0e8 is
+   the reading colour and the stops below it are the opacity ladder the app's own chrome uses
+   (TabBar.js carries .55 as its dim and .85 as its hover). Each stop below was picked to land
+   on the ratio the light ground already carried for that role, so the page's internal
+   hierarchy is ported rather than re-invented — the numbers are in the table beside each. */
+const INK = '#0a0a0a';
+const CREAM = '#f5f0e8';                        // 17.45:1 on ink — the reading colour
+const CREAM_72 = 'rgba(245,240,232,.72)';       //  9.15:1 — was #4a463f at 8.91 on cream
+const CREAM_60 = 'rgba(245,240,232,.6)';        //  6.55:1 — was #5f5a52 at 6.50
+const CREAM_55 = 'rgba(245,240,232,.55)';       //  5.67:1 — was #6f6a60 at 5.11
+const CREAM_40 = 'rgba(245,240,232,.4)';        //  3.46:1 — was #8d887e at 3.35
+const CREAM_30 = 'rgba(245,240,232,.3)';        //  2.43:1 — was #a9a49a at 2.36
+const CREAM_28 = 'rgba(245,240,232,.28)';       //  2.24:1 — was #b0aca3 at 2.15
+const RULE_13 = 'rgba(245,240,232,.13)';        //  1.35:1 — was #ded9cd at 1.34
+const RULE_10 = 'rgba(245,240,232,.1)';         //  1.23:1 — was #e6e2d8 at 1.23
+const RULE_07 = 'rgba(245,240,232,.07)';        //  1.14:1 — was #eeebe3 at 1.13
+/* The two golds that are FURNITURE rather than text. Both are display gold's own channel at
+   the alpha that reproduces, to two decimals, the weight the light ground gave them — so the
+   leader still stretches without competing with the name it points at, and the fallback disc
+   still sits BACK from a photograph rather than ringing itself in bright metal. */
+const GOLD_LEADER = 'rgba(201,168,76,.3)';      //  1.74:1 — was #c3bfb5 at 1.74 exactly
+const GOLD_RING = 'rgba(201,168,76,.22)';       //  1.45:1 — was #d6d1c6 at 1.45 exactly
 
 const CATEGORY_HREF = {
   flash: '/flash',
@@ -367,7 +434,7 @@ export default function SearchPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Cinzel:wght@400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #faf9f7; font-family: 'Cormorant Garamond', Georgia, serif; }
+        body { background: ${INK}; font-family: 'Cormorant Garamond', Georgia, serif; }
 
         /* OLDSTYLE FIGURES. Lining numerals stand at cap height and shout beside lowercase
            text; oldstyle have ascenders and descenders and sit IN the line, which is how an
@@ -377,7 +444,7 @@ export default function SearchPage() {
         .cs-onum { font-variant-numeric: oldstyle-nums; -moz-font-feature-settings: 'onum' 1;
                    -webkit-font-feature-settings: 'onum' 1; font-feature-settings: 'onum' 1; }
 
-        .ix { min-height: 100vh; background: #faf9f7; }
+        .ix { min-height: 100vh; background: ${INK}; color: ${CREAM}; }
 
         /* ── THE FIELD IS A RULE, NOT A PILL ───────────────────────────────────────────── */
         .ix-head { background: #1a1a2e; padding: 6.5rem 1.5rem 3rem; }
@@ -411,9 +478,9 @@ export default function SearchPage() {
         .ix-kicker { display: flex; align-items: baseline; justify-content: space-between;
                      gap: 1rem; font-family: 'Cinzel', serif; font-size: 0.6rem;
                      letter-spacing: 0.28em; text-transform: uppercase;
-                     color: ${HOUSE_GOLD_ON_LIGHT}; margin: 2.6rem 0 1rem; }
+                     color: ${HOUSE_GOLD_ON_DARK}; margin: 2.6rem 0 1rem; }
         .ix-kicker:first-child { margin-top: 0; }
-        .ix-kicker-n { color: #b0aca3; letter-spacing: 0.1em; }
+        .ix-kicker-n { color: ${CREAM_28}; letter-spacing: 0.1em; }
 
         /* ── BY FORM: DOT LEADERS ───────────────────────────────────────────────────────
            The leaders are what make this read as an index rather than a menu — they do most
@@ -423,10 +490,10 @@ export default function SearchPage() {
         .ix-form { display: block; text-decoration: none; color: inherit;
                    display: flex; align-items: baseline; gap: 0; padding: 0.62rem 0;
                    min-height: 48px; }
-        .ix-form-name { flex: 0 0 auto; font-size: 1.16rem; color: #1a1a2e; }
-        .ix-lead { flex: 1 1 auto; border-bottom: 1px dotted #c3bfb5; margin: 0 0.55rem;
+        .ix-form-name { flex: 0 0 auto; font-size: 1.16rem; color: ${CREAM}; }
+        .ix-lead { flex: 1 1 auto; border-bottom: 1px dotted ${GOLD_LEADER}; margin: 0 0.55rem;
                    transform: translateY(-0.28em); min-width: 1.5rem; }
-        .ix-form-n { flex: 0 0 auto; font-size: 1.05rem; color: #6f6a60; }
+        .ix-form-n { flex: 0 0 auto; font-size: 1.05rem; color: ${CREAM_55}; }
 
         /* ── BY SUBJECT: THE RUN-ON LIST ────────────────────────────────────────────────
            ⚠ EACH SUBJECT IS ONE UNBREAKABLE FLEX ITEM AND THE BREAKS FALL BETWEEN THEM.
@@ -462,19 +529,19 @@ export default function SearchPage() {
            the type sizes, the padding or the gaps change, both numbers move — re-measure. */
         .ix-subjects { display: flex; flex-wrap: wrap; align-items: baseline;
                        gap: 0.875rem 0.95rem; }
-        .ix-subj { white-space: nowrap; text-decoration: none; color: #1a1a2e;
+        .ix-subj { white-space: nowrap; text-decoration: none; color: ${CREAM};
                    display: inline-flex; align-items: baseline; gap: 0.3rem;
                    padding: 0.34rem 0; position: relative; }
         .ix-subj::after { content: ''; position: absolute; inset: -0.4375rem -0.475rem; }
         .ix-subj-1 { font-size: 1.62rem; font-weight: 500; }
         .ix-subj-2 { font-size: 1.22rem; font-weight: 400; }
-        .ix-subj-3 { font-size: 0.98rem; font-weight: 400; color: #4a463f; }
-        .ix-subj-n { font-size: 0.72em; color: #a9a49a; }
+        .ix-subj-3 { font-size: 0.98rem; font-weight: 400; color: ${CREAM_72}; }
+        .ix-subj-n { font-size: 0.72em; color: ${CREAM_30}; }
         /* The lightest thing that separates two near-identical labels: the form, on the
            collided pair only. 'Political · poetry' beside 'Politics · news' reads as two
            subjects rather than one typo. */
         .ix-subj-cat { font-family: 'Cinzel', serif; font-size: 0.5em; letter-spacing: 0.14em;
-                       text-transform: uppercase; color: #a9a49a; }
+                       text-transform: uppercase; color: ${CREAM_30}; }
 
         /* ── VOICES ─────────────────────────────────────────────────────────────────────── */
         .ix-voice { display: flex; align-items: center; gap: 0.85rem; padding: 0.6rem 0;
@@ -484,7 +551,7 @@ export default function SearchPage() {
                        justify-content: center; }
         /* Quieter than a photograph, never louder: no violet, no fill, a hairline and the
            initials. A missing portrait sits back instead of announcing itself. */
-        .ix-portrait-none { border: 1px solid #d6d1c6; background: none; color: #8d887e;
+        .ix-portrait-none { border: 1px solid ${GOLD_RING}; background: none; color: ${CREAM_40};
                             font-size: 0.78rem; letter-spacing: 0.06em; }
         /* ⚠ ALL THREE ARE BLOCKS, and the reason is worth keeping. These are <span>s — the row
            is an <a>, so it may not contain <div>s — and a span defaults to inline. While no
@@ -494,51 +561,51 @@ export default function SearchPage() {
            check could have caught it and no earlier render could either, because the defect
            needed real copy in the field to appear at all. */
         .ix-voice-b { min-width: 0; flex: 1 1 auto; display: block; }
-        .ix-voice-n { font-size: 1.1rem; color: #1a1a2e; line-height: 1.25; display: block; }
+        .ix-voice-n { font-size: 1.1rem; color: ${CREAM}; line-height: 1.25; display: block; }
         /* ⭑ A VOICE WITH NO REGISTER SHOWS THE NAME ALONE, and it must look deliberate.
            There is no fallback line: the bio's opening clause ("X is a writer and
            storyteller who…") is a paragraph's first words, not a line, and reads worse than
            nothing; genreTag is a form list and is empty on four of the ten anyway. So the
            name simply centres in the row and the row is shorter. */
-        .ix-voice-r { font-size: 0.93rem; color: #6f6a60; font-style: italic; line-height: 1.35;
+        .ix-voice-r { font-size: 0.93rem; color: ${CREAM_55}; font-style: italic; line-height: 1.35;
                       margin-top: 0.1rem; display: block; }
 
-        .ix-close { margin-top: 3rem; padding-top: 1.4rem; border-top: 1px solid #e6e2d8; }
+        .ix-close { margin-top: 3rem; padding-top: 1.4rem; border-top: 1px solid ${RULE_10}; }
         .ix-random { background: none; border: none; cursor: pointer; padding: 0.6rem 0;
                      min-height: 48px; font-family: 'Cormorant Garamond', Georgia, serif;
-                     font-size: 1.05rem; font-style: italic; color: ${HOUSE_GOLD_ON_LIGHT};
+                     font-size: 1.05rem; font-style: italic; color: ${HOUSE_GOLD_ON_DARK};
                      display: inline-flex; align-items: center; gap: 0.5rem; }
         .ix-mark { font-style: normal; }
 
         /* ── RESULTS ────────────────────────────────────────────────────────────────────── */
         .ix-res { display: flex; gap: 0.95rem; align-items: flex-start; padding: 0.85rem 0;
-                  text-decoration: none; color: inherit; border-bottom: 1px solid #eeebe3;
+                  text-decoration: none; color: inherit; border-bottom: 1px solid ${RULE_07};
                   min-height: 48px; }
         .ix-cover-wrap { position: relative; flex: 0 0 auto; display: block;
                          width: 46px; height: 62px; }
         .ix-cover { width: 46px; min-width: 46px; height: 62px; object-fit: cover;
-                    background: #eeebe3; flex: 0 0 auto; display: block; }
+                    background: ${RULE_07}; flex: 0 0 auto; display: block; }
         .ix-res-b { min-width: 0; flex: 1 1 auto; }
-        .ix-res-t { font-size: 1.12rem; font-weight: 500; color: #1a1a2e; line-height: 1.3; }
+        .ix-res-t { font-size: 1.12rem; font-weight: 500; color: ${CREAM}; line-height: 1.3; }
         /* ⭑ THE REAL OPENING LINE, in a fixed two-line box. When prose search lands, a
            matched SENTENCE takes this line's place — same field, same budget, same box — so
            the result layout does not change when the source of the line does. */
-        .ix-res-o { font-size: 0.95rem; color: #5f5a52; line-height: 1.4; margin-top: 0.22rem;
+        .ix-res-o { font-size: 0.95rem; color: ${CREAM_60}; line-height: 1.4; margin-top: 0.22rem;
                     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
                     overflow: hidden; }
         .ix-res-m { font-family: 'Cinzel', serif; font-size: 0.52rem; letter-spacing: 0.16em;
-                    text-transform: uppercase; color: #a9a49a; margin-top: 0.35rem; }
-        .ix-hit { color: ${HOUSE_GOLD_ON_LIGHT}; font-weight: 600; background: none; }
+                    text-transform: uppercase; color: ${CREAM_30}; margin-top: 0.35rem; }
+        .ix-hit { color: ${HOUSE_GOLD_ON_DARK}; font-weight: 600; background: none; }
 
-        .ix-more { font-size: 0.92rem; color: #8d887e; font-style: italic; padding: 0.9rem 0 0.2rem; }
+        .ix-more { font-size: 0.92rem; color: ${CREAM_40}; font-style: italic; padding: 0.9rem 0 0.2rem; }
         .ix-empty { padding: 3.4rem 0 1rem; }
-        .ix-empty-mark { font-size: 1.5rem; color: ${HOUSE_GOLD_ON_LIGHT}; }
-        .ix-empty-rule { border: 0; border-top: 1px solid #ded9cd; margin: 1rem 0 1.2rem;
+        .ix-empty-mark { font-size: 1.5rem; color: ${HOUSE_GOLD_ON_DARK}; }
+        .ix-empty-rule { border: 0; border-top: 1px solid ${RULE_13}; margin: 1rem 0 1.2rem;
                          max-width: 4rem; }
-        .ix-empty-h { font-size: 1.35rem; color: #1a1a2e; font-weight: 400; }
-        .ix-empty-p { font-size: 1rem; color: #6f6a60; margin-top: 0.5rem; line-height: 1.5;
+        .ix-empty-h { font-size: 1.35rem; color: ${CREAM}; font-weight: 400; }
+        .ix-empty-p { font-size: 1rem; color: ${CREAM_55}; margin-top: 0.5rem; line-height: 1.5;
                       font-style: italic; }
-        .ix-empty-p a { color: ${HOUSE_GOLD_ON_LIGHT}; text-underline-offset: 3px; }
+        .ix-empty-p a { color: ${HOUSE_GOLD_ON_DARK}; text-underline-offset: 3px; }
 
         /* ── THE PRESS: ONE TOKEN, ON THE BROWSER'S OWN DOWN-HANDLER ──────────────────── */
         .ix-press { -webkit-tap-highlight-color: transparent; }

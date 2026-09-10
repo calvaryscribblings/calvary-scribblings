@@ -123,14 +123,76 @@ test.describe('the resting index', () => {
     expect(row.every((r) => r.name.length > 0), 'a voice rendered with no name').toBe(true);
 
     // ⭑ THE DISC IS QUIETER, NOT LOUDER: no fill and no violet anywhere on it.
+    // ⚠ THE RING IS AN rgba() NOW, AND THAT IS THE POINT OF THIS BLOCK'S SECOND HALF.
+    // When /search went to ink the ring became display gold at .22 — the alpha that
+    // reproduces, to two decimals, the 1.45:1 the light ground gave the old #d6d1c6. An
+    // earlier version of this parser only read `rgb(` and reported the new value as
+    // "unreadable", which is a test failing at its own regex rather than at the rule. Parse
+    // both forms; the RULE has not changed and neither have its two clauses.
     for (const d of discs) {
       expect(d.discBg, `the disc has a fill: ${d.discBg}`).toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
-      const m = /rgb\((\d+), (\d+), (\d+)\)/.exec(d.discBorder || '');
+      const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(d.discBorder || '');
       expect(m, `disc border unreadable: ${d.discBorder}`).toBeTruthy();
       const [r, g, b] = [ +m[1], +m[2], +m[3] ];
-      // violet is blue-dominant with a red lift; a neutral hairline is not.
+      const a = m[4] === undefined ? 1 : +m[4];
+      // violet is blue-dominant with a red lift; neither a neutral hairline nor gold is.
       expect(b - g, `the disc border is violet: ${d.discBorder}`).toBeLessThan(12);
+      // ⭑ AND ON INK IT MUST BE DISPLAY GOLD, NOT INK GOLD. #7f6726 was derived for cream and
+      // measures 3.65:1 on #0a0a0a — it fails AA and reads as mud. #c9a84c measures 8.66:1.
+      // The channel is asserted rather than the literal, because the ring carries an alpha.
+      expect(r, `the ring is not warm — gold is red-dominant: ${d.discBorder}`).toBeGreaterThan(b);
+      // ⚠ AND IT MUST STILL RECEDE. A ring at full strength in a row of photographs is the
+      // exact failure the disc was designed against; the alpha is what keeps it back.
+      expect(a, `the ring is at full strength and will announce itself: ${d.discBorder}`).toBeLessThan(0.4);
       expect(d.initials.length, 'the disc carries no initials').toBeGreaterThan(0);
+    }
+  });
+
+  // ── THE GROUND, AND THE GOLD THAT DEPENDS ON IT ──────────────────────────────────────────
+  // Ikenna's ruling: /search goes onto the ink ground. It was the ONLY light surface among the
+  // five tabs and the gateway, so this is the last light page joining five ink ones rather
+  // than one dark page orphaned among light ones.
+  //
+  // ⚠ THIS TEST EXISTS FOR THE TOKEN PAIR, NOT FOR THE GROUND. Swapping a background is hard
+  // to get wrong and easy to see. What is easy to get wrong — and invisible in a source diff
+  // that only reads "gold" — is carrying HOUSE_GOLD_ON_LIGHT across with it. That tone was
+  // DERIVED for cream: it is the lightest step of house gold's hue that clears AA on #f0ead8,
+  // at 4.51:1 with one step lighter failing at 4.47 (app/lib/houseGold.js records the walk).
+  // On #0a0a0a the same swatch measures 3.65:1 — it FAILS AA and reads as mud where gold is
+  // meant to be. Assert the rendered channel, not the source literal, because the page could
+  // import the right constant and still paint the wrong one through an inherited opacity.
+  test('the ground is ink, and every gold on it is DISPLAY gold', async ({ page }) => {
+    await rest(page, 390);
+    const seen = await page.evaluate(() => {
+      const px = (s) => (s.match(/[\d.]+/g) || []).map(Number);
+      const out = { ground: px(getComputedStyle(document.querySelector('.ix')).backgroundColor), golds: [] };
+      for (const [sel, prop, label] of [
+        ['.ix-kicker', 'color', 'a kicker'],
+        ['.ix-rule', 'borderBottomColor', 'the hairline under the field'],
+        ['.ix-random', 'color', 'the random line and its ✦'],
+        ['.ix-lead', 'borderBottomColor', 'a dot leader'],
+        ['.ix-portrait-none', 'borderTopColor', "the fallback disc's ring"],
+      ]) {
+        const el = document.querySelector(sel);
+        if (el) out.golds.push({ label, c: px(getComputedStyle(el)[prop]) });
+      }
+      return out;
+    });
+
+    // The ground is house ink — the same #0a0a0a Home and The Square already paint, not a
+    // sixth near-black of this page's own.
+    expect(seen.ground.slice(0, 3), `the ground is not ink: ${seen.ground}`).toEqual([10, 10, 10]);
+
+    expect(seen.golds.length, 'no golds found — the selectors have rotted').toBe(5);
+    for (const { label, c } of seen.golds) {
+      const [r, g, b] = c;
+      // #c9a84c is (201,168,76); #7f6726 is (127,103,38). Both are warm and both are
+      // red-dominant, so warmth alone does not separate them — the RED CHANNEL does, and it
+      // does so with 74 points of daylight between the two. An alpha does not move the
+      // declared channel, only its coverage.
+      expect(r, `${label} is not display gold — ink gold (#7f6726) has crossed onto ink: rgb(${c})`)
+        .toBe(201);
+      expect([g, b], `${label} is not house gold's hue: rgb(${c})`).toEqual([168, 76]);
     }
   });
 

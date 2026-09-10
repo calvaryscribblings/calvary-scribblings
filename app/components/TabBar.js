@@ -22,8 +22,14 @@
 // What that means concretely, and what NOT to reintroduce:
 //   · NO GOLD anywhere in this bar. Ground is a near-solid dark neutral (rgba(10,9,14,.97))
 //     with a 1px rgba(255,255,255,.06) top border. The self-grounding principle from v2 is
-//     kept — the bar owes the page behind it nothing, which is what lets it hold over
-//     /search's light canvas — but the night-violet gradient and gold rule are gone.
+//     kept — the bar owes the page behind it nothing — but the night-violet gradient and gold
+//     rule are gone.
+//     ⭑ /search USED to be the proof of that self-grounding: it was the one light canvas in
+//     the five and the bar held over it unchanged. It went to ink by ruling, so the bar no
+//     longer has a light page anywhere in the spine to demonstrate against. KEEP THE SELF-
+//     GROUNDING ANYWAY — it is what stops the bar inheriting whichever near-black each page
+//     happens to paint (#0a0a0a, #070707, #080610 are all in the set), and the light proof is
+//     only gone, not disproved.
 //   · NO CINZEL. Labels are the system-ui sans stack, sentence case, 11px/500.
 //   · NO STATUS INDICATOR on The Square. The app carries none, so neither does this. The
 //     hours helpers stay exported below because the navbar's drawer still reads them.
@@ -264,8 +270,10 @@ const DIM = 'rgba(245,240,232,.55)';
 export const TAB_CSS = `
   /* ── mobile bottom bar ───────────────────────────────────────────────── */
   /* Self-grounded, but NEUTRAL: near-solid dark, no gradient, no gold. At .97 alpha the fill
-     carries the bar over any canvas on its own — verified over /public-library (night) and
-     /search (light). The blur is enrichment only; nothing about legibility depends on it. */
+     carries the bar over any canvas on its own. It was verified over /public-library (night)
+     and over /search when /search was light; /search is ink now, so the surviving proof is
+     that the bar sits unchanged over four different near-blacks. The blur is enrichment only;
+     nothing about legibility depends on it. */
   .cs-tabbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 900; display: flex;
     height: calc(64px + env(safe-area-inset-bottom));

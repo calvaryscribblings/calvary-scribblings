@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (351 of 2000 permitted) ───────────────
+# ── Static rules (353 of 2000 permitted) ───────────────
 /voices/arthor-eze                                           /voices/arthur-eze                                           301
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
@@ -311,6 +311,8 @@
 /the-songbird-s-birdsong.html                                /stories/the-songbird-s-birdsong                             301
 /therapist-s-note-on-love                                    /stories/therapist-s-note-on-love                            301
 /therapist-s-note-on-love.html                               /stories/therapist-s-note-on-love                            301
+/things-i-m-owed                                             /stories/things-i-m-owed                                     301
+/things-i-m-owed.html                                        /stories/things-i-m-owed                                     301
 /this-is-nigeria                                             /stories/this-is-nigeria                                     301
 /this-is-nigeria.html                                        /stories/this-is-nigeria                                     301
 /threshold                                                   /stories/threshold                                           301
