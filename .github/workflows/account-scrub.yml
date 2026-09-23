@@ -1,0 +1,93 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# ACCOUNT SCRUB — the scattered half of every account deletion.
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# POST /api/account/delete removes everything KEYED by a reader and then their Auth
+# account. What is left is SCATTERED — comments under every story, reactions on other
+# readers' work, notifications in other inboxes, DMs, Square and Open Pages. Finding it
+# means reading ~2.6 MB, which does not fit a Pages Function (functions/api/account/
+# _deletion.js, "TWO HALVES"). This finishes the job, from deletions/{uid}, with no
+# credential of the reader's.
+#
+# ARMED. Unlike push-announce.yml there is no switch to flip: a deletion the endpoint
+# has started is a promise to the reader, and it is kept within one tick. A clean tick
+# reads deletions/ and nothing else.
+#
+# ⚠ GitHub disables a scheduled workflow after 60 days without a commit, SILENTLY. A
+# deletion whose record shows steps.auth but no steps.scrub for more than an hour is
+# the symptom; `workflow_dispatch` runs it by hand.
+name: account scrub
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Write. Unticked, this only reports what each pending deletion would remove.'
+        required: false
+        default: true
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/account/**'
+      - 'functions/api/account/**'
+      - 'tests/account/**'
+      - '.github/workflows/account-scrub.yml'
+
+concurrency:
+  group: account-scrub
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: deletion suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Unit — the plans, the identity gate, the resume
+        run: npm run test:account
+      - name: Emulator — both halves, then every Step 0 location is walked
+        run: npm run test:account:emulator
+
+  scrub:
+    name: finish pending deletions
+    needs: verify
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Write the service account
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set — the scrub cannot run."
+            exit 1
+          fi
+          printf '%s' "$KEY" > "${RUNNER_TEMP}/serviceAccountKey.json"
+      - name: Scrub
+        env:
+          SCRUB_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.apply }}" = "true" ]; then
+            node scripts/account/scrub.mjs --apply
+          else
+            node scripts/account/scrub.mjs
+          fi
+      - name: Remove the service account
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/serviceAccountKey.json"

@@ -160,13 +160,42 @@ export function buildDetail({
  * without stubbing a network — and so anyone reading this can see, in four lines, that the
  * scalar and the detail cannot be written apart.
  */
-export function buildMembershipUpdate(uid, detail) {
+export function buildMembershipUpdate(uid, detail, { accountDeleted = false } = {}) {
   if (!str(uid)) throw new Error('buildMembershipUpdate: uid is required');
   const tier = normaliseTier(detail && detail.tier);
+  // A DELETED ACCOUNT gets the billing record and NOTHING under users/. The scalar is the one
+  // write in this whole module that lands under users/{uid}, and writing it for a deleted uid
+  // would put a stub profile node back (functions/api/account/_deletion.js). The payment is
+  // still recorded — money received is always honoured — and the caller logs it for a refund.
+  if (accountDeleted) return { [DETAIL_PATH(uid)]: detail };
   return {
     [SCALAR_PATH(uid)]: tier,          // the STRING the app reads
     [DETAIL_PATH(uid)]: detail,        // everything else
   };
+}
+
+export const DELETION_PATH = (uid) => `deletions/${uid}`;
+
+/**
+ * Has this uid been through account deletion? Read by the one writer below.
+ *
+ * FAILS OPEN — returns false on a read failure — matching every grant path here: a paying member
+ * must not lose their tier because one read hiccuped. The cost of the other outcome is bounded:
+ * a stub users/{uid} node for a deleted account, which the account scrub removes on its next
+ * tick (scripts/account/scrub.mjs, "the stub backstop").
+ */
+export async function isDeletedAccount(env, token, uid) {
+  try {
+    const res = await fetch(`${dbBase(env)}/${DELETION_PATH(encodeURIComponent(uid))}.json`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    return (await res.json()) !== null;
+  } catch (e) {
+    console.error(`[membership] deletion probe failed for ${uid} (treating as live):`, e.message || e);
+    return false;
+  }
 }
 
 /**
@@ -253,7 +282,15 @@ export async function readScalar(env, token, uid) {
  * operation, which is the invariant this whole module exists to hold.
  */
 export async function writeMembership(env, token, uid, detail) {
-  const body = buildMembershipUpdate(uid, detail);
+  const accountDeleted = await isDeletedAccount(env, token, uid);
+  if (accountDeleted) {
+    console.error(
+      `[membership] DELETED-ACCOUNT ${uid}: event recorded in memberships only, nothing under users/ — ` +
+      `status=${detail?.status || '—'} invoice=${detail?.lastInvoiceRef || '—'}; ` +
+      `if this was a payment, REFUND BY HAND`,
+    );
+  }
+  const body = buildMembershipUpdate(uid, detail, { accountDeleted });
   const res = await fetch(`${dbBase(env)}/.json`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -417,6 +454,11 @@ export async function applyPassPurchase(env, token, uid, { buildPassFor, ref, la
   // the `existing` it just read is the only source of the stacked expiry.
   const pass = buildPassFor(readFailed ? null : existing);
   await writePass(env, token, uid, pass);
+  // A pass never touches users/, so nothing to withhold — but money arrived for an account that
+  // no longer exists, and someone has to give it back.
+  if (await isDeletedAccount(env, token, uid)) {
+    console.error(`[${label}] DELETED-ACCOUNT ${uid}: pass ref=${ref || '—'} recorded — REFUND BY HAND`);
+  }
   console.log(
     `[${label}] wrote pass ${uid} kind=${pass.kind} tier=${pass.tier} ` +
     `expires=${new Date(pass.expiresAt).toISOString()} stacked=${pass.stacked} ref=${ref || '—'}`,

@@ -3433,3 +3433,38 @@ describe('SIGNUP R1 · users/$uid — the one-object create and the whole-node d
     await assertFails(founder.ref(`users/${OWNER}/bio`).set('rewritten'));
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACCOUNT DELETION · deletions/{uid} — the endpoint's record. Server-only.
+//
+// Written by functions/api/account/delete.js and scripts/account/scrub.mjs on a service
+// account, read by the membership webhooks to withhold the users/ scalar. A client that could
+// write it could make a live member's renewals skip their tier; a client that could delete it
+// could make a deleted account's webhook recreate a profile. So: nobody, from a browser.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('ACCOUNT DELETION · deletions/{uid} — the server\'s record', () => {
+  const rec = { uid: OWNER, requestedAt: 1, updatedAt: 1, steps: { membership: 1 } };
+  test('1 · unauthenticated cannot write or read', async () => {
+    await assertFails(anon.ref(`deletions/${OWNER}`).set(rec));
+    await assertFails(anon.ref(`deletions/${OWNER}`).get());
+  });
+  test('2 · the owner cannot write their own — nor a stranger, nor a founder session', async () => {
+    await assertFails(owner.ref(`deletions/${OWNER}`).set(rec));
+    await assertFails(stranger.ref(`deletions/${OWNER}`).set(rec));
+    await assertFails(founder.ref(`deletions/${OWNER}`).set(rec));
+    await assertFails(owner.ref(`deletions/${OWNER}`).get());
+  });
+  test('3 · WIPE — nobody removes a record or the node', async () => {
+    await seed(env, { [`deletions/${OWNER}`]: rec });
+    for (const ctx of [anon, owner, stranger, founder]) {
+      await assertFails(ctx.ref(`deletions/${OWNER}`).remove());
+      await assertFails(ctx.ref('deletions').remove());
+    }
+  });
+  test('4 · LEGITIMATE — the service account writes it (rules bypassed), and it is what it says', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.database().ref(`deletions/${OWNER}`).set(rec);
+      assert.deepEqual((await ctx.database().ref(`deletions/${OWNER}`).get()).val(), rec);
+    });
+  });
+});
