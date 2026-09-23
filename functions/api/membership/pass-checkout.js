@@ -7,6 +7,7 @@
 //   → 401 { code: 'signed_out' }
 //   → 400 { code: 'bad_kind' | 'bad_currency' }
 //   → 409 { code: 'not_offered' }   this pass is not sold in this currency
+//   → 409 { code: 'not_configured' }   memberships are not on sale (LAUNCH_NOTICE) — _onSale.js
 //
 // The two rules checkout.js states apply here unchanged: the uid comes from a VERIFIED ID
 // token and becomes client_reference_id, and the PRICE is never supplied by the client — the
@@ -21,7 +22,9 @@
 // the same reasoning bookstore/checkout.js applies to a book.
 //
 // The practical consequence is worth stating: passes need NO setup script and no created
-// Stripe objects. The rail works the moment the secret key is present, in test and in live.
+// Stripe objects. ⚠ That is exactly why this endpoint must NOT open on the key alone. Until the
+// live-money preflight it did: a live key sold real passes before memberships opened. It now
+// opens on _onSale.js's gate, the same one the subscriptions use.
 //
 // ── WHY THIS IS A SEPARATE ENDPOINT ──────────────────────────────────────────────────────
 //
@@ -43,6 +46,7 @@
 
 import { json, lookupUser, PROVIDER_TIMEOUT_MS } from '../bookstore/_lib.js';
 import { PASS_KINDS, PASS_TIER, passAmount, isPassOffered, railFor } from '../../../app/lib/membershipPasses.js';
+import { saleGate, CLOSED_BODY, CLOSED_STATUS } from './_onSale.js';
 
 const LABEL = 'membership/pass-checkout';
 const STRIPE_API = 'https://api.stripe.com/v1/checkout/sessions';
@@ -105,6 +109,18 @@ export async function onRequestPost(context) {
   const selection = validatePassSelection(body || {});
   if (!selection.ok) return json({ error: selection.error, code: selection.code }, selection.status);
   const { kind, currency } = selection;
+
+  // THE ON-SALE GATE, and it sits BEFORE the identity round trip, so a closed gate costs
+  // nothing. This endpoint had none until the live-money preflight (23 Sep 2026) found that a
+  // live secret key sold real passes a week before memberships opened, with only the page's
+  // hidden buttons in the way. It now shuts on exactly the condition the subscriptions use,
+  // from the same module, and opens with them when MEMBERSHIPS_ON_SALE flips. See _onSale.js.
+  const { open, mode } = saleGate('stripe', env.STRIPE_SECRET_KEY);
+  if (!open) {
+    console.error(`[${LABEL}] not on sale in ${mode} mode — ${kind}/${currency} refused`);
+    return json(CLOSED_BODY, CLOSED_STATUS);
+  }
+
   const amount = passAmount(kind, currency);
 
   const user = await lookupUser(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);

@@ -85,9 +85,16 @@ export const PRICE_BOOK = {
 // currently has, which is exactly how the lock ends.
 export const PORTAL_CONFIGURATION = { founding: { test: 'bpc_1U1QJE0BtuEAyw2tQGwmXOle', live: null } };
 
-/** Which mode a secret key belongs to. Stripe's own prefix is the only honest signal. */
+/**
+ * Which mode a secret key belongs to. Stripe's own prefix is the only honest signal.
+ *
+ * A RESTRICTED key (rk_live_… / rk_test_…) is a key too. Before the live-money preflight only
+ * `sk_live` read as live, so a restricted live key read as TEST. Two consequences: the
+ * subscription checkout sent test price ids to live Stripe, and create-founding-prices.mjs
+ * skipped its --i-mean-live guard, i.e. it would create permanent live prices with no warning.
+ */
 export const modeOf = (secretKey) =>
-  (typeof secretKey === 'string' && secretKey.startsWith('sk_live')) ? 'live' : 'test';
+  (typeof secretKey === 'string' && /^(sk|rk)_live_/.test(secretKey)) ? 'live' : 'test';
 
 /**
  * The Price id for a tier/interval/currency, or null if this generation is not configured.

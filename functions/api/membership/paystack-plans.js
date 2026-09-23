@@ -77,8 +77,12 @@ export const PLAN_BOOK = {
  * correction is written up in full at the delegation site in that file. Reading `domain` is
  * right regardless — it costs nothing and it is the only field that cannot lie about itself.
  */
+//
+// rk_live_… reads as live too, by ruling, the same as the Stripe rail's modeOf. Paystack does not
+// issue restricted keys today; the two rails recognise the same prefixes so neither can be the
+// one that is wrong about a key.
 export const modeOf = (secretKey) =>
-  (typeof secretKey === 'string' && secretKey.startsWith('sk_live')) ? 'live' : 'test';
+  (typeof secretKey === 'string' && /^(sk|rk)_live_/.test(secretKey)) ? 'live' : 'test';
 
 /** The event's own mode, which is the only honest signal for an inbound webhook. */
 export const domainOf = (event) =>

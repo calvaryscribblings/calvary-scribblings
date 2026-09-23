@@ -275,6 +275,10 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
       console.error(`[${LABEL}] pass charge ${passRef} has status=${data.status} — NOT granted`);
       return { verdict: 'ignored' };
     }
+    // ⚠ NEVER GATE THIS ON MEMBERSHIPS_ON_SALE (ruling, live-money preflight, 23 Sep 2026).
+    // The on-sale gate lives at checkout CREATION (_onSale.js) and nowhere downstream of a
+    // payment. If a pass charge arrives here, money has moved: the reader gets the pass they paid
+    // for. Taking money and delivering nothing is worse than a pass sold before its day.
     const passToken = await getToken();
     return applyPassPurchase(env, passToken, parsedPass.uid, {
       ref: passRef,

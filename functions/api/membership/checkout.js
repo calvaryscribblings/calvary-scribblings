@@ -47,8 +47,10 @@ import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } fr
 import { DETAIL_PATH } from './_membership.js';
 import {
   TIERS, INTERVALS, STRIPE_CURRENCIES, CURRENT_GENERATION,
-  priceIdFor, isConfigured, modeOf, LAUNCH_NOTICE,
+  priceIdFor,
 } from './prices.js';
+// The one gate all four membership checkouts open on. See _onSale.js.
+import { saleGate, CLOSED_BODY, CLOSED_STATUS } from './_onSale.js';
 
 const LABEL = 'membership/checkout';
 const STRIPE_API = 'https://api.stripe.com/v1/checkout/sessions';
@@ -107,12 +109,14 @@ export async function onRequestPost(context) {
   if (!selection.ok) return json({ error: selection.error, code: selection.code }, 400);
   const { tier, interval, currency } = selection;
 
-  const mode = modeOf(env.STRIPE_SECRET_KEY);
-  if (!isConfigured(mode)) {
-    // HONEST, not a 500. The rail is built and the prices have not been created yet; a reader
-    // seeing "try again later" would be told a lie about a transient problem.
-    console.error(`[${LABEL}] price book has no ${mode} ids for generation ${CURRENT_GENERATION}`);
-    return json({ error: LAUNCH_NOTICE, code: 'not_configured' }, 409);
+  // HONEST, not a 500. The rail is built and memberships are not on sale yet; a reader seeing
+  // "try again later" would be told a lie about a transient problem. The condition is
+  // _onSale.js's, shared with the other three checkouts. Since the live-money preflight it
+  // includes MEMBERSHIPS_ON_SALE as well as isConfigured(mode).
+  const { open, mode } = saleGate('stripe', env.STRIPE_SECRET_KEY);
+  if (!open) {
+    console.error(`[${LABEL}] not on sale in ${mode} mode (generation ${CURRENT_GENERATION})`);
+    return json(CLOSED_BODY, CLOSED_STATUS);
   }
 
   const priceId = priceIdFor({ tier, interval, currency, mode });

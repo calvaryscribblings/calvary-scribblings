@@ -5,6 +5,7 @@
 //   body: { kind: 'day' | 'week' }
 //   → 200 { url, reference }
 //   → 401 { code: 'signed_out' } · 400 { code: 'bad_kind' } · 409 { code: 'not_offered' }
+//   → 409 { code: 'not_configured' }   memberships are not on sale (LAUNCH_NOTICE) — _onSale.js
 //
 // NO CURRENCY PARAMETER, exactly as paystack-checkout.js takes none. This endpoint IS the
 // naira rail; the currency is a property of which endpoint you called. Do not harmonise it
@@ -41,6 +42,7 @@ import {
   PASS_KINDS, PASS_TIER, PAYSTACK_PASS_CURRENCY,
   passAmount, isPassOffered, buildPassReference, REF_SAFE_UID,
 } from '../../../app/lib/membershipPasses.js';
+import { saleGate, CLOSED_BODY, CLOSED_STATUS } from './_onSale.js';
 
 const LABEL = 'membership/paystack-pass-checkout';
 export const PAYSTACK_INITIALIZE_API = 'https://api.paystack.co/transaction/initialize';
@@ -83,6 +85,17 @@ export async function onRequestPost(context) {
   const selection = validatePassSelection(body || {});
   if (!selection.ok) return json({ error: selection.error, code: selection.code }, selection.status);
   const { kind } = selection;
+
+  // THE ON-SALE GATE, and it sits BEFORE the identity round trip, so a closed gate costs
+  // nothing. This endpoint had none until the live-money preflight (23 Sep 2026) found that a
+  // live secret key sold real passes a week before memberships opened, with only the page's
+  // hidden buttons in the way. It now shuts on exactly the condition the subscriptions use,
+  // from the same module, and opens with them when MEMBERSHIPS_ON_SALE flips. See _onSale.js.
+  const { open, mode } = saleGate('paystack', env.PAYSTACK_SECRET_KEY);
+  if (!open) {
+    console.error(`[${LABEL}] not on sale in ${mode} mode — ${kind} refused`);
+    return json(CLOSED_BODY, CLOSED_STATUS);
+  }
 
   const user = await lookupUser(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
   const uid = user?.localId;

@@ -229,6 +229,12 @@ export const isPassSession = (session) =>
  * The kind comes from session metadata, which only this server set; the DURATION and the TIER
  * come from the catalogue, never from the event. An event-supplied duration would be a
  * client-supplied duration the moment anyone could forge a session.
+ *
+ * ⚠ NEVER GATE THIS ON MEMBERSHIPS_ON_SALE (ruling, live-money preflight, 23 Sep 2026). The
+ * on-sale gate lives at checkout CREATION (_onSale.js) and nowhere downstream of a payment. A
+ * completed pass session means money has moved: the reader gets what they paid for. Taking money
+ * and delivering nothing is worse than a pass sold before its day. The same holds for the
+ * subscription grant below.
  */
 async function handlePassCompleted(env, getToken, session, now) {
   const uid = extractUid(session);

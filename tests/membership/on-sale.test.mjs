@@ -155,3 +155,155 @@ describe('⭑ THE ON-SALE INTERLOCK — the flag and the live ids cannot drift a
     assert.equal(MEMBERSHIPS_ON_SALE, false);
   });
 });
+
+// ── LIVE-MONEY PREFLIGHT (23 Sep 2026) — THE GATE COVERS ALL FOUR CHECKOUTS ──────────────
+//
+// The interlock above proves the flag and the live ids agree. It proved nothing about who
+// READS the flag. The two pass endpoints read neither the flag nor isConfigured, so a live key
+// sold real passes a week before memberships opened, and every assertion in this file stayed
+// green. The block below holds the endpoints themselves: all four checkouts, both rails, test
+// and live keys, secret and restricted. Each is called for real, with `fetch` stubbed to
+// record, and must answer 409 LAUNCH_NOTICE WITHOUT TOUCHING THE NETWORK. Not Firebase, not
+// Stripe, not Paystack: a closed gate costs nothing and reveals nothing.
+//
+//   MUTATION, run at the preflight and reddened: delete the saleGate block from
+//   pass-checkout.js / paystack-pass-checkout.js → the pass rows below fail with a live
+//   provider call. Run it again after any edit to a checkout or to _onSale.js.
+
+import { readFileSync } from 'node:fs';
+import { saleGate, CLOSED_BODY, CLOSED_STATUS } from '../../functions/api/membership/_onSale.js';
+import { modeOf as stripeModeOf } from '../../functions/api/membership/prices.js';
+import { modeOf as paystackModeOf } from '../../functions/api/membership/paystack-plans.js';
+import * as subStripe from '../../functions/api/membership/checkout.js';
+import * as subPaystack from '../../functions/api/membership/paystack-checkout.js';
+import * as passStripe from '../../functions/api/membership/pass-checkout.js';
+import * as passPaystack from '../../functions/api/membership/paystack-pass-checkout.js';
+
+const CHECKOUTS = [
+  { name: 'subscription/stripe', file: 'checkout.js', mod: subStripe, rail: 'stripe', keyVar: 'STRIPE_SECRET_KEY',
+    body: { tier: 'gold', interval: 'monthly', currency: 'gbp' } },
+  { name: 'subscription/paystack', file: 'paystack-checkout.js', mod: subPaystack, rail: 'paystack', keyVar: 'PAYSTACK_SECRET_KEY',
+    body: { tier: 'gold', interval: 'monthly' } },
+  { name: 'pass/stripe', file: 'pass-checkout.js', mod: passStripe, rail: 'stripe', keyVar: 'STRIPE_SECRET_KEY',
+    body: { kind: 'day', currency: 'gbp' } },
+  { name: 'pass/paystack', file: 'paystack-pass-checkout.js', mod: passPaystack, rail: 'paystack', keyVar: 'PAYSTACK_SECRET_KEY',
+    body: { kind: 'day' } },
+];
+const KEYS = ['sk_test_preflight', 'sk_live_preflight', 'rk_test_preflight', 'rk_live_preflight'];
+
+async function callWithStubbedNetwork(mod, env, body) {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    throw new Error(`network touched: ${url}`);
+  };
+  try {
+    const request = new Request('https://calvaryscribblings.co.uk/api/x', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer preflight-token' },
+      body: JSON.stringify(body),
+    });
+    const res = await mod.onRequestPost({ request, env });
+    return { res, calls };
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+describe('⭑ ALL FOUR MEMBERSHIP CHECKOUTS ARE SHUT WHILE MEMBERSHIPS_ON_SALE IS FALSE', () => {
+  for (const c of CHECKOUTS) {
+    for (const key of KEYS) {
+      test(`${c.name} with ${key.replace('_preflight', '_…')} → 409 LAUNCH_NOTICE, no network`, async (t) => {
+        if (MEMBERSHIPS_ON_SALE) { t.skip('memberships are on sale — this block holds the pre-launch door'); return; }
+        const env = { [c.keyVar]: key, NEXT_PUBLIC_FIREBASE_API_KEY: 'preflight-api-key' };
+        const { res, calls } = await callWithStubbedNetwork(c.mod, env, c.body);
+        const json = await res.json().catch(() => null);
+        assert.deepEqual(calls, [],
+          `${c.name} reached the network with ${key} while memberships are NOT on sale — ` +
+          `with a live key that is a real checkout. Calls: ${calls.join(', ')}`);
+        assert.equal(res.status, 409, `${c.name} answered ${res.status}: ${JSON.stringify(json)}`);
+        assert.equal(json?.error, LAUNCH_NOTICE);
+        assert.equal(json?.code, 'not_configured');
+      });
+    }
+  }
+});
+
+describe('⭑ ONE CONDITION, IMPORTED — never restated at a call site', () => {
+  for (const c of CHECKOUTS) {
+    test(`${c.name} asks saleGate('${c.rail}', …) and nothing else`, () => {
+      const src = readFileSync(new URL(`../../functions/api/membership/${c.file}`, import.meta.url), 'utf8');
+      const code = src.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+      assert.match(code, /from '\.\/_onSale\.js'/, `${c.file} does not import the gate`);
+      assert.match(code, new RegExp(`saleGate\\('${c.rail}', env\\.${c.keyVar}\\)`),
+        `${c.file} does not call saleGate('${c.rail}', env.${c.keyVar})`);
+      assert.doesNotMatch(code, /\bisConfigured\s*\(/, `${c.file} restates isConfigured() — use saleGate`);
+      assert.doesNotMatch(code, /MEMBERSHIPS_ON_SALE/, `${c.file} reads the flag itself — use saleGate`);
+    });
+  }
+
+  test('the refusal is the subscriptions\' historic one: 409 · LAUNCH_NOTICE · not_configured', () => {
+    assert.equal(CLOSED_STATUS, 409);
+    assert.deepEqual({ ...CLOSED_BODY }, { error: LAUNCH_NOTICE, code: 'not_configured' });
+  });
+
+  test('⚠ the GRANT sites never consult the gate — a payment that arrives is honoured', () => {
+    for (const f of ['_paystack.js', 'stripe-webhook.js', '_membership.js']) {
+      const src = readFileSync(new URL(`../../functions/api/membership/${f}`, import.meta.url), 'utf8');
+      const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n');
+      assert.doesNotMatch(code, /_onSale|saleGate|MEMBERSHIPS_ON_SALE/,
+        `${f} consults the on-sale gate. Ruling: gate at checkout creation ONLY — a reader who ` +
+        'has paid receives what they paid for.');
+    }
+  });
+});
+
+describe('⭑ LAUNCH DAY — one flip opens passes and subscriptions together', () => {
+  // Proven through the gate's own `onSale` parameter rather than by editing the constant: the
+  // four endpoints ask saleGate and nothing else (asserted above), so what saleGate answers
+  // with the flag true is what all four do.
+  for (const rail of ['stripe', 'paystack']) {
+    const isConfigured = rail === 'stripe' ? stripeIsConfigured : paystackIsConfigured;
+    for (const key of KEYS) {
+      test(`${rail} ${key.replace('_preflight', '_…')}: flag true opens iff the mode is configured`, () => {
+        const mode = key.includes('_live_') ? 'live' : 'test';
+        assert.equal(saleGate(rail, key, { onSale: true }).open, isConfigured(mode));
+        assert.equal(saleGate(rail, key, { onSale: false }).open, false,
+          'a false flag must shut the rail whatever the key and whatever the books hold');
+      });
+    }
+  }
+
+  test('with the flag true and the live books pasted, every live key opens both rails — no pass step', () => {
+    // The interlock above guarantees flag ⇒ both live books. So at the flip, the live answer
+    // for all four endpoints is `true` together. Nothing else sits between the flag and a pass.
+    if (!MEMBERSHIPS_ON_SALE) {
+      for (const rail of ['stripe', 'paystack']) {
+        assert.equal(saleGate(rail, 'sk_live_x').open, false);
+        assert.equal(saleGate(rail, 'rk_live_x').open, false);
+      }
+      return;
+    }
+    for (const rail of ['stripe', 'paystack']) {
+      assert.equal(saleGate(rail, 'sk_live_x').open, true);
+      assert.equal(saleGate(rail, 'rk_live_x').open, true);
+    }
+  });
+});
+
+describe('⭑ modeOf() READS A RESTRICTED KEY BY ITS MODE — both rails', () => {
+  for (const [name, modeOf] of [['stripe', stripeModeOf], ['paystack', paystackModeOf]]) {
+    test(`${name}: sk_live_ and rk_live_ are live; sk_test_ and rk_test_ are test`, () => {
+      assert.equal(modeOf('sk_live_abc'), 'live');
+      assert.equal(modeOf('rk_live_abc'), 'live', 'a restricted LIVE key read as test — test price ids would go to live Stripe, and the setup script would skip --i-mean-live');
+      assert.equal(modeOf('sk_test_abc'), 'test');
+      assert.equal(modeOf('rk_test_abc'), 'test');
+    });
+    test(`${name}: anything else is test (a missing key is not a live key)`, () => {
+      for (const k of [undefined, null, '', 'pk_live_abc', 'whsec_abc', 'live', 'sk_liveabc']) {
+        assert.equal(modeOf(k), 'test', `modeOf(${JSON.stringify(k)})`);
+      }
+    });
+  }
+});

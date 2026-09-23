@@ -25,9 +25,10 @@
 import { json, lookupUser, PROVIDER_TIMEOUT_MS } from '../bookstore/_lib.js';
 import {
   TIERS, INTERVALS, CURRENT_GENERATION,
-  planCodeFor, amountFor, isConfigured, modeOf, buildMembershipReference, REF_SAFE_UID,
+  planCodeFor, amountFor, buildMembershipReference, REF_SAFE_UID,
 } from './paystack-plans.js';
-import { LAUNCH_NOTICE } from '../../../app/lib/membershipPrices.js';
+// The one gate all four membership checkouts open on. See _onSale.js.
+import { saleGate, CLOSED_BODY, CLOSED_STATUS } from './_onSale.js';
 
 const LABEL = 'membership/paystack-checkout';
 export const PAYSTACK_INITIALIZE_API = 'https://api.paystack.co/transaction/initialize';
@@ -69,10 +70,10 @@ export async function onRequestPost(context) {
   if (!selection.ok) return json({ error: selection.error, code: selection.code }, 400);
   const { tier, interval } = selection;
 
-  const mode = modeOf(env.PAYSTACK_SECRET_KEY);
-  if (!isConfigured(mode)) {
-    console.error(`[${LABEL}] plan book has no ${mode} codes for generation ${CURRENT_GENERATION}`);
-    return json({ error: LAUNCH_NOTICE, code: 'not_configured' }, 409);
+  const { open, mode } = saleGate('paystack', env.PAYSTACK_SECRET_KEY);
+  if (!open) {
+    console.error(`[${LABEL}] not on sale in ${mode} mode (generation ${CURRENT_GENERATION})`);
+    return json(CLOSED_BODY, CLOSED_STATUS);
   }
   const planCode = planCodeFor({ tier, interval, mode });
   if (!planCode) return json({ error: 'That membership is not available in naira.', code: 'not_priced' }, 409);
