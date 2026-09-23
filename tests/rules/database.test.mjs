@@ -1744,7 +1744,10 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
     await assertSucceeds(founder.ref(`users/${OWNER}/isAuthor`).set(true));
     await assertSucceeds(founder.ref(`users/${OWNER}/isAuthor`).set(false));
     // …and an existing author cannot revoke their own flag either way round.
-    await seed(env, { [`users/${OWNER}`]: { isAuthor: true } });
+    // SIGNUP R1: the node carries a sibling. Since the whole-node delete grant at $uid, removing
+    // the ONLY child of a node IS deleting the node — the rules cannot tell the two apart (see
+    // the SIGNUP block at the end of this file). A real profile is never isAuthor alone.
+    await seed(env, { [`users/${OWNER}`]: { isAuthor: true, displayName: 'An Author' } });
     await assertFails(owner.ref(`users/${OWNER}/isAuthor`).remove());
     await assertFails(stranger.ref(`users/${OWNER}/isAuthor`).set(false));
   });
@@ -1891,7 +1894,11 @@ describe('R10.1 · users/$uid/membership — the scalar nobody may write', () =>
     await assertFails(stranger.ref(`users/${OWNER}/membership`).remove());
     // …and a reader cannot take someone else's away by wiping the whole profile
     await assertFails(stranger.ref(`users/${OWNER}`).remove());
-    await assertFails(owner.ref(`users/${OWNER}`).remove());
+    // INVERTED in SIGNUP R1, deliberately: the owner may now delete their OWN node whole — App
+    // Review 5.1.1(v). It takes the scalar with it, which is a self-downgrade and nothing more:
+    // the billing record at memberships/{uid} is untouched, and a re-create cannot carry the
+    // scalar back in (asserted in the SIGNUP block).
+    await assertSucceeds(owner.ref(`users/${OWNER}`).remove());
   });
 
   test('the scalar stays readable — the app live-subscribes to it', async () => {
@@ -1919,7 +1926,11 @@ describe('R10.1 · users/$uid/membership — the scalar nobody may write', () =>
     await assertFails(owner.ref(`users/${OWNER}/somethingNew`).set(1));
     await assertFails(owner.ref(`users/${OWNER}/pass`).set({ kind: 'day' }));
     await assertFails(owner.ref(`users/${OWNER}/membershipDetail`).set({ tier: 'gold' }));
-    // and the wholesale set, which no code path in the repo does
+    // …and not inside a wholesale create either, now that one is granted (SIGNUP R1)
+    await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A', somethingNew: 1 }));
+    // and the wholesale set over an EXISTING node, which stays refused. (On a node that does not
+    // exist yet it is now the app's signup, and allowed — see the SIGNUP block.)
+    await seed(env, { [`users/${OWNER}/displayName`]: 'Existing' });
     await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A' }));
   });
 });
@@ -3234,5 +3245,191 @@ describe('PUSH · push_announced, push_receipts, ops/push_announcer — the anno
       still = (await ctx.database().ref('push_announced/story/some-story').get()).val();
     });
     assert.deepEqual(still, { state: 'sent', at: 1 });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIGNUP R1 · users/$uid — the one-object create, and the whole-node delete.
+//
+// WHY. Since 1 Aug no reader could create an account in the app: its signup (and its first
+// Apple/Google sign-in, ensureUserNode) writes the profile as ONE OBJECT at users/{uid}, and
+// R10.1 left no grant at $uid — only per-field grants — so the object write was refused even
+// though every field in it was writable alone. The app is fixed by OTA, but a fresh install runs
+// the binary's embedded code on its first launch, so only a rules change reaches a new reader
+// (or App Review) today. Its Settings → Delete account removes users/{uid} as one node, which
+// was refused for the same reason; App Review 5.1.1(v) requires it to work.
+//
+// THE GRANT AT $uid, and why it is shaped as it is:
+//   CREATE — owner, node absent, and none of the five children no client may set on itself
+//            (membership, isAuthor, canPostImages, canPin, canRemovePosts). A grant at $uid
+//            CASCADES, so the per-field .write conditions are NOT evaluated under it — the
+//            exclusions have to be restated here. Unknown children are refused by $other
+//            .validate:false, and value-level .validate rules (the two push booleans, the
+//            membership tripwire) still run, because .validate does not cascade-skip.
+//   DELETE — owner, node present, result absent. Everything else (overwrite of an existing
+//            node, partial deletes) is still judged by the per-field grants.
+//
+// THE ONE EQUIVALENCE THE RULES CANNOT BREAK: removing the ONLY child of a node is, to RTDB,
+// deleting the node. So an owner whose node holds nothing but a protected child can remove it.
+// That only ever takes a privilege AWAY (all five are absent-means-no); it cannot grant one.
+//
+// ENFORCEMENT STATE IS NOT HERE. No ban, mute or strike lives under users/{uid}; the rate
+// counters live at rate_limits/ and open_pages_rate/ (both .write:false, Admin SDK only), so a
+// delete-and-recreate cannot shed them. Anything of that kind added later must go beside them,
+// never under users/{uid}, or this grant becomes ban evasion.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('SIGNUP R1 · users/$uid — the one-object create and the whole-node delete', () => {
+  const PROTECTED = [
+    ['membership', 'free'], ['isAuthor', true],
+    ['canPostImages', true], ['canPin', true], ['canRemovePosts', true],
+  ];
+  // A value of the live shape for every field the OWNER may write — cross-checked against the
+  // rules file below, so a field added to the rules without a row here is a red, not a gap.
+  const OWNER_VALUES = {
+    ageConfirmed: true, avatarUrl: 'https://x/a.png', bio: 'a bio', createdAt: 1786000000000,
+    displayName: 'A Reader', dob: '1990-01-01', email: 'r@example.com', handle: 'areader',
+    handleLowercased: 'areader', headerOffsetY: 12, headerScale: 1, headerUrl: 'https://x/h.png',
+    isDeleted: false, joinDate: 1786000000000, leaderboardVisible: true,
+    pendingDeletion: { requestedAt: 1786000000000 }, photoURL: 'https://x/p.png',
+    platformAvatar: 'https://x/pa.png', platforms: { ios: true }, profile: { a: 1 },
+    readCount: 0, readStories: { 'a-slug': true }, readerProgress: { 'a-slug': { cfi: 'x' } },
+    readerScore: 0, scoreUpdatedAt: 1786000000000, uid: OWNER, username: 'areader',
+    authorBio: 'b', authorPhotoUrl: 'https://x/ap.png', authorRole: 'Contributor',
+    authorSocials: { x: 'https://x.com/a' }, storyNotifications: true, mentionNotifications: true,
+  };
+  const readNode = async (uid) => {
+    let v;
+    await env.withSecurityRulesDisabled(async (ctx) => { v = (await ctx.database().ref(`users/${uid}`).get()).val(); });
+    return v;
+  };
+
+  test('the owner-writable set is exactly what the rules grant the owner', () => {
+    const rules = JSON.parse(readFileSync(DB_RULES_PATH, 'utf8')).rules.users.$uid;
+    const ownerGranted = Object.entries(rules)
+      .filter(([k, v]) => !k.startsWith('$') && !k.startsWith('.') && /auth\.uid ===? \$uid/.test(v['.write'] || ''))
+      .map(([k]) => k).sort();
+    assert.deepEqual(ownerGranted, Object.keys(OWNER_VALUES).sort());
+    const notOwner = Object.keys(rules).filter((k) => !k.startsWith('.') && !k.startsWith('$') && !ownerGranted.includes(k)).sort();
+    assert.deepEqual(notOwner, PROTECTED.map(([k]) => k).sort(), 'every non-owner child must be excluded from the create');
+  });
+
+  // ── the house four ──────────────────────────────────────────────────────────
+  test('1 · unauthenticated cannot create a node', async () => {
+    await assertFails(anon.ref(`users/${OWNER}`).set({ displayName: 'A' }));
+  });
+
+  test('2 · a stranger cannot create somebody else\'s node — nor can a founder session', async () => {
+    await assertFails(stranger.ref(`users/${OWNER}`).set({ displayName: 'A' }));
+    await assertFails(founder.ref(`users/${OWNER}`).set({ displayName: 'A' }));
+  });
+
+  test('3 · WIPE — nobody but the owner removes the node, and nobody removes users/', async () => {
+    await seed(env, { [`users/${OWNER}`]: { displayName: 'A', bio: 'b' } });
+    await assertFails(anon.ref(`users/${OWNER}`).remove());
+    await assertFails(stranger.ref(`users/${OWNER}`).remove());
+    await assertFails(founder.ref(`users/${OWNER}`).remove());
+    await assertFails(owner.ref('users').remove());
+    assert.deepEqual(await readNode(OWNER), { displayName: 'A', bio: 'b' });
+  });
+
+  test('4 · LEGITIMATE — the app\'s signup: one object at users/{uid}', async () => {
+    await assertSucceeds(owner.ref(`users/${OWNER}`).set({
+      displayName: 'A Reader', dob: '1990-01-01', joinDate: 1786000000000, uid: OWNER,
+    }));
+  });
+
+  // ── the create ──────────────────────────────────────────────────────────────
+  test('a create carrying EVERY owner-writable field — allowed on a new node', async () => {
+    await assertSucceeds(owner.ref(`users/${OWNER}`).set(OWNER_VALUES));
+    assert.deepEqual(await readNode(OWNER), OWNER_VALUES);
+  });
+
+  test('…and DENIED on an existing one, which it would overwrite', async () => {
+    await seed(env, { [`users/${OWNER}`]: { displayName: 'Existing', readCount: 9 } });
+    await assertFails(owner.ref(`users/${OWNER}`).set(OWNER_VALUES));
+    assert.deepEqual(await readNode(OWNER), { displayName: 'Existing', readCount: 9 });
+  });
+
+  for (const [child, value] of PROTECTED) {
+    test(`a create carrying ${child} — DENIED`, async () => {
+      await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A', [child]: value }));
+      // the sideways routes into an absent node, which the $uid grant is also evaluated for
+      await assertFails(owner.ref(`users/${OWNER}`).update({ displayName: 'A', [child]: value }));
+      await assertFails(owner.ref(`users/${OWNER}/${child}`).set(value));
+      assert.equal(await readNode(OWNER), null);
+    });
+  }
+
+  test('a create with an unknown child — DENIED, whole and by leaf', async () => {
+    await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A', somethingNew: 1 }));
+    await assertFails(owner.ref(`users/${OWNER}/somethingNew`).set(1));
+    await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A', pass: { kind: 'day' } }));
+    assert.equal(await readNode(OWNER), null);
+  });
+
+  test('a create with a value a field\'s own rule refuses — DENIED', async () => {
+    await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A', storyNotifications: 'yes' }));
+    await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A', mentionNotifications: 1 }));
+    assert.equal(await readNode(OWNER), null);
+  });
+
+  // ── the delete ──────────────────────────────────────────────────────────────
+  test('the owner deletes their own node — ALLOWED, whatever it holds', async () => {
+    await seed(env, { [`users/${OWNER}`]: {
+      ...OWNER_VALUES, membership: 'gold', isAuthor: true, canPin: true,
+    } });
+    await assertSucceeds(owner.ref(`users/${OWNER}`).remove());
+    assert.equal(await readNode(OWNER), null);
+  });
+
+  test('a stranger deletes it — DENIED', async () => {
+    await seed(env, { [`users/${OWNER}`]: { displayName: 'A' } });
+    await assertFails(stranger.ref(`users/${OWNER}`).remove());
+    await assertFails(stranger.ref(`users/${OWNER}`).set(null));
+    assert.deepEqual(await readNode(OWNER), { displayName: 'A' });
+  });
+
+  for (const [child, value] of PROTECTED) {
+    test(`the owner deletes ${child} ALONE — DENIED; a partial delete stays per-field`, async () => {
+      await seed(env, { [`users/${OWNER}`]: { displayName: 'A', [child]: value } });
+      await assertFails(owner.ref(`users/${OWNER}/${child}`).remove());
+      await assertFails(owner.ref(`users/${OWNER}`).update({ [child]: null }));
+      assert.deepEqual(await readNode(OWNER), { displayName: 'A', [child]: value });
+    });
+  }
+
+  test('an owner-writable child still deletes alone, as before', async () => {
+    await seed(env, { [`users/${OWNER}`]: { displayName: 'A', bio: 'b' } });
+    await assertSucceeds(owner.ref(`users/${OWNER}/bio`).remove());
+  });
+
+  test('delete-then-recreate cannot carry a privilege back in', async () => {
+    await seed(env, { [`users/${OWNER}`]: { displayName: 'A', membership: 'platinum', isAuthor: true } });
+    await assertSucceeds(owner.ref(`users/${OWNER}`).remove());
+    await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A', membership: 'platinum' }));
+    await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'A', isAuthor: true }));
+    await assertSucceeds(owner.ref(`users/${OWNER}`).set({ displayName: 'A' }));
+    assert.deepEqual(await readNode(OWNER), { displayName: 'A' });
+  });
+
+  test('THE EQUIVALENCE: a node holding ONLY a protected child — removing it is the whole delete', async () => {
+    // Recorded, not endorsed as a feature: RTDB cannot tell `remove(users/u/isAuthor)` from
+    // `remove(users/u)` when isAuthor is all there is. It only ever drops a privilege.
+    await seed(env, { [`users/${OWNER}`]: { membership: 'gold' } });
+    await assertSucceeds(owner.ref(`users/${OWNER}/membership`).remove());
+  });
+
+  test('nothing else moves: web signup, profile edit, soft-delete and the founder\'s author write', async () => {
+    // web signup — app/lib/signup.js, a users/{uid}-relative multi-path update on an absent node
+    await assertSucceeds(owner.ref(`users/${OWNER}`).update({ displayName: 'A', dob: '1990-01-01', joinDate: 1 }));
+    await assertSucceeds(owner.ref(`users/${OWNER}`).update({ bio: 'edited', avatarUrl: 'https://x/b.png' }));
+    await assertSucceeds(owner.ref('/').update({
+      [`users/${OWNER}/isDeleted`]: true, [`users/${OWNER}/pendingDeletion/requestedAt`]: 1,
+    }));
+    await assertSucceeds(founder.ref(`users/${OWNER}/isAuthor`).set(true));
+    await assertSucceeds(founder.ref(`users/${OWNER}`).update({ authorBio: 'x', authorRole: 'Contributor' }));
+    // …and a founder session still has no blanket write
+    await assertFails(founder.ref(`users/${OWNER}/bio`).set('rewritten'));
   });
 });

@@ -191,6 +191,7 @@
       ".read": "auth != null && (auth.uid == 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
       "$uid": {
         ".read": true,
+        ".write": "auth != null && auth.uid === $uid && ((!data.exists() && newData.exists() && !newData.hasChild('membership') && !newData.hasChild('isAuthor') && !newData.hasChild('canPostImages') && !newData.hasChild('canPin') && !newData.hasChild('canRemovePosts')) || (data.exists() && !newData.exists()))",
         "ageConfirmed": {
           ".write": "auth != null && auth.uid == $uid"
         },
@@ -309,6 +310,9 @@
         "mentionNotifications": {
           ".write": "auth != null && auth.uid === $uid",
           ".validate": "newData.isBoolean()"
+        },
+        "$other": {
+          ".validate": false
         }
       }
     },
