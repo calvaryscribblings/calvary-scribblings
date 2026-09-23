@@ -51,6 +51,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # The emulator needs a JDK 21 (firebase-tools refuses older) — same as rules-and-hygiene.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
       - run: npm ci
       - name: Unit — the plans, the identity gate, the resume
         run: npm run test:account
