@@ -1685,6 +1685,9 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
     // The four the admin UI writes on ANOTHER reader's node — app/admin/authors/page.js:238.
     ['authorBio', 'an author bio'], ['authorPhotoUrl', 'https://x/ap.png'],
     ['authorRole', 'Contributor'], ['authorSocials', { x: 'https://x.com/a' }],
+    // PUSH — the app's two Settings toggles. Refused silently until this round, because the
+    // leaves had no grant; see the PUSH blocks at the end of this file.
+    ['storyNotifications', false], ['mentionNotifications', false],
   ];
 
   // R10.2 — isAuthor is the ONE field a reader may not set on themselves. It has no writer
@@ -1697,7 +1700,7 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
     ['canPostImages', true], ['canPin', true], ['canRemovePosts', true],
   ];
 
-  test('all 31 owner fields are writable by the owner', async () => {
+  test('all 33 owner fields are writable by the owner', async () => {
     for (const [field, value] of FIELDS) {
       await assertSucceeds(owner.ref(`users/${OWNER}/${field}`).set(value));
     }
@@ -1718,7 +1721,7 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
       .map(([k]) => k).sort();
     const expected = [...FIELDS, ...FOUNDER_ONLY_FIELDS].map(([f]) => f).sort();
     assert.deepEqual(granted, expected);
-    assert.equal(granted.length, 35);
+    assert.equal(granted.length, 37);
   });
 
   test('R10.2 · isAuthor — a reader cannot promote themselves into the author collection', async () => {
@@ -3073,5 +3076,163 @@ describe('R35 · open_pages_pending — the R33.1 catch-all, one node over', () 
     await assertFails(stranger.ref('open_pages_pending/n1/body').set('x'));
     await assertFails(anon.ref('open_pages_pending/n1').set(PENDING));
     await assertFails(stranger.ref('open_pages_pending').remove());
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUSH — the server half of build 33 / versionCode 17.
+//
+// The phone writes push_tokens/{uid}/{tokenKey} = {token, platform, appVersion, updatedAt}
+// on every signed-in launch, and the Settings screen writes two booleans under users/{uid}.
+// Before this round every one of those writes was refused, because none of the three
+// paths had a rule. The announcer is an Admin SDK and bypasses rules, which is why the
+// three server-owned nodes are `.write: false` — a client may not forge "already announced".
+// ─────────────────────────────────────────────────────────────────────────────
+describe('PUSH · push_tokens — a device registers itself, and nobody else can see it', () => {
+  const KEY = 'ExponentPushToken_xxxxxxxxxxxxxxxxxxxxxx';
+  const ROW = {
+    token: 'ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]',
+    platform: 'ios',
+    appVersion: '1.4.0',
+    updatedAt: 1790000000000,
+  };
+
+  test('CASE 4 FIRST — the launch write, the re-launch refresh, Android, and sign-out', async () => {
+    await assertSucceeds(owner.ref(`push_tokens/${OWNER}/${KEY}`).set(ROW));
+    // Every launch re-writes the row with a fresh updatedAt — the 60-day prune keys on it.
+    await assertSucceeds(owner.ref(`push_tokens/${OWNER}/${KEY}`).set({ ...ROW, updatedAt: Date.now() }));
+    await assertSucceeds(owner.ref(`push_tokens/${OWNER}/${KEY}/updatedAt`).set(Date.now()));
+    await assertSucceeds(owner.ref(`push_tokens/${OWNER}/android_key`).set({
+      ...ROW, token: 'ExpoPushToken[yyyyyyyyyyyyyyyyyy]', platform: 'android',
+    }));
+    // A reader who signs out may take their own device off the list, row or whole node.
+    await assertSucceeds(owner.ref(`push_tokens/${OWNER}/android_key`).remove());
+    await assertSucceeds(owner.ref(`push_tokens/${OWNER}`).remove());
+  });
+
+  test('CASE 1 — a signed-out client cannot register a device, or read one', async () => {
+    await assertFails(anon.ref(`push_tokens/${OWNER}/${KEY}`).set(ROW));
+    await seed(env, { [`push_tokens/${OWNER}/${KEY}`]: ROW });
+    await assertFails(anon.ref(`push_tokens/${OWNER}`).get());
+    await assertFails(anon.ref('push_tokens').get());
+  });
+
+  test('CASE 2 — a stranger cannot plant a token under someone else, or read anyone', async () => {
+    // Planting a token under another uid would route THAT reader's notifications — and
+    // their preference — to the stranger's phone.
+    await assertFails(stranger.ref(`push_tokens/${OWNER}/${KEY}`).set(ROW));
+    await seed(env, { [`push_tokens/${OWNER}/${KEY}`]: ROW });
+    await assertFails(stranger.ref(`push_tokens/${OWNER}/${KEY}/token`).set('ExpoPushToken[stolen]'));
+    await assertFails(stranger.ref(`push_tokens/${OWNER}`).get());
+    // NOT EVEN THE OWNER READS IT. A device token is a delivery address; the phone already
+    // holds its own and has no reason to fetch it back.
+    await assertFails(owner.ref(`push_tokens/${OWNER}`).get());
+    await assertSucceeds(founder.ref(`push_tokens/${OWNER}`).get());
+    await assertSucceeds(founder.ref('push_tokens').get());
+  });
+
+  test('CASE 3 — WIPE: nobody but the owner removes a row, and nobody removes the node', async () => {
+    await seed(env, { [`push_tokens/${OWNER}/${KEY}`]: ROW, [`push_tokens/${OTHER}/${KEY}`]: ROW });
+    await assertFails(stranger.ref(`push_tokens/${OWNER}/${KEY}`).remove());
+    await assertFails(stranger.ref(`push_tokens/${OWNER}`).remove());
+    await assertFails(stranger.ref('push_tokens').remove());
+    await assertFails(owner.ref('push_tokens').remove());
+    await assertFails(anon.ref('push_tokens').remove());
+    // A founder has no client write here either — pruning is the announcer's, via Admin SDK.
+    await assertFails(founder.ref(`push_tokens/${OWNER}`).remove());
+    let still;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      still = (await ctx.database().ref('push_tokens').get()).val();
+    });
+    assert.deepEqual(Object.keys(still).sort(), [OTHER, OWNER].sort());
+  });
+
+  test('SHAPE — all four fields required, each typed, and nothing else rides along', async () => {
+    const at = `push_tokens/${OWNER}/${KEY}`;
+    for (const field of Object.keys(ROW)) {
+      const { [field]: _dropped, ...rest } = ROW;
+      await assertFails(owner.ref(at).set(rest));
+    }
+    await assertFails(owner.ref(at).set({ ...ROW, token: 'not-an-expo-token' }));
+    await assertFails(owner.ref(at).set({ ...ROW, token: 'fcm:abcdef' }));
+    await assertFails(owner.ref(at).set({ ...ROW, token: `ExpoPushToken[${'x'.repeat(200)}]` }));
+    await assertFails(owner.ref(at).set({ ...ROW, platform: 'web' }));
+    await assertFails(owner.ref(at).set({ ...ROW, appVersion: '' }));
+    await assertFails(owner.ref(at).set({ ...ROW, appVersion: 140 }));
+    await assertFails(owner.ref(at).set({ ...ROW, updatedAt: '2026-09-23' }));
+    // A far-future stamp would make the row immune to the 60-day prune.
+    await assertFails(owner.ref(at).set({ ...ROW, updatedAt: Date.now() + 7 * 86400000 }));
+    await assertFails(owner.ref(at).set({ ...ROW, deviceName: "Ikenna's iPhone" }));
+    await assertFails(owner.ref(`push_tokens/${OWNER}/${'k'.repeat(201)}`).set(ROW));
+    // Both spellings Expo has issued are accepted.
+    await assertSucceeds(owner.ref(at).set({ ...ROW, token: 'ExpoPushToken[abc]' }));
+    await assertSucceeds(owner.ref(at).set({ ...ROW, token: 'ExponentPushToken[abc]' }));
+  });
+});
+
+describe('PUSH · users/{uid}/storyNotifications and mentionNotifications — the two toggles', () => {
+  for (const field of ['storyNotifications', 'mentionNotifications']) {
+    test(`${field}: CASE 4 — the owner turns it off, on, and clears it`, async () => {
+      await assertSucceeds(owner.ref(`users/${OWNER}/${field}`).set(false));
+      await assertSucceeds(owner.ref(`users/${OWNER}/${field}`).set(true));
+      // The Settings screen is likely to save both toggles in one update() of the profile.
+      await assertSucceeds(owner.ref(`users/${OWNER}`).update({ [field]: false, bio: 'still me' }));
+      await assertSucceeds(owner.ref(`users/${OWNER}/${field}`).remove());
+    });
+
+    test(`${field}: CASES 1-3 — no one else may flip it or clear it`, async () => {
+      await assertFails(anon.ref(`users/${OWNER}/${field}`).set(false));
+      await assertFails(stranger.ref(`users/${OWNER}/${field}`).set(false));
+      await seed(env, { [`users/${OWNER}/${field}`]: true });
+      await assertFails(stranger.ref(`users/${OWNER}/${field}`).remove());
+      await assertFails(anon.ref(`users/${OWNER}/${field}`).remove());
+      await assertFails(stranger.ref(`users/${OWNER}`).update({ [field]: false }));
+    });
+
+    test(`${field}: SHAPE — a boolean and nothing else`, async () => {
+      for (const bad of ['false', 0, 1, 'off', { on: false }]) {
+        await assertFails(owner.ref(`users/${OWNER}/${field}`).set(bad));
+      }
+    });
+  }
+});
+
+describe('PUSH · push_announced, push_receipts, ops/push_announcer — the announcer\'s own books', () => {
+  const NODES = {
+    'push_announced/story/some-story': { state: 'sent', at: 1 },
+    'push_receipts/ticket-1': { uid: OWNER, tokenKey: 'k', at: 1 },
+    'ops/push_announcer': { lastRunAt: 1 },
+  };
+
+  test('a founder can read all three; no reader can', async () => {
+    await seed(env, NODES);
+    for (const path of Object.keys(NODES)) {
+      await assertSucceeds(founder.ref(path).get());
+      await assertFails(owner.ref(path).get());
+      await assertFails(anon.ref(path).get());
+    }
+  });
+
+  test('NOBODY writes them from a client — a forged "already announced" would silence a story', async () => {
+    for (const [path, value] of Object.entries(NODES)) {
+      await assertFails(anon.ref(path).set(value));
+      await assertFails(stranger.ref(path).set(value));
+      await assertFails(founder.ref(path).set(value));
+    }
+    await assertFails(owner.ref('push_announced/story/brand-new').set({ state: 'sent', at: 1 }));
+  });
+
+  test('WIPE — none of the three can be emptied from a client', async () => {
+    await seed(env, NODES);
+    for (const ctx of [anon, stranger, founder]) {
+      await assertFails(ctx.ref('push_announced').remove());
+      await assertFails(ctx.ref('push_receipts').remove());
+      await assertFails(ctx.ref('ops/push_announcer').remove());
+    }
+    let still;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      still = (await ctx.database().ref('push_announced/story/some-story').get()).val();
+    });
+    assert.deepEqual(still, { state: 'sent', at: 1 });
   });
 });

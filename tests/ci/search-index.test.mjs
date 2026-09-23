@@ -83,9 +83,11 @@ test('an empty subject draws nothing, and the vocabulary is free to run ahead', 
   assert.ok(rows.every((r) => r.count > 0), 'a subject with no stories appeared in the run');
   const absent = vocab.filter((l) => !rows.some((r) => r.label === l));
   assert.ok(absent.length > 0, 'every subject is occupied — the absence rule is untested');
-  // Elegy was ruled in (R44) with nothing filed under it. It must be silent, not an empty tab.
-  assert.ok(absent.includes('Elegy'), 'Elegy is occupied now — pick another unfilled subject here');
-  assert.ok(!rows.some((r) => r.label === 'Elegy'), 'Elegy drew a subject with nothing under it');
+  // Elegy was ruled in (R44) with nothing filed under it and stood here as the probe until the
+  // first elegy went live (what-the-light-remembers, 23 Sep 2026). Faith is in the vocabulary
+  // with nothing filed under it. It must be silent, not an empty tab.
+  assert.ok(absent.includes('Faith'), 'Faith is occupied now — pick another unfilled subject here');
+  assert.ok(!rows.some((r) => r.label === 'Faith'), 'Faith drew a subject with nothing under it');
 });
 
 test('a subject spanning categories counts across them — the index is the island\'s', async () => {

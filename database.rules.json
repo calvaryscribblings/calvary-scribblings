@@ -301,6 +301,14 @@
         "canRemovePosts": {
           ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
           ".validate": "newData.isBoolean()"
+        },
+        "storyNotifications": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isBoolean()"
+        },
+        "mentionNotifications": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isBoolean()"
         }
       }
     },
@@ -745,6 +753,10 @@
     },
     "ops": {
       "backup_liveness": {
+        ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+        ".write": false
+      },
+      "push_announcer": {
         ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
         ".write": false
       }
@@ -1315,6 +1327,38 @@
           ".validate": "newData.isNumber()"
         }
       }
+    },
+    "push_tokens": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        "$tokenKey": {
+          ".validate": "$tokenKey.length <= 200 && newData.hasChildren(['token', 'platform', 'appVersion', 'updatedAt'])",
+          "token": {
+            ".validate": "newData.isString() && newData.val().length <= 200 && newData.val().matches(/^Expo(nent)?PushToken\\[[^\\]]+\\]$/)"
+          },
+          "platform": {
+            ".validate": "newData.isString() && (newData.val() === 'ios' || newData.val() === 'android')"
+          },
+          "appVersion": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 32"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= now + 86400000"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "push_announced": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".write": false
+    },
+    "push_receipts": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".write": false
     }
   }
 }

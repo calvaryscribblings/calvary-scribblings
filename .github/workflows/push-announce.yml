@@ -1,0 +1,133 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# PUSH ANNOUNCE — one notification per story or instalment, when it first becomes visible.
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# ⛔ DISARMED. THE SCHEDULE BELOW IS COMMENTED OUT, AND THAT IS THE SWITCH.
+#
+# Same discipline as square-horizon.yml: the `schedule:` block is the only thing that
+# arms this. Do NOT arm it from the Actions UI, which anyone can re-enable. Arming is the
+# LAST step of docs/PUSH-GO-LIVE.md, after the Expo token, enhanced push security, the
+# EXPO_ACCESS_TOKEN secret, the seed, and a test on a founder's own phone.
+#
+# Even a manual dispatch cannot send today: `apply` needs EXPO_ACCESS_TOKEN (not set),
+# and the announcer refuses to send at all until the seed has been written
+# (ops/push_announcer/seededAt). Without the seed its first run would notify every
+# reader about the whole back catalogue — 207 stories and 4 instalments.
+#
+# WHY HERE AND NOT A CLOUDFLARE WORKER
+# ────────────────────────────────────
+# The payload builder, the {form} table and the visibility predicates live in this repo
+# and are imported, not transcribed — the lesson of the index reconciler (a Worker
+# cannot import app/lib, and its hand-copy drifted). The Workers are dashboard-edited
+# with no review or history, and no Cloudflare credential exists in this Codespace.
+# FIREBASE_SERVICE_ACCOUNT is already a repo secret (covers.yml, index-reconcile.yml).
+#
+# THE COST OF THAT CHOICE, STATED
+# ───────────────────────────────
+# · Latency: */15, and GitHub's scheduler is best-effort — a story can reach readers'
+#   phones up to ~20 minutes after it goes live. A scheduled story (06:30 London) is
+#   announced between 06:30 and ~06:50.
+# · GitHub DISABLES scheduled workflows after 60 days without repository activity, and a
+#   disabled cron produces NO RUN — silence looks exactly like a quiet news week. The
+#   heartbeat is ops/push_announcer/lastRunAt (founder-readable); a liveness check on it
+#   is not built yet. Commits land here most days, so the 60-day window has never been
+#   close, but it is a real failure mode and it would fail SILENTLY.
+name: push announce
+
+on:
+  # schedule:
+  #   - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'dry-run (read only) · frequency · seed-dry-run · seed (WRITES, once) · apply (SENDS)'
+        required: true
+        default: dry-run
+        type: choice
+        options: [dry-run, frequency, seed-dry-run, seed, apply]
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/push/**'
+      - 'scripts/push-test.mjs'
+      - 'tests/push/**'
+      - 'app/lib/taxonomy.js'
+      - '.github/workflows/push-announce.yml'
+  pull_request:
+    paths:
+      - 'scripts/push/**'
+      - 'scripts/push-test.mjs'
+      - 'tests/push/**'
+      - 'app/lib/taxonomy.js'
+      - '.github/workflows/push-announce.yml'
+
+# Two runs cannot double-send (the claim is a transaction) but there is no reason to let
+# them overlap. Never cancel mid-send.
+concurrency:
+  group: push-announce
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: announcer suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - name: Scan, seed, audience, payload, receipts, pruning
+        run: npm run test:push
+      - name: Claims, retries and concurrency against the RTDB emulator
+        run: npm run test:push:emulator
+
+  announce:
+    name: announce
+    needs: verify
+    # Never on a push or a PR.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Write the service account
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set."
+            exit 1
+          fi
+          printf '%s' "$KEY" > "${RUNNER_TEMP}/serviceAccountKey.json"
+
+      - name: Announce
+        env:
+          PUSH_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+          EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
+          MODE: ${{ github.event_name == 'schedule' && 'apply' || inputs.mode }}
+        run: |
+          case "$MODE" in
+            dry-run)      node scripts/push/announce.mjs ;;
+            frequency)    node scripts/push/announce.mjs --frequency ;;
+            seed-dry-run) node scripts/push/announce.mjs --seed ;;
+            seed)         node scripts/push/announce.mjs --seed --apply ;;
+            apply)        node scripts/push/announce.mjs --apply ;;
+            *) echo "::error::unknown mode $MODE"; exit 1 ;;
+          esac
+
+      - name: Remove the service account
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/serviceAccountKey.json"
