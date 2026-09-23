@@ -283,10 +283,22 @@ the store stays live-keyed for the doors opening.
 
 - **Fees.** Card processing fees are generally not returned on a refund; the two test
   purchases cost a few pence/naira each.
-- **Two titles bought in test mode no longer exist.** `basil` and `the-fire-in-the-flint`
-  have no catalogue record and no `master.epub`. Step 3 removes their only (test) owners.
-  Why their masters were not held is unconfirmed; they appear to predate the R21 deletion
-  hold.
+- **🚨 Deleting a title can remove an owned master, whenever the readership counter
+  under-counts.** Found 23 Sep 2026, and it explains `basil` and `the-fire-in-the-flint`.
+  Both were **deleted** (not withdrawn) through R21's `deleteTitle` on 27 Aug 2026 09:15 UTC.
+  Their tombstones in `bookstore_titles_deleted` record `ownersAtDeletion: 0`, yet 4 test
+  purchases existed. `deleteTitle` counts owners from `bookstore_readership`, and that node
+  was absent for both titles: they were bought before the counter shipped, and the backfill
+  never ran. So `deletionPlan()` saw no owners and deleted the masters, the samples and the
+  covers.
+  - **Withdrawal is safe.** `withdrawTitle()` only patches `status` and a `withdrawal` block,
+    and it never touches Storage.
+  - **Deletion is safe only when the counter is right.** Today one live title is exposed:
+    `the-rescue` has 2 active (test) owners and no counter.
+  - **So until step 3 above has run, do not Delete any title.** Run
+    `node scripts/readership.mjs report` first and delete only on a clean report. After the
+    clear, every remaining count comes from the atomic counter.
+
 - **CI.** `rules and hygiene` has been red on `main` since at least 10 Sep, for two reasons
   unrelated to payments: a Square browser test timing out, and `npm audit` blocking on a
   **critical advisory against `next`**. Neither touches the money path. The advisory needs
