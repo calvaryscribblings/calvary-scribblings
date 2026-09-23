@@ -9,11 +9,13 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
+  deleteUser,
 } from 'firebase/auth';
-import { getDatabase, ref, set, get } from 'firebase/database';
+import { getDatabase, ref, get, update } from 'firebase/database';
 import { auth } from '../lib/firebaseCore';
 import { SUSPENDED_MESSAGE } from '../lib/AuthContext';
 import { postAuthMail } from '../lib/authMail';
+import { registerAccount } from '../lib/signup';
 
 // postAuthMail MOVED to app/lib/authMail.js in R9.5, unchanged apart from the status fields
 // it now attaches to the error it throws. The verification resend calls the same endpoint
@@ -100,27 +102,35 @@ export default function AuthModal({ onClose }) {
         if (password !== confirmPassword) { setError('Passwords do not match.'); setLoading(false); return; }
         if (!dob) { setError('Please enter your date of birth.'); setLoading(false); return; }
 
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(cred.user, { displayName: name.trim() });
-
+        // The order, and what each failure leaves behind, is app/lib/signup.js. In short: a
+        // failure before the profile is written deletes the account again and sends nothing;
+        // a failed verification mail keeps the (complete) account and points at Resend.
         const { getApp } = await import('firebase/app');
         const db = getDatabase(getApp());
-        await set(ref(db, `users/${cred.user.uid}/dob`), dob);
-        await set(ref(db, `users/${cred.user.uid}/displayName`), name);
-        await set(ref(db, `users/${cred.user.uid}/joinDate`), Date.now());
-
-        // THE ACCOUNT ALREADY EXISTS. Everything above this line has committed
-        // — Firebase created the user, the profile is written. Only the branded
-        // verification mail rides the proxy, so a failure here is reported, not
-        // thrown: dropping the reader back to a form whose email is now taken
-        // would be a worse outcome than a signup that needs one Resend tap.
         let mailError = null;
         try {
-          await postAuthMail('send-verification', cred.user, name.trim().split(' ')[0]);
+          ({ mailError } = await registerAccount({ email, password, name, dob }, {
+            createUser: (e, p) => createUserWithEmailAndPassword(auth, e, p),
+            setDisplayName: (u, displayName) => updateProfile(u, { displayName }),
+            writeProfile: (uid, fields) => update(ref(db, `users/${uid}`), fields),
+            deleteAccount: (u) => deleteUser(u),
+            sendVerification: (u, firstName) => postAuthMail('send-verification', u, firstName),
+            now: () => Date.now(),
+          }));
         } catch (err) {
-          console.error('[AuthModal] verification mail failed:', err.message);
-          mailError = err.message;
+          // createUser's own refusals (email in use, weak password) never reach the rollback,
+          // so they carry no rolledBack and fall through to the message table below. Anything
+          // that does carry it failed AFTER the account existed, and the reader needs to know
+          // whether they can simply try again.
+          if (err.rolledBack === undefined) throw err;
+          console.error('[AuthModal] signup could not be completed:', err.message);
+          setError(err.rolledBack
+            ? 'We could not finish creating your account, so nothing was saved. Please try again.'
+            : 'We could not finish creating your account. Please contact us before trying again.');
+          setLoading(false);
+          return;
         }
+        if (mailError) console.error('[AuthModal] verification mail failed:', mailError);
 
         switchMode('verify');
         if (mailError) {

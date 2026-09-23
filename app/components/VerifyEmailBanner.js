@@ -1,5 +1,7 @@
 'use client';
-// The verification prompt. Shown to a signed-in reader whose email was never verified.
+// The verification prompt. Shown ONLY to a reader whose account was created inside the incident
+// window below and is still unverified — see app/lib/verifyCohort.js for the window, the evidence
+// for both ends, and why a brand-new unverified account sees nothing at all.
 //
 // ── WHY THE COPY OWNS THE FAULT ──────────────────────────────────────────────────────────
 // These readers did not ignore a verification email. They never got one. AuthModal used to
@@ -38,6 +40,9 @@ import { useVerificationResend } from '../lib/verifyEmail';
 // codebase's usual opt-in-per-page arrangement. Kept in its own module so a plain node test
 // can import the predicate without booting React and firebase.
 import { isImmersive } from '../lib/immersiveRoutes';
+// The cohort gate. Before it existed this banner asked only "unverified?", and told readers who
+// had signed up seconds ago — verification mail already in hand — that we had failed to send it.
+import { showsVerifyApology, createdAtMsOf } from '../lib/verifyCohort';
 
 // ── DISMISSAL: ONE FLAG, ONE SESSION ─────────────────────────────────────────────────────
 // Deliberately not keyed by route. A reader who dismisses this on the library must not meet
@@ -169,7 +174,7 @@ export default function VerifyEmailBanner() {
   }, [state]);
 
   if (loading || !user || dismissed) return null;
-  if (verified !== false) return null;
+  if (!showsVerifyApology({ createdAtMs: createdAtMsOf(user), verified })) return null;
   if (isImmersive(pathname)) return null;
 
   const sending = state === 'sending';
