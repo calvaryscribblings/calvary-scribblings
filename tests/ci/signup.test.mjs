@@ -8,11 +8,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { registerAccount, profileUpdate } from '../../app/lib/signup.js';
+import { registerAccount, HandleRefused } from '../../app/lib/signup.js';
 
-const FORM = { email: 'ada@example.com', password: 'secret123', name: ' Ada Nwosu ', dob: '1990-01-01' };
+const FORM = { email: 'ada@example.com', password: 'secret123', name: ' Ada Nwosu ', dob: '1990-01-01', handle: '@Ada_N' };
 
-function stand({ failAt = null, rollbackFails = false } = {}) {
+function stand({ failAt = null, rollbackFails = false, owner = null } = {}) {
   const calls = [];
   const step = (name, value) => async (...args) => {
     calls.push([name, ...args]);
@@ -25,6 +25,8 @@ function stand({ failAt = null, rollbackFails = false } = {}) {
     calls,
     names: () => calls.map((c) => c[0]),
     deps: {
+      // usernames/{handle} as the database holds it; a function lets a test change it mid-signup.
+      readHandleOwner: async (h) => { calls.push(['readHandleOwner', h]); return typeof owner === 'function' ? owner(h) : owner; },
       createUser: step('createUser', { user: u }),
       setDisplayName: step('setDisplayName'),
       writeProfile: step('writeProfile'),
@@ -39,14 +41,71 @@ describe('the order, when everything works', () => {
   test('create → name → profile (ONE write) → verification; no welcome here, no deletion', async () => {
     const s = stand();
     const r = await registerAccount(FORM, s.deps);
-    assert.deepEqual(s.names(), ['createUser', 'setDisplayName', 'writeProfile', 'sendVerification']);
+    assert.deepEqual(s.names(), ['readHandleOwner', 'createUser', 'setDisplayName', 'writeProfile', 'sendVerification']);
     assert.equal(r.mailError, null);
-    assert.deepEqual(s.calls[2], ['writeProfile', 'u1', { displayName: ' Ada Nwosu ', dob: '1990-01-01', joinDate: 1790000000000 }]);
-    assert.deepEqual(s.calls[3], ['sendVerification', { uid: 'u1' }, 'Ada']);
+    assert.deepEqual(s.calls[4], ['sendVerification', { uid: 'u1' }, 'Ada']);
   });
 
-  test('the profile is exactly the three fields the signup has always written', () => {
-    assert.deepEqual(Object.keys(profileUpdate({ name: 'A', dob: 'd', now: 1 })).sort(), ['displayName', 'dob', 'joinDate']);
+  test('an AVAILABLE handle is claimed IN the profile write — one update, the app\'s shape', async () => {
+    const s = stand();
+    await registerAccount(FORM, s.deps);
+    const writes = s.calls.filter((c) => c[0] === 'writeProfile');
+    assert.equal(writes.length, 1, 'profile, claim and search row are ONE update');
+    assert.deepEqual(writes[0][1], {
+      'users/u1/displayName': 'Ada Nwosu',
+      'users/u1/dob': '1990-01-01',
+      'users/u1/joinDate': 1790000000000,
+      'users/u1/createdAt': 1790000000000,
+      'users/u1/uid': 'u1',
+      'users/u1/handle': 'ada_n',
+      'users/u1/handleLowercased': 'ada_n',
+      'users/u1/username': 'ada_n',
+      'usernames/ada_n': 'u1',
+      'user_search/u1': { avatarUrl: '', displayName: 'Ada Nwosu', isAuthor: false, username: 'ada_n' },
+    });
+  });
+});
+
+describe('the handle decides before anything exists', () => {
+  test('a TAKEN handle is refused before the account is created', async () => {
+    const s = stand({ owner: 'someone-else' });
+    await assert.rejects(registerAccount(FORM, s.deps), (e) => e instanceof HandleRefused && e.check.state === 'taken' && e.check.handle === 'ada_n');
+    assert.deepEqual(s.names(), ['readHandleOwner'], 'no Auth account, no write, no mail');
+  });
+
+  for (const [bad, why] of [['ab', /At least 3/], ['a'.repeat(21), /No more than 20/], ['ada nwosu', /Letters, numbers and underscores/], ['ada-n', /Letters, numbers and underscores/], ['adá', /Letters, numbers and underscores/], ['', /Choose a handle/]]) {
+    test(`a malformed handle (${JSON.stringify(bad)}) is refused with the app's rule, and never looked up`, async () => {
+      const s = stand();
+      await assert.rejects(registerAccount({ ...FORM, handle: bad }, s.deps), (e) => e instanceof HandleRefused && e.check.state === 'invalid' && why.test(e.message));
+      assert.deepEqual(s.names(), []);
+    });
+  }
+
+  test('a check that CANNOT RUN is not a refusal — the claim in the write decides', async () => {
+    const s = stand();
+    s.deps.readHandleOwner = async () => { throw new Error('client is offline'); };
+    const r = await registerAccount(FORM, s.deps);
+    assert.ok(r.user, 'the signup went ahead');
+    assert.ok(s.names().includes('writeProfile'));
+  });
+
+  test('a RACE — claimed between the check and the submit — refuses the whole signup and leaves nothing', async () => {
+    let claimed = false;
+    const s = stand({ owner: () => (claimed ? 'the-winner' : null) });
+    // The database refuses the whole update because usernames/ada_n now belongs to someone else.
+    s.deps.createUser = async () => { claimed = true; s.calls.push(['createUser']); return { user: { uid: 'u1' } }; };
+    s.deps.writeProfile = async () => { s.calls.push(['writeProfile']); const e = new Error('PERMISSION_DENIED: Permission denied'); throw e; };
+    await assert.rejects(registerAccount(FORM, s.deps), (e) => e.rolledBack === true && e.handleTaken === true && e.handle === 'ada_n');
+    assert.ok(s.names().includes('deleteAccount'), 'the Auth account is taken back out');
+    assert.ok(!s.names().includes('sendVerification'));
+    const del = s.names().indexOf('deleteAccount');
+    const recheck = s.names().lastIndexOf('readHandleOwner');
+    assert.ok(del < recheck, 'the rollback runs BEFORE the slow re-check');
+  });
+
+  test('a profile write that fails for another reason is NOT blamed on the handle', async () => {
+    const s = stand({ failAt: 'writeProfile' });
+    await assert.rejects(registerAccount(FORM, s.deps), (e) => e.rolledBack === true && e.handleTaken === false);
   });
 });
 
@@ -54,7 +113,7 @@ describe('a failed signup sends nothing and leaves no half-account', () => {
   test('account creation refused → nothing else runs, the auth error surfaces as-is', async () => {
     const s = stand({ failAt: 'createUser' });
     await assert.rejects(registerAccount(FORM, s.deps), (e) => e.code === 'auth/email-already-in-use' && e.rolledBack === undefined);
-    assert.deepEqual(s.names(), ['createUser']);
+    assert.deepEqual(s.names(), ['readHandleOwner', 'createUser']);
   });
 
   for (const failAt of ['setDisplayName', 'writeProfile']) {
@@ -84,9 +143,11 @@ describe('AuthModal runs this sequence, and nothing else', () => {
   const src = readFileSync(new URL('../../app/components/AuthModal.js', import.meta.url), 'utf8');
 
   test('register goes through registerAccount with a real deleteUser rollback', () => {
-    assert.match(src, /await registerAccount\(\{ email, password, name, dob \}, \{/);
+    assert.match(src, /await registerAccount\(\{ email, password, name, dob, handle \}, \{/);
     assert.match(src, /deleteAccount: \(u\) => deleteUser\(u\)/);
-    assert.match(src, /writeProfile: \(uid, fields\) => update\(ref\(db, `users\/\$\{uid\}`\), fields\)/);
+    // ONE update at the ROOT — profile, claim and search row together, or none of them.
+    assert.match(src, /writeProfile: \(updates\) => update\(ref\(db\), updates\)/);
+    assert.match(src, /readHandleOwner,/);
   });
 
   test('the old inline sequence — three separate set() calls after createUser — is gone', () => {

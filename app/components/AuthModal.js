@@ -10,10 +10,18 @@ import {
   signInWithPopup,
   deleteUser,
 } from 'firebase/auth';
-import { getDatabase, ref, update } from 'firebase/database';
+import { getDatabase, ref, update, get } from 'firebase/database';
 import { auth } from '../lib/firebaseCore';
 import { postAuthMail } from '../lib/authMail';
-import { registerAccount } from '../lib/signup';
+import { registerAccount, HandleRefused } from '../lib/signup';
+import { checkHandle, handleStatusLine, normaliseHandle, HANDLE_COPY, HANDLE_MAX } from '../lib/handle';
+
+// Who holds usernames/{handle}? World-readable; null when nobody does.
+async function readHandleOwner(handle) {
+  const { getApp } = await import('firebase/app');
+  const snap = await get(ref(getDatabase(getApp()), `usernames/${handle}`));
+  return snap.exists() ? snap.val() : null;
+}
 
 // postAuthMail MOVED to app/lib/authMail.js in R9.5, unchanged apart from the status fields
 // it now attaches to the error it throws. The verification resend calls the same endpoint
@@ -28,6 +36,8 @@ export default function AuthModal({ onClose }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [dob, setDob] = useState('');
+  const [handle, setHandle] = useState('');
+  const [handleCheck, setHandleCheck] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -63,6 +73,20 @@ export default function AuthModal({ onClose }) {
     return () => clearInterval(pollingRef.current);
   }, [mode]);
 
+  // The live availability check: 400ms after the last keystroke, and only the latest answer is
+  // shown. A check that could not run reads as 'unknown', never as taken — see app/lib/handle.js.
+  useEffect(() => {
+    if (mode !== 'register') return;
+    if (!handle) { setHandleCheck(null); return; }
+    let live = true;
+    setHandleCheck({ state: 'checking', handle: normaliseHandle(handle) });
+    const t = setTimeout(async () => {
+      const r = await checkHandle(handle, readHandleOwner);
+      if (live) setHandleCheck(r);
+    }, 400);
+    return () => { live = false; clearTimeout(t); };
+  }, [handle, mode]);
+
   const clearMessages = () => { setError(''); setSuccess(''); };
   const switchMode = (m) => { setMode(m); clearMessages(); };
 
@@ -85,23 +109,32 @@ export default function AuthModal({ onClose }) {
         const db = getDatabase(getApp());
         let mailError = null;
         try {
-          ({ mailError } = await registerAccount({ email, password, name, dob }, {
+          ({ mailError } = await registerAccount({ email, password, name, dob, handle }, {
+            readHandleOwner,
             createUser: (e, p) => createUserWithEmailAndPassword(auth, e, p),
             setDisplayName: (u, displayName) => updateProfile(u, { displayName }),
-            writeProfile: (uid, fields) => update(ref(db, `users/${uid}`), fields),
+            writeProfile: (updates) => update(ref(db), updates),
             deleteAccount: (u) => deleteUser(u),
             sendVerification: (u, firstName) => postAuthMail('send-verification', u, firstName),
             now: () => Date.now(),
           }));
         } catch (err) {
+          // Refused before anything was created: the field already says why, so say it here too.
+          if (err instanceof HandleRefused) {
+            setHandleCheck(err.check);
+            setError(handleStatusLine(err.check).text);
+            setLoading(false);
+            return;
+          }
           // createUser's own refusals (email in use, weak password) never reach the rollback,
           // so they carry no rolledBack and fall through to the message table below. Anything
           // that does carry it failed AFTER the account existed, and the reader needs to know
           // whether they can simply try again.
           if (err.rolledBack === undefined) throw err;
           console.error('[AuthModal] signup could not be completed:', err.message);
+          if (err.handleTaken) setHandleCheck({ state: 'taken', handle: err.handle });
           setError(err.rolledBack
-            ? 'We could not finish creating your account, so nothing was saved. Please try again.'
+            ? (err.handleTaken ? HANDLE_COPY.raceLost(err.handle) : 'We could not finish creating your account, so nothing was saved. Please try again.')
             : 'We could not finish creating your account. Please contact us before trying again.');
           setLoading(false);
           return;
@@ -386,6 +419,22 @@ export default function AuthModal({ onClose }) {
         }
         .auth-input[type="date"] { color-scheme: dark; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 0.82rem; }
 
+        .auth-handle-wrap { position: relative; }
+        .auth-handle-at {
+          position: absolute; left: 0.95rem; top: 50%; transform: translateY(-50%);
+          color: rgba(255,255,255,0.32); font-size: 0.92rem; pointer-events: none;
+          font-family: 'Cormorant Garamond', Georgia, serif;
+        }
+        .auth-input.auth-handle-input { padding-left: 1.75rem; }
+        .auth-hint.auth-handle-help { color: rgba(255,255,255,0.42); }
+        .auth-handle-status {
+          font-size: 0.74rem; margin-top: 0.35rem; min-height: 1.1em;
+          font-family: 'Cormorant Garamond', Georgia, serif;
+        }
+        .auth-handle-status[data-tone='good'] { color: #86efac; }
+        .auth-handle-status[data-tone='bad'] { color: #fca5a5; }
+        .auth-handle-status[data-tone='quiet'] { color: rgba(255,255,255,0.4); font-style: italic; }
+
         .auth-hint {
           font-size: 0.7rem;
           font-weight: 500;
@@ -591,6 +640,38 @@ export default function AuthModal({ onClose }) {
                   <div className="auth-field">
                     <label className="auth-label">Full name</label>
                     <input className="auth-input" type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} />
+                  </div>
+                )}
+
+                {mode === 'register' && (
+                  <div className="auth-field">
+                    <label className="auth-label" htmlFor="auth-handle">{HANDLE_COPY.label}</label>
+                    <div className="auth-handle-wrap">
+                      <span className="auth-handle-at" aria-hidden="true">@</span>
+                      <input
+                        id="auth-handle"
+                        className="auth-input auth-handle-input"
+                        type="text"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        autoComplete="username"
+                        placeholder="yourhandle"
+                        maxLength={HANDLE_MAX + 1}
+                        value={handle}
+                        onChange={e => setHandle(normaliseHandle(e.target.value))}
+                        aria-describedby="auth-handle-help auth-handle-status"
+                      />
+                    </div>
+                    <div className="auth-hint auth-handle-help" id="auth-handle-help">{HANDLE_COPY.helper}</div>
+                    {(() => {
+                      const line = handleStatusLine(handleCheck);
+                      return (
+                        <div className="auth-handle-status" id="auth-handle-status" role="status" aria-live="polite" data-tone={line?.tone || 'quiet'}>
+                          {line?.text || ''}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 

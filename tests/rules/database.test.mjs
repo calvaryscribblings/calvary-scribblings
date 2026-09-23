@@ -43,6 +43,9 @@ import { buildPendingPost } from '../../app/lib/openPages.js';
 // what the rule ACCEPTS, in one test, so a field added to one and not the other is caught here
 // rather than by a founder watching a delete fail halfway through.
 import { tombstoneOf } from '../../app/lib/bookstore/withdrawal.js';
+// SIGNUP HANDLE — the web signup's ONE update, imported from the module that builds it, so the
+// claim's atomicity is proved against what the modal actually sends.
+import { signupUpdate } from '../../app/lib/handle.js';
 
 let env, owner, stranger, anon, founder;
 
@@ -3431,6 +3434,44 @@ describe('SIGNUP R1 · users/$uid — the one-object create and the whole-node d
     await assertSucceeds(founder.ref(`users/${OWNER}`).update({ authorBio: 'x', authorRole: 'Contributor' }));
     // …and a founder session still has no blanket write
     await assertFails(founder.ref(`users/${OWNER}/bio`).set('rewritten'));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIGNUP HANDLE · the web signup claims its handle in the SAME update as the profile.
+//
+// usernames/$handle is create-only (writable when absent, or already this uid's). The web's
+// signup is ONE root multi-path update — profile, handle fields, claim, search row — so a handle
+// claimed by someone else between the check and the submit refuses ALL of it.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('SIGNUP HANDLE · the claim and the profile land together or not at all', () => {
+  const form = { name: 'A Reader', dob: '1990-01-01', handle: 'areader', now: 1790000000000 };
+  const readAll = async () => {
+    let v;
+    await env.withSecurityRulesDisabled(async (ctx) => { v = (await ctx.database().ref('/').get()).val(); });
+    return v || {};
+  };
+
+  test('an AVAILABLE handle: the whole signup lands, with the claim pointing at the uid', async () => {
+    await assertSucceeds(owner.ref('/').update(signupUpdate(OWNER, form)));
+    const db = await readAll();
+    assert.equal(db.usernames.areader, OWNER);
+    assert.equal(db.users[OWNER].handle, 'areader');
+    assert.deepEqual(db.user_search[OWNER], { avatarUrl: '', displayName: 'A Reader', isAuthor: false, username: 'areader' });
+  });
+
+  test('a TAKEN handle (the race): the whole update is refused and NOTHING is left behind', async () => {
+    await seed(env, { 'usernames/areader': STRANGER });
+    await assertFails(owner.ref('/').update(signupUpdate(OWNER, form)));
+    const db = await readAll();
+    assert.equal(db.usernames.areader, STRANGER, 'the winner keeps it');
+    assert.equal(db.users?.[OWNER], undefined, 'no profile without its handle');
+    assert.equal(db.user_search?.[OWNER], undefined, 'no search row either');
+  });
+
+  test('a claim cannot be taken over by a later write outside the signup either', async () => {
+    await seed(env, { 'usernames/areader': STRANGER });
+    await assertFails(owner.ref('usernames/areader').set(OWNER));
   });
 });
 

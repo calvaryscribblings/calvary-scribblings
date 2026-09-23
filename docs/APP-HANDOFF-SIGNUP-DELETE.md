@@ -157,3 +157,28 @@ Under `users/{uid}` this delete grant would make it ban evasion.
 `isDeleted` and `pendingDeletion/*`, so it was never refused. Nothing in this repo hard-deletes
 afterwards: the "cron worker" that `AuthContext.js` names as the backstop does not exist here.
 One live node is sitting in `pendingDeletion`.
+
+## 7. Web signup now asks for a handle (23 Sep 2026, later)
+
+Ikenna's ruling: web signup asks for a handle, as the app does. The web copied **the app's shape**,
+derived from the app's live records (45 password signups since 12 May, the last `rebel`,
+23 Sep 20:42). Nothing for the app to change. What the web writes, as ONE root multi-path update:
+
+| path | value |
+|---|---|
+| `users/{uid}/handle`, `/handleLowercased`, `/username` | the handle, lowercase, all three identical |
+| `users/{uid}/uid`, `/createdAt` (ms) | as the app writes them |
+| `users/{uid}/displayName`, `/dob`, `/joinDate` | the web's own, unchanged (`joinDate` = `createdAt`) |
+| `usernames/{handle}` | uid (create-only in the rules, so a taken handle refuses the whole update) |
+| `user_search/{uid}` | `{ avatarUrl: '', displayName, isAuthor: false, username }` |
+
+Rule: `/^[a-z0-9_]{3,20}$/` after trimming, dropping a leading `@` and lowercasing. No reserved
+words (the data has none; a reader holds `facebook`). Code: `app/lib/handle.js`.
+
+**One field differs: the web does NOT write `ageConfirmed`.** Its meaning is the app's (the web
+asks for a date of birth and checks nothing against it). If the app gates on `ageConfirmed`, a
+web-made reader meets the app's age gate once on first sign-in. Say if the web should write it.
+
+**Known drift, not fixed in this round:** the web profile editor (`app/profile/page.js`
+`handleSave`) renames by writing `username` only, not `handle`/`handleLowercased`, and its claim
+is a separate write from the profile. After a web rename, the app's `handle` is stale.
