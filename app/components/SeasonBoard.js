@@ -21,9 +21,8 @@
 //   1  leaderboard                     the public display map — names, avatars, opt-out
 //   N  points/{uid}/total              one per candidate uid, concurrency-capped
 //   ~  users/{uid}                     ONLY for shown rows missing from the display map
-//   ~  users/{uid}/isDeleted           ONLY for shown rows, via getDeletedUidSet (cached)
 //
-// The two tails are bounded by rows that actually render, not by the universe,
+// The tail is bounded by rows that actually render, not by the universe,
 // because the delta > 0 filter runs before them. Once the board is closed and
 // `final` exists, the N totals reads disappear entirely — a closed board is two
 // reads, forever.
@@ -48,7 +47,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { ref, get } from 'firebase/database';
 import { db, auth } from '../lib/firebaseCore';
-import { getDeletedUidSet } from '../lib/userVisibility';
 import { prizePool, prizeForPlace, prizeBands, ordinal } from '../lib/leaderboards';
 import Navbar from './Navbar';
 
@@ -227,10 +225,6 @@ export default function SeasonBoard({ board }) {
             };
           }).filter(r => !r.optedOut);
         }
-
-        // Soft-delete tail — same bound, and the helper caches per page-load.
-        const deleted = await getDeletedUidSet(rows.map(r => r.uid));
-        rows = rows.filter(r => !deleted.has(r.uid));
 
         rows.sort((a, b) => (b.delta - a.delta) || (a.joinDate - b.joinDate));
         rows = withRanks(rows).map(r => ({ ...r, displayName: r.displayName || 'Reader' }));

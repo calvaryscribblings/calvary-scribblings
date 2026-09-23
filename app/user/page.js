@@ -418,13 +418,6 @@ export default function UserPage() {
       <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', fontWeight: 500 }}>User not found.</p>
     </div>
   );
-  if (profileData.isDeleted) return (
-    <div style={{ minHeight: '100vh', background: '#0d0d0d', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.05rem', fontStyle: 'italic', textAlign: 'center' }}>
-        This account no longer exists.
-      </p>
-    </div>
-  );
 
   const isAuthor = profileData.isAuthor || false;
   const badge = getBadge(readCount, uid);

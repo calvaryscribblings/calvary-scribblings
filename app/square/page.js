@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { stories as allStaticStories } from '../lib/stories';
-import { useDeletedUids } from '../lib/userVisibility';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { Avatar, UserBadge, timeAgo, ReactionRow, buildReactions, BADGE_SVG_PATH, CHECK_PATH } from '../components/conversation/ConversationKit';
 import PostBody from '../components/conversation/PostBody';
@@ -1296,12 +1295,9 @@ export default function SquarePage() {
   };
 
   const maxChars = MAX_POST_CHARS;
-  // Hide content from soft-deleted users. Hard-deleted users no longer have
-  // posts in the DB, so this only affects the 7-day grace window.
-  const deletedAuthorSet = useDeletedUids(posts.map(p => p.authorUid));
-  const visiblePosts = deletedAuthorSet
-    ? posts.filter(p => !deletedAuthorSet.has(p.authorUid))
-    : posts;
+  // No deleted-author filter: deletion is immediate and removes the posts themselves
+  // (POST /api/account/delete + scripts/account/scrub.mjs). There is no grace window to hide.
+  const visiblePosts = posts;
   // Sorting lives here now that the listeners are per-child. Pinned first, then
   // newest — the same order the old whole-node listener produced.
   const topLevel = visiblePosts.filter(p => !p.parentId).sort((a, b) => {

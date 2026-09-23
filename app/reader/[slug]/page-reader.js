@@ -18,7 +18,6 @@ import AuthModal from '../../components/AuthModal';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import ReadSeal from '../../components/ReadSeal';
 import { use } from 'react';
-import { useDeletedUids } from '../../lib/userVisibility';
 import { getReaderId } from '../../lib/readerId';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
 
@@ -358,10 +357,9 @@ function CommentsSection({ slug, onSignIn }) {
   }, [user, slug, comments]);
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
-  const deletedCommentAuthors = useDeletedUids(comments.map(c => c.authorUid));
-  const visibleComments = deletedCommentAuthors
-    ? comments.filter(c => !deletedCommentAuthors.has(c.authorUid))
-    : comments;
+  // No deleted-author filter: deletion is immediate (POST /api/account/delete), so a deleted
+  // reader's comments are gone from the database, not hidden behind a flag.
+  const visibleComments = comments;
   const topLevel = visibleComments.filter(c => !c.parentId);
 
   return (

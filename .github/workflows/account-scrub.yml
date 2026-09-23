@@ -34,6 +34,8 @@ on:
       - 'scripts/account/**'
       - 'functions/api/account/**'
       - 'tests/account/**'
+      - 'app/lib/accountDeletion.js'
+      - 'app/components/DeleteAccountModal.js'
       - '.github/workflows/account-scrub.yml'
 
 concurrency:

@@ -148,6 +148,11 @@ Under `users/{uid}` this delete grant would make it ban evasion.
 
 ## 6. The web's own deletion, for comparison
 
+> **Superseded 23 Sep 2026.** The web modal now calls `POST /api/account/delete` — immediate and
+> permanent, no grace period (Ikenna's ruling). The soft-delete described below is gone from `app/`.
+> The rules still grant the owner `isDeleted` / `pendingDeletion` in case an old app binary writes
+> them; nothing reads them.
+
 `app/components/DeleteAccountModal.js` does a **soft** delete. It is a multi-path leaf update of
 `isDeleted` and `pendingDeletion/*`, so it was never refused. Nothing in this repo hard-deletes
 afterwards: the "cron worker" that `AuthContext.js` names as the backstop does not exist here.

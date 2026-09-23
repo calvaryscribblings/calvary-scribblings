@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DeleteAccountModal from '../components/DeleteAccountModal';
+import { COPY as DELETION_COPY } from '../lib/accountDeletion';
 // R11.7. Above the danger zone and below sign-in: a reader looking for "how do I stop paying"
 // should find it before they find "delete my account", not after.
 import MembershipSection from '../components/MembershipSection';
@@ -40,6 +41,7 @@ export default function SettingsPage() {
   const [resetMsg, setResetMsg] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [username, setUsername] = useState(null);
+  const [isAuthor, setIsAuthor] = useState(false);
   const {
     state: verifyState,
     message: verifyMsg,
@@ -58,8 +60,12 @@ export default function SettingsPage() {
         try {
           const { getDatabase, ref, get } = await import('firebase/database');
           const dbInst = getDatabase(await getApp());
-          const snap = await get(ref(dbInst, `users/${u.uid}/username`));
+          const [snap, authorSnap] = await Promise.all([
+            get(ref(dbInst, `users/${u.uid}/username`)),
+            get(ref(dbInst, `users/${u.uid}/isAuthor`)),
+          ]);
           setUsername(snap.exists() ? snap.val() : null);
+          setIsAuthor(authorSnap.val() === true);
         } catch {
           setUsername(null);
         }
@@ -250,12 +256,7 @@ export default function SettingsPage() {
           <div className="st-danger">
             <div className="st-danger-label">Permanent</div>
             <div className="st-danger-title">Delete my account</div>
-            <div className="st-danger-body">
-              Deletion is scheduled for <strong>7 days</strong> from confirmation. Your content is hidden from
-              the platform immediately and your account is locked from sign-in. To recover your account
-              within the 7-day window, email <strong>Ikennaworksfromhome@gmail.com</strong> from this
-              account&rsquo;s email address.
-            </div>
+            <div className="st-danger-body">{DELETION_COPY.settingsPanel}</div>
             <button className="st-danger-btn" onClick={() => setShowDeleteModal(true)}>
               Delete my account
             </button>
@@ -269,6 +270,7 @@ export default function SettingsPage() {
         uid={authUser?.uid}
         username={username}
         email={authUser?.email}
+        isAuthor={isAuthor}
       />
 
       {showResetModal && (

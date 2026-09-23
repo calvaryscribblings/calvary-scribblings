@@ -47,8 +47,8 @@ export default function Providers({ children }) {
   return (
     <AuthProvider>
       {/* INSIDE AuthProvider because it needs the uid, and a separate provider rather than a
-          widened AuthContext because AuthContext's 3s isDeleted bound is tuned to exactly one
-          read and /my-library's whole shelf is gated on it — see the header of
+          widened AuthContext because AuthContext's `loading` gates /my-library's whole shelf and
+          must never wait on a membership lookup — see the header of
           app/lib/MembershipContext.js. It subscribes only when signed in, holds its own
           loading state, and nothing structural waits on it. */}
       <MembershipProvider>

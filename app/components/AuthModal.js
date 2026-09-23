@@ -8,12 +8,10 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
-  signOut,
   deleteUser,
 } from 'firebase/auth';
-import { getDatabase, ref, get, update } from 'firebase/database';
+import { getDatabase, ref, update } from 'firebase/database';
 import { auth } from '../lib/firebaseCore';
-import { SUSPENDED_MESSAGE } from '../lib/AuthContext';
 import { postAuthMail } from '../lib/authMail';
 import { registerAccount } from '../lib/signup';
 
@@ -22,23 +20,6 @@ import { registerAccount } from '../lib/signup';
 // now, and a second copy of this fetch sitting behind that button is exactly the drift the
 // shared resend path exists to prevent. Behaviour here is identical — this modal reads
 // err.message and nothing else.
-
-// Returns true if the just-signed-in account is soft-deleted; signs them
-// back out and surfaces the suspension message so the modal can show it.
-async function rejectIfSoftDeleted(uid) {
-  try {
-    const { getApp } = await import('firebase/app');
-    const db = getDatabase(getApp());
-    const snap = await get(ref(db, `users/${uid}/isDeleted`));
-    if (snap.exists() && snap.val() === true) {
-      await signOut(auth);
-      return true;
-    }
-  } catch {
-    // Read failure — let the AuthContext-level guard catch it.
-  }
-  return false;
-}
 
 export default function AuthModal({ onClose }) {
   const [mode, setMode] = useState('signin');
@@ -90,12 +71,7 @@ export default function AuthModal({ onClose }) {
     setLoading(true);
     try {
       if (mode === 'signin') {
-        const cred = await signInWithEmailAndPassword(auth, email, password);
-        if (await rejectIfSoftDeleted(cred.user.uid)) {
-          setError(SUSPENDED_MESSAGE);
-          setLoading(false);
-          return;
-        }
+        await signInWithEmailAndPassword(auth, email, password);
         onClose();
       } else if (mode === 'register') {
         if (!name.trim()) { setError('Please enter your name.'); setLoading(false); return; }
@@ -158,11 +134,7 @@ export default function AuthModal({ onClose }) {
     clearMessages();
     try {
       const provider = new GoogleAuthProvider();
-      const cred = await signInWithPopup(auth, provider);
-      if (await rejectIfSoftDeleted(cred.user.uid)) {
-        setError(SUSPENDED_MESSAGE);
-        return;
-      }
+      await signInWithPopup(auth, provider);
       onClose();
     } catch (e) {
       setError('Google sign-in failed. Please try again.');

@@ -4,7 +4,6 @@ import { ref, get } from 'firebase/database';
 import { db } from '../lib/firebaseCore';
 import Navbar from '../components/Navbar';
 import { RARITY_STYLES, pickHighestBadge } from '../lib/badges';
-import { getDeletedUidSet } from '../lib/userVisibility';
 import {
   SUMMER_2026, PROGRAM_NAME, PROGRAM_DETAILS_HREF,
   SHOW_SUMMER_2026_BUTTON, programStatusLabel,
@@ -199,10 +198,9 @@ export default function LeaderboardPage() {
           }))
           .sort((a, b) => (b.readerScore - a.readerScore) || (a.joinDate - b.joinDate));
 
-        // Filter out soft-deleted users before slicing — otherwise a deleted
-        // user could occupy a top-50 slot and we'd show 49 rows.
-        const deletedSet = await getDeletedUidSet(base.map(r => r.uid));
-        const live = base.filter(r => !deletedSet.has(r.uid));
+        // A deleted account's leaderboard row is removed with it (POST /api/account/delete),
+        // so there is no soft-deleted reader left to filter out.
+        const live = base;
 
         // Two views over the same data: All Time = top 50 by score; This Week =
         // top 50 among those whose score updated in the last 7 days.

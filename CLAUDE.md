@@ -157,3 +157,17 @@ committed alongside it.
 The generator's **Series livery stays exactly as built** — it is proven on the contact sheet
 and costs nothing to keep. Whether it is ever *used* is a separate decision for a separate
 day; its existence is not a plan to migrate series.
+
+## Account deletion: the reader's own request is the authority
+
+**Standing rule (Ikenna, 23 Sep 2026).** A reader's own deletion request is sufficient
+authority. Deleting their account never waits on Ikenna — not for a ruling, not for a
+sign-off, not for a second look. If a request exists (the modal, the app, an email from the
+address on the account), act on it through `POST /api/account/delete`'s step order and its
+`deletions/{uid}` record, and let `scripts/account/scrub.mjs` finish the scattered half.
+
+Deletion is **immediate and permanent** — there is no grace period and nothing to restore
+from (the RTDB backups are for disasters, not for undoing a reader's decision). The web modal
+calls the endpoint; the copy lives in `app/lib/accountDeletion.js` and must describe exactly
+what the endpoint does, nothing more. The soft-delete (`users/{uid}/isDeleted`,
+`pendingDeletion`) is gone from `app/`; `tests/account/web-flow.test.mjs` keeps it gone.

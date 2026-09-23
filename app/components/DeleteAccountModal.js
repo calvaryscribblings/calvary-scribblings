@@ -2,68 +2,112 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
-import { ref, update, serverTimestamp } from 'firebase/database';
-import { auth, db } from '../lib/firebase';
+import {
+  signOut, reauthenticateWithCredential, reauthenticateWithPopup,
+  EmailAuthProvider, GoogleAuthProvider, OAuthProvider,
+} from 'firebase/auth';
+import { auth } from '../lib/firebase';
+import { useMembership } from '../lib/MembershipContext';
+import {
+  COPY, conditionalLines, hasPaidMembership, runDeleteFlow, callDeleteEndpoint,
+} from '../lib/accountDeletion';
 
-const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
-
-// Modal that walks the user through the soft-delete confirmation:
-// 1) types their own @username (case-insensitive) to enable the action
-// 2) writes pendingDeletion + isDeleted to RTDB
-// 3) signs them out and pushes /account/deleted
+// Delete account — IMMEDIATE and PERMANENT (Ikenna's ruling, 23 Sep 2026).
 //
-// `username` and `email` come from the parent. If username is missing
-// (rare but possible — some legacy accounts have no @handle), we fall
-// back to requiring the email-local-part as confirmation.
-export default function DeleteAccountModal({ open, onClose, uid, username, email }) {
+//   1. the reader types their own @username (case-insensitive) to enable the button
+//   2. POST /api/account/delete with their ID token — the server deletes everything, Auth last
+//   3. if the server answers requires_recent_login, the modal asks them to sign in again
+//      (password, Google or Apple, whichever the account uses) and calls ONCE more
+//   4. only on success: sign out, then /account/deleted
+//
+// Any failure is shown in the modal and the reader stays signed in: a failed deletion never
+// looks like success. The copy and the flow live in app/lib/accountDeletion.js.
+//
+// `username` and `email` come from the parent. If username is missing (some legacy accounts
+// have no @handle), the email local-part is the confirmation instead.
+export default function DeleteAccountModal({ open, onClose, uid, username, email, isAuthor = false }) {
   const router = useRouter();
+  const membership = useMembership();
   const [typed, setTyped] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [stage, setStage] = useState('confirm'); // confirm | working | reauth
   const [errMsg, setErrMsg] = useState('');
+  const [password, setPassword] = useState('');
+  const [reauthBusy, setReauthBusy] = useState(false);
   const inputRef = useRef(null);
-
-  const fallbackHandle = (email || '').split('@')[0] || '';
-  const expected = (username || fallbackHandle || '').toLowerCase();
-  const placeholder = username || fallbackHandle || 'username';
+  const reauthRef = useRef(null); // { resolve, reject } while the flow waits on the reader
 
   useEffect(() => {
     if (open) {
-      setTyped('');
-      setErrMsg('');
-      setSubmitting(false);
+      setTyped(''); setErrMsg(''); setStage('confirm'); setPassword(''); setReauthBusy(false);
       setTimeout(() => inputRef.current?.focus(), 80);
     }
   }, [open]);
 
   if (!open) return null;
 
+  const fallbackHandle = (email || '').split('@')[0] || '';
+  const expected = (username || fallbackHandle || '').toLowerCase();
+  const placeholder = username || fallbackHandle || 'username';
   const matched = expected.length > 0 && typed.trim().toLowerCase() === expected;
+  const notes = conditionalLines({ hasPaidMembership: hasPaidMembership(membership), isAuthor: isAuthor === true });
+  const providers = (auth.currentUser?.providerData || []).map((p) => p.providerId);
+  const usesPassword = providers.includes('password');
+  const busy = stage === 'working' || reauthBusy;
 
   const confirmDelete = async () => {
-    if (!matched || submitting || !uid) return;
-    setSubmitting(true);
+    if (!matched || busy || !uid) return;
+    setErrMsg('');
+    setStage('working');
+    const result = await runDeleteFlow({
+      getIdToken: (force) => auth.currentUser.getIdToken(force),
+      call: callDeleteEndpoint,
+      reauthenticate: () => new Promise((resolve, reject) => {
+        reauthRef.current = { resolve, reject };
+        setStage('reauth');
+      }),
+      signOut: () => signOut(auth),
+    });
+    reauthRef.current = null;
+    setReauthBusy(false);
+    if (result.ok) {
+      router.push('/account/deleted');
+      return;
+    }
+    setErrMsg(result.message);
+    setStage('confirm');
+  };
+
+  // The reader signs in again. A wrong password stays on this step so they can retry it; only
+  // Cancel gives up — and giving up deletes nothing, because the server refused before acting.
+  const reauth = async (how) => {
+    if (reauthBusy || !reauthRef.current) return;
+    setReauthBusy(true);
     setErrMsg('');
     try {
-      const scheduledFor = Date.now() + GRACE_MS;
-      // Single multi-path update so the flag and the schedule land atomically.
-      await update(ref(db), {
-        [`users/${uid}/isDeleted`]: true,
-        [`users/${uid}/pendingDeletion/requestedAt`]: serverTimestamp(),
-        [`users/${uid}/pendingDeletion/scheduledFor`]: scheduledFor,
-      });
-      await signOut(auth);
-      router.push(`/account/deleted?on=${scheduledFor}`);
-    } catch (e) {
-      setErrMsg('Something went wrong. Please try again, or email Ikennaworksfromhome@gmail.com for help.');
-      setSubmitting(false);
+      const user = auth.currentUser;
+      if (how === 'password') {
+        await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+      } else {
+        await reauthenticateWithPopup(user, how === 'apple' ? new OAuthProvider('apple.com') : new GoogleAuthProvider());
+      }
+      setStage('working');
+      reauthRef.current.resolve();
+    } catch {
+      setErrMsg(COPY.reauthFailed);
+      setReauthBusy(false);
     }
+  };
+
+  const cancel = () => {
+    if (stage === 'working' || reauthBusy) return;
+    if (reauthRef.current) { reauthRef.current.reject(new Error('cancelled')); return; }
+    onClose();
   };
 
   return (
     <div
       className="dam-backdrop"
-      onClick={e => { if (e.target === e.currentTarget && !submitting) onClose(); }}
+      onClick={e => { if (e.target === e.currentTarget) cancel(); }}
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Inter:wght@300;400;500;600&display=swap');
@@ -112,18 +156,6 @@ export default function DeleteAccountModal({ open, onClose, uid, username, email
         }
         .dam-list li { margin-bottom: 0.15rem; }
 
-        .dam-recover {
-          font-size: 0.82rem;
-          font-weight: 500;
-          color: rgba(167,139,250,0.78);
-          background: rgba(107,47,173,0.07);
-          border: 1px solid rgba(107,47,173,0.18);
-          border-radius: 8px;
-          padding: 0.65rem 0.78rem;
-          margin-bottom: 1.2rem;
-          line-height: 1.55;
-          font-family: Cormorant Garamond, Georgia, serif;
-        }
 
         .dam-label {
           font-size: 0.62rem;
@@ -206,62 +238,99 @@ export default function DeleteAccountModal({ open, onClose, uid, username, email
           text-align: center;
           margin-top: 1.3rem;
         }
+
+        .dam-note {
+          font-size: 0.82rem;
+          font-weight: 500;
+          color: rgba(232,224,212,0.78);
+          background: rgba(180,86,80,0.06);
+          border: 1px solid rgba(180,86,80,0.2);
+          border-radius: 8px;
+          padding: 0.65rem 0.78rem;
+          margin-bottom: 0.7rem;
+          line-height: 1.55;
+        }
+        .dam-google {
+          width: 100%;
+          background: none;
+          border: 1px solid rgba(255,255,255,0.16);
+          color: #f5f0e8;
+          border-radius: 9px;
+          padding: 0.8rem;
+          font-family: Cormorant Garamond, Georgia, serif;
+          font-size: 0.92rem;
+          cursor: pointer;
+          margin-bottom: 0.55rem;
+        }
+        .dam-google:disabled { opacity: 0.4; cursor: not-allowed; }
       `}</style>
-
-      <div className="dam-modal" role="dialog" aria-modal="true">
-        <h2 className="dam-title">This will delete your account</h2>
-
-        <div className="dam-body">
-          We&rsquo;ll <strong>schedule</strong> the deletion for <strong>seven days</strong> from now.
-          Your account is locked from sign-in immediately, and your content is hidden from the
-          rest of the platform straight away.
-        </div>
-
-        <ul className="dam-list">
-          <li>your account, profile, and @handle</li>
-          <li>any stories you&rsquo;ve published on the CMS</li>
-          <li>your Square posts, replies, and quote-posts</li>
-          <li>your reactions, comments, and mentions</li>
-          <li>your badges, points, streak, and leaderboard position</li>
-          <li>your followers and following list</li>
-        </ul>
-
-        <div className="dam-recover">
-          Changed your mind? Email{' '}
-          <strong>Ikennaworksfromhome@gmail.com</strong> within 7 days from the address on the account
-          and we&rsquo;ll restore everything.
-        </div>
-
-        <div className="dam-label">Type your username to confirm</div>
-        <input
-          ref={inputRef}
-          type="text"
-          className={`dam-input ${matched ? 'matched' : ''}`}
-          placeholder={placeholder}
-          value={typed}
-          onChange={e => setTyped(e.target.value)}
-          disabled={submitting}
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck="false"
-        />
-
-        {errMsg && <div className="dam-err">{errMsg}</div>}
-
-        <div className="dam-actions">
-          <button className="dam-cancel" onClick={onClose} disabled={submitting}>
-            Cancel
-          </button>
-          <button
-            className="dam-delete"
-            onClick={confirmDelete}
-            disabled={!matched || submitting}
-          >
-            {submitting ? 'Deleting…' : 'Delete account'}
-          </button>
-        </div>
-
-        <div className="dam-signoff">We&rsquo;re sorry to see you go.</div>
+      <div className="dam-modal" role="dialog" aria-modal="true" aria-label={COPY.title}>
+        {stage === 'reauth' ? (
+          <>
+            <h2 className="dam-title">{COPY.reauthTitle}</h2>
+            <div className="dam-body">{COPY.reauthBody}</div>
+            {usesPassword && (
+              <>
+                <input
+                  type="password"
+                  className="dam-input"
+                  placeholder={COPY.reauthPassword}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && password) reauth('password'); }}
+                  disabled={reauthBusy}
+                  autoFocus
+                />
+              </>
+            )}
+            {!usesPassword && providers.includes('google.com') && (
+              <button className="dam-google" onClick={() => reauth('google')} disabled={reauthBusy}>{COPY.reauthGoogleButton}</button>
+            )}
+            {!usesPassword && providers.includes('apple.com') && (
+              <button className="dam-google" onClick={() => reauth('apple')} disabled={reauthBusy}>{COPY.reauthAppleButton}</button>
+            )}
+            {errMsg && <div className="dam-err" role="alert">{errMsg}</div>}
+            <div className="dam-actions">
+              <button className="dam-cancel" onClick={cancel} disabled={reauthBusy}>{COPY.cancel}</button>
+              {usesPassword && (
+                <button className="dam-delete" onClick={() => reauth('password')} disabled={!password || reauthBusy}>
+                  {reauthBusy ? COPY.working : COPY.reauthPasswordButton}
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="dam-title">{COPY.title}</h2>
+            <div className="dam-body">{COPY.intro}</div>
+            <div className="dam-label">{COPY.goesLabel}</div>
+            <ul className="dam-list">
+              {COPY.goes.map(line => <li key={line}>{line}</li>)}
+            </ul>
+            {notes.map(line => <div key={line} className="dam-note" data-note>{line}</div>)}
+            <div className="dam-label">{COPY.confirmLabel}</div>
+            <input
+              ref={inputRef}
+              type="text"
+              className={`dam-input ${matched ? 'matched' : ''}`}
+              placeholder={placeholder}
+              value={typed}
+              onChange={e => setTyped(e.target.value)}
+              disabled={busy}
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck="false"
+            />
+            {errMsg && <div className="dam-err" role="alert">{errMsg}</div>}
+            <div className="dam-actions">
+              <button className="dam-cancel" onClick={cancel} disabled={busy}>{COPY.cancel}</button>
+              <button className="dam-delete" onClick={confirmDelete} disabled={!matched || busy}>
+                {stage === 'working' ? COPY.working : COPY.confirm}
+              </button>
+            </div>
+          </>
+        )}
+        <div className="dam-signoff">{COPY.signoff}</div>
       </div>
     </div>
   );

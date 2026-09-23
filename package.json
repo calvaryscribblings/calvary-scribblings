@@ -93,7 +93,7 @@
     "test:push:emulator": "firebase emulators:exec --only database --project demo-calvary-push \"node --test --test-concurrency=1 tests/push/announcer.emulator.test.mjs\"",
     "push:announce": "node scripts/push/announce.mjs",
     "push:test": "node scripts/push-test.mjs",
-    "test:account": "node --test tests/account/deletion.test.mjs",
+    "test:account": "node --test tests/account/deletion.test.mjs tests/account/web-flow.test.mjs",
     "test:account:emulator": "firebase emulators:exec --only database --project demo-calvary-account \"node --test --test-concurrency=1 tests/account/deletion.emulator.test.mjs\""
   },
   "dependencies": {

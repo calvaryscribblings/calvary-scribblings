@@ -7,14 +7,14 @@
 // tiers and would begin re-rendering every time a membership record changed. That alone is a
 // reason to keep them apart, but it is not the load-bearing one.
 //
-// The load-bearing one is that AuthContext's isDeleted probe is a 3-SECOND RACE against a
-// promise that can hang forever, and `loading` gates the whole site behind it — /my-library
-// most sharply, where both the signed-out gate and the signed-in body sit behind `!loading`,
-// so the offline shelf would never paint. That timeout was bought at a cost and it is tuned
-// to exactly one read. Adding a second read to that provider means either widening the same
-// bound to cover both — coupling the shelf's ability to paint to a membership lookup nobody
-// is waiting for — or growing a second loading flag inside a provider whose whole discipline
-// is that there is one. Neither is worth it to save a file.
+// The load-bearing one is that AuthContext's `loading` gates the whole site — /my-library most
+// sharply, where both the signed-out gate and the signed-in body sit behind `!loading`, so the
+// offline shelf must be able to paint the moment Firebase Auth answers. (It used to also wait
+// on a 3-second isDeleted probe; that soft-delete path is gone — deletion is immediate, via
+// POST /api/account/delete — so AuthContext now reads nothing at all.) Adding a membership
+// read to that provider would couple the shelf's ability to paint to a lookup nobody is
+// waiting for, or grow a second loading flag inside a provider whose whole discipline is that
+// there is one. Neither is worth it to save a file.
 //
 // So: a separate provider, mounted INSIDE AuthProvider because it needs the uid, and holding
 // its own loading state that nothing structural is gated on.

@@ -21,7 +21,6 @@ import AboutTheAuthor from '../../components/AboutTheAuthor';
 import NewsletterInvite from '../../components/NewsletterInvite';
 import AppInvite from '../../components/AppInvite';
 import ReadSeal from '../../components/ReadSeal';
-import { getDeletedUidSet, useDeletedUids } from '../../lib/userVisibility';
 import { getReaderId } from '../../lib/readerId';
 import { attachDropcap } from '../../lib/dropcap';
 // Render-time subheading classifier. Applied HERE, in the render, rather than as a DOM pass
@@ -769,13 +768,8 @@ function CommentsSection({ slug, onSignIn }) {
   }, [user, slug, comments]);
 
   const userInitials = user ? (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '';
-  // Hide comments from soft-deleted users. The CommentThread also reads
-  // `comments` from a closure to render replies, so we replace the array
-  // with a filtered view rather than only filtering at the top level.
-  const deletedCommentAuthors = useDeletedUids(comments.map(c => c.authorUid));
-  const visibleComments = deletedCommentAuthors
-    ? comments.filter(c => !deletedCommentAuthors.has(c.authorUid))
-    : comments;
+  // No deleted-author filter: deletion is immediate and removes the comments themselves.
+  const visibleComments = comments;
   const topLevel = visibleComments.filter(c => !c.parentId);
 
   return (
@@ -848,19 +842,6 @@ export default function StoryPageClient({ params, initialStory = null }) {
   // falling back to the legacy hardcoded story, then to the live fetch below.
   const [story, setStory] = useState(initialStory || stories.find(s => s.id === slug) || null);
   const [storyReady, setStoryReady] = useState(!!initialStory || !!stories.find(s => s.id === slug));
-  const [authorDeleted, setAuthorDeleted] = useState(false);
-
-  // CMS-published stories may have an authorUid; if that user is soft-deleted
-  // we treat the story as gone (it'll be hard-deleted by the cron at day 7).
-  // Hardcoded stories in lib/stories.js have no authorUid so this is a no-op.
-  useEffect(() => {
-    if (!story?.authorUid) { setAuthorDeleted(false); return; }
-    let cancelled = false;
-    getDeletedUidSet([story.authorUid]).then(set => {
-      if (!cancelled) setAuthorDeleted(set.has(story.authorUid));
-    });
-    return () => { cancelled = true; };
-  }, [story?.authorUid]);
 
   useEffect(() => {
     // Reader-mode stories live at /reader — redirect immediately off the build-time
@@ -1293,13 +1274,6 @@ useEffect(() => {
           <div key={i} style={{ width: `${w}%`, height: 18, borderRadius: 4, background: 'rgba(245,240,232,0.05)', marginBottom: 14 }} />
         ))}
       </div>
-    </div>
-  );
-  if (authorDeleted) return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.05rem', fontStyle: 'italic', textAlign: 'center' }}>
-        This story is no longer available.
-      </p>
     </div>
   );
   const accentColor = categoryColors[story.category] || '#6b46c1';
