@@ -28,6 +28,18 @@ W1 changes the code on both paths to read the hook from a secret. The dashboard 
 | `.github/workflows/covers.yml` | the reconciler publishes a held story | **Actions secret (new)** | `CMS_DEPLOY_HOOK_URL` |
 | `.github/workflows/withdrawals.yml` | a scheduled Book Store withdrawal | Actions secret (existing name) | `BOOKSTORE_DEPLOY_HOOK_URL`, possibly **never set** (see step 6) |
 
+## Status, 24 Sep 21:30 UTC (read from Actions logs; no Cloudflare credential reached the codespace)
+
+An unset secret prints as an empty value in a run's env block and a set one prints as `***`.
+
+- **Step 4: done.** The Actions secret `CMS_DEPLOY_HOOK_URL` first reads `***` in the covers run at 20:47 UTC. It was empty at 20:35.
+- **Step 6: NOT done.** `BOOKSTORE_DEPLOY_HOOK_URL` is **empty** in the 21:20 withdrawals run. Scheduled Book Store withdrawals will not rebuild the shop until it is set.
+- **Steps 2–3 (Worker secret + code): unverifiable from here.** The 06:30 flip on 25 Sep is the test.
+- **Step 5:** instead of curl, use GitHub → Actions → **deploy hook probe** → *Run workflow* with **fire** ticked.
+  It POSTs the CMS hook once and goes red on anything but 2xx. Then watch the site's build id change:
+  `curl -s https://calvaryscribblings.co.uk/ | grep -o '\\"b\\":\\"[^\\]*'`. At 21:25 UTC it read `FjZm8aM82mEifubgkJjbI`.
+  (The codespace token cannot dispatch workflows: HTTP 403.)
+
 ## The steps, in order
 
 1. **(Ikenna)** Cloudflare → Workers & Pages → **calvary-scribblings** (the Pages project) → Settings →
@@ -56,8 +68,7 @@ W1 changes the code on both paths to read the hook from a secret. The dashboard 
 ## Verifying afterwards (anyone)
 
 - **Scheduled flip:** the next one is **Fri 25 Sep 06:30 BST** (`why-do-filmmakers-keep-working-with-the-same-actors`).
-  After 06:30, the site's Next build id changes (`curl -s https://calvaryscribblings.co.uk/ | grep -o '"buildId":"[^"]*"'`
-  or the `/_next/static/<id>/` path), and the Pages Deployments list shows a build from `cms-runners`.
+  After 06:30, the site's Next build id changes (the command in the status block above; the HTML carries no `"buildId"`), and the Pages Deployments list shows a build from `cms-runners`.
   **If it doesn't, the Worker's Logs tab says which: `CMS_DEPLOY_HOOK_URL is not set`, or `refused: HTTP n`.**
   Then 27 Sep (`phantom`) and 29 Sep (`did-you-enjoy-it`).
 - **A human publish:** hide and unhide any story in /admin. The notice reads "rebuild started", and a
