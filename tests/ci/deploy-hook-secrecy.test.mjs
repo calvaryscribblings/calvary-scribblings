@@ -219,7 +219,11 @@ describe('the deploy hooks stay on the server', () => {
 
   test('THE FINDING, CLOSED: no deploy-hook URL is written down anywhere in the repo', () => {
     // The exception list is EMPTY as of R19.7 — see the header. Any hit at all is a leak.
-    const dirs = ['app', 'functions', 'scripts', 'tests', 'public'];
+    // W1 (audit ADM-35): workers-external/, .github/ and docs/ were outside this list, and
+    // workers-external/calvary-newsletter.worker.js carried a hook literal the whole time. It was
+    // a rotated, dead URL — but the scan could not have told a live one from a dead one, and it
+    // did not look. The mirrors are published verbatim in a public repo; so are the workflows.
+    const dirs = ['app', 'functions', 'scripts', 'tests', 'public', 'workers-external', '.github', 'docs'];
     const leaked = [];
     for (const d of dirs) {
       const p = join(ROOT, d);

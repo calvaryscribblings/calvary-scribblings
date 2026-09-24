@@ -29,7 +29,7 @@ Contract §6: a saved body stays readable for good and is never revalidated agai
 |---|---|---|---|---|
 | `users/{uid}/readStories/{slug}` | `true` | read: world (`users/$uid .read:true`, :193) · write: owner (:263) | web story page, engagement gate (`page-client.js:1210`) | 4,772 rows, 241 users. **No timestamp**, so it can't be ordered (SAVE-02). |
 | `users/{uid}/readCount` | number | same | transaction +1 | |
-| `storyReads/{slug}/{readerId}` | number (server ms, first qualified read) | read: world per slug (:966) · write: owner, create-only; validate `hasChildren(['at'])` | `/api/hit` with an admin token | ⚠ The validate rule expects `{at}`, but live values are bare numbers written past the rules. A client write in the live shape would fail. Public read is a privacy finding (SAVE-03). |
+| `storyReads/{slug}/{readerId}` | number (server ms, first qualified read) | see `database.rules.json`; carries an open privacy finding (SAVE-03, redacted in W1) | `/api/hit` with an admin token | Held off git until SAVE-03 is fixed. |
 | `users/{uid}/readerProgress/{slug}` | `{fraction 0..1, updatedAt}` | world read · owner write (:266) | web reader, EPUB stories only | Every reader-mode story is unpublished now, so this node is effectively dead. 47 users. |
 | `series_reading_progress/{uid}/{instalmentId}` | `{fraction, updatedAt, cfi?, epubVersion?}` | owner only; shape validated, `$other` rejected | web and app | 12 users. |
 | `userProgress/{uid}/{slug}` | `{fraction, locator}` | owner only (:742) | **app** | The web never reads it. 26 users. |

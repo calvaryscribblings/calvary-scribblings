@@ -81,6 +81,7 @@
 // No bookkeeping, nothing to corrupt, and self-healing: a record half-flipped by any means at
 // all reads as stale and is repaired on the next run. Identical bytes mean no upload and no
 // flip, so a quiet library costs three RTDB reads and a minute of rendering.
+import { fireDeployHook } from '../deploy-hook.mjs';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -251,7 +252,7 @@ async function main() {
     token = await accessToken(svc);
   }
 
-  let current = 0, flipped = 0, failed = 0;
+  let current = 0, flipped = 0, failed = 0, wentLive = 0;
   const stale = [];
 
   for (const entry of stories) {
@@ -287,6 +288,7 @@ async function main() {
       // cover; announcing it now would point followers at something not yet on the site,
       // which is the same mistake the admin stopped making.
       if (extras.published === true) {
+        wentLive++;
         try {
           const n = await notifyFollowers(token, a.slug, { ...a.story, ...extras });
           if (n) console.log(`  ↳ notified ${n} follower(s)`);
@@ -299,6 +301,20 @@ async function main() {
       failed++;
       console.log(`✗ ${a.slug} — ${e.message}`);
     }
+  }
+
+  // ── THE REBUILD (W1). A held story that goes live HERE had no static page in the last
+  // build: hasStaticPage() (app/lib/storyAccess.js) emits a route for a published story or a
+  // scheduled one, and a held draft with no publishAt is neither. The admin fired its rebuild
+  // at SAVE time, while the story was still a draft, so without this /stories/{slug} 404s until
+  // some unrelated deploy happens to run. One POST per run, however many went live; the hook is
+  // the stories hook (the Pages project's CMS_DEPLOY_HOOK_URL), from an Actions secret of the
+  // same name. A scheduled story's cover-only patch is not a publish and summons nothing.
+  if (APPLY && wentLive > 0) {
+    const verdict = await fireDeployHook(process.env.CMS_DEPLOY_HOOK_URL, {
+      envName: 'CMS_DEPLOY_HOOK_URL', what: `${wentLive} stor${wentLive === 1 ? 'y' : 'ies'}`,
+    });
+    console.log(`  rebuild           ${verdict}`);
   }
 
   console.log('\n── SUMMARY ────────────────────────────────────────────');

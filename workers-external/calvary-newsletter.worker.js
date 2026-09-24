@@ -342,12 +342,36 @@ async function processScheduled(env) {
   } catch (err) {
     console.error("Cron error (scheduled newsletters):", err);
   }
-  if (published) {
-    try {
-      await fetch("https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/df2479ae-06a5-4ff3-a319-29b7b94dd106", { method: "POST" });
-    } catch (err) {
-      console.error("Deploy hook failed:", err);
+  if (published) await fireDeployHook(env);
+}
+
+// W1 (24 Sep 2026) — THE HOOK IS A WORKER SECRET, NEVER A LITERAL. This line used to hold
+// the URL itself, and this file is mirrored into a PUBLIC repo. That URL was one of the two
+// rotated on 26 Aug (tests/ci/deploy-hook-secrecy.test.mjs), so from then until W1 every
+// scheduled flip POSTed a hook that no longer existed — Cloudflare answered 404 "The deploy
+// hook you have specified does not exist", and fetch() does not throw on a 404, so nothing
+// was logged. The flipped stories still had pages (the build pre-renders anything with a
+// publishAt), but every baked list waited for an unrelated deploy.
+//
+// Set it in the dashboard: calvary-newsletter → Settings → Variables and Secrets → Secret
+// CMS_DEPLOY_HOOK_URL — the same hook the Pages project uses for stories. Absent, or refused,
+// is now said out loud rather than swallowed. The URL is never printed.
+async function fireDeployHook(env) {
+  const hook = env.CMS_DEPLOY_HOOK_URL;
+  if (!hook) {
+    console.error("Deploy hook NOT fired: CMS_DEPLOY_HOOK_URL is not set on this Worker. Stories went live; the site was NOT rebuilt.");
+    return "unconfigured";
+  }
+  try {
+    const res = await fetch(hook, { method: "POST" });
+    if (!res.ok) {
+      console.error(`Deploy hook refused: HTTP ${res.status}. Stories went live; the site was NOT rebuilt.`);
+      return "refused";
     }
+    return "fired";
+  } catch (err) {
+    console.error(`Deploy hook unreachable (${err?.name || "Error"}). Stories went live; the site was NOT rebuilt.`);
+    return "unreachable";
   }
 }
 

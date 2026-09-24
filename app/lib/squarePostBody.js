@@ -229,6 +229,38 @@ export const SURFACE_KEYS = Object.keys(SURFACES);
 // a title, whoever wrote it, and an id. So the two are normalised HERE into one
 // drawable shape and the card draws that, rather than the card learning about two
 // record layouts.
+// ── W1 / SQ-01 — AN ATTACHMENT IS A POINTER, NEVER A COPY ─────────────────────
+//
+// The picker used to attach the WHOLE cms_stories record it was handed — content,
+// extractedText, epubUrl, quizMeta and all — and the post carried it into
+// square_posts, the author's user_square_posts mirror and, at the horizon,
+// square_archive: three world-readable nodes. So a story body sat readable signed
+// out in every post that pointed at it, beyond the reach of any gate.
+//
+// These seven are the whole of what AttachmentCard draws (see attachmentOf above
+// the fold) plus the two that link it. The app shipped the same set in 70cc327,
+// and database.rules.json refuses anything else under attachedStory. The house's
+// own `/stories/<slug>` is the only url an attachment may carry — the no-links
+// ruling holds, a card is a link the HOUSE authored.
+export const ATTACHED_STORY_FIELDS = ['title', 'author', 'cover', 'url', 'id', 'categoryName', 'subcategory'];
+
+/** The attachment a post may carry, from any story-shaped record (or null). */
+export function slimAttachedStory(story) {
+  const s = story || {};
+  const id = String(s.id || s.slug || '').trim();
+  if (!id) return null;
+  const str = (v) => (typeof v === 'string' ? v : '');
+  return {
+    title: str(s.title) || 'Untitled',
+    author: str(s.author),
+    cover: str(s.cover),
+    url: `/stories/${id}`,
+    id,
+    categoryName: str(s.categoryName),
+    subcategory: str(s.subcategory),
+  };
+}
+
 export function attachmentOf(post) {
   const p = post || {};
   if (p.attachedOpenPage && p.attachedOpenPage.id) {

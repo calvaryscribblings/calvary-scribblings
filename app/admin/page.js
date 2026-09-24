@@ -15,12 +15,9 @@ import { validateDescriptor, canonicalDescriptor, wordsEchoingTitle } from '../l
 // builds indefinitely. It was rotated on 26 Aug 2026 and is dead. The hook is now named, never
 // held: see app/lib/rebuild.js.
 import { fireRebuild, HOOKS } from '../lib/rebuild';
+import { slugify, newStorySlug } from '../lib/storySlug';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
-
-function slugify(title) {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-}
 
 function formatDate(d) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -282,8 +279,12 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
       const coverHash = await computeBlurhash(file);
       // The door does the sizing: cut w360 + w720 WebP from the same file so this
       // cover ships sized + long-cached from birth. Best-effort — {} on failure,
-      // in which case srcset falls back to the original. slug matches the save.
-      const slug = editingId || slugify(form.title) || `pending-${Date.now()}`;
+      // in which case srcset falls back to the original.
+      // W1 / ADM-08 — a NEW story's derivatives go under a pending- prefix unless its address
+      // has already been accepted. The natural slug is not known to be free until the save
+      // asks the live node, and a colliding title would otherwise cut its w360/w720 over the
+      // LIVE story's files at that path. The URLs travel in coverSizes, so the prefix is cosmetic.
+      const slug = editingId || form.slug || `pending-${Date.now()}`;
       const coverSizes = await buildCoverDerivatives(storage, file, slug);
       setForm(f => ({ ...f, coverFilename: url, coverPreview: url, coverHash, coverSizes: Object.keys(coverSizes).length ? coverSizes : null }));
     } catch (err) { alert('Cover upload failed: ' + err.message); }
@@ -338,7 +339,13 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
       <div style={s.topBar}>
         <div>
           <h2 style={s.h2}>{editingId ? 'Edit Story' : 'New Story'}</h2>
-          {!editingId && form.title && <div style={s.h2sub}>Slug: /stories/{slugify(form.title)}</div>}
+          {!editingId && form.title && <div style={s.h2sub}>Slug: /stories/{form.slug || slugify(form.title)}</div>}
+          {!editingId && form.slugOffer && !form.slug && (
+            <button type="button" style={{ ...s.btnGhost, marginTop: 8 }}
+              onClick={() => setForm(f => ({ ...f, slug: f.slugOffer, slugOffer: null }))}>
+              Use the free address /stories/{form.slugOffer}
+            </button>
+          )}
         </div>
         <button style={s.btnGhost} onClick={onCancel}>← Back</button>
       </div>
@@ -354,7 +361,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
         <div style={s.fg}>
           <label style={s.label}>Title</label>
           <input style={s.input} value={form.title} placeholder="Story title"
-            onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+            onChange={e => setForm(f => ({ ...f, title: e.target.value, slug: '', slugOffer: null }))} />
         </div>
 
         <div style={s.row2}>
@@ -623,6 +630,7 @@ export default function AdminPage() {
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
     trailerQuote: '', descriptor: '', published: true, coverHold: false,
+    slug: '', // W1 / ADM-08 — a NEW story's accepted free address; '' = slugify(title)
   };
   const [form, setForm] = useState(emptyForm);
   const [filter, setFilter] = useState('all'); // all · published · hidden
@@ -744,7 +752,30 @@ export default function AdminPage() {
     setSaving(true); setMsg('');
     try {
       const { ref, get, update } = await import('firebase/database');
-      const slug = editingId || slugify(form.title);
+      // ── W1 / ADM-08 — A NEW STORY NEVER OVERWRITES ONE THAT EXISTS ─────────
+      // The write below MERGES into cms_stories/{slug}, so a new title that slugs onto
+      // a live story's address would silently become that story. Asked of the LIVE
+      // node (not the list loaded when the page opened), before anything is written;
+      // a taken address is refused with the first free one offered, and an empty one
+      // (a title of only punctuation) is refused outright. Edits keep their own slug.
+      let slug = editingId;
+      if (!editingId) {
+        const isTaken = async (candidate) => (await get(ref(db, `cms_stories/${candidate}`))).exists();
+        const verdict = await newStorySlug({ title: form.title, chosen: form.slug, isTaken });
+        if (!verdict.ok) {
+          setSaving(false);
+          if (verdict.reason === 'empty') {
+            setMsg('✗ Not saved — this title makes no web address (it needs at least one letter a–z or digit). Add one to the title and save again.');
+          } else {
+            const owner = (await get(ref(db, `cms_stories/${verdict.slug}/title`))).val();
+            setForm(f => ({ ...f, slugOffer: verdict.offer }));
+            setMsg(`✗ Not saved — /stories/${verdict.slug} already belongs to ${owner ? `“${owner}”` : 'another story'}, and saving would overwrite it. `
+              + (verdict.offer ? `Change the title, or use the free address /stories/${verdict.offer} below.` : 'Change the title and save again.'));
+          }
+          return;
+        }
+        slug = verdict.slug;
+      }
       const categoryObj = CATEGORIES.find(c => c.value === form.category);
       const coverFilename = form.coverFilename.trim();
       const coverPath = coverFilename.startsWith('http') ? coverFilename : (coverFilename.startsWith('/') ? coverFilename : `/${coverFilename}`);

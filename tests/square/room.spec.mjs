@@ -50,6 +50,16 @@ async function liveRoomHasPosts() {
   return keys ? Object.keys(keys).length : 0;
 }
 
+/** The most recent 20:30 Europe/London at or before now — an instant the room is open. */
+function lastOpenInstant(now = Date.now()) {
+  const london = (t) => new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(t);
+  let t = Math.floor(now / 60000) * 60000;
+  for (let i = 0; i <= 1500 && london(t) !== '20:30'; i++) t -= 60000;
+  return new Date(t);
+}
+
 /** Load /square and report everything that went wrong while it did. */
 async function openRoom(page) {
   const thrown = [];
@@ -97,6 +107,14 @@ test.describe('the Square loads for a signed-out reader', () => {
     test.skip(count === null, 'the live RTDB was unreachable — not a verdict on the page');
     test.skip(count === 0, 'the live room is genuinely empty; the two cases above still hold');
 
+    // ⚠ THE ROOM KEEPS HOURS. isSquareOpen() in app/square/page.js is 20:00–24:00 London;
+    // outside them the page draws the CLOSED state, whose previews are surface
+    // "closed-preview", and no feed-post body exists to find. Unpinned, this case passed
+    // only when CI happened to run in the evening, and was red on every other push from
+    // 30 Aug (CI-01). setFixedTime fakes Date alone — timers still run, so Firebase's own
+    // setTimeouts are untouched — at the most recent 20:30 London that is not in the
+    // future, so the horizon sees a real "now" at most a day old.
+    await page.clock.setFixedTime(lastOpenInstant());
     await openRoom(page);
     // data-postbody is R43's per-surface hook, present on every drawn body. Reaching
     // a feed-post one means the effect ran, the listeners attached, a record arrived, the sort

@@ -27,7 +27,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
 import { liveDetailSlug } from './live-slug.mjs';
-import { OPENING_DATE } from '../../app/lib/launch.js';
+import { OPENING_DATE, LAUNCH } from '../../app/lib/launch.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const GATE_MODULE = join(ROOT, 'app/lib/bookstore/gate.js');
@@ -38,15 +38,22 @@ function stringConst(name) {
   if (!m) throw new Error(`app/lib/bookstore/gate.js no longer exports a single-quoted string const named ${name} — update the extractor, do not inline the value here.`);
   return m[1];
 }
-function boolConst(name) {
-  const m = new RegExp(`^export const ${name} = (true|false);`, 'm').exec(GATE_SRC);
-  if (!m) throw new Error(`app/lib/bookstore/gate.js no longer exports a boolean const named ${name}.`);
-  return m[1] === 'true';
-}
-
 const GATE_PASSCODE = stringConst('GATE_PASSCODE');
 const GATE_STORAGE_KEY = stringConst('GATE_STORAGE_KEY');
-const GATE_ENABLED = boolConst('GATE_ENABLED');
+
+// ── THE CLOCK IS PINNED, because the curtain now reads it (R50, CI-04). ─────────────────────
+// Until R50 the curtain was the hand-flipped boolean GATE_ENABLED, and this file parsed it out
+// of gate.js. R50 replaced it with isCurtainUp() = !doorsOpen(), a CALENDAR question answered
+// in the reader's browser — and the extractor threw on import, so from 24fd2327 this suite
+// reported "No tests found" and the curtain had no coverage at all (the audit's CI-04).
+//
+// A clock-derived curtain cannot be tested against the wall clock: every case below asserts
+// the curtain is DOWN, and from London midnight on launch day every one of them would go red
+// with nothing wrong. So each page's Date is pinned — setFixedTime fakes Date alone, timers
+// still run, so live Firebase is untouched — to noon London the day BEFORE launch, and the
+// day itself is asserted separately in 'the doors open on the day' below.
+const BEFORE_LAUNCH = new Date(Date.UTC(LAUNCH.y, LAUNCH.m - 1, LAUNCH.d - 1, 11, 0));  // 12:00 BST
+const LAUNCH_MORNING = new Date(Date.UTC(LAUNCH.y, LAUNCH.m - 1, LAUNCH.d - 1, 23, 5)); // 00:05 BST
 
 // A published slug, so the detail route has something real behind the curtain.
 // R20 — THE GATED CASES READ THEIR SLUG FROM THE BUILT EXPORT, not from the shop and not from
@@ -83,6 +90,7 @@ const SHELF_DOM = ['.hero-store', '.catalogue-section', '.shelf-entry', '.the-wi
 // overlap itself is real and is on the glass list; it is not something this suite should assert
 // around by clicking through a banner whose copy could change.
 test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(BEFORE_LAUNCH);
   await page.addInitScript(() => {
     try { window.localStorage.setItem('cs_cookie_consent', 'accepted'); } catch { /* private mode */ }
   });
@@ -110,52 +118,53 @@ async function gotoDetail(page) {
 }
 
 test.describe('the flag', () => {
-  test('GATE_ENABLED is on, and has exactly one point of use in app/', async () => {
-    expect(GATE_ENABLED, 'R8.1 ships with the curtain down').toBe(true);
+  test('the curtain derives from the calendar, and has exactly one point of use in app/', async () => {
+    // R50: the curtain is no longer a boolean anybody flips. It is the negation of doorsOpen(),
+    // the one access-state function in app/lib/launch.js — asserted in the source, because a
+    // second definition (a flag creeping back in "just for launch morning") is the regression.
+    expect(GATE_SRC).toMatch(/export function isCurtainUp\(\)\s*\{\s*return !doorsOpen\(\);\s*\}/);
+    expect(GATE_SRC).toMatch(/import \{ doorsOpen \} from '\.\.\/launch\.js';/);
+    // Code only — gate.js's own history note quotes the old declaration in a comment.
+    const code = GATE_SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    expect(code, 'the R8.1 boolean must not come back beside the derivation')
+      .not.toMatch(/\bGATE_ENABLED\b/);
 
-    // A second reader of the flag is the failure this guards against: R9 flips one line, and
-    // "which line?" must have exactly one answer. isStoreUnlocked() in gate.js is that answer.
+    // A second reader of the curtain is the failure this guards against: "is the shop shut?"
+    // must have exactly one answer, and isStoreUnlocked() in gate.js is where it is asked.
     const hits = [];
     (function walk(dir) {
       for (const name of readdirSync(dir)) {
         const full = join(dir, name);
         if (statSync(full).isDirectory()) { walk(full); continue; }
         if (!/\.jsx?$/.test(name)) continue;
-        // ⚠ A SUBSTRING SEARCH WAS WRONG, and it went red on main without being noticed —
-        // found by R16's full sweep, broken since R13. `GATE_ENABLED` is a substring of
-        // SERIES_TIER_GATE_ENABLED, which is a different flag with a different owner
-        // (app/lib/series/access.js) read by three series surfaces, and it is also quoted in
-        // prose by the two bookstore modules that argue about the platform's four flags.
-        // Six false positives, none of them a second reader of THIS flag.
-        //
-        // The lookbehind is the fix and it is the whole fix: a real second reader would import
-        // `GATE_ENABLED` under exactly that name, so the character before it is never [A-Z_].
-        //
-        // ⚠ R22 — AND COMMENTS ARE STRIPPED FIRST, for the same class of reason one round
-        // later. This test asks "how many places READ the flag", and prose that names it does
-        // not read it. R22C's bookTransition.js explains at length why the book-to-page
-        // transition cannot form while the curtain is up — a note whose entire value is that it
-        // names the flag a future reader will search for. Making that note cost a red suite
-        // would teach the next person to write a vaguer one, which is the opposite of what this
-        // file is for. A real second reader still cannot hide: an import or a conditional is
-        // code, and code survives the strip.
+        // Comments are stripped first: prose that names the function (bookTransition.js
+        // explains why the transition cannot form behind the curtain) does not read it.
         const src = readFileSync(full, 'utf8')
           .replace(/\/\*[\s\S]*?\*\//g, '')
           .replace(/(^|[^:])\/\/.*$/gm, '$1');
-        if (/(?<![A-Z_])GATE_ENABLED/.test(src)) hits.push(relative(ROOT, full));
+        if (/\bisCurtainUp\b/.test(src)) hits.push(relative(ROOT, full));
       }
     })(join(ROOT, 'app'));
 
     expect(hits).toEqual(['app/lib/bookstore/gate.js']);
   });
 
-  // WHAT THIS SUITE CANNOT DO, stated rather than quietly skipped. GATE_ENABLED is baked into a
-  // JavaScript chunk at build time, so proving "false ⇒ the store renders directly" needs a
-  // SECOND `next build` with the flag flipped — a full export against live Firebase, minutes
-  // long, doubling the CI build step to assert one branch of one `if`. That trade is not worth
-  // it, so it is not made. The coverage above is the substitute the brief allows: the flag has
-  // one reader, that reader is `isStoreUnlocked()`, and its false branch is `return true` — one
-  // line, visible in the diff, with nothing between it and the storefront.
+  // The false branch is no longer unreachable from here: the clock is the switch, and
+  // 'the doors open on the day' below turns it by pinning the date rather than rebuilding.
+});
+
+test.describe('the doors open on the day', () => {
+  // The case R8.1 could not afford — "false ⇒ the store renders directly" needed a second build
+  // with the flag flipped. With the curtain derived from the clock it costs one pinned Date:
+  // five minutes past London midnight on launch day, NO passcode, NO stored pass, and the real
+  // storefront must be what a reader meets.
+  test('from London midnight on launch day, /bookstore is the storefront with no key', async ({ page }) => {
+    await page.clock.setFixedTime(LAUNCH_MORNING);
+    await page.goto('/bookstore');
+    await expect(page.locator('.hero-store')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByTestId('bookstore-gate')).toHaveCount(0);
+    expect(await page.evaluate((k) => window.localStorage.getItem(k), GATE_STORAGE_KEY)).toBeNull();
+  });
 });
 
 test.describe('the curtain', () => {

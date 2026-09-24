@@ -429,7 +429,9 @@ jobs:
       # a permanently red gate for advisories that cannot affect this site, and a
       # gate nobody can turn green is a gate everybody learns to ignore.
       - name: Audit — production dependencies, blocking on critical
-        run: npm audit --omit=dev --audit-level=critical
+        # Named, dated exceptions (CI-03: next's advisories, until 7 Oct 2026, decided in W1) —
+        # the reasons are at EXCEPTIONS in the script. After the date the same report blocks.
+        run: node scripts/audit-gate.mjs
 
       # The full picture, including dev, reported but never blocking.
       - name: Audit — full report (advisory)

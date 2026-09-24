@@ -10,7 +10,7 @@ device disagrees, the ledger row named in brackets is wrong or already fixed, so
 2. **Membership webhook.** Create the test endpoint `…/api/membership/stripe-webhook` with the events
    `checkout.session.completed`, `invoice.paid`, `invoice.payment_succeeded`, `customer.subscription.updated`,
    `customer.subscription.deleted` and `invoice.payment_failed`. Set `STRIPE_MEMBERSHIP_WEBHOOK_SECRET` on
-   Production and redeploy. Re-probe with a bad signature. Expect **400**, not today's 500 (MON-01).
+   Production and redeploy. Re-probe with a bad signature. Expect **400** (MON-01).
 3. **Rotate the Cloudflare Pages deploy hook** that sits in `workers-external/calvary-newsletter.worker.js`,
    then paste the new one into the live Worker as a secret (ADM-35).
 4. **Stripe subscription (test)** on a preview with `MEMBERSHIPS_ON_SALE` true and test keys, never Production.

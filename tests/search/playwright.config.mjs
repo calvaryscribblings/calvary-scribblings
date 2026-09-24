@@ -19,6 +19,8 @@ import { defineConfig, devices } from '@playwright/test';
 //
 // SERVES THE STATIC EXPORT — the same bytes Cloudflare Pages publishes — and the pages fetch
 // live data from the browser, so the corpus is production's.
+const PORT = process.env.SEARCH_INDEX_PORT || 4342;
+
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.mjs',
@@ -28,15 +30,23 @@ export default defineConfig({
   timeout: 120000,
   expect: { timeout: 15000 },
   reporter: [['list']],
+  // CI-05 — THE SERVER IS THE REPO'S OWN, ON A PORT NOBODY ELSE HOLDS. This used to be
+  // `npx serve out -l 4329`: `serve` is not a dependency, so every CI run downloaded it
+  // unpinned, and 4329 is already claimed by an earlier harness in the same job (FLIP_PORT).
+  // With reuseExistingServer:true a stale listener on that port is silently "reused", and
+  // this step timed out on config.webServer on every run from 9 Sep. tests/reader/app-server.mjs
+  // is what every other harness serves out/ with; 4342 is the next free port after the
+  // Square room's 4340; and reuse is OFF, so a collision fails by name instead of by hanging.
   webServer: {
-    command: 'npx serve out -l 4329 --no-clipboard',
-    url: 'http://localhost:4329/search',
-    reuseExistingServer: true,
-    timeout: 120000,
+    command: `APP_PORT=${PORT} node ${new URL('../reader/app-server.mjs', import.meta.url).pathname}`,
+    url: `http://127.0.0.1:${PORT}/search`,
+    reuseExistingServer: false,
+    timeout: 20000,
+    env: { APP_PORT: String(PORT) },
   },
   use: {
     ...devices['Desktop Chrome'],
-    baseURL: 'http://localhost:4329',
+    baseURL: `http://127.0.0.1:${PORT}`,
     launchOptions: {
       args: ['--disable-dev-shm-usage', '--no-sandbox', '--disable-gpu', '--disable-software-rasterizer'],
     },

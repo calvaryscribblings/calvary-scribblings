@@ -23,6 +23,7 @@ import { assertTerritories, WORLDWIDE } from './territory';
 // rule about what a section may LOOK like lives beside the rule about what one MEANS, so the
 // panel and the shop cannot disagree about which claims exist.
 import { validateGenre } from './genres';
+import { publishRefusal } from './publishReadiness';
 // R18 — THE AUTHOR BLOCK. Same precedent as the four imports above: the rule about what an
 // author block may LOOK like lives beside the rule about what one MEANS, so the CMS form and
 // the detail page cannot disagree about whether a title has one.
@@ -620,6 +621,13 @@ export async function setTitleStatus(titleId, status) {
   try {
     const snap = await get(ref(db, `${TITLES_PATH}/${titleId}`));
     if (!snap.exists()) return { ok: false, errors: [`Title '${titleId}' not found`] };
+    // W1 / ADM-01 — the table's one-tap Publish ran no check at all, so a draft with no EPUB
+    // went on sale with nothing to deliver. The same pair validateTitle and the form require,
+    // read off the STORED record, refused before the write, and named in the refusal.
+    if (status === 'published') {
+      const refusal = publishRefusal(snap.val());
+      if (refusal) return { ok: false, errors: [refusal] };
+    }
     await update(ref(db, `${TITLES_PATH}/${titleId}`), {
       status,
       updatedAt: Date.now(),

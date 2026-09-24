@@ -138,6 +138,10 @@ jobs:
       - name: on-publish
         env:
           COVERS_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+          # W1 — a held story this run PUBLISHES had no static page in the last build, so the
+          # run summons one. The stories hook, the same value as the Pages project's
+          # CMS_DEPLOY_HOOK_URL. Read server-side only; never printed (scripts/deploy-hook.mjs).
+          CMS_DEPLOY_HOOK_URL: ${{ secrets.CMS_DEPLOY_HOOK_URL }}
         run: |
           ARGS=""
           if [ -n "${{ github.event.inputs.slug }}" ]; then

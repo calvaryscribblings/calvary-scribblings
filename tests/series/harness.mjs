@@ -67,6 +67,15 @@ export async function seedFixture(app) {
 
   const now = Date.now();
   await db.ref().update({
+    // W1 — THE FOUNDER HAS A NAME. Since 605b4575 ("One last thing.", app/components/
+    // ProfileCompletion.js) any signed-in reader whose node has no displayName, username or
+    // handle is met by a modal dialog over every page, /admin included. The emulator's founder
+    // had no node, so the dialog sat over the Series admin and intercepted every click — found
+    // in W1, hidden in CI behind the Square room step failing first. A real founder has all
+    // three; the fixture now does too.
+    [`users/${FOUNDER_A}/displayName`]: 'Harness Founder',
+    [`users/${FOUNDER_A}/username`]: 'harnessfounder',
+    [`usernames/harnessfounder`]: FOUNDER_A,
     [`series/${SERIES_ID}`]: {
       schemaVersion: 1,
       slug: SERIES_ID,

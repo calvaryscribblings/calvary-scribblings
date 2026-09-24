@@ -134,7 +134,12 @@ test('a real upload completes, and BOTH fields land in ONE write', async ({ page
   await nameField(page).fill(SPONSOR);
   await sponsorInput(page).setInputFiles(LOGO);
 
-  await expect(page.getByText('Saved.')).toBeVisible({ timeout: 30000 });
+  // TWO "Saved." lines, by design (R31): every write from an instalment row reports on the
+  // row, where the hand was, AND on the page's top line, where the eye goes. The bare
+  // getByText('Saved.') this line used to be matched both and died in strict mode on every
+  // run from 31 Aug (CI-02, hidden behind CI-01). Asserting the pair is the scoped form:
+  // it fails if either report goes missing, and it cannot pass on one of them alone.
+  await expect(page.getByText('Saved.')).toHaveCount(2, { timeout: 30000 });
 
   // Give the listener a beat to deliver anything still in flight, so "exactly one" cannot
   // pass by arriving late.

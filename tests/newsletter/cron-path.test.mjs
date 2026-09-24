@@ -46,6 +46,8 @@ const ENV = {
   RESEND_API_KEY: 'resend-key',
   FROM_EMAIL: 'hello@calvaryscribblings.co.uk',
   NEWSLETTER_SEND_SECRET: 'send-secret',
+  // A FABRICATED hook — the shape only. W1 moved the Worker's hook from a literal to this secret.
+  CMS_DEPLOY_HOOK_URL: 'https://api.cloudflare.com/client/v4/pages/webhooks/deploy_hooks/fixture-not-a-hook',
 };
 
 const PAST = '2026-07-30T09:00:00.000Z';
@@ -329,6 +331,29 @@ test('the deploy hook fires once when stories went live', async () => {
   const calls = await runCron(makeDb());
   const hooks = calls.filter((c) => c.url.startsWith('https://api.cloudflare.com/'));
   assert.equal(hooks.length, 1, 'expected exactly one rebuild per cron run');
+});
+
+test('W1: the hook POSTed is the CMS_DEPLOY_HOOK_URL secret, not a literal', async () => {
+  const calls = await runCron(makeDb());
+  const hooks = calls.filter((c) => c.url.startsWith('https://api.cloudflare.com/'));
+  assert.deepEqual(hooks.map((c) => [c.method, c.url]), [['POST', ENV.CMS_DEPLOY_HOOK_URL]]);
+  assert.doesNotMatch(await readFile(WORKER, 'utf8'), /deploy_hooks\//, 'the Worker mirror must not name a deploy hook');
+});
+
+test('W1: with no secret set, nothing is POSTed and the miss is logged, not swallowed', async () => {
+  const errors = [];
+  const realErr = console.error;
+  console.error = (...a) => errors.push(a.join(' '));
+  const saved = ENV.CMS_DEPLOY_HOOK_URL;
+  delete ENV.CMS_DEPLOY_HOOK_URL;
+  try {
+    const calls = await runCron(makeDb());
+    assert.equal(calls.filter((c) => c.url.startsWith('https://api.cloudflare.com/')).length, 0);
+  } finally {
+    ENV.CMS_DEPLOY_HOOK_URL = saved;
+    console.error = realErr;
+  }
+  assert.ok(errors.some((e) => /CMS_DEPLOY_HOOK_URL is not set/.test(e)), `no log line named the miss: ${errors.join(' | ')}`);
 });
 
 test('the deploy hook does not fire when nothing was published', async () => {

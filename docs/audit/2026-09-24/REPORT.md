@@ -32,10 +32,12 @@ them ‡. For the same reason this report doesn't name the exposed objects or th
    and to Stripe or Paystack.
 4. **The archive promise and the gate don't match (GATE-02, P0).** `/membership` sells "The archive opens", but the
    story gate is a build constant set to off, and no step in the runbook or contract turns it on. On 30 Sept everyone
-   still reads the archive free. If the gate *is* turned on, it is walked round in one request: every body is in public
-   `cms_stories` (GATE-03), and the legacy copies of Series I1–I2 are public (GATE-01).
-5. **A live deploy hook is published in this public repo (ADM-35, P0).** It has been there since 8 Aug. Anyone can
-   trigger unlimited production builds and burn the quota the launch-morning deploy needs. **Rotate it today.**
+   still reads the archive free. If the gate *is* turned on, there are open security findings against it (GATE-01, GATE-03;
+   details redacted in W1 and held off git).
+5. **A deploy hook is written into this public repo (ADM-35, P0) — CORRECTED IN W1.** Probed on 24 Sep, the hook
+   in the Worker mirror, and the only other one ever committed, answer 404 "does not exist": both were rotated on
+   26 Aug, so nothing live was exposed. The live failure ran the other way: every scheduled publish since 26 Aug has
+   POSTed that dead URL, and nothing noticed. W1 moves it to a secret and logs a miss.
 6. **Two one-tap data traps in the admin (ADM-01, ADM-08, P0).**
    - Row Publish puts a book on sale with no EPUB.
    - A "New Story" titled like an existing one silently overwrites it.
@@ -78,7 +80,7 @@ Just outside the ten:
   fixed in Search, and a mistyped @handle can double-post.
 - **The auth modal (ACC-01/03/04)** shows raw Firebase errors, has no dialog semantics or autocomplete, and its 18+
   notice measures 1.67:1.
-- **Reading histories are world-readable with timestamps (SAVE-03).**
+- **A reading-history privacy finding (SAVE-03; details redacted in W1).**
 
 ---
 
@@ -86,20 +88,11 @@ Just outside the ten:
 
 **Story-access gate, server side.** It is **off**: `GATING_ENABLED=false` and `SERIES_TIER_GATE_ENABLED=false`, both build-time constants that no clock or flag touches.
 - A live signed-out `/api/story` returns `access:full, reason:gating_off`. The static HTML carries full bodies.
-- Every body path is named in the table below.
+- The path-by-path table of where a body can be read is **redacted (W1)**: it is a reproduction of unfixed security findings in a public repo, and is held off git.
 - If the gate were on at 30 Sep 00:00 London, **165 of 187** published stories would be members-only: 68 short, 62 news, 22 flash and 13 inspiring. The 17 poems stay free, and 5 more stay free through the window and the floor. **Today the honest answer is none, because the gate is off.**
 - Series with the gate on: I1 (Gold/Platinum), I2 and I3 (Platinum), Diary I1 (Gold/Platinum). Passes are excluded.
 
-| path | exposed | matters if the gate goes on |
-|---|---|---|
-| `cms_stories/*/content` (public RTDB) | all 184 published bodies, plus 27 unpublished | yes: a complete bypass (GATE-03) |
-| `cms_stories/*/extractedText` + legacy `epubs/` Storage | 10 withdrawn book texts, including Series I1 and I2 | yes (GATE-01) |
-| story page client `get(cms_stories/slug)` | full body downloaded into the browser | yes (visible in devtools) |
-| static `/stories/*` HTML | full body | no: the build inlines the preview when the switch flips |
-| `/api/story`, `/api/series/stream` | correct by policy | no |
-| `story_bodies`, `series_epubs/*/master.epub`, unreleased instalment detail | denied (checked live) | — |
-| quiz evaluate | prompt-injection risk only (GATE-07) | minor |
-| index/search, OG, sitemap, SW cache, `cms_quizzes` | preview-grade or none | no |
+> **Redacted (W1, 24 Sep 2026).** The table of body paths (GATE-01, 03, 04, 07) is held off git until those findings are fixed.
 
 **Does the app call `/api/hit` and `/api/story`? No.**
 - There are 48 days of `story_clients` data, 8 Aug to 24 Sep. Every `/api/hit` bucket is `web`, apart from 2 `unknown` on 16 Aug.
@@ -259,10 +252,9 @@ below the author line, and it has been hidden since 14 Sep by its 14-day tail. T
 ## Questions for Ikenna
 
 1. **The archive (GATE-02).** On 30 Sept, is the archive free, with the membership copy rewritten? Or is it gated, knowing
-   every body stays in the public node until T3 (GATE-03)? And may T3 go ahead without app adoption data, since the app has
+   the open GATE-03 finding stands until T3? And may T3 go ahead without app adoption data, since the app has
    never called either endpoint?
-2. **The Series gate (GATE-06, GATE-01).** When does `SERIES_TIER_GATE_ENABLED` flip, and may the legacy public copies of
-   Beta Princess I1–I2 be deleted?
+2. **The Series gate (GATE-06, GATE-01).** When does `SERIES_TIER_GATE_ENABLED` flip, and a ruling on GATE-01 (details held off git).
 3. **Money rulings (MON-04, 12, 13, 16, 18).**
    - Does "200 means received" stand once there is real money?
    - Does a refund of a membership or pass end it?
@@ -273,7 +265,7 @@ below the author line, and it has been hidden since 14 Sep by its 14-day tail. T
 5. **CI-03.** Bump `next` before launch, or allowlist the audit until after 30 Sept?
 6. **Square (SQ-18, SQ-02).** Did the "three switches" ruling mean pin / remove / images (as built), or post / reply / images?
    Are DMs part of launch?
-7. **Privacy (SAVE-03).** Are reading histories meant to be public?
+7. **Privacy (SAVE-03).** A ruling on reading-history visibility (details held off git).
 8. **Saves (SAVE-01).** Should saved stories follow a reader across devices, which would be a new server node? If not,
    record the web and app divergence.
 9. **Speed data (SPD-01).** Create a Google API key with PSI and CrUX, or build our own real-user beacon?

@@ -6,7 +6,7 @@ import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthor
 import { Avatar, UserBadge, timeAgo, ReactionRow, buildReactions, BADGE_SVG_PATH, CHECK_PATH } from '../components/conversation/ConversationKit';
 import PostBody from '../components/conversation/PostBody';
 import AttachmentCard from '../components/conversation/AttachmentCard';
-import { MAX_POST_CHARS, MAX_REPLY_CHARS, showCounter, refusalFor, attachmentOf } from '../lib/squarePostBody';
+import { MAX_POST_CHARS, MAX_REPLY_CHARS, showCounter, refusalFor, attachmentOf, slimAttachedStory } from '../lib/squarePostBody';
 import TabBar, { TabLinks } from '../components/TabBar';
 import { resolveIdentities, identityOf } from '../lib/squareIdentity';
 
@@ -1696,7 +1696,7 @@ export default function SquarePage() {
         </div>
       )}
 
-      {showStoryAttach && <StoryAttachModal onSelect={(s) => { setAttachedStory(s); setShowStoryAttach(false); }} onClose={() => setShowStoryAttach(false)} cmsStories={cmsStories} />}
+      {showStoryAttach && <StoryAttachModal onSelect={(s) => { setAttachedStory(slimAttachedStory(s)); setShowStoryAttach(false); }} onClose={() => setShowStoryAttach(false)} cmsStories={cmsStories} />}
       {showPollCreator && <PollCreatorModal onCreate={createPoll} onClose={() => setShowPollCreator(false)} />}
       {reportingPost && <ReportModal post={reportingPost} onSubmit={submitReport} onClose={() => setReportingPost(null)} />}
       {showDM && user && <DMPanel user={user} onClose={() => setShowDM(false)} />}
