@@ -1704,6 +1704,10 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
   ];
 
   test('all 33 owner fields are writable by the owner', async () => {
+    // W1 — HANDLE-STRICT is deployed: a handle field may only show a claim this uid holds, so
+    // the claim the owner would have made is seeded first. The rule itself is exercised in
+    // the SIGNUP COMPLETENESS block and tests/rules/handle-strict.test.mjs.
+    await seed(env, { 'usernames/areader': OWNER });
     for (const [field, value] of FIELDS) {
       await assertSucceeds(owner.ref(`users/${OWNER}/${field}`).set(value));
     }
@@ -1779,18 +1783,27 @@ describe('R10.1 · users/$uid — the real journeys, as the app actually issues 
   // emulator, and the reason multi-field profile saves survive leaf grants at all.
 
   test('JOURNEY profile edit — app/profile/page.js:625', async () => {
+    // Handle unchanged: renameHandle() writes only the profile fields (app/lib/handle.js).
     await assertSucceeds(owner.ref(`users/${OWNER}`).update({
-      displayName: 'New Name', bio: 'new bio', username: 'newhandle',
+      displayName: 'New Name', bio: 'new bio',
       avatarUrl: 'https://x/new.png', headerUrl: 'https://x/newh.png',
     }));
+    // Handle changed: ONE root update carrying the claim (renameUpdate). W1 — HANDLE-STRICT.
+    await assertSucceeds(owner.ref('/').update({
+      [`users/${OWNER}/displayName`]: 'New Name',
+      ...renameUpdate(OWNER, { from: '', to: 'newhandle', oldClaimOwner: null }),
+    }));
+    // The pre-R50 shape — a handle field with no claim beside it — is what STRICT refuses.
+    await assertFails(owner.ref(`users/${OWNER}`).update({ displayName: 'N', username: 'unclaimedhandle' }));
   });
 
   test('JOURNEY avatar change alone, and a handle claim with its usernames/ index', async () => {
     await assertSucceeds(owner.ref(`users/${OWNER}/avatarUrl`).set('https://x/avatar2.png'));
-    // app/profile/page.js:626 — the claim is two writes and both must pass, or a reader ends
-    // up with a handle on their profile that the index does not know about.
-    await assertSucceeds(owner.ref(`users/${OWNER}/username`).set('claimed'));
+    // W1 — HANDLE-STRICT: when the claim is two writes, the CLAIM goes first; the field may
+    // then show it. Field first is refused (a profile showing a handle the index lacks).
+    await assertFails(owner.ref(`users/${OWNER}/username`).set('claimed'));
     await assertSucceeds(owner.ref('usernames/claimed').set(OWNER));
+    await assertSucceeds(owner.ref(`users/${OWNER}/username`).set('claimed'));
     // and the mirror at user_search — app/profile/page.js:630
     await assertSucceeds(owner.ref(`user_search/${OWNER}`).update({
       displayName: 'New Name', username: 'claimed', avatarUrl: 'https://x/new.png',
@@ -3344,6 +3357,7 @@ describe('SIGNUP R1 · users/$uid — the one-object create and the whole-node d
 
   // ── the create ──────────────────────────────────────────────────────────────
   test('a create carrying EVERY owner-writable field — allowed on a new node', async () => {
+    await seed(env, { 'usernames/areader': OWNER }); // W1 — HANDLE-STRICT: the claim exists first
     await assertSucceeds(owner.ref(`users/${OWNER}`).set(OWNER_VALUES));
     assert.deepEqual(await readNode(OWNER), OWNER_VALUES);
   });
@@ -3533,12 +3547,15 @@ describe('SIGNUP COMPLETENESS · reserved names and the handle guard', () => {
       await assertFails(owner.ref(`users/${OWNER}/${f}`).set('calvary'));
       await assertFails(owner.ref(`users/${OWNER}/${f}`).set('moderator'));
     });
-    test(`GUARD ${f}: a founder may show a reserved name on their own profile`, async () => {
-      await assertSucceeds(founder.ref(`users/${FOUNDER_A}/${f}`).set('calvary'));
+    test(`STRICT ${f}: a founder may show a reserved name once they hold its claim`, async () => {
+      // W1 — under the guard a founder could show any reserved name; under STRICT the founder
+      // exemption lives where it always did, at usernames/$handle, and the field follows the claim.
+      await assertFails(founder.ref(`users/${FOUNDER_A}/${f}`).set('calvary'));
+      await assertSucceeds(founder.ref('/').update({ 'usernames/calvary': FOUNDER_A, [`users/${FOUNDER_A}/${f}`]: 'calvary' }));
     });
   }
-  test('GUARD: a handle nobody holds may still be shown — the gap the STRICT rule closes, recorded', async () => {
-    await assertSucceeds(owner.ref(`users/${OWNER}/handle`).set('unclaimed_name'));
+  test('STRICT (W1): a handle nobody holds may NOT be shown — the gap the guard left, closed', async () => {
+    await assertFails(owner.ref(`users/${OWNER}/handle`).set('unclaimed_name'));
   });
   test('GUARD: the whole-object create is judged too — someone else\'s handle sinks it', async () => {
     await seed(env, { 'usernames/lizbest': STRANGER });
@@ -3546,9 +3563,8 @@ describe('SIGNUP COMPLETENESS · reserved names and the handle guard', () => {
     assert.equal((await readAll()).users?.[OWNER], undefined);
   });
 
-  test('THE APP, users FIRST then the claim (separate writes) — still allowed under the guard', async () => {
-    await assertSucceeds(owner.ref(`users/${OWNER}`).set({ ageConfirmed: true, createdAt: 1, displayName: 'R', dob: '1995-08-15', handle: 'rebel2', handleLowercased: 'rebel2', uid: OWNER, username: 'rebel2' }));
-    await assertSucceeds(owner.ref('usernames/rebel2').set(OWNER));
+  test('STRICT (W1): users FIRST then the claim is REFUSED — the app session proved no binary does it (probe 176/176)', async () => {
+    await assertFails(owner.ref(`users/${OWNER}`).set({ ageConfirmed: true, createdAt: 1, displayName: 'R', dob: '1995-08-15', handle: 'rebel2', handleLowercased: 'rebel2', uid: OWNER, username: 'rebel2' }));
   });
   test('THE APP, the claim FIRST then users — allowed', async () => {
     await assertSucceeds(owner.ref('usernames/rebel3').set(OWNER));
@@ -3646,6 +3662,7 @@ describe('PRIVATE FIELDS · users_private/{uid}', () => {
     assert.equal(v.users[OWNER].dob, undefined);
   });
   test('OLD APP BINARIES: users/{uid}/dob is still ALLOWED (the sweep moves it; the refusal is held back)', async () => {
+    await seed(env, { 'usernames/r': OWNER }); // W1 — HANDLE-STRICT: the app claims first
     await assertSucceeds(owner.ref(`users/${OWNER}`).set({ ageConfirmed: true, createdAt: 1, displayName: 'R', dob: '1995-08-15', handle: 'r', handleLowercased: 'r', uid: OWNER, username: 'r' }));
   });
 });

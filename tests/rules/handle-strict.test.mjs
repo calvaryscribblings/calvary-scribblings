@@ -57,13 +57,17 @@ describe('STRICT · each handle field must be a claim this uid holds', () => {
     await assertSucceeds(owner.ref('usernames/rebel3').set(OWNER));
     await assertSucceeds(owner.ref(`users/${OWNER}`).set({ displayName: 'R', handle: 'rebel3', handleLowercased: 'rebel3', username: 'rebel3', uid: OWNER }));
   });
-  test('WHY IT IS NOT DEPLOYED: the app, users FIRST then the claim → the profile is REFUSED', async () => {
+  test('the app, users FIRST then the claim → the profile is REFUSED (no binary does this: probe 176/176)', async () => {
     await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'R', handle: 'rebel2', handleLowercased: 'rebel2', username: 'rebel2', uid: OWNER }));
   });
 });
 
-test('the fragment is not in the deployed rules', () => {
-  const live = JSON.parse(readFileSync(DB_RULES_PATH, 'utf8')).rules.users.$uid.handle['.validate'];
-  const strict = JSON.parse(readFileSync(new URL('../../database.rules.handle-strict-fragment.json', import.meta.url), 'utf8'))['users/$uid/handle/.validate'];
-  assert.notEqual(live, strict);
+test('W1: the fragment IS the deployed rule, on all three fields', () => {
+  // Deployed 24 Sep 2026 once the app session proved every binary (the 1.4.0 line, builds 32
+  // and 34, the current OTA) writes the claim in the same update as the profile (probe 176/176).
+  const live = JSON.parse(readFileSync(DB_RULES_PATH, 'utf8')).rules.users.$uid;
+  const frag = JSON.parse(readFileSync(new URL('../../database.rules.handle-strict-fragment.json', import.meta.url), 'utf8'));
+  for (const f of ['handle', 'handleLowercased', 'username']) {
+    assert.equal(live[f]['.validate'], frag[`users/$uid/${f}/.validate`], `${f} must carry the strict rule`);
+  }
 });

@@ -48,7 +48,12 @@ export function flatten({ square_posts, user_square_posts, square_archive }) {
   return out;
 }
 
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// Key-order-insensitive: RTDB hands keys back sorted, slimAttachedStory() builds them in its own
+// order, and an order-sensitive compare called every freshly-scrubbed record "still dirty" (the
+// first apply, 24 Sep, verified clean and reported 16 — this is that false positive, fixed).
+const canon = (v) => (v && typeof v === 'object' && !Array.isArray(v)
+  ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon(v[k])])) : v);
+const same = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 
 /** The plan: which attachments change, to what, and why. Pure. */
 export function plan(records) {
