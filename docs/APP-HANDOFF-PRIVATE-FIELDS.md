@@ -50,11 +50,18 @@ and moves it to `users_private/{uid}`, in one update per reader. It moves top-le
 `email`, plus `profile/dob`, `profile/email` and `profile/country`. The public copy is the most
 recent write and wins. It skips uids with a `deletions/{uid}` record, and touches nothing else.
 
-**How long a new dob can sit on the public record:** one scrub interval plus a run. Measured over
-the scrub's first 11 scheduled runs: gaps of 8 to 29 minutes (median 15), each run about 1.5
-minutes. So **about 31 minutes at worst so far**. GitHub gives no guarantee: a busy period can
-delay a scheduled run longer, and the scrub job waits on its test job, so a red suite stops the
-sweep until it is fixed.
+**How long a new dob can sit on the public record:** until the next scrub run finishes. GitHub
+runs the `*/15` schedule late, and it can skip ticks:
+
+- The scrub's first 11 scheduled runs had gaps of 8 to 29 minutes, and each took about 1.5 minutes.
+- During this round **the schedule skipped two ticks**: runs at 00:16Z and then 01:05Z, a
+  **50-minute** gap.
+- The proof throwaway's old-shape dob was written at 00:35:51Z and removed by the 01:05:56Z run
+  (finished 01:07:27Z): **about 31 minutes on the public record**.
+
+**Worst observed: about 52 minutes** (a 50-minute gap plus a run). GitHub gives no upper bound.
+The scrub job also waits on its test job, so a red suite stops the sweep until it is fixed. The
+real fix is the app writing to `users_private`, then the refusal rule below.
 
 ## The refusal rule (built, NOT deployed)
 
