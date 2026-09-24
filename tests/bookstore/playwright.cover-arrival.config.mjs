@@ -19,6 +19,13 @@ export default defineConfig({
   expect: { timeout: 15000 },
   reporter: [['list']],
   use: {
+    // W2 — THE SERVICE WORKER IS BLOCKED IN THIS HARNESS. It now registers site-wide (Providers),
+    // and a /bookstore navigation goes through its respondWith(fetch(...)). page.route cannot see
+    // a request a service worker makes, so the no-preload PROOF's rewrite of the detail page's
+    // HTML stopped landing and the proof went red with nothing wrong in the page. The worker
+    // passes these bytes through untouched in production; what this suite measures is the
+    // document and its preload, so it measures them without the worker in the way.
+    serviceWorkers: 'block',
     baseURL: `http://127.0.0.1:${PORT}`,
     ...devices['Desktop Chrome'],
     launchOptions: {

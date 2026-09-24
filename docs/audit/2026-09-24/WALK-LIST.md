@@ -90,3 +90,20 @@ device disagrees, the ledger row named in brackets is wrong or already fixed, so
 - **Offline reload of /square:** the dinosaur page (SPD-10).
 - **Predictive back with Quick Look or the DM sheet open:** the sheet should close and the page stay. Not verified.
 - **Browser zoom 200% on /square and /search:** no sideways scroll, but the cookie banner and tab bar take about 40% of the screen.
+
+## W2: designed states (live site, any phone; the expected reading is fixed in advance)
+
+1. **Keep using the site offline.** Load Home and let it finish. Turn on airplane mode and keep scrolling and
+   tapping between pages you have already opened. **Expect:** nothing already on screen turns into an empty
+   page, a "0", or a spinner.
+2. **Offline, open a surface you have not loaded yet.** The Book Store, My Library › Books, Search and The Series.
+   **Expect:** either the house "No signal" page (with TRY AGAIN and GO TO MY LIBRARY), or the page's own frame
+   with "CAN'T REACH THE ISLAND · We couldn't reach …" and a **Try again** button.
+   **Never** "0 stories", "BY FORM 0", "Nothing under that word", "Books you buy…", or the browser's own error page.
+   The first failure appears after about 12 seconds.
+3. **Airplane mode off, tap Try again.** **Expect:** the button reads "Trying…", then the content arrives. Coming
+   back online also retries on its own.
+4. **A made-up address,** e.g. `/nothing-here`. **Expect:** "There's nothing at this address", GO TO THE LIBRARY and
+   SEARCH, and the tab bar. No white Arial page.
+5. **Before 30 Sept, on a phone, open /bookstore.** **Expect:** the curtain, and the tab bar under it **answers a
+   tap**: Search takes you to Search. On an iPad or a laptop, the five tabs sit across the top of the curtain.
