@@ -20,6 +20,8 @@ import CoverImage from '../components/CoverImage';
 import { openingOf, readingTime } from '../lib/openPagesOpening';
 import { ref, get, onValue } from 'firebase/database';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
+import { useReliableListener, useReliableLoad } from '../lib/useReliable';
+import Unavailable from '../components/Unavailable';
 import { normalizeGenre } from '../lib/openPages';
 // The Series row's chrome follows the tier flag, so the homepage and the endpoint cannot
 // disagree about whether the section is behind a wall. The loader itself is imported lazily
@@ -79,6 +81,9 @@ const stories = [
   // The CMS fetch useEffect below populates allStories on mount.
   // Intentionally empty: do NOT reintroduce hardcoded entries here.
 ];
+
+// A stable empty list, so memos keyed on allStories do not recompute while the feed loads.
+const EMPTY_LIST = [];
 
 function parseDate(str) {
   const d = new Date(str);
@@ -1425,18 +1430,39 @@ export default function Home() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [top10, setTop10] = useState([]);
   const [email, setEmail] = useState('');
   const [subscribeStatus, setSubscribeStatus] = useState('');
   const [squareOpen, setSquareOpen] = useState(false);
   const [countdown, setCountdown] = useState('');
-  const [allStories, setAllStories] = useState([]);
+  // W2 / HOME-05 — the whole page hangs off this one listener. Before W2 an unreachable database
+  // left Just Added, Top 10 and the five rows on their skeletons for good: an onValue that never
+  // fires never fails either. useReliableListener gives the FIRST value a deadline and turns a
+  // miss into a designed failure; once stories are drawn, nothing replaces them.
+  const feed = useReliableListener((onData, onError) => onValue(ref(db, 'cms_stories_index'), async (snap) => {
+    try {
+      if (!snap.exists()) { onData([]); return; }
+      const now = new Date();
+      const cmsStories = Object.entries(snap.val())
+        .map(([id, s]) => ({ ...s, id }))
+        .filter(s => s.published !== false && (!s.publishAt || new Date(s.publishAt) <= now));
+      // Resolve author display names live (batched, deduped, with its own deadline) before render.
+      const nameMap = await resolveAuthorNames(cmsStories);
+      const resolved = withCurrentAuthorNames(cmsStories, nameMap);
+      // Category rows render allStories in array order — keep newest-first.
+      resolved.sort((a, b) => getStorySortTime(b) - getStorySortTime(a));
+      onData(resolved);
+    } catch (e) {
+      onError(e);
+    }
+  }, onError), []);
+  const allStories = feed.data || EMPTY_LIST;
   const [carousel, setCarousel] = useState([]);
 
   // When arriving from the gateway, its veil holds at black until this flips — the same
   // first-data condition the skeletons below key off, so the reveal lands on real content
   // rather than on a skeleton. Inert on a direct visit: there's no veil to lift.
-  useArrivalReady(allStories.length > 0);
+  // W2 — lift on ANY settled first read: a failure must be seen, not held behind the veil.
+  useArrivalReady(feed.phase !== 'loading');
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1470,30 +1496,6 @@ export default function Home() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const storiesRef = ref(db, 'cms_stories_index');
-    const unsubscribe = onValue(storiesRef, async (snap) => {
-      try {
-        if (snap.exists()) {
-          const data = snap.val();
-          const now = new Date();
-          const cmsStories = Object.entries(data)
-            .map(([id, s]) => ({ ...s, id }))
-            .filter(s => s.published !== false && (!s.publishAt || new Date(s.publishAt) <= now));
-          // Resolve author display names live (batched, deduped) before render.
-          const nameMap = await resolveAuthorNames(cmsStories);
-          const resolved = withCurrentAuthorNames(cmsStories, nameMap);
-          // Category rows render allStories in array order — keep newest-first.
-          resolved.sort((a, b) => getStorySortTime(b) - getStorySortTime(a));
-          setAllStories(resolved);
-        }
-      } catch (e) {
-        console.error('CMS merge error:', e);
-      }
-    });
-    return () => unsubscribe();
   }, []);
 
   // Live CMS updates re-pick with the current seed; the ref lets the re-roll
@@ -1579,36 +1581,28 @@ export default function Home() {
     setSeqIdx(i => (sequence.length > 0 && i >= sequence.length ? 0 : i));
   }, [sequence]);
 
-  useEffect(() => {
-  if (allStories.length === 0) return;
-  async function fetchTop10() {
-    try {
-      const weeklySnap = await get(ref(db, 'top_stories/weekly'));
-      const weekly = weeklySnap.exists() ? weeklySnap.val() : null;
-      if (weekly && Array.isArray(weekly.items) && weekly.items.length > 0) {
-        const byId = new Map(allStories.map(s => [s.id, s]));
-        const precomputed = weekly.items
-          .map(item => {
-            const story = byId.get(item.slug);
-            return story ? { ...story, hits: item.count || 0 } : null;
-          })
-          .filter(Boolean)
-          .slice(0, 10);
-        setTop10(precomputed);
-        return;
-      }
-      const snapshot = await get(ref(db, 'stories'));
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const withCounts = allStories.map(s => ({ ...s, hits: (data[s.id] && data[s.id].hits) || 0 }));
-        setTop10(withCounts.sort((a, b) => b.hits - a.hits).slice(0, 10));
-      }
-    } catch (e) {
-      console.error('Firebase Top 10 error:', e);
+  // W2 — Top 10's two reads, with a deadline. They used to fail silently into an empty row.
+  // Run once the feed is drawn; the ranking is re-derived from the live feed at render.
+  const feedReady = feed.phase === 'ready';
+  const ranking = useReliableLoad(async () => {
+    if (!feedReady) return null;
+    const weeklySnap = await get(ref(db, 'top_stories/weekly'));
+    const weekly = weeklySnap.exists() ? weeklySnap.val() : null;
+    if (weekly && Array.isArray(weekly.items) && weekly.items.length > 0) return { weekly: weekly.items };
+    const snapshot = await get(ref(db, 'stories'));
+    return { hits: snapshot.exists() ? snapshot.val() : {} };
+  }, [feedReady]);
+  const top10 = useMemo(() => {
+    const r = ranking.data;
+    if (!r) return [];
+    if (r.weekly) {
+      const byId = new Map(allStories.map(s => [s.id, s]));
+      return r.weekly.map(item => { const st = byId.get(item.slug); return st ? { ...st, hits: item.count || 0 } : null; })
+        .filter(Boolean).slice(0, 10);
     }
-  }
-  fetchTop10();
-}, [allStories]);
+    return allStories.map(s => ({ ...s, hits: (r.hits[s.id] && r.hits[s.id].hits) || 0 }))
+      .sort((a, b) => b.hits - a.hits).slice(0, 10);
+  }, [ranking.data, allStories]);
 
   const handleSubscribe = async () => {
     if (!email || !email.includes('@')) { setSubscribeStatus('Please enter a valid email address.'); return; }
@@ -1763,6 +1757,14 @@ export default function Home() {
 
       <Navbar />
 
+      {/* W2 — the hero's box is reserved while the feed loads, so nothing jumps when it lands and
+          the Square banner below never slides up under the fixed navbar (it did, on every slow
+          load). On a failed feed only the navbar's height is kept: the failure is the content. */}
+      {feed.phase === 'loading' && (
+        <section aria-hidden="true" style={{ height: '88vh', minHeight: 600, background: 'linear-gradient(180deg, #0f0b1c 0%, #0a0a0a 100%)' }} />
+      )}
+      {feed.phase === 'failed' && <div aria-hidden="true" style={{ height: 88 }} />}
+
       {/* Hero Carousel — renders only when CMS data lands. Hero CMS wiring tracked for a later phase. */}
       {carousel.length > 0 && featured && (
       <section style={{ position: 'relative', height: '88vh', minHeight: 600, overflow: 'hidden' }}>
@@ -1864,8 +1866,10 @@ export default function Home() {
         <SquareBanner squareOpen={squareOpen} countdown={countdown} />
       </div>
 
-      {/* Just Added */}
-      {allStories.length === 0 ? (
+      {/* Just Added — and, if the first read failed, the ONE failure the page shows. */}
+      {feed.phase === 'failed' ? (
+        <Unavailable kind={feed.failure} onRetry={feed.retry} refreshing={feed.refreshing} subject="the stories" />
+      ) : feed.phase === 'loading' ? (
         <JustAddedSkeleton />
       ) : (
       <section style={{ padding: '0.75rem 0' }}>
@@ -1888,8 +1892,10 @@ export default function Home() {
       <TopReadersStrip />
 
       {/* Top 10 */}
-      {allStories.length === 0 ? (
+      {feed.phase === 'failed' ? null : feed.phase === 'loading' || ranking.phase === 'loading' ? (
         <Top10Skeleton />
+      ) : ranking.phase === 'failed' ? (
+        <Unavailable compact kind={ranking.failure} onRetry={ranking.retry} refreshing={ranking.refreshing} subject="the Top 10" />
       ) : (
       <section style={{ padding: '1rem 0' }}>
         <div data-reveal="up" style={{ padding: '0 4%', marginBottom: '1rem' }}>
@@ -1903,27 +1909,27 @@ export default function Home() {
       )}
 
 
-      {allStories.length === 0 ? (
+      {feed.phase === 'failed' ? null : feed.phase === 'loading' ? (
         <RowSkeleton title="Flash Fiction" kicker="THE FLASH" />
       ) : (
         <Row title="Flash Fiction" kicker="THE FLASH" stories={allStories.filter(s => s.category === 'flash')} seeAll="/flash" />
       )}
-      {allStories.length === 0 ? (
+      {feed.phase === 'failed' ? null : feed.phase === 'loading' ? (
         <RowSkeleton title="Short Stories" kicker="THE SHELF" />
       ) : (
         <Row title="Short Stories" kicker="THE SHELF" stories={allStories.filter(s => s.category === 'short')} seeAll="/short" />
       )}
-      {allStories.length === 0 ? (
+      {feed.phase === 'failed' ? null : feed.phase === 'loading' ? (
         <RowSkeleton title="Poetry" kicker="THE VERSE" />
       ) : (
         <Row title="Poetry" kicker="THE VERSE" stories={allStories.filter(s => s.category === 'poetry')} seeAll="/poetry" />
       )}
-      {allStories.length === 0 ? (
+      {feed.phase === 'failed' ? null : feed.phase === 'loading' ? (
         <RowSkeleton title="News & Updates" kicker="THE BRIEF" />
       ) : (
         <Row title="News & Updates" kicker="THE BRIEF" stories={allStories.filter(s => s.category === 'news')} seeAll="/news" />
       )}
-      {allStories.length === 0 ? (
+      {feed.phase === 'failed' ? null : feed.phase === 'loading' ? (
         <RowSkeleton title="Inspiring Stories" kicker="THE LIGHT" />
       ) : (
         <Row title="Inspiring Stories" kicker="THE LIGHT" stories={allStories.filter(s => s.category === 'inspiring')} seeAll="/inspiring" />

@@ -1,5 +1,7 @@
 'use client';
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { useReliableLoad } from '../lib/useReliable';
+import Unavailable from '../components/Unavailable';
 import { notFound } from 'next/navigation';
 import { db } from '../lib/firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
@@ -737,7 +739,7 @@ function Hero({ count, currency, onCurrency, chosen }) {
         <div className="hero-eyebrow">&#10086; Calvary Scribblings &#10086;</div>
         <h1 className="hero-title"><span className="hero-the">The</span><em className="hero-store">Book Store</em></h1>
         <p className="hero-colophon">A shop, not a warehouse. Every title on these shelves was chosen by hand.</p>
-        <div className="hero-edition">Catalogue &middot; {count} {count === 1 ? 'Title' : 'Titles'} &middot; Est. 2026</div>
+        <div className="hero-edition">Catalogue &middot; {count === null ? '\u2014' : <>{count} {count === 1 ? 'Title' : 'Titles'}</>} &middot; Est. 2026</div>
         {/* R8.3 — the currency line sits with the catalogue line, because that is what it is:
             a statement about how this catalogue is priced, in the same register as the count
             and the year. Not a control panel, and not a floating widget. */}
@@ -784,21 +786,13 @@ function Colophon({ count }) {
 }
 
 export default function BookStorePage() {
-  const [gateState, setGateState] = useState('checking');
-  const [titles, setTitles] = useState(null); // null until the catalogue load resolves
-  // R13 — the taxonomy and the claims. Both null until their load resolves, for the same
-  // reason `titles` is: a shop that renders tabs before it knows their names, or a section
-  // before it knows whether it is claimed, would flash a wrong screen at every reader.
-  const [genres, setGenres] = useState(null);
-  const [sectionRows, setSectionRows] = useState(null);
-  const [signals, setSignals] = useState(null);
   // THE CLOCK, HELD IN STATE AND NOT READ DURING RENDER.
   //
   // React refuses Date.now() in a render body (react-hooks/purity) and it is right to: this
   // component is PRERENDERED into the static export, so a clock read during render is a
   // value the build has and the browser does not agree with. It is set once at mount, and
   // re-set exactly once more at the next month boundary — see the effect below.
-  const [now, setNow] = useState(0);
+  const [nowTick, setNow] = useState(0);
   const [activeFiction, setActiveFiction] = useState('all');
   const [activeNonfiction, setActiveNonfiction] = useState('all');
   const [modal, setModal] = useState(null); // { title, rect }
@@ -834,59 +828,38 @@ export default function BookStorePage() {
   // every link on the shop still works exactly as it did before R22, without the motion.
   useEffect(() => installBookTransitions(), []);
 
-  // A0 runtime gate — UNCHANGED in substance: the route still stays invisible (404) until at
-  // least one title is published. The only difference is that it now waits for the curtain,
-  // because R8.1's brief is that nothing is fetched from behind it. A visitor without the key
-  // never issues this query, so the 404 case is not even reachable until they are through.
-  useEffect(() => {
-    if (!unlocked) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const snap = await get(query(ref(db, 'bookstore_titles'), orderByChild('status'), equalTo('published')));
-        if (cancelled) return;
-        setGateState(snap.exists() ? 'open' : 'empty');
-      } catch {
-        if (!cancelled) setGateState('empty');
-      }
-    })();
-    return () => { cancelled = true; };
+  // ── W2 / BS-01, BS-02 — ONE READ, UNDER A DEADLINE, AND A FAILURE IS NEVER "NO SHOP" ──────
+  //
+  // This was two effects: the A0 gate query (is anything published?) and then the catalogue.
+  // Nothing — not even the nav — drew until the gate query answered: 0.86s unthrottled, 4.8s on
+  // Fast 3G, and FOR EVER with the database unreachable, because a get() that never settles
+  // never lets the page decide. And a gate query that THREW was taken for "nothing published"
+  // and handed to notFound(): a network failure drew the 404.
+  //
+  // Now the nav, hero and skeleton shelf draw the moment the curtain is gone (storeReady below);
+  // the reads run under useReliableLoad's deadline; a failure draws <Unavailable>; and only a
+  // SUCCESSFUL, EMPTY gate answer reaches notFound(). The A0 rule itself is unchanged: the route
+  // stays invisible until at least one title is published, and nothing is fetched from behind
+  // the curtain — `unlocked` is still the first condition.
+  //
+  // R13's three smaller reads ride along. getGenres falls back to its seed and getSections /
+  // getSignals to [] on their own failures — an enrichment failing costs a curated table, never
+  // the shop — so only the gate query and the catalogue can fail the page.
+  const shop = useReliableLoad(async () => {
+    if (!unlocked) return null;
+    const snap = await get(query(ref(db, 'bookstore_titles'), orderByChild('status'), equalTo('published')));
+    if (!snap.exists()) return { empty: true };
+    const list = await getAllPublishedTitles({ throwOnError: true });
+    const [g, s, sig] = await Promise.all([getGenres(), getSections(), getSignals()]);
+    // The clock, taken once, beside the claims it dates. See THE CLOCK above.
+    return { titles: list, genres: g, sectionRows: s, signals: sig, at: Date.now() };
   }, [unlocked]);
-
-  // Single-fetch data flow — UNCHANGED. Fetch the full published catalogue exactly once and
-  // derive every view (genre filter, split, featured/window, opening lines) client-side.
-  useEffect(() => {
-    if (gateState !== 'open') return;
-    let cancelled = false;
-    (async () => {
-      const list = await getAllPublishedTitles();
-      if (cancelled) return;
-      setTitles(list);
-      // R13 — THREE MORE READS, AND THEY ARE ALL SMALL. bookstore_genres is twelve records of
-      // four fields. bookstore_sections is however many shelves the curator has planned, and
-      // at launch that is one or two. bookstore_signals does not exist, so it is an absent-node
-      // read that returns nothing — see getSignals()'s note on why it is wired anyway.
-      //
-      // ⚠ THE REASON THIS CATALOGUE READ IS AWAITED FIRST HAS BEEN RETIRED, and the comment
-      // that gave it is corrected here rather than left standing. It read: "the catalogue is
-      // awaited FIRST because getSections needs it — the bootstrap builds the Window's claim
-      // out of the published titles". R17.2 deleted that bootstrap and getSections now takes
-      // no argument, so nothing below depends on `list` any more.
-      //
-      // The serialisation is therefore no longer necessary — these three could join the
-      // catalogue in one Promise.all and save a round trip. NOT DONE HERE: that is a change to
-      // how the shop loads, and this round's job was to remove dead code, not to re-time the
-      // page behind it. It is left as a named, deliberate opportunity rather than an accident.
-      const [g, s, sig] = await Promise.all([getGenres(), getSections(), getSignals()]);
-      if (cancelled) return;
-      setGenres(g);
-      setSectionRows(s);
-      setSignals(sig);
-      // The clock, taken once, beside the claims it dates. See THE CLOCK above.
-      setNow(Date.now());
-    })();
-    return () => { cancelled = true; };
-  }, [gateState]);
+  const titles = shop.data?.titles ?? null;
+  const genres = shop.data?.genres ?? null;
+  const sectionRows = shop.data?.sectionRows ?? null;
+  const signals = shop.data?.signals ?? null;
+  // The alarm below re-reads the clock by setting nowTick, which is always later than `at`.
+  const now = nowTick || shop.data?.at || 0;
 
   // The clock, and its one alarm.
   //
@@ -922,11 +895,13 @@ export default function BookStorePage() {
   // the server and on the first client render, and it is the ONLY thing rendered while
   // `curtain === 'checking'` — storeReady is false and the gate's slot is empty.
 
-  // Only reachable from behind the curtain, because gateState stays 'checking' until `unlocked`
+  // Only reachable from behind the curtain, because the shop read returns null until `unlocked`
   // lets the A0 query run. A visitor without the key gets the gate, never the 404.
-  if (unlocked && gateState === 'empty') notFound();
+  if (unlocked && shop.data?.empty === true) notFound();
 
-  const storeReady = unlocked && gateState === 'open';
+  // The storefront draws as soon as the curtain is gone: nav, hero and skeleton at once (BS-01).
+  const storeReady = unlocked && shop.data?.empty !== true;
+  const shopFailed = shop.phase === 'failed';
 
   // R8.3. The hook is read here for the selector; every OTHER surface that prints money reads
   // the same module store directly (ShelfEntry, BoundBook, QuickLookModal, BuyButton), so
@@ -996,7 +971,7 @@ export default function BookStorePage() {
   );
   // Opening Lines pool: published titles with a resolvable opening line (field or excerpt).
   const linesPool = loading ? [] : banded.filter((t) => resolveOpeningLine(t));
-  const totalCount = loading ? 0 : titles.length;
+  const totalCount = loading ? null : titles.length;
 
   return (
     <>
@@ -1208,7 +1183,9 @@ export default function BookStorePage() {
               physics with a smaller coefficient. */}
           <Hero count={totalCount} currency={currency} onCurrency={chooseCurrency} chosen={currencyChosen} />
 
-          {loading ? (
+          {shopFailed ? (
+            <Unavailable kind={shop.failure} onRetry={shop.retry} refreshing={shop.refreshing} subject="the Book Store" />
+          ) : loading ? (
             <SkeletonShelf />
           ) : (
             <>

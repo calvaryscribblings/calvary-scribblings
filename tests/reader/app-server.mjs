@@ -43,7 +43,17 @@ async function resolveFile(urlPath) {
 
 createServer(async (req, res) => {
   const file = await resolveFile(req.url || '/');
-  if (!file) { res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found'); return; }
+  if (!file) {
+    // W2 — as Cloudflare Pages does: an address with no file gets out/404.html, status 404.
+    // It used to be a bare 'not found' string, so no harness could see the house 404 (BS-13).
+    try {
+      const body = await readFile(join(OUT, '404.html'));
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': body.length }).end(body);
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found');
+    }
+    return;
+  }
   const body = await readFile(file);
   res.writeHead(200, {
     'Content-Type': TYPES[extname(file)] || 'application/octet-stream',

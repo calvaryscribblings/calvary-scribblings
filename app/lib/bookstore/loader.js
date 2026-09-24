@@ -106,7 +106,11 @@ async function filterByActivePublisher(titles) {
   });
 }
 
-export async function getAllPublishedTitles() {
+// W2 — { throwOnError } for the two reads a shop PAGE is made of. The file's contract (never throw,
+// log and return [] or null) is right for enrichments and wrong for a page whose whole content is
+// the read: a failed catalogue read drew an empty shop, and a failed title read the 404 (BS-02).
+// Pages pass { throwOnError: true } and run under useReliableLoad; every other caller is unchanged.
+export async function getAllPublishedTitles(opts) {
   try {
     const snap = await get(query(ref(db, TITLES_PATH), orderByChild('status'), equalTo('published')));
     let titles = snapToArray(snap);
@@ -115,11 +119,12 @@ export async function getAllPublishedTitles() {
     return titles;
   } catch (err) {
     console.error('[bookstore.loader] getAllPublishedTitles failed', err);
+    if (opts && opts.throwOnError) throw err;
     return [];
   }
 }
 
-export async function getTitleBySlug(slug) {
+export async function getTitleBySlug(slug, opts) {
   if (!slug) return null;
   try {
     const snap = await get(query(ref(db, TITLES_PATH), orderByChild('slug'), equalTo(slug)));
@@ -134,6 +139,7 @@ export async function getTitleBySlug(slug) {
     return filtered.length === 0 ? null : filtered[0];
   } catch (err) {
     console.error('[bookstore.loader] getTitleBySlug failed', err);
+    if (opts && opts.throwOnError) throw err;
     return null;
   }
 }

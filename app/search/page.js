@@ -68,6 +68,8 @@ import TabBar from '../components/TabBar';
 import { db } from '../lib/firebaseCore';
 import { ref, get } from 'firebase/database';
 import { resolveIdentities } from '../lib/resolveAuthorNames';
+import { useReliableLoad } from '../lib/useReliable';
+import Unavailable from '../components/Unavailable';
 // ⚠ THE QUIZ PILL STAYS ON THIS SURFACE. R45 took the marker off the four CARD components
 // and ruled explicitly that /search, /quizzes and the story page keep theirs — search is an
 // entry point to the quiz, not a card. tests/quizmarker/marker.spec.mjs asserts it paints
@@ -230,11 +232,24 @@ function Marked({ text, query }) {
   );
 }
 
+const NONE = [];
+
+// W2 — the index while its first read is out: the shape of BY FORM, no numbers. A "0" here would
+// be a claim; a blank rule is not.
+function IndexSkeleton({ searching }) {
+  return (
+    <div aria-busy="true" aria-label={searching ? 'Searching' : 'Loading the index'}>
+      <style>{`@keyframes ix-skel{0%,100%{opacity:.5}50%{opacity:.85}}@media (prefers-reduced-motion: reduce){.ix-skel{animation:none!important}}`}</style>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="ix-skel" style={{ height: 44, margin: '6px 0', borderRadius: 6, background: 'rgba(245,240,232,0.05)', animation: 'ix-skel 1.6s ease-in-out infinite' }} />
+      ))}
+    </div>
+  );
+}
+
 export default function SearchPage() {
   const userTiers = useUserStoryTiers();
   const [query, setQuery] = useState('');
-  const [stories, setStories] = useState([]);
-  const [voices, setVoices] = useState([]);
   const [readerHits, setReaderHits] = useState({ q: '', rows: [] });
   const [books, setBooks] = useState([]);
   const [identities, setIdentities] = useState({});
@@ -247,52 +262,52 @@ export default function SearchPage() {
   // bookstore_titles (72 KB) is NOT fetched here: books only ever appear in results, so it
   // loads on the first query and is kept. That is the difference between an index that is
   // browsable and one that is expensive.
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      try {
-        const [sSnap, vSnap] = await Promise.all([
-          get(ref(db, 'cms_stories_index')),
-          get(ref(db, 'cms_voices')),
-        ]);
-        if (!live) return;
-
-        const now = Date.now();
-        const rows = sSnap.exists()
-          ? Object.entries(sSnap.val() || {})
-              .map(([id, s]) => ({ ...s, id }))
-              .filter((s) => s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now))
-          : [];
-        setStories(rows);
-
-        const roster = vSnap.exists()
-          ? Object.entries(vSnap.val() || {})
-              .map(([slug, v]) => ({ ...v, slug }))
-              .filter((v) => v.published === true)
-              .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
-          : [];
-        setVoices(roster);
-
-        // ⚠ ONE RESOLUTION PASS FOR THE WHOLE SCREEN, over the UNION of the uids the story
-        // rows and the Voices block need. 9 of the 10 voices are also index authors, so the
-        // union of 13 author uids and 10 voice uids is 14 reads, not 23 — and never one per
-        // row, which would be 181.
-        //
-        // ⚠ THE VOICE'S UID FIELD IS `matchUid`, NOT `authorUid`. authorUid is absent on all
-        // ten roster records; reading it yields ten unresolved rows and ten fallback discs,
-        // which looks like "nobody has uploaded a photograph" rather than a bug.
-        const uids = [
-          ...rows.map((s) => s.authorUid),
-          ...roster.map((v) => v.matchUid),
-        ];
-        const map = await resolveIdentities(uids);
-        if (live) setIdentities(map);
-      } catch (e) {
-        /* a failed read leaves an empty index — the field still works, nothing throws */
-      }
-    })();
-    return () => { live = false; };
+  //
+  // W2 / SRCH-01 — the catalogue is read under a deadline, and a failure is DRAWN. It used to be
+  // caught and left as an empty index, so an unreachable island read "BY FORM 0" and answered
+  // every query "Nothing under that word" — the island reported empty. Now: a skeleton while the
+  // first read is out, <Unavailable> if it fails, and "nothing under that word" only when a real
+  // catalogue genuinely has nothing.
+  const catalogue = useReliableLoad(async () => {
+    const [sSnap, vSnap] = await Promise.all([
+      get(ref(db, 'cms_stories_index')),
+      get(ref(db, 'cms_voices')),
+    ]);
+    const now = Date.now();
+    const rows = sSnap.exists()
+      ? Object.entries(sSnap.val() || {})
+          .map(([id, s]) => ({ ...s, id }))
+          .filter((s) => s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now))
+      : [];
+    const roster = vSnap.exists()
+      ? Object.entries(vSnap.val() || {})
+          .map(([slug, v]) => ({ ...v, slug }))
+          .filter((v) => v.published === true)
+          .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+      : [];
+    return { rows, roster };
   }, []);
+  const stories = catalogue.data?.rows || NONE;
+  const voices = catalogue.data?.roster || NONE;
+  const ready = catalogue.phase === 'ready';
+
+  // ⚠ ONE RESOLUTION PASS FOR THE WHOLE SCREEN, over the UNION of the uids the story rows and
+  // the Voices block need. 9 of the 10 voices are also index authors, so the union of 13 author
+  // uids and 10 voice uids is 14 reads, not 23 — and never one per row, which would be 181.
+  //
+  // ⚠ THE VOICE'S UID FIELD IS `matchUid`, NOT `authorUid`. authorUid is absent on all ten
+  // roster records; reading it yields ten unresolved rows and ten fallback discs, which looks
+  // like "nobody has uploaded a photograph" rather than a bug.
+  //
+  // An enrichment: resolveIdentities has its own deadline and never rejects; an unresolved uid
+  // falls back to the stored name.
+  useEffect(() => {
+    if (!ready) return;
+    let live = true;
+    resolveIdentities([...stories.map((s) => s.authorUid), ...voices.map((v) => v.matchUid)])
+      .then((map) => { if (live) setIdentities((prev) => ({ ...map, ...prev })); });
+    return () => { live = false; };
+  }, [ready, stories, voices]);
 
   // Seed from ?q= so a link into a search lands on its results.
   // Seed from ?q= so a link into a search lands on its results.
@@ -423,6 +438,7 @@ export default function SearchPage() {
     return () => document.removeEventListener('touchstart', noop);
   }, []);
 
+  // SRCH-02 — disabled (below) until the catalogue has arrived, so it never silently does nothing.
   const goRandom = () => {
     if (!stories.length) return;
     const s = stories[Math.floor(Math.random() * stories.length)];
@@ -575,6 +591,7 @@ export default function SearchPage() {
                      min-height: 48px; font-family: 'Cormorant Garamond', Georgia, serif;
                      font-size: 1.05rem; font-style: italic; color: ${HOUSE_GOLD_ON_DARK};
                      display: inline-flex; align-items: center; gap: 0.5rem; }
+        .ix-random:disabled { opacity: 0.45; cursor: default; }
         .ix-mark { font-style: normal; }
 
         /* ── RESULTS ────────────────────────────────────────────────────────────────────── */
@@ -660,7 +677,11 @@ export default function SearchPage() {
         </header>
 
         <main className="ix-body">
-          {!searching ? (
+          {catalogue.phase === 'failed' ? (
+            <Unavailable kind={catalogue.failure} onRetry={catalogue.retry} refreshing={catalogue.refreshing} subject="the index" />
+          ) : catalogue.phase === 'loading' ? (
+            <IndexSkeleton searching={searching} />
+          ) : !searching ? (
             <>
               <Kicker count={stories.length}>By form</Kicker>
               {forms.map((f) => (
@@ -705,7 +726,7 @@ export default function SearchPage() {
               )}
 
               <div className="ix-close">
-                <button className="ix-random ix-press" onClick={goRandom}>
+                <button className="ix-random ix-press" onClick={goRandom} disabled={!stories.length}>
                   <span className="ix-mark">✦</span> or read something at random
                 </button>
               </div>

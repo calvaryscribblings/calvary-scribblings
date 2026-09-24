@@ -48,8 +48,18 @@ function snapToRows(snap) {
   return out;
 }
 
+// ── W2 — { throwOnError } FOR READER PAGES ──────────────────────────────────────────────────
+// Every reader-facing loader below catches its read and answers [] or null, which is right for
+// the admin and for a homepage strip ("a missing section rather than a broken page") and WRONG
+// for a page whose whole content is that read: /series drew "The first series is being written"
+// and /series/{slug} "No such series." for a read that FAILED, and "Loading…" for good for one
+// that hung (SER-01). Reader pages pass { throwOnError: true } and run the call under
+// useReliableLoad, which adds the deadline; the failure is then drawn, not disguised as empty.
+// The default is unchanged for every other caller.
+const rethrowIf = (opts, err) => { if (opts && opts.throwOnError) throw err; };
+
 /** Every published series, newest-first by addedAt. The /series landing page's whole input. */
-export async function getPublishedSeries() {
+export async function getPublishedSeries(opts) {
   try {
     const snap = await get(query(ref(db, SERIES_PATH), orderByChild('status'), equalTo('published')));
     return snapToRows(snap)
@@ -57,6 +67,7 @@ export async function getPublishedSeries() {
       .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
   } catch (err) {
     console.error('[series.loader] getPublishedSeries failed', err);
+    rethrowIf(opts, err);
     return [];
   }
 }
@@ -87,7 +98,7 @@ export async function getAllSeries() {
 
 /** One series by its slug. The record's key IS its slug — see the schema note — so this is a
  *  direct read rather than an indexed query, unlike the bookstore's getTitleBySlug(). */
-export async function getSeriesBySlug(slug) {
+export async function getSeriesBySlug(slug, opts) {
   if (!slug) return null;
   try {
     const snap = await get(ref(db, `${SERIES_PATH}/${slug}`));
@@ -97,6 +108,7 @@ export async function getSeriesBySlug(slug) {
     return { id: slug, ...doc };
   } catch (err) {
     console.error(`[series.loader] getSeriesBySlug failed for ${slug}`, err);
+    rethrowIf(opts, err);
     return null;
   }
 }
@@ -108,13 +120,14 @@ export async function getSeriesBySlug(slug) {
  * that does not exist yet, and printing "instalment 6, date to be confirmed" for a row an
  * editor is still drafting would promise a thing nobody has committed to.
  */
-export async function getInstalments(seriesId, now = Date.now()) {
+export async function getInstalments(seriesId, now = Date.now(), opts) {
   if (!seriesId) return [];
   try {
     const snap = await get(query(ref(db, INSTALMENTS_PATH), orderByChild('seriesId'), equalTo(seriesId)));
     return instalmentsOf(snapToRows(snap), seriesId, now);
   } catch (err) {
     console.error(`[series.loader] getInstalments failed for ${seriesId}`, err);
+    rethrowIf(opts, err);
     return [];
   }
 }
@@ -147,11 +160,11 @@ export async function getInstalmentDetail(instalmentId) {
  * must not blank the other seven. Deliberately fires only for rows that pass isReleased(),
  * so an unreleased instalment costs no request at all rather than costing a denial.
  */
-export async function getSeriesPage(slug, now = Date.now()) {
-  const series = await getSeriesBySlug(slug);
+export async function getSeriesPage(slug, now = Date.now(), opts) {
+  const series = await getSeriesBySlug(slug, opts);
   if (!series) return null;
 
-  const rows = await getInstalments(series.id, now);
+  const rows = await getInstalments(series.id, now, opts);
   const details = await Promise.all(
     rows.map((r) => (isReleased(r, now) ? getInstalmentDetail(r.id) : Promise.resolve(null))),
   );
@@ -164,7 +177,7 @@ export async function getSeriesPage(slug, now = Date.now()) {
 }
 
 /** One public row by id. Direct read — the node is `.read: true` and the key is the id. */
-export async function getInstalmentRow(instalmentId) {
+export async function getInstalmentRow(instalmentId, opts) {
   if (!instalmentId) return null;
   try {
     const snap = await get(ref(db, `${INSTALMENTS_PATH}/${instalmentId}`));
@@ -172,6 +185,7 @@ export async function getInstalmentRow(instalmentId) {
     return { id: instalmentId, ...(snap.val() || {}) };
   } catch (err) {
     console.error(`[series.loader] getInstalmentRow failed for ${instalmentId}`, err);
+    rethrowIf(opts, err);
     return null;
   }
 }
@@ -195,11 +209,11 @@ export async function getInstalmentRow(instalmentId) {
  * A row whose series is missing or unpublished resolves to null — the whole page, not a page
  * with a blank eyebrow. An instalment of a withdrawn series is not a thing to show.
  */
-export async function getInstalmentPage(instalmentId, now = Date.now()) {
-  const row = await getInstalmentRow(instalmentId);
+export async function getInstalmentPage(instalmentId, now = Date.now(), opts) {
+  const row = await getInstalmentRow(instalmentId, opts);
   if (!row || row.status !== 'published') return null;
 
-  const series = await getSeriesBySlug(row.seriesId);
+  const series = await getSeriesBySlug(row.seriesId, opts);
   if (!series) return null;
 
   const released = isReleased(row, now);

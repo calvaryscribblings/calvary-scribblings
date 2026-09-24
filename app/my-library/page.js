@@ -20,6 +20,8 @@
 // over at London midnight, and server-rendered as the static LAUNCH_TEXT with the day count
 // hydrated in — exactly as app/components/Gateway.js does it, so the no-JS and crawler render
 // is a true sentence rather than a blank.
+import { useReliableLoad } from '../lib/useReliable';
+import Unavailable from '../components/Unavailable';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { db } from '../lib/firebaseCore';
@@ -273,7 +275,6 @@ export default function MyLibraryPage() {
   const [showAuth, setShowAuth] = useState(false);
   // Derived for the same reason as the gateway's: this is the value the static export bakes.
   const [opensLabel, setOpensLabel] = useState(() => (doorsOpen() ? null : LAUNCH_TEXT));
-  const [books, setBooks] = useState(null); // null = not loaded, [] = none owned
   // titleId -> fraction (0–1). {} once read; a titleId absent from it has never been opened.
   const [progress, setProgress] = useState({});
 
@@ -395,78 +396,74 @@ export default function MyLibraryPage() {
   }, [user, loading]);
 
   // BOOKS — ported from /library.
-  useEffect(() => {
-    if (loading || !user) { setBooks(null); return; }
-    let cancelled = false;
-    (async () => {
+  // W2 / LIB-01 — the purchases read, under a deadline, and a failure is DRAWN. It used to hang
+  // on its skeleton for good offline, and a read that THREW set books to [] — which told an owner
+  // "Books you buy… live here": a reader's own books reported as not theirs. null (signed out or
+  // auth still settling) keeps the skeleton; [] is only ever a real, successful, empty answer.
+  const booksLoad = useReliableLoad(async () => {
+    if (loading || !user) return null;
+    const { ref, get } = await import('firebase/database');
+    const snap = await get(ref(db, `bookstore_purchases/${user.uid}`));
+    if (!snap.exists()) return [];
+
+    const entries = [];
+    snap.forEach((child) => { entries.push({ id: child.key, ...(child.val() || {}) }); return false; });
+
+    const resolved = await Promise.all(entries.map(async (p) => {
+      let titleDoc = null;
       try {
-        const { ref, get } = await import('firebase/database');
-        const snap = await get(ref(db, `bookstore_purchases/${user.uid}`));
-        if (!snap.exists()) { if (!cancelled) setBooks([]); return; }
+        const tsnap = await get(ref(db, `bookstore_titles/${p.id}`));
+        if (tsnap.exists()) titleDoc = tsnap.val();
+      } catch { /* fall back to denormalised purchase fields */ }
+      return {
+        // R9.7: the titleId is carried through now. bookstore_reading_progress is keyed
+        // by titleId while this shelf is keyed by slug, so without it the progress
+        // record cannot be matched to the row it belongs to. Nothing else about this
+        // read changed — same node, same fields, same fallbacks.
+        id: p.id,
+        slug: titleDoc?.slug || p.slug || p.id,
+        title: titleDoc?.title || p.title || 'Untitled',
+        author: titleDoc?.author || p.author || '',
+        coverUrl: titleDoc?.coverUrl || p.coverUrl || null,
+        // Presentation field for the bookplate. Absent ⇒ the plate prints no mark, the
+        // same rule book-reader.js applies: an id is not a catalogue number.
+        catalogueNumber: titleDoc?.catalogueNumber ?? null,
+        purchasedAt: typeof p.purchasedAt === 'number' ? p.purchasedAt : 0,
+        // R9.1 LB-8. `status === 'active'` verbatim, because that is the exact test the
+        // server gate applies before it will hand over the file
+        // (functions/api/bookstore/stream.js). Any looser reading here — treating a
+        // missing status as owned, say — would show a READ NOW that 403s on tap.
+        active: p.status === 'active',
+      };
+    }));
 
-        const entries = [];
-        snap.forEach((child) => { entries.push({ id: child.key, ...(child.val() || {}) }); return false; });
-
-        const resolved = await Promise.all(entries.map(async (p) => {
-          let titleDoc = null;
-          try {
-            const tsnap = await get(ref(db, `bookstore_titles/${p.id}`));
-            if (tsnap.exists()) titleDoc = tsnap.val();
-          } catch { /* fall back to denormalised purchase fields */ }
-          return {
-            // R9.7: the titleId is carried through now. bookstore_reading_progress is keyed
-            // by titleId while this shelf is keyed by slug, so without it the progress
-            // record cannot be matched to the row it belongs to. Nothing else about this
-            // read changed — same node, same fields, same fallbacks.
-            id: p.id,
-            slug: titleDoc?.slug || p.slug || p.id,
-            title: titleDoc?.title || p.title || 'Untitled',
-            author: titleDoc?.author || p.author || '',
-            coverUrl: titleDoc?.coverUrl || p.coverUrl || null,
-            // Presentation field for the bookplate. Absent ⇒ the plate prints no mark, the
-            // same rule book-reader.js applies: an id is not a catalogue number.
-            catalogueNumber: titleDoc?.catalogueNumber ?? null,
-            purchasedAt: typeof p.purchasedAt === 'number' ? p.purchasedAt : 0,
-            // R9.1 LB-8. `status === 'active'` verbatim, because that is the exact test the
-            // server gate applies before it will hand over the file
-            // (functions/api/bookstore/stream.js). Any looser reading here — treating a
-            // missing status as owned, say — would show a READ NOW that 403s on tap.
-            active: p.status === 'active',
-          };
-        }));
-
-        // ── ONE ROW PER SLUG, ACTIVE WINS ─────────────────────────────────────────
-        // Purchases are keyed by titleId, but the shelf is keyed by SLUG: two catalogue
-        // entries can carry the same slug (a re-issue, a publisher migration), and the
-        // reader owns "the book", not the row. So if ANY record for a slug is active the
-        // reader owns it and no withdrawn ghost appears beside it; the withdrawn row shows
-        // only when EVERY record for that slug is revoked.
-        //
-        // This also removes a latent duplicate-key warning — the grid below keys on slug.
-        const bySlug = new Map();
-        for (const row of resolved) {
-          const prev = bySlug.get(row.slug);
-          if (!prev) { bySlug.set(row.slug, row); continue; }
-          // Active beats withdrawn outright. Between two of the same standing, the most
-          // recent purchase is the one that describes the reader's position today.
-          if (row.active !== prev.active) {
-            if (row.active) bySlug.set(row.slug, row);
-          } else if ((row.purchasedAt || 0) > (prev.purchasedAt || 0)) {
-            bySlug.set(row.slug, row);
-          }
-        }
-
-        // Sorted by purchase date ALONE. Status deliberately plays no part: a withdrawn book
-        // holds the place it earned, which is what "renders in place" means.
-        const shelf = [...bySlug.values()].sort((a, b) => (b.purchasedAt || 0) - (a.purchasedAt || 0));
-        if (!cancelled) setBooks(shelf);
-      } catch (e) {
-        console.error('[my-library] purchases load failed', e);
-        if (!cancelled) setBooks([]);
+    // ── ONE ROW PER SLUG, ACTIVE WINS ─────────────────────────────────────────
+    // Purchases are keyed by titleId, but the shelf is keyed by SLUG: two catalogue
+    // entries can carry the same slug (a re-issue, a publisher migration), and the
+    // reader owns "the book", not the row. So if ANY record for a slug is active the
+    // reader owns it and no withdrawn ghost appears beside it; the withdrawn row shows
+    // only when EVERY record for that slug is revoked.
+    //
+    // This also removes a latent duplicate-key warning — the grid below keys on slug.
+    const bySlug = new Map();
+    for (const row of resolved) {
+      const prev = bySlug.get(row.slug);
+      if (!prev) { bySlug.set(row.slug, row); continue; }
+      // Active beats withdrawn outright. Between two of the same standing, the most
+      // recent purchase is the one that describes the reader's position today.
+      if (row.active !== prev.active) {
+        if (row.active) bySlug.set(row.slug, row);
+      } else if ((row.purchasedAt || 0) > (prev.purchasedAt || 0)) {
+        bySlug.set(row.slug, row);
       }
-    })();
-    return () => { cancelled = true; };
-  }, [user, loading]);
+    }
+
+    // Sorted by purchase date ALONE. Status deliberately plays no part: a withdrawn book
+    // holds the place it earned, which is what "renders in place" means.
+    const shelf = [...bySlug.values()].sort((a, b) => (b.purchasedAt || 0) - (a.purchasedAt || 0));
+    return shelf;
+  }, [user?.uid, loading]);
+  const books = booksLoad.phase === 'ready' ? booksLoad.data : null; // null = not known yet
 
   const initials = user ? (user.displayName || 'R').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() : '';
   // R9.1 LB-8: withdrawn books are shown but not counted as owned — the switch says "N owned"
@@ -997,7 +994,12 @@ export default function MyLibraryPage() {
             )}
 
             {/* ── BOOKS — purchases when they exist, countdown when they don't ── */}
-            {section === 'books' && books === null && (
+            {section === 'books' && booksLoad.phase === 'failed' && (
+              <Unavailable kind={booksLoad.failure} onRetry={booksLoad.retry} refreshing={booksLoad.refreshing}
+                subject="your books" note="They’re still yours." />
+            )}
+
+            {section === 'books' && books === null && booksLoad.phase !== 'failed' && (
               <div className="ml-grid" aria-hidden="true">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i}>

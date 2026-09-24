@@ -28,11 +28,19 @@
 // auditable rather than a matter of degree (see isPassThrough, which returns before any
 // respondWith can be reached).
 //
-// The consequence, accepted deliberately: an OFFLINE stranger at the front door gets the
-// browser's own error page, not ours. We cannot do better without intercepting, because
-// you cannot learn that a navigation failed without first calling respondWith() and
-// taking over the response. The offline visitors who matter are shelf users, and their
-// door is /my-library — which is also the manifest's start_url.
+// ⚠ W2 (24 Sep 2026) AMENDED THIS, and the amendment is narrow. The consequence the paragraph
+// below originally accepted — "an OFFLINE stranger at the front door gets the browser's own
+// error page" — was reversed by the W2 brief: a fenced NAVIGATION that fails now gets the house
+// offline page (SPD-10). What the fence still guarantees, and must: a fenced route is NEVER
+// cached and NEVER replayed. The only thing added is `fetch(request).catch(offlineResponse)` —
+// the network's own answer, byte for byte, whenever there is one; ours only when there is none.
+// The worker also registers site-wide now (app/components/Providers.js), not only from shelf
+// surfaces (SPD-09).
+//
+// (Original, now superseded:) The consequence, accepted deliberately: an OFFLINE stranger at
+// the front door gets the browser's own error page, not ours. We cannot do better without
+// intercepting, because you cannot learn that a navigation failed without first calling
+// respondWith() and taking over the response.
 //
 // The cost, also accepted deliberately: a cold arrival at the gateway pays the service
 // worker's boot before the pass-through happens, roughly 10–30ms. That is noise against a
@@ -158,7 +166,16 @@ self.addEventListener('activate', (event) => {
 // ── fetch ────────────────────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (isPassThrough(event.request, url)) return; // ← the only guarantee that matters
+  if (isPassThrough(event.request, url)) {
+    // W2 / SPD-10 — a fenced NAVIGATION still fails into the house page. Nothing is cached and
+    // nothing is replayed: the response is the network's own whenever the network answers.
+    // Same-origin GET navigations only, and never /api/.
+    if (event.request.mode === 'navigate' && event.request.method === 'GET'
+        && url.origin === self.location.origin && !url.pathname.startsWith('/api/')) {
+      event.respondWith(fetch(event.request).catch(() => { broadcast({ type: 'CS_OFFLINE' }); return offlineResponse(url); }));
+    }
+    return; // ← the only guarantee that matters: no fenced route is ever served from a cache
+  }
 
   // Content-hashed and served immutable for a year (see public/_headers). A stale copy is
   // unreachable by definition, so cache-first is unconditionally correct here — and it is
@@ -330,7 +347,7 @@ function offlineResponse(url) {
   .r{width:60px;height:1px;background:#c9a84c;opacity:.55;margin:9px auto 0}
   h1{font-size:20px;font-weight:600;margin:18px 0 0;line-height:1.3}
   p{font-size:14.5px;line-height:1.55;color:rgba(245,240,232,.62);margin:8px 0 0}
-  a{display:inline-block;margin-top:22px;border-radius:999px;padding:11px 22px;
+  a{display:inline-block;margin:22px 5px 0;border-radius:999px;padding:14px 22px;min-height:44px;box-sizing:border-box;
     font-family:'Cinzel','Cormorant Garamond',Georgia,serif;font-size:9px;letter-spacing:.2em;
     color:#e2c876;text-decoration:none;border:1px solid rgba(201,168,76,.35);
     background:linear-gradient(160deg,rgba(245,240,232,.055),rgba(91,43,160,.10))}
@@ -338,7 +355,7 @@ function offlineResponse(url) {
 <div class="e">CALVARY SCRIBBLINGS</div><div class="r"></div>
 <div class="o" style="margin-top:26px" aria-hidden="true">&#10022;</div>
 <h1>${head}</h1><p>${body}</p>
-<a href="/my-library">GO TO MY LIBRARY</a>
+<a href="">TRY AGAIN</a> <a href="/my-library">GO TO MY LIBRARY</a>
 </div></body></html>`;
   return new Response(html, {
     status: 200,

@@ -1,5 +1,7 @@
 'use client';
 
+import AccountFrame, { AccountSkeleton } from '../components/AccountFrame';
+import { readWithDeadline } from '../lib/reliableRead';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DeleteAccountModal from '../components/DeleteAccountModal';
@@ -60,10 +62,13 @@ export default function SettingsPage() {
         try {
           const { getDatabase, ref, get } = await import('firebase/database');
           const dbInst = getDatabase(await getApp());
-          const [snap, authorSnap] = await Promise.all([
+          // W2 — under a deadline: these two only feed the delete dialog's typed confirmation,
+          // which falls back to the email's handle, so a failure costs nothing visible — but a
+          // hung get() never settles, and nothing on this page should wait on one.
+          const [snap, authorSnap] = await readWithDeadline(() => Promise.all([
             get(ref(dbInst, `users/${u.uid}/username`)),
             get(ref(dbInst, `users/${u.uid}/isAuthor`)),
-          ]);
+          ]));
           setUsername(snap.exists() ? snap.val() : null);
           setIsAuthor(authorSnap.val() === true);
         } catch {
@@ -108,7 +113,8 @@ export default function SettingsPage() {
     router.push('/');
   };
 
-  if (loading) return <div style={{ minHeight: '100vh', background: '#0d0d0d' }} />;
+  // W2 / ACC-06 — never a blank board: the frame, with a way home, while auth settles.
+  if (loading) return <AccountFrame><AccountSkeleton /></AccountFrame>;
   if (!authUser) return null;
 
   return (

@@ -29,6 +29,7 @@ import { ref, push } from 'firebase/database';
 import { db } from '../../lib/firebase';
 import { isPasscodeCorrect, grantGatePass, isEmailShaped } from '../../lib/bookstore/gate';
 import { OPENING_DATE } from '../../lib/launch';
+import { TabLinks } from '../../components/TabBar';
 
 // ⚠ R34's LAUNCH-DATE NOTE STOOD HERE, AND IT IS SUPERSEDED. R9.1, 5 Sept 2026.
 //
@@ -104,6 +105,7 @@ const GATE_CSS = `
          defence, and for the same reason, as the ".cs-dtabs a.cs-dtab" scoping documented in
          components/TabBar.js. Do not weaken it to a lone class to match the rules around it. */
   nav.cs-tabbar{z-index:9100}
+  .bg-gate-nav{position:absolute;top:18px;left:0;right:0;display:flex;justify-content:center;z-index:2}
   /* The lift. Fade runs ahead of the travel — by the time the panel is halfway up it is
      already mostly gone, which is what stops a 0.9s full-height translate reading as a wipe. */
   .bg-gate.is-lifting{transform:translateY(-100%);opacity:0}
@@ -244,6 +246,12 @@ export default function LaunchGate({ onUnlock, onLifted }) {
       for (const el of Array.from(parent.children)) {
         if (el === gate) continue;
         if (el.classList?.contains('cs-cookie')) continue;   // see above
+        // W2 / SPD-08 — THE TAB BAR IS EXEMPT TOO. It was painted above the curtain (z-index
+        // 9100, below) and then made inert by this loop, so on a phone /bookstore was a dead
+        // end: five tabs drawn, none of them answering a tap. The bar is how a reader LEAVES a
+        // shop that is not open yet; it is not the shop, and nothing behind the curtain is
+        // reachable through it.
+        if (el.matches?.('nav.cs-tabbar')) continue;
         touched.push([el, el.inert, el.getAttribute('aria-hidden')]);
         el.inert = true;
         el.setAttribute('aria-hidden', 'true');
@@ -279,9 +287,11 @@ export default function LaunchGate({ onUnlock, onLifted }) {
     const gate = gateRef.current;
     if (!gate) return;
 
+    // Rendered controls only: the W2 tab row is display:none under 768px, and a hidden link as
+    // `first` or `last` let Shift+Tab walk straight out of the curtain.
     const focusable = Array.from(
       gate.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'),
-    );
+    ).filter((el) => el.getClientRects().length > 0);
     if (focusable.length === 0) { e.preventDefault(); return; }
 
     const first = focusable[0];
@@ -352,6 +362,10 @@ export default function LaunchGate({ onUnlock, onLifted }) {
     >
       <style>{GATE_CSS}</style>
       <div className="bg-lamp" aria-hidden="true" />
+      {/* W2 / SPD-08 — the way out on a wide screen, where there is no bottom bar: the same
+          five tabs every other page carries in its header. TabLinks draws nothing under 768px,
+          where the (now live) tab bar does the job. */}
+      <div className="bg-gate-nav"><TabLinks active="store" /></div>
 
       <div className="bg-inner">
         <div className="bg-brand">Calvary Scribblings</div>

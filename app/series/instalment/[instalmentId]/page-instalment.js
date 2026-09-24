@@ -37,12 +37,13 @@
 // only thing whose answer can produce a file. subscriptionTier, never `tier`: a £1 day pass
 // lifts the second and the Series does not honour passes, so reading `tier` here would show an
 // unlocked button that the endpoint then refuses.
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/AuthContext';
 import { useMembership } from '../../../lib/MembershipContext';
 import { getInstalmentPage } from '../../../lib/series/loader';
+import { useReliableLoad } from '../../../lib/useReliable';
+import Unavailable from '../../../components/Unavailable';
 import { grantForInstalment, refusalCopy } from '../../../lib/series/access';
 import {
   formatRelease, instalmentLabel, instalmentEyebrow, readActionLabel,
@@ -61,24 +62,20 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
   const router = useRouter();
   const { user } = useAuth() || {};
   const membership = useMembership() || {};
-  // undefined = loading, null = no such instalment. Resolved in the INITIALISER for the
-  // sentinel, which is knowable from the props on the first render — painting a loading state
-  // for an id that was never going to resolve is a flash of nothing.
-  const [data, setData] = useState(instalmentId === sentinel ? null : undefined);
-
-  useEffect(() => {
-    if (instalmentId === sentinel) return undefined;
-    let cancelled = false;
-    (async () => {
-      const page = await getInstalmentPage(instalmentId);
-      if (!cancelled) setData(page);
-    })();
-    return () => { cancelled = true; };
-  }, [instalmentId, sentinel]);
-
-  if (data === undefined) {
-    return <Shell><p style={{ padding: '3rem 6%', color: 'rgba(245,240,232,0.35)', fontSize: 14 }}>Loading…</p></Shell>;
+  // W2 / SER-01 — under a deadline, and a failed read is DRAWN. It used to await the loader with
+  // no deadline ("Loading…" for good on a hung read) and take its caught-and-nulled failure for
+  // "no such instalment". null still means missing; a failure is now <Unavailable>.
+  const page = useReliableLoad(
+    () => (instalmentId === sentinel ? null : getInstalmentPage(instalmentId, Date.now(), { throwOnError: true })),
+    [instalmentId, sentinel],
+  );
+  if (page.phase === 'loading') {
+    return <Shell><p style={{ padding: '3rem 6%', color: 'rgba(245,240,232,0.62)', fontSize: 14 }}>Loading…</p></Shell>;
   }
+  if (page.phase === 'failed') {
+    return <Shell><Unavailable kind={page.failure} onRetry={page.retry} refreshing={page.refreshing} subject="this instalment" /></Shell>;
+  }
+  const data = page.data;
   if (data === null) return <Missing />;
 
   const { row, series, detail, released } = data;

@@ -12,10 +12,11 @@
 // whose status is published and whose releaseAtMs has passed on the caller's clock. There is
 // no instalmentCount on the parent record and there should never be one — see the note in
 // app/lib/series/schema.js on why the bookstore's titlesCount was rejected as a model.
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import TabBar from '../components/TabBar';
 import { getPublishedSeries, getInstalments } from '../lib/series/loader';
+import { useReliableLoad } from '../lib/useReliable';
+import Unavailable from '../components/Unavailable';
 import { shelfLine } from '../lib/series/format';
 import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
 
@@ -33,23 +34,17 @@ const DESCRIPTION = SERIES_TIER_GATE_ENABLED
   : 'Long-form fiction in instalments. Each one its own complete book, arriving on its own date — and free to everyone until memberships open.';
 
 export default function SeriesLandingPage() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const list = await getPublishedSeries();
-      // One instalment query per series. Parallel, and each is independently allowed to fail
-      // — a series whose rows will not load renders with no count rather than taking the
-      // whole shelf down with it.
-      const withRows = await Promise.all(
-        list.map(async (s) => ({ ...s, rows: await getInstalments(s.id) })),
-      );
-      if (!cancelled) { setRows(withRows); setLoading(false); }
-    })();
-    return () => { cancelled = true; };
+  // W2 / SER-01 — the shelf's read under a deadline. A failed read used to be caught in the loader
+  // and drawn as "The first series is being written"; a hung one as "Loading the shelf…" for good.
+  const shelf = useReliableLoad(async () => {
+    const list = await getPublishedSeries({ throwOnError: true });
+    // One instalment query per series. Parallel, and each is independently allowed to fail
+    // — a series whose rows will not load renders with no count rather than taking the
+    // whole shelf down with it.
+    return Promise.all(list.map(async (s) => ({ ...s, rows: await getInstalments(s.id) })));
   }, []);
+  const loading = shelf.phase === 'loading';
+  const rows = shelf.data || [];
 
   return (
     <div style={{ background: '#080610', minHeight: '100vh', fontFamily: BODY }}>
@@ -83,7 +78,11 @@ export default function SeriesLandingPage() {
         <p style={{ padding: '3rem 4%', color: 'rgba(245,240,232,0.35)', fontSize: 14 }}>Loading the shelf…</p>
       )}
 
-      {!loading && rows.length === 0 && (
+      {shelf.phase === 'failed' && (
+        <Unavailable kind={shelf.failure} onRetry={shelf.retry} refreshing={shelf.refreshing} subject="The Series" />
+      )}
+
+      {shelf.phase === 'ready' && rows.length === 0 && (
         <section style={{ padding: '5rem 4%', textAlign: 'center' }}>
           <h2 style={{ fontFamily: DISPLAY, fontSize: '1.6rem', color: '#e5e5e5', marginBottom: '0.75rem' }}>The first series is being written.</h2>
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, maxWidth: 420, margin: '0 auto' }}>
@@ -92,7 +91,7 @@ export default function SeriesLandingPage() {
         </section>
       )}
 
-      {!loading && rows.length > 0 && (
+      {shelf.phase === 'ready' && rows.length > 0 && (
         <div className="sr-grid">
           {rows.map((s) => (
             <Link key={s.id} className="sr-card" href={`/series/${s.slug}`}>

@@ -11,6 +11,23 @@ import VerifyEmailBanner from './VerifyEmailBanner';
 import ProfileCompletion from './ProfileCompletion';
 
 export default function Providers({ children }) {
+  // W2 / SPD-09 — THE SERVICE WORKER, SITE-WIDE. It used to register only from the shelf
+  // surfaces, so a reader who had never opened My Library had no worker at all, and every tab
+  // offline was the browser's own error page. It precaches nothing, and every document stays
+  // network-first (public/sw.js, THE ONE RULE), so registering it everywhere costs one small
+  // script and buys the house offline page on every later visit. Deferred to idle so it never
+  // competes with the page's own first paint. (A reader's VERY first visit with no connection
+  // cannot be answered by anything of ours: no page has loaded to install a worker.)
+  useEffect(() => {
+    const go = () => { import('../lib/shelfWorker').then((m) => m.registerShelfWorker()).catch(() => {}); };
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(go, { timeout: 5000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = setTimeout(go, 3000);
+    return () => clearTimeout(t);
+  }, []);
+
   // Global scroll-reveal: adds .is-revealed to [data-reveal] elements as they
   // enter the viewport (see globals.css for the animations). The
   // MutationObserver picks up elements added after mount — client-side

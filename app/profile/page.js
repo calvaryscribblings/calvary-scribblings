@@ -1,5 +1,8 @@
 'use client';
 
+import AccountFrame, { AccountSkeleton, AccountUnavailable } from '../components/AccountFrame';
+import { READ_DEADLINE_MS, classifyFailure } from '../lib/reliableRead';
+import { useOnline, reconnectDatabase } from '../lib/useReliable';
 import { useEffect, useState, useRef } from 'react';
 import { attachmentOf } from '../lib/squarePostBody';
 import { useRouter } from 'next/navigation';
@@ -533,9 +536,19 @@ export default function ProfilePage() {
     } catch (e) {}
   };
 
+  // W2 / ACC-06 — the profile's first value has a deadline. The page waits on a users/{uid}
+  // listener, and a listener against an unreachable database never fires — so the blank board
+  // below stood for good. Past READ_DEADLINE_MS the page draws <AccountUnavailable>; the listener
+  // stays attached, so a late arrival still lands. Retry re-subscribes (profileEpoch).
+  const [profileFailure, setProfileFailure] = useState(null);
+  const [profileEpoch, setProfileEpoch] = useState(0);
+  const retryProfile = async () => { setProfileFailure(null); await reconnectDatabase(); setProfileEpoch((e) => e + 1); };
+  useOnline(() => { if (profileFailure) retryProfile(); });
+
   useEffect(() => {
     let unsubAuth = null;
     const unsubDB = [];
+    let profileTimer = null;
     (async () => {
       const auth = await getFirebaseAuth();
       const { onAuthStateChanged } = await import('firebase/auth');
@@ -544,7 +557,13 @@ export default function ProfilePage() {
         setAuthUser(u);
         const db = await getDB();
         const { ref, onValue, get } = await import('firebase/database');
+        let arrived = false;
+        clearTimeout(profileTimer);
+        profileTimer = setTimeout(() => { if (!arrived) setProfileFailure(classifyFailure(new Error('deadline'))); }, READ_DEADLINE_MS);
         unsubDB.push(onValue(ref(db, `users/${u.uid}`), async snap => {
+          arrived = true;
+          clearTimeout(profileTimer);
+          setProfileFailure(null);
           if (snap.exists()) {
             const d = snap.val();
             setProfileData(d);
@@ -593,8 +612,8 @@ export default function ProfilePage() {
         } catch (e) {}
       });
     })();
-    return () => { if (unsubAuth) unsubAuth(); unsubDB.forEach(fn => fn()); };
-  }, []);
+    return () => { clearTimeout(profileTimer); if (unsubAuth) unsubAuth(); unsubDB.forEach(fn => fn()); };
+  }, [profileEpoch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openEdit = () => {
     setEditName(profileData?.displayName || authUser?.displayName || '');
@@ -655,7 +674,8 @@ export default function ProfilePage() {
     setSaving(false);
   };
 
-  if (loading) return <div style={{ minHeight: '100vh', background: '#0d0d0d' }} />;
+  if (loading && profileFailure) return <AccountUnavailable failure={profileFailure} onRetry={retryProfile} subject="your profile" />;
+  if (loading) return <AccountFrame><AccountSkeleton /></AccountFrame>;
   if (!authUser) return null;
 
   const avatarUrl = profileData?.avatarUrl || null;

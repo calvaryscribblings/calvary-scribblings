@@ -1,6 +1,8 @@
 'use client';
 import { use, useEffect, useState } from 'react';
 import { notFound } from 'next/navigation';
+import { useReliableLoad } from '../../lib/useReliable';
+import Unavailable from '../../components/Unavailable';
 import { getTitleBySlug, getPublisherPublic } from '../../lib/bookstore/loader';
 // R13 — the taxonomy, read as data. This used to import sectionForGenre from the storefront
 // route AND keep its own byte-identical copy of GENRE_LABELS four lines below. Both are gone.
@@ -76,8 +78,6 @@ function MetaItem({ label, value }) {
 
 export default function BookDetailClient({ params, seed = null }) {
   const { slug } = use(params);
-  const [state, setState] = useState('loading'); // 'loading' | 'ready' | 'missing'
-  const [title, setTitle] = useState(null);
   const [publisherName, setPublisherName] = useState(null);
 
   // Stripe sends the reader back here with ?purchase=success|cancelled. Read once, lazily,
@@ -130,17 +130,29 @@ export default function BookDetailClient({ params, seed = null }) {
     else setCurtain('up');
   }, []);
 
+  // ── W2 / BS-03, BS-02 — THE TITLE READ, UNDER A DEADLINE ─────────────────────────────────
+  // It had none: with the database unreachable the page stood on its skeleton for good, and a
+  // read that threw was caught in the loader and came back null — "not found" — so a network
+  // failure took the reader to the 404. Now a failure is <Unavailable> (below the board), and
+  // only a real answer of "no such published title" reaches notFound().
+  //
+  // getTitleBySlug filters suspended publishers but does NOT gate on status — enforce
+  // published here (not found OR not published → notFound()). R3 logic, unchanged.
+  const titleLoad = useReliableLoad(async () => {
+    if (!unlocked) return null;
+    const t = await getTitleBySlug(slug, { throwOnError: true });
+    if (!t || t.status !== 'published') return { missing: true };
+    return { title: t };
+  }, [slug, unlocked]);
+  const title = titleLoad.data?.title || null;
+  const state = titleLoad.data?.missing ? 'missing' : title ? 'ready' : 'loading'; // 'loading' | 'ready' | 'missing'
+
+  // The enrichments, once the title is on screen. Each is allowed to fail on its own: a genre
+  // label falls back to the slug, the readership line and the publisher simply do not appear.
   useEffect(() => {
-    if (!unlocked) return;
+    if (!title) return undefined;
     let cancelled = false;
     (async () => {
-      // getTitleBySlug filters suspended publishers but does NOT gate on status — enforce
-      // published here (not found OR not published → notFound()). R3 logic, unchanged.
-      const t = await getTitleBySlug(slug);
-      if (cancelled) return;
-      if (!t || t.status !== 'published') { setState('missing'); return; }
-      setTitle(t);
-      setState('ready');
       // R13 — the taxonomy. Twelve records of four fields, and it is fetched AFTER the title
       // rather than beside it: the page's whole reason to exist is on screen the moment `t`
       // lands, and a genre label that arrives a beat later is a word filling in, not a page
@@ -151,18 +163,18 @@ export default function BookDetailClient({ params, seed = null }) {
       // R14 — one key of a public node, keyed by the RECORD KEY (t.id), which is what
       // bookstore_purchases is keyed by and therefore what the webhook counted against.
       // Deliberately not gated on sign-in: this is public data and a guest sees it.
-      const r = await getReadership(t.id);
+      const r = await getReadership(title.id);
       if (!cancelled) setReadership(r);
-      if (t.publisherId) {
+      if (title.publisherId) {
         // R9.2 PL-11 — the PUBLIC getter. Only `name` is ever used here, and the merged
         // getPublisher() also reached for bookstore_publishers_private, which is
         // founder-read-only: a guaranteed permission-denied on every reader's book page.
-        const pub = await getPublisherPublic(t.publisherId);
+        const pub = await getPublisherPublic(title.publisherId);
         if (!cancelled && pub?.name) setPublisherName(pub.name);
       }
     })();
     return () => { cancelled = true; };
-  }, [slug, unlocked]);
+  }, [title]);
 
   // Strip the marker from the URL once it has been read, so a refresh or a shared link never
   // re-announces a purchase that already happened. Pure side effect on an external system —
@@ -651,7 +663,7 @@ export default function BookDetailClient({ params, seed = null }) {
                 have a seed, means the slug has no static page and this render is on its way to
                 notFound(). The skeleton is what stands for the frame or two before that
                 resolves; it is not an arrival, and nothing pairs with it. */}
-            {!board && state === 'loading' && (
+            {!board && state === 'loading' && titleLoad.phase !== 'failed' && (
               <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '3.5rem' }}>
                 <div className="bd-skeleton" style={{ width: '280px', aspectRatio: '2/3', borderRadius: '2px 5px 5px 2px' }} />
                 <div>
@@ -665,6 +677,10 @@ export default function BookDetailClient({ params, seed = null }) {
               </div>
             )}
           </div>
+
+          {titleLoad.phase === 'failed' && (
+            <Unavailable kind={titleLoad.failure} onRetry={titleLoad.retry} refreshing={titleLoad.refreshing} subject="this book" />
+          )}
 
           {state === 'ready' && title && (
             <footer className="colophon">

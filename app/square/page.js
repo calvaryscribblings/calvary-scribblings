@@ -9,6 +9,9 @@ import AttachmentCard from '../components/conversation/AttachmentCard';
 import { MAX_POST_CHARS, MAX_REPLY_CHARS, showCounter, refusalFor, attachmentOf, slimAttachedStory } from '../lib/squarePostBody';
 import TabBar, { TabLinks } from '../components/TabBar';
 import { resolveIdentities, identityOf } from '../lib/squareIdentity';
+import { READ_DEADLINE_MS, classifyFailure } from '../lib/reliableRead';
+import { useOnline, reconnectDatabase } from '../lib/useReliable';
+import Unavailable from '../components/Unavailable';
 
 const SQUARE_REACTIONS = buildReactions('like');
 
@@ -864,7 +867,8 @@ export default function SquarePage() {
   const [showDM, setShowDM] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showPollCreator, setShowPollCreator] = useState(false);
-  const [presenceCount, setPresenceCount] = useState(0);
+  // null until presence is KNOWN — "0 in the room" over a feed that never loaded was a claim (SQ-03).
+  const [presenceCount, setPresenceCount] = useState(null);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [squareOpen, setSquareOpen] = useState(false);
   const [countdown, setCountdown] = useState('');
@@ -992,9 +996,25 @@ export default function SquarePage() {
     return () => { cancelled = true; if (unsub) unsub(); };
   }, []);
 
+  // W2 / SQ-03 — THE ROOM'S FIRST ARRIVAL HAS A DEADLINE. Child listeners never fail: against an
+  // unreachable database they simply never fire, so "Loading…" stood for good. If nothing — no
+  // post, and no answer from the settling get() — has arrived by READ_DEADLINE_MS, the feed draws
+  // <Unavailable>. The listeners stay attached, so a room that arrives late still lands and clears
+  // it; Retry re-attaches everything (roomEpoch). Once posts are drawn, nothing replaces them.
+  const [roomFailure, setRoomFailure] = useState(null);
+  const [roomEpoch, setRoomEpoch] = useState(0);
+  const [roomRetrying, setRoomRetrying] = useState(false);
+  const retryRoom = useCallback(async () => { setRoomRetrying(true); await reconnectDatabase(); setRoomEpoch((e) => e + 1); }, []);
+  useOnline(() => { if (roomFailure) retryRoom(); });
+
   useEffect(() => {
     let unsub = null;
     let cancelled = false;
+    let arrived = false;
+    const deadline = setTimeout(() => {
+      if (!arrived && !cancelled) { setRoomFailure(classifyFailure(new Error('deadline'))); setRoomRetrying(false); }
+    }, READ_DEADLINE_MS);
+    const settle = () => { arrived = true; clearTimeout(deadline); setRoomFailure(null); setRoomRetrying(false); };
     (async () => {
       const db = await getDB();
       // R33.2 rewrote this effect from one whole-node onValue to three per-child
@@ -1014,18 +1034,22 @@ export default function SquarePage() {
       // fix); after that a new post or a reaction bump is its own few hundred
       // bytes. Sorting moves to render, where it was always cheap.
       const seen = new Map();
-      const flush = () => { setPosts([...seen.values()]); setLoading(false); };
+      const flush = () => { settle(); setPosts([...seen.values()]); setLoading(false); };
       const postsRef = ref(db, 'square_posts');
       const offAdd = onChildAdded(postsRef, (s2) => { seen.set(s2.key, { id: s2.key, ...s2.val() }); flush(); });
       const offChg = onChildChanged(postsRef, (s2) => { seen.set(s2.key, { id: s2.key, ...s2.val() }); flush(); });
       const offRem = onChildRemoved(postsRef, (s2) => { seen.delete(s2.key); flush(); });
       // An empty room never fires a child event, so nothing would clear the
       // spinner. One value read settles that and then detaches.
-      get(postsRef).then((s2) => { if (!s2.exists()) { setLoading(false); } }).catch(() => setLoading(false));
+      //
+      // W2 — a get() that THROWS is a failure, not an empty room. It used to clear the spinner and
+      // draw "No posts yet. Be the first to say something." over a room that had not been read.
+      get(postsRef).then((s2) => { if (!s2.exists()) { settle(); setLoading(false); } else if (!arrived) settle(); })
+        .catch((err) => { if (!arrived && !cancelled) { clearTimeout(deadline); setRoomFailure(classifyFailure(err)); setRoomRetrying(false); } });
       unsub = () => { offAdd(); offChg(); offRem(); };
     })();
-    return () => { cancelled = true; if (unsub) unsub(); };
-  }, []);
+    return () => { cancelled = true; clearTimeout(deadline); if (unsub) unsub(); };
+  }, [roomEpoch]);
 
   useEffect(() => {
     (async () => {
@@ -1397,8 +1421,12 @@ export default function SquarePage() {
                 <>
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#1d9e75', display: 'inline-block', animation: 'sq-pulse 2s infinite' }} />
                   <span style={{ fontSize: 10, color: '#1d9e75', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Open</span>
-                  <span style={{ fontSize: 10, color: '#f5f0e8' }}>·</span>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.95)' }}>{presenceCount} in the room</span>
+                  {presenceCount !== null && (
+                    <>
+                      <span style={{ fontSize: 10, color: '#f5f0e8' }}>·</span>
+                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.95)' }}>{presenceCount} in the room</span>
+                    </>
+                  )}
                 </>
               ) : (
                 <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.92)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Closed · Opens at 8pm London time</span>
@@ -1556,7 +1584,9 @@ export default function SquarePage() {
           )}
 
           {/* Feed */}
-          {loading ? (
+          {loading && roomFailure ? (
+            <Unavailable kind={roomFailure} onRetry={retryRoom} refreshing={roomRetrying} subject="the Square" />
+          ) : loading ? (
             <div style={{ textAlign: 'center', padding: '2rem', color: '#f5f0e8', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem' }}>Loading…</div>
           ) : topLevel.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255,255,255,0.45)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1rem', fontStyle: 'italic' }}>No posts yet. Be the first to say something.</div>

@@ -33,6 +33,15 @@ async function getDB() {
   return getDatabase(app);
 }
 
+// W2 — AN ENRICHMENT MAY NEVER HOLD UP THE PAGE IT ENRICHES. Both resolvers below read one node
+// per uid, and a get() against an unreachable database never settles (PL-12), so a single hung
+// read used to hold a whole story list on its skeleton for good. Each resolver now gives up after
+// ENRICH_DEADLINE_MS and returns whatever it has — the documented fallback (the stored names) is
+// exactly what an empty map already means. CHOSEN, NOT DERIVED: half the page read's deadline
+// (reliableRead.js READ_DEADLINE_MS, 12s), so the page's own read, not the names, decides a failure.
+export const ENRICH_DEADLINE_MS = 6000;
+const settleBy = (promise, ms) => Promise.race([promise, new Promise((resolve) => setTimeout(resolve, ms))]);
+
 const uidOf = (story) =>
   story && story.authorUid ? String(story.authorUid).trim() : '';
 
@@ -46,7 +55,7 @@ export async function resolveAuthorNames(storyList) {
   try {
     const db = await getDB();
     const { ref, get } = await import('firebase/database');
-    await Promise.all(
+    await settleBy(Promise.all(
       uids.map(async (uid) => {
         try {
           const snap = await get(ref(db, `users/${uid}/displayName`));
@@ -56,11 +65,11 @@ export async function resolveAuthorNames(storyList) {
           /* leave this uid unresolved → frozen fallback */
         }
       })
-    );
+    ), ENRICH_DEADLINE_MS);
   } catch (e) {
     /* whole resolution failed → empty map → everything falls back to frozen */
   }
-  return map;
+  return { ...map };
 }
 
 // Per-story current display name: the live resolved name when available, else
@@ -123,7 +132,7 @@ export async function resolveIdentities(uidList) {
   try {
     const db = await getDB();
     const { ref, get } = await import('firebase/database');
-    await Promise.all(
+    await settleBy(Promise.all(
       uids.map(async (uid) => {
         try {
           const snap = await get(ref(db, `users/${uid}`));
@@ -138,9 +147,9 @@ export async function resolveIdentities(uidList) {
           /* leave this uid unresolved → the caller's stored fallback stands */
         }
       })
-    );
+    ), ENRICH_DEADLINE_MS);
   } catch (e) {
     /* whole resolution failed → empty map → every row falls back */
   }
-  return map;
+  return { ...map };
 }

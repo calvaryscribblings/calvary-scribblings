@@ -66,6 +66,23 @@ on:
       - 'app/lib/prosePredicate.js'
       - 'app/lib/storyIndex.js'
       - 'tests/search/**'
+      # W2 — the designed-states harness and everything it drives.
+      - 'tests/states/**'
+      - 'tests/reader/app-server.mjs'
+      - 'app/lib/reliableRead.js'
+      - 'app/lib/useReliable.js'
+      - 'app/lib/unavailableCopy.js'
+      - 'app/lib/categoryShelf.js'
+      - 'app/lib/resolveAuthorNames.js'
+      - 'app/lib/series/**'
+      - 'app/components/Unavailable.js'
+      - 'app/components/ShelfState.js'
+      - 'app/components/NotFoundPage.js'
+      - 'app/components/AccountFrame.js'
+      - 'app/not-found.js'
+      - 'app/series/**'
+      - 'app/square/**'
+      - 'app/my-library/**'
       # R11.17 — MEMBERSHIP AND /links. Three suites existed under tests/membership/ and CI ran
       # none of them: nothing under .github/workflows/ mentioned membership at all, so the deck
       # parity check and both browser suites only ran when somebody remembered. They ride this
@@ -496,6 +513,12 @@ jobs:
       # every source check in the repo was blind to.
       - name: Search index (subjects unbroken, oldstyle counts, the Voices row as a row)
         run: npx playwright test -c tests/search/playwright.config.mjs
+        if: ${{ !cancelled() }}
+
+      # W2 — nothing that failed may look empty: every surface with the database unreachable,
+      # Retry, rendered content staying, and the house 404.
+      - name: Designed states (unreachable database, retry, content stays, the 404)
+        run: npx playwright test -c tests/states/playwright.config.mjs
         if: ${{ !cancelled() }}
 
       - name: Upload traces and reports

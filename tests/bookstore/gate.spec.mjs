@@ -401,6 +401,12 @@ test.describe('the gate is a dialog', () => {
         expect(s.inert, 'the cookie banner must stay reachable').toBeFalsy();
         continue;
       }
+      // W2 / SPD-08 — the tab bar is the way OUT of a shop that is not open yet. Painted above
+      // the curtain and then inerted, it was a dead end on every phone until 30 September.
+      if (s.cls.includes('cs-tabbar') && !s.cls.includes('spacer')) {
+        expect(s.inert, 'the tab bar must answer a tap behind the curtain').toBeFalsy();
+        continue;
+      }
       // aria-hidden alone would hide the shop while leaving every link in it tabbable, which
       // is the worse half of the bug. Both, or neither is any use.
       expect(s.inert, `sibling "${s.cls}" must be inert while the curtain is down`).toBeTruthy();
@@ -431,6 +437,25 @@ test.describe('the gate is a dialog', () => {
       await page.keyboard.press('Shift+Tab');
       expect(await insideGate(), `focus escaped backwards after ${i + 1} shift-tabs`).toBeTruthy();
     }
+  });
+
+  test('W2 / SPD-08: on a phone, the tab bar behind the curtain takes the reader away', async ({ page }) => {
+    await page.goto('/bookstore');
+    await expect(page.getByTestId('bookstore-gate')).toBeVisible();
+    const search = page.locator('nav.cs-tabbar a', { hasText: 'Search' });
+    await expect(search).toBeVisible();
+    await search.tap();
+    await expect(page).toHaveURL(/\/search$/);
+  });
+
+  test('W2 / SPD-08: on a wide screen, the curtain carries the five tabs', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/bookstore');
+    await expect(page.getByTestId('bookstore-gate')).toBeVisible();
+    const home = page.getByTestId('bookstore-gate').locator('nav.cs-dtabs a', { hasText: 'Home' });
+    await expect(home).toBeVisible();
+    await home.click();
+    await expect(page).toHaveURL(/\/public-library$/);
   });
 
   test('Escape does NOT dismiss the curtain', async ({ page }) => {

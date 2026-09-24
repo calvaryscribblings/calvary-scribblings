@@ -1,5 +1,8 @@
 'use client';
 
+import AccountFrame, { AccountSkeleton, AccountUnavailable } from '../components/AccountFrame';
+import { readWithDeadline } from '../lib/reliableRead';
+import { reconnectDatabase } from '../lib/useReliable';
 import { useEffect, useState } from 'react';
 import { attachmentOf } from '../lib/squarePostBody';
 import { stories as allStories } from '../lib/stories';
@@ -296,6 +299,10 @@ export default function UserPage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followsYou, setFollowsYou] = useState(false);
   const [loading, setLoading] = useState(true);
+  // W2 / ACC-06 — a read that failed is a failure, not "User not found.". `loadEpoch` is Retry.
+  const [loadFailure, setLoadFailure] = useState(null);
+  const [loadEpoch, setLoadEpoch] = useState(0);
+  const retryLoad = async () => { setLoadFailure(null); setLoading(true); await reconnectDatabase(); setLoadEpoch((e) => e + 1); };
   const [followLoading, setFollowLoading] = useState(false);
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
@@ -314,15 +321,15 @@ export default function UserPage() {
         try {
           const db = await getDB();
           const { ref, get } = await import('firebase/database');
-          const snap = await get(ref(db, `usernames/${handle.toLowerCase()}`));
+          const snap = await readWithDeadline(() => get(ref(db, `usernames/${handle.toLowerCase()}`)));
           if (snap.exists()) setUid(snap.val());
           else setLoading(false);
-        } catch (e) { setLoading(false); }
+        } catch (e) { setLoadFailure(e.kind || 'ours'); setLoading(false); }
       } else {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [loadEpoch]);
 
   useEffect(() => {
     (async () => {
@@ -366,7 +373,7 @@ export default function UserPage() {
             fetches.push(get(ref(db, `followers/${uid}/${u.uid}`)));
             fetches.push(get(ref(db, `followers/${u.uid}/${uid}`)));
           }
-          const results = await Promise.all(fetches);
+          const results = await readWithDeadline(() => Promise.all(fetches));
           const [userSnap, commentsSnap, followersSnap, followingSnap, badgesSnap, streakSnap] = results;
 
           if (userSnap.exists()) {
@@ -386,11 +393,11 @@ export default function UserPage() {
             setIsFollowing(results[6]?.exists() || false);
             setFollowsYou(results[7]?.exists() || false);
           }
-        } catch (e) { console.error('User profile error:', e); }
+        } catch (e) { console.error('User profile error:', e); setLoadFailure(e.kind || 'ours'); }
         setLoading(false);
       });
     })();
-  }, [uid]);
+  }, [uid, loadEpoch]);
 
   const handleFollow = async () => {
     if (!currentUser || followLoading) return;
@@ -413,11 +420,17 @@ export default function UserPage() {
     setFollowLoading(false);
   };
 
-  if (loading) return <div style={{ minHeight: '100vh', background: '#0d0d0d' }} />;
+  if (loadFailure) return <AccountUnavailable failure={loadFailure} onRetry={retryLoad} refreshing={loading} subject="this reader’s profile" />;
+  if (loading) return <AccountFrame><AccountSkeleton /></AccountFrame>;
+  // ACC-07 — a designed not-found, with a way on.
   if (!uid || !profileData) return (
-    <div style={{ minHeight: '100vh', background: '#0d0d0d', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.92rem', fontWeight: 500 }}>User not found.</p>
-    </div>
+    <AccountFrame>
+      <div style={{ textAlign: 'center', padding: '64px 24px', maxWidth: 420, margin: '0 auto' }}>
+        <h1 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 26, fontWeight: 600, color: '#f5f0e8', margin: 0, textWrap: 'balance' }}>There’s no reader by that name</h1>
+        <p style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 16, lineHeight: 1.55, color: 'rgba(245,240,232,0.78)', margin: '10px 0 0' }}>They may have changed their handle, or left the island. You can look for them in Search.</p>
+        <a href="/search" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, marginTop: 20, padding: '0 22px', borderRadius: 999, border: '1px solid rgba(201,168,76,0.45)', color: '#f5f0e8', textDecoration: 'none', fontFamily: "'Cinzel', 'Cormorant Garamond', Georgia, serif", fontSize: 11, letterSpacing: '0.18em' }}>SEARCH</a>
+      </div>
+    </AccountFrame>
   );
 
   const isAuthor = profileData.isAuthor || false;

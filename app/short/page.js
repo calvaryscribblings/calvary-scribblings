@@ -1,8 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { categoryMeta } from '../lib/stories';
 import StoryCard from '../components/StoryCard';
-import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
+import { useReliableLoad } from '../lib/useReliable';
+import { loadCategoryShelf, countLabel } from '../lib/categoryShelf';
+import ShelfState from '../components/ShelfState';
 import TabBar, { TabLinks } from '../components/TabBar';
 import { tabsPresentIn, inSubcategory } from '../lib/taxonomy';
 
@@ -13,6 +15,9 @@ const BODY = "Cormorant Garamond, Georgia, serif";
 
 const cat = 'short';
 const meta = categoryMeta[cat];
+const NOUN = ['story', 'stories'];
+const EMPTY = 'Nothing on this shelf yet.';
+const SUBJECT = `the ${meta.label} shelf`;
 const KICKER = 'THE SHELF';
 const DESCRIPTION = 'Character, place, consequence. The full arc in a single sitting.';
 
@@ -27,48 +32,11 @@ function sortBtnStyle(active) {
 }
 
 export default function ShortPage() {
-  const [allStories, setAllStories] = useState([]);
+  // W2 / STORY-04 — the shelf's read, with a deadline and a designed failure (categoryShelf.js).
+  const shelf = useReliableLoad(() => loadCategoryShelf(cat), []);
+  const allStories = shelf.data || [];
   const [sortMode, setSortMode] = useState('hits');
   const [activeTab, setActiveTab] = useState('all');
-
-  useEffect(() => {
-    async function fetchCMS() {
-      try {
-        const { initializeApp, getApps } = await import('firebase/app');
-        const { getDatabase, ref, get } = await import('firebase/database');
-        const firebaseConfig = {
-          apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
-          authDomain: 'calvary-scribblings.firebaseapp.com',
-          databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
-          projectId: 'calvary-scribblings',
-          storageBucket: 'calvary-scribblings.firebasestorage.app',
-          messagingSenderId: '1052137412283',
-          appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
-        };
-        const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        const snap = await get(ref(db, 'cms_stories_index'));
-        if (snap.exists()) {
-          const now = Date.now();
-          const cms = Object.entries(snap.val())
-            .map(([id, s]) => ({ ...s, id }))
-            .filter(s => s.category === cat && s.published !== false && (!s.publishAt || new Date(s.publishAt).getTime() <= now));
-          const nameMap = await resolveAuthorNames(cms);
-          const resolved = withCurrentAuthorNames(cms, nameMap);
-          // Secondary fetch: per-story read counts (stories/{id}/hits) so the
-          // "Most Read" sort works. Stories with no hits data default to 0.
-          let hitsData = {};
-          try {
-            const hitsSnap = await get(ref(db, 'stories'));
-            if (hitsSnap.exists()) hitsData = hitsSnap.val();
-          } catch (e) {}
-          const withHits = resolved.map(s => ({ ...s, hits: hitsData[s.id]?.hits || 0 }));
-          setAllStories(withHits);
-        }
-      } catch(e) { console.error('CMS fetch error:', e); }
-    }
-    fetchCMS();
-  }, []);
 
   // Filter by the active subcategory tab, then apply the Most Read / Newest sort
   // within that filtered set (sort never replaces the tab filter). Stories with
@@ -117,7 +85,7 @@ export default function ShortPage() {
 
       {/* Sort / count bar. */}
       <div data-reveal="up" data-reveal-delay="1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#0c0918' }}>
-        <span style={{ fontFamily: BODY, fontSize: 11, color: 'rgba(245,240,232,0.35)' }}>{sorted.length} stories</span>
+        <span style={{ fontFamily: BODY, fontSize: 11, color: 'rgba(245,240,232,0.35)' }}>{countLabel(shelf, sorted.length, NOUN)}</span>
         <div style={{ display: 'flex', gap: 16 }}>
           <button onClick={() => setSortMode('hits')} style={sortBtnStyle(sortMode === 'hits')}>Most Read</button>
           <button onClick={() => setSortMode('date')} style={sortBtnStyle(sortMode === 'date')}>Newest</button>
@@ -137,17 +105,21 @@ export default function ShortPage() {
       </div>
 
       {/* Story grid — 2-col portrait cards matching the app, rank badges on Most Read. */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', padding: '0 16px 32px', marginTop: 16 }}>
-        {sorted.map((s, i) => (
-          <StoryCard
-            key={s.id}
-            story={s}
-            rank={sortMode === 'hits' ? i + 1 : null}
-            data-reveal="up"
-            data-reveal-delay={(i % 6) + 1}
-          />
-        ))}
-      </section>
+      {shelf.phase !== 'ready' || sorted.length === 0 ? (
+        <ShelfState shelf={shelf} count={sorted.length} empty={EMPTY} subject={SUBJECT} />
+      ) : (
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', padding: '0 16px 32px', marginTop: 16 }}>
+          {sorted.map((s, i) => (
+            <StoryCard
+              key={s.id}
+              story={s}
+              rank={sortMode === 'hits' ? i + 1 : null}
+              data-reveal="up"
+              data-reveal-delay={(i % 6) + 1}
+            />
+          ))}
+        </section>
+      )}
       <TabBar />
     </div>
   );

@@ -26,12 +26,13 @@
 // the same string a paid Gold membership does. Reading `tier` here would show an unlocked
 // row to a pass-holder that the endpoint then refuses — the worst of both, since it advertises
 // something and takes it away at the tap.
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/AuthContext';
 import { useMembership } from '../../lib/MembershipContext';
 import { getSeriesPage } from '../../lib/series/loader';
+import { useReliableLoad } from '../../lib/useReliable';
+import Unavailable from '../../components/Unavailable';
 import { grantForInstalment, refusalCopy, SERIES_TIER_GATE_ENABLED } from '../../lib/series/access';
 import { formatRelease, shelfLine, instalmentLabel } from '../../lib/series/format';
 
@@ -43,24 +44,19 @@ export default function SeriesDetailClient({ slug, sentinel }) {
   const router = useRouter();
   const { user } = useAuth() || {};
   const membership = useMembership() || {};
-  // undefined = loading, null = not found. The sentinel resolves in the INITIALISER rather
-  // than in the effect: it is knowable from the props on the first render, and setting it
-  // from an effect would paint a loading state for a page that was never going to load.
-  const [data, setData] = useState(slug === sentinel ? null : undefined);
-
-  useEffect(() => {
-    if (slug === sentinel) return undefined;
-    let cancelled = false;
-    (async () => {
-      const page = await getSeriesPage(slug);
-      if (!cancelled) setData(page);
-    })();
-    return () => { cancelled = true; };
-  }, [slug, sentinel]);
-
-  if (data === undefined) {
-    return <Shell><p style={{ padding: '3rem 4%', color: 'rgba(245,240,232,0.35)', fontSize: 14 }}>Loading…</p></Shell>;
+  // W2 / SER-01 — under a deadline, and a failed read is DRAWN (see page-instalment.js).
+  // null still means not found; a failure is <Unavailable>, never "No such series."
+  const page = useReliableLoad(
+    () => (slug === sentinel ? null : getSeriesPage(slug, Date.now(), { throwOnError: true })),
+    [slug, sentinel],
+  );
+  if (page.phase === 'loading') {
+    return <Shell><p style={{ padding: '3rem 4%', color: 'rgba(245,240,232,0.62)', fontSize: 14 }}>Loading…</p></Shell>;
   }
+  if (page.phase === 'failed') {
+    return <Shell><Unavailable kind={page.failure} onRetry={page.retry} refreshing={page.refreshing} subject="this series" /></Shell>;
+  }
+  const data = page.data;
   if (data === null) {
     return (
       <Shell>
