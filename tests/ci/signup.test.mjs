@@ -53,7 +53,7 @@ describe('the order, when everything works', () => {
     assert.equal(writes.length, 1, 'profile, claim and search row are ONE update');
     assert.deepEqual(writes[0][1], {
       'users/u1/displayName': 'Ada Nwosu',
-      'users/u1/dob': '1990-01-01',
+      'users_private/u1/dob': '1990-01-01',
       'users/u1/ageConfirmed': true,
       'users/u1/joinDate': 1790000000000,
       'users/u1/createdAt': 1790000000000,

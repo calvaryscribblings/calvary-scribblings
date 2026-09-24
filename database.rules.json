@@ -319,6 +319,27 @@
         }
       }
     },
+    "users_private": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+        ".write": "auth != null && auth.uid === $uid && data.exists() && !newData.exists()",
+        "dob": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isString() && newData.val().length <= 32"
+        },
+        "email": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isString() && newData.val().length <= 320"
+        },
+        "country": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isString() && newData.val().length <= 64"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
     "memberships": {
       "$uid": {
         ".read": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"

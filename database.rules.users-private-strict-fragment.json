@@ -1,0 +1,7 @@
+{
+  "_comment": "PRIVATE FIELDS (24 Sep 2026). The rule that REFUSES private fields on the public record, built and tested (tests/rules/private-strict.test.mjs) but NOT deployed: old app binaries still write users/{uid}/dob at signup, and this would refuse their whole signup. Deploy it after the app writes dob to users_private/{uid}. To apply: delete the named children of users/$uid (they then fall to $other, which is .validate:false), and set the profile validate. See docs/APP-HANDOFF-PRIVATE-FIELDS.md.",
+  "remove": ["users/$uid/dob", "users/$uid/email"],
+  "set": {
+    "users/$uid/profile/.validate": "!newData.hasChild('dob') && !newData.hasChild('email') && !newData.hasChild('country')"
+  }
+}

@@ -43,8 +43,9 @@ describe('completing', () => {
     await completeProfile(GOOGLE, { name: ' Ada Nwosu ', dob: '1990-01-01', handle: '@Ada_N' }, { ...db, now: NOW });
     assert.equal(db.writes.length, 1);
     const since = Date.parse(GOOGLE.metadata.creationTime);
+    assert.deepEqual(db.root.users_private.G1, { dob: '1990-01-01' }, 'the date of birth is PRIVATE');
     assert.deepEqual(db.root.users.G1, {
-      displayName: 'Ada Nwosu', dob: '1990-01-01', ageConfirmed: true, joinDate: since, createdAt: since,
+      displayName: 'Ada Nwosu', ageConfirmed: true, joinDate: since, createdAt: since,
       uid: 'G1', handle: 'ada_n', handleLowercased: 'ada_n', username: 'ada_n',
     });
     assert.equal(db.root.usernames.ada_n, 'G1');

@@ -84,10 +84,11 @@ describe('the availability check', () => {
 describe('the shape the signup writes — the app\'s, field for field', () => {
   const u = signupUpdate('U1', { name: 'rebel', dob: '1995-08-15', handle: '@Rebel', now: 1790196135417 });
 
-  test('users/{uid} carries every field the app writes — ageConfirmed now included, because the age is checked', () => {
+  test('users/{uid} carries the app\'s fields except dob, which is PRIVATE (users_private/{uid})', () => {
     // The app's eight: ageConfirmed, createdAt, displayName, dob, handle, handleLowercased, uid, username.
     const fields = Object.keys(u).filter((k) => k.startsWith('users/U1/')).map((k) => k.slice('users/U1/'.length)).sort();
-    assert.deepEqual(fields, ['ageConfirmed', 'createdAt', 'displayName', 'dob', 'handle', 'handleLowercased', 'joinDate', 'uid', 'username']);
+    assert.deepEqual(fields, ['ageConfirmed', 'createdAt', 'displayName', 'handle', 'handleLowercased', 'joinDate', 'uid', 'username']);
+    assert.equal(u['users_private/U1/dob'], '1995-08-15');
     assert.equal(u['users/U1/ageConfirmed'], true);
   });
 

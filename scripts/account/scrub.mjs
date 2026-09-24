@@ -16,6 +16,11 @@
 // that could not read deletions/{uid} fails open and may write one (_membership.js). That is the
 // stub backstop, and it is why a deleted uid never keeps a profile for longer than one tick.
 //
+// PRIVATE FIELDS. Every run also sweeps users/ for a date of birth (or other private field) an
+// old app binary wrote onto the public record, and moves it to users_private/{uid} —
+// scripts/account/private-fields.mjs. It runs AFTER the deletions, so a reader deleted this tick
+// is already skipped.
+//
 // ORDER. Nulls first, then counters. If a run dies between the two, the next run no longer finds
 // the reactions it removed and so does not take their counters down: a counter can end up one
 // too HIGH, never one too low, and never below zero.
@@ -26,6 +31,7 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { planScrub, SCAN_NODES } from './scrub-plan.mjs';
 import { planOwned, handlesOf, OWNED_NODES, STORAGE_PREFIXES, membershipAction } from '../../functions/api/account/_deletion.js';
+import { runPrivateSweep } from './private-fields.mjs';
 
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const CHUNK = 400;
@@ -144,6 +150,8 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   } else {
     const s = await runScrub(db, { apply: args.includes('--apply') });
     console.log(`[scrub] ${args.includes('--apply') ? 'APPLIED' : 'report only'}: ${JSON.stringify(s)}`);
+    const p = await runPrivateSweep(db, { apply: args.includes('--apply') });
+    console.log(`[private] ${args.includes('--apply') ? 'APPLIED' : 'report only'}: ${JSON.stringify(p)}`);
   }
   process.exit(0);
 }

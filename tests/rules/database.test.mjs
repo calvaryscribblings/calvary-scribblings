@@ -24,7 +24,7 @@ import { readFileSync } from 'node:fs';
 import {
   makeEnv, seed, assertFails, assertSucceeds,
   DB_RULES_PATH,
-  OWNER, STRANGER, OTHER, FOUNDER_A, convIdFor,
+  OWNER, STRANGER, OTHER, FOUNDER_A, FOUNDER_B, convIdFor,
 } from './helpers.mjs';
 // R9.1 LB-9: the client half of the waitlist email check, asserted against the rule half in
 // the same test so the two cannot drift. See the note above the ACCEPTED/REJECTED tables.
@@ -3585,6 +3585,68 @@ describe('SIGNUP COMPLETENESS · reserved names and the handle guard', () => {
   test('RENAME into a reserved name — refused whole', async () => {
     await seed(env, { 'usernames/old_one': OWNER, [`users/${OWNER}`]: { displayName: 'A', handle: 'old_one' } });
     await assertFails(owner.ref('/').update(renameUpdate(OWNER, { from: 'old_one', to: 'official', oldClaimOwner: OWNER })));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PRIVATE FIELDS · users_private/{uid} — the date of birth off the public record (24 Sep 2026).
+//
+// users/$uid is world-readable and RTDB reads cascade, so no child of it can be private. The
+// private node is read by its owner and the founders only; the owner writes their own fields; the
+// server writes through the Admin SDK. An unknown child is refused.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('PRIVATE FIELDS · users_private/{uid}', () => {
+  const rec = { dob: '1990-01-01' };
+  test('a signed-out client cannot read it', async () => {
+    await seed(env, { [`users_private/${OWNER}`]: rec });
+    await assertFails(anon.ref(`users_private/${OWNER}`).get());
+    await assertFails(anon.ref(`users_private/${OWNER}/dob`).get());
+    await assertFails(anon.ref('users_private').get());
+  });
+  test('a stranger cannot read it', async () => {
+    await seed(env, { [`users_private/${OWNER}`]: rec });
+    await assertFails(stranger.ref(`users_private/${OWNER}`).get());
+    await assertFails(stranger.ref(`users_private/${OWNER}/dob`).get());
+    await assertFails(stranger.ref('users_private').get());
+  });
+  test('the owner and the founders can', async () => {
+    await seed(env, { [`users_private/${OWNER}`]: rec });
+    await assertSucceeds(owner.ref(`users_private/${OWNER}`).get());
+    await assertSucceeds(founder.ref(`users_private/${OWNER}`).get());
+    await assertSucceeds(env.authenticatedContext(FOUNDER_B).database().ref(`users_private/${OWNER}/dob`).get());
+  });
+  test('the owner can write their own dob; a stranger and a signed-out client cannot', async () => {
+    await assertSucceeds(owner.ref(`users_private/${OWNER}/dob`).set('1991-02-03'));
+    await assertFails(stranger.ref(`users_private/${OWNER}/dob`).set('2001-01-01'));
+    await assertFails(anon.ref(`users_private/${OWNER}/dob`).set('2001-01-01'));
+  });
+  test('a founder SESSION cannot write a reader\'s private fields (the server does, via Admin SDK)', async () => {
+    await assertFails(founder.ref(`users_private/${OWNER}/dob`).set('2001-01-01'));
+  });
+  test('field validation: strings only, bounded; an unknown child is refused', async () => {
+    await assertFails(owner.ref(`users_private/${OWNER}/dob`).set(19900101));
+    await assertFails(owner.ref(`users_private/${OWNER}/dob`).set('x'.repeat(33)));
+    await assertFails(owner.ref(`users_private/${OWNER}/somethingNew`).set('x'));
+    await assertSucceeds(owner.ref(`users_private/${OWNER}/email`).set('a@example.com'));
+    await assertSucceeds(owner.ref(`users_private/${OWNER}/country`).set('NG'));
+  });
+  test('the owner may delete their node whole; a stranger may not; nobody may wipe the node', async () => {
+    await seed(env, { [`users_private/${OWNER}`]: rec });
+    await assertFails(stranger.ref(`users_private/${OWNER}`).remove());
+    await assertSucceeds(owner.ref(`users_private/${OWNER}`).remove());
+    await seed(env, { [`users_private/${OWNER}`]: rec });
+    await assertFails(owner.ref('users_private').remove());
+    await assertFails(founder.ref('users_private').remove());
+  });
+  test('the web signup writes dob privately, in the same atomic update', async () => {
+    await assertSucceeds(owner.ref('/').update(signupUpdate(OWNER, { name: 'A', dob: '1990-01-01', handle: 'areader', now: 1 })));
+    let v;
+    await env.withSecurityRulesDisabled(async (c) => { v = (await c.database().ref('/').get()).val(); });
+    assert.equal(v.users_private[OWNER].dob, '1990-01-01');
+    assert.equal(v.users[OWNER].dob, undefined);
+  });
+  test('OLD APP BINARIES: users/{uid}/dob is still ALLOWED (the sweep moves it; the refusal is held back)', async () => {
+    await assertSucceeds(owner.ref(`users/${OWNER}`).set({ ageConfirmed: true, createdAt: 1, displayName: 'R', dob: '1995-08-15', handle: 'r', handleLowercased: 'r', uid: OWNER, username: 'r' }));
   });
 });
 

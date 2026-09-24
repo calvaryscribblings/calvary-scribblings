@@ -64,7 +64,7 @@ export const STEPS = ['membership', 'owned', 'storage', 'auth'];
 // window, not uid. Asserted against the rules file by tests/account/plan.test.mjs, so a new
 // uid-keyed node cannot be added to the rules without a decision here.
 export const OWNED_NODES = [
-  'users', 'user_search', 'push_tokens', 'leaderboard', 'blocked_users',
+  'users', 'users_private', 'user_search', 'push_tokens', 'leaderboard', 'blocked_users',
   'readerBookmarks', 'bookmarks', 'userBookmarks', 'userBadges', 'userStreaks', 'userProgress',
   'userStoryTiers', 'points', 'wallet', 'payout_requests', 'quizAttemptCounted', 'quiz_submissions',
   'series_reading_progress', 'bookstore_reading_progress', 'square_presence',

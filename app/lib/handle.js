@@ -112,7 +112,10 @@ export function signupUpdate(uid, { name, dob, handle, now }) {
   const h = normaliseHandle(handle);
   return {
     [`users/${uid}/displayName`]: name,
-    [`users/${uid}/dob`]: dob,
+    // PRIVATE. users/{uid} is world-readable and a child of a readable node cannot be made
+    // private, so the date of birth lives at users_private/{uid} — owner and founders only.
+    // See scripts/account/private-fields.mjs.
+    [`users_private/${uid}/dob`]: dob,
     // Written only by a caller that has ALREADY passed the age check (app/lib/age.js), so it
     // now tells the truth, as the app's does.
     [`users/${uid}/ageConfirmed`]: true,
