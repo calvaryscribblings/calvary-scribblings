@@ -8,7 +8,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { registerAccount, HandleRefused } from '../../app/lib/signup.js';
+import { registerAccount, HandleRefused, AgeRefused } from '../../app/lib/signup.js';
 
 const FORM = { email: 'ada@example.com', password: 'secret123', name: ' Ada Nwosu ', dob: '1990-01-01', handle: '@Ada_N' };
 
@@ -54,6 +54,7 @@ describe('the order, when everything works', () => {
     assert.deepEqual(writes[0][1], {
       'users/u1/displayName': 'Ada Nwosu',
       'users/u1/dob': '1990-01-01',
+      'users/u1/ageConfirmed': true,
       'users/u1/joinDate': 1790000000000,
       'users/u1/createdAt': 1790000000000,
       'users/u1/uid': 'u1',
@@ -66,7 +67,30 @@ describe('the order, when everything works', () => {
   });
 });
 
+describe('the AGE decides before anything exists (minimum 18, the Terms and Privacy)', () => {
+  // deps.now() is 1790000000000 = 2026-09-21. A reader born 2008-09-22 is still 17 that day.
+  for (const [dob, why] of [['2008-09-22', /aged 18 and over/], ['2020-01-01', /aged 18 and over/], ['2026-09-01', /aged 18 and over/], ['', /date of birth/], ['1990-02-30', /check your date of birth/], ['2030-01-01', /check your date of birth/]]) {
+    test(`dob ${JSON.stringify(dob)} → refused before the account is created, nothing looked up`, async () => {
+      const s = stand();
+      await assert.rejects(registerAccount({ ...FORM, dob }, s.deps), (e) => e instanceof AgeRefused && why.test(e.message));
+      assert.deepEqual(s.names(), [], 'no handle lookup, no Auth account, no write, no mail');
+    });
+  }
+  test('18 today → allowed, and ageConfirmed is written', async () => {
+    const s = stand();
+    await registerAccount({ ...FORM, dob: '2008-09-21' }, s.deps);
+    const w = s.calls.find((c) => c[0] === 'writeProfile')[1];
+    assert.equal(w['users/u1/ageConfirmed'], true);
+  });
+});
+
 describe('the handle decides before anything exists', () => {
+  test('a RESERVED handle is refused before the account is created', async () => {
+    const s = stand();
+    await assert.rejects(registerAccount({ ...FORM, handle: 'calvary' }, s.deps), (e) => e instanceof HandleRefused && e.check.state === 'reserved');
+    assert.deepEqual(s.names(), []);
+  });
+
   test('a TAKEN handle is refused before the account is created', async () => {
     const s = stand({ owner: 'someone-else' });
     await assert.rejects(registerAccount(FORM, s.deps), (e) => e instanceof HandleRefused && e.check.state === 'taken' && e.check.handle === 'ada_n');

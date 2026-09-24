@@ -25,6 +25,8 @@ on:
   push:
     paths: &watched
       - 'database.rules.json'
+      # The strict handle rule, built and tested but not deployed (tests/rules/handle-strict.test.mjs).
+      - 'database.rules.handle-strict-fragment.json'
       - 'storage.rules'
       - 'firebase.json'
       - 'tests/rules/**'

@@ -10,6 +10,8 @@ import { BADGES, RARITY_STYLES, getStreakDisplay } from '../lib/badges';
 import { checkAndAwardBadges } from '../lib/badgeEngine';
 import { USER_COMMENTS_PATH, loadCommentsFor, commentCountOf } from '../lib/userComments';
 import PostBody from '../components/conversation/PostBody';
+import HandleField, { readHandleOwner, useHandleCheck } from '../components/HandleField';
+import { checkHandle, renameHandle, normaliseHandle, handleStatusLine, HandleRefused, HANDLE_COPY } from '../lib/handle';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -439,6 +441,7 @@ export default function ProfilePage() {
   const [showAllStories, setShowAllStories] = useState(false);
   const [editName, setEditName] = useState('');
   const [editUsername, setEditUsername] = useState('');
+  const [editCheck, setEditCheck] = useHandleCheck(editUsername, { uid: authUser?.uid || null, enabled: showEdit });
   const [editBio, setEditBio] = useState('');
   const [editAvatarFile, setEditAvatarFile] = useState(null);
   const [editAvatarPreview, setEditAvatarPreview] = useState(null);
@@ -594,7 +597,7 @@ export default function ProfilePage() {
 
   const openEdit = () => {
     setEditName(profileData?.displayName || authUser?.displayName || '');
-    setEditUsername(profileData?.username || '');
+    setEditUsername(normaliseHandle(profileData?.username || profileData?.handle || ''));
     setEditBio(profileData?.bio || '');
     setEditAvatarFile(null); setEditAvatarPreview(profileData?.avatarUrl || null);
     setEditHeaderFile(null); setEditHeaderPreview(profileData?.headerUrl || null);
@@ -604,28 +607,50 @@ export default function ProfilePage() {
   const handleSave = async () => {
     if (!authUser) return;
     setSaving(true); setSaveError('');
+    // THE RENAME IS ONE WRITE (app/lib/handle.js renameHandle): the three handle fields, the search
+    // row's copy, the new claim and the release of the old one, together with the rest of this
+    // save. A handle taken in the meantime refuses all of it and nothing changes. It used to be
+    // four separate writes that updated `username` alone, so an app reader's `handle` went stale.
+    const from = normaliseHandle(profileData?.username || profileData?.handle || '');
+    const to = normaliseHandle(editUsername);
     try {
+      if (from && !to) { setSaveError(HANDLE_COPY.required); setSaving(false); return; }
+      if (to !== from) {
+        // Checked BEFORE the pictures upload, so a refused handle never replaces a picture the
+        // profile still points at.
+        const pre = await checkHandle(to, readHandleOwner, { uid: authUser.uid });
+        if (pre.state !== 'available' && pre.state !== 'unknown') { setEditCheck(pre); setSaveError(handleStatusLine(pre).text); setSaving(false); return; }
+      }
       const db = await getDB();
-      const { ref, update, set, remove } = await import('firebase/database');
+      const { ref, update } = await import('firebase/database');
       const storage = await getStorageInstance();
       const { ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
       let newAvatarUrl = profileData?.avatarUrl || null;
       if (editAvatarFile) { const r = sRef(storage, `avatars/${authUser.uid}`); await uploadBytes(r, editAvatarFile); newAvatarUrl = await getDownloadURL(r); }
       let newHeaderUrl = profileData?.headerUrl || null;
       if (editHeaderFile) { const r = sRef(storage, `headers/${authUser.uid}`); await uploadBytes(r, editHeaderFile); newHeaderUrl = await getDownloadURL(r); }
-      const username = editUsername.trim().replace(/^@/, '').toLowerCase();
-      if (username && !/^[a-z0-9_]{3,20}$/.test(username)) { setSaveError('Username must be 3-20 characters: letters, numbers, underscores only.'); setSaving(false); return; }
       const { updateProfile } = await import('firebase/auth');
       const newName = editName.trim() || authUser.displayName;
-      await updateProfile(authUser, { displayName: newName });
-      await update(ref(db, `users/${authUser.uid}`), { displayName: newName, bio: editBio.trim(), username: username || null, avatarUrl: newAvatarUrl, headerUrl: newHeaderUrl });
-      if (username) await set(ref(db, `usernames/${username}`), authUser.uid);
-      const old = profileData?.username;
-      if (old && old !== username) await remove(ref(db, `usernames/${old}`));
+      const uid = authUser.uid;
+      const extra = {
+        [`users/${uid}/displayName`]: newName,
+        [`users/${uid}/bio`]: editBio.trim(),
+        [`users/${uid}/avatarUrl`]: newAvatarUrl,
+        [`users/${uid}/headerUrl`]: newHeaderUrl,
+      };
       // Keep the public name-search index current (skip if no displayName).
-      if (newName) await update(ref(db, `user_search/${authUser.uid}`), { displayName: newName, username: username || '', avatarUrl: newAvatarUrl || '' });
+      if (newName) {
+        extra[`user_search/${uid}/displayName`] = newName;
+        extra[`user_search/${uid}/avatarUrl`] = newAvatarUrl || '';
+      }
+      await renameHandle(uid, { from, to, extra }, { readHandleOwner, writeUpdate: (u) => update(ref(db), u) });
+      await updateProfile(authUser, { displayName: newName }).catch(() => {});
       setShowEdit(false);
-    } catch (e) { setSaveError('Something went wrong. Please try again.'); }
+    } catch (e) {
+      if (e instanceof HandleRefused) { setEditCheck(e.check); setSaveError(handleStatusLine(e.check).text); }
+      else if (e.handleTaken) { setEditCheck({ state: 'taken', handle: e.handle }); setSaveError(HANDLE_COPY.renameLost(e.handle)); }
+      else setSaveError('Something went wrong. Please try again.');
+    }
     setSaving(false);
   };
 
@@ -1083,12 +1108,10 @@ export default function ProfilePage() {
               <input className="pf-field-input" type="text" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Your name" maxLength={60} />
             </div>
             <div className="pf-field">
-              <label className="pf-field-label">Username</label>
-              <div className="pf-username-wrap">
-                <span className="pf-username-at">@</span>
-                <input className="pf-field-input pf-username-input" type="text" value={editUsername} onChange={e => setEditUsername(e.target.value.replace(/^@/, '').toLowerCase())} placeholder="yourhandle" maxLength={20} />
-              </div>
-              <div className="pf-field-hint">3-20 characters. Letters, numbers, underscores only.</div>
+              {/* The same field, check and words as signup. Unchanged → no status line. */}
+              <HandleField id="pf-handle" value={editUsername} onChange={setEditUsername}
+                check={editUsername === normaliseHandle(profileData?.username || profileData?.handle || '') ? null : editCheck}
+                inputClassName="pf-field-input" labelClassName="pf-field-label" hintClassName="pf-field-hint" />
             </div>
             <div className="pf-field">
               <label className="pf-field-label">Bio</label>

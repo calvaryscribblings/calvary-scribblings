@@ -5,7 +5,8 @@
 // reader shown an error, and their next attempt refused with "An account with this email already
 // exists". This module makes the order explicit and the failure clean.
 //
-//   0. check the handle is free         — taken or malformed → refused; NOTHING is created.
+//   0. check the age, then the handle   — under 18, or a taken, reserved or malformed handle →
+//                                         refused; NOTHING is created.
 //                                         A check that could not run is not a refusal: the
 //                                         claim in step 3 decides.
 //   1. create the Auth account          — fails → nothing exists, nothing is sent
@@ -36,16 +37,10 @@
 // Every Firebase call is handed in, so tests/ci/signup.test.mjs drives the real sequence with
 // stand-ins and watches which steps run. The only import is the handle module, which has none.
 
-import { checkHandle, signupUpdate } from './handle.js';
+import { checkHandle, signupUpdate, HandleRefused } from './handle.js';
+import { ageProblem, AgeRefused } from './age.js';
 
-/** Thrown before anything is created, when the handle is malformed or already someone's. */
-export class HandleRefused extends Error {
-  constructor(check) {
-    super(check.state === 'taken' ? `@${check.handle} is taken` : check.problem);
-    this.name = 'HandleRefused';
-    this.check = check;
-  }
-}
+export { AgeRefused, HandleRefused };
 
 /**
  * @param deps {readHandleOwner, createUser, setDisplayName, writeProfile, deleteAccount,
@@ -58,8 +53,10 @@ export class HandleRefused extends Error {
  */
 export async function registerAccount({ email, password, name, dob, handle }, deps) {
   const displayName = name.trim();
+  const tooYoung = ageProblem(dob, new Date(deps.now()));
+  if (tooYoung) throw new AgeRefused(tooYoung);
   const check = await checkHandle(handle, deps.readHandleOwner);
-  if (check.state === 'invalid' || check.state === 'taken') throw new HandleRefused(check);
+  if (check.state !== 'available' && check.state !== 'unknown') throw new HandleRefused(check);
   const cred = await deps.createUser(email, password);
   const user = cred.user;
   try {

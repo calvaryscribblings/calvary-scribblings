@@ -10,18 +10,14 @@ import {
   signInWithPopup,
   deleteUser,
 } from 'firebase/auth';
-import { getDatabase, ref, update, get } from 'firebase/database';
+import { getDatabase, ref, update } from 'firebase/database';
 import { auth } from '../lib/firebaseCore';
 import { postAuthMail } from '../lib/authMail';
-import { registerAccount, HandleRefused } from '../lib/signup';
-import { checkHandle, handleStatusLine, normaliseHandle, HANDLE_COPY, HANDLE_MAX } from '../lib/handle';
-
-// Who holds usernames/{handle}? World-readable; null when nobody does.
-async function readHandleOwner(handle) {
-  const { getApp } = await import('firebase/app');
-  const snap = await get(ref(getDatabase(getApp()), `usernames/${handle}`));
-  return snap.exists() ? snap.val() : null;
-}
+import { registerAccount, HandleRefused, AgeRefused } from '../lib/signup';
+import { handleStatusLine, HANDLE_COPY } from '../lib/handle';
+import { AGE_COPY } from '../lib/age';
+import HandleField, { readHandleOwner, useHandleCheck } from './HandleField';
+import { markSignupInFlight } from '../lib/profileCompletion';
 
 // postAuthMail MOVED to app/lib/authMail.js in R9.5, unchanged apart from the status fields
 // it now attaches to the error it throws. The verification resend calls the same endpoint
@@ -37,7 +33,7 @@ export default function AuthModal({ onClose }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [dob, setDob] = useState('');
   const [handle, setHandle] = useState('');
-  const [handleCheck, setHandleCheck] = useState(null);
+  const [handleCheck, setHandleCheck] = useHandleCheck(handle, { enabled: mode === 'register' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -73,20 +69,6 @@ export default function AuthModal({ onClose }) {
     return () => clearInterval(pollingRef.current);
   }, [mode]);
 
-  // The live availability check: 400ms after the last keystroke, and only the latest answer is
-  // shown. A check that could not run reads as 'unknown', never as taken — see app/lib/handle.js.
-  useEffect(() => {
-    if (mode !== 'register') return;
-    if (!handle) { setHandleCheck(null); return; }
-    let live = true;
-    setHandleCheck({ state: 'checking', handle: normaliseHandle(handle) });
-    const t = setTimeout(async () => {
-      const r = await checkHandle(handle, readHandleOwner);
-      if (live) setHandleCheck(r);
-    }, 400);
-    return () => { live = false; clearTimeout(t); };
-  }, [handle, mode]);
-
   const clearMessages = () => { setError(''); setSuccess(''); };
   const switchMode = (m) => { setMode(m); clearMessages(); };
 
@@ -100,7 +82,7 @@ export default function AuthModal({ onClose }) {
       } else if (mode === 'register') {
         if (!name.trim()) { setError('Please enter your name.'); setLoading(false); return; }
         if (password !== confirmPassword) { setError('Passwords do not match.'); setLoading(false); return; }
-        if (!dob) { setError('Please enter your date of birth.'); setLoading(false); return; }
+        if (!dob) { setError(AGE_COPY.missing); setLoading(false); return; }
 
         // The order, and what each failure leaves behind, is app/lib/signup.js. In short: a
         // failure before the profile is written deletes the account again and sends nothing;
@@ -108,6 +90,9 @@ export default function AuthModal({ onClose }) {
         const { getApp } = await import('firebase/app');
         const db = getDatabase(getApp());
         let mailError = null;
+        // While this runs, the account exists before its profile does; the completion step
+        // (ProfileCompletion) must not mistake it for a reader with no identity.
+        const settle = markSignupInFlight();
         try {
           ({ mailError } = await registerAccount({ email, password, name, dob, handle }, {
             readHandleOwner,
@@ -119,7 +104,13 @@ export default function AuthModal({ onClose }) {
             now: () => Date.now(),
           }));
         } catch (err) {
-          // Refused before anything was created: the field already says why, so say it here too.
+          settle();
+          // Refused before anything was created: say why.
+          if (err instanceof AgeRefused) {
+            setError(err.message);
+            setLoading(false);
+            return;
+          }
           if (err instanceof HandleRefused) {
             setHandleCheck(err.check);
             setError(handleStatusLine(err.check).text);
@@ -139,6 +130,7 @@ export default function AuthModal({ onClose }) {
           setLoading(false);
           return;
         }
+        settle();
         if (mailError) console.error('[AuthModal] verification mail failed:', mailError);
 
         switchMode('verify');
@@ -419,22 +411,6 @@ export default function AuthModal({ onClose }) {
         }
         .auth-input[type="date"] { color-scheme: dark; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 0.82rem; }
 
-        .auth-handle-wrap { position: relative; }
-        .auth-handle-at {
-          position: absolute; left: 0.95rem; top: 50%; transform: translateY(-50%);
-          color: rgba(255,255,255,0.32); font-size: 0.92rem; pointer-events: none;
-          font-family: 'Cormorant Garamond', Georgia, serif;
-        }
-        .auth-input.auth-handle-input { padding-left: 1.75rem; }
-        .auth-hint.auth-handle-help { color: rgba(255,255,255,0.42); }
-        .auth-handle-status {
-          font-size: 0.74rem; margin-top: 0.35rem; min-height: 1.1em;
-          font-family: 'Cormorant Garamond', Georgia, serif;
-        }
-        .auth-handle-status[data-tone='good'] { color: #86efac; }
-        .auth-handle-status[data-tone='bad'] { color: #fca5a5; }
-        .auth-handle-status[data-tone='quiet'] { color: rgba(255,255,255,0.4); font-style: italic; }
-
         .auth-hint {
           font-size: 0.7rem;
           font-weight: 500;
@@ -645,33 +621,8 @@ export default function AuthModal({ onClose }) {
 
                 {mode === 'register' && (
                   <div className="auth-field">
-                    <label className="auth-label" htmlFor="auth-handle">{HANDLE_COPY.label}</label>
-                    <div className="auth-handle-wrap">
-                      <span className="auth-handle-at" aria-hidden="true">@</span>
-                      <input
-                        id="auth-handle"
-                        className="auth-input auth-handle-input"
-                        type="text"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        autoComplete="username"
-                        placeholder="yourhandle"
-                        maxLength={HANDLE_MAX + 1}
-                        value={handle}
-                        onChange={e => setHandle(normaliseHandle(e.target.value))}
-                        aria-describedby="auth-handle-help auth-handle-status"
-                      />
-                    </div>
-                    <div className="auth-hint auth-handle-help" id="auth-handle-help">{HANDLE_COPY.helper}</div>
-                    {(() => {
-                      const line = handleStatusLine(handleCheck);
-                      return (
-                        <div className="auth-handle-status" id="auth-handle-status" role="status" aria-live="polite" data-tone={line?.tone || 'quiet'}>
-                          {line?.text || ''}
-                        </div>
-                      );
-                    })()}
+                    <HandleField id="auth-handle" value={handle} onChange={setHandle} check={handleCheck}
+                      inputClassName="auth-input" labelClassName="auth-label" hintClassName="auth-hint" />
                   </div>
                 )}
 
@@ -716,11 +667,11 @@ export default function AuthModal({ onClose }) {
                 {mode === 'register' && (
                   <div className="auth-field">
                     <label className="auth-label">
-                      Date of birth
+                      {AGE_COPY.label}
                       <span className="auth-dob-tag">Age Go</span>
                     </label>
                     <input className="auth-input" type="date" value={dob} onChange={e => setDob(e.target.value)} />
-                    <div className="auth-hint">Required to access age-restricted content</div>
+                    <div className="auth-hint">{AGE_COPY.hint}</div>
                   </div>
                 )}
 

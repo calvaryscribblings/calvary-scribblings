@@ -8,6 +8,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   normaliseHandle, handleProblem, checkHandle, signupUpdate, handleStatusLine, HANDLE_RE, HANDLE_COPY,
+  isReserved, RESERVED_WORDS, RESERVED_PREFIXES, FOUNDER_UIDS, renameUpdate, renameHandle, completionUpdate, HandleRefused,
 } from '../../app/lib/handle.js';
 
 describe('the rules — identical to the app\'s', () => {
@@ -83,10 +84,11 @@ describe('the availability check', () => {
 describe('the shape the signup writes — the app\'s, field for field', () => {
   const u = signupUpdate('U1', { name: 'rebel', dob: '1995-08-15', handle: '@Rebel', now: 1790196135417 });
 
-  test('users/{uid} carries every field the app writes, except ageConfirmed (see report)', () => {
+  test('users/{uid} carries every field the app writes — ageConfirmed now included, because the age is checked', () => {
     // The app's eight: ageConfirmed, createdAt, displayName, dob, handle, handleLowercased, uid, username.
     const fields = Object.keys(u).filter((k) => k.startsWith('users/U1/')).map((k) => k.slice('users/U1/'.length)).sort();
-    assert.deepEqual(fields, ['createdAt', 'displayName', 'dob', 'handle', 'handleLowercased', 'joinDate', 'uid', 'username']);
+    assert.deepEqual(fields, ['ageConfirmed', 'createdAt', 'displayName', 'dob', 'handle', 'handleLowercased', 'joinDate', 'uid', 'username']);
+    assert.equal(u['users/U1/ageConfirmed'], true);
   });
 
   test('the handle is written three times, lowercase, identical — as every app record since 28 Jun', () => {
@@ -104,6 +106,96 @@ describe('the shape the signup writes — the app\'s, field for field', () => {
   });
 
   test('nothing else is written', () => {
-    assert.equal(Object.keys(u).length, 10);
+    assert.equal(Object.keys(u).length, 11);
+  });
+});
+
+describe('reserved names (ruling, 24 Sep 2026)', () => {
+  for (const h of ['calvary', 'calvaryscribblings', 'calvary_2', 'storyisland', 'storyislandhq', 'story_island', 'story_island_x', ...RESERVED_WORDS]) {
+    test(`reserved: ${h}`, () => assert.equal(isReserved(h), true));
+  }
+  for (const h of ['calvar', 'mycalvary', 'story', 'storyislander'.slice(0, 5), 'admins', 'moderators', 'helper', 'teamwork', 'modern', 'rooted', 'editorial', 'founders', 'story_isle']) {
+    test(`not reserved: ${h}`, () => assert.equal(isReserved(h), false));
+  }
+  test('the list is exactly the ruling', () => {
+    assert.deepEqual(RESERVED_PREFIXES, ['calvary', 'storyisland', 'story_island']);
+    assert.deepEqual(RESERVED_WORDS, ['admin', 'administrator', 'support', 'help', 'official', 'staff', 'team', 'editor', 'editors', 'moderator', 'mod', 'system', 'root', 'security', 'founder']);
+  });
+  test('signing up: a reserved name is refused without a lookup', async () => {
+    let looked = false;
+    const r = await checkHandle('Calvary_Fan', async () => { looked = true; return null; });
+    assert.equal(r.state, 'reserved');
+    assert.equal(looked, false);
+    assert.equal(handleStatusLine(r).tone, 'bad');
+    assert.match(handleStatusLine(r).text, /reserved/);
+  });
+  test('the current holder keeps theirs (a reader who already holds calvaryfilms)', async () => {
+    assert.equal((await checkHandle('calvaryfilms', async () => 'holder', { uid: 'holder' })).state, 'available');
+    assert.equal((await checkHandle('calvaryfilms', async () => 'holder', { uid: 'someone' })).state, 'reserved');
+  });
+  test('founders are exempt', async () => {
+    assert.equal((await checkHandle('admin', async () => null, { uid: FOUNDER_UIDS[0] })).state, 'available');
+  });
+});
+
+describe('the completion write', () => {
+  test('is the signup shape, dated from the Auth account\'s creation', () => {
+    const c = completionUpdate('G1', { name: 'Ada', dob: '1990-01-01', handle: 'ada', since: 1780000000000 });
+    assert.deepEqual(c, signupUpdate('G1', { name: 'Ada', dob: '1990-01-01', handle: 'ada', now: 1780000000000 }));
+  });
+});
+
+describe('a rename — ONE write', () => {
+  test('three fields, the search row\'s copy, the new claim and the release of the old', () => {
+    assert.deepEqual(renameUpdate('U1', { from: 'old_one', to: '@New_One', oldClaimOwner: 'U1' }), {
+      'users/U1/handle': 'new_one', 'users/U1/handleLowercased': 'new_one', 'users/U1/username': 'new_one',
+      'user_search/U1/username': 'new_one', 'usernames/new_one': 'U1', 'usernames/old_one': null,
+    });
+  });
+  test('an old claim someone ELSE holds is not released (it would sink the whole write)', () => {
+    assert.equal('usernames/lizbest' in renameUpdate('U1', { from: 'lizbest', to: 'liz_b', oldClaimOwner: 'OTHER' }), false);
+  });
+  test('a reader with no handle before claims one and releases nothing', () => {
+    const r = renameUpdate('U1', { from: '', to: 'fresh', oldClaimOwner: null });
+    assert.equal(Object.keys(r).filter((k) => k.startsWith('usernames/')).join(), 'usernames/fresh');
+  });
+
+  const deps = (owners, { failWrite = false } = {}) => {
+    const writes = [];
+    return {
+      writes,
+      readHandleOwner: async (h) => (typeof owners === 'function' ? owners(h) : owners[h] ?? null),
+      writeUpdate: async (u) => { writes.push(u); if (failWrite) throw new Error('PERMISSION_DENIED'); },
+    };
+  };
+  test('available → ONE update carrying the rename AND the rest of the save', async () => {
+    const d = deps({ old_one: 'U1' });
+    const r = await renameHandle('U1', { from: 'old_one', to: 'new_one', extra: { 'users/U1/bio': 'hi' } }, d);
+    assert.equal(d.writes.length, 1);
+    assert.equal(d.writes[0]['users/U1/bio'], 'hi');
+    assert.equal(d.writes[0]['usernames/new_one'], 'U1');
+    assert.equal(d.writes[0]['usernames/old_one'], null);
+    assert.equal(r.released, true);
+  });
+  test('taken → refused before anything is written', async () => {
+    const d = deps({ new_one: 'OTHER' });
+    await assert.rejects(renameHandle('U1', { from: 'old_one', to: 'new_one' }, d), (e) => e instanceof HandleRefused && e.check.state === 'taken');
+    assert.equal(d.writes.length, 0);
+  });
+  test('reserved → refused before anything is written', async () => {
+    const d = deps({});
+    await assert.rejects(renameHandle('U1', { from: 'old_one', to: 'support' }, d), (e) => e instanceof HandleRefused && e.check.state === 'reserved');
+    assert.equal(d.writes.length, 0);
+  });
+  test('a RACE — claimed between the check and the write → the write is refused whole and the reader is told', async () => {
+    let n = 0;
+    const d = deps((h) => (h === 'new_one' ? (n++ === 0 ? null : 'WINNER') : 'U1'), { failWrite: true });
+    await assert.rejects(renameHandle('U1', { from: 'old_one', to: 'new_one' }, d), (e) => e.handleTaken === true && e.handle === 'new_one');
+    assert.equal(d.writes.length, 1, 'one attempted write, and the database refused all of it');
+  });
+  test('unchanged handle → only the rest of the save is written, no claim touched', async () => {
+    const d = deps({});
+    await renameHandle('U1', { from: 'same', to: '@Same', extra: { 'users/U1/bio': 'x' } }, d);
+    assert.deepEqual(d.writes, [{ 'users/U1/bio': 'x' }]);
   });
 });

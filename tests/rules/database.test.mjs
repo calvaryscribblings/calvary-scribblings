@@ -45,7 +45,7 @@ import { buildPendingPost } from '../../app/lib/openPages.js';
 import { tombstoneOf } from '../../app/lib/bookstore/withdrawal.js';
 // SIGNUP HANDLE — the web signup's ONE update, imported from the module that builds it, so the
 // claim's atomicity is proved against what the modal actually sends.
-import { signupUpdate } from '../../app/lib/handle.js';
+import { signupUpdate, renameUpdate, RESERVED_WORDS, RESERVED_PREFIXES } from '../../app/lib/handle.js';
 
 let env, owner, stranger, anon, founder;
 
@@ -3472,6 +3472,119 @@ describe('SIGNUP HANDLE · the claim and the profile land together or not at all
   test('a claim cannot be taken over by a later write outside the signup either', async () => {
     await seed(env, { 'usernames/areader': STRANGER });
     await assertFails(owner.ref('usernames/areader').set(OWNER));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIGNUP COMPLETENESS · reserved names, and the guard on the three handle fields (24 Sep 2026).
+//
+// usernames/$handle: a NEW claim on a reserved name is refused unless a founder makes it; a
+// reader who already holds one keeps it. users/$uid/{handle,handleLowercased,username}: the value
+// may never be a handle ANOTHER uid holds, nor a reserved name this uid does not hold — judged on
+// the data AFTER the write, so the atomic signup and rename pass. The STRICT rule (the value must
+// BE a claim this uid holds) is built and proved in tests/rules/handle-strict.test.mjs and is not
+// deployed — see database.rules.handle-strict-fragment.json for why.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('SIGNUP COMPLETENESS · reserved names and the handle guard', () => {
+  const readAll = async () => {
+    let v;
+    await env.withSecurityRulesDisabled(async (ctx) => { v = (await ctx.database().ref('/').get()).val(); });
+    return v || {};
+  };
+  const RESERVED_SAMPLES = [...RESERVED_PREFIXES, ...RESERVED_PREFIXES.map((p) => `${p}_fan`), ...RESERVED_WORDS];
+
+  for (const h of RESERVED_SAMPLES) {
+    test(`a reserved claim is refused: ${h}`, async () => {
+      await assertFails(owner.ref(`usernames/${h}`).set(OWNER));
+    });
+  }
+  test('the reserved check ignores case in the key', async () => {
+    await assertFails(owner.ref('usernames/Calvary').set(OWNER));
+    await assertFails(owner.ref('usernames/ADMIN').set(OWNER));
+  });
+  test('near misses are ordinary names', async () => {
+    for (const h of ['mycalvary', 'admins', 'helper', 'teamwork', 'modern', 'editorial', 'story_isle']) {
+      await assertSucceeds(owner.ref(`usernames/${h}`).set(OWNER));
+    }
+  });
+  test('a founder may claim a reserved name', async () => {
+    await assertSucceeds(founder.ref('usernames/calvary').set(FOUNDER_A));
+    await assertSucceeds(founder.ref('usernames/support').set(FOUNDER_A));
+  });
+  test('an existing holder KEEPS theirs — may rewrite it, write their fields to it, and release it', async () => {
+    await seed(env, { 'usernames/calvaryfilms': OWNER });
+    await assertSucceeds(owner.ref('usernames/calvaryfilms').set(OWNER));
+    await assertSucceeds(owner.ref(`users/${OWNER}`).update({ handle: 'calvaryfilms', handleLowercased: 'calvaryfilms', username: 'calvaryfilms' }));
+    await assertSucceeds(owner.ref('usernames/calvaryfilms').remove());
+  });
+  test('claiming a handle someone else holds is refused', async () => {
+    await seed(env, { 'usernames/ada': STRANGER });
+    await assertFails(owner.ref('usernames/ada').set(OWNER));
+    await assertFails(owner.ref('usernames/ada').remove());
+  });
+
+  for (const f of ['handle', 'handleLowercased', 'username']) {
+    test(`GUARD ${f}: showing a handle ANOTHER reader holds is refused`, async () => {
+      await seed(env, { 'usernames/lizbest': STRANGER });
+      await assertFails(owner.ref(`users/${OWNER}/${f}`).set('lizbest'));
+      await assertFails(owner.ref(`users/${OWNER}/${f}`).set('LizBest'));
+    });
+    test(`GUARD ${f}: showing a reserved name without holding it is refused`, async () => {
+      await assertFails(owner.ref(`users/${OWNER}/${f}`).set('calvary'));
+      await assertFails(owner.ref(`users/${OWNER}/${f}`).set('moderator'));
+    });
+    test(`GUARD ${f}: a founder may show a reserved name on their own profile`, async () => {
+      await assertSucceeds(founder.ref(`users/${FOUNDER_A}/${f}`).set('calvary'));
+    });
+  }
+  test('GUARD: a handle nobody holds may still be shown — the gap the STRICT rule closes, recorded', async () => {
+    await assertSucceeds(owner.ref(`users/${OWNER}/handle`).set('unclaimed_name'));
+  });
+  test('GUARD: the whole-object create is judged too — someone else\'s handle sinks it', async () => {
+    await seed(env, { 'usernames/lizbest': STRANGER });
+    await assertFails(owner.ref(`users/${OWNER}`).set({ displayName: 'L', handle: 'lizbest', handleLowercased: 'lizbest', username: 'lizbest', uid: OWNER }));
+    assert.equal((await readAll()).users?.[OWNER], undefined);
+  });
+
+  test('THE APP, users FIRST then the claim (separate writes) — still allowed under the guard', async () => {
+    await assertSucceeds(owner.ref(`users/${OWNER}`).set({ ageConfirmed: true, createdAt: 1, displayName: 'R', dob: '1995-08-15', handle: 'rebel2', handleLowercased: 'rebel2', uid: OWNER, username: 'rebel2' }));
+    await assertSucceeds(owner.ref('usernames/rebel2').set(OWNER));
+  });
+  test('THE APP, the claim FIRST then users — allowed', async () => {
+    await assertSucceeds(owner.ref('usernames/rebel3').set(OWNER));
+    await assertSucceeds(owner.ref(`users/${OWNER}`).set({ ageConfirmed: true, createdAt: 1, displayName: 'R', dob: '1995-08-15', handle: 'rebel3', handleLowercased: 'rebel3', uid: OWNER, username: 'rebel3' }));
+  });
+
+  test('the web signup (with ageConfirmed) still lands whole', async () => {
+    await assertSucceeds(owner.ref('/').update(signupUpdate(OWNER, { name: 'A', dob: '1990-01-01', handle: 'areader', now: 1 })));
+    assert.equal((await readAll()).users[OWNER].ageConfirmed, true);
+  });
+  test('a reserved handle sinks the whole web signup', async () => {
+    await assertFails(owner.ref('/').update(signupUpdate(OWNER, { name: 'A', dob: '1990-01-01', handle: 'calvary_x', now: 1 })));
+    const db = await readAll();
+    assert.equal(db.users?.[OWNER], undefined);
+    assert.equal(db.usernames?.calvary_x, undefined);
+  });
+
+  test('RENAME releasing the old claim — allowed, as one write', async () => {
+    await seed(env, { 'usernames/old_one': OWNER, [`users/${OWNER}`]: { displayName: 'A', handle: 'old_one', handleLowercased: 'old_one', username: 'old_one' }, [`user_search/${OWNER}`]: { username: 'old_one', displayName: 'A' } });
+    await assertSucceeds(owner.ref('/').update(renameUpdate(OWNER, { from: 'old_one', to: 'new_one', oldClaimOwner: OWNER })));
+    const db = await readAll();
+    assert.equal(db.usernames.new_one, OWNER);
+    assert.equal(db.usernames.old_one, undefined, 'the old handle is free for anyone');
+    assert.deepEqual([db.users[OWNER].handle, db.users[OWNER].handleLowercased, db.users[OWNER].username, db.user_search[OWNER].username], ['new_one', 'new_one', 'new_one', 'new_one']);
+    await assertSucceeds(stranger.ref('usernames/old_one').set(STRANGER));
+  });
+  test('RENAME into a handle taken in the meantime — refused whole, nothing changes', async () => {
+    const seeded = { 'usernames/old_one': OWNER, 'usernames/new_one': STRANGER, [`users/${OWNER}`]: { displayName: 'A', handle: 'old_one', handleLowercased: 'old_one', username: 'old_one' } };
+    await seed(env, seeded);
+    const before = await readAll();
+    await assertFails(owner.ref('/').update(renameUpdate(OWNER, { from: 'old_one', to: 'new_one', oldClaimOwner: OWNER })));
+    assert.deepEqual(await readAll(), before);
+  });
+  test('RENAME into a reserved name — refused whole', async () => {
+    await seed(env, { 'usernames/old_one': OWNER, [`users/${OWNER}`]: { displayName: 'A', handle: 'old_one' } });
+    await assertFails(owner.ref('/').update(renameUpdate(OWNER, { from: 'old_one', to: 'official', oldClaimOwner: OWNER })));
   });
 });
 

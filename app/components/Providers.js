@@ -8,6 +8,7 @@ import { AuthProvider } from '../lib/AuthContext';
 import { MembershipProvider } from '../lib/MembershipContext';
 import CookieBanner from './CookieBanner';
 import VerifyEmailBanner from './VerifyEmailBanner';
+import ProfileCompletion from './ProfileCompletion';
 
 export default function Providers({ children }) {
   // Global scroll-reveal: adds .is-revealed to [data-reveal] elements as they
@@ -56,6 +57,8 @@ export default function Providers({ children }) {
         {/* Mounted globally like CookieBanner, and it excludes the reading surfaces itself —
             see IMMERSIVE_ROUTES in the component. It needs AuthProvider, so it stays inside. */}
         <VerifyEmailBanner />
+        {/* A signed-in reader with no identity chooses one first — app/lib/profileCompletion.js. */}
+        <ProfileCompletion />
         <CookieBanner />
       </MembershipProvider>
     </AuthProvider>

@@ -214,10 +214,12 @@
           ".write": "auth != null && auth.uid == $uid"
         },
         "handle": {
-          ".write": "auth != null && auth.uid == $uid"
+          ".write": "auth != null && auth.uid == $uid",
+          ".validate": "newData.isString() && (newData.val() === '' || ((!newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).exists() || newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).val() === $uid) && (!newData.val().toLowerCase().matches(/^((calvary|storyisland|story_island).*|admin|administrator|support|help|official|staff|team|editor|editors|moderator|mod|system|root|security|founder)$/) || newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).val() === $uid || ($uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || $uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'))))"
         },
         "handleLowercased": {
-          ".write": "auth != null && auth.uid == $uid"
+          ".write": "auth != null && auth.uid == $uid",
+          ".validate": "newData.isString() && (newData.val() === '' || ((!newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).exists() || newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).val() === $uid) && (!newData.val().toLowerCase().matches(/^((calvary|storyisland|story_island).*|admin|administrator|support|help|official|staff|team|editor|editors|moderator|mod|system|root|security|founder)$/) || newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).val() === $uid || ($uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || $uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'))))"
         },
         "headerOffsetY": {
           ".write": "auth != null && auth.uid == $uid"
@@ -274,7 +276,8 @@
           ".write": "auth != null && auth.uid == $uid"
         },
         "username": {
-          ".write": "auth != null && auth.uid == $uid"
+          ".write": "auth != null && auth.uid == $uid",
+          ".validate": "newData.isString() && (newData.val() === '' || ((!newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).exists() || newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).val() === $uid) && (!newData.val().toLowerCase().matches(/^((calvary|storyisland|story_island).*|admin|administrator|support|help|official|staff|team|editor|editors|moderator|mod|system|root|security|founder)$/) || newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).val() === $uid || ($uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || $uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'))))"
         },
         "authorBio": {
           ".write": "auth != null && (auth.uid == $uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
@@ -328,7 +331,7 @@
     "usernames": {
       ".read": true,
       "$handle": {
-        ".write": "auth != null && (!data.exists() || data.val() === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+        ".write": "auth != null && ((!data.exists() && !$handle.toLowerCase().matches(/^((calvary|storyisland|story_island).*|admin|administrator|support|help|official|staff|team|editor|editors|moderator|mod|system|root|security|founder)$/)) || data.val() === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
         ".validate": "newData.isString() && newData.val().length <= 128 && (newData.val() === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
       }
     },

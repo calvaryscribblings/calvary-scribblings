@@ -1,0 +1,6 @@
+{
+  "_comment": "SIGNUP COMPLETENESS (24 Sep 2026). The STRICT handle-integrity rule, built and tested (tests/rules/handle-strict.test.mjs) but NOT deployed: it would refuse the app's signup if the app writes users/{uid} before usernames/{handle}, and that order cannot be seen from this repo. Swap it in for the GUARD on users/$uid/{handle,handleLowercased,username} once the app claims first or writes atomically. See docs/APP-HANDOFF-SIGNUP-COMPLETENESS.md.",
+  "users/$uid/handle/.validate": "newData.isString() && (newData.val() === '' || newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).val() === $uid)",
+  "users/$uid/handleLowercased/.validate": "newData.isString() && (newData.val() === '' || newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).val() === $uid)",
+  "users/$uid/username/.validate": "newData.isString() && (newData.val() === '' || newData.parent().parent().parent().child('usernames').child(newData.val().toLowerCase()).val() === $uid)"
+}

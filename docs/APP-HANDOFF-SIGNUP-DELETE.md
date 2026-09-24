@@ -160,6 +160,10 @@ One live node is sitting in `pendingDeletion`.
 
 ## 7. Web signup now asks for a handle (23 Sep 2026, later)
 
+> **Superseded in part, 24 Sep 2026** — see `docs/APP-HANDOFF-SIGNUP-COMPLETENESS.md`. The web now
+> checks the age (18) and writes `ageConfirmed: true`; the profile rename is one atomic write of
+> all three fields; reserved names are enforced in the rules.
+
 Ikenna's ruling: web signup asks for a handle, as the app does. The web copied **the app's shape**,
 derived from the app's live records (45 password signups since 12 May, the last `rebel`,
 23 Sep 20:42). Nothing for the app to change. What the web writes, as ONE root multi-path update:
