@@ -1,0 +1,43 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEPLOY HOOK PROBE — manual only. Says which runner-held hooks are set, and with
+# `fire` ticked POSTs CMS_DEPLOY_HOOK_URL once so a build can be watched landing.
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The hooks live in Actions secrets and nowhere else a person can read them, so
+# "trigger one build" (docs/OPERATOR-W1-DEPLOY-HOOK.md, step 5) has to happen on
+# a runner. The URL is never printed; scripts/deploy-hook.mjs names only the
+# variable. Confirm the deploy by the site's build id changing:
+#   curl -s https://calvaryscribblings.co.uk/ | grep -o '\\"b\\":\\"[^\\]*'
+name: deploy hook probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      fire:
+        description: 'POST CMS_DEPLOY_HOOK_URL once (starts one production build).'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: probe
+        env:
+          CMS_DEPLOY_HOOK_URL: ${{ secrets.CMS_DEPLOY_HOOK_URL }}
+          BOOKSTORE_DEPLOY_HOOK_URL: ${{ secrets.BOOKSTORE_DEPLOY_HOOK_URL }}
+        run: |
+          if [ "${{ github.event.inputs.fire }}" = "true" ]; then
+            node scripts/ops/probe-deploy-hooks.mjs --fire
+          else
+            node scripts/ops/probe-deploy-hooks.mjs
+          fi
