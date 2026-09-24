@@ -28,6 +28,20 @@ W1 changes the code on both paths to read the hook from a secret. The dashboard 
 | `.github/workflows/covers.yml` | the reconciler publishes a held story | **Actions secret (new)** | `CMS_DEPLOY_HOOK_URL` |
 | `.github/workflows/withdrawals.yml` | a scheduled Book Store withdrawal | Actions secret (existing name) | `BOOKSTORE_DEPLOY_HOOK_URL`, possibly **never set** (see step 6) |
 
+## Status, 24 Sep 23:45 UTC (W3 step 0 — done from the codespace with a Cloudflare token)
+
+- **Steps 2–3: done.** `CMS_DEPLOY_HOOK_URL` is a secret on `calvary-newsletter`, and the Worker runs the
+  mirror **byte for byte** (version `a2646c98`, `node scripts/worker-mirror-check.mjs` → identical). Before
+  this, the live Worker was the 2 Aug quick-editor version: the dead literal hook **and no `publishedAtMs`**.
+  Deploying the mirror therefore also made the paste in `docs/WORKER-PUBLISHEDATMS-PASTE.md`. No other
+  difference existed between the dashboard source and the mirror. Bindings, the `*/15` cron and workers.dev
+  are unchanged; preview URLs stay off.
+- **Step 6: bypassed.** `BOOKSTORE_DEPLOY_HOOK_URL` is still unset; the withdrawals job now falls back to
+  `CMS_DEPLOY_HOOK_URL` (same Pages project, same branch).
+- **Next flip, Fri 25 Sep 06:30 BST:** the cron flips the story, writes its index record *with*
+  `publishedAtMs`, and POSTs the hook. A Pages build from `cms-runners` should appear within a minute and
+  the home page's build id should change a few minutes later. A miss is now logged in the Worker's Logs tab.
+
 ## Status, 24 Sep 21:30 UTC (read from Actions logs; no Cloudflare credential reached the codespace)
 
 An unset secret prints as an empty value in a run's env block and a set one prints as `***`.

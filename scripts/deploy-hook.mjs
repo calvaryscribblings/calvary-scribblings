@@ -35,3 +35,20 @@ export async function fireDeployHook(url, { envName, what, fetchImpl = fetch }) 
     return 'unreachable';
   }
 }
+
+/**
+ * W3 — the first hook in `names` that is set, as { url, envName }; { url: undefined, envName:
+ * names[0] } when none is. Every hook here rebuilds the SAME Pages project on `main`, so any of
+ * them rebuilds the whole site, the shop included; the order only says which one is preferred.
+ *
+ * Written for the withdrawals job: BOOKSTORE_DEPLOY_HOOK_URL was never set as an Actions secret
+ * (W1 found it empty), so a scheduled withdrawal flipped the record and rebuilt nothing. It now
+ * falls back to CMS_DEPLOY_HOOK_URL, which is set.
+ */
+export function pickDeployHook(env, names) {
+  for (const name of names) {
+    const v = env[name];
+    if (typeof v === 'string' && v.trim()) return { url: v.trim(), envName: name };
+  }
+  return { url: undefined, envName: names[0] };
+}

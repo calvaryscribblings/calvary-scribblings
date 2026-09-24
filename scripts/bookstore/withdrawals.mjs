@@ -63,6 +63,10 @@ import { fileURLToPath } from 'node:url';
 
 import { DB_URL, accessToken, rtdbPatch } from '../covers/store.mjs';
 import { WITHDRAWAL_KEY, withdrawalDue, applyWithdrawalBlock } from '../../app/lib/bookstore/withdrawal.js';
+import { pickDeployHook } from '../deploy-hook.mjs';
+
+// W3 — preferred first. Exported by name only through the test's source read.
+const WITHDRAWAL_HOOK_NAMES = ['BOOKSTORE_DEPLOY_HOOK_URL', 'CMS_DEPLOY_HOOK_URL'];
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TITLES_PATH = 'bookstore_titles';
@@ -98,7 +102,7 @@ async function readTitles(token) {
  */
 async function fireDeployHook(url) {
   if (!url) {
-    console.error('::error::BOOKSTORE_DEPLOY_HOOK_URL is not set — the records were flipped but the shop was NOT rebuilt.');
+    console.error(`::error::neither ${WITHDRAWAL_HOOK_NAMES.join(' nor ')} is set — the records were flipped but the shop was NOT rebuilt.`);
     return { ok: false, status: null };
   }
   try {
@@ -164,7 +168,11 @@ async function main() {
   await rtdbPatch(token, updates);
   console.log(`\n✓ withdrew ${due.length} title(s): ${due.map((t) => t.id).join(', ')}`);
 
-  const verdict = await fireDeployHook(process.env.BOOKSTORE_DEPLOY_HOOK_URL);
+  // W3: BOOKSTORE_DEPLOY_HOOK_URL first, CMS_DEPLOY_HOOK_URL when it is absent — both rebuild the
+  // same Pages project. The name of the one used is logged; the URL never is.
+  const hook = pickDeployHook(process.env, WITHDRAWAL_HOOK_NAMES);
+  if (hook.url) console.log(`deploy hook: ${hook.envName}`);
+  const verdict = await fireDeployHook(hook.url);
   console.log(verdict.ok
     ? '✓ deploy summoned — the shop will be rebuilt without them in about two minutes.'
     : '✗ deploy NOT summoned. Retry from the Cloudflare Pages dashboard.');

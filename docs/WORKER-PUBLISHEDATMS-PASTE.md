@@ -1,5 +1,8 @@
 # The one paste Ikenna owes the live Worker — `publishedAtMs`
 
+> **DONE, 24 Sep 2026 (W3 step 0).** The Worker was deployed from the mirror with wrangler, byte-identical
+> (version `a2646c98`). Nothing below is owed any more; it is kept as the record of why.
+
 **Worker:** `calvary-newsletter` — the Cloudflare Worker that runs the scheduled-publish cron.
 **Where:** Cloudflare dashboard → Workers & Pages → `calvary-newsletter` → Edit code.
 **Repo mirror (already correct, for reference):** `workers-external/calvary-newsletter.worker.js`

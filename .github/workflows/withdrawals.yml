@@ -136,6 +136,9 @@ jobs:
           # founder signed in. Storing a founder credential here would be a worse
           # secret than the hook.
           BOOKSTORE_DEPLOY_HOOK_URL: ${{ secrets.BOOKSTORE_DEPLOY_HOOK_URL }}
+          # W3: the fallback when the one above is unset (it has never been set). Same Pages
+          # project, same branch, so it rebuilds the shop just the same.
+          CMS_DEPLOY_HOOK_URL: ${{ secrets.CMS_DEPLOY_HOOK_URL }}
         run: |
           ARGS=""
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event.inputs.apply }}" = "true" ]; then

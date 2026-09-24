@@ -56,3 +56,22 @@ test('the covers workflow hands the reconciler the hook from a secret', () => {
   const yml = read('.github/workflows/covers.yml');
   assert.match(yml, /CMS_DEPLOY_HOOK_URL: \$\{\{ secrets\.CMS_DEPLOY_HOOK_URL \}\}/);
 });
+
+// W3 — BOOKSTORE_DEPLOY_HOOK_URL was never set, so a scheduled withdrawal rebuilt nothing.
+test('pickDeployHook: the preferred hook when set, the fallback when not, a named miss when neither', async () => {
+  const { pickDeployHook } = await import('../../scripts/deploy-hook.mjs');
+  const names = ['BOOKSTORE_DEPLOY_HOOK_URL', 'CMS_DEPLOY_HOOK_URL'];
+  assert.deepEqual(pickDeployHook({ BOOKSTORE_DEPLOY_HOOK_URL: 'a', CMS_DEPLOY_HOOK_URL: 'b' }, names), { url: 'a', envName: 'BOOKSTORE_DEPLOY_HOOK_URL' });
+  // an Actions secret that is unset arrives as the EMPTY STRING, not undefined
+  assert.deepEqual(pickDeployHook({ BOOKSTORE_DEPLOY_HOOK_URL: '', CMS_DEPLOY_HOOK_URL: 'b' }, names), { url: 'b', envName: 'CMS_DEPLOY_HOOK_URL' });
+  assert.deepEqual(pickDeployHook({}, names), { url: undefined, envName: 'BOOKSTORE_DEPLOY_HOOK_URL' });
+});
+
+test('the withdrawals job falls back to the CMS hook, and its workflow hands it both', () => {
+  const src = read('scripts/bookstore/withdrawals.mjs');
+  assert.match(src, /WITHDRAWAL_HOOK_NAMES = \['BOOKSTORE_DEPLOY_HOOK_URL', 'CMS_DEPLOY_HOOK_URL'\]/);
+  assert.match(src, /fireDeployHook\(hook\.url\)/);
+  assert.doesNotMatch(src, /fireDeployHook\(process\.env\.BOOKSTORE_DEPLOY_HOOK_URL\)/);
+  const yml = read('.github/workflows/withdrawals.yml');
+  assert.match(yml, /CMS_DEPLOY_HOOK_URL: \$\{\{ secrets\.CMS_DEPLOY_HOOK_URL \}\}/);
+});
