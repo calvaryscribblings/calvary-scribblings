@@ -15,6 +15,12 @@
 // tests/bookstore/comps.test.mjs holds every aggregation of bookstore_purchases in the tree to
 // importing this module; a new report that reads the node without it fails CI.
 //
+// ⚠ ONE CONSEQUENCE TO KNOW. The admin's title DELETE decides whether anyone owns a book from
+// bookstore_readership, which counts through countsForReadership — so it does not see comps. A
+// title held ONLY as a comp reads as unowned, and deleting it removes the master the comp opens.
+// Withdraw instead (withdrawal never touches Storage). Only founders hold comps, and only a
+// founder can delete, so the person affected is the person deciding.
+//
 // Pure and money-free (no prices, no currencies), so any platform can carry it.
 
 export const COMP_SOURCE = 'comp';
