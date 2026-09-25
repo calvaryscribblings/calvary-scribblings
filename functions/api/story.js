@@ -220,7 +220,7 @@ async function handlePost(context) {
     // never opens — an explicit null the app can branch on, not an omission.
     readTimeMinutes: null,
     degraded: entitlementDegraded,
-    ...(forceGate ? { preview: 'after_switch' } : {}),
+    ...(forceGate ? { previewGate: true } : {}),
   };
 
   console.log(
