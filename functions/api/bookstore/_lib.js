@@ -9,6 +9,8 @@
 // three is a certainty. The behaviour is unchanged from the originals — this is a move,
 // not a rewrite, and the money paths above it must keep working byte-for-byte.
 
+import { countsForReadership } from '../../../app/lib/bookstore/purchaseSource.js';
+
 export const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
 // The bucket the app actually uses — app/lib/firebaseCore.js. Firebase's newer projects hand
@@ -401,8 +403,10 @@ export async function readPurchase(env, token, uid, titleId) {
 
 export const READERSHIP_PATH = 'bookstore_readership';
 
-const isActiveRecord = (rec) =>
-  !!rec && typeof rec === 'object' && !Array.isArray(rec) && rec.status === 'active';
+// W3b: a complimentary copy is in a library but is NOT a reader's purchase, and the public
+// count is a count of readers who bought (app/lib/bookstore/purchaseSource.js). So a comp never
+// moves it — and a real purchase landing on top of a comp moves it by +1, as any first sale does.
+const isActiveRecord = countsForReadership;
 
 /**
  * How much this write moves the public count. Pure, so the harness can assert every
@@ -586,6 +590,11 @@ export function buildGrantPayload({ amount, currency, refField, refValue, fields
     // diff. Match the prefix, print what matched, and delete only that.
     revokedAt: null,
     revokedReason: null,
+    // W3b: a real purchase over a complimentary copy makes it a purchase. null DELETES the comp
+    // markers, so the record is the sale it now is — counted, and never taken by the comp revoke.
+    source: null,
+    compGrant: null,
+    compGrantedAt: null,
     ...(fields || {}),
   };
 }

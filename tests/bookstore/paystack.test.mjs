@@ -222,9 +222,11 @@ test('grant payload: the Stripe rail, and the two refund stamps every grant clea
     fields: FIELDS,
   });
   assert.deepEqual(Object.keys(p).sort(), [
-    'amount', 'author', 'coverUrl', 'currency', 'purchasedAt', 'revokedAt', 'revokedReason',
-    'slug', 'status', 'stripeSessionId', 'title',
+    'amount', 'author', 'compGrant', 'compGrantedAt', 'coverUrl', 'currency', 'purchasedAt',
+    'revokedAt', 'revokedReason', 'slug', 'source', 'status', 'stripeSessionId', 'title',
   ]);
+  // W3b: a purchase clears the comp markers (null deletes), so buying over a comp is a sale.
+  assert.equal(p.source, null);
   // Present AND null, not absent — the two are the same fact on read but opposite acts on a
   // PATCH: absent leaves the old stamp standing, null deletes it. That difference is the fix.
   assert.equal(p.revokedAt, null);

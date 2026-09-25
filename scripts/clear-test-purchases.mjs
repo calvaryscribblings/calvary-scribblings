@@ -71,6 +71,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { readershipFromPurchases } from './readership-source.mjs';
+import { isComp } from '../app/lib/bookstore/purchaseSource.js';
 
 const DATABASE_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const PURCHASES_PATH = 'bookstore_purchases';
@@ -88,6 +89,11 @@ const BACKUP_DIR = join('backups', 'clear-test-purchases');
 export function classifyRecord(record, paystackVerdicts = new Map()) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     return { removable: false, proof: [], refusal: 'not a purchase record' };
+  }
+  // W3b: a complimentary copy is not a purchase at all — no mode to prove, nothing to clear.
+  // It has its own revoke (scripts/bookstore/founder-comps.mjs revoke), which takes only comps.
+  if (isComp(record)) {
+    return { removable: false, proof: [], refusal: 'complimentary copy (source: comp), not a sale — revoke with scripts/bookstore/founder-comps.mjs' };
   }
   const proof = [];
   const session = typeof record.stripeSessionId === 'string' ? record.stripeSessionId : null;

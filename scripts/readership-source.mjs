@@ -24,6 +24,8 @@
  * ruling — absent is absent — and it means the backfill writes nothing for a title nobody has
  * bought, so the node stays empty until it has something true to say.
  */
+import { countsForReadership } from '../app/lib/bookstore/purchaseSource.js';
+
 export function readershipFromPurchases(purchases) {
   const counts = new Map();
   if (!purchases || typeof purchases !== 'object') return counts;
@@ -37,7 +39,8 @@ export function readershipFromPurchases(purchases) {
       // That is the same "once per live entitlement" the delta arithmetic produces
       // incrementally, arrived at from the other direction, which is what makes the
       // reconciler worth running.
-      if (record.status !== 'active') continue;
+      // W3b: a complimentary copy is on a shelf but is not a reader's purchase — never counted.
+      if (!countsForReadership(record)) continue;
       counts.set(titleId, (counts.get(titleId) || 0) + 1);
     }
   }

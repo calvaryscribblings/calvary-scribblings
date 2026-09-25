@@ -372,10 +372,13 @@ export const DATA_CONTRACTS = {
     // The signals a reader genuinely emits by reading, and nothing that resembles a rating.
     //   completions  bookstore_reading_progress fraction crossing the ending threshold —
     //                the same event the ending ceremony already fires on
-    //   libraryAdds  a bookstore_purchases row appearing for the title
+    //   libraryAdds  a bookstore_purchases row appearing for the title — a PURCHASE: rows for
+    //                which countsForReadership() is true (app/lib/bookstore/purchaseSource.js).
+    //                A complimentary copy is on a shelf but is nobody's choice (W3b ruling).
     // Both are counts of PEOPLE, deduplicated by uid at aggregation time. A single reader
     // opening a book forty times is one reader.
     counts: ['completions', 'libraryAdds'],
+    excludesSources: ['comp'],
     minEntries: 2,
     // A book nobody has finished is not a Readers' Choice, however many people bought it.
     // Stated as a floor on the aggregate rather than as a filter here, so the shop cannot be
