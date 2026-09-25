@@ -101,6 +101,10 @@ test('RENDERED CONTENT STAYS: a page that has drawn its stories keeps them when 
   await expect(page.locator('.just-added-scroll a').first()).toBeVisible({ timeout: 40000 });
   const cards = await page.locator('.just-added-scroll a').count();
   expect(cards).toBeGreaterThan(0);
+  // …and the Top 10, which loads by its own two reads. The premise is content ALREADY DRAWN: on a
+  // slow runner the Top 10 had not arrived when the connection went, and it correctly drew its
+  // "couldn't reach" panel — the test was racing it (reader tests on dcbfa17a and 18bd75a0).
+  await expect(page.locator('.top10-scroll > *').first()).toBeVisible({ timeout: 40000 });
   await context.setOffline(true);
   await page.waitForTimeout(20000); // past the read deadline
   await expect(page.locator('[data-unavailable]')).toHaveCount(0);
