@@ -477,6 +477,13 @@ export async function applyMembershipChange(env, token, uid, {
     return { verdict: 'not_paid' };
   }
 
+  // The replay key is carried through any event that is not itself a payment. With per-field
+  // writes a null here would CLEAR it, and the next redelivery of that payment would no longer
+  // be recognised as one.
+  if (!detail.lastInvoiceRef && existing && typeof existing.lastInvoiceRef === 'string') {
+    detail = { ...detail, lastInvoiceRef: existing.lastInvoiceRef };
+  }
+
   const accountDeleted = await isDeletedAccount(env, token, uid);
   if (accountDeleted) {
     // MON-05. A subscription is live for an account that no longer exists: stop the billing

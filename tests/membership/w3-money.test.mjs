@@ -338,6 +338,18 @@ describe('MON-03 · a late or out-of-order event never re-grants', () => {
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
 describe('MON-14 · the writeMembership race', () => {
+  test('a non-payment event carries the stored replay key through (per-field writes would clear it)', async () => {
+    const w = world({ db: { memberships: { [UID]: live({ rail: 'paystack', stripeSubscriptionId: undefined, paystackCustomerCode: 'CUS_1', lastInvoiceRef: 'ms.first' }) }, paystack_membership_index: { SUB_1: UID } } });
+    try {
+      await handleMembershipPaystackEvent(ENV, async () => 'tok', {
+        event: 'subscription.create', domain: 'test',
+        data: { subscription_code: 'SUB_1', status: 'active', plan: { plan_code: PLAN('gold') }, customer: { customer_code: 'CUS_1' } },
+      }, NOW);
+      assert.equal(w.db.memberships[UID].paystackSubscriptionCode, 'SUB_1');
+      assert.equal(w.db.memberships[UID].lastInvoiceRef, 'ms.first');
+    } finally { w.restore(); }
+  });
+
   test('a pass that lands between the read and the write SURVIVES the subscription write', async () => {
     // The race, staged exactly where it bites: AFTER the writer has read the record (the
     // deletion probe is the last read before the PATCH) and BEFORE it writes.
