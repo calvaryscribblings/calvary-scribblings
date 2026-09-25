@@ -334,3 +334,9 @@ if (Platform.OS === 'android') {
   the Same Actors?" / "New film piece by Chioma Okonkwo · Film collaboration is not easy, and when
   you find your people, you hold on to them." Ticket `01a0d90d-4365-724a-8ca7-31fee7d1c046`
   **ok**; receipt **ok**.
+- **Seed:** dry run: 213 to mark, 2 pending (`phantom` 27 Sep, `did-you-enjoy-it` 29 Sep, both
+  future schedules). Seed: the same 213 marked, `seededAt` 14:53:41Z. Dry run after: **due 0**.
+  The audience is 1 device: the three token rows (three accounts) carry one phone's token.
+- **Armed** by `95610c48`. First scheduled run: Actions run `36152851501`, 15:16Z, success.
+  `due: 0`, audience 1, heartbeat `lastRunAt` 15:16:05Z. CI on `95610c48`: `rules and
+  hygiene` green, `reader tests` green, `push announce` suite green.
