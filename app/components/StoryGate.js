@@ -19,77 +19,28 @@
 // chooses not to — it names what is behind the door instead, which is the honest
 // pitch: the archive, not the remainder of this page.
 
-const SERIF = "'Cormorant Garamond', Georgia, serif";
+// W9: drawn by ArchiveLock (app/components/ArchiveLock.js) in the April age gate's language;
+// the words live in app/lib/archiveLock.js. The fade ends in the reading ground exactly and
+// spans the article's full measure — this component adds no side padding of its own.
+
+import ArchiveLock from './ArchiveLock';
+import { STORY_LOCK_COPY as C, DEGRADED_LOCK_COPY as D } from '../lib/archiveLock';
 
 export default function StoryGate({ gate, onSignIn, signedIn }) {
   if (!gate || gate.access !== 'preview') return null;
 
-  const degraded = gate.degraded === true;
+  if (gate.degraded === true) {
+    return (
+      <ArchiveLock theme="cream" fade eyebrow={D.eyebrow} headline={D.headline} body={D.body}
+        cta={{ label: D.cta, onClick: () => window.location.reload() }} />
+    );
+  }
 
+  // "Already a member? Sign in" only for a reader who is not signed in: a signed-in free reader
+  // has already been identified, and telling them to sign in would be a dead end.
   return (
-    <div style={{
-      maxWidth: 680, margin: '0 auto', padding: '0 2rem 3rem',
-      fontFamily: SERIF, textAlign: 'center',
-    }}>
-      {/* The fade is the only thing that says "this continues" without words. It sits
-          above the rule so the prose appears to run under it rather than stop at it. */}
-      <div aria-hidden style={{
-        height: 120, marginTop: -120, pointerEvents: 'none',
-        background: 'linear-gradient(to bottom, rgba(245,240,232,0) 0%, #f5f0e8 85%)',
-      }} />
-
-      <div style={{ borderTop: '1px solid #e0dbd2', paddingTop: '2rem' }}>
-        {degraded ? (
-          <>
-            <p style={{ margin: 0, fontSize: '1.05rem', color: '#4a4a4a', lineHeight: 1.6 }}>
-              We could not check your membership just now.
-            </p>
-            <p style={{ margin: '0.5rem 0 1.4rem', fontSize: '0.95rem', color: '#8a8378', lineHeight: 1.6 }}>
-              You are reading the opening. If you are a member, a refresh should bring
-              the rest.
-            </p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              style={pill}
-            >
-              Try again
-            </button>
-          </>
-        ) : (
-          <>
-            <p style={{ margin: 0, fontSize: '1.15rem', color: '#2a2a2a', lineHeight: 1.5 }}>
-              The rest of this story is in the archive.
-            </p>
-            <p style={{ margin: '0.6rem 0 1.5rem', fontSize: '0.95rem', color: '#8a8378', lineHeight: 1.65 }}>
-              Every story is free to read for its first week. This one is older —
-              Gold opens it, along with everything else we have published.
-            </p>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <a href="/membership" style={{ ...pill, textDecoration: 'none' }}>
-                See membership
-              </a>
-              {/* Only offered to a reader who is not signed in. A signed-in free
-                  reader has already been identified and telling them to sign in
-                  would be a dead end. */}
-              {!signedIn && (
-                <button type="button" onClick={onSignIn} style={{ ...pill, borderColor: 'rgba(42,42,42,0.2)', color: '#4a4a4a' }}>
-                  I have an account
-                </button>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    <ArchiveLock theme="cream" fade eyebrow={C.eyebrow} headline={C.headline} body={C.body}
+      cta={{ label: C.cta, href: '/membership' }}
+      signIn={signedIn ? null : { label: C.signIn, onClick: onSignIn }} />
   );
 }
-
-const pill = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  fontFamily: SERIF, fontSize: '0.8rem', letterSpacing: '0.12em',
-  textTransform: 'uppercase', color: '#7a5c1c',
-  background: 'transparent', border: '1px solid rgba(201,164,76,0.6)',
-  padding: '0.7em 1.5em', borderRadius: 2, cursor: 'pointer',
-  lineHeight: 1.4,
-};

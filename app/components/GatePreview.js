@@ -3,7 +3,8 @@
 // that says it is on (everywhere, for the founder who turned it on). Neither renders anything
 // for any other account. See app/lib/gatePreview.js.
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { boxesClash } from '../lib/archiveLock';
 import { useAuth } from '../lib/AuthContext';
 import { useGatePreview, useGatePreviewState, setGatePreview } from '../lib/gatePreview';
 import { isFounder } from '../lib/founders';
@@ -49,9 +50,36 @@ export function GatePreviewToggle() {
 export default function GatePreviewBanner() {
   const { user } = useAuth() || {};
   const on = useGatePreview(user);
+  const ref = useRef(null);
+  // W9: never over the lock. The pill's RESTING box (left 12, bottom 12 — transforms aside) is
+  // compared with every lock block on each scroll frame; on a clash the pill slides below the
+  // viewport edge until the block has passed.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    let raf = 0, aside = false;
+    const check = () => {
+      raf = 0;
+      const w = el.offsetWidth, h = el.offsetHeight, vh = window.innerHeight;
+      const rest = { left: 12, right: 12 + w, top: vh - 12 - h, bottom: vh - 12 };
+      const clash = [...document.querySelectorAll('[data-archive-lock]')].some((b) => boxesClash(rest, b.getBoundingClientRect()));
+      if (clash !== aside) { aside = clash; el.setAttribute('data-aside', clash ? '1' : '0'); }
+    };
+    const queue = () => { if (!raf) raf = requestAnimationFrame(check); };
+    check();
+    window.addEventListener('scroll', queue, { passive: true });
+    window.addEventListener('resize', queue);
+    // A lock can arrive after the pill (the gate answers after paint) — watch for it.
+    const mo = new MutationObserver(queue);
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => { window.removeEventListener('scroll', queue); window.removeEventListener('resize', queue); mo.disconnect(); if (raf) cancelAnimationFrame(raf); };
+  }, [on]);
   if (!on || gatingOn()) return null;
   return (
-    <div role="status" style={{ position: 'fixed', left: 12, bottom: 12, zIndex: 900, display: 'flex', gap: 10, alignItems: 'center', padding: '0.5rem 0.8rem', borderRadius: 999, background: '#241a06', border: '1px solid #c9a84c', color: '#f0dda0', fontFamily: LABEL, fontSize: 10.5, letterSpacing: '0.14em' }}>
+    <div ref={ref} role="status" data-founder-pill="" data-aside="0" className="founder-pill" style={{ position: 'fixed', left: 12, bottom: 12, zIndex: 900, display: 'flex', gap: 10, alignItems: 'center', padding: '0.5rem 0.8rem', borderRadius: 999, background: '#241a06', border: '1px solid #c9a84c', color: '#f0dda0', fontFamily: LABEL, fontSize: 10.5, letterSpacing: '0.14em' }}>
+      <style>{`.founder-pill { transition: transform 220ms ease, opacity 220ms ease; }
+        .founder-pill[data-aside="1"] { transform: translateY(calc(100% + 24px)); opacity: 0; pointer-events: none; }
+        @media (prefers-reduced-motion: reduce) { .founder-pill { transition: none; } }`}</style>
       {`FOUNDER PREVIEW · AFTER ${LAUNCH_DATE_SHORT.toUpperCase()}`}
       <button type="button" onClick={() => { setGatePreview(false, user).catch(() => {}); }}
         style={{ fontFamily: LABEL, fontSize: 10, letterSpacing: '0.14em', background: 'transparent', border: 'none', color: '#c9a84c', cursor: 'pointer', textDecoration: 'underline' }}>

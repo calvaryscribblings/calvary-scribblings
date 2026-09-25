@@ -39,6 +39,8 @@ import { getInstalmentDetail } from '../../../lib/series/loader';
 import { positionPath } from '../../../lib/series/reading-position';
 import { formatRelease } from '../../../lib/series/format';
 import ReadingRoom from '../../../reader/[slug]/ReadingRoom';
+import ArchiveLock from '../../../components/ArchiveLock';
+import { SERIES_LOCK_COPY } from '../../../lib/archiveLock';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
@@ -183,6 +185,19 @@ function Interstitial({ gate, message, releaseAtMs, instalmentId }) {
       cta: ['Back to The Series', '/series'],
     },
   }[gate] || { head: 'One moment…', body: null, cta: null };
+
+  // W9: the two refusals are THE LOCK — the same component as the story archive, dark.
+  if (gate === 'locked' || gate === 'signedout') {
+    return (
+      <div style={{ background: '#080610', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 4%' }}>
+        <div style={{ width: '100%' }}>
+          <ArchiveLock theme="dark" eyebrow={SERIES_LOCK_COPY.eyebrow} headline={SERIES_LOCK_COPY.headline}
+            body={copy.body} cta={{ label: SERIES_LOCK_COPY.cta, href: '/membership' }}
+            signIn={gate === 'signedout' ? { label: SERIES_LOCK_COPY.signIn, onClick: () => { window.location.href = '/account'; } } : null} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: '#080610', minHeight: '100vh', fontFamily: BODY, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4%' }}>

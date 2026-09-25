@@ -27,6 +27,7 @@
 // row to a pass-holder that the endpoint then refuses — the worst of both, since it advertises
 // something and takes it away at the tap.
 import Link from 'next/link';
+import StoryBar from '../../components/StoryBar';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/AuthContext';
 import { useMembership } from '../../lib/MembershipContext';
@@ -192,16 +193,21 @@ function InstalmentRow({ inst, subscriptionTier, effectiveTier, signedIn, onOpen
 function Shell({ children }) {
   return (
     <div style={{ background: '#080610', minHeight: '100vh', fontFamily: BODY }}>
-      <nav style={{ position: 'sticky', top: 0, zIndex: 100, padding: '0 4%', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(8,6,16,0.96)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <Link href="/series" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
-          <span
-            role="presentation"
-            style={{ width: 38, height: 38, borderRadius: 7, backgroundImage: 'url(/logo-header.jpg)', backgroundSize: 'cover', display: 'block' }}
-          />
-          <span style={{ fontSize: '1rem', fontWeight: 700, color: '#c4b5fd' }}>Calvary Scribblings</span>
-        </Link>
-        <Link href="/membership" style={{ fontFamily: LABEL, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', textDecoration: 'none' }}>Membership</Link>
-      </nav>
+      {/* W9: the same fixed bar as the story pages (app/components/StoryBar.js) — flush to the
+          top through a rubber-band, which `sticky` was not — plus the space it no longer takes. */}
+      <StoryBar style={{ background: 'rgba(8,6,16,0.96)', WebkitBackdropFilter: 'blur(12px)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '0 4%', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link href="/series" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
+            <span
+              role="presentation"
+              style={{ width: 38, height: 38, borderRadius: 7, backgroundImage: 'url(/logo-header.jpg)', backgroundSize: 'cover', display: 'block' }}
+            />
+            <span style={{ fontSize: '1rem', fontWeight: 700, color: '#c4b5fd' }}>Calvary Scribblings</span>
+          </Link>
+          <Link href="/membership" style={{ fontFamily: LABEL, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', textDecoration: 'none' }}>Membership</Link>
+        </div>
+      </StoryBar>
+      <div aria-hidden="true" style={{ height: 'calc(65px + env(safe-area-inset-top, 0px))' }} />
       {children}
     </div>
   );

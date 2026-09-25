@@ -34,6 +34,7 @@ import { requestStory, bodyOf } from '../../lib/story';
 import { useGatePreview, readGatePreview } from '../../lib/gatePreview';
 import { lockedForFirstPaint, lockScript } from '../../lib/storyLock';
 import StoryGate from '../../components/StoryGate';
+import StoryBar from '../../components/StoryBar';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
 
 const COMMENT_REACTIONS = buildReactions('heart');
@@ -934,8 +935,6 @@ export default function StoryPageClient({ params, initialStory = null }) {
   }, [story, storyReady]);
 
   const [readingTime, setReadingTime] = useState(0);
-  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
   const [hitCount, setHitCount] = useState(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -1024,16 +1023,19 @@ export default function StoryPageClient({ params, initialStory = null }) {
     return () => { cancelled = true; };
   }, [slug, storyUser]);
 
+  // W9: the bar's show/hide lives in <StoryBar> (app/lib/storyBar.js). This listener used to
+  // set React state on EVERY scroll event — re-rendering this whole page and re-binding itself —
+  // which is part of why the bar drifted on an iPad. Now it sets state only when 600px is crossed.
   useEffect(() => {
+    let shown = null;
     const handleScroll = () => {
-      const scrollTop = window.scrollY;
-      setIsHeaderVisible(scrollTop < lastScrollY || scrollTop < 100);
-      setShowBackToTop(scrollTop > 600);
-      setLastScrollY(scrollTop);
+      const next = window.scrollY > 600;
+      if (next !== shown) { shown = next; setShowBackToTop(next); }
     };
+    handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  }, []);
 
   // Reading thread — tracks scroll through the ARTICLE's bounds: 0 when the
   // article top meets the viewport top, 100 when its bottom meets the viewport
@@ -1311,9 +1313,11 @@ useEffect(() => {
         html { background: #0a0a0a; }
         body { background: #0a0a0a; color: #e8e0d4; font-family: Cormorant Garamond, Georgia, serif; overflow-x: hidden; }
         .story-fade-in { animation: storyFadeIn 0.7s ease forwards; }
-        .reading-progress { position: fixed; top: 0; left: 0; right: 0; width: 100%; height: 2px; background: linear-gradient(90deg, #c9a84c, rgba(201,168,76,0.55)); transform: scaleX(0); transform-origin: left; opacity: 0; z-index: 1000; will-change: transform, opacity; transition: opacity 0.4s ease; pointer-events: none; }
-        .story-nav { position: fixed; top: 3px; left: 0; right: 0; z-index: 999; display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; background: rgba(10,10,10,0.88); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,0.06); transition: transform 0.3s ease; }
-        .story-nav.hidden { transform: translateY(-100%); }
+        /* W9: position, the hide and the progress line are <StoryBar>'s (app/components/StoryBar.js). */
+        .story-nav { display: flex; align-items: center; justify-content: space-between; background: rgba(10,10,10,0.88); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: inset 0 -1px 0 rgba(255,255,255,0.06); }
+        /* The hairline is an inset shadow, not a border: the progress line is positioned against the
+           padding box, and with a border it sat 1px up, over the hairline, instead of on the edge. */
+        .story-nav-row { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 1rem 2rem; }
         .nav-logo { font-family: Cormorant Garamond, Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #f0ead8; text-decoration: none; letter-spacing: 0.02em; }
         .nav-logo span { color: ${accentColor}; }
         .nav-meta { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: #f5f0e8; }
@@ -1427,7 +1431,7 @@ useEffect(() => {
           .story-body { padding: 2.5rem 1.2rem 4rem; }
           .hero-content { padding: 2rem 1.2rem 2.5rem 1.2rem; padding-right: 120px; }
           .prose { font-size: 1.05rem; }
-          .story-nav { padding: 0.5rem 1.2rem; }
+          .story-nav-row { padding: 0.5rem 1.2rem; }
           .hit-counter-row { padding: 1.5rem 1.2rem; }
           .cs-section { padding: 2rem 1.2rem 5rem; }
           .story-badge-hero { font-size: 0.72rem; letter-spacing: 0.14em; padding: 0.22em 0.7em; margin-bottom: 0.7rem; }
@@ -1438,13 +1442,14 @@ useEffect(() => {
       .prose figure { margin: 2em 0; }
 .prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
 
-      <div ref={threadRef} className="reading-progress" aria-hidden="true" />
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
-        <nav className={`story-nav${isHeaderVisible ? '' : ' hidden'}`}>
-          {/* The library, not the gateway: a reader mid-story is returning to the shelves. */}
-          <a href="/public-library" className="nav-logo">Calvary <span>Scribblings</span></a>
-          <span className="nav-meta">{displayCategory}</span>
-        </nav>
+        <StoryBar hideOnScroll progressRef={threadRef} className="story-nav">
+          <div className="story-nav-row">
+            {/* The library, not the gateway: a reader mid-story is returning to the shelves. */}
+            <a href="/public-library" className="nav-logo">Calvary <span>Scribblings</span></a>
+            <span className="nav-meta">{displayCategory}</span>
+          </div>
+        </StoryBar>
         <header className="story-hero">
           <img className="hero-bg" src={story.coverSizes?.w720 || story.cover} alt="" aria-hidden="true" loading="eager" fetchPriority="high" />
           <div className="hero-overlay" />

@@ -38,7 +38,12 @@
 // lifts the second and the Series does not honour passes, so reading `tier` here would show an
 // unlocked button that the endpoint then refuses.
 import Link from 'next/link';
+import StoryBar from '../../../components/StoryBar';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import ArchiveLock from '../../../components/ArchiveLock';
+import AuthModal from '../../../components/AuthModal';
+import { SERIES_LOCK_COPY } from '../../../lib/archiveLock';
 import { useAuth } from '../../../lib/AuthContext';
 import { useMembership } from '../../../lib/MembershipContext';
 import { getInstalmentPage } from '../../../lib/series/loader';
@@ -64,6 +69,7 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
   const { user } = useAuth() || {};
   const gatePreview = useGatePreview(user);   // W4: founders only; can only lock
   const membership = useMembership() || {};
+  const [showAuth, setShowAuth] = useState(false);
   // W2 / SER-01 — under a deadline, and a failed read is DRAWN. It used to await the loader with
   // no deadline ("Loading…" for good on a hung read) and take its caught-and-nulled failure for
   // "no such instalment". null still means missing; a failure is now <Unavailable>.
@@ -116,31 +122,37 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
         <Credit label="reading time" value={reading} />
       </div>
 
-      {/* THE ONE ACTION. Gold, full width, and the only button on the page. When the tier gate
-          is up and this reader is not covered, it becomes the honest button instead — showing
-          "Read Instalment 2" over a file the endpoint will refuse advertises something and
-          then takes it away at the tap. */}
-      <div style={{ padding: '1.75rem 6% 0' }}>
-        <button
-          type="button"
-          onClick={() => router.push(open ? `/series/read/${row.id}` : '/membership')}
-          style={{
-            display: 'block', width: '100%', border: 'none', cursor: 'pointer',
-            borderRadius: 5, padding: '0.95rem 1rem',
-            fontFamily: DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '0.01em',
-            background: open ? GOLD : 'transparent',
-            color: open ? PAGE : GOLD,
-            boxShadow: open ? 'none' : `inset 0 0 0 1px ${GOLD}`,
-          }}
-        >
-          {open ? readActionLabel(row.ordinal) : 'See memberships'}
-        </button>
-        {!open && (
-          <p style={{ fontFamily: BODY, fontSize: 12.5, color: 'rgba(245,240,232,0.42)', margin: '10px 0 0', textAlign: 'center' }}>
-            {refusalCopy(grant)}
-          </p>
-        )}
-      </div>
+      {/* THE ONE ACTION. Gold, full width, and the only button on the page — when the reader is
+          covered. When the tier gate is up and they are not, it is THE LOCK instead (W9: the same
+          component as the story archive, dark): showing "Read Instalment 2" over a file the
+          endpoint will refuse advertises something and then takes it away at the tap. */}
+      {open ? (
+        <div style={{ padding: '1.75rem 6% 0' }}>
+          <button
+            type="button"
+            onClick={() => router.push(`/series/read/${row.id}`)}
+            style={{
+              display: 'block', width: '100%', border: 'none', cursor: 'pointer',
+              borderRadius: 5, padding: '0.95rem 1rem',
+              fontFamily: DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '0.01em',
+              background: GOLD, color: PAGE,
+            }}
+          >
+            {readActionLabel(row.ordinal)}
+          </button>
+        </div>
+      ) : (
+        <div style={{ padding: '3rem 6% 0' }}>
+          <ArchiveLock theme="dark" eyebrow={SERIES_LOCK_COPY.eyebrow} headline={SERIES_LOCK_COPY.headline}
+            body={refusalCopy(grant)} cta={{ label: SERIES_LOCK_COPY.cta, href: '/membership' }}
+            signIn={user ? null : { label: SERIES_LOCK_COPY.signIn, onClick: () => setShowAuth(true) }} />
+        </div>
+      )}
+      {showAuth && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setShowAuth(false); }}>
+          <AuthModal onClose={() => setShowAuth(false)} />
+        </div>
+      )}
 
       <Sponsor name={detail?.sponsorName} logoUrl={detail?.sponsorLogoUrl} />
     </Shell>
@@ -317,16 +329,21 @@ function Missing() {
 function Shell({ children }) {
   return (
     <div style={{ background: PAGE, minHeight: '100vh', fontFamily: BODY }}>
-      <nav style={{ position: 'sticky', top: 0, zIndex: 100, padding: '0 4%', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(8,6,16,0.96)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <Link href="/series" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
-          <span
-            role="presentation"
-            style={{ width: 38, height: 38, borderRadius: 7, backgroundImage: 'url(/logo-header.jpg)', backgroundSize: 'cover', display: 'block' }}
-          />
-          <span style={{ fontSize: '1rem', fontWeight: 700, color: '#c4b5fd' }}>Calvary Scribblings</span>
-        </Link>
-        <Link href="/membership" style={{ fontFamily: LABEL, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, textDecoration: 'none' }}>Membership</Link>
-      </nav>
+      {/* W9: the same fixed bar as the story pages (app/components/StoryBar.js) — flush to the
+          top through a rubber-band, which `sticky` was not — plus the space it no longer takes. */}
+      <StoryBar style={{ background: 'rgba(8,6,16,0.96)', WebkitBackdropFilter: 'blur(12px)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '0 4%', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link href="/series" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
+            <span
+              role="presentation"
+              style={{ width: 38, height: 38, borderRadius: 7, backgroundImage: 'url(/logo-header.jpg)', backgroundSize: 'cover', display: 'block' }}
+            />
+            <span style={{ fontSize: '1rem', fontWeight: 700, color: '#c4b5fd' }}>Calvary Scribblings</span>
+          </Link>
+          <Link href="/membership" style={{ fontFamily: LABEL, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, textDecoration: 'none' }}>Membership</Link>
+        </div>
+      </StoryBar>
+      <div aria-hidden="true" style={{ height: 'calc(65px + env(safe-area-inset-top, 0px))' }} />
       {children}
     </div>
   );
