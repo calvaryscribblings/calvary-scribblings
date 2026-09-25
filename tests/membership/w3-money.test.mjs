@@ -170,6 +170,19 @@ describe('MON-01 · the membership endpoint is subscribed to every event it hand
   });
 });
 
+describe('the Stripe portal cancel, as dahlia writes it (measured live, 25 Sep 2026)', () => {
+  test('cancel_at with cancel_at_period_end FALSE is still a cancellation, running until cancel_at', async () => {
+    const end = Math.floor(NOW / 1000) + 30 * 86400;
+    const w = world({ db: { memberships: { [UID]: live() } }, stripe: { '/subscriptions/sub_A': () => ({ ...sub({ periodEnd: end }), cancel_at_period_end: false, cancel_at: end }) } });
+    try {
+      await deliver(stripeHook, { type: 'customer.subscription.updated', data: { object: sub() } });
+      assert.equal(w.db.memberships[UID].cancelAtPeriodEnd, true, 'before this, settings said "Renews on …"');
+      assert.equal(w.db.memberships[UID].currentPeriodEnd, end * 1000);
+      assert.equal(w.db.users[UID].membership, 'gold', 'and the member keeps what they paid for');
+    } finally { w.restore(); }
+  });
+});
+
 // ═════════════════════════════════════════════════════════════════════════════════════════
 describe('MON-02 · Gold → Platinum switches; it never bills two', () => {
   test('the Stripe checkout decision', () => {

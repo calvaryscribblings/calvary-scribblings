@@ -142,7 +142,14 @@ export function detailForSubscription({ subscription, existing, mode, now }) {
   const founding = !!described && described.generation === 'founding';
   // W3 / MON-06: item-level on dahlia, top-level before basil. subscriptionPeriodEnd reads both.
   const periodEndS = subscriptionPeriodEnd(subscription);
-  const periodEnd = typeof periodEndS === 'number' ? periodEndS * 1000 : null;
+  // W3, measured live 25 Sep 2026: on dahlia the billing portal's Cancel sets `cancel_at` (a
+  // timestamp) and leaves `cancel_at_period_end` FALSE. Read only the flag and a member who has
+  // cancelled is shown "Renews on …". Either field means it is ending; the earlier date is the
+  // one it runs until.
+  const cancelAtS = typeof subscription?.cancel_at === 'number' ? subscription.cancel_at : null;
+  const endS = cancelAtS !== null && (periodEndS === null || cancelAtS < periodEndS) ? cancelAtS : periodEndS;
+  const periodEnd = typeof endS === 'number' ? endS * 1000 : null;
+  const cancelling = subscription?.cancel_at_period_end === true || cancelAtS !== null;
 
   return {
     detail: buildDetail({
@@ -152,7 +159,7 @@ export function detailForSubscription({ subscription, existing, mode, now }) {
       rail: 'stripe',
       status: mapStatus(subscription?.status),
       currentPeriodEnd: periodEnd,
-      cancelAtPeriodEnd: subscription?.cancel_at_period_end === true,
+      cancelAtPeriodEnd: cancelling,
       founding,
       // PRESERVED, never restamped. The one field an upgrade must not touch.
       foundingSince: (existing && typeof existing.foundingSince === 'number')
