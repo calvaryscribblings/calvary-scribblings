@@ -362,11 +362,20 @@ export function realIo(env, token) {
       const got = await fetch(`https://api.paystack.co/subscription/${encodeURIComponent(code)}`, { headers: h, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) });
       const sub = (await got.json().catch(() => ({})))?.data;
       if (!got.ok || !sub) throw new Error(`Paystack fetch ${code} → ${got.status}`);
-      if (sub.status && sub.status !== 'active' && sub.status !== 'non-renewing' && sub.status !== 'attention') return;
+      // Only a subscription that will charge again needs disabling. `non-renewing` will not —
+      // it is what a reader's own Cancel leaves behind (W3), and Paystack answers a second
+      // disable with 404 "already inactive". Found on the live proof, 25 Sep 2026: a naira
+      // reader who had cancelled could not delete their account (500 at step 'membership').
+      if (sub.status !== 'active' && sub.status !== 'attention') return;
       const res = await fetch('https://api.paystack.co/subscription/disable', {
         method: 'POST', headers: h, body: JSON.stringify({ code, token: sub.email_token }),
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });
+      if (res.status === 404) {
+        const b = await res.json().catch(() => ({}));
+        if (/already inactive|not found/i.test(b?.message || '')) return;
+        throw new Error(`Paystack disable ${code} → 404 ${b?.message || ''}`);
+      }
       await ok(res, `Paystack disable ${code}`);
     },
     async storageList(prefix) {

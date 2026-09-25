@@ -564,6 +564,19 @@ describe('MON-05 · deleting an account cancels what the PROVIDER holds', () => 
     } finally { w.restore(); }
   });
 
+  test('a reader who CANCELLED (non-renewing) can still delete their account', async () => {
+    const { realIo } = await import('../../functions/api/account/_deletion.js');
+    let disables = 0;
+    const w = world({ paystack: {
+      '/subscription/SUB_NR': () => ({ status: true, data: { status: 'non-renewing', email_token: 't' } }),
+      '/subscription/disable': () => { disables++; return { status: false, message: 'Subscription with code not found or already inactive' }; },
+    } });
+    try {
+      await realIo(ENV, 'tok').paystackDisable('SUB_NR');
+      assert.equal(disables, 0, 'nothing to disable — and before the fix this threw, failing the deletion');
+    } finally { w.restore(); }
+  });
+
   test('the scrub backstop reports a deleted reader whose record is still live', () => {
     assert.deepEqual(billingBackstop(UID, live()), { rail: 'stripe', ref: 'sub_A' });
     assert.equal(billingBackstop(UID, live({ status: 'cancelled' })), null);
