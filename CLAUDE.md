@@ -171,3 +171,16 @@ from (the RTDB backups are for disasters, not for undoing a reader's decision). 
 calls the endpoint; the copy lives in `app/lib/accountDeletion.js` and must describe exactly
 what the endpoint does, nothing more. The soft-delete (`users/{uid}/isDeleted`,
 `pendingDeletion`) is gone from `app/`; `tests/account/web-flow.test.mjs` keeps it gone.
+
+## Parallel workers: one git worktree each
+
+**Standing rule (W7, 25 Sep 2026).** When a round uses parallel workers (subagents), each works in
+its **own git worktree** (`isolation: "worktree"`, or `git worktree add`), never in the shared
+working tree. Their changes come back as commits or patches and are merged by the lead.
+
+And **never `git stash` in the shared tree**. It reverts every uncommitted edit in it, including
+other people's. W6 ran two workers in one tree. One ran `git stash` for a lint comparison and
+briefly undid everyone's edits mid-test-run. Another overwrote a shared scratch script, so a
+mutation run silently executed the wrong harness. Nothing shipped wrong, but only because the
+results were implausible enough to re-check. For a before/after comparison of one file, copy that
+file aside and back.

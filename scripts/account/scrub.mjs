@@ -179,6 +179,11 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     console.log(`[scrub] ${args.includes('--apply') ? 'APPLIED' : 'report only'}: ${JSON.stringify(s)}`);
     const p = await runPrivateSweep(db, { apply: args.includes('--apply') });
     console.log(`[private] ${args.includes('--apply') ? 'APPLIED' : 'report only'}: ${JSON.stringify(p)}`);
+    // W7: the heartbeat scripts/launch-check.mjs reads. Written only after an applied run has
+    // finished both sweeps, so a run that threw before here leaves it stale, and stale is red.
+    if (args.includes('--apply')) {
+      await db.ref('ops/account_scrub').set({ lastRunAt: Date.now(), scrubbed: s.scrubbed ?? null });
+    }
   }
   process.exit(0);
 }

@@ -411,7 +411,20 @@ async function processScheduled(env) {
   // the new build is live the story page refuses the body itself (app/lib/storyLock.js).
   const midnight = isFirstTickAfterLondonMidnight(now);
   if (midnight) console.log("London midnight: firing the rebuild for the free week / archive gate.");
-  if (published || midnight) await fireDeployHook(env);
+  let hook = null;
+  if (published || midnight) hook = await fireDeployHook(env);
+  // W7: the heartbeat scripts/launch-check.mjs reads — the tick ran to its end. A tick that never
+  // runs (a disabled cron, a broken deploy) leaves it stale, and stale is red.
+  try {
+    const hb = await fetch(`${env.FIREBASE_DATABASE_URL}/ops/publish_heartbeat.json?auth=${env.FIREBASE_SECRET}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lastTickAt: now.getTime(), published, midnight, hook }),
+    });
+    if (!hb.ok) console.error(`Heartbeat not written: HTTP ${hb.status}`);
+  } catch (err) {
+    console.error(`Heartbeat not written (${err?.name || "Error"})`);
+  }
 }
 
 // True in the first 15 minutes after 00:00 Europe/London — exactly one */15 tick per day.

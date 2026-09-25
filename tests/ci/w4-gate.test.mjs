@@ -114,7 +114,7 @@ describe('THE REBUILD — after every London midnight, from the Worker', () => {
   });
 
   test('the tick fires the deploy hook', () => {
-    assert.match(src, /if \(published \|\| midnight\) await fireDeployHook\(env\);/);
+    assert.match(src, /if \(published \|\| midnight\) hook = await fireDeployHook\(env\);/);   // W7 keeps the verdict for the heartbeat
   });
 });
 

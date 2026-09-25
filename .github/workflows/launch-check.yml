@@ -1,0 +1,80 @@
+# W7 — LAUNCH CHECKS: know at midnight whether every switch worked.
+#
+# Runs scripts/launch-check.mjs and emails Ikenna the table ("[launch] all green" / "[launch] N
+# red") through /api/ops/launch-email, which holds the Resend key and fixes the recipient. The
+# job signs its request with the service account it already has (FIREBASE_SERVICE_ACCOUNT);
+# no mail credential lives in GitHub.
+#
+# WHEN (London times; GitHub's cron is UTC, so each is written as the UTC time(s) it can be and
+# scripts/launch-check-gate.mjs keeps the one that is right for London's offset that day):
+#   30 Sept 2026 00:10 and 08:05 (BST)   the switch, and the morning after it
+#   every Monday 00:10                    each weekly rollover of the free week
+#                                         (BST: Sunday 23:10 UTC; GMT: Monday 00:10 UTC)
+#   workflow_dispatch                     by hand, any time
+#
+# A red row fails the job AFTER the email is sent, so the Actions tab shows it too.
+
+name: launch check
+
+on:
+  schedule:
+    - cron: '10 23 29 9 *'   # 30 Sept 00:10 London (BST)
+    - cron: '5 7 30 9 *'     # 30 Sept 08:05 London (BST)
+    - cron: '10 23 * * 0'    # Monday 00:10 London while BST
+    - cron: '10 0 * * 1'     # Monday 00:10 London while GMT
+  workflow_dispatch:
+    inputs:
+      email:
+        description: 'Email the table to Ikenna'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read   # the previous run's start time is "since the last check"
+
+concurrency:
+  group: launch-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: launch checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Is this the London time we meant?
+        id: gate
+        run: node scripts/launch-check-gate.mjs "${{ github.event.schedule }}" | tee -a /dev/stderr | grep '^run=' >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v5
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+        if: steps.gate.outputs.run == 'true'
+      - name: Write the service account
+        if: steps.gate.outputs.run == 'true'
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set — the launch check cannot run."
+            exit 1
+          fi
+          printf '%s' "$KEY" > "${RUNNER_TEMP}/serviceAccountKey.json"
+      - name: Check, and email the table
+        if: steps.gate.outputs.run == 'true'
+        env:
+          LAUNCH_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.email }}" != "true" ]; then
+            node scripts/launch-check.mjs
+          else
+            node scripts/launch-check.mjs --email
+          fi
+      - name: Remove the service account
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/serviceAccountKey.json"
