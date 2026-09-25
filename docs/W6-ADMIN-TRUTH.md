@@ -144,3 +144,22 @@ and the baseline is locked there.
 - `tests/rules/w6-admin.test.mjs` (6) covers `newsletter_sends` and `ops/publish_skips`.
 - Every protection was reverted once and its test went red (18 code mutations and 1 rules
   mutation).
+
+## Live proof (25 Sep, after e6e94e15 deployed)
+
+- **Hide sticks / no coverless publish:** two scratch records, `w6-probe-hidden` (past publishAt,
+  hiddenAt) and `w6-probe-nocover` (past publishAt, no generated cover), were seeded at 11:49 UTC.
+  The live Worker's **12:00 tick** left the hidden one unpublished and unindexed. It skipped the
+  coverless one and raised `ops/publish_skips/w6-probe-nocover` (`no_generated_cover`, 12:00:52).
+  The pre-W6 Worker would have published both. Both records and the alert were then deleted and
+  re-read as gone. The two real scheduled stories (`phantom` 27 Sep, `did-you-enjoy-it` 29 Sep)
+  were untouched.
+- **Test send:** `POST /api/newsletter/send` as @byokpara to `Ikennaworksfromhome@gmail.com` (the
+  only address on the allowlist) returned 200 `{sent:1, failed:0, allowlistOpen:false}`. The same
+  request to an address off the list returned **403**, "…Nothing was sent." (before W6: HTTP 200).
+- **Confirmation:** WebKit at 1180, live /admin/newsletter. *Send to 55 Subscribers…* opened
+  "Send to 55 subscribers? … Mail cannot be recalled once it is sent." Cancel closed it, and zero
+  send requests were made (the browser was set to block any). The History tab lists the sent
+  issues. It said "No newsletters sent yet" before.
+- **§7.4** (storyAccess.js changed): signed out, `trouble-shooting` and `till-debt-do-us-part`
+  → full / gating_off.
