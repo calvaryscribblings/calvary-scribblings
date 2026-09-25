@@ -219,19 +219,36 @@ describe('MON-02 · Gold → Platinum switches; it never bills two', () => {
       paystack: {
         '/subscription/SUB_A': () => ({ status: true, data: { status: 'active', email_token: 'tok_A', next_payment_date: '2026-10-25T00:00:00.000Z', customer: { customer_code: 'CUS_1' } } }),
         '/subscription/disable': () => ({ status: true, data: { status: 'non-renewing' } }),
+        '/subscription?customer=': () => ({ status: true, data: [{ subscription_code: 'SUB_A', status: 'non-renewing' }, { subscription_code: 'SUB_B', status: 'active' }] }),
       },
     });
     try {
       const r = await handleMembershipPaystackEvent(ENV, async () => 'tok', {
         event: 'charge.success', domain: 'test',
-        data: { reference: `ms.${UID}.platinum-monthly.abcdef012345`, status: 'success', plan: { plan_code: plan('platinum') }, customer: { customer_code: 'CUS_1' } },
+        data: { reference: `ms.${UID}.platinum-monthly.abcdef012345`, status: 'success', plan: { plan_code: plan('platinum') }, customer: { id: 77, customer_code: 'CUS_1' } },
       }, NOW);
       assert.equal(r.verdict, 'written');
       assert.equal(w.db.users[UID].membership, 'platinum');
       assert.ok(w.db.memberships[UID].ended.SUB_A, 'the old subscription is tombstoned');
       assert.equal(w.db.memberships[UID].upgrade, undefined, 'the sanction is spent');
-      assert.equal(w.db.memberships[UID].paystackSubscriptionCode, undefined, 'the OLD code is not carried onto the new plan');
+      assert.equal(w.db.memberships[UID].paystackSubscriptionCode, 'SUB_B', 'the NEW plan\'s code, asked of Paystack — never the old one, never null');
       assert.equal(w.calls.filter((c) => c.url.endsWith('/subscription/disable')).length, 1);
+    } finally { w.restore(); }
+  });
+
+  test('THE RACE (live, 25 Sep): a charge with no subscription code never writes the code — not even null', async () => {
+    // Paystack sends charge.success and subscription.create at the same instant; both read before
+    // either writes. If the charge writes `paystackSubscriptionCode: null` it erases the code the
+    // other just stored. So the charge's PATCH must not name the field at all.
+    const w = world({ db: { memberships: { [UID]: live({ rail: 'paystack', stripeSubscriptionId: undefined, paystackCustomerCode: 'CUS_1', paystackPlanCode: PLAN('gold') }) } } });
+    try {
+      await handleMembershipPaystackEvent(ENV, async () => 'tok', {
+        event: 'charge.success', domain: 'test',
+        data: { reference: `ms.${UID}.gold-monthly.abcdef012345`, status: 'success', plan: { plan_code: PLAN('gold') }, customer: { customer_code: 'CUS_1' } },
+      }, NOW);
+      const patch = w.calls.filter((c) => c.method === 'PATCH').map((c) => JSON.parse(c.body)).find((b) => `users/${UID}/membership` in b);
+      assert.ok(patch);
+      assert.equal(`memberships/${UID}/paystackSubscriptionCode` in patch, false);
     } finally { w.restore(); }
   });
 

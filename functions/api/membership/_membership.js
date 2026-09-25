@@ -185,7 +185,7 @@ const NEVER_IN_THE_BODY = new Set(['pass', 'ended', 'upgrade', 'passRefunds']);
  * without stubbing a network. The scalar and every detail field land in ONE root PATCH, which
  * RTDB applies atomically.
  */
-export function buildMembershipUpdate(uid, detail, { accountDeleted = false } = {}) {
+export function buildMembershipUpdate(uid, detail, { accountDeleted = false, keep = [] } = {}) {
   if (!str(uid)) throw new Error('buildMembershipUpdate: uid is required');
   const tier = normaliseTier(detail && detail.tier);
   const body = {};
@@ -193,6 +193,9 @@ export function buildMembershipUpdate(uid, detail, { accountDeleted = false } = 
   for (const f of KNOWN_REF_FIELDS) if (!(f in d)) d[f] = null;
   for (const [k, v] of Object.entries(d)) {
     if (NEVER_IN_THE_BODY.has(k)) continue;
+    // `keep`: fields this event knows nothing about and must NOT touch — see the Paystack
+    // charge.success race in _paystack.js. Not written, not even as null.
+    if (keep.includes(k)) continue;
     body[`${DETAIL_PATH(uid)}/${k}`] = v === undefined ? null : v;
   }
   // A DELETED ACCOUNT gets the billing record and NOTHING under users/. The scalar is the one
@@ -311,6 +314,9 @@ export function shouldSkipPassGrant(existingPass, ref) {
 export function classifyDowngrade(existingDetail, subRef, customerRef = null) {
   if (!existingDetail || typeof existingDetail !== 'object') return { verdict: 'absent', stored: [] };
   const stored = currentSubscriptionRef(existingDetail);
+  // A stored subscription that has itself ENDED (replaced in an upgrade whose new code has not
+  // landed yet) is not the live one: its own cancellation is history, not a downgrade.
+  if (stored && isEndedSubscription(existingDetail, stored)) return { verdict: 'stale', stored: [stored] };
   if (stored) {
     if (subRef && subRef === stored) return { verdict: 'revoke', stored: [stored] };
     return { verdict: subRef ? 'stale' : 'review', stored: [stored] };
@@ -357,9 +363,9 @@ async function rootPatch(env, token, body, what) {
  * Write the pair. ONE root PATCH, atomic by RTDB's own guarantee. `extra` rides in the same
  * PATCH (an ended-subscription tombstone), so a downgrade and its tombstone cannot half-land.
  */
-export async function writeMembership(env, token, uid, detail, { extra = {}, accountDeleted } = {}) {
+export async function writeMembership(env, token, uid, detail, { extra = {}, accountDeleted, keep = [] } = {}) {
   const deleted = accountDeleted ?? await isDeletedAccount(env, token, uid);
-  const body = { ...buildMembershipUpdate(uid, detail, { accountDeleted: deleted }), ...extra };
+  const body = { ...buildMembershipUpdate(uid, detail, { accountDeleted: deleted, keep }), ...extra };
   return rootPatch(env, token, body, 'root PATCH');
 }
 
@@ -397,6 +403,7 @@ export async function applyMembershipChange(env, token, uid, {
   cancelAtProvider = null,
   endedReason = 'provider',
   paidAt = null,     // ms — when the money in this event moved, if the event says
+  keep = [],         // detail fields this event must leave exactly as stored
   detail,
   label = 'membership',
   now = Date.now(),
@@ -458,7 +465,8 @@ export async function applyMembershipChange(env, token, uid, {
   }
 
   const stored = currentSubscriptionRef(existing);
-  if (stored && isLive(existing.status) && (subRef ? subRef !== stored : newSubscription) && !sanctioned) {
+  const storedLive = stored && isLive(existing.status) && !isEndedSubscription(existing, stored);
+  if (storedLive && (subRef ? subRef !== stored : newSubscription) && !sanctioned) {
     return {
       verdict: 'second_subscription', uid, ref: subRef || invoiceRef,
       why: `${label}: ${uid} already has live subscription ${stored} and a SECOND one (${subRef || invoiceRef || '—'}) has been paid for. Nothing was written. Cancel and refund one of them.`,
@@ -516,7 +524,7 @@ export async function applyMembershipChange(env, token, uid, {
     console.error(`[${label}] scalar repair probe failed for ${uid} (continuing):`, e.message || e);
   }
 
-  const written = await writeMembership(env, token, uid, detail, { accountDeleted: false });
+  const written = await writeMembership(env, token, uid, detail, { accountDeleted: false, keep });
   console.log(
     `[${label}] wrote ${uid} tier=${written[SCALAR_PATH(uid)]} ` +
     `status=${detail.status || '—'} invoice=${invoiceRef || '—'}`,

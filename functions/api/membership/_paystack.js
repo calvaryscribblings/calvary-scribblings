@@ -536,10 +536,20 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
     };
   }
 
-  // The stored code carries over only when this event is about the same subscription. During an
-  // upgrade the stored code is the OLD plan's, and must not be copied onto the new one.
-  const storedCode = existing && str(existing.paystackSubscriptionCode);
-  const carriedCode = storedCode && storedCode !== replacing ? storedCode : null;
+  // THE CODE ON A CHARGE-SHAPED EVENT. charge.success carries no subscription code, and Paystack
+  // sends the new subscription's subscription.create AT THE SAME MOMENT. Measured on the live
+  // proof (25 Sep 2026): both read the record before either wrote, and the charge's write of
+  // `paystackSubscriptionCode: null` erased the code subscription.create had just stored. So:
+  //   · an event with no code does not touch the stored one (`keep`), and
+  //   · in an UPGRADE the stored code is the OLD plan's, so the new plan's is asked of Paystack
+  //     (this customer, this plan, active) rather than left pointing at the replaced one.
+  let newCode = subscriptionCode;
+  if (!newCode && replacing) {
+    const cus = data?.customer?.id;
+    const list = cus ? await paystackGet(env, `/subscription?customer=${encodeURIComponent(cus)}&plan=${encodeURIComponent(planCode)}`) : { ok: false };
+    newCode = (list.ok && (list.body.data || []).find((x) => x.status === 'active' && x.subscription_code !== replacing)?.subscription_code) || null;
+  }
+  const keep = newCode ? [] : ['paystackSubscriptionCode'];
 
   const detail = buildDetail({
     tier: described.tier,
@@ -555,7 +565,7 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
     foundingSince: keepFounding.foundingSince ?? (described.generation === 'founding' ? now : null),
     invoiceRef,
     refs: {
-      paystackSubscriptionCode: subscriptionCode || carriedCode,
+      ...(newCode ? { paystackSubscriptionCode: newCode } : {}),
       paystackCustomerCode: customerCode || (existing && str(existing.paystackCustomerCode)),
       paystackPlanCode: planCode,
       planGeneration: described.generation,
@@ -565,7 +575,7 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
 
   console.log(`[${LABEL}] ${name} uid=${uid} via=${via} plan=${planCode} tier=${described.tier} status=${status}${replacing ? ` replacing=${replacing}` : ''}`);
   const result = await applyMembershipChange(env, token, uid, {
-    kind: 'grant', invoiceRef, detail, label: LABEL, now,
+    kind: 'grant', invoiceRef, detail, label: LABEL, now, keep,
     subRef: subscriptionCode,
     customerRef: customerCode,
     newSubscription: firstCharge && !sameSubscriptionAsStored,
