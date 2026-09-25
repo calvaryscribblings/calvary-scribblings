@@ -267,6 +267,19 @@ describe('PL-3 · the grant waits for the money', () => {
 
 describe('PL-14 · the signature window has a front and a back', () => {
   const now = () => Math.floor(Date.now() / 1000);
+  // MON-21 (W3): the reason is LOGGED, never returned — the response is a bare 'Invalid
+  // signature'. So the reason is read from the log line, and the body is asserted to hide it.
+  const why = async (fn) => {
+    const lines = [];
+    const real = console.error;
+    console.error = (...a) => lines.push(a.join(' '));
+    try {
+      const res = await fn();
+      const text = await res.text();
+      assert.equal(text, 'Invalid signature', 'the response must not carry the reason (MON-21)');
+      return { res, logged: lines.join('\n') };
+    } finally { console.error = real; }
+  };
 
   test('a current timestamp verifies', async () => {
     stubFetch();
@@ -276,25 +289,25 @@ describe('PL-14 · the signature window has a front and a back', () => {
 
   test('a body older than the tolerance is rejected as too old', async () => {
     stubFetch();
-    const res = await deliver(session(), { at: now() - 3600 });
+    const { res, logged } = await why(() => deliver(session(), { at: now() - 3600 }));
     assert.equal(res.status, 400);
-    assert.match(await res.text(), /too old/i);
+    assert.match(logged, /too old/i);
   });
 
   test('THE FINDING: a body dated in the future is rejected', async () => {
     stubFetch();
-    const res = await deliver(session(), { at: now() + 3600 });
+    const { res, logged } = await why(() => deliver(session(), { at: now() + 3600 }));
     assert.equal(res.status, 400);
-    assert.match(await res.text(), /future/i);
+    assert.match(logged, /future/i);
   });
 
   test('THE REGRESSION: +290s verified under Math.abs and must not now', async () => {
     // Inside the old symmetric ±300 window, outside the new one. This single case is the
     // whole of PL-14: if Math.abs ever comes back, only this test goes red.
     stubFetch();
-    const res = await deliver(session(), { at: now() + 290 });
+    const { res, logged } = await why(() => deliver(session(), { at: now() + 290 }));
     assert.equal(res.status, 400);
-    assert.match(await res.text(), /future/i);
+    assert.match(logged, /future/i);
   });
 
   test('a few seconds of clock skew is still accepted', async () => {
@@ -312,13 +325,13 @@ describe('PL-14 · the signature window has a front and a back', () => {
     const body = JSON.stringify(session());
     const honest = await stripeSigned(body, ENV.STRIPE_WEBHOOK_SECRET, now() - 3600);
     const redated = honest.replace(/^t=\d+/, `t=${now()}`);
-    const res = await stripeWebhook({
+    const { res, logged } = await why(() => stripeWebhook({
       request: new Request('https://x/api/bookstore/stripe-webhook', {
         method: 'POST', body, headers: { 'Stripe-Signature': redated },
       }),
       env: ENV,
-    });
+    }));
     assert.equal(res.status, 400);
-    assert.match(await res.text(), /no v1 signature matched/i);
+    assert.match(logged, /no v1 signature matched/i);
   });
 });

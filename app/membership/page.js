@@ -37,7 +37,7 @@
 // the endpoints that take the money. Nothing on this page computes a price, converts one, or
 // derives an annual from a monthly.
 
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useMembership } from '../lib/MembershipContext';
 import { plansAreKnown } from '../lib/membership';
@@ -48,7 +48,8 @@ import {
 } from '../lib/membershipPrices';
 import { passesFor } from '../lib/membershipPasses';
 import { capFor, isUnlimitedCap } from '../lib/shelf';
-import { startMembershipCheckout, idTokenFor, MembershipCheckoutError } from '../lib/membershipCheckout';
+import { startMembershipCheckout, idTokenFor, MembershipCheckoutError, checkReturnStatus } from '../lib/membershipCheckout';
+import { returnBanner, RETURN_DEADLINE_MS, HELP_EMAIL } from '../lib/membershipReturn';
 import Link from 'next/link';
 import AuthModal from '../components/AuthModal';
 
@@ -161,7 +162,16 @@ function readReturn() {
   if (q.get('join') === 'success') return 'join';
   if (q.get('pass') === 'success') return 'pass';
   if (q.get('join') === 'cancelled' || q.get('pass') === 'cancelled') return 'cancelled';
+  // W3: back from the Stripe-hosted plan-switch confirm page.
+  const sw = q.get('switch');
+  if (sw === 'gold' || sw === 'platinum') return `switch:${sw}`;
   return null;
+}
+// The provider's handle on THIS checkout: Stripe's session id, or Paystack's reference (Paystack
+// appends ?reference= to the callback). A string or null, so the snapshot compares by value.
+function readReturnRef() {
+  const q = new URLSearchParams(window.location.search);
+  return q.get('session_id') || q.get('reference') || null;
 }
 
 function Perk({ children }) {
@@ -179,7 +189,7 @@ export default function MembershipPage() {
   // `loading` and `signedIn` are read by plansAreKnown() off the whole object, not destructured
   // here — the gate is one call, and pulling its inputs out separately is how a later edit ends
   // up reconstructing the rule by hand.
-  const { tier, subscriptionTier, pass, source, founding } = membership;
+  const { tier, subscriptionTier, pass, source, founding, rail } = membership;
 
   const [currency, chooseCurrency] = useCurrency();
   const [interval, setInterval] = useState('monthly');
@@ -205,12 +215,55 @@ export default function MembershipPage() {
   // page with nothing to suspend on.
   const returned = useSyncExternalStore(subscribeToNothing, readReturn, readReturnOnServer);
 
+  const returnRef = useSyncExternalStore(subscribeToNothing, readReturnRef, readReturnOnServer);
+  const switchTo = typeof returned === 'string' && returned.startsWith('switch:') ? returned.slice(7) : null;
+
   // Has the thing they came back for actually landed? A subscription lifts subscriptionTier; a
-  // pass appears as `pass`. Until then the banner says so honestly rather than claiming a
-  // membership we cannot yet see.
+  // pass appears as `pass` — and for a SECOND pass, only once the pass on record is the one they
+  // just bought (MON-19: before W3 it said "live" at once, with the old expiry). A switch has
+  // landed when the tier is the one they chose.
   const settled = returned === 'join' ? subscriptionTier !== 'free'
-    : returned === 'pass' ? !!pass
+    : returned === 'pass' ? !!pass && (!returnRef || pass.ref === returnRef)
+    : switchTo ? subscriptionTier === switchTo
     : false;
+
+  // ── W3 / MON-09: NEVER "SETTING UP…" FOR EVER ─────────────────────────────────────────
+  // The provider is asked whether the money moved (/api/membership/return-status), and a clock
+  // runs. Inside RETURN_DEADLINE_MS the banner says it is setting up; past it, it says which of
+  // two different things is true — the payment went through and we are late (our failure, which
+  // the webhook has already reported to Ikenna), or the payment never completed (nothing taken).
+  const [provider, setProvider] = useState('unknown');
+  const [overdue, setOverdue] = useState(false);
+  const waiting = (returned === 'join' || returned === 'pass' || !!switchTo) && !settled;
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const t = setTimeout(() => setOverdue(true), RETURN_DEADLINE_MS);
+    return () => clearTimeout(t);
+  }, [waiting]);
+  useEffect(() => {
+    if (!waiting || !user || !returnRef) return undefined;
+    let stop = false;
+    const handle = returnRef.startsWith('cs_') ? { sessionId: returnRef } : { reference: returnRef };
+    // Asked at once, then every 10s until the thing lands (the effect is torn down when `waiting`
+    // turns false). Each answer arrives in a timer callback, never in the effect body itself.
+    let timer = null;
+    const tick = async () => {
+      const state = await checkReturnStatus(await idTokenFor(user), handle);
+      if (stop) return;
+      setProvider(state);
+      timer = setTimeout(tick, 10000);
+    };
+    timer = setTimeout(tick, 0);
+    return () => { stop = true; clearTimeout(timer); };
+  }, [waiting, user, returnRef]);
+  const banner = returnBanner({
+    returned: switchTo ? 'switch' : returned,
+    settled,
+    signedIn: !!user,
+    authKnown: !authLoading,
+    provider,
+    overdue,
+  });
 
   const passes = useMemo(() => passesFor(currency), [currency]);
 
@@ -240,6 +293,7 @@ export default function MembershipPage() {
   // Every current-state marker on this page ("YOUR PLAN", "ACTIVE", the settings link) waits
   // for `known`. Nothing that is merely a price does.
   const known = plansAreKnown(membership, authLoading);
+  const member = known && subscriptionTier !== 'free';
 
   return (
     <div className="mb-page">
@@ -347,6 +401,10 @@ export default function MembershipPage() {
         .mb-banner-t { font-family: ${LABEL}; font-size: 9.5px; letter-spacing: .2em; color: #e2c876; }
         .mb-banner.is-done .mb-banner-t { color: #9fd9b0; }
         .mb-banner-p { font-size: 14.5px; line-height: 1.6; color: #e6ddce; margin: 8px 0 0; }
+        .mb-banner-p a { color: #f0dda0; }
+        .mb-banner.is-bad { border-color: rgba(243,176,162,.45); background: rgba(243,176,162,.08); }
+        .mb-banner.is-bad .mb-banner-t { color: #f3b0a2; }
+        .mb-switch-note { font-size: 13px; line-height: 1.5; color: #cfc4b1; margin: 8px 0 0; text-align: center; font-style: italic; }
 
         .mb-err { max-width: 640px; margin: 18px auto 0; text-align: center; font-size: 14px; color: #f3b0a2; }
         .mb-foot { margin-top: 44px; text-align: center; font-size: 13.5px; line-height: 1.65; color: #cabfae; }
@@ -365,23 +423,37 @@ export default function MembershipPage() {
             a payment happened — it says what will appear IF one did, and then reports what
             actually landed. A reader who types the URL sees a sentence that is true for them
             too, and it resolves the moment the provider answers. */}
-        {returned === 'join' && (
-          <div className={`mb-banner${settled ? ' is-done' : ''}`} role="status">
-            <div className="mb-banner-t">{settled ? 'YOU’RE IN' : 'SETTING UP YOUR MEMBERSHIP'}</div>
+        {banner && !settled && (
+          <div className={`mb-banner${banner.tone === 'bad' ? ' is-bad' : ''}`} role="status">
+            <div className="mb-banner-t">{banner.title}</div>
             <p className="mb-banner-p">
-              {settled
-                ? `Your ${TIER_NAME[subscriptionTier]} membership is active${founding ? ', and you joined at the founding price — it stays yours' : ''}. Thank you for keeping this place going.`
-                : 'If your payment went through, your membership will appear here in a moment — this page updates on its own, so there is nothing to refresh.'}
+              {banner.body}
+              {banner.contact && <> Write to <a href={`mailto:${HELP_EMAIL}`}>{HELP_EMAIL}</a>.</>}
+            </p>
+            {banner.signIn && (
+              <button type="button" className="mb-btn is-ghost" style={{ marginTop: 12 }} onClick={() => setShowAuth(true)}>SIGN IN</button>
+            )}
+          </div>
+        )}
+        {returned === 'join' && settled && (
+          <div className="mb-banner is-done" role="status">
+            <div className="mb-banner-t">YOU’RE IN</div>
+            <p className="mb-banner-p">
+              {`Your ${TIER_NAME[subscriptionTier]} membership is active${founding ? ', and you joined at the founding price — it stays yours' : ''}. Thank you for keeping this place going.`}
             </p>
           </div>
         )}
-        {returned === 'pass' && (
-          <div className={`mb-banner${settled ? ' is-done' : ''}`} role="status">
-            <div className="mb-banner-t">{settled ? 'YOUR PASS IS LIVE' : 'SETTING UP YOUR PASS'}</div>
+        {switchTo && settled && (
+          <div className="mb-banner is-done" role="status">
+            <div className="mb-banner-t">YOUR PLAN HAS CHANGED</div>
+            <p className="mb-banner-p">{`You’re now on ${TIER_NAME[subscriptionTier]}. Nothing else about your membership has changed.`}</p>
+          </div>
+        )}
+        {returned === 'pass' && settled && (
+          <div className="mb-banner is-done" role="status">
+            <div className="mb-banner-t">YOUR PASS IS LIVE</div>
             <p className="mb-banner-p">
-              {settled
-                ? `Your pass is active until ${new Date(pass.expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}. Anything you save while it lasts stays on your shelf afterwards.`
-                : 'If your payment went through, your pass will appear here in a moment — this page updates on its own, so there is nothing to refresh.'}
+              {`Your pass is active until ${new Date(pass.expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}. Anything you save while it lasts stays on your shelf afterwards.`}
             </p>
           </div>
         )}
@@ -511,14 +583,25 @@ export default function MembershipPage() {
                   ) : isYours ? (
                     <a className="mb-btn is-ghost" href="/settings" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>MANAGE</a>
                   ) : (
-                    <button
-                      type="button"
-                      className={`mb-btn${t === 'platinum' ? ' is-ghost' : ''}`}
-                      disabled={busy !== null}
-                      onClick={() => buy(key, { product: 'subscription', tier: t, interval })}
-                    >
-                      {busy === key ? 'OPENING…' : `CHOOSE ${TIER_NAME[t].toUpperCase()}`}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className={`mb-btn${t === 'platinum' ? ' is-ghost' : ''}`}
+                        disabled={busy !== null}
+                        onClick={() => buy(key, { product: 'subscription', tier: t, interval })}
+                      >
+                        {busy === key ? 'OPENING…' : `${member ? 'SWITCH TO' : 'CHOOSE'} ${TIER_NAME[t].toUpperCase()}`}
+                      </button>
+                      {/* W3 / MON-02: a member SWITCHES — one subscription, never two. What that
+                          costs is said before they press, per rail. */}
+                      {member && (
+                        <p className="mb-switch-note">
+                          {rail === 'paystack'
+                            ? `Your ${TIER_NAME[subscriptionTier]} plan stops renewing when ${TIER_NAME[t]} starts. Paystack doesn’t carry over the ${TIER_NAME[subscriptionTier]} time you’ve already paid for.`
+                            : 'One membership, switched — you’ll see the price difference before you confirm.'}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -641,8 +724,8 @@ export default function MembershipPage() {
             <dt>Can I cancel?</dt>
             <dd>
               Any time, and you keep everything until the period you have paid for runs out.
-              Card memberships cancel from your settings. Naira memberships, for now, cancel by
-              email — we are building the self-service version.
+              Card and naira memberships both cancel from your settings; naira members can also
+              use the “Manage subscription” link in Paystack’s emails.
             </dd>
             <dt>What happens to the archive if I stop?</dt>
             <dd>

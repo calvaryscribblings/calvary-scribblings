@@ -64,6 +64,12 @@ export async function applyPlan(db, plan) {
   return moved;
 }
 
+/** A deleted reader's billing record that still says live, or null. Pure. */
+export function billingBackstop(uid, membership) {
+  const a = membershipAction(membership);
+  return a ? { rail: a.rail, ref: a.id || a.code } : null;
+}
+
 /** One pass over every deletions/{uid} record. */
 export async function runScrub(db, { apply = false, now = Date.now, log = console.log } = {}) {
   const records = (await db.ref('deletions').get()).val() || {};
@@ -72,6 +78,27 @@ export async function runScrub(db, { apply = false, now = Date.now, log = consol
   for (const [uid, rec] of Object.entries(records)) {
     const steps = rec?.steps || {};
     const userNode = (await db.ref(`users/${uid}`).get()).val();
+
+    // W3 / MON-05 — THE BILLING BACKSTOP. The endpoint cancels every subscription it can find,
+    // and the webhook writer cancels any that goes live afterwards. If a deleted reader's
+    // billing record still says live, one of those missed, and a deleted reader may be billed:
+    // it is written to ops/money_failures (where every other money failure lands) and annotated
+    // on the run. This job holds no provider key, so it reports rather than cancels.
+    const billing = billingBackstop(uid, (await db.ref(`memberships/${uid}`).get()).val());
+    if (billing) {
+      summary.billing = (summary.billing || 0) + 1;
+      log(`::error::[scrub] ${uid}: deleted account still has a LIVE ${billing.rail} subscription ${billing.ref} — recorded in ops/money_failures`);
+      if (apply) {
+        const at = now();
+        const path = `ops/money_failures/deleted-live-${uid}`;
+        const seen = (await db.ref(`${path}/firstAt`).get()).val();
+        await db.ref(path).update({
+          rail: billing.rail, kind: 'deleted_account_live_subscription', uid, ref: billing.ref, retryable: false,
+          summary: `Account ${uid} was deleted but memberships/${uid} still shows a live ${billing.rail} subscription (${billing.ref}). Cancel it at the provider.`,
+          lastAt: at, ...(seen ? {} : { firstAt: at, resolved: false }),
+        });
+      }
+    }
 
     if (steps.scrub) {
       // THE STUB BACKSTOP.

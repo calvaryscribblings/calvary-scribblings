@@ -62,7 +62,11 @@
 // is the whole difference between this and the email fallback refused above.
 
 import { dbBase, FIREBASE_TIMEOUT_MS, PROVIDER_TIMEOUT_MS } from '../bookstore/_lib.js';
-import { applyMembershipChange, applyPassPurchase, readDetail, buildDetail } from './_membership.js';
+import {
+  applyMembershipChange, applyPassPurchase, readDetail, buildDetail, endMembershipNow, endPassNow,
+  endedUpdate, currentSubscriptionRef, DETAIL_PATH,
+} from './_membership.js';
+import { MoneyTransientError } from '../_money.js';
 import {
   buildPass, parsePassReference, isPassReference, PAYSTACK_PASS_CURRENCY,
 } from '../../../app/lib/membershipPasses.js';
@@ -74,9 +78,18 @@ const LABEL = 'membership/paystack';
 
 export const INDEX_PATH = (code) => `paystack_membership_index/${code}`;
 
-// Subscription-shaped identifiers, for the downgrade matcher — the analogue of
-// STRIPE_SUB_REF_FIELDS.
-export const PAYSTACK_SUB_REF_FIELDS = ['paystackSubscriptionCode', 'paystackCustomerCode'];
+// W3: refund- and dispute-shaped events. Ours when the reference is `ms.`/`mp.`, or when the
+// transaction behind a Paystack-generated reference carries a plan (a renewal); the bookstore
+// webhook hands us every such event whose reference is not a book's `cs.`.
+export const REFUND_EVENTS = new Map([
+  ['refund.processed', 'refunded'],
+  ['charge.dispute.create', 'disputed'],
+  ['dispute.create', 'disputed'],
+  ['charge.reversed', 'reversed'],
+]);
+
+// W3 / MON-02: how long an upgrade recorded at checkout may sanction the new subscription.
+export const UPGRADE_WINDOW_MS = 2 * 24 * 3600 * 1000;
 
 /** Membership events that are ours outright, whatever else is on the payload. */
 export const MEMBERSHIP_EVENTS = new Set([
@@ -107,7 +120,8 @@ export const customerCodeFromEvent = (d) =>
   || str(d?.customer_code) || null;
 
 export const referenceFromEvent = (d) =>
-  str(d?.reference) || str(d?.transaction?.reference) || str(d?.data?.reference) || null;
+  str(d?.reference) || str(d?.transaction?.reference) || str(d?.transaction_reference)
+  || str(d?.data?.reference) || null;
 
 /**
  * The idempotency reference for a membership payment. INVOICE FIRST, never the subscription.
@@ -193,12 +207,15 @@ export async function resolveUid(env, token, data) {
     ['customer_code', customerCodeFromEvent(data)],
   ]) {
     if (!code) continue;
+    let uid;
     try {
-      const uid = await readIndex(env, token, code);
-      if (typeof uid === 'string' && uid) return { uid, via };
+      uid = await readIndex(env, token, code);
     } catch (e) {
-      console.error(`[${LABEL}] index read failed for ${code}:`, e.message || e);
+      // W3: a failed read is not a miss. A miss sends the event to a human; a failed read just
+      // needs the provider to try again.
+      throw new MoneyTransientError(`[${LABEL}] index read failed for ${code}: ${e.message || e}`);
     }
+    if (typeof uid === 'string' && uid) return { uid, via };
   }
 
   // LAST RESORT, and it is a lookup rather than a guess: ask Paystack who owns this
@@ -208,12 +225,10 @@ export async function resolveUid(env, token, data) {
   if (subCode) {
     const owner = await subscriptionOwner(env, subCode);
     if (owner) {
-      try {
-        const uid = await readIndex(env, token, owner);
-        if (typeof uid === 'string' && uid) return { uid, via: 'subscription_lookup' };
-      } catch (e) {
-        console.error(`[${LABEL}] index read failed for ${owner}:`, e.message || e);
-      }
+      let uid;
+      try { uid = await readIndex(env, token, owner); }
+      catch (e) { throw new MoneyTransientError(`[${LABEL}] index read failed for ${owner}: ${e.message || e}`); }
+      if (typeof uid === 'string' && uid) return { uid, via: 'subscription_lookup' };
     }
   }
   return { uid: null, via: null };
@@ -233,6 +248,121 @@ export async function subscriptionOwner(env, subscriptionCode) {
     console.error(`[${LABEL}] subscription lookup failed for ${subscriptionCode}:`, e.message || e);
     return null;
   }
+}
+
+const paystackHeaders = (env) => ({ Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' });
+
+async function paystackGet(env, path) {
+  const res = await fetch(`https://api.paystack.co${path}`, { headers: paystackHeaders(env), signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) });
+  const body = await res.json().catch(() => null);
+  return { ok: res.ok && body?.status === true, status: res.status, body };
+}
+
+/**
+ * Stop a Paystack subscription renewing. The same call the reader's Cancel button makes
+ * (functions/api/membership/paystack-cancel.js) and account deletion makes.
+ *
+ * Measured 25 Sep 2026 in test mode: /subscription/disable does NOT end the subscription. It
+ * moves it to `non-renewing` with cancelledAt = next_payment_date, fires subscription.not_renew
+ * now, and subscription.disable at the period end. So access to the end of the paid period is
+ * Paystack's own behaviour, not something we emulate.
+ *
+ * The email_token is fetched on demand, never stored: memberships/{uid} is owner-readable and
+ * the token is a capability. Idempotent — a subscription already non-renewing, cancelled or
+ * complete is success. Returns { status, nextPaymentDate }. Throws on a transient failure.
+ */
+export async function disablePaystackSubscription(env, code) {
+  const got = await paystackGet(env, `/subscription/${encodeURIComponent(code)}`);
+  if (!got.ok || !got.body?.data) throw new MoneyTransientError(`Paystack fetch ${code} failed: ${got.status} ${got.body?.message || ''}`);
+  const sub = got.body.data;
+  const nextPaymentDate = str(sub.next_payment_date) || str(sub.cancelledAt) || null;
+  if (sub.status !== 'active' && sub.status !== 'attention') return { status: sub.status, nextPaymentDate, already: true };
+  const res = await fetch('https://api.paystack.co/subscription/disable', {
+    method: 'POST', headers: paystackHeaders(env),
+    body: JSON.stringify({ code, token: sub.email_token }),
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+  });
+  const body = await res.json().catch(() => null);
+  if (!res.ok || body?.status !== true) throw new MoneyTransientError(`Paystack disable ${code} failed: ${res.status} ${body?.message || ''}`);
+  return { status: str(body?.data?.status) || 'non-renewing', nextPaymentDate, customer: str(sub.customer?.customer_code) };
+}
+
+/**
+ * Is this grant the new half of an upgrade that the checkout recorded? paystack-checkout.js
+ * writes memberships/{uid}/upgrade = { from, plan, at } when a live member picks another plan;
+ * the new subscription is sanctioned only on THAT plan, replacing THAT subscription, recently.
+ */
+export function upgradeSanctions(existing, planCode, now = Date.now()) {
+  const u = existing && typeof existing === 'object' ? existing.upgrade : null;
+  if (!u || typeof u !== 'object') return false;
+  return u.plan === planCode && u.from === currentSubscriptionRef(existing)
+    && typeof u.at === 'number' && now - u.at < UPGRADE_WINDOW_MS;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Refunds (W3 / MON-12).
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * A refund or dispute on a membership or pass charge. Ruling (Ikenna, 24 Sep 2026): a FULL
+ * refund ends the membership or pass now; a partial one changes nothing. A dispute ends it.
+ *
+ * Paystack refunds can land DAYS after they are raised (3–10 working days live), so this is
+ * written to be correct whenever it arrives: the transaction is re-read from Paystack, never
+ * trusted from the event, and the subscription it paid for is ended only if it is still current.
+ */
+export async function handleMembershipRefund(env, getToken, event, now = Date.now()) {
+  const data = event?.data || {};
+  const reason = REFUND_EVENTS.get(event?.event);
+  if (event?.event === 'refund.processed' || reason === 'refunded') {
+    if (data.status && data.status !== 'processed') return { verdict: 'ignored' };
+  }
+  const ref = referenceFromEvent(data);
+  if (!ref) return { verdict: 'review', why: `${LABEL}: ${event?.event} names no transaction. Nothing ended.` };
+
+  const v = await paystackGet(env, `/transaction/verify/${encodeURIComponent(ref)}`);
+  if (!v.ok || !v.body?.data) throw new MoneyTransientError(`verify ${ref} failed: ${v.status} ${v.body?.message || ''}`);
+  const txn = v.body.data;
+  const refundAmount = typeof data.amount === 'number' ? data.amount : Number(data.amount);
+  const full = reason !== 'refunded' || !(Number.isFinite(refundAmount) && refundAmount < txn.amount);
+
+  const pass = parsePassReference(ref);
+  if (pass) {
+    if (!full) { console.log(`[${LABEL}] PARTIAL refund on pass ${ref} — the pass is kept`); return { verdict: 'kept' }; }
+    return endPassNow(env, await getToken(), pass.uid, { ref, reason, label: LABEL, now });
+  }
+
+  const planCode = str(txn?.plan?.plan_code) || str(txn?.plan) || null;
+  const firstCharge = parseMembershipReference(ref);
+  if (!firstCharge && !planCode) return { verdict: 'ignored' };   // not a membership charge
+
+  const token = await getToken();
+  const { uid } = firstCharge ? { uid: firstCharge.uid } : await resolveUid(env, token, { customer: txn.customer });
+  if (!uid) return { verdict: 'review', ref, why: `${LABEL}: ${reason} on membership charge ${ref}, but no reader could be found for customer ${txn?.customer?.customer_code || '—'}. Nothing ended.` };
+  if (!full) { console.log(`[${LABEL}] PARTIAL refund on ${ref} for ${uid} — the membership is kept`); return { verdict: 'kept' }; }
+
+  let existing;
+  try { existing = await readDetail(env, token, uid); }
+  catch (e) { throw new MoneyTransientError(`detail read failed for ${uid}: ${e.message || e}`); }
+  let subRef = currentSubscriptionRef(existing);
+  if (existing && existing.paystackPlanCode && planCode && existing.paystackPlanCode !== planCode) {
+    return {
+      verdict: 'refund_unmatched', uid, ref,
+      why: `${LABEL}: ${reason} on ${ref} (${planCode}) for ${uid}, but the live membership is on ${existing.paystackPlanCode}. Nothing ended — check whether the refunded plan was already replaced.`,
+    };
+  }
+  if (!subRef) {
+    // The subscription.create that names it has not landed. Ask Paystack for this customer's
+    // subscription on this plan — a lookup by the provider, not a guess.
+    const cus = txn?.customer?.id;
+    const list = cus ? await paystackGet(env, `/subscription?customer=${encodeURIComponent(cus)}&plan=${encodeURIComponent(planCode || '')}`) : { ok: false };
+    subRef = (list.ok && (list.body.data || []).find((x) => x.status === 'active' || x.status === 'non-renewing' || x.status === 'attention')?.subscription_code) || null;
+  }
+  if (!subRef) return { verdict: 'review', uid, ref, why: `${LABEL}: ${reason} on ${ref} for ${uid} — no subscription could be identified. Nothing ended.` };
+  return endMembershipNow(env, token, uid, {
+    subRef, reason, rail: 'paystack', label: LABEL, now,
+    cancelAtProvider: () => disablePaystackSubscription(env, subRef),
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -262,6 +392,8 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
   // a signed payload — the same trust the bookstore's `cs.` references have always had. The
   // KIND comes from the reference too, and the duration and tier from the catalogue: nothing
   // about what the reader receives is taken from the event body.
+  if (REFUND_EVENTS.has(name)) return handleMembershipRefund(env, getToken, event, now);
+
   const passRef = referenceFromEvent(data);
   const parsedPass = parsePassReference(passRef);
   if (parsedPass) {
@@ -297,12 +429,12 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
   const token = await getToken();
   const { uid, via } = await resolveUid(env, token, data);
   if (!uid) {
-    console.error(
-      `[${LABEL}] NEEDS-MANUAL-REVIEW ${name}: no uid — reference=${referenceFromEvent(data) || '—'} ` +
-      `subscription=${subscriptionCodeFromEvent(data) || '—'} customer=${customerCodeFromEvent(data) || '—'} ` +
-      `— nothing written. An email is NOT used as a fallback on purpose.`,
-    );
-    return { verdict: 'review' };
+    return {
+      verdict: 'review', ref: referenceFromEvent(data) || subscriptionCodeFromEvent(data),
+      why: `${LABEL}: ${name} with no reader — reference=${referenceFromEvent(data) || '—'} ` +
+        `subscription=${subscriptionCodeFromEvent(data) || '—'} customer=${customerCodeFromEvent(data) || '—'}. ` +
+        'Nothing written. An email is NOT used as a fallback on purpose.',
+    };
   }
 
   const subscriptionCode = subscriptionCodeFromEvent(data);
@@ -316,37 +448,37 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
     console.error(`[${LABEL}] index seed failed for ${uid}:`, e.message || e);
   }
 
-  let existing = null;
-  try { existing = await readDetail(env, token, uid); } catch { /* applyMembershipChange re-reads */ }
+  let existing;
+  try { existing = await readDetail(env, token, uid); }
+  catch (e) { throw new MoneyTransientError(`[${LABEL}] detail read failed for ${uid}: ${e.message || e}`); }
 
   const keepFounding = {
     founding: !!(existing && existing.founding === true),
     foundingSince: existing && typeof existing.foundingSince === 'number' ? existing.foundingSince : null,
-    pass: existing && typeof existing.pass === 'object' ? existing.pass : null,
   };
 
   // ── the downgrade ────────────────────────────────────────────────────────
   // subscription.disable is the authoritative one, the analogue of Stripe's
-  // customer.subscription.deleted. It fails CLOSED against a stale subscription, so a disable
-  // for a subscription the member already replaced cannot take away the one they are paying
-  // for now.
+  // customer.subscription.deleted. Matched on the SUBSCRIPTION CODE (MON-02): after an upgrade
+  // the old plan's disable arrives months later on the same customer, and must not take away the
+  // new one.
   if (name === 'subscription.disable') {
     return applyMembershipChange(env, token, uid, {
       kind: 'downgrade',
-      refFields: PAYSTACK_SUB_REF_FIELDS,
-      candidates: [subscriptionCode, customerCode].filter(Boolean),
+      subRef: subscriptionCode,
+      customerRef: customerCode,
+      endedReason: 'provider',
       detail: buildDetail({
         tier: 'free', rail: 'paystack', status: 'cancelled',
         // The founding facts survive a cancellation — a returning member is still founding.
         ...keepFounding,
         refs: {
-          paystackSubscriptionCode: subscriptionCode,
-          paystackCustomerCode: customerCode,
-          paystackPlanCode: existing && str(existing.paystackPlanCode),
+          paystackCustomerCode: customerCode || (existing && str(existing.paystackCustomerCode)),
         },
         now,
       }),
       label: LABEL,
+      now,
     });
   }
 
@@ -389,6 +521,26 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
     return Number.isFinite(t) ? t : null;
   })();
 
+  const firstCharge = name === 'charge.success' && isMembershipReference(referenceFromEvent(data));
+  const sameSubscriptionAsStored = !!existing && str(existing.paystackCustomerCode) === customerCode
+    && str(existing.paystackPlanCode) === planCode;
+  const sanctioned = upgradeSanctions(existing, planCode, now);
+  const replacing = sanctioned ? existing.upgrade.from : null;
+
+  // A renewal (Paystack's own reference, no subscription code) for a membership that is already
+  // cancelled: money for a period nobody is entitled to. MON-03 — never a re-grant.
+  if (paid && !firstCharge && !subscriptionCode && existing && existing.status === 'cancelled') {
+    return {
+      verdict: 'review', uid, ref: invoiceRef,
+      why: `${LABEL}: renewal payment ${invoiceRef || '—'} for ${uid} on ${planCode}, but the membership is CANCELLED. No tier granted. Refund it or reinstate by hand.`,
+    };
+  }
+
+  // The stored code carries over only when this event is about the same subscription. During an
+  // upgrade the stored code is the OLD plan's, and must not be copied onto the new one.
+  const storedCode = existing && str(existing.paystackSubscriptionCode);
+  const carriedCode = storedCode && storedCode !== replacing ? storedCode : null;
+
   const detail = buildDetail({
     tier: described.tier,
     interval: described.interval,
@@ -403,17 +555,37 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
     foundingSince: keepFounding.foundingSince ?? (described.generation === 'founding' ? now : null),
     invoiceRef,
     refs: {
-      paystackSubscriptionCode: subscriptionCode || (existing && str(existing.paystackSubscriptionCode)),
+      paystackSubscriptionCode: subscriptionCode || carriedCode,
       paystackCustomerCode: customerCode || (existing && str(existing.paystackCustomerCode)),
       paystackPlanCode: planCode,
       planGeneration: described.generation,
     },
-    pass: keepFounding.pass,
     now,
   });
 
-  console.log(`[${LABEL}] ${name} uid=${uid} via=${via} plan=${planCode} tier=${described.tier} status=${status}`);
-  return applyMembershipChange(env, token, uid, {
-    kind: 'grant', invoiceRef, detail, label: LABEL,
+  console.log(`[${LABEL}] ${name} uid=${uid} via=${via} plan=${planCode} tier=${described.tier} status=${status}${replacing ? ` replacing=${replacing}` : ''}`);
+  const result = await applyMembershipChange(env, token, uid, {
+    kind: 'grant', invoiceRef, detail, label: LABEL, now,
+    subRef: subscriptionCode,
+    customerRef: customerCode,
+    newSubscription: firstCharge && !sameSubscriptionAsStored,
+    sanctioned,
+    cancelAtProvider: subscriptionCode ? () => disablePaystackSubscription(env, subscriptionCode) : null,
   });
+
+  // THE OTHER HALF OF AN UPGRADE: the old plan stops renewing and is tombstoned, and the
+  // sanction is spent. Idempotent — whichever of charge.success / subscription.create lands
+  // first does it, the other finds it done.
+  if (replacing && result.verdict === 'written') {
+    await disablePaystackSubscription(env, replacing);
+    const res = await fetch(`${dbBase(env)}/.json`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...endedUpdate(uid, replacing, 'replaced', now), [`${DETAIL_PATH(uid)}/upgrade`]: null }),
+      signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new MoneyTransientError(`[${LABEL}] upgrade tombstone for ${uid} failed: ${res.status}`);
+    console.log(`[${LABEL}] upgrade for ${uid}: ${replacing} disabled and tombstoned`);
+  }
+  return result;
 }

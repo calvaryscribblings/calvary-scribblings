@@ -66,6 +66,7 @@ import {
   FIREBASE_TIMEOUT_MS,
 } from '../bookstore/_lib.js';
 import { TIERS, isTier, normaliseTier, needsScalarRepair } from '../../../app/lib/membership.js';
+import { MoneyTransientError, faultArmed } from '../_money.js';
 
 export const SCALAR_PATH = (uid) => `users/${uid}/membership`;
 export const DETAIL_PATH = (uid) => `memberships/${uid}`;
@@ -153,26 +154,77 @@ export function buildDetail({
   };
 }
 
+// ── W3 / MON-14: THE WRITE IS PER FIELD, NEVER THE WHOLE NODE ──────────────────────────
+//
+// Until W3 this wrote `memberships/{uid}: detail` — a path→object value, which REPLACES the node.
+// Both rails re-read `pass` and carried it forward, but a pass landing between that read and
+// this write was erased: a paid day pass, gone, with nothing logged. The same wholesale write
+// was how a late event's stale view of the record clobbered a newer one.
+//
+// Now every field is its own path, and two children are NEVER in the body at all:
+//
+//   pass    written only by writePass(), one deep path of its own
+//   ended   the ended-subscription tombstones (MON-03), only ever ADDED to, by endedUpdate()
+//
+// A deep write cannot clear a field it does not name, which the wholesale write did for free.
+// So every rail identifier this module knows is named explicitly — as null when the new state
+// does not carry it — and a Stripe → Paystack switch still leaves no stale Stripe id behind.
+// (null in an RTDB PATCH deletes the child; see the header above buildDetail.)
+export const KNOWN_REF_FIELDS = [
+  'stripeSubscriptionId', 'stripeCustomerId', 'stripePriceId', 'priceGeneration',
+  'paystackSubscriptionCode', 'paystackCustomerCode', 'paystackPlanCode', 'planGeneration',
+  // not an identifier, but state of the same kind: true of one subscription, cleared by the next
+  'endedReason',
+];
+const NEVER_IN_THE_BODY = new Set(['pass', 'ended', 'upgrade', 'passRefunds']);
+
 /**
  * The atomic pair, as a multi-path update body ready for a root PATCH.
  *
  * Pure and exported separately from the write so a test can assert the EXACT paths and values
- * without stubbing a network — and so anyone reading this can see, in four lines, that the
- * scalar and the detail cannot be written apart.
+ * without stubbing a network. The scalar and every detail field land in ONE root PATCH, which
+ * RTDB applies atomically.
  */
 export function buildMembershipUpdate(uid, detail, { accountDeleted = false } = {}) {
   if (!str(uid)) throw new Error('buildMembershipUpdate: uid is required');
   const tier = normaliseTier(detail && detail.tier);
+  const body = {};
+  const d = { ...(detail || {}), tier };
+  for (const f of KNOWN_REF_FIELDS) if (!(f in d)) d[f] = null;
+  for (const [k, v] of Object.entries(d)) {
+    if (NEVER_IN_THE_BODY.has(k)) continue;
+    body[`${DETAIL_PATH(uid)}/${k}`] = v === undefined ? null : v;
+  }
   // A DELETED ACCOUNT gets the billing record and NOTHING under users/. The scalar is the one
   // write in this whole module that lands under users/{uid}, and writing it for a deleted uid
-  // would put a stub profile node back (functions/api/account/_deletion.js). The payment is
-  // still recorded — money received is always honoured — and the caller logs it for a refund.
-  if (accountDeleted) return { [DETAIL_PATH(uid)]: detail };
-  return {
-    [SCALAR_PATH(uid)]: tier,          // the STRING the app reads
-    [DETAIL_PATH(uid)]: detail,        // everything else
-  };
+  // would put a stub profile node back (functions/api/account/_deletion.js).
+  if (!accountDeleted) body[SCALAR_PATH(uid)] = tier;
+  return body;
 }
+
+// ── W3 / MON-03: ENDED SUBSCRIPTIONS ARE TOMBSTONED ──────────────────────────────────────
+//
+// memberships/{uid}/ended/{subscription id or code} = { at, reason }.
+//
+// A late or out-of-order event — invoice.payment_failed or subscription.updated after
+// subscription.deleted, a replayed checkout, Paystack's not_renew after we disabled the old
+// plan in an upgrade — used to rebuild the detail from the subscription's price and write the
+// tier straight back. The member kept Gold for free. Now the moment a subscription ends (the
+// provider says so, a refund ends it, an upgrade replaces it) its id is written here, and no
+// grant event naming that id can ever write a tier again. Only ever added to; nothing clears it.
+export const ENDED_PATH = (uid, ref) => `${DETAIL_PATH(uid)}/ended/${ref}`;
+export const isEndedSubscription = (existing, ref) =>
+  !!(ref && existing && typeof existing === 'object' && existing.ended && existing.ended[ref]);
+export function endedUpdate(uid, ref, reason, now) {
+  if (!str(ref) || /[.$#[\]/]/.test(ref)) return {};
+  return { [ENDED_PATH(uid, ref)]: { at: num(now) ?? Date.now(), reason: String(reason || 'ended') } };
+}
+
+/** The subscription a stored record is currently about, on either rail. */
+export const currentSubscriptionRef = (d) =>
+  (d && typeof d === 'object' && (str(d.stripeSubscriptionId) || str(d.paystackSubscriptionCode))) || null;
+
+const isLive = (status) => status === 'active' || status === 'past_due';
 
 export const DELETION_PATH = (uid) => `deletions/${uid}`;
 
@@ -244,12 +296,28 @@ export function shouldSkipPassGrant(existingPass, ref) {
 /**
  * Should this downgrade event be applied to the stored membership?
  *
- * A thin, named wrapper over classifyRevocation() rather than a reimplementation: the three
- * verdicts and the fail-closed posture are exactly what R9.1 LB-7 built and there is no
- * reason for membership to have its own opinion. 'revoke' here means "apply the downgrade".
+ * W3 / MON-02: MATCHED ON THE SUBSCRIPTION ALONE. Until W3 the candidate list included the
+ * CUSTOMER, which is the same across every subscription a reader ever holds. So the deletion of
+ * a subscription the member had already REPLACED matched the customer and took away the one
+ * they were paying for now — after a Paystack upgrade (the old Gold plan ends months later,
+ * on the same CUS_ code) or a Stripe cancel-and-rejoin. The customer is used only for a record
+ * that has no subscription id at all (a Paystack first charge whose subscription.create has
+ * not landed yet), which is the one case it can be about nothing else.
+ *
+ * Verdicts: 'revoke' (apply it), 'stale' (a different, current subscription is on the record —
+ * the ended one is tombstoned and nothing else happens), 'absent' (nothing recorded), 'review'
+ * (the event names nothing we can match).
  */
-export function classifyDowngrade(existingDetail, refFields, candidates) {
-  return classifyRevocation(existingDetail, refFields, candidates);
+export function classifyDowngrade(existingDetail, subRef, customerRef = null) {
+  if (!existingDetail || typeof existingDetail !== 'object') return { verdict: 'absent', stored: [] };
+  const stored = currentSubscriptionRef(existingDetail);
+  if (stored) {
+    if (subRef && subRef === stored) return { verdict: 'revoke', stored: [stored] };
+    return { verdict: subRef ? 'stale' : 'review', stored: [stored] };
+  }
+  const cus = str(existingDetail.stripeCustomerId) || str(existingDetail.paystackCustomerCode);
+  if (customerRef && cus && customerRef === cus && isLive(existingDetail.status)) return { verdict: 'revoke', stored: [cus] };
+  return { verdict: isLive(existingDetail.status) ? 'review' : 'stale', stored: cus ? [cus] : [] };
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -274,94 +342,152 @@ export async function readScalar(env, token, uid) {
   return res.json();
 }
 
-/**
- * Write the pair. ONE root PATCH, atomic by RTDB's own guarantee.
- *
- * PATCH at the ROOT with fully-qualified paths — not PUT, and not a PATCH scoped to either
- * node. A root PATCH is the only shape that spans two top-level nodes in one atomic
- * operation, which is the invariant this whole module exists to hold.
- */
-export async function writeMembership(env, token, uid, detail) {
-  const accountDeleted = await isDeletedAccount(env, token, uid);
-  if (accountDeleted) {
-    console.error(
-      `[membership] DELETED-ACCOUNT ${uid}: event recorded in memberships only, nothing under users/ — ` +
-      `status=${detail?.status || '—'} invoice=${detail?.lastInvoiceRef || '—'}; ` +
-      `if this was a payment, REFUND BY HAND`,
-    );
-  }
-  const body = buildMembershipUpdate(uid, detail, { accountDeleted });
+async function rootPatch(env, token, body, what) {
   const res = await fetch(`${dbBase(env)}/.json`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`RTDB root PATCH failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) throw new Error(`RTDB ${what} failed: ${res.status} ${(await res.text()).slice(0, 300)}`);
   return body;
+}
+
+/**
+ * Write the pair. ONE root PATCH, atomic by RTDB's own guarantee. `extra` rides in the same
+ * PATCH (an ended-subscription tombstone), so a downgrade and its tombstone cannot half-land.
+ */
+export async function writeMembership(env, token, uid, detail, { extra = {}, accountDeleted } = {}) {
+  const deleted = accountDeleted ?? await isDeletedAccount(env, token, uid);
+  const body = { ...buildMembershipUpdate(uid, detail, { accountDeleted: deleted }), ...extra };
+  return rootPatch(env, token, body, 'root PATCH');
 }
 
 /**
  * Apply a membership change, whichever rail it came from.
  *
- * Returns a verdict rather than throwing on a business decision, so a webhook can log the
- * right line and still answer 200 — the response policy both webhooks already follow.
+ * Returns a verdict for a business decision; THROWS for anything a retry could fix, and the
+ * webhook answers that with a 500 so the provider redelivers (W3 / MON-04; see _money.js).
  *
- *   'written'    the pair was written
- *   'skipped'    a replay of an invoice already recorded
- *   'review'     a downgrade that could not be matched to the stored subscription — NOTHING
- *                written, a human needed
- *   'absent'     a downgrade for a membership that was never recorded
+ *   'written'              the change was written
+ *   'skipped'              a replay of an invoice already recorded
+ *   'stale'                about a subscription that has ENDED (tombstoned) or been replaced —
+ *                          nothing written, nothing wrong
+ *   'not_paid'             a subscription that is not active or past_due (incomplete) — no tier
+ *   'absent'               a downgrade for a membership that was never recorded
+ *   'review'               needs a human; nothing written (MONEY FAILURE)
+ *   'second_subscription'  a new subscription while another is live and no upgrade sanctioned it
+ *                          — a reader is being billed twice; nothing written (MONEY FAILURE)
+ *   'paid_after_deletion'  money for an account already deleted — the subscription is cancelled
+ *                          at the provider and a human decides the refund (MONEY FAILURE)
  *
- * THE REPAIR CASE. Before writing, the current scalar is read and checked. A value that is
- * present but not one of the three strings — the `{ tier: 'free' }` object a Stage 3C test
- * account carries, say — is logged as a repair rather than trusted, and the write corrects
- * it in passing. It would be corrected anyway, since the scalar is always part of the update;
- * the point of naming it is that a malformed value means something upstream wrote a shape
- * nobody expected, and that should be visible rather than quietly tidied away.
+ * Grant-side options:
+ *   subRef       the subscription the event is about (Stripe sub_…, Paystack SUB_…) or null
+ *   newSubscription  this event STARTS a subscription (checkout completed / first charge)
+ *   sanctioned   an upgrade in progress replaces the stored subscription with this one
+ *   cancelAtProvider  async () => void — cancel this event's subscription at the provider
  */
 export async function applyMembershipChange(env, token, uid, {
   kind,              // 'grant' | 'downgrade'
   invoiceRef,
-  refFields,
-  candidates,
+  subRef = null,
+  customerRef = null,
+  newSubscription = false,
+  sanctioned = false,
+  cancelAtProvider = null,
+  endedReason = 'provider',
   detail,
   label = 'membership',
+  now = Date.now(),
 }) {
-  let existing = null;
-  let readFailed = false;
+  let existing;
   try {
     existing = await readDetail(env, token, uid);
   } catch (e) {
-    readFailed = true;
-    console.error(`[${label}] detail read failed for ${uid}:`, e.message || e);
+    // W3: THROWN, not guessed. The grant used to fail open and the downgrade to fail closed;
+    // with a provider retry behind every webhook, both can simply wait for a read that works.
+    throw new MoneyTransientError(`[${label}] detail read failed for ${uid}: ${e.message || e}`);
   }
 
-  if (kind === 'grant') {
-    // Fail OPEN, exactly as the purchase rail does: a failed idempotency read must not drop a
-    // payment on the floor. A duplicate grant is a far smaller problem than a paying member
-    // who never got their tier.
-    if (!readFailed && shouldSkipMembershipGrant(existing, invoiceRef)) {
-      console.log(`[${label}] duplicate invoice ${invoiceRef} for ${uid} — skipped`);
-      return { verdict: 'skipped' };
-    }
-  } else {
-    // Fail CLOSED on a downgrade — the opposite posture, on purpose. If we cannot PROVE this
-    // event is about the subscription on the record, the wrong write takes a paid-for tier
-    // away from someone who owns it.
-    if (readFailed) {
-      console.error(`[${label}] NEEDS-MANUAL-REVIEW downgrade for ${uid}: detail unreadable, nothing written`);
-      return { verdict: 'review' };
-    }
-    const { verdict, stored } = classifyDowngrade(existing, refFields, candidates);
+  if (await faultArmed(env, token, uid, { now })) {
+    throw new MoneyTransientError(`[${label}] TEST-MODE FAULT armed at ops/money_fault/${uid} — refusing so the provider retries`);
+  }
+
+  if (kind === 'downgrade') {
+    const { verdict, stored } = classifyDowngrade(existing, subRef, customerRef);
+    const tomb = endedUpdate(uid, subRef, endedReason, now);
     if (verdict !== 'revoke') {
-      console.error(
-        `[${label}] ${verdict === 'absent' ? 'no membership recorded' : 'NEEDS-MANUAL-REVIEW'} ` +
-        `for ${uid}: event refs=[${(candidates || []).join(', ') || '—'}] stored=[${stored.join(', ') || '—'}] ` +
-        `— nothing written`,
-      );
-      return { verdict };
+      if (verdict === 'stale' && Object.keys(tomb).length && existing) {
+        await rootPatch(env, token, tomb, 'tombstone PATCH');
+      }
+      console.log(`[${label}] downgrade ${verdict} for ${uid}: event sub=${subRef || '—'} stored=[${stored.join(', ') || '—'}] — tier untouched`);
+      return {
+        verdict, uid, ref: subRef,
+        why: verdict === 'review'
+          ? `${label}: a cancellation for ${uid} names no subscription we can match (event ${subRef || customerRef || '—'}, stored ${stored.join(', ') || '—'}). The tier was NOT removed; check the provider.`
+          : undefined,
+      };
     }
+    const written = await writeMembership(env, token, uid, detail, { extra: tomb });
+    console.log(`[${label}] downgraded ${uid} (sub ${subRef || '—'}, ${endedReason})`);
+    return { verdict: 'written', written };
+  }
+
+  // ── grant ────────────────────────────────────────────────────────────────
+  if (shouldSkipMembershipGrant(existing, invoiceRef)) {
+    console.log(`[${label}] duplicate invoice ${invoiceRef} for ${uid} — skipped`);
+    return { verdict: 'skipped' };
+  }
+
+  if (isEndedSubscription(existing, subRef)) {
+    // MON-03. The subscription has ended. A lifecycle event about it is history; a PAYMENT on
+    // it is money taken for a membership that no longer exists, and a human must see that.
+    if (invoiceRef) {
+      return {
+        verdict: 'review', uid, ref: invoiceRef,
+        why: `${label}: payment ${invoiceRef} arrived for ${uid} on subscription ${subRef}, which has ENDED (${existing.ended[subRef]?.reason || '—'}). No tier was granted. Refund it or reinstate by hand.`,
+      };
+    }
+    console.log(`[${label}] ${subRef} for ${uid} has ended — late event ignored, tier untouched`);
+    return { verdict: 'stale' };
+  }
+
+  const stored = currentSubscriptionRef(existing);
+  if (stored && isLive(existing.status) && (subRef ? subRef !== stored : newSubscription) && !sanctioned) {
+    return {
+      verdict: 'second_subscription', uid, ref: subRef || invoiceRef,
+      why: `${label}: ${uid} already has live subscription ${stored} and a SECOND one (${subRef || invoiceRef || '—'}) has been paid for. Nothing was written. Cancel and refund one of them.`,
+    };
+  }
+
+  if (detail.status === 'cancelled') {
+    // A grant-shaped event whose live state says the subscription is over (Stripe canceled /
+    // incomplete_expired). Before W3 this wrote the tier back with status 'cancelled'.
+    return applyMembershipChange(env, token, uid, {
+      kind: 'downgrade', subRef, customerRef, detail: { ...detail, tier: 'free' }, label, now, endedReason: 'provider',
+    });
+  }
+  if (!isLive(detail.status)) {
+    console.log(`[${label}] ${subRef || '—'} for ${uid} is not paid yet (status ${detail.status || 'incomplete'}) — no tier`);
+    return { verdict: 'not_paid' };
+  }
+
+  const accountDeleted = await isDeletedAccount(env, token, uid);
+  if (accountDeleted) {
+    // MON-05. A subscription is live for an account that no longer exists: stop the billing
+    // at the provider FIRST, then record the payment (billing record only — nothing under users/).
+    let cancelled = 'no cancel hook';
+    if (cancelAtProvider) {
+      try { await cancelAtProvider(); cancelled = 'cancelled at the provider'; }
+      catch (e) { throw new MoneyTransientError(`[${label}] DELETED-ACCOUNT ${uid}: provider cancel failed: ${e.message || e}`); }
+    }
+    await writeMembership(env, token, uid, { ...detail, status: 'cancelled', tier: 'free' }, {
+      accountDeleted: true, extra: endedUpdate(uid, subRef, 'account_deleted', now),
+    });
+    return {
+      verdict: 'paid_after_deletion', uid, ref: invoiceRef || subRef,
+      why: `${label}: ${uid} deleted their account, then a live subscription (${subRef || '—'}, payment ${invoiceRef || 'none'}) reached us. ${cancelled}. Nothing was recreated. Decide whether to refund the payment.`,
+    };
   }
 
   // The repair check. Cheap, and the only moment a malformed scalar is visible to anyone.
@@ -375,16 +501,58 @@ export async function applyMembershipChange(env, token, uid, {
       );
     }
   } catch (e) {
-    // Never block a write on the repair probe; it is diagnostics, not a gate.
     console.error(`[${label}] scalar repair probe failed for ${uid} (continuing):`, e.message || e);
   }
 
-  const written = await writeMembership(env, token, uid, detail);
+  const written = await writeMembership(env, token, uid, detail, { accountDeleted: false });
   console.log(
     `[${label}] wrote ${uid} tier=${written[SCALAR_PATH(uid)]} ` +
     `status=${detail.status || '—'} invoice=${invoiceRef || '—'}`,
   );
   return { verdict: 'written', written };
+}
+
+/**
+ * W3 / MON-12 — A FULL REFUND (or a dispute) ENDS THE MEMBERSHIP NOW. Ikenna's ruling, 24 Sep.
+ *
+ * Cancel at the provider first (so nothing renews), then write free + the tombstone in one
+ * PATCH. If the refunded subscription is not the one on the record (already replaced), only the
+ * tombstone is written. Throws on anything retryable.
+ */
+export async function endMembershipNow(env, token, uid, { subRef, reason, cancelAtProvider, rail, label = 'membership', now = Date.now() }) {
+  if (cancelAtProvider) await cancelAtProvider();
+  let existing;
+  try { existing = await readDetail(env, token, uid); }
+  catch (e) { throw new MoneyTransientError(`[${label}] detail read failed for ${uid}: ${e.message || e}`); }
+  const tomb = endedUpdate(uid, subRef, reason, now);
+  const stored = currentSubscriptionRef(existing);
+  if (!existing || (stored && stored !== subRef)) {
+    if (existing && Object.keys(tomb).length) await rootPatch(env, token, tomb, 'tombstone PATCH');
+    console.log(`[${label}] ${reason} on ${subRef} for ${uid}: not the current subscription (${stored || 'none'}) — tombstoned only`);
+    return { verdict: 'stale' };
+  }
+  const detail = buildDetail({
+    tier: 'free', rail, status: 'cancelled',
+    founding: existing.founding === true,
+    foundingSince: typeof existing.foundingSince === 'number' ? existing.foundingSince : null,
+    refs: {
+      stripeCustomerId: str(existing.stripeCustomerId),
+      paystackCustomerCode: str(existing.paystackCustomerCode),
+    },
+    now,
+  });
+  const written = await writeMembership(env, token, uid, { ...detail, endedReason: reason }, { extra: tomb });
+  console.log(`[${label}] ${reason}: ended ${uid}'s membership (${subRef}) NOW`);
+  return { verdict: 'written', written };
+}
+
+async function readPath(env, token, path) {
+  const res = await fetch(`${dbBase(env)}/${path}.json`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`RTDB GET ${path} failed: ${res.status}`);
+  return res.json();
 }
 
 export async function readPass(env, token, uid) {
@@ -432,38 +600,73 @@ export async function writePass(env, token, uid, pass) {
  * says so loudly: the line carries the reference and the uid so the remainder can be restored
  * without hunting. Both branches are bad; only one of them takes money and gives nothing back.
  */
-export async function applyPassPurchase(env, token, uid, { buildPassFor, ref, label = 'membership/pass' }) {
-  let existing = null;
-  let readFailed = false;
+export async function applyPassPurchase(env, token, uid, { buildPassFor, ref, label = 'membership/pass', now = Date.now() }) {
+  let existing;
   try {
     existing = await readPass(env, token, uid);
   } catch (e) {
-    readFailed = true;
-    console.error(
-      `[${label}] NEEDS-MANUAL-REVIEW pass read failed for ${uid} ref=${ref || '—'}: ${e.message || e} — ` +
-      `writing a FRESH pass; if this reader held a live one, its remainder was not carried over`,
-    );
+    // W3: THROWN, and the provider retries. Before W3 this wrote a FRESH pass, which lost the
+    // remainder of any pass the reader already held; with a retry behind it, waiting is free.
+    throw new MoneyTransientError(`[${label}] pass read failed for ${uid} ref=${ref || '—'}: ${e.message || e}`);
+  }
+  if (await faultArmed(env, token, uid, { now })) {
+    throw new MoneyTransientError(`[${label}] TEST-MODE FAULT armed at ops/money_fault/${uid} — refusing so the provider retries`);
   }
 
-  if (!readFailed && shouldSkipPassGrant(existing, ref)) {
+  if (shouldSkipPassGrant(existing, ref)) {
     console.log(`[${label}] duplicate pass reference ${ref} for ${uid} — skipped`);
     return { verdict: 'skipped' };
   }
+  let refunded = null;
+  try { refunded = await readPath(env, token, `${DETAIL_PATH(uid)}/passRefunds/${failureSafe(ref)}`); }
+  catch (e) { throw new MoneyTransientError(`[${label}] pass refund read failed for ${uid}: ${e.message || e}`); }
+  if (refunded !== null) {
+    console.log(`[${label}] pass reference ${ref} for ${uid} was REFUNDED — a late grant is ignored`);
+    return { verdict: 'stale' };
+  }
 
-  // The caller supplies the builder so this function never has to know the catalogue — and so
-  // the `existing` it just read is the only source of the stacked expiry.
-  const pass = buildPassFor(readFailed ? null : existing);
+  const pass = buildPassFor(existing);
   await writePass(env, token, uid, pass);
-  // A pass never touches users/, so nothing to withhold — but money arrived for an account that
-  // no longer exists, and someone has to give it back.
   if (await isDeletedAccount(env, token, uid)) {
-    console.error(`[${label}] DELETED-ACCOUNT ${uid}: pass ref=${ref || '—'} recorded — REFUND BY HAND`);
+    return {
+      verdict: 'paid_after_deletion', uid, ref,
+      why: `${label}: a pass (${ref || '—'}) was paid for by ${uid} after the account was deleted. Refund it by hand.`,
+    };
   }
   console.log(
     `[${label}] wrote pass ${uid} kind=${pass.kind} tier=${pass.tier} ` +
     `expires=${new Date(pass.expiresAt).toISOString()} stacked=${pass.stacked} ref=${ref || '—'}`,
   );
   return { verdict: 'written', pass };
+}
+
+const failureSafe = (ref) => String(ref || '').replace(/[.$#[\]/]/g, '_');
+
+/**
+ * W3 / MON-12 — a full refund ENDS THE PASS NOW (ruling). Only the pass the refund paid for:
+ * if a later purchase replaced its reference, the refund cannot be matched and a human looks.
+ * The refunded reference is remembered so a late grant cannot bring the pass back.
+ */
+export async function endPassNow(env, token, uid, { ref, reason, label = 'membership/pass', now = Date.now() }) {
+  let existing;
+  try { existing = await readPass(env, token, uid); }
+  catch (e) { throw new MoneyTransientError(`[${label}] pass read failed for ${uid}: ${e.message || e}`); }
+  // Beside the pass, not inside it: writePass() replaces the pass node on every purchase.
+  const mark = { [`${DETAIL_PATH(uid)}/passRefunds/${failureSafe(ref)}`]: now };
+  if (!existing || existing.ref !== ref) {
+    await rootPatch(env, token, mark, 'pass refund mark');
+    return {
+      verdict: existing ? 'refund_unmatched' : 'stale', uid, ref,
+      why: existing ? `${label}: ${reason} for pass ${ref} (${uid}), but the pass on record is ${existing.ref}. Nothing ended; check by hand.` : undefined,
+    };
+  }
+  await rootPatch(env, token, {
+    ...mark,
+    [`${PASS_PATH(uid)}/expiresAt`]: Math.min(now, existing.expiresAt || now),
+    [`${PASS_PATH(uid)}/endedReason`]: reason,
+  }, 'pass end PATCH');
+  console.log(`[${label}] ${reason}: ended ${uid}'s pass ${ref} NOW`);
+  return { verdict: 'written' };
 }
 
 export { isTier, normaliseTier, needsScalarRepair, TIERS };

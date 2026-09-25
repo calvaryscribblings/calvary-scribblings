@@ -43,17 +43,18 @@
 // email comes from the VERIFIED token, like the uid — never from the body, for the same
 // reason the Paystack rail reads it from lookupUser().
 
-import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } from '../bookstore/_lib.js';
+import { json, dbBase, lookupUser, FIREBASE_TIMEOUT_MS } from '../bookstore/_lib.js';
 import { DETAIL_PATH } from './_membership.js';
 import {
   TIERS, INTERVALS, STRIPE_CURRENCIES, CURRENT_GENERATION,
-  priceIdFor,
+  priceIdFor, describePrice, PORTAL_CONFIGURATION,
 } from './prices.js';
+import { stripe, subscriptionItemId } from '../_stripe.js';
+import { isTestEnv, isTestBuyer } from '../_money.js';
 // The one gate all four membership checkouts open on. See _onSale.js.
 import { saleGate, CLOSED_BODY, CLOSED_STATUS } from './_onSale.js';
 
 const LABEL = 'membership/checkout';
-const STRIPE_API = 'https://api.stripe.com/v1/checkout/sessions';
 const DEFAULT_ORIGIN = 'https://calvaryscribblings.co.uk';
 
 /** The ID token, header first. Same contract R9.10 gave the stream endpoint. */
@@ -81,6 +82,41 @@ export function validateSelection({ tier, interval, currency }) {
       : { ok: false, code: 'bad_currency', error: 'Unsupported currency.' };
   }
   return { ok: true, tier, interval, currency: cur };
+}
+
+// ── W3 / MON-02: ONE SUBSCRIPTION PER READER, EVER ───────────────────────────────────────
+//
+// Until W3 a Gold member pressing CHOOSE PLATINUM got a SECOND subscription on the same
+// customer, both billed, the tier flipping on every invoice, and cancelling either one dropping
+// them to free. Now a live member never reaches Checkout:
+//
+//   same plan              → 409 already_member
+//   another plan, Stripe   → a Stripe-hosted CONFIRM page (billing portal flow
+//                            subscription_update_confirm) that switches the price on the SAME
+//                            subscription, with Stripe's own proration shown before they agree.
+//                            The portal configuration is the founding one, so the lock holds.
+//   a naira membership     → 409 other_rail: cancel that one first
+//
+// "Live" is read from our record AND from Stripe (the customer's active subscriptions), so a
+// webhook that has not landed yet cannot open the door to a second subscription.
+
+/** What to do for a reader who asked for {tier, interval}, given what they hold. Pure. */
+export function planChange(detail, { tier, interval }) {
+  const live = detail && (detail.status === 'active' || detail.status === 'past_due');
+  if (!live) return { action: 'checkout' };
+  if (detail.rail === 'paystack') return { action: 'refuse', status: 409, code: 'other_rail', error: 'Your membership is paid in naira. Cancel it in your settings first, then choose a card plan.' };
+  if (detail.tier === tier && detail.interval === interval) return { action: 'refuse', status: 409, code: 'already_member', error: 'You already have this membership.' };
+  return { action: 'switch' };
+}
+
+async function liveStripeSubscription(env, customerId) {
+  if (!customerId) return null;
+  for (const status of ['active', 'past_due', 'trialing']) {
+    const r = await stripe(env, '/subscriptions', { query: { customer: customerId, status, limit: '1' } });
+    if (!r.ok) throw new Error(`subscription list failed: ${r.status}`);
+    if (r.body?.data?.[0]) return r.body.data[0];
+  }
+  return null;
 }
 
 export async function onRequestPost(context) {
@@ -113,7 +149,22 @@ export async function onRequestPost(context) {
   // "try again later" would be told a lie about a transient problem. The condition is
   // _onSale.js's, shared with the other three checkouts. Since the live-money preflight it
   // includes MEMBERSHIPS_ON_SALE as well as isConfigured(mode).
-  const { open, mode } = saleGate('stripe', env.STRIPE_SECRET_KEY);
+  const { open: onSale, mode } = saleGate('stripe', env.STRIPE_SECRET_KEY);
+  // A closed gate on LIVE keys refuses here, before any identity work — exactly as before W3.
+  if (!onSale && !isTestEnv(env)) {
+    console.error(`[${LABEL}] not on sale in ${mode} mode (generation ${CURRENT_GENERATION})`);
+    return json(CLOSED_BODY, CLOSED_STATUS);
+  }
+
+  // ── identity ───────────────────────────────────────────────────────────────
+  const user = await lookupUser(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  const uid = user?.localId;
+  if (!uid) return json({ error: 'Your session has expired. Please sign in again.', code: 'signed_out' }, 401);
+  const email = typeof user.email === 'string' && user.email ? user.email : null;
+
+  // THE GATE. isTestBuyer() is the W3 proof's door: in TEST mode only, a uid an admin listed at
+  // ops/test_buyers may check out before MEMBERSHIPS_ON_SALE. With a live key it reads nothing.
+  const open = onSale || await isTestBuyer(env, uid);
   if (!open) {
     console.error(`[${LABEL}] not on sale in ${mode} mode (generation ${CURRENT_GENERATION})`);
     return json(CLOSED_BODY, CLOSED_STATUS);
@@ -125,12 +176,6 @@ export async function onRequestPost(context) {
     return json({ error: 'That membership is not available in this currency.', code: 'not_priced' }, 409);
   }
 
-  // ── identity ───────────────────────────────────────────────────────────────
-  const user = await lookupUser(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
-  const uid = user?.localId;
-  if (!uid) return json({ error: 'Your session has expired. Please sign in again.', code: 'signed_out' }, 401);
-  const email = typeof user.email === 'string' && user.email ? user.email : null;
-
   // ── the existing customer, if this reader has ever checked out ─────────────
   // Read as THE READER, with the id token already verified above. memberships/{uid} is
   // owner-or-founder readable (R10.1), so no admin credential is needed or wanted here — this
@@ -141,18 +186,59 @@ export async function onRequestPost(context) {
   // first-checkout path, whose cost if wrong is a duplicate Stripe Customer, never a wrong
   // charge. The webhook is what makes the id durable.
   let customerId = null;
+  let detail = null;
   try {
     const res = await fetch(`${dbBase(env)}/${DETAIL_PATH(encodeURIComponent(uid))}.json?auth=${encodeURIComponent(idToken)}`, {
       signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
     });
     if (res.ok) {
-      const detail = await res.json();
+      detail = await res.json();
       if (detail && typeof detail.stripeCustomerId === 'string' && detail.stripeCustomerId) {
         customerId = detail.stripeCustomerId;
       }
     }
   } catch (e) {
     console.error(`[${LABEL}] customer lookup failed for ${uid} (continuing as first checkout):`, e.message || e);
+  }
+
+  // ── MON-02: a live member never gets a second subscription ──────────────────
+  let live;
+  try {
+    live = await liveStripeSubscription(env, customerId);
+  } catch (e) {
+    console.error(`[${LABEL}] live-subscription check failed for ${uid}:`, e.message || e);
+    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+  }
+  const held = live ? { ...(detail || {}), rail: 'stripe', status: 'active', ...(describePrice(live.items?.data?.[0]?.price?.id, mode) || {}) } : detail;
+  const change = planChange(held, { tier, interval });
+  if (change.action === 'refuse') return json({ error: change.error, code: change.code }, change.status);
+  if (change.action === 'switch') {
+    if (!live) return json({ error: 'Your membership is still being set up. Try again in a minute.', code: 'pending' }, 409);
+    // Stripe cannot bill one customer in two currencies (MON-20): the switch stays in theirs.
+    const cur = String(live.currency || currency).toLowerCase();
+    const target = priceIdFor({ tier, interval, currency: cur, mode });
+    const configuration = PORTAL_CONFIGURATION[CURRENT_GENERATION]?.[mode] || null;
+    if (!target || !configuration) return json({ error: 'That membership is not available yet.', code: 'not_configured' }, 409);
+    const portal = await stripe(env, '/billing_portal/sessions', {
+      form: {
+        customer: customerId,
+        configuration,
+        return_url: `${origin}/membership?switch=${tier}`,
+        'flow_data[type]': 'subscription_update_confirm',
+        'flow_data[subscription_update_confirm][subscription]': live.id,
+        'flow_data[subscription_update_confirm][items][0][id]': subscriptionItemId(live),
+        'flow_data[subscription_update_confirm][items][0][price]': target,
+        'flow_data[subscription_update_confirm][items][0][quantity]': '1',
+        'flow_data[after_completion][type]': 'redirect',
+        'flow_data[after_completion][redirect][return_url]': `${origin}/membership?switch=${tier}`,
+      },
+    }).catch((e) => ({ ok: false, body: { error: { message: e.message } } }));
+    if (!portal.ok || !portal.body?.url) {
+      console.error(`[${LABEL}] switch session failed for ${uid} ${live.id} → ${target}:`, portal.body?.error?.message || portal.status);
+      return json({ error: 'Your plan could not be changed just now. Please try again.' }, 502);
+    }
+    console.log(`[${LABEL}] switch ${uid} ${live.id} → ${tier}/${interval} (${target})`);
+    return json({ url: portal.body.url, switch: true });
   }
 
   // ── the session ────────────────────────────────────────────────────────────
@@ -182,16 +268,8 @@ export async function onRequestPost(context) {
 
   let session;
   try {
-    const res = await fetch(STRIPE_API, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: form,
-      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
-    });
-    session = await res.json();
+    const res = await stripe(env, '/checkout/sessions', { form });
+    session = res.body;
     if (!res.ok) {
       console.error(`[${LABEL}] session create failed for ${uid} ${tier}/${interval}/${currency}:`, session?.error?.message || res.status);
       return json({ error: 'Checkout could not be opened. Please try again.' }, 502);

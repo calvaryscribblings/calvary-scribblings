@@ -47,8 +47,10 @@
 
 import { json, bytesToHex, hexToBytes, timingSafeEqual, mintAccessToken } from '../bookstore/_lib.js';
 import {
-  applyMembershipChange, applyPassPurchase, readDetail, buildDetail, STRIPE_SUB_REF_FIELDS,
+  applyMembershipChange, applyPassPurchase, readDetail, buildDetail, endMembershipNow, endPassNow,
 } from './_membership.js';
+import { stripe, invoiceSubscriptionId, invoiceSubscriptionUid, subscriptionPeriodEnd } from '../_stripe.js';
+import { MoneyTransientError, settleWebhook } from '../_money.js';
 import { describePrice, modeOf } from './prices.js';
 import { buildPass, isPassKind } from '../../../app/lib/membershipPasses.js';
 
@@ -138,8 +140,9 @@ export function detailForSubscription({ subscription, existing, mode, now }) {
   const priceId = extractPriceId(subscription);
   const described = describePrice(priceId, mode);
   const founding = !!described && described.generation === 'founding';
-  const periodEnd = typeof subscription?.current_period_end === 'number'
-    ? subscription.current_period_end * 1000 : null;
+  // W3 / MON-06: item-level on dahlia, top-level before basil. subscriptionPeriodEnd reads both.
+  const periodEndS = subscriptionPeriodEnd(subscription);
+  const periodEnd = typeof periodEndS === 'number' ? periodEndS * 1000 : null;
 
   return {
     detail: buildDetail({
@@ -173,42 +176,59 @@ export function detailForSubscription({ subscription, existing, mode, now }) {
 // Handlers.
 // ──────────────────────────────────────────────────────────────────────────
 
+/** The LIVE subscription. Throws (→ 500 → Stripe retries) on anything but a clean answer. */
 async function fetchSubscription(env, subscriptionId) {
-  const res = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
-    headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
-  });
-  if (!res.ok) throw new Error(`subscription fetch failed: ${res.status}`);
-  return res.json();
+  const r = await stripe(env, `/subscriptions/${encodeURIComponent(subscriptionId)}`);
+  if (!r.ok) throw new MoneyTransientError(`subscription ${subscriptionId} fetch failed: ${r.status} ${r.body?.error?.message || ''}`);
+  return r.body;
 }
 
 /**
- * Apply a subscription's current state. Shared by completed / invoice.paid / updated, because
- * all three mean the same thing to us: this is the subscription, this is what it now confers.
+ * Cancel a subscription NOW, at Stripe. Idempotent: an already-cancelled or missing
+ * subscription is success. No proration, no refund — a refund is a separate, deliberate act.
  */
-async function applySubscription(env, getToken, { subscription, uid, invoiceRef, now }) {
+export async function cancelStripeSubscription(env, subscriptionId) {
+  const r = await stripe(env, `/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' });
+  if (r.ok) return 'cancelled';
+  if (r.status === 404 || r.body?.error?.code === 'resource_missing') return 'absent';
+  if (/cancel/i.test(r.body?.error?.message || '')) return 'already';
+  throw new MoneyTransientError(`Stripe cancel ${subscriptionId} failed: ${r.status} ${r.body?.error?.message || ''}`);
+}
+
+/**
+ * Apply a subscription's current state. Shared by completed / invoice.paid / updated /
+ * payment_failed, because all of them mean the same thing to us: this is the subscription, this
+ * is what it now confers. ALWAYS the live object (MON-14): an event's own copy can be older than
+ * what is already stored.
+ */
+async function applySubscription(env, getToken, { subscription, uid, invoiceRef, now, newSubscription = false }) {
   const mode = modeOf(env.STRIPE_SECRET_KEY);
   const token = await getToken();
   let existing = null;
-  try { existing = await readDetail(env, token, uid); } catch { /* applyMembershipChange re-reads and logs */ }
+  try { existing = await readDetail(env, token, uid); } catch { /* applyMembershipChange re-reads, and throws */ }
 
   const { detail, described } = detailForSubscription({ subscription, existing, mode, now });
+  const subId = asId(subscription?.id);
 
   if (!described) {
     // An unattributable price. REFUSE to guess a tier: guessing up hands out Platinum, guessing
-    // down takes away Gold, and a price we do not recognise means someone created one by hand
-    // or this build predates a generation. Loud, and nothing written.
-    console.error(
-      `[${LABEL}] NEEDS-MANUAL-REVIEW: subscription ${asId(subscription?.id)} for ${uid} is on price ` +
-      `${extractPriceId(subscription) || '—'}, which is not in the ${mode} price book — nothing written`,
-    );
-    return { verdict: 'review' };
+    // down takes away Gold.
+    return {
+      verdict: 'review', uid, ref: subId,
+      why: `${LABEL}: subscription ${subId} for ${uid} is on price ${extractPriceId(subscription) || '—'}, which is not in the ${mode} price book. Nothing was written.`,
+    };
   }
 
   return applyMembershipChange(env, token, uid, {
     kind: 'grant',
     invoiceRef,
-    detail: { ...detail, lastInvoiceRef: invoiceRef || detail.lastInvoiceRef || null },
+    subRef: subId,
+    customerRef: asId(subscription?.customer),
+    newSubscription,
+    cancelAtProvider: () => cancelStripeSubscription(env, subId),
+    detail: { ...detail, lastInvoiceRef: invoiceRef || (existing && typeof existing.lastInvoiceRef === 'string' ? existing.lastInvoiceRef : null) },
     label: LABEL,
+    now,
   });
 }
 
@@ -283,101 +303,160 @@ async function handleCheckoutCompleted(env, getToken, session, now) {
   if (session?.mode !== 'subscription') return { verdict: 'ignored' };
 
   const uid = extractUid(session);
-  if (!uid) {
-    console.error(`[${LABEL}] session ${session.id} carries no uid — nothing recorded`);
-    return { verdict: 'review' };
-  }
+  if (!uid) return { verdict: 'review', ref: session.id, why: `${LABEL}: subscription session ${session.id} carries no uid. Nothing recorded.` };
   const subscriptionId = asId(session.subscription);
-  if (!subscriptionId) {
-    console.error(`[${LABEL}] session ${session.id} for ${uid} carries no subscription — nothing recorded`);
-    return { verdict: 'review' };
-  }
+  if (!subscriptionId) return { verdict: 'review', uid, ref: session.id, why: `${LABEL}: session ${session.id} for ${uid} carries no subscription. Nothing recorded.` };
   // THE CUSTOMER ID IS BORN HERE. The subscription object carries it, and fetching the
   // subscription is also how the Price is read rather than trusted from the session.
   const subscription = await fetchSubscription(env, subscriptionId);
   return applySubscription(env, getToken, {
-    subscription, uid, invoiceRef: asId(session.invoice), now,
+    subscription, uid, invoiceRef: asId(session.invoice), now, newSubscription: true,
   });
 }
 
+/** MON-15 — a delayed-method pass settles here, not at completed. */
+async function handleAsyncSucceeded(env, getToken, session, now) {
+  if (!isPassSession(session)) return { verdict: 'ignored' };
+  return handlePassCompleted(env, getToken, session, now);
+}
+
 async function handleInvoicePaid(env, getToken, invoice, now) {
-  const subscriptionId = asId(invoice?.subscription);
+  // MON-06: on dahlia the subscription lives at invoice.parent.subscription_details. Reading only
+  // invoice.subscription ignored EVERY renewal as "a one-off invoice".
+  const subscriptionId = invoiceSubscriptionId(invoice);
   if (!subscriptionId) return { verdict: 'ignored' };   // a one-off invoice is not ours
   const subscription = await fetchSubscription(env, subscriptionId);
-  const uid = extractUid(subscription);
-  if (!uid) {
-    console.error(`[${LABEL}] invoice ${invoice.id} on ${subscriptionId} has no uid — nothing recorded`);
-    return { verdict: 'review' };
-  }
+  const uid = extractUid(subscription) || invoiceSubscriptionUid(invoice);
+  if (!uid) return { verdict: 'review', ref: invoice.id, why: `${LABEL}: invoice ${invoice.id} on ${subscriptionId} has no uid. Nothing recorded.` };
   return applySubscription(env, getToken, { subscription, uid, invoiceRef: asId(invoice.id), now });
 }
 
-async function handleSubscriptionUpdated(env, getToken, subscription, now) {
+async function handleSubscriptionUpdated(env, getToken, eventSubscription, now) {
+  // MON-14: the LIVE subscription, never the event's copy. Stripe does not order deliveries, so
+  // an update from before a cancellation can arrive after it.
+  const subscription = await fetchSubscription(env, asId(eventSubscription?.id));
   const uid = extractUid(subscription);
-  if (!uid) {
-    console.error(`[${LABEL}] subscription ${asId(subscription?.id)} has no uid — nothing recorded`);
-    return { verdict: 'review' };
-  }
-  // NO invoiceRef: an update is not a payment, so it must not consume the replay key. Passing
-  // the last invoice here would make the next genuine renewal look like a duplicate.
+  if (!uid) return { verdict: 'review', ref: asId(subscription?.id), why: `${LABEL}: subscription ${asId(subscription?.id)} has no uid. Nothing recorded.` };
+  // NO invoiceRef: an update is not a payment, so it must not consume the replay key.
   return applySubscription(env, getToken, { subscription, uid, invoiceRef: null, now });
 }
 
 /** The dunning event. Records the state; NEVER touches the tier. */
 async function handlePaymentFailed(env, getToken, invoice, now) {
-  const subscriptionId = asId(invoice?.subscription);
+  const subscriptionId = invoiceSubscriptionId(invoice);
   if (!subscriptionId) return { verdict: 'ignored' };
   const subscription = await fetchSubscription(env, subscriptionId);
-  const uid = extractUid(subscription);
-  if (!uid) return { verdict: 'review' };
+  const uid = extractUid(subscription) || invoiceSubscriptionUid(invoice);
+  if (!uid) return { verdict: 'review', ref: invoice.id, why: `${LABEL}: failed invoice ${invoice.id} on ${subscriptionId} has no uid.` };
   console.log(`[${LABEL}] payment failed for ${uid} on ${subscriptionId} — recording past_due, tier UNCHANGED`);
-  // applySubscription reads the live subscription, whose status Stripe has already moved to
-  // past_due. The tier still comes from the price, so it is preserved by construction.
   return applySubscription(env, getToken, { subscription, uid, invoiceRef: null, now });
 }
 
-/** THE AUTHORITATIVE DOWNGRADE — the only path that writes 'free'. */
+/** THE AUTHORITATIVE DOWNGRADE. Matched on the SUBSCRIPTION alone (MON-02). */
 async function handleSubscriptionDeleted(env, getToken, subscription, now) {
   const uid = extractUid(subscription);
-  if (!uid) {
-    console.error(`[${LABEL}] deleted subscription ${asId(subscription?.id)} has no uid — nothing revoked`);
-    return { verdict: 'review' };
-  }
+  if (!uid) return { verdict: 'review', ref: asId(subscription?.id), why: `${LABEL}: deleted subscription ${asId(subscription?.id)} has no uid. Nothing revoked.` };
   const token = await getToken();
   let existing = null;
-  try { existing = await readDetail(env, token, uid); } catch { /* handled below */ }
+  try { existing = await readDetail(env, token, uid); } catch { /* applyMembershipChange re-reads, and throws */ }
 
   return applyMembershipChange(env, token, uid, {
     kind: 'downgrade',
-    refFields: STRIPE_SUB_REF_FIELDS,
-    candidates: [asId(subscription?.id), asId(subscription?.customer)].filter(Boolean),
+    subRef: asId(subscription?.id),
+    customerRef: asId(subscription?.customer),
+    endedReason: 'provider',
     detail: buildDetail({
       tier: 'free',
       rail: 'stripe',
       status: 'cancelled',
       // The founding facts SURVIVE a cancellation. A member who leaves and comes back within
-      // the founding window is still a founding member, and throwing the date away would make
-      // that unrecoverable.
+      // the founding window is still a founding member.
       founding: !!(existing && existing.founding === true),
       foundingSince: existing && typeof existing.foundingSince === 'number' ? existing.foundingSince : null,
       refs: {
         stripeCustomerId: existing && typeof existing.stripeCustomerId === 'string' ? existing.stripeCustomerId : null,
       },
-      pass: existing && typeof existing.pass === 'object' ? existing.pass : null,
       now,
     }),
     label: LABEL,
+    now,
+  });
+}
+
+/**
+ * W3 / MON-12 — refunds and disputes. Ikenna's ruling, 24 Sep 2026:
+ *   a FULL refund ends a membership or a pass immediately; a dispute is treated the same;
+ *   a PARTIAL refund on a membership or pass changes nothing (only books were ruled on, and the
+ *   ruling there — partial keeps — is the same shape).
+ * A book's charge carries metadata.titleId and is the bookstore endpoint's; this one ignores it.
+ */
+async function handleRefundOrDispute(env, getToken, obj, now, eventType) {
+  const dispute = eventType === 'charge.dispute.created';
+  let charge = obj;
+  if (dispute) {
+    const r = await stripe(env, `/charges/${encodeURIComponent(asId(obj.charge))}`);
+    if (!r.ok) throw new MoneyTransientError(`charge ${asId(obj.charge)} fetch failed: ${r.status}`);
+    charge = r.body;
+  }
+  const meta = charge?.metadata || {};
+  if (meta.titleId) return { verdict: 'ignored' };
+  const full = dispute || charge?.refunded === true;
+  const reason = dispute ? 'disputed' : 'refunded';
+  const pi = asId(charge?.payment_intent);
+
+  if (meta.kind === 'pass') {
+    const uid = typeof meta.uid === 'string' && meta.uid ? meta.uid : null;
+    if (!uid || !pi) return { verdict: 'review', ref: charge?.id, why: `${LABEL}: ${reason} pass charge ${charge?.id} has no uid or payment intent.` };
+    if (!full) {
+      console.log(`[${LABEL}] PARTIAL refund on pass charge ${charge.id} for ${uid} — the pass is kept`);
+      return { verdict: 'kept' };
+    }
+    const sessions = await stripe(env, '/checkout/sessions', { query: { payment_intent: pi, limit: '1' } });
+    if (!sessions.ok) throw new MoneyTransientError(`session lookup for ${pi} failed: ${sessions.status}`);
+    const sessionId = sessions.body?.data?.[0]?.id;
+    if (!sessionId) return { verdict: 'review', uid, ref: pi, why: `${LABEL}: ${reason} pass charge ${charge.id} for ${uid} — no Checkout Session found for ${pi}. The pass was NOT ended.` };
+    return endPassNow(env, await getToken(), uid, { ref: sessionId, reason, label: LABEL, now });
+  }
+
+  // A subscription payment? Dahlia links a payment to its invoice through InvoicePayments.
+  let invoiceId = asId(charge?.invoice);
+  if (!invoiceId && pi) {
+    const ip = await stripe(env, '/invoice_payments', { query: { 'payment[type]': 'payment_intent', 'payment[payment_intent]': pi, limit: '1' } });
+    if (!ip.ok) throw new MoneyTransientError(`invoice payment lookup for ${pi} failed: ${ip.status}`);
+    invoiceId = asId(ip.body?.data?.[0]?.invoice);
+  }
+  if (!invoiceId) return { verdict: 'ignored' };
+  const inv = await stripe(env, `/invoices/${encodeURIComponent(invoiceId)}`);
+  if (!inv.ok) throw new MoneyTransientError(`invoice ${invoiceId} fetch failed: ${inv.status}`);
+  const subId = invoiceSubscriptionId(inv.body);
+  if (!subId) return { verdict: 'ignored' };
+  const subscription = await fetchSubscription(env, subId);
+  const uid = extractUid(subscription) || invoiceSubscriptionUid(inv.body);
+  if (!uid) return { verdict: 'review', ref: subId, why: `${LABEL}: ${reason} on subscription ${subId} — no uid. The membership was NOT ended.` };
+  if (!full) {
+    console.log(`[${LABEL}] PARTIAL refund on ${subId} for ${uid} — the membership is kept`);
+    return { verdict: 'kept' };
+  }
+  return endMembershipNow(env, await getToken(), uid, {
+    subRef: subId, reason, rail: 'stripe', label: LABEL, now,
+    cancelAtProvider: () => cancelStripeSubscription(env, subId),
   });
 }
 
 const HANDLERS = {
   'checkout.session.completed': handleCheckoutCompleted,
+  'checkout.session.async_payment_succeeded': handleAsyncSucceeded,
   'invoice.paid': handleInvoicePaid,
   'invoice.payment_succeeded': handleInvoicePaid,
   'customer.subscription.updated': handleSubscriptionUpdated,
   'customer.subscription.deleted': handleSubscriptionDeleted,
   'invoice.payment_failed': handlePaymentFailed,
+  'charge.refunded': handleRefundOrDispute,
+  'charge.dispute.created': handleRefundOrDispute,
 };
+
+/** The events the endpoint must be subscribed to — scripts/money/stripe-webhooks.mjs reads this. */
+export const MEMBERSHIP_EVENTS = Object.keys(HANDLERS);
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -396,8 +475,9 @@ export async function onRequestPost(context) {
   const rawBody = await request.text();
   const verification = await verifyStripeSignature(rawBody, sigHeader, env.STRIPE_MEMBERSHIP_WEBHOOK_SECRET);
   if (!verification.ok) {
+    // MON-21: the reason is LOGGED, never returned — it can carry signature material.
     console.error(`[${LABEL}] signature verification failed:`, verification.reason);
-    return new Response(`Invalid signature: ${verification.reason}`, { status: 400 });
+    return new Response('Invalid signature', { status: 400 });
   }
 
   let event;
@@ -408,21 +488,15 @@ export async function onRequestPost(context) {
   const handler = HANDLERS[event.type];
   if (!handler) return json({ received: true, ignored: event.type });
 
-  // Past this line the request is provably from Stripe, so every exit is a 200 — the same
-  // response policy the bookstore webhook documents. A non-2xx invites a retry storm that
-  // cannot fix a Firebase outage.
+  // Past this line the request is provably from Stripe. W3 / MON-04: a failure a retry could
+  // fix answers 500 so Stripe redelivers (every handler is idempotent); a verdict a retry
+  // cannot fix answers 200 — and both land in ops/money_failures and Ikenna's inbox.
   //
-  // THE TOKEN IS MINTED LAZILY, and memoised. Stripe delivers a great deal of traffic this
-  // endpoint ignores — every payment-mode checkout the bookstore rail owns arrives here too —
-  // and minting an OAuth token before deciding whether the event is even ours would pay for a
-  // round-trip on every one of them.
-  try {
-    let cached = null;
-    const getToken = async () => (cached ||= await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY));
-    const result = await handler(env, getToken, obj, Date.now());
-    return json({ received: true, verdict: result?.verdict || 'ok' });
-  } catch (e) {
-    console.error(`[${LABEL}] ${event.type} (${obj.id}) failed:`, e.message || e);
-    return json({ received: true, degraded: true });
-  }
+  // THE TOKEN IS MINTED LAZILY, and memoised: most traffic here is the bookstore's, and ignored.
+  let cached = null;
+  const getToken = async () => (cached ||= await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY));
+  return settleWebhook(env, {
+    run: () => handler(env, getToken, obj, Date.now(), event.type),
+    rail: 'stripe', eventType: event.type, eventKey: event.id || obj.id, label: LABEL, json,
+  });
 }

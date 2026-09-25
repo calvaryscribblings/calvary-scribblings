@@ -5,18 +5,16 @@
 // network call to the portal, three answers from it, and six states that must each be worded
 // differently. That page is a static list of rows and should stay readable as one.
 //
-// ── THE MANAGE PATH IS DECIDED BY THE RAIL, AND THE TWO ARE NOT EQUAL YET ────────────────
+// ── THE MANAGE PATH IS DECIDED BY THE RAIL ───────────────────────────────────────────────
 //
-// Stripe members get the customer portal. Paystack members get an HONEST INTERIM — an email
-// address — because Paystack has no portal at all and the self-serve disable path
-// (/subscription/disable, which needs the subscription code AND an email_token fetched on
-// demand) is boarded as its own round before launch.
-//
-// What this must NOT do is show a naira member a disabled button, or nothing. A disabled
-// button says "this is broken"; silence says "your money is unmanageable". An email address is
-// a real route to cancelling, today, by a human. When the disable path lands, THE COPY BELOW
-// IS THE ONLY THING THAT CHANGES — the rail branch is already here.
-//
+// Stripe members get the customer portal. Paystack has no portal, so naira members get a Cancel
+// button of our own (W3, ruled by Ikenna 24 Sep 2026) that calls Paystack's /subscription/disable
+// through /api/membership/paystack-cancel. Measured: that stops renewal and keeps the paid period,
+// so the honest words after it are "cancelled, with access until <date>". Its four states —
+// ready, cancelling, cancelled, failed-with-retry — are each worded, and a failure never looks
+// like success. Paystack's own emails also carry a "Manage subscription" link; that reaches us
+// as the same webhook, so either route lands in the same state here.
+
 // ── DUNNING DOES NOT DOWNGRADE ───────────────────────────────────────────────────────────
 //
 // `past_due` keeps the tier. That is a deliberate rule in the writer (a failed payment is a
@@ -32,16 +30,14 @@
 
 import { useState } from 'react';
 import { useMembership } from '../lib/MembershipContext';
-import { openMembershipPortal, idTokenFor, MembershipCheckoutError } from '../lib/membershipCheckout';
+import { openMembershipPortal, cancelNairaMembership, idTokenFor, MembershipCheckoutError } from '../lib/membershipCheckout';
 
 const TIER_NAME = { free: 'Free', gold: 'Gold', platinum: 'Platinum' };
 const INTERVAL_NAME = { monthly: 'Monthly', annual: 'Yearly' };
 const CURRENCY_NAME = { gbp: 'GBP', usd: 'USD', ngn: 'NGN' };
 const PASS_NAME = { day: 'Day pass', week: 'Week pass' };
 
-// Boarded separately; when the disable path ships this address is replaced by a button and
-// nothing else in this file moves.
-const CANCEL_EMAIL = 'contact@calvaryscribblings.co.uk';
+const HELP_EMAIL = 'contact@calvaryscribblings.co.uk';
 
 const longDate = (ms) => new Date(ms).toLocaleDateString(undefined, {
   day: 'numeric', month: 'long', year: 'numeric',
@@ -57,6 +53,23 @@ export default function MembershipSection({ authUser }) {
   } = useMembership();
 
   const [portal, setPortal] = useState({ state: 'idle', message: '' });
+  // 'idle' | 'confirm' | 'cancelling' | 'cancelled' | 'failed'
+  const [naira, setNaira] = useState({ state: 'idle', message: '', accessUntil: null });
+
+  const cancelNaira = async () => {
+    setNaira({ state: 'cancelling', message: '', accessUntil: null });
+    try {
+      const idToken = await idTokenFor(authUser);
+      const res = await cancelNairaMembership(idToken);
+      setNaira({ state: 'cancelled', message: '', accessUntil: res.accessUntil });
+    } catch (e) {
+      setNaira({
+        state: 'failed',
+        message: e instanceof MembershipCheckoutError && e.message ? e.message : 'We couldn’t cancel just now. Nothing has changed.',
+        accessUntil: null,
+      });
+    }
+  };
 
   const openPortal = async () => {
     setPortal({ state: 'opening', message: '' });
@@ -215,11 +228,44 @@ export default function MembershipSection({ authUser }) {
         </>
       )}
 
-      {hasSubscription && rail === 'paystack' && (
-        <div className="ms-note">
-          To change your card or cancel your membership, email{' '}
-          <a href={`mailto:${CANCEL_EMAIL}`}>{CANCEL_EMAIL}</a> and we’ll take care of it.
-          Self-service for naira memberships is on its way.
+      {hasSubscription && rail === 'paystack' && !cancelAtPeriodEnd && naira.state !== 'cancelled' && (
+        <>
+          <div className="st-row">
+            <div className="st-row-main">
+              <div className="ms-tier">Cancel your membership</div>
+              <div className="st-row-hint">You keep everything until the end of the period you’ve paid for</div>
+            </div>
+            {naira.state === 'idle' && (
+              <button className="st-row-action" onClick={() => setNaira({ state: 'confirm', message: '', accessUntil: null })}>Cancel</button>
+            )}
+            {naira.state === 'cancelling' && <button className="st-row-action" disabled>Cancelling…</button>}
+            {naira.state === 'failed' && <button className="st-row-action" onClick={cancelNaira}>Try again</button>}
+          </div>
+          {naira.state === 'confirm' && (
+            <div className="ms-note">
+              {currentPeriodEnd
+                ? `Your membership will stop renewing. You keep everything until ${longDate(currentPeriodEnd)}, and nothing more will be charged.`
+                : 'Your membership will stop renewing, and nothing more will be charged.'}
+              <br />
+              <button className="ms-join" onClick={cancelNaira}>Yes, cancel it</button>{' '}
+              <button className="ms-join" onClick={() => setNaira({ state: 'idle', message: '', accessUntil: null })}>Keep my membership</button>
+            </div>
+          )}
+          {naira.state === 'failed' && (
+            <div className="ms-warn">
+              {naira.message} If it keeps failing, email <a href={`mailto:${HELP_EMAIL}`}>{HELP_EMAIL}</a>.
+            </div>
+          )}
+          <div className="ms-note">
+            You can also cancel from the “Manage subscription” link in any email Paystack has sent you.
+          </div>
+        </>
+      )}
+      {hasSubscription && rail === 'paystack' && naira.state === 'cancelled' && !cancelAtPeriodEnd && (
+        <div className="ms-note" role="status">
+          {naira.accessUntil
+            ? `Cancelled. You have everything until ${longDate(naira.accessUntil)}, and nothing more will be charged.`
+            : 'Cancelled. Nothing more will be charged, and you keep everything until the end of the period you’ve paid for.'}
         </div>
       )}
 

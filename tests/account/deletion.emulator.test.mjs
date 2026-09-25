@@ -47,6 +47,8 @@ function ioFor(outside, { failOnce } = {}) {
     async patch(u) { if (Object.keys(u).some((k) => k.startsWith('users/'))) trip('owned'); return base.patch(u); },
     async stripeCancel(id) { trip('membership'); outside.push(`stripe ${id}`); },
     async paystackDisable(code) { trip('membership'); outside.push(`paystack ${code}`); },
+    async stripeFindSubscriptions() { return []; },
+    async paystackFindSubscriptions() { return []; },
     async storageList(prefix) { trip('storage'); outside.push(`list ${prefix}`); return prefix.startsWith('avatars/') ? [prefix] : []; },
     async storageDelete(name) { outside.push(`rm ${name}`); },
     async authDelete(uid) { trip('auth'); outside.push(`auth ${uid}`); },

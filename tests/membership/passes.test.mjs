@@ -324,7 +324,7 @@ describe('the checkout contracts — the price is never the client\'s to choose'
 // End to end, against a stubbed database.
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
-function host({ pass = null, failRead = false } = {}) {
+function host({ pass = null, failRead = false, txnAmount = 30000 } = {}) {
   const calls = [];
   const real = globalThis.fetch;
   globalThis.fetch = async (url, opts = {}) => {
@@ -339,6 +339,8 @@ function host({ pass = null, failRead = false } = {}) {
     }
     if (u.includes('paystack_membership_index/')) return ok(null);
     if (u.includes('/memberships/')) return ok(null);
+    if (u.includes('/transaction/verify/')) return ok({ status: true, data: { status: 'success', amount: txnAmount, reference: decodeURIComponent(u.split('/').pop()) } });
+    if (u.includes('/ops/')) return ok(null);
     throw new Error(`unstubbed: ${u}`);
   };
   return {
@@ -416,29 +418,49 @@ describe('a naira pass charge, end to end', () => {
     } finally { h.restore(); }
   });
 
-  test('a non-charge event about a pass does nothing automatically', async () => {
-    const h = host();
+  // W3 / MON-12 — ruled 24 Sep 2026: a FULL refund ends the pass now; a partial one keeps it.
+  // (Before W3 every refund of a pass was "a human matter" and the pass stayed live.)
+  test('a FULL refund of the pass on record ends it NOW, and remembers the reference', async () => {
+    const ref = buildPassReference(UID, 'day', 'aaaaaaaaaaaa');
+    const h = host({ pass: buildPass({ kind: 'day', currency: 'ngn', rail: 'paystack', ref, now: NOW }) });
     try {
       const r = await handleMembershipPaystackEvent(
         ENV, getToken,
-        { event: 'refund.processed', domain: 'test', data: { reference: buildPassReference(UID, 'day', 'aaaaaaaaaaaa') } },
+        { event: 'refund.processed', domain: 'test', data: { transaction_reference: ref, amount: 30000, status: 'processed' } },
+        NOW + 1000,
+      );
+      assert.equal(r.verdict, 'written');
+      const body = h.patches().find((b) => `${PASS_PATH(UID)}/expiresAt` in b);
+      assert.equal(body[`${PASS_PATH(UID)}/expiresAt`], NOW + 1000);
+      assert.equal(body[`${PASS_PATH(UID)}/endedReason`], 'refunded');
+      for (const b of h.patches()) assert.equal(SCALAR_PATH(UID) in b, false);
+    } finally { h.restore(); }
+  });
+
+  test('a PARTIAL refund keeps the pass', async () => {
+    const ref = buildPassReference(UID, 'day', 'aaaaaaaaaaaa');
+    const h = host({ pass: buildPass({ kind: 'day', currency: 'ngn', rail: 'paystack', ref, now: NOW }) });
+    try {
+      const r = await handleMembershipPaystackEvent(
+        ENV, getToken,
+        { event: 'refund.processed', domain: 'test', data: { transaction_reference: ref, amount: 10000, status: 'processed' } },
         NOW,
       );
-      assert.equal(r.verdict, 'ignored');
+      assert.equal(r.verdict, 'kept');
       assert.equal(h.patches().length, 0);
     } finally { h.restore(); }
   });
 
-  test('an unreadable pass node still grants — bounded loss beats taking money for nothing', async () => {
+  test('W3: an unreadable pass node THROWS (→ 500 → Paystack retries) — never a blind fresh pass', async () => {
+    // Before W3 this wrote a FRESH pass, losing any remainder the reader held. With a provider
+    // retry behind the webhook, waiting for a working read costs nothing.
     const h = host({ failRead: true });
     try {
-      const r = await applyPassPurchase(ENV, 'tok', UID, {
+      await assert.rejects(() => applyPassPurchase(ENV, 'tok', UID, {
         ref: 'mp.x.day.aaaaaaaaaaaa',
         buildPassFor: (existing) => buildPass({ kind: 'day', currency: 'ngn', rail: 'paystack', ref: 'mp.x.day.aaaaaaaaaaaa', existing, now: NOW }),
-      });
-      assert.equal(r.verdict, 'written');
-      assert.equal(r.pass.expiresAt, NOW + DAY);
-      assert.equal(r.pass.stacked, false);
+      }), { name: 'MoneyTransientError' });
+      assert.equal(h.patches().length, 0);
     } finally { h.restore(); }
   });
 });

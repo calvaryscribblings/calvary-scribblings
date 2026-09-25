@@ -22,7 +22,9 @@
 // it is the ONLY event in a subscription's life whose reference we control, and it is what
 // seeds the index that every later renewal resolves its identity through. See _paystack.js.
 
-import { json, lookupUser, PROVIDER_TIMEOUT_MS } from '../bookstore/_lib.js';
+import { json, lookupUser, dbBase, mintAccessToken, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } from '../bookstore/_lib.js';
+import { DETAIL_PATH } from './_membership.js';
+import { isTestEnv, isTestBuyer } from '../_money.js';
 import {
   TIERS, INTERVALS, CURRENT_GENERATION,
   planCodeFor, amountFor, buildMembershipReference, REF_SAFE_UID,
@@ -48,6 +50,22 @@ export function validateSelection({ tier, interval }) {
   return { ok: true, tier, interval };
 }
 
+/**
+ * W3 / MON-02 — what a naira checkout does for a reader who already holds a membership. Pure.
+ * Paystack has no in-place plan change, so a different plan is a NEW subscription that REPLACES
+ * the old one (cancel-then-subscribe): the old plan stops renewing when the new one's first
+ * charge lands. Never two subscriptions billing.
+ */
+export function paystackPlanChange(detail, { tier, interval }) {
+  const live = detail && (detail.status === 'active' || detail.status === 'past_due');
+  if (!live) return { action: 'checkout' };
+  if (detail.rail === 'stripe') return { action: 'refuse', status: 409, code: 'other_rail', error: 'Your membership is paid by card. Cancel it in your settings first, then choose a naira plan.' };
+  if (detail.tier === tier && detail.interval === interval) return { action: 'refuse', status: 409, code: 'already_member', error: 'You already have this membership.' };
+  const from = typeof detail.paystackSubscriptionCode === 'string' && detail.paystackSubscriptionCode ? detail.paystackSubscriptionCode : null;
+  if (!from) return { action: 'refuse', status: 409, code: 'pending', error: 'Your membership is still being set up. Try again in a few minutes.' };
+  return { action: 'switch', from };
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
   const origin = (env.SITE_ORIGIN || DEFAULT_ORIGIN).replace(/\/$/, '');
@@ -71,7 +89,7 @@ export async function onRequestPost(context) {
   const { tier, interval } = selection;
 
   const { open, mode } = saleGate('paystack', env.PAYSTACK_SECRET_KEY);
-  if (!open) {
+  if (!open && !isTestEnv(env)) {
     console.error(`[${LABEL}] not on sale in ${mode} mode (generation ${CURRENT_GENERATION})`);
     return json(CLOSED_BODY, CLOSED_STATUS);
   }
@@ -82,6 +100,11 @@ export async function onRequestPost(context) {
   const user = await lookupUser(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
   const uid = user?.localId;
   if (!uid) return json({ error: 'Your session has expired. Please sign in again.', code: 'signed_out' }, 401);
+  // W3: in TEST mode only, a listed test buyer passes a closed gate. Live keys never read it.
+  if (!open && !(await isTestBuyer(env, uid))) {
+    console.error(`[${LABEL}] not on sale in ${mode} mode (generation ${CURRENT_GENERATION})`);
+    return json(CLOSED_BODY, CLOSED_STATUS);
+  }
   const email = typeof user.email === 'string' && user.email ? user.email : null;
   if (!email) {
     // Paystack's initialize REQUIRES an email and it must be the one Firebase holds, never one
@@ -93,7 +116,37 @@ export async function onRequestPost(context) {
     return json({ error: 'This account cannot pay in naira.', code: 'unsupported_uid' }, 400);
   }
 
+  // ── W3 / MON-02: one subscription per reader ────────────────────────────────
+  // Read with the service account, because an upgrade is RECORDED here (memberships/ has no
+  // client write grant). See paystackPlanChange for the four answers.
+  let token;
+  let detail = null;
+  try {
+    token = await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY);
+    const res = await fetch(`${dbBase(env)}/${DETAIL_PATH(encodeURIComponent(uid))}.json`, {
+      headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    detail = await res.json();
+  } catch (e) {
+    console.error(`[${LABEL}] membership read failed for ${uid}:`, e.message || e);
+    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+  }
+  const change = paystackPlanChange(detail, { tier, interval });
+  if (change.action === 'refuse') return json({ error: change.error, code: change.code }, change.status);
+
   const reference = buildMembershipReference(uid, tier, interval);
+  if (change.action === 'switch') {
+    // The sanction the webhook looks for: THIS plan may replace THAT subscription, for two days.
+    // When the new plan's first charge lands, the old one is disabled and tombstoned.
+    const res = await fetch(`${dbBase(env)}/${DETAIL_PATH(encodeURIComponent(uid))}/upgrade.json`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: change.from, plan: planCode, at: Date.now(), reference }),
+      signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
+    }).catch(() => null);
+    if (!res || !res.ok) return json({ error: 'Your plan could not be changed just now. Please try again.' }, 502);
+  }
 
   const payload = {
     email,
@@ -108,7 +161,7 @@ export async function onRequestPost(context) {
     // A convenience copy only. Nothing downstream depends on it — Paystack makes no promise
     // metadata survives onto a recurring charge, which is exactly why the reference is
     // self-describing and why the index in _paystack.js exists.
-    metadata: { uid, kind: 'membership', tier, interval },
+    metadata: { uid, kind: 'membership', tier, interval, ...(change.action === 'switch' ? { replaces: change.from } : {}) },
   };
 
   let result;
@@ -136,5 +189,5 @@ export async function onRequestPost(context) {
   }
 
   console.log(`[${LABEL}] initialized ${reference} uid=${uid} plan=${planCode} ${tier}/${interval}`);
-  return json({ url, reference });
+  return json({ url, reference, ...(change.action === 'switch' ? { switch: true } : {}) });
 }

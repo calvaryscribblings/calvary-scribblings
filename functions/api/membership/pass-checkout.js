@@ -44,9 +44,11 @@
 // from the absence of a titleId, because "no titleId" is also what a genuinely broken book
 // purchase looks like, and those two must stay distinguishable.
 
+import { STRIPE_VERSION } from '../_stripe.js';
 import { json, lookupUser, PROVIDER_TIMEOUT_MS } from '../bookstore/_lib.js';
 import { PASS_KINDS, PASS_TIER, passAmount, isPassOffered, railFor } from '../../../app/lib/membershipPasses.js';
 import { saleGate, CLOSED_BODY, CLOSED_STATUS } from './_onSale.js';
+import { isTestEnv, isTestBuyer } from '../_money.js';
 
 const LABEL = 'membership/pass-checkout';
 const STRIPE_API = 'https://api.stripe.com/v1/checkout/sessions';
@@ -116,7 +118,9 @@ export async function onRequestPost(context) {
   // hidden buttons in the way. It now shuts on exactly the condition the subscriptions use,
   // from the same module, and opens with them when MEMBERSHIPS_ON_SALE flips. See _onSale.js.
   const { open, mode } = saleGate('stripe', env.STRIPE_SECRET_KEY);
-  if (!open) {
+  // A closed gate on LIVE keys refuses here, before any identity work. On TEST keys a listed
+  // test buyer (ops/test_buyers, W3) may still pass — decided once the uid is known, below.
+  if (!open && !isTestEnv(env)) {
     console.error(`[${LABEL}] not on sale in ${mode} mode — ${kind}/${currency} refused`);
     return json(CLOSED_BODY, CLOSED_STATUS);
   }
@@ -126,6 +130,10 @@ export async function onRequestPost(context) {
   const user = await lookupUser(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
   const uid = user?.localId;
   if (!uid) return json({ error: 'Your session has expired. Please sign in again.', code: 'signed_out' }, 401);
+  if (!open && !(await isTestBuyer(env, uid))) {
+    console.error(`[${LABEL}] not on sale in ${mode} mode — ${kind}/${currency} refused`);
+    return json(CLOSED_BODY, CLOSED_STATUS);
+  }
   const email = typeof user.email === 'string' && user.email ? user.email : null;
 
   const form = new URLSearchParams();
@@ -156,7 +164,8 @@ export async function onRequestPost(context) {
   try {
     const res = await fetch(STRIPE_API, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+        'Stripe-Version': STRIPE_VERSION, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: form,
       signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     });

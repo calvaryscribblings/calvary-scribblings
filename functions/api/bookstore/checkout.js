@@ -29,6 +29,7 @@
 
 // R5b: json() and the token verifier moved to ./_lib.js when stream.js became the third
 // caller. Behaviour is unchanged — the move exists so the three endpoints cannot drift.
+import { STRIPE_VERSION } from '../_stripe.js';
 import { json, dbBase, lookupUser, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } from './_lib.js';
 // R8.4 — the SAME country resolver the region endpoint serves to the client, and the SAME
 // matcher the storefront marks with. Importing them rather than re-deriving is the point: a
@@ -231,6 +232,7 @@ export async function onRequestPost(context) {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+        'Stripe-Version': STRIPE_VERSION,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: form,

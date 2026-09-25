@@ -43,6 +43,7 @@ import {
   passAmount, isPassOffered, buildPassReference, REF_SAFE_UID,
 } from '../../../app/lib/membershipPasses.js';
 import { saleGate, CLOSED_BODY, CLOSED_STATUS } from './_onSale.js';
+import { isTestEnv, isTestBuyer } from '../_money.js';
 
 const LABEL = 'membership/paystack-pass-checkout';
 export const PAYSTACK_INITIALIZE_API = 'https://api.paystack.co/transaction/initialize';
@@ -92,7 +93,9 @@ export async function onRequestPost(context) {
   // hidden buttons in the way. It now shuts on exactly the condition the subscriptions use,
   // from the same module, and opens with them when MEMBERSHIPS_ON_SALE flips. See _onSale.js.
   const { open, mode } = saleGate('paystack', env.PAYSTACK_SECRET_KEY);
-  if (!open) {
+  // A closed gate on LIVE keys refuses here, before any identity work. On TEST keys a listed
+  // test buyer (ops/test_buyers, W3) may still pass — decided once the uid is known, below.
+  if (!open && !isTestEnv(env)) {
     console.error(`[${LABEL}] not on sale in ${mode} mode — ${kind} refused`);
     return json(CLOSED_BODY, CLOSED_STATUS);
   }
@@ -100,6 +103,10 @@ export async function onRequestPost(context) {
   const user = await lookupUser(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
   const uid = user?.localId;
   if (!uid) return json({ error: 'Your session has expired. Please sign in again.', code: 'signed_out' }, 401);
+  if (!open && !(await isTestBuyer(env, uid))) {
+    console.error(`[${LABEL}] not on sale in ${mode} mode — ${kind} refused`);
+    return json(CLOSED_BODY, CLOSED_STATUS);
+  }
   // Paystack's initialize REQUIRES an email and it must be the one Firebase holds, never one
   // from the body — the same rule paystack-checkout.js follows.
   const email = typeof user.email === 'string' && user.email ? user.email : null;

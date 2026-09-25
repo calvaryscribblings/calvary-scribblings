@@ -206,7 +206,7 @@ describe('planScrub', () => {
 });
 
 // ── the sequence, its order, and its resume ────────────────────────────────────────────────
-function memIo(db, { failOnce = null } = {}) {
+function memIo(db, { failOnce = null, providerSubs = { stripe: [], paystack: [] } } = {}) {
   const calls = [];
   let failed = false;
   const trip = (what) => { if (failOnce === what && !failed) { failed = true; throw new Error(`injected ${what}`); } };
@@ -229,6 +229,9 @@ function memIo(db, { failOnce = null } = {}) {
     },
     async stripeCancel(id) { trip('membership'); calls.push(`stripe ${id}`); },
     async paystackDisable(code) { trip('membership'); calls.push(`paystack ${code}`); },
+    // W3 / MON-05: what the providers hold for this uid, beyond the record.
+    async stripeFindSubscriptions() { return providerSubs.stripe; },
+    async paystackFindSubscriptions() { return providerSubs.paystack; },
     async storageList(prefix) { trip('storage'); calls.push(`list ${prefix}`); return prefix.startsWith('avatars/') ? [prefix, `${prefix}EXTRA`] : []; },
     async storageDelete(name) { calls.push(`rm ${name}`); },
     async authDelete(uid) { trip('auth'); calls.push(`auth ${uid}`); },
@@ -285,8 +288,10 @@ describe('runDeletion', () => {
 describe('membership webhooks after a deletion', () => {
   test('buildMembershipUpdate: a deleted account gets the billing record and nothing under users/', () => {
     const detail = { tier: 'gold', status: 'active' };
-    assert.deepEqual(Object.keys(buildMembershipUpdate(T, detail)).sort(), [`memberships/${T}`, `users/${T}/membership`]);
-    assert.deepEqual(Object.keys(buildMembershipUpdate(T, detail, { accountDeleted: true })), [`memberships/${T}`]);
+    assert.ok(`users/${T}/membership` in buildMembershipUpdate(T, detail));
+    const deleted = Object.keys(buildMembershipUpdate(T, detail, { accountDeleted: true }));
+    assert.ok(deleted.length > 0);
+    assert.ok(deleted.every((k) => k.startsWith(`memberships/${T}/`)), deleted.join(', '));
   });
 
   test('writeMembership reads deletions/{uid} and withholds the scalar', async () => {
@@ -297,12 +302,11 @@ describe('membership webhooks after a deletion', () => {
       if (opts.method === 'PATCH') { patches.push(JSON.parse(opts.body)); return new Response('{}'); }
       throw new Error(`unexpected ${url}`);
     };
-    const errs = [];
-    const origErr = console.error; console.error = (...a) => errs.push(a.join(' '));
     try { await writeMembership({}, 'tok', T, { tier: 'gold', status: 'active', lastInvoiceRef: 'in_1' }); }
-    finally { globalThis.fetch = real; console.error = origErr; }
-    assert.deepEqual(Object.keys(patches[0]), [`memberships/${T}`]);
-    assert.ok(errs.some((e) => e.includes('DELETED-ACCOUNT') && e.includes('REFUND BY HAND')));
+    finally { globalThis.fetch = real; }
+    const keys = Object.keys(patches[0]);
+    assert.equal(keys.some((k) => k.startsWith('users/')), false);
+    assert.ok(keys.every((k) => k.startsWith(`memberships/${T}/`)));
   });
 });
 

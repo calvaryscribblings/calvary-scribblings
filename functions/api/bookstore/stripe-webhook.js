@@ -56,6 +56,7 @@ import {
   STRIPE_REF_FIELDS,
   PURCHASE_UNKNOWN,
 } from './_lib.js';
+import { settleWebhook } from '../_money.js';
 
 const LABEL = 'bookstore/stripe-webhook';
 
@@ -232,11 +233,10 @@ async function handleGrant(env, session) {
   // A verified-but-unattributable session. Returning 4xx would make Stripe retry a request
   // that can never succeed, so this is logged loudly and acknowledged.
   if (!uid || !titleId) {
-    console.error(
-      `[bookstore/stripe-webhook] session ${session.id} has no uid/titleId ` +
-      `(uid=${uid || '—'}, titleId=${titleId || '—'}) — nothing recorded`,
-    );
-    return;
+    return {
+      verdict: 'review', uid, ref: session.id,
+      why: `${LABEL}: paid session ${session.id} has no uid/titleId (uid=${uid || '—'}, titleId=${titleId || '—'}). Nothing recorded — the buyer has no book.`,
+    };
   }
 
   // R9.2 PL-3. BEFORE the token mint, so an unpaid session costs nothing. This endpoint
@@ -244,7 +244,7 @@ async function handleGrant(env, session) {
   // correct, because Stripe sets 'paid' before it sends completed. For a delayed-payment
   // method it granted the book on a session where the money had not moved and might never.
   if (!isPaidSession(session)) {
-    console.error(
+    console.log(
       `[bookstore/stripe-webhook] session ${session.id} for ${uid}/${titleId} has ` +
       `payment_status=${session.payment_status || '—'} — NOT granted. A delayed-payment ` +
       `method will follow with checkout.session.async_payment_succeeded; anything else here ` +
@@ -345,15 +345,33 @@ export function revocationCandidates(obj) {
   return [id, pi, charge].filter((v) => typeof v === 'string' && v);
 }
 
+/**
+ * W3 / MON-12 + MON-16 — ruled by Ikenna, 24 Sep 2026: a PARTIAL refund on a book KEEPS the
+ * book; a FULL refund still revokes it. Stripe sets `refunded: true` on a Charge only when the
+ * whole amount has gone back, so that flag is the test. A dispute and a failed delayed payment
+ * are not refunds and revoke as before. Exported for tests.
+ */
+export function refundKeepsBook(reason, obj) {
+  return reason === 'refunded' && obj?.refunded !== true;
+}
+
 async function handleRevoke(env, obj, reason) {
   const { uid, titleId } = extractIdentity(obj);
 
   if (!uid || !titleId) {
-    console.error(
-      `[bookstore/stripe-webhook] ${reason} event ${obj?.id || '—'} carries no uid/titleId ` +
-      `— cannot match a purchase, nothing revoked`,
+    // Membership and pass charges arrive here too (Stripe delivers to every endpoint subscribed
+    // to an event); they carry no titleId and are the membership endpoint's business. A book
+    // charge always carries both (payment_intent_data metadata, R9.1 LB-7).
+    console.log(`[${LABEL}] ${reason} event ${obj?.id || '—'} is not a book's (no uid/titleId) — ignored here`);
+    return { verdict: 'ignored' };
+  }
+
+  if (refundKeepsBook(reason, obj)) {
+    console.log(
+      `[${LABEL}] PARTIAL refund on ${obj?.id || '—'} for ${uid}/${titleId} ` +
+      `(${obj?.amount_refunded ?? '—'} of ${obj?.amount ?? '—'}) — the book is KEPT (ruling, 24 Sep 2026)`,
     );
-    return;
+    return { verdict: 'kept' };
   }
 
   const token = await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY);
@@ -366,12 +384,8 @@ async function handleRevoke(env, obj, reason) {
   try {
     existing = await readPurchase(env, token, uid, titleId);
   } catch (e) {
-    console.error(
-      `[bookstore/stripe-webhook] NEEDS-MANUAL-REVIEW ${reason}: could not read ` +
-      `${uid}/${titleId} to match the reference (${e.message || e}) — event refs=` +
-      `[${candidates.join(', ') || '—'}], nothing revoked`,
-    );
-    return;
+    // A failed read is retryable — throw, and Stripe redelivers (W3 / MON-04).
+    throw new Error(`could not read ${uid}/${titleId} to match the reference: ${e.message || e}`);
   }
 
   const { verdict, stored } = classifyRevocation(existing, STRIPE_REF_FIELDS, candidates);
@@ -390,24 +404,19 @@ async function handleRevoke(env, obj, reason) {
       );
       return;
     }
-    console.error(
-      `[bookstore/stripe-webhook] NEEDS-MANUAL-REVIEW ${reason}: no purchase recorded at ` +
-      `${uid}/${titleId} — event refs=[${candidates.join(', ') || '—'}], nothing revoked`,
-    );
-    return;
+    return {
+      verdict: 'review', uid, ref: candidates[0],
+      why: `${LABEL}: ${reason} for ${uid}/${titleId} but no purchase is recorded (event refs ${candidates.join(', ') || '—'}). Money moved somewhere this ledger cannot see.`,
+    };
   }
 
   if (verdict === 'review') {
     // BOTH references, as the finding requires: the one on the record and the one on the
     // event. Without the pair a human cannot tell a repurchase from a bug.
-    console.error(
-      `[bookstore/stripe-webhook] NEEDS-MANUAL-REVIEW ${reason} for ${uid}/${titleId}: ` +
-      `event refs=[${candidates.join(', ') || '—'}] do not match stored refs=` +
-      `[${stored.join(', ') || '—'}] (record status=${existing.status || '—'}) — ` +
-      `most likely a dispute for a refunded charge arriving after a repurchase. ` +
-      `NOTHING WRITTEN; the reader keeps the book they paid for.`,
-    );
-    return;
+    return {
+      verdict: 'review', uid, ref: candidates[0],
+      why: `${LABEL}: ${reason} for ${uid}/${titleId}: event refs [${candidates.join(', ') || '—'}] do not match stored refs [${stored.join(', ') || '—'}] (status ${existing.status || '—'}). Most likely a dispute for a refunded charge after a repurchase. NOTHING WRITTEN; the reader keeps the book.`,
+    };
   }
 
   const { delta } = await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason), existing);
@@ -415,6 +424,7 @@ async function handleRevoke(env, obj, reason) {
     `[bookstore/stripe-webhook] revoked uid=${uid} titleId=${titleId} reason=${reason} ` +
     `(matched stored ref) readership${delta >= 0 ? '+' : ''}${delta}`,
   );
+  return { verdict: 'revoked' };
 }
 
 export async function onRequestPost(context) {
@@ -438,8 +448,9 @@ export async function onRequestPost(context) {
 
   const verification = await verifyStripeSignature(rawBody, sigHeader, env.STRIPE_WEBHOOK_SECRET);
   if (!verification.ok) {
+    // MON-21: logged, never returned — the reason can carry signature material.
     console.error('[bookstore/stripe-webhook] signature verification failed:', verification.reason);
-    return new Response(`Invalid signature: ${verification.reason}`, { status: 400 });
+    return new Response('Invalid signature', { status: 400 });
   }
 
   let event;
@@ -452,20 +463,17 @@ export async function onRequestPost(context) {
   const obj = event.data && event.data.object;
   if (!obj) return new Response('Missing data.object', { status: 400 });
 
-  // Past this line the request is provably from Stripe, so every exit is a 200. See the
-  // response-policy note in the header.
-  try {
-    if (GRANT_EVENTS.has(event.type)) {
-      await handleGrant(env, obj);
-    } else if (REVOKE_EVENTS.has(event.type)) {
-      await handleRevoke(env, obj, REVOKE_EVENTS.get(event.type));
-    } else {
-      return json({ received: true, ignored: event.type });
-    }
-  } catch (e) {
-    console.error(`[bookstore/stripe-webhook] ${event.type} (${obj.id}) failed:`, e.message || e);
-    return json({ received: true, degraded: true });
+  // Past this line the request is provably from Stripe. W3 / MON-04: a failure a retry could
+  // fix answers 500 so Stripe redelivers (grants and revokes are idempotent on the session /
+  // payment-intent reference); a verdict a retry cannot fix answers 200 and is recorded and
+  // emailed. See functions/api/_money.js.
+  if (!GRANT_EVENTS.has(event.type) && !REVOKE_EVENTS.has(event.type)) {
+    return json({ received: true, ignored: event.type });
   }
-
-  return json({ received: true });
+  return settleWebhook(env, {
+    run: () => (GRANT_EVENTS.has(event.type)
+      ? handleGrant(env, obj)
+      : handleRevoke(env, obj, REVOKE_EVENTS.get(event.type))),
+    rail: 'stripe', eventType: event.type, eventKey: event.id || obj.id, label: LABEL, json,
+  });
 }

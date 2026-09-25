@@ -59,6 +59,7 @@ import {
 // R10.5 — see the delegation note in onRequestPost. Membership owns every decision behind
 // this import; nothing of the bookstore's own logic moved.
 import { isMembershipEvent, handleMembershipPaystackEvent } from '../membership/_paystack.js';
+import { settleWebhook, MoneyTransientError } from '../_money.js';
 
 const LABEL = 'bookstore/paystack-webhook';
 
@@ -190,11 +191,10 @@ async function handleGrant(env, data) {
   // Verified, but unattributable. A 4xx would make Paystack retry a request that can never
   // succeed, so this is logged loudly and acknowledged — see the response policy above.
   if (!reference || !uid || !titleId) {
-    console.error(
-      `[${LABEL}] charge.success ref=${reference || '—'} has no uid/titleId ` +
-      `(uid=${uid || '—'}, titleId=${titleId || '—'}) — nothing recorded`,
-    );
-    return;
+    return {
+      verdict: 'review', uid, ref: reference,
+      why: `${LABEL}: charge.success ${reference || '—'} has no uid/titleId (uid=${uid || '—'}, titleId=${titleId || '—'}). Nothing recorded — the buyer has no book.`,
+    };
   }
 
   // THE AUTHORITATIVE READ. Amount, currency and status come from here, never from the
@@ -203,8 +203,8 @@ async function handleGrant(env, data) {
   try {
     txn = await verifyTransaction(env, reference);
   } catch (e) {
-    console.error(`[${LABEL}] could not verify ${reference}:`, e.message || e);
-    return;
+    // Retryable: Paystack redelivers, and the grant is idempotent on the reference.
+    throw new MoneyTransientError(`could not verify ${reference}: ${e.message || e}`);
   }
 
   if (txn.status !== 'success') {
@@ -214,8 +214,7 @@ async function handleGrant(env, data) {
 
   const currency = typeof txn.currency === 'string' ? txn.currency.toUpperCase() : '';
   if (currency !== 'NGN') {
-    console.error(`[${LABEL}] ${reference} settled in ${currency || '—'}, not NGN — not granting`);
-    return;
+    return { verdict: 'review', uid, ref: reference, why: `${LABEL}: ${reference} settled in ${currency || '—'}, not NGN. Not granted — resolve by hand.` };
   }
 
   const token = await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY);
@@ -230,11 +229,10 @@ async function handleGrant(env, data) {
   // a paying reader because of a Firebase blip is the worse failure. Both branches log the
   // numbers so a manual grant is a copy-paste rather than an investigation.
   if (Number.isInteger(expected) && expected > 0 && txn.amount !== expected) {
-    console.error(
-      `[${LABEL}] ${reference} amount mismatch: paid ${txn.amount} kobo, ` +
-      `catalogue says ${expected} kobo for ${titleId} — NOT granting, resolve by hand`,
-    );
-    return;
+    return {
+      verdict: 'review', uid, ref: reference,
+      why: `${LABEL}: ${reference} paid ${txn.amount} kobo but the catalogue says ${expected} kobo for ${titleId}. NOT granted — resolve by hand.`,
+    };
   }
   if (!Number.isInteger(expected)) {
     console.error(
@@ -284,16 +282,23 @@ async function handleGrant(env, data) {
   );
 }
 
+/** Pure. A refund keeps the book when it is for less than the purchase. Exported for tests. */
+export function refundKeepsBook(reason, data, existing) {
+  if (reason !== 'refunded') return false;
+  const refunded = Number(data?.amount);
+  const paid = Number(existing?.amount);
+  return Number.isFinite(refunded) && Number.isFinite(paid) && refunded > 0 && refunded < paid;
+}
+
 async function handleRevoke(env, data, reason) {
   const { uid, titleId } = extractIdentity(data);
   const reference = extractReference(data);
 
   if (!uid || !titleId) {
-    console.error(
-      `[${LABEL}] ${reason} event ref=${reference || '—'} carries no uid/titleId ` +
-      `— cannot match a purchase, nothing revoked`,
-    );
-    return;
+    return {
+      verdict: 'review', ref: reference,
+      why: `${LABEL}: ${reason} on ${reference || '—'} carries no uid/titleId. Nothing revoked.`,
+    };
   }
 
   const token = await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY);
@@ -312,36 +317,36 @@ async function handleRevoke(env, data, reason) {
   try {
     existing = await readPurchase(env, token, uid, titleId);
   } catch (e) {
-    console.error(
-      `[${LABEL}] NEEDS-MANUAL-REVIEW ${reason}: could not read ${uid}/${titleId} to match ` +
-      `the reference (${e.message || e}) — event ref=${reference || '—'}, nothing revoked`,
-    );
-    return;
+    throw new MoneyTransientError(`could not read ${uid}/${titleId} to match ${reference || '—'}: ${e.message || e}`);
   }
 
   const { verdict, stored } = classifyRevocation(existing, PAYSTACK_REF_FIELDS, candidates);
 
   if (verdict === 'absent') {
-    console.error(
-      `[${LABEL}] NEEDS-MANUAL-REVIEW ${reason}: no purchase recorded at ${uid}/${titleId} ` +
-      `— event ref=${reference || '—'}, nothing revoked`,
-    );
-    return;
+    return {
+      verdict: 'review', uid, ref: reference,
+      why: `${LABEL}: ${reason} for ${uid}/${titleId} but no purchase is recorded (ref ${reference || '—'}).`,
+    };
   }
 
   if (verdict === 'review') {
-    console.error(
-      `[${LABEL}] NEEDS-MANUAL-REVIEW ${reason} for ${uid}/${titleId}: event ref=` +
-      `${reference || '—'} does not match stored ref=[${stored.join(', ') || '—'}] ` +
-      `(record status=${existing.status || '—'}) — most likely a dispute for a refunded ` +
-      `charge arriving after a repurchase. NOTHING WRITTEN; the reader keeps the book they ` +
-      `paid for.`,
-    );
-    return;
+    return {
+      verdict: 'review', uid, ref: reference,
+      why: `${LABEL}: ${reason} for ${uid}/${titleId}: ref ${reference || '—'} does not match stored [${stored.join(', ') || '—'}] (status ${existing.status || '—'}). NOTHING WRITTEN; the reader keeps the book.`,
+    };
+  }
+
+  // W3 / MON-12 — ruled 24 Sep 2026: a PARTIAL refund keeps the book, a full one revokes it.
+  // Paystack's refund payload carries the refunded amount in kobo; the purchase record carries
+  // what was paid.
+  if (refundKeepsBook(reason, data, existing)) {
+    console.log(`[${LABEL}] PARTIAL refund (${data.amount} of ${existing.amount} kobo) on ${reference} for ${uid}/${titleId} — the book is KEPT`);
+    return { verdict: 'kept' };
   }
 
   const { delta } = await patchPurchase(env, token, uid, titleId, buildRevokePayload(reason), existing);
   console.log(`[${LABEL}] revoked uid=${uid} titleId=${titleId} reason=${reason} (matched stored ref) readership${delta >= 0 ? '+' : ''}${delta}`);
+  return { verdict: 'revoked' };
 }
 
 export async function onRequestPost(context) {
@@ -366,8 +371,9 @@ export async function onRequestPost(context) {
 
   const verification = await verifyPaystackSignature(rawBody, sigHeader, env.PAYSTACK_SECRET_KEY);
   if (!verification.ok) {
+    // MON-21: logged, never returned — the reason carries a prefix of the expected HMAC.
     console.error(`[${LABEL}] signature verification failed:`, verification.reason);
-    return new Response(`Invalid signature: ${verification.reason}`, { status: 400 });
+    return new Response('Invalid signature', { status: 400 });
   }
 
   let event;
@@ -381,53 +387,29 @@ export async function onRequestPost(context) {
   if (!data || typeof data !== 'object') return new Response('Missing data', { status: 400 });
 
   // Past this line the request is provably from Paystack, so every exit is a 200.
-  try {
-    // ── R10.5: MEMBERSHIP DELEGATION ────────────────────────────────────────────────────
-    // ⚠ R9.1 — THE CLAIM THAT USED TO OPEN THIS NOTE IS NOT RELIABLE, AND IS NOT LOAD-BEARING.
-    //
-    // It said: "PAYSTACK ALLOWS ONE WEBHOOK URL PER ACCOUNT — test and live share it, told
-    // apart by `domain` on the payload." The R9 launch audit could not reconcile that with the
-    // code three lines above it: the signature is verified with PAYSTACK_SECRET_KEY, which is
-    // per-mode, so ONE endpoint holding ONE key cannot verify both modes' deliveries. If test
-    // and live genuinely shared this URL, every event from the mode we are not keyed for would
-    // fail signature verification and 400 — which is not what the comment describes.
-    //
-    // The Paystack dashboard has a webhook URL field PER MODE, behind the test/live toggle.
-    // Nothing in this repo can read it, so the claim is not resolved here; what matters is that
-    // it was never the reason for the delegation.
-    //
-    // ⭑ THE DELEGATION IS RIGHT EITHER WAY, and for a reason that does not depend on the
-    // count: there is ONE URL PER MODE and both rails' events arrive at it, so membership
-    // events cannot have an endpoint of their own the way the Stripe rail does. They arrive
-    // HERE and this hands them on. Repointing the dashboard at a new dispatcher would mean a
-    // cutover on a live money path in exchange for nothing.
-    //
-    // ⚠ WHAT THIS MEANS FOR LAUNCH: registering the LIVE webhook URL is a separate dashboard
-    // action from registering the test one, and swapping PAYSTACK_SECRET_KEY to a live key does
-    // not perform it. Neither is done in this round — both are Ikenna's hands on the day.
-    //
-    // isMembershipEvent() is conservative: a subscription/invoice event, an `ms.` reference, or
-    // a `plan` object — which a book purchase never carries. A book charge cannot match, so
-    // this cannot divert a purchase. The token factory is passed through so no admin token is
-    // minted for an event neither rail ends up writing.
-    if (isMembershipEvent(event.event, data)) {
-      let cached = null;
-      const getToken = async () => (cached ||= await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY));
-      const result = await handleMembershipPaystackEvent(env, getToken, event);
-      return json({ received: true, rail: 'membership', verdict: result?.verdict || 'ok' });
-    }
-
-    if (GRANT_EVENTS.has(event.event)) {
-      await handleGrant(env, data);
-    } else if (REVOKE_EVENTS.has(event.event)) {
-      await handleRevoke(env, data, REVOKE_EVENTS.get(event.event));
-    } else {
-      return json({ received: true, ignored: event.event });
-    }
-  } catch (e) {
-    console.error(`[${LABEL}] ${event.event} (${extractReference(data) || '—'}) failed:`, e.message || e);
-    return json({ received: true, degraded: true });
+  // W3 / MON-04: a failure a retry could fix answers 500 so Paystack redelivers (every
+  // handler is idempotent on the reference); a verdict a retry cannot fix answers 200 and is
+  // recorded in ops/money_failures and emailed. See functions/api/_money.js.
+  //
+  // isMembershipEvent() is conservative: a subscription/invoice event, an `ms.`/`mp.`
+  // reference, or a `plan` object — which a book purchase never carries. W3 adds refunds and
+  // disputes whose reference is NOT a book's `cs.`: a membership's or a pass's, including a
+  // renewal's, whose reference Paystack generated. The membership module re-reads the
+  // transaction to decide.
+  const refundNotABook = REVOKE_EVENTS.has(event.event) && !parsePaystackReference(extractReference(data));
+  const toMembership = refundNotABook || isMembershipEvent(event.event, data);
+  if (!toMembership && !GRANT_EVENTS.has(event.event) && !REVOKE_EVENTS.has(event.event)) {
+    return json({ received: true, ignored: event.event });
   }
-
-  return json({ received: true });
+  let cached = null;
+  const getToken = async () => (cached ||= await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY));
+  const ref = extractReference(data) || data.subscription_code || data.id;
+  return settleWebhook(env, {
+    run: () => (toMembership
+      ? handleMembershipPaystackEvent(env, getToken, event)
+      : GRANT_EVENTS.has(event.event)
+        ? handleGrant(env, data)
+        : handleRevoke(env, data, REVOKE_EVENTS.get(event.event))),
+    rail: 'paystack', eventType: event.event, eventKey: `${event.event}-${ref}`, label: LABEL, json,
+  });
 }

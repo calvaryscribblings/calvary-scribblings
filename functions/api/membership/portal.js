@@ -44,6 +44,7 @@
 // unrestricted portal. An unrestricted portal works perfectly and quietly breaks the promise;
 // that is precisely the kind of failure worth being loud about.
 
+import { STRIPE_VERSION } from '../_stripe.js';
 import { json, dbBase, verifyIdToken, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS } from '../bookstore/_lib.js';
 import { DETAIL_PATH } from './_membership.js';
 import { PORTAL_CONFIGURATION, CURRENT_GENERATION, modeOf } from './prices.js';
@@ -142,6 +143,7 @@ export async function onRequestPost(context) {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+        'Stripe-Version': STRIPE_VERSION,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: form,

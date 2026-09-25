@@ -127,3 +127,26 @@ export async function idTokenFor(user) {
   if (!user || typeof user.getIdToken !== 'function') return null;
   try { return await user.getIdToken(); } catch { return null; }
 }
+
+/**
+ * W3 / MON-13 — cancel a naira membership through Paystack. Resolves { status, accessUntil }
+ * (accessUntil in ms, or null); throws MembershipCheckoutError with the endpoint's own message
+ * on anything else, so the caller can offer a retry.
+ */
+export async function cancelNairaMembership(idToken) {
+  if (!idToken) throw new MembershipCheckoutError('Sign in to manage your membership.', 'signed_out', 401);
+  const data = await postJson('/api/membership/paystack-cancel', {}, idToken);
+  return { status: data.status || 'non-renewing', accessUntil: typeof data.accessUntil === 'number' ? data.accessUntil : null };
+}
+
+/**
+ * W3 / MON-09 — did the money move? 'paid' | 'pending' | 'failed' | 'unknown'. Never throws:
+ * an unanswerable question is 'unknown', and the banner says so rather than guessing.
+ */
+export async function checkReturnStatus(idToken, { sessionId, reference }) {
+  if (!idToken || (!sessionId && !reference)) return 'unknown';
+  try {
+    const data = await postJson('/api/membership/return-status', { sessionId, reference }, idToken);
+    return ['paid', 'pending', 'failed'].includes(data.state) ? data.state : 'unknown';
+  } catch { return 'unknown'; }
+}

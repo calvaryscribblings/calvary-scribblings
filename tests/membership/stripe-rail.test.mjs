@@ -30,6 +30,15 @@ import {
 import { SCALAR_PATH, DETAIL_PATH } from '../../functions/api/membership/_membership.js';
 
 const UID = 'reader-uid-0001';
+
+// W3 / MON-14 — the detail is written PER FIELD now. Rebuild it from a patch body for asserting.
+const detailOf = (body) => {
+  if (!body) return undefined;
+  const pre = `${DETAIL_PATH(UID)}/`;
+  const out = {};
+  for (const [k, v] of Object.entries(body)) if (k.startsWith(pre) && !k.slice(pre.length).includes('/')) out[k.slice(pre.length)] = v;
+  return out;
+};
 const NOW = 1786000000000;
 const JOINED = 1780000000000;          // six months before NOW — the founding date
 const SECRET = 'whsec_test_secret';
@@ -413,10 +422,12 @@ describe('the webhook — signed, end to end', () => {
       assert.equal(res.status, 200);
       const body = h.patchBody();
       assert.ok(body, 'a write must have happened');
-      assert.deepEqual(Object.keys(body).sort(), [DETAIL_PATH(UID), SCALAR_PATH(UID)].sort());
+      // ONE patch: the scalar and every detail field, never the node itself (W3 / MON-14).
+      assert.equal(h.calls.filter((c) => c.method === 'PATCH').length, 1);
+      for (const k of Object.keys(body)) assert.ok(k === SCALAR_PATH(UID) || k.startsWith(`${DETAIL_PATH(UID)}/`), k);
       assert.equal(body[SCALAR_PATH(UID)], 'platinum');
       assert.equal(typeof body[SCALAR_PATH(UID)], 'string');
-      const d = body[DETAIL_PATH(UID)];
+      const d = detailOf(body);
       assert.equal(d.founding, true);
       assert.equal(d.foundingSince, JOINED);
       assert.equal(isFoundingPrice(d.stripePriceId, 'test'), true);
@@ -432,8 +443,8 @@ describe('the webhook — signed, end to end', () => {
       await post({ type: 'invoice.payment_failed', data: { object: { id: 'in_fail', subscription: 'sub_LIVE' } } });
       const body = h.patchBody();
       assert.equal(body[SCALAR_PATH(UID)], 'gold', 'a failed card must NOT take the tier away');
-      assert.equal(body[DETAIL_PATH(UID)].status, 'past_due');
-      assert.equal(body[DETAIL_PATH(UID)].founding, true);
+      assert.equal(detailOf(body).status, 'past_due');
+      assert.equal(detailOf(body).founding, true);
     } finally { h.restore(); }
   });
 
@@ -447,8 +458,8 @@ describe('the webhook — signed, end to end', () => {
       assert.equal(body[SCALAR_PATH(UID)], 'free');
       assert.equal(typeof body[SCALAR_PATH(UID)], 'string');
       // the founding facts survive, so a returning member is still founding
-      assert.equal(body[DETAIL_PATH(UID)].founding, true);
-      assert.equal(body[DETAIL_PATH(UID)].foundingSince, JOINED);
+      assert.equal(detailOf(body).founding, true);
+      assert.equal(detailOf(body).foundingSince, JOINED);
     } finally { h.restore(); }
   });
 
@@ -459,9 +470,11 @@ describe('the webhook — signed, end to end', () => {
     try {
       // A deletion for the subscription they already replaced must not take away the one they
       // are currently paying for.
-      const stale = sub({ price: ID('gold', 'monthly', 'gbp'), id: 'sub_OLD', customer: 'cus_OTHER', status: 'canceled' });
+      // W3: the SAME customer now — the customer never decides a downgrade (MON-02).
+      const stale = sub({ price: ID('gold', 'monthly', 'gbp'), id: 'sub_OLD', customer: 'cus_1', status: 'canceled' });
       await post({ type: 'customer.subscription.deleted', data: { object: stale } });
-      assert.equal(h.patchBody(), null, 'nothing may be written when the match cannot be proven');
+      const body = h.patchBody();
+      assert.deepEqual(Object.keys(body || {}), [`${DETAIL_PATH(UID)}/ended/sub_OLD`], 'only the old subscription is tombstoned');
     } finally { h.restore(); }
   });
 
@@ -472,7 +485,7 @@ describe('the webhook — signed, end to end', () => {
         type: 'checkout.session.completed',
         data: { object: { id: 'cs_1', mode: 'subscription', subscription: 'sub_LIVE', invoice: 'in_first', client_reference_id: UID, metadata: { uid: UID } } },
       });
-      const d = h.patchBody()[DETAIL_PATH(UID)];
+      const d = detailOf(h.patchBody());
       assert.equal(d.stripeCustomerId, 'cus_BORN_HERE', 'the portal cannot work until this is stored');
       assert.equal(d.lastInvoiceRef, 'in_first');
     } finally { h.restore(); }
@@ -506,7 +519,7 @@ describe('the webhook — signed, end to end', () => {
     const first = host({ subscription: sub({ price: ID('gold', 'monthly', 'gbp'), periodEnd: end }), detail: { lastInvoiceRef: 'in_001' } });
     try {
       await post({ type: 'invoice.paid', data: { object: { id: 'in_002', subscription: 'sub_LIVE' } } });
-      assert.equal(first.patchBody()[DETAIL_PATH(UID)].currentPeriodEnd, Math.floor(end / 1000) * 1000);
+      assert.equal(detailOf(first.patchBody()).currentPeriodEnd, Math.floor(end / 1000) * 1000);
     } finally { first.restore(); }
 
     const replay = host({ subscription: sub({ price: ID('gold', 'monthly', 'gbp') }), detail: { lastInvoiceRef: 'in_002' } });
@@ -519,10 +532,12 @@ describe('the webhook — signed, end to end', () => {
   test('an update does NOT consume the invoice replay key', async () => {
     // Passing the last invoice on a non-payment event would make the next genuine renewal
     // look like a duplicate and freeze the member's period end.
+    // W3: the write is per field now, so "does not consume" means the stored key is carried
+    // through UNCHANGED — the next renewal's invoice differs from it and is not a replay.
     const h = host({ subscription: sub({ price: ID('gold', 'monthly', 'gbp') }), detail: { lastInvoiceRef: 'in_001' } });
     try {
       await post({ type: 'customer.subscription.updated', data: { object: sub({ price: ID('gold', 'monthly', 'gbp') }) } });
-      assert.equal(h.patchBody()[DETAIL_PATH(UID)].lastInvoiceRef, null);
+      assert.equal(detailOf(h.patchBody()).lastInvoiceRef, 'in_001');
     } finally { h.restore(); }
   });
 

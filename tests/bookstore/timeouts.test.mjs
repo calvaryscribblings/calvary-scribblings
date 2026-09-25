@@ -253,11 +253,12 @@ describe('stripe-webhook', () => {
       env: ENV,
     });
 
-    // THE LOAD-BEARING ASSERTION. A non-2xx here makes Stripe redeliver for 72 hours. The
-    // response policy says 200 once the signature has verified, and a timeout is no different
-    // from any other Firebase failure.
-    assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { received: true, degraded: true });
+    // W3 / MON-04 REVERSED THIS ASSERTION, deliberately. It used to be 200 `degraded`: the
+    // reader had paid, Stripe saw success and never retried, and nobody was told. A stalled
+    // write is exactly the failure a retry fixes, and the grant is idempotent on the session
+    // id — so it now answers 500 and Stripe redelivers. The timeout BUDGET is unchanged.
+    assert.equal(res.status, 500);
+    assert.deepEqual(await res.json(), { received: false, retry: true });
     budgetOf(calls, 'bookstore_purchases');
   });
 });
@@ -276,9 +277,9 @@ describe('paystack-webhook', () => {
       env: ENV,
     });
 
-    // handleGrant catches a failed verify, logs, and returns without granting — so the
-    // envelope is a plain 200 rather than the degraded one. Either way: not a retry trigger.
-    assert.equal(res.status, 200);
+    // W3 / MON-04: a verify that could not be completed is retryable — 500, and Paystack
+    // redelivers. (Before W3 it logged and answered 200, and the buyer had no book.)
+    assert.equal(res.status, 500);
     budgetOf(calls, 'api.paystack.co');
   });
 });

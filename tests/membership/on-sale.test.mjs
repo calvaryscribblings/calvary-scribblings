@@ -211,9 +211,40 @@ async function callWithStubbedNetwork(mod, env, body) {
   }
 }
 
+// W3 split this block in two. On LIVE keys a closed gate still refuses before anything touches
+// the network. On TEST keys it may look up the reader and read ops/test_buyers — the W3 proof's
+// door, which an admin opens per uid — but it never reaches Stripe or Paystack for a reader who
+// is not listed.
+async function callAsReader(mod, env, body, { listed = false } = {}) {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  const ok = (v) => new Response(JSON.stringify(v), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    calls.push(u);
+    if (u.includes('identitytoolkit') || u.includes('accounts:lookup')) return ok({ users: [{ localId: 'uidPreflight', email: 'p@example.com' }] });
+    if (u.includes('oauth2') || u.includes('token')) return ok({ access_token: 't', expires_in: 3600 });
+    if (u.includes('/ops/test_buyers/')) return ok(listed ? true : null);
+    throw new Error(`network touched: ${u}`);
+  };
+  try {
+    const request = new Request('https://calvaryscribblings.co.uk/api/x', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer preflight-token' },
+      body: JSON.stringify(body),
+    });
+    const res = await mod.onRequestPost({ request, env });
+    return { res, calls };
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+const SA = { FIREBASE_CLIENT_EMAIL: 'sa@example.iam.gserviceaccount.com', FIREBASE_PRIVATE_KEY: 'unused-by-a-stub' };
+
 describe('⭑ ALL FOUR MEMBERSHIP CHECKOUTS ARE SHUT WHILE MEMBERSHIPS_ON_SALE IS FALSE', () => {
   for (const c of CHECKOUTS) {
-    for (const key of KEYS) {
+    for (const key of KEYS.filter((k) => k.includes('_live_'))) {
       test(`${c.name} with ${key.replace('_preflight', '_…')} → 409 LAUNCH_NOTICE, no network`, async (t) => {
         if (MEMBERSHIPS_ON_SALE) { t.skip('memberships are on sale — this block holds the pre-launch door'); return; }
         const env = { [c.keyVar]: key, NEXT_PUBLIC_FIREBASE_API_KEY: 'preflight-api-key' };
@@ -225,6 +256,17 @@ describe('⭑ ALL FOUR MEMBERSHIP CHECKOUTS ARE SHUT WHILE MEMBERSHIPS_ON_SALE I
         assert.equal(res.status, 409, `${c.name} answered ${res.status}: ${JSON.stringify(json)}`);
         assert.equal(json?.error, LAUNCH_NOTICE);
         assert.equal(json?.code, 'not_configured');
+      });
+    }
+    for (const key of KEYS.filter((k) => k.includes('_test_'))) {
+      test(`${c.name} with ${key.replace('_preflight', '_…')} → 409 for an unlisted reader, and no PROVIDER is reached`, async (t) => {
+        if (MEMBERSHIPS_ON_SALE) { t.skip('memberships are on sale'); return; }
+        const env = { [c.keyVar]: key, NEXT_PUBLIC_FIREBASE_API_KEY: 'preflight-api-key', ...SA };
+        const { res, calls } = await callAsReader(c.mod, env, c.body);
+        const json = await res.json().catch(() => null);
+        assert.equal(calls.filter((u) => /api\.stripe\.com|api\.paystack\.co/.test(u)).length, 0, calls.join(', '));
+        assert.equal(res.status, 409, `${c.name} answered ${res.status}: ${JSON.stringify(json)}`);
+        assert.equal(json?.error, LAUNCH_NOTICE);
       });
     }
   }

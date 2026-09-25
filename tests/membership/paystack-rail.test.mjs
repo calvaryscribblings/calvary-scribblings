@@ -20,7 +20,7 @@ import {
 import {
   isMembershipEvent, mapStatus, resolveUid, seedIndex, INDEX_PATH, subscriptionOwner,
   planCodeFromEvent, subscriptionCodeFromEvent, customerCodeFromEvent, invoiceRefFromEvent,
-  handleMembershipPaystackEvent, PAYSTACK_SUB_REF_FIELDS,
+  handleMembershipPaystackEvent,
 } from '../../functions/api/membership/_paystack.js';
 import { validateSelection } from '../../functions/api/membership/paystack-checkout.js';
 import { SCALAR_PATH, DETAIL_PATH } from '../../functions/api/membership/_membership.js';
@@ -28,6 +28,15 @@ import { parsePaystackReference } from '../../functions/api/bookstore/_lib.js';
 import { MEMBERSHIPS_ON_SALE } from '../../app/lib/membershipPrices.js';
 
 const UID = 'readerUid0001';
+
+// W3 / MON-14 — the detail is written PER FIELD now. Rebuild it from a patch body for asserting.
+const detailOf = (body) => {
+  if (!body) return undefined;
+  const pre = `${DETAIL_PATH(UID)}/`;
+  const out = {};
+  for (const [k, v] of Object.entries(body)) if (k.startsWith(pre) && !k.slice(pre.length).includes('/')) out[k.slice(pre.length)] = v;
+  return out;
+};
 const NOW = 1786000000000;
 const JOINED = 1780000000000;
 const CODE = (t, iv) => `PLN_founding_${t}_${iv}`;
@@ -253,8 +262,8 @@ describe('THE RENEWAL IDENTITY CHAIN — the gap this rail had to close', () => 
       const w = h.membershipWrite();
       assert.ok(w, 'the renewal must be attributed and written');
       assert.equal(w[SCALAR_PATH(UID)], 'gold');
-      assert.equal(w[DETAIL_PATH(UID)].lastInvoiceRef, 'INV_2');
-      assert.equal(w[DETAIL_PATH(UID)].foundingSince, JOINED, 'the founding date survives a renewal');
+      assert.equal(detailOf(w).lastInvoiceRef, 'INV_2');
+      assert.equal(detailOf(w).foundingSince, JOINED, 'the founding date survives a renewal');
     } finally { h.restore(); }
   });
 
@@ -336,7 +345,7 @@ describe('the lifecycle — same postures as the Stripe rail', () => {
       await handleMembershipPaystackEvent(ENV, getToken, ev('invoice.payment_failed', { plan: { plan_code: CODE('gold', 'monthly') } }), NOW);
       const w = h.membershipWrite();
       assert.equal(w[SCALAR_PATH(UID)], 'gold', 'a failed card must not take the tier away');
-      assert.equal(w[DETAIL_PATH(UID)].status, 'past_due');
+      assert.equal(detailOf(w).status, 'past_due');
     } finally { h.restore(); }
   });
 
@@ -346,8 +355,8 @@ describe('the lifecycle — same postures as the Stripe rail', () => {
       await handleMembershipPaystackEvent(ENV, getToken, ev('subscription.not_renew', { plan: { plan_code: CODE('gold', 'monthly') } }), NOW);
       const w = h.membershipWrite();
       assert.equal(w[SCALAR_PATH(UID)], 'gold');
-      assert.equal(w[DETAIL_PATH(UID)].cancelAtPeriodEnd, true);
-      assert.equal(w[DETAIL_PATH(UID)].status, 'active');
+      assert.equal(detailOf(w).cancelAtPeriodEnd, true);
+      assert.equal(detailOf(w).status, 'active');
     } finally { h.restore(); }
   });
 
@@ -358,19 +367,19 @@ describe('the lifecycle — same postures as the Stripe rail', () => {
       const w = h.membershipWrite();
       assert.equal(w[SCALAR_PATH(UID)], 'free');
       assert.equal(typeof w[SCALAR_PATH(UID)], 'string');
-      assert.equal(w[DETAIL_PATH(UID)].founding, true, 'founding survives cancellation');
-      assert.equal(w[DETAIL_PATH(UID)].foundingSince, JOINED);
+      assert.equal(detailOf(w).founding, true, 'founding survives cancellation');
+      assert.equal(detailOf(w).foundingSince, JOINED);
     } finally { h.restore(); }
   });
 
-  test('a STALE subscription.disable writes nothing', async () => {
-    const h = host({ index: { SUB_OLD: UID }, detail: { tier: 'platinum', paystackSubscriptionCode: 'SUB_NEW', paystackCustomerCode: 'CUS_NEW' } });
+  test('a STALE subscription.disable leaves the tier alone (it only tombstones the old code)', async () => {
+    const h = host({ index: { SUB_OLD: UID }, detail: { tier: 'platinum', status: 'active', paystackSubscriptionCode: 'SUB_NEW', paystackCustomerCode: 'CUS_NEW' } });
     try {
       const r = await handleMembershipPaystackEvent(ENV, getToken, {
         event: 'subscription.disable', domain: 'test',
         data: { subscription_code: 'SUB_OLD' },
       }, NOW);
-      assert.equal(r.verdict, 'review');
+      assert.equal(r.verdict, 'stale');
       assert.equal(h.membershipWrite(), null);
     } finally { h.restore(); }
   });
@@ -394,7 +403,7 @@ describe('the lifecycle — same postures as the Stripe rail', () => {
       }), NOW);
       const w = h.membershipWrite();
       assert.equal(w[SCALAR_PATH(UID)], 'platinum');
-      assert.equal(w[DETAIL_PATH(UID)].interval, 'annual');
+      assert.equal(detailOf(w).interval, 'annual');
     } finally { h.restore(); }
   });
 
@@ -404,7 +413,7 @@ describe('the lifecycle — same postures as the Stripe rail', () => {
     const h = host({ index: { SUB_1: UID } });
     try {
       await handleMembershipPaystackEvent(ENV, getToken, ev('invoice.create', { paid: false, invoice_code: 'INV_5', plan: { plan_code: CODE('gold', 'monthly') } }), NOW);
-      assert.equal(h.membershipWrite()[DETAIL_PATH(UID)].lastInvoiceRef, null);
+      assert.equal(detailOf(h.membershipWrite()).lastInvoiceRef, null);
     } finally { h.restore(); }
   });
 
@@ -421,7 +430,11 @@ describe('the lifecycle — same postures as the Stripe rail', () => {
     const h = host({ index: { SUB_1: UID } });
     try {
       await handleMembershipPaystackEvent(ENV, getToken, ev('invoice.update', { paid: true, invoice_code: 'INV_7', plan: { plan_code: CODE('gold', 'monthly') } }), NOW);
-      assert.deepEqual(Object.keys(h.membershipWrite()).sort(), [DETAIL_PATH(UID), SCALAR_PATH(UID)].sort());
+      // ONE patch: the scalar and every detail field (W3: per field, never the node itself).
+      const w = h.membershipWrite();
+      assert.equal(h.patches().filter((b) => SCALAR_PATH(UID) in b).length, 1);
+      for (const k of Object.keys(w)) assert.ok(k === SCALAR_PATH(UID) || k.startsWith(`${DETAIL_PATH(UID)}/`), k);
+      assert.equal(DETAIL_PATH(UID) in w, false);
     } finally { h.restore(); }
   });
 });

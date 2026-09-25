@@ -40,6 +40,7 @@
 // again from the first step not yet recorded. A failure answers 500 with the step's name; it
 // never answers success.
 
+import { STRIPE_VERSION } from '../_stripe.js';
 import { json, dbBase, lookupUser, mintAccessToken, PROVIDER_TIMEOUT_MS, FIREBASE_TIMEOUT_MS, STORAGE_BUCKET } from '../bookstore/_lib.js';
 
 export const DELETION_PATH = (uid) => `deletions/${uid}`;
@@ -207,14 +208,23 @@ export async function runDeletion(uid, email, io, log = console) {
   const steps = {
     // 1. Money first. The record already exists, so the webhook this provokes finds it.
     async membership() {
+      // W3 / MON-05. The record is ONE witness, not the only one. A subscription whose webhook
+      // failed, or has not landed yet, or ended on `incomplete`, bills a deleted reader monthly
+      // and appears nowhere in memberships/. So the providers are asked too, by the uid we put
+      // on every subscription (Stripe metadata; Paystack's `ms.<uid>.` reference), and every
+      // live one is cancelled. Cancelling is idempotent at both providers.
       const detail = await io.get(`memberships/${uid}`);
+      const targets = new Map();
       const action = membershipAction(detail);
-      if (!action) return;
-      if (action.rail === 'stripe') await io.stripeCancel(action.id);
-      else await io.paystackDisable(action.code);
-      log.log(`[account/delete] cancelled ${action.rail} subscription for ${uid} — NO refund issued (REFUND-QUESTION)`);
+      if (action) targets.set(action.rail === 'stripe' ? action.id : action.code, action);
+      for (const id of await io.stripeFindSubscriptions(uid)) targets.set(id, { rail: 'stripe', id });
+      for (const code of await io.paystackFindSubscriptions(uid, email)) targets.set(code, { rail: 'paystack', code });
+      for (const t of targets.values()) {
+        if (t.rail === 'stripe') await io.stripeCancel(t.id);
+        else await io.paystackDisable(t.code);
+        log.log(`[account/delete] cancelled ${t.rail} subscription ${t.id || t.code} for ${uid} — NO refund (ruling, 24 Sep 2026)`);
+      }
     },
-    // 2. Everything keyed by the reader.
     async owned() {
       const user = await io.get(`users/${uid}`);
       const [following, followers, subscribers, waitlist] = await Promise.all([
@@ -287,7 +297,7 @@ export function realIo(env, token) {
     },
     async stripeCancel(subId) {
       const res = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subId)}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
+        method: 'DELETE', headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, 'Stripe-Version': STRIPE_VERSION },
         signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });
       if (res.ok) return;
@@ -296,6 +306,40 @@ export function realIo(env, token) {
       if (res.status === 404 || body?.error?.code === 'resource_missing') return;
       if (/canceled|cancelled/i.test(body?.error?.message || '')) return;
       throw new Error(`Stripe cancel ${subId} → ${res.status} ${body?.error?.message || ''}`);
+    },
+    // Every Stripe subscription created for this uid that can still bill. The Search API is
+    // eventually consistent (about a minute), which the writer's deleted-account guard covers:
+    // a subscription that completes after this ran is cancelled when its webhook lands.
+    async stripeFindSubscriptions(forUid) {
+      if (!env.STRIPE_SECRET_KEY) return [];
+      const q = new URLSearchParams({ query: `metadata['uid']:'${forUid}'`, limit: '100' });
+      const res = await fetch(`https://api.stripe.com/v1/subscriptions/search?${q}`, {
+        headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, 'Stripe-Version': STRIPE_VERSION },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+      });
+      await ok(res, 'Stripe subscription search');
+      const body = await res.json();
+      return (body.data || [])
+        .filter((s) => !['canceled', 'incomplete_expired'].includes(s.status))
+        .map((s) => s.id);
+    },
+    // Every Paystack subscription that is this reader's AND can still bill. Found through the
+    // customer behind their email — and PROVEN theirs by a transaction whose reference is our
+    // own `ms.<uid>.` (an email alone is never an identity here: two accounts can share one).
+    async paystackFindSubscriptions(forUid, forEmail) {
+      if (!env.PAYSTACK_SECRET_KEY || !forEmail) return [];
+      const h = { Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}` };
+      const got = await fetch(`https://api.paystack.co/customer/${encodeURIComponent(forEmail)}`, { headers: h, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) });
+      if (got.status === 404) return [];
+      const cus = (await got.json().catch(() => ({})))?.data;
+      if (!got.ok || !cus) throw new Error(`Paystack customer lookup → ${got.status}`);
+      const live = (cus.subscriptions || []).filter((x) => x.status === 'active' || x.status === 'attention');
+      if (!live.length) return [];
+      const tx = await fetch(`https://api.paystack.co/transaction?customer=${cus.id}&perPage=100`, { headers: h, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) });
+      const refs = ((await tx.json().catch(() => ({})))?.data || []).map((t) => t.reference);
+      if (!tx.ok) throw new Error(`Paystack transaction list → ${tx.status}`);
+      const mine = refs.some((r) => typeof r === 'string' && r.startsWith(`ms.${forUid}.`));
+      return mine ? live.map((x) => x.subscription_code) : [];
     },
     async paystackDisable(code) {
       const h = { Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`, 'Content-Type': 'application/json' };

@@ -178,8 +178,8 @@ describe('buildDetail — every key present, null when unknown', () => {
     assert.deepEqual(describeMembership('gold', stored, NOW), describeMembership('gold', built, NOW));
     assert.equal(shouldSkipMembershipGrant(stored, 'in_1'), shouldSkipMembershipGrant(built, 'in_1'));
     assert.equal(
-      classifyDowngrade(stored, STRIPE_SUB_REF_FIELDS, ['sub_1']).verdict,
-      classifyDowngrade(built, STRIPE_SUB_REF_FIELDS, ['sub_1']).verdict,
+      classifyDowngrade(stored, 'sub_1').verdict,
+      classifyDowngrade(built, 'sub_1').verdict,
     );
   });
 
@@ -213,12 +213,33 @@ describe('buildDetail — every key present, null when unknown', () => {
   });
 });
 
-describe('buildMembershipUpdate — the atomic pair', () => {
-  test('exactly two paths: the scalar and the detail', () => {
+describe('buildMembershipUpdate — the atomic pair, written PER FIELD (W3 / MON-14)', () => {
+  test('the scalar plus one path per detail field — never the detail node itself', () => {
     const detail = buildDetail({ tier: 'platinum', rail: 'stripe', now: NOW });
     const body = buildMembershipUpdate(UID, detail);
-    assert.deepEqual(Object.keys(body).sort(), [DETAIL_PATH(UID), SCALAR_PATH(UID)].sort());
-    assert.equal(Object.keys(body).length, 2);
+    assert.equal(body[SCALAR_PATH(UID)], 'platinum');
+    assert.equal(DETAIL_PATH(UID) in body, false, 'a path→object value REPLACES the node — that was the race');
+    for (const k of Object.keys(body)) {
+      if (k === SCALAR_PATH(UID)) continue;
+      assert.ok(k.startsWith(`${DETAIL_PATH(UID)}/`), k);
+    }
+  });
+
+  test('THE RACE: `pass`, `ended` and `upgrade` are never in the body, so a pass landing mid-write survives', () => {
+    const detail = { ...buildDetail({ tier: 'gold', now: NOW }), pass: { kind: 'day' }, ended: { sub_x: 1 }, upgrade: { from: 'x' } };
+    const body = buildMembershipUpdate(UID, detail);
+    for (const k of ['pass', 'ended', 'upgrade', 'passRefunds']) {
+      assert.equal(`${DETAIL_PATH(UID)}/${k}` in body, false, k);
+    }
+  });
+
+  test('every rail identifier is NAMED, as null when absent — a deep write still clears a stale one', () => {
+    const body = buildMembershipUpdate(UID, buildDetail({ tier: 'gold', rail: 'paystack', refs: { paystackSubscriptionCode: 'SUB_1' }, now: NOW }));
+    assert.equal(body[`${DETAIL_PATH(UID)}/paystackSubscriptionCode`], 'SUB_1');
+    for (const f of ['stripeSubscriptionId', 'stripeCustomerId', 'stripePriceId']) {
+      assert.ok(`${DETAIL_PATH(UID)}/${f}` in body, f);
+      assert.equal(body[`${DETAIL_PATH(UID)}/${f}`], null, f);
+    }
   });
 
   test('THE SCALAR IS A STRING — the assertion this whole file exists for', () => {
@@ -233,7 +254,7 @@ describe('buildMembershipUpdate — the atomic pair', () => {
   test('the scalar always agrees with the detail it is written beside', () => {
     for (const t of TIERS) {
       const body = buildMembershipUpdate(UID, buildDetail({ tier: t, now: NOW }));
-      assert.equal(body[SCALAR_PATH(UID)], body[DETAIL_PATH(UID)].tier);
+      assert.equal(body[SCALAR_PATH(UID)], body[`${DETAIL_PATH(UID)}/tier`]);
     }
     // and a malformed detail tier cannot desynchronise them
     const body = buildMembershipUpdate(UID, { tier: 'PLATINUM' });
@@ -287,28 +308,34 @@ describe('idempotency — keyed on the INVOICE, never the subscription', () => {
   });
 });
 
-describe('downgrades — fail closed, matched on the subscription', () => {
-  const stored = buildDetail({ tier: 'gold', refs: { stripeSubscriptionId: 'sub_LIVE', stripeCustomerId: 'cus_1' }, now: NOW });
+describe('downgrades — matched on the SUBSCRIPTION alone (W3 / MON-02)', () => {
+  const stored = buildDetail({ tier: 'gold', status: 'active', refs: { stripeSubscriptionId: 'sub_LIVE', stripeCustomerId: 'cus_1' }, now: NOW });
 
   test('a matching subscription downgrades', () => {
-    assert.equal(classifyDowngrade(stored, STRIPE_SUB_REF_FIELDS, ['sub_LIVE']).verdict, 'revoke');
+    assert.equal(classifyDowngrade(stored, 'sub_LIVE', 'cus_1').verdict, 'revoke');
   });
 
-  test('A STALE SUBSCRIPTION DOES NOT — the resubscribe case', () => {
-    // customer.subscription.deleted for a subscription the member already replaced must not
-    // take away the one they are currently paying for.
-    const r = classifyDowngrade(stored, STRIPE_SUB_REF_FIELDS, ['sub_OLD']);
-    assert.equal(r.verdict, 'review');
-    assert.deepEqual(r.stored, ['sub_LIVE', 'cus_1']);
+  test('A STALE SUBSCRIPTION DOES NOT — even on the SAME CUSTOMER (the upgrade / rejoin case)', () => {
+    // Before W3 the customer was a candidate too, and it is the same on every subscription a
+    // reader ever holds — so the old plan's deletion took away the new plan.
+    const r = classifyDowngrade(stored, 'sub_OLD', 'cus_1');
+    assert.equal(r.verdict, 'stale');
+    assert.deepEqual(r.stored, ['sub_LIVE']);
+  });
+
+  test('the customer decides ONLY for a live record that has no subscription id yet', () => {
+    const early = buildDetail({ tier: 'gold', status: 'active', rail: 'paystack', refs: { paystackCustomerCode: 'CUS_1' }, now: NOW });
+    assert.equal(classifyDowngrade(early, null, 'CUS_1').verdict, 'revoke');
+    assert.equal(classifyDowngrade(early, null, 'CUS_2').verdict, 'review');
   });
 
   test('no membership at all is `absent`, not a downgrade', () => {
-    assert.equal(classifyDowngrade(null, STRIPE_SUB_REF_FIELDS, ['sub_LIVE']).verdict, 'absent');
+    assert.equal(classifyDowngrade(null, 'sub_LIVE').verdict, 'absent');
   });
 
-  test('two empty reference lists do NOT agree', () => {
-    assert.equal(classifyDowngrade(buildDetail({ tier: 'gold', now: NOW }), STRIPE_SUB_REF_FIELDS, []).verdict, 'review');
-    assert.equal(classifyDowngrade(stored, STRIPE_SUB_REF_FIELDS, []).verdict, 'review');
+  test('an event naming nothing never revokes', () => {
+    assert.notEqual(classifyDowngrade(buildDetail({ tier: 'gold', now: NOW }), null, null).verdict, 'revoke');
+    assert.equal(classifyDowngrade(stored, null, null).verdict, 'review');
   });
 });
 
@@ -345,7 +372,8 @@ describe('applyMembershipChange — the wiring, against a stubbed host', () => {
       assert.ok(patch, 'a PATCH must have been issued');
       assert.match(patch.url, /\/\.json$/, 'the PATCH must be at the ROOT — that is what makes it atomic');
       const body = JSON.parse(patch.body);
-      assert.deepEqual(Object.keys(body).sort(), [DETAIL_PATH(UID), SCALAR_PATH(UID)].sort());
+      assert.equal(body[`${DETAIL_PATH(UID)}/tier`], 'gold');
+      assert.equal(DETAIL_PATH(UID) in body, false);
       assert.equal(body[SCALAR_PATH(UID)], 'gold');
       assert.equal(typeof body[SCALAR_PATH(UID)], 'string');
       // exactly ONE write — never two sequential ones
@@ -371,7 +399,9 @@ describe('applyMembershipChange — the wiring, against a stubbed host', () => {
     } finally { h.restore(); }
   });
 
-  test('a grant whose idempotency read FAILS still writes — fail open', async () => {
+  test('W3: a grant whose read FAILS throws (→ 500 → the provider retries) and writes nothing', async () => {
+    // Before W3 this failed OPEN and wrote a grant blind. With a provider retry behind every
+    // webhook there is no reason to guess: the retry finds the read working.
     const h = host();
     const real = globalThis.fetch;
     globalThis.fetch = async (url, opts = {}) => {
@@ -381,51 +411,54 @@ describe('applyMembershipChange — the wiring, against a stubbed host', () => {
       return real(url, opts);
     };
     try {
-      const r = await applyMembershipChange(ENV, 'tok', UID, grant());
-      assert.equal(r.verdict, 'written', 'a paying member must not be dropped on a read blip');
-    } finally { h.restore(); }
-  });
-
-  test('a downgrade whose read FAILS writes NOTHING — fail closed, the opposite posture', async () => {
-    const h = host();
-    const real = globalThis.fetch;
-    globalThis.fetch = async (url, opts = {}) => {
-      if (String(url).includes('/memberships/') && (opts.method || 'GET') === 'GET') {
-        return new Response('boom', { status: 500 });
-      }
-      return real(url, opts);
-    };
-    try {
-      const r = await applyMembershipChange(ENV, 'tok', UID, {
-        kind: 'downgrade', refFields: STRIPE_SUB_REF_FIELDS, candidates: ['sub_LIVE'],
-        detail: buildDetail({ tier: 'free', now: NOW }),
-      });
-      assert.equal(r.verdict, 'review');
-      assert.equal(h.patch(), undefined, 'nothing may be written when the match cannot be proven');
-    } finally { h.restore(); }
-  });
-
-  test('a downgrade for a STALE subscription writes nothing', async () => {
-    const h = host({ detail: buildDetail({ tier: 'gold', refs: { stripeSubscriptionId: 'sub_LIVE' }, now: NOW }) });
-    try {
-      const r = await applyMembershipChange(ENV, 'tok', UID, {
-        kind: 'downgrade', refFields: STRIPE_SUB_REF_FIELDS, candidates: ['sub_OLD'],
-        detail: buildDetail({ tier: 'free', now: NOW }),
-      });
-      assert.equal(r.verdict, 'review');
+      await assert.rejects(() => applyMembershipChange(ENV, 'tok', UID, grant()), { name: 'MoneyTransientError' });
       assert.equal(h.patch(), undefined);
     } finally { h.restore(); }
   });
 
-  test('a matched downgrade writes free as a STRING', async () => {
-    const h = host({ detail: buildDetail({ tier: 'gold', refs: { stripeSubscriptionId: 'sub_LIVE' }, now: NOW }) });
+  test('a downgrade whose read FAILS throws and writes NOTHING', async () => {
+    const h = host();
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url, opts = {}) => {
+      if (String(url).includes('/memberships/') && (opts.method || 'GET') === 'GET') {
+        return new Response('boom', { status: 500 });
+      }
+      return real(url, opts);
+    };
+    try {
+      await assert.rejects(() => applyMembershipChange(ENV, 'tok', UID, {
+        kind: 'downgrade', subRef: 'sub_LIVE',
+        detail: buildDetail({ tier: 'free', now: NOW }),
+      }), { name: 'MoneyTransientError' });
+      assert.equal(h.patch(), undefined, 'nothing may be written when the match cannot be proven');
+    } finally { h.restore(); }
+  });
+
+  test('a downgrade for a STALE subscription leaves the tier alone and only tombstones the old one', async () => {
+    const h = host({ detail: buildDetail({ tier: 'gold', status: 'active', refs: { stripeSubscriptionId: 'sub_LIVE' }, now: NOW }) });
     try {
       const r = await applyMembershipChange(ENV, 'tok', UID, {
-        kind: 'downgrade', refFields: STRIPE_SUB_REF_FIELDS, candidates: ['sub_LIVE'],
+        kind: 'downgrade', subRef: 'sub_OLD',
+        detail: buildDetail({ tier: 'free', now: NOW }),
+      });
+      assert.equal(r.verdict, 'stale');
+      const body = JSON.parse(h.patch().body);
+      assert.deepEqual(Object.keys(body), [`${DETAIL_PATH(UID)}/ended/sub_OLD`]);
+      assert.equal(SCALAR_PATH(UID) in body, false);
+    } finally { h.restore(); }
+  });
+
+  test('a matched downgrade writes free as a STRING', async () => {
+    const h = host({ detail: buildDetail({ tier: 'gold', status: 'active', refs: { stripeSubscriptionId: 'sub_LIVE' }, now: NOW }) });
+    try {
+      const r = await applyMembershipChange(ENV, 'tok', UID, {
+        kind: 'downgrade', subRef: 'sub_LIVE',
         detail: buildDetail({ tier: 'free', status: 'cancelled', now: NOW }),
       });
       assert.equal(r.verdict, 'written');
-      assert.equal(JSON.parse(h.patch().body)[SCALAR_PATH(UID)], 'free');
+      const body = JSON.parse(h.patch().body);
+      assert.equal(body[SCALAR_PATH(UID)], 'free');
+      assert.ok(body[`${DETAIL_PATH(UID)}/ended/sub_LIVE`], 'the tombstone rides in the SAME patch');
     } finally { h.restore(); }
   });
 
