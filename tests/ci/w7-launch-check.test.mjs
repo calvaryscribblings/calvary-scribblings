@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { generateKeyPairSync } from 'node:crypto';
 import {
   GREEN, RED, NYD, judgeFreeWeek, judgeRebuilt, judgeArchiveHtml, judgeSeries, judgeBookStore,
-  judgeMemberships, judgeHeartbeat, judgeSignals, summarise, lastLondonMidnight, opsToken, renderText,
+  judgeMemberships, judgeHeartbeat, judgeSignals, summarise, lastLondonMidnight, opsToken, renderText, pushScheduleArmed,
 } from '../../scripts/launch-check.mjs';
 import { shouldRun, SCHEDULES } from '../../scripts/launch-check-gate.mjs';
 import { claimsOk, verifyServiceJwt, OPS_AUDIENCE } from '../../functions/api/ops/_opsAuth.js';
@@ -81,6 +81,11 @@ describe('W7 · JOBS and SIGNALS', () => {
     assert.equal(judgeHeartbeat('j', { lastAt: now - 60 * 60_000, staleMs: 40 * 60_000 }, now).status, RED);
     assert.equal(judgeHeartbeat('j', { lastAt: NaN, staleMs: 40 * 60_000 }, now).status, RED);
     assert.equal(judgeHeartbeat('j', { lastAt: NaN, staleMs: 40 * 60_000, armed: false }, now).status, NYD);
+  });
+  test('W8: the push announcer row is armed by the committed workflow, and only by an uncommented cron', () => {
+    assert.equal(pushScheduleArmed(readFileSync('.github/workflows/push-announce.yml', 'utf8')), true);
+    assert.equal(pushScheduleArmed("on:\n  # schedule:\n  #   - cron: '*/15 * * * *'\n"), false);
+    assert.equal(pushScheduleArmed("on:\n  schedule:\n    - cron: '*/15 * * * *'\n"), true);
   });
   test('signals: red only for NEW, UNRESOLVED failures and new skips since the last check', () => {
     const since = now - 3600_000;

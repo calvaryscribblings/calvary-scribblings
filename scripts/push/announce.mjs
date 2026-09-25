@@ -10,9 +10,8 @@
 // Credentials: PUSH_SERVICE_ACCOUNT (a path) or ./serviceAccountKey.json for the database;
 // EXPO_ACCESS_TOKEN for Expo, required by --apply and nothing else.
 //
-// ⚠ NOT ARMED. .github/workflows/push-announce.yml carries the schedule COMMENTED OUT. The go-live
-// order — Expo token, enhanced security, the secret, the seed, the phone test, then the cron — is
-// docs/PUSH-GO-LIVE.md, and none of it has been done.
+// ⚡ ARMED 25 Sep 2026 (W8): .github/workflows/push-announce.yml runs --apply every 15 minutes.
+// Its `schedule:` block is the switch. The go-live record is docs/PUSH-GO-LIVE.md.
 
 import { runAnnouncer, runSeed } from './run.mjs';
 import { sendBatch, getReceipts } from './expo.mjs';

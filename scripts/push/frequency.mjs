@@ -5,7 +5,7 @@
 // visible is its publishAt when scheduled, else publishedAtMs (UTC midnight of its display
 // date — so same-day publishes pile onto one day here, which OVERSTATES the busiest day).
 
-import { isStoryVisible, isInstalmentVisible } from './lib.mjs';
+import { isStoryVisible, isInstalmentVisible, londonDay, DAILY_CAP } from './lib.mjs';
 
 const DAY = 86400000;
 
@@ -47,6 +47,26 @@ export function frequencyStats(items, since, now) {
   };
 }
 
+/**
+ * What the two-a-day cap would have stopped: items past the second on each London day, oldest
+ * first. The 08:00 hold never moves an item to another day, so it doesn't change the count.
+ */
+export function capStats(items) {
+  const byDay = new Map();
+  for (const it of [...items].sort((a, b) => a.at - b.at)) {
+    const d = londonDay(it.at);
+    if (!byDay.has(d)) byDay.set(d, []);
+    byDay.get(d).push(it);
+  }
+  const cappedItems = [];
+  for (const list of byDay.values()) cappedItems.push(...list.slice(DAILY_CAP));
+  return {
+    capped: cappedItems.length,
+    daysCapped: [...byDay.values()].filter((l) => l.length > DAILY_CAP).length,
+    cappedItems,
+  };
+}
+
 export function frequencyReport(world, now, log = console.log) {
   const since = now - 30 * DAY;
   const items = visibleItemsSince(world, since, now);
@@ -54,6 +74,9 @@ export function frequencyReport(world, now, log = console.log) {
   log(`last 30 days: ${st.total} announcement(s) — ${st.perWeek.toFixed(1)} per reader per week`);
   log(`worst rolling 7 days: ${st.worstWeek}; busiest day: ${st.busiestDay}; days with 2+: ${st.daysWithTwoOrMore}`);
   log(`by category: ${Object.entries(st.byCategory).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+  const cap = capStats(items);
+  log(`two-a-day cap: ${cap.capped} item(s) on ${cap.daysCapped} London day(s) would not have been sent`);
+  for (const it of cap.cappedItems) log(`  capped: ${londonDay(it.at)}  ${it.kind}/${it.id}`);
   for (const it of items) log(`  ${new Date(it.at).toISOString().slice(0, 16)}  ${it.kind}/${it.id}`);
-  return st;
+  return { ...st, cap };
 }

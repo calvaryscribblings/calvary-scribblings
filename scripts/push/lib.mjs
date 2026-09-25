@@ -32,7 +32,7 @@
 // or a hidden story never sends (not visible), and a story hidden then un-hidden does not
 // send twice. Nothing about the record's CONTENT is consulted to decide whether it is new.
 
-import { formFor, INSTALMENT_FORM } from './forms.mjs';
+import { formFor } from './forms.mjs';
 
 export const KINDS = ['story', 'instalment'];
 
@@ -47,6 +47,57 @@ export const DEFAULT_MAX_PER_RUN = 5;
 // A scheduled story whose publishAt passed less than this long ago but is still
 // published:false is the Worker about to flip it — pending, not hidden. See planSeed().
 export const SCHEDULE_GRACE_MS = 60 * 60 * 1000;
+
+// ── WHEN, AND HOW MANY (RULED, Ikenna, 25 Sep 2026) ─────────────────────────────────────
+//
+// NOTHING BEFORE 08:00 LONDON. An item that goes live earlier is held, and goes out on the
+// first run at or after 08:00 London; an item that goes live later goes at once. London, not
+// UTC: the hold is 07:00Z in summer and 08:00Z in winter, and the offset comes from the tz
+// database via Intl, never from a hard-coded hour.
+//
+// AT MOST TWO PER READER PER LONDON DAY. Every reader with notifications on gets every
+// announcement, so "per reader" is "per day": the day's count is what push_announced records as
+// sent (or partly sent) since London midnight. A third that day is NOT SENT — it is recorded
+// as `capped`, and like every entry that means never. It is not carried to tomorrow, where it
+// would take a slot from tomorrow's own stories.
+export const LONDON = 'Europe/London';
+export const QUIET_UNTIL_HOUR = 8;
+export const DAILY_CAP = 2;
+
+const londonFmt = new Intl.DateTimeFormat('en-GB', {
+  timeZone: LONDON, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+});
+/** { day: 'YYYY-MM-DD', hour: 0–23 } on London's wall clock at `ms`. */
+export function londonClock(ms) {
+  const p = Object.fromEntries(londonFmt.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  return { day: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) };
+}
+export const londonDay = (ms) => londonClock(ms).day;
+export const isQuietHour = (now) => londonClock(now).hour < QUIET_UNTIL_HOUR;
+
+/** How many items went out (in whole or part) on the London day that contains `now`. */
+export function sentOnLondonDay(announced, now) {
+  const today = londonDay(now);
+  let n = 0;
+  for (const kind of KINDS) {
+    for (const e of Object.values(announced?.[kind] || {})) {
+      if ((e?.state === 'sent' || e?.state === 'partial') && typeof e.sentAt === 'number' && londonDay(e.sentAt) === today) n++;
+    }
+  }
+  return n;
+}
+
+/**
+ * Of the items ready to send (built, not refused, oldest first), which go now.
+ *   before 08:00 London → { send: [], held: all }        — they go on the 08:00 run
+ *   otherwise           → the first (DAILY_CAP − sent today) go; the rest are `capped`
+ */
+export function planSendWindow(ready, announced, now) {
+  if (isQuietHour(now)) return { send: [], held: ready.slice(), capped: [], sentToday: sentOnLondonDay(announced, now) };
+  const sentToday = sentOnLondonDay(announced, now);
+  const room = Math.max(0, DAILY_CAP - sentToday);
+  return { send: ready.slice(0, room), held: [], capped: ready.slice(room), sentToday };
+}
 
 const parseMs = (iso) => {
   const t = typeof iso === 'string' && iso ? Date.parse(iso) : NaN;
@@ -124,10 +175,20 @@ export function planSeed({ stories = {}, instalments = {}, series = {}, announce
 // RULED (Ikenna): title = the story's title. body = "New {form} by {author} · {trailer quote}",
 // BYLINE FIRST, because a collapsed Android notification shows one line and the byline is what
 // a reader decides on. No quote → the body ends at the byline; never an invented line.
-// data.url = the item's path. NO images.
+// data.url = the item's path. NO images. The {form} phrases are ./forms.mjs, ruled as drafted.
 //
-// DRAFT (not yet ruled): the instalment wording, and every {form} phrase (./forms.mjs).
+// RULED (25 Sep): an instalment's title = the SERIES name; body = "{part} by {author} · {logline}",
+// where {part} is the instalment's own title — "Part Three", "Chapter I: It's Monday Again" —
+// naming the part as the series names it.
 //
+// SOUND (RULED): the phone's default sound, on both platforms. iOS plays it from `sound`.
+// Android 8+ ignores `sound` and plays whatever the CHANNEL says, so every push names one
+// channel, which the app must create with default importance and the default sound — see
+// docs/PUSH-GO-LIVE.md, "What the app must add".
+export const PUSH_SOUND = 'default';
+export const ANDROID_CHANNEL_ID = 'default';
+const DELIVERY = { sound: PUSH_SOUND, channelId: ANDROID_CHANNEL_ID };
+
 // NEVER, in any push: a price, a purchase, or the Book Store — App Store Review Guideline
 // 3.1.1. Only story and instalment paths may be the destination. The guard below is
 // deliberately blunt: it cannot tell "₦2,200 and one egg" in a logline from a price, so a
@@ -185,32 +246,28 @@ export function storyMessage(slug, story) {
   const headHit = forbiddenIn(head);
   if (headHit) return { refused: `byline carries "${headHit}"` };
   const { body, dropped } = withTail(head, s.trailerQuote);
-  const msg = { title, body, data: { url: `/stories/${slug}` } };
+  const msg = { title, body, data: { url: `/stories/${slug}` }, ...DELIVERY };
   assertSafe(msg);
   return { message: msg, dropped };
 }
 
-/** DRAFT wording: "New instalment by {author} · {series} — {logline}". */
+/** "{series}" / "{part} by {author} · {logline}". */
 export function instalmentMessage(id, row, detail, series) {
   const d = detail || {};
-  const title = clean(d.title);
-  if (!title) return { refused: 'no instalment title' };
+  const part = clean(d.title);
+  if (!part) return { refused: 'no instalment title' };
+  const title = clean(series?.title);
+  if (!title) return { refused: 'no series title' };
   const titleHit = forbiddenInTitle(title);
-  if (titleHit) return { refused: `title carries "${titleHit}"` };
-  const head = byline(INSTALMENT_FORM, d.author);
+  if (titleHit) return { refused: `series title carries "${titleHit}"` };
+  const partHit = forbiddenInTitle(part);
+  if (partHit) return { refused: `part title carries "${partHit}"` };
+  const a = clean(d.author);
+  const head = a ? `${part} by ${a}` : part;
   const headHit = forbiddenIn(head);
   if (headHit) return { refused: `byline carries "${headHit}"` };
-  // Each part is dropped on its own if it trips the guard; the byline always survives.
-  let dropped = null;
-  const parts = [];
-  for (const part of [clean(series?.title), clean(d.logline)]) {
-    if (!part) continue;
-    const hit = forbiddenIn(part);
-    if (hit) dropped = dropped || hit;
-    else parts.push(part);
-  }
-  const body = parts.length ? `${head} · ${parts.join(' — ')}` : head;
-  const msg = { title, body, data: { url: `/series/instalment/${id}` } };
+  const { body, dropped } = withTail(head, d.logline);
+  const msg = { title, body, data: { url: `/series/instalment/${id}` }, ...DELIVERY };
   assertSafe(msg);
   return { message: msg, dropped };
 }
@@ -218,7 +275,8 @@ export function instalmentMessage(id, row, detail, series) {
 /** The last gate before anything leaves. Throws — a push that fails this is a bug, not a skip. */
 export function assertSafe(msg) {
   const keys = Object.keys(msg).sort().join(',');
-  if (keys !== 'body,data,title') throw new Error(`push payload has unexpected keys: ${keys}`);
+  if (keys !== 'body,channelId,data,sound,title') throw new Error(`push payload has unexpected keys: ${keys}`);
+  if (msg.sound !== PUSH_SOUND || msg.channelId !== ANDROID_CHANNEL_ID) throw new Error('push sound/channel is not the ruled default');
   if (Object.keys(msg.data).join(',') !== 'url') throw new Error('push data carries more than url');
   if (!URL_OK.test(msg.data.url)) throw new Error(`push url is not a story or instalment: ${msg.data.url}`);
   const titleHit = forbiddenInTitle(msg.title);
@@ -227,7 +285,7 @@ export function assertSafe(msg) {
   // catches an AUTHOR or SERIES name that would slip a forbidden term in by the side door.
   const bodyHit = forbiddenIn(msg.body);
   if (bodyHit) throw new Error(`push body carries forbidden "${bodyHit}"`);
-  if (!msg.body.startsWith('New ')) throw new Error('push body must open on the byline');
+  if (msg.data.url.startsWith('/stories/') && !msg.body.startsWith('New ')) throw new Error('push body must open on the byline');
   return true;
 }
 

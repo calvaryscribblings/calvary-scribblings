@@ -7,8 +7,8 @@
 
 import {
   planAnnouncements, planSeed, buildAudience, messagesFor, planTickets,
-  receiptsToFetch, planReceipts, storyMessage, instalmentMessage, chunk,
-  DEFAULT_MAX_PER_RUN, RECEIPT_BATCH, EXPO_BATCH,
+  receiptsToFetch, planReceipts, storyMessage, instalmentMessage, chunk, planSendWindow, londonDay,
+  DEFAULT_MAX_PER_RUN, RECEIPT_BATCH, EXPO_BATCH, DAILY_CAP, QUIET_UNTIL_HOUR,
 } from './lib.mjs';
 import * as store from './store.mjs';
 import { BATCH_PAUSE_MS } from './expo.mjs';
@@ -126,6 +126,7 @@ export async function runAnnouncer(db, expo, now, {
   log(`audience: ${recipients.length} device(s), ${optedOut} switched off`);
 
   const results = [];
+  const ready = [];
   for (const item of due) {
     const built = await messageFor(db, item, world);
     if (built.refused) {
@@ -138,15 +139,35 @@ export async function runAnnouncer(db, expo, now, {
     }
     if (built.dropped) log(`  ${item.kind}/${item.id}: tail dropped (carried "${built.dropped}") — byline only`);
     log(`  ${item.kind}/${item.id}: "${built.message.title}" — ${built.message.body}`);
-    if (!apply) { results.push({ ...item, message: built.message, dryRun: true }); continue; }
-    const entry = await announceOne(db, expo, item, built.message, recipients, { now, runId, log, pause });
-    results.push({ ...item, message: built.message, entry });
+    ready.push({ item, message: built.message });
+  }
+
+  // The 08:00 hold and the two-a-day cap, both on London's clock.
+  const window = planSendWindow(ready, world.announced, now);
+  if (ready.length) log(`window: ${window.sentToday} sent today (London ${londonDay(now)}), cap ${DAILY_CAP}`);
+  for (const { item } of window.held) {
+    log(`  ${item.kind}/${item.id}: HELD — before ${String(QUIET_UNTIL_HOUR).padStart(2, '0')}:00 London; goes on the first run after`);
+    results.push({ ...item, held: true });
+  }
+  for (const { item } of window.capped) {
+    log(`  ${item.kind}/${item.id}: CAPPED — ${DAILY_CAP} already sent today. Recorded, never sent.`);
+    if (apply && await store.claim(db, item.kind, item.id, runId, now)) {
+      await store.finish(db, item.kind, item.id, { state: 'capped', at: now, day: londonDay(now) });
+    }
+    results.push({ ...item, capped: true });
+  }
+  for (const { item, message } of window.send) {
+    if (!apply) { results.push({ ...item, message, dryRun: true }); continue; }
+    const entry = await announceOne(db, expo, item, message, recipients, { now, runId, log, pause });
+    results.push({ ...item, message, entry });
   }
 
   if (apply) {
     await store.writeHeartbeat(db, {
       lastRunAt: now,
       announcedAtLastRun: results.filter((r) => r.entry).length,
+      heldAtLastRun: window.held.length,
+      cappedAtLastRun: window.capped.length,
       audienceAtLastRun: recipients.length,
       receiptsOkAtLastRun: receipts.ok,
       deadAtLastRun: receipts.dead.length,

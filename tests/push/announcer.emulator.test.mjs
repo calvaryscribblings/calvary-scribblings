@@ -130,6 +130,7 @@ describe('once per item, across retries and concurrent runs', () => {
       to: expo.sent[0].to, title: 'Brand New',
       body: 'New short story by Dera Okaro · She kept the door open an inch.',
       data: { url: '/stories/brand-new' },
+      sound: 'default', channelId: 'default',
     });
     const entry = await val('push_announced/story/brand-new');
     assert.equal(entry.state, 'sent');
@@ -192,14 +193,16 @@ describe('once per item, across retries and concurrent runs', () => {
     assert.equal(await val('push_announced/story/flood-0'), null);
   });
 
-  test('an instalment released by the clock is announced on the next tick, in the DRAFT wording', async () => {
+  test('an instalment released by the clock is announced on the next tick, in the RULED wording', async () => {
     await seedWorld();
     await runSeed(db, NOW, { apply: true });
     const expo = fakeExpo();
     await runAnnouncer(db, expo, NOW + 2 * D + MIN, { apply: true, ...quiet });
     assert.equal(expo.sent.length, 2);
-    assert.equal(expo.sent[0].title, 'Part Two');
-    assert.equal(expo.sent[0].body, 'New instalment by Monica Garcia · Beta Princess — She survives the duel.');
+    assert.equal(expo.sent[0].title, 'Beta Princess');
+    assert.equal(expo.sent[0].body, 'Part Two by Monica Garcia · She survives the duel.');
+    assert.equal(expo.sent[0].sound, 'default');
+    assert.equal(expo.sent[0].channelId, 'default');
     assert.deepEqual(expo.sent[0].data, { url: '/series/instalment/bp-i2' });
   });
 
@@ -213,6 +216,89 @@ describe('once per item, across retries and concurrent runs', () => {
     assert.equal(r.results[0].dryRun, true);
     assert.equal(expo.calls, 0);
     assert.deepEqual(await val('push_announced'), before);
+  });
+});
+
+describe('the 08:00 hold and the two-a-day cap, on London\'s clock', () => {
+  // 25 Sep 2026 is BST: 07:00Z is 08:00 London. 1 Dec 2026 is GMT: 08:00Z is 08:00 London.
+  const T = (s) => Date.parse(s);
+  // The shared fixture's bp-i2 releases at 12:00Z on 25 Sep and its tokens are refreshed on
+  // 22 Sep; move the one out of the way and keep the other fresh for December.
+  const world = (day) => seedWorld({
+    'series_instalments/bp-i2': { seriesId: 'bp', ordinal: 2, status: 'published', releaseAtMs: T('2027-01-01T00:00:00Z') },
+    'push_tokens/reader1/k': token(1, T(day)), 'push_tokens/reader2/k': token(2, T(day)), 'push_tokens/quiet/k': token(3, T(day)),
+  });
+
+  test('BST: a story live at 05:30 London is HELD at 06:45, sent on the 08:00 run — and the heartbeat moves both times', async () => {
+    await world('2026-09-25T00:00:00Z');
+    await runSeed(db, T('2026-09-25T00:00:00Z'), { apply: true });
+    await publish('dawn', { publishAt: '2026-09-25T04:30:00Z' });
+    const early = fakeExpo();
+    const r1 = await runAnnouncer(db, early, T('2026-09-25T05:45:00Z'), { apply: true, ...quiet });
+    assert.equal(early.calls, 0, 'nothing leaves before 08:00 London');
+    assert.equal(r1.results[0].held, true);
+    assert.equal(await val('push_announced/story/dawn'), null, 'a hold is not a record');
+    assert.equal((await val('ops/push_announcer')).lastRunAt, T('2026-09-25T05:45:00Z'));
+    assert.equal((await val('ops/push_announcer')).heldAtLastRun, 1);
+
+    const almost = fakeExpo();
+    await runAnnouncer(db, almost, T('2026-09-25T06:59:00Z'), { apply: true, ...quiet });
+    assert.equal(almost.calls, 0, '07:59 London');
+
+    const eight = fakeExpo();
+    await runAnnouncer(db, eight, T('2026-09-25T07:00:00Z'), { apply: true, ...quiet });
+    assert.equal(eight.sent.length, 2, '08:00 London: both devices');
+    assert.equal((await val('push_announced/story/dawn')).state, 'sent');
+  });
+
+  test('GMT: 07:30Z is 07:30 London and held — the same instant in BST would have sent', async () => {
+    await world('2026-12-01T00:00:00Z');
+    await runSeed(db, T('2026-12-01T00:00:00Z'), { apply: true });
+    await publish('winter', { publishAt: '2026-12-01T06:00:00Z' });
+    const held = fakeExpo();
+    await runAnnouncer(db, held, T('2026-12-01T07:30:00Z'), { apply: true, ...quiet });
+    assert.equal(held.calls, 0);
+    const eight = fakeExpo();
+    await runAnnouncer(db, eight, T('2026-12-01T08:00:00Z'), { apply: true, ...quiet });
+    assert.equal(eight.sent.length, 2);
+  });
+
+  test('THREE IN A DAY: two are sent, the third is recorded `capped` and never sent — not even tomorrow', async () => {
+    await world('2026-09-25T00:00:00Z');
+    await runSeed(db, T('2026-09-25T00:00:00Z'), { apply: true });
+    await publish('first', { publishAt: '2026-09-25T08:00:00Z' });
+    const a = fakeExpo();
+    await runAnnouncer(db, a, T('2026-09-25T08:05:00Z'), { apply: true, ...quiet });
+    assert.equal(a.sent.length, 2);
+
+    await publish('second', { publishAt: '2026-09-25T12:00:00Z' });
+    await publish('third', { publishAt: '2026-09-25T12:00:01Z' });
+    const b = fakeExpo();
+    const r = await runAnnouncer(db, b, T('2026-09-25T12:05:00Z'), { apply: true, ...quiet });
+    assert.deepEqual([...new Set(b.sent.map((m) => m.data.url))], ['/stories/second']);
+    assert.equal(r.results.find((x) => x.id === 'third').capped, true);
+    assert.equal((await val('push_announced/story/third')).state, 'capped');
+    assert.equal((await val('ops/push_announcer')).cappedAtLastRun, 1);
+
+    const tomorrow = fakeExpo();
+    await runAnnouncer(db, tomorrow, T('2026-09-26T09:00:00Z'), { apply: true, ...quiet });
+    assert.equal(tomorrow.calls, 0, 'capped means never');
+
+    // …and the next day's own story has both of its slots.
+    await publish('next-day', { publishAt: '2026-09-26T09:30:00Z' });
+    const c = fakeExpo();
+    await runAnnouncer(db, c, T('2026-09-26T09:35:00Z'), { apply: true, ...quiet });
+    assert.equal(c.sent.length, 2);
+  });
+
+  test('a DRY RUN reports held and capped and writes neither', async () => {
+    await world('2026-09-25T00:00:00Z');
+    await runSeed(db, T('2026-09-25T00:00:00Z'), { apply: true });
+    for (const s of ['p', 'q', 'r']) await publish(s, { publishAt: '2026-09-25T09:00:00Z' });
+    const r = await runAnnouncer(db, fakeExpo(), T('2026-09-25T09:05:00Z'), { apply: false, ...quiet });
+    assert.equal(r.results.filter((x) => x.dryRun).length, 2);
+    assert.equal(r.results.filter((x) => x.capped).length, 1);
+    assert.equal(await val('push_announced/story/r'), null);
   });
 });
 

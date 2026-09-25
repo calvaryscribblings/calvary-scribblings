@@ -10,11 +10,11 @@ import assert from 'node:assert/strict';
 import {
   isStoryVisible, isInstalmentVisible, planAnnouncements, planSeed, buildAudience,
   storyMessage, instalmentMessage, assertSafe, forbiddenIn, messagesFor, planTickets,
-  receiptsToFetch, planReceipts, chunk,
-  TOKEN_STALE_MS, RECEIPT_MIN_AGE_MS, RECEIPT_MAX_AGE_MS, EXPO_BATCH,
+  receiptsToFetch, planReceipts, chunk, londonClock, isQuietHour, sentOnLondonDay, planSendWindow,
+  TOKEN_STALE_MS, RECEIPT_MIN_AGE_MS, RECEIPT_MAX_AGE_MS, EXPO_BATCH, DAILY_CAP, PUSH_SOUND, ANDROID_CHANNEL_ID,
 } from '../../scripts/push/lib.mjs';
 import { formFor, allPairs, SUBCATEGORY_FORM, CATEGORY_FORM, FORMS_STATUS } from '../../scripts/push/forms.mjs';
-import { frequencyStats, visibleItemsSince } from '../../scripts/push/frequency.mjs';
+import { frequencyStats, visibleItemsSince, capStats } from '../../scripts/push/frequency.mjs';
 
 const NOW = Date.parse('2026-09-23T12:00:00Z');
 const H = 3600000, D = 24 * H;
@@ -212,6 +212,8 @@ describe('payload — RULED: title, then "New {form} by {author} · {quote}", by
       title: 'Threshold',
       body: 'New short story by Dera Okaro · She kept the door open an inch.',
       data: { url: '/stories/threshold' },
+      sound: 'default',
+      channelId: 'default',
     });
   });
 
@@ -227,9 +229,9 @@ describe('payload — RULED: title, then "New {form} by {author} · {quote}", by
     }
   });
 
-  test('NO IMAGES and nothing else rides along: title, body, data.url — and only those', () => {
+  test('NO IMAGES and nothing else rides along: title, body, data.url, sound, channel — and only those', () => {
     const { message } = storyMessage('s', story({ cover: 'https://x/c.png', coverHash: 'abc' }));
-    assert.deepEqual(Object.keys(message).sort(), ['body', 'data', 'title']);
+    assert.deepEqual(Object.keys(message).sort(), ['body', 'channelId', 'data', 'sound', 'title']);
     assert.deepEqual(Object.keys(message.data), ['url']);
     assert.throws(() => assertSafe({ ...message, image: 'https://x/c.png' }), /unexpected keys/);
     assert.throws(() => assertSafe({ ...message, richContent: { image: 'x' } }), /unexpected keys/);
@@ -237,7 +239,7 @@ describe('payload — RULED: title, then "New {form} by {author} · {quote}", by
   });
 
   test('the destination is a story or an instalment and NOTHING ELSE — never the Book Store', () => {
-    const ok = { title: 't', body: 'New poem by A' };
+    const ok = { title: 't', body: 'New poem by A', sound: 'default', channelId: 'default' };
     assert.ok(assertSafe({ ...ok, data: { url: '/stories/a-slug' } }));
     assert.ok(assertSafe({ ...ok, data: { url: '/series/instalment/beta-princess-i1' } }));
     for (const url of ['/bookstore', '/bookstore/some-book', '/membership', '/shop', '/stories/../bookstore',
@@ -266,7 +268,7 @@ describe('payload — RULED: title, then "New {form} by {author} · {quote}", by
   });
 
   test('assertSafe is the last gate: a forbidden term anywhere in a finished push throws', () => {
-    const base = { title: 'T', body: 'New poem by A', data: { url: '/stories/s' } };
+    const base = { title: 'T', body: 'New poem by A', data: { url: '/stories/s' }, sound: 'default', channelId: 'default' };
     assert.throws(() => assertSafe({ ...base, body: 'New poem by A · only £3' }), /forbidden/);
     assert.throws(() => assertSafe({ ...base, title: 'In the Book Store' }), /forbidden/);
     assert.throws(() => assertSafe({ ...base, body: 'A new poem' }), /byline/);
@@ -283,41 +285,182 @@ describe('payload — RULED: title, then "New {form} by {author} · {quote}", by
   });
 });
 
-describe('payload — DRAFT: instalments', () => {
-  const detail = { title: 'Part Three', author: 'Monica Garcia', logline: 'Sibry holds the walls until dawn.' };
-
-  test('title = the instalment title; body = byline · series — logline', () => {
-    const { message } = instalmentMessage('beta-princess-i3', inst(), detail, SERIES.bp);
-    assert.deepEqual(message, {
-      title: 'Part Three',
-      body: 'New instalment by Monica Garcia · Beta Princess — Sibry holds the walls until dawn.',
-      data: { url: '/series/instalment/beta-princess-i3' },
-    });
+describe('payload — SOUND (RULED): the default sound on iOS, one named channel on Android', () => {
+  test('every push carries sound "default" and the ruled channel — story and instalment alike', () => {
+    const s = storyMessage('s', story()).message;
+    const i = instalmentMessage('beta-princess-i3', inst(), { title: 'Part Three', author: 'Monica Garcia' }, SERIES.bp).message;
+    for (const m of [s, i]) {
+      assert.equal(m.sound, 'default');
+      assert.equal(m.channelId, 'default');
+    }
+    assert.equal(PUSH_SOUND, 'default');
+    assert.equal(ANDROID_CHANNEL_ID, 'default');
   });
 
-  test('no logline → byline · series; neither → byline alone', () => {
-    assert.equal(instalmentMessage('i', inst(), { ...detail, logline: null }, SERIES.bp).message.body,
-      'New instalment by Monica Garcia · Beta Princess');
-    assert.equal(instalmentMessage('i', inst(), { ...detail, logline: '' }, null).message.body,
-      'New instalment by Monica Garcia');
-  });
-
-  test('the live Lagos 9-5er logline carries "₦2,200" — the logline is dropped, the series kept', () => {
-    const r = instalmentMessage('diary-of-a-lagos-9-5er-i1', inst(),
-      { title: 'Chapter I: It’s Monday Again ', author: 'Tricia Ajax', logline: 'Four hours, ₦2,200 and one egg later, Yemi reaches his desk.' },
-      { title: 'Diary of a Lagos 9-5er', status: 'published' });
-    assert.equal(r.message.title, 'Chapter I: It’s Monday Again');
-    assert.equal(r.message.body, 'New instalment by Tricia Ajax · Diary of a Lagos 9-5er');
-    assert.ok(r.dropped);
-  });
-
-  test('an instalment with no detail record is refused, not sent blank', () => {
-    assert.ok(instalmentMessage('i', inst(), null, SERIES.bp).refused);
+  test('a push without the sound, or on another channel, never leaves', () => {
+    const m = storyMessage('s', story()).message;
+    const { sound, ...silent } = m;
+    assert.throws(() => assertSafe(silent), /unexpected keys/);
+    assert.throws(() => assertSafe({ ...m, sound: null }), /sound\/channel/);
+    assert.throws(() => assertSafe({ ...m, channelId: 'marketing' }), /sound\/channel/);
+    assert.throws(() => messagesFor(silent, [{ uid: 'u', tokenKey: 'k', token: 'ExpoPushToken[x]' }]), /unexpected keys/);
   });
 });
 
-describe('forms — DRAFT table, and it covers the whole taxonomy', () => {
-  test('headed DRAFT until Ikenna rules it', () => { assert.equal(FORMS_STATUS, 'DRAFT'); });
+describe('payload — RULED: instalments are "{series}" / "{part} by {author} · {logline}"', () => {
+  const detail = { title: 'Part Three', author: 'Monica Garcia', logline: 'Sibry holds the walls until dawn.' };
+
+  test('title = the SERIES name; body = the part as the series names it, then the byline, then the logline', () => {
+    const { message } = instalmentMessage('beta-princess-i3', inst(), detail, SERIES.bp);
+    assert.deepEqual(message, {
+      title: 'Beta Princess',
+      body: 'Part Three by Monica Garcia · Sibry holds the walls until dawn.',
+      data: { url: '/series/instalment/beta-princess-i3' },
+      sound: 'default',
+      channelId: 'default',
+    });
+  });
+
+  test('the part is named as the series names it — a chapter stays a chapter', () => {
+    const r = instalmentMessage('diary-of-a-lagos-9-5er-i1', inst(),
+      { title: 'Chapter I: It’s Monday Again ', author: 'Tricia Ajax', logline: 'NEPA woke him.' },
+      { title: 'Diary of a Lagos 9-5er', status: 'published' });
+    assert.equal(r.message.title, 'Diary of a Lagos 9-5er');
+    assert.equal(r.message.body, 'Chapter I: It’s Monday Again by Tricia Ajax · NEPA woke him.');
+  });
+
+  test('no logline → the body ends at "{part} by {author}"; no author → the part alone', () => {
+    assert.equal(instalmentMessage('i', inst(), { ...detail, logline: null }, SERIES.bp).message.body,
+      'Part Three by Monica Garcia');
+    assert.equal(instalmentMessage('i', inst(), { ...detail, author: ' ', logline: '' }, SERIES.bp).message.body,
+      'Part Three');
+  });
+
+  test('the live Lagos 9-5er logline carries "₦2,200" — the logline is dropped, the byline kept', () => {
+    const r = instalmentMessage('diary-of-a-lagos-9-5er-i1', inst(),
+      { title: 'Chapter I: It’s Monday Again ', author: 'Tricia Ajax', logline: 'Four hours, ₦2,200 and one egg later, Yemi reaches his desk.' },
+      { title: 'Diary of a Lagos 9-5er', status: 'published' });
+    assert.equal(r.message.body, 'Chapter I: It’s Monday Again by Tricia Ajax');
+    assert.ok(r.dropped);
+  });
+
+  test('no series name, no part name, or a forbidden term in either → refused, never sent', () => {
+    assert.ok(instalmentMessage('i', inst(), null, SERIES.bp).refused, 'no detail');
+    assert.ok(instalmentMessage('i', inst(), detail, null).refused, 'no series');
+    assert.ok(instalmentMessage('i', inst(), detail, { title: 'Book Store Tales' }).refused);
+    assert.ok(instalmentMessage('i', inst(), { ...detail, title: 'Part £5' }, SERIES.bp).refused);
+  });
+});
+
+// ── WHEN AND HOW MANY ───────────────────────────────────────────────────────────────────
+
+// British Summer Time ends at 01:00Z on Sunday 25 October 2026; it began 01:00Z Sunday 29 March.
+const at = (s) => Date.parse(s);
+const ready = (n) => Array.from({ length: n }, (_, i) => ({ item: { kind: 'story', id: `s${i}` } }));
+
+describe('the 08:00 hold — RULED: nothing before 08:00 London, correct across BST and GMT', () => {
+  test('London\'s wall clock, from the tz database', () => {
+    assert.deepEqual(londonClock(at('2026-09-25T06:59:59Z')), { day: '2026-09-25', hour: 7 }, 'BST: UTC+1');
+    assert.deepEqual(londonClock(at('2026-12-01T07:59:59Z')), { day: '2026-12-01', hour: 7 }, 'GMT: UTC+0');
+    assert.deepEqual(londonClock(at('2026-09-25T23:30:00Z')), { day: '2026-09-26', hour: 0 }, 'BST midnight is 23:00Z the day before');
+  });
+
+  test('SUMMER (BST): 06:59Z is 07:59 London — held; 07:00Z is 08:00 London — goes', () => {
+    assert.equal(isQuietHour(at('2026-09-25T06:59:00Z')), true);
+    assert.equal(isQuietHour(at('2026-09-25T07:00:00Z')), false);
+  });
+
+  test('WINTER (GMT): 07:59Z is 07:59 London — held; 08:00Z goes', () => {
+    assert.equal(isQuietHour(at('2026-12-01T07:59:00Z')), true);
+    assert.equal(isQuietHour(at('2026-12-01T08:00:00Z')), false);
+  });
+
+  test('ACROSS THE CHANGE, 25 Oct 2026: 07:30Z is 07:30 GMT and still held — a UTC+1 rule would have sent it', () => {
+    assert.equal(isQuietHour(at('2026-10-24T07:30:00Z')), false, 'Saturday, still BST: 08:30 London');
+    assert.equal(isQuietHour(at('2026-10-25T07:30:00Z')), true, 'Sunday, GMT: 07:30 London');
+    assert.equal(isQuietHour(at('2026-10-25T08:00:00Z')), false);
+    // and the spring change, 29 Mar 2026
+    assert.equal(isQuietHour(at('2026-03-28T07:30:00Z')), true, 'Saturday, GMT');
+    assert.equal(isQuietHour(at('2026-03-29T07:30:00Z')), false, 'Sunday, BST: 08:30 London');
+  });
+
+  test('from midnight to 07:59 London everything is held; from 08:00 to midnight it goes at once', () => {
+    for (const t of ['2026-09-24T23:00:00Z', '2026-09-25T02:15:00Z', '2026-09-25T05:30:00Z', '2026-09-25T06:45:00Z']) {
+      const w = planSendWindow(ready(1), {}, at(t));
+      assert.equal(w.send.length, 0, t); assert.equal(w.held.length, 1, t);
+    }
+    for (const t of ['2026-09-25T07:00:00Z', '2026-09-25T12:00:00Z', '2026-09-25T22:45:00Z']) {
+      const w = planSendWindow(ready(1), {}, at(t));
+      assert.equal(w.send.length, 1, t); assert.equal(w.held.length, 0, t);
+    }
+  });
+
+  test('a held item is still due on the 08:00 run — the hold is not a record', () => {
+    const stories = { early: story({ publishAt: iso(at('2026-09-25T05:30:00Z')), published: true }) };
+    const held = at('2026-09-25T06:45:00Z'), eight = at('2026-09-25T07:00:00Z');
+    assert.equal(planAnnouncements({ stories }, held).length, 1);
+    assert.equal(planSendWindow(ready(1), {}, held).held.length, 1);
+    assert.equal(planAnnouncements({ stories }, eight).length, 1, 'still due at 08:00');
+    assert.equal(planSendWindow(ready(1), {}, eight).send.length, 1);
+  });
+});
+
+describe('the cap — RULED: at most two per reader per London day; a third is not sent', () => {
+  const NOON = at('2026-09-25T11:00:00Z'); // 12:00 London
+  const sent = (t, state = 'sent') => ({ state, sentAt: at(t) });
+
+  test('the day\'s count is what went out (sent or partial) since LONDON midnight', () => {
+    const announced = {
+      story: {
+        a: sent('2026-09-25T07:05:00Z'), b: sent('2026-09-25T09:00:00Z', 'partial'),
+        yesterday: sent('2026-09-24T22:30:00Z'),        // 23:30 London on the 24th
+        seeded: { state: 'seeded', at: NOON }, refused: { state: 'refused' }, capped: { state: 'capped', at: NOON },
+      },
+      instalment: { i: sent('2026-09-24T23:10:00Z') },   // 00:10 London on the 25th — today
+    };
+    assert.equal(sentOnLondonDay(announced, NOON), 3);
+  });
+
+  test('0 sent today: two go, the third is capped', () => {
+    const w = planSendWindow(ready(3), {}, NOON);
+    assert.deepEqual(w.send.map((r) => r.item.id), ['s0', 's1']);
+    assert.deepEqual(w.capped.map((r) => r.item.id), ['s2']);
+    assert.equal(DAILY_CAP, 2);
+  });
+
+  test('1 sent earlier today: one more goes; 2 sent: nothing goes', () => {
+    const one = { story: { a: sent('2026-09-25T07:05:00Z') } };
+    assert.equal(planSendWindow(ready(2), one, NOON).send.length, 1);
+    const two = { story: { a: sent('2026-09-25T07:05:00Z'), b: sent('2026-09-25T09:00:00Z') } };
+    const w = planSendWindow(ready(1), two, NOON);
+    assert.equal(w.send.length, 0); assert.equal(w.capped.length, 1);
+  });
+
+  test('the count resets at London midnight — 23:30 BST yesterday does not count, 00:10 BST today does', () => {
+    const a = { story: { late: sent('2026-09-24T22:30:00Z'), later: sent('2026-09-24T22:40:00Z') } };
+    assert.equal(planSendWindow(ready(1), a, NOON).send.length, 1);
+    const b = { story: { x: sent('2026-09-24T23:10:00Z'), y: sent('2026-09-24T23:20:00Z') } };
+    assert.equal(planSendWindow(ready(1), b, NOON).send.length, 0);
+  });
+
+  test('three held overnight: at 08:00 the oldest two go, the third is capped', () => {
+    const w = planSendWindow(ready(3), {}, at('2026-09-25T07:00:00Z'));
+    assert.deepEqual(w.send.map((r) => r.item.id), ['s0', 's1']);
+    assert.deepEqual(w.capped.map((r) => r.item.id), ['s2']);
+  });
+
+  test('frequency: over a 30-day set, how many thirds the cap would have stopped', () => {
+    const items = ['2026-09-01T05:30:00Z', '2026-09-01T10:00:00Z', '2026-09-01T15:00:00Z', '2026-09-01T22:30:00Z',
+      '2026-09-02T09:00:00Z', '2026-09-03T23:30:00Z', '2026-09-04T09:00:00Z', '2026-09-04T12:00:00Z']
+      .map((t, i) => ({ id: `x${i}`, at: at(t) }));
+    const c = capStats(items);
+    assert.equal(c.capped, 3, '1 Sep London has 4 (22:30Z is 23:30 London, still the 1st) → 2 capped; 4 Sep has 3 (23:30Z on the 3rd is 00:30 London on the 4th) → 1');
+    assert.equal(c.daysCapped, 2);
+  });
+});
+
+describe('forms — RULED table, and it covers the whole taxonomy', () => {
+  test('ruled as drafted, 25 Sep 2026', () => { assert.equal(FORMS_STATUS, 'RULED'); });
 
   test('EVERY category/subcategory the taxonomy can produce has its own row', () => {
     for (const p of allPairs()) {
@@ -340,7 +483,7 @@ describe('forms — DRAFT table, and it covers the whole taxonomy', () => {
 // ── BATCHING, TICKETS, RECEIPTS ─────────────────────────────────────────────────────────
 
 describe('Expo — batches of 100, tickets, receipts, dead devices', () => {
-  const msg = { title: 'T', body: 'New poem by A', data: { url: '/stories/s' } };
+  const msg = { title: 'T', body: 'New poem by A', data: { url: '/stories/s' }, sound: 'default', channelId: 'default' };
   const recips = (n) => Array.from({ length: n }, (_, i) => ({ uid: `u${i}`, tokenKey: `k${i}`, token: `ExpoPushToken[${i}]` }));
 
   test('250 devices → 100, 100, 50, every message addressed to one token', () => {

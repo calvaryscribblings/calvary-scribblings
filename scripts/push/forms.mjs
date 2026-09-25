@@ -1,4 +1,4 @@
-// ⚠ DRAFT — THE {form} WORDING IS IKENNA'S TO RULE, AND HE HAS NOT RULED IT YET.
+// RULED — Ikenna, 25 Sep 2026: the {form} wording below, as drafted.
 //
 // A story push reads "New {form} by {author} · {trailer quote}". This table is the {form}:
 // one phrase per live category/subcategory, lower case because it sits mid-sentence after
@@ -13,7 +13,7 @@
 
 import { SUBCATEGORIES, CATEGORIES } from '../../app/lib/taxonomy.js';
 
-export const FORMS_STATUS = 'DRAFT';
+export const FORMS_STATUS = 'RULED';
 
 /** When a story has no subcategory, or one not listed below. */
 export const CATEGORY_FORM = {
@@ -57,9 +57,6 @@ export const SUBCATEGORY_FORM = {
 
 /** The last resort: a category this table has never heard of. Never an invented genre. */
 export const FALLBACK_FORM = 'story';
-
-/** The instalment's {form}. DRAFT, with the rest of the instalment wording. */
-export const INSTALMENT_FORM = 'instalment';
 
 export function formFor(category, subcategory) {
   const sub = SUBCATEGORY_FORM[category]?.[subcategory];

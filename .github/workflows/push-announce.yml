@@ -2,17 +2,19 @@
 # PUSH ANNOUNCE — one notification per story or instalment, when it first becomes visible.
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# ⛔ DISARMED. THE SCHEDULE BELOW IS COMMENTED OUT, AND THAT IS THE SWITCH.
+# ⚡ ARMED (W8, 25 Sep 2026). THE `schedule:` BLOCK BELOW IS THE SWITCH.
 #
-# Same discipline as square-horizon.yml: the `schedule:` block is the only thing that
-# arms this. Do NOT arm it from the Actions UI, which anyone can re-enable. Arming is the
-# LAST step of docs/PUSH-GO-LIVE.md, after the Expo token, enhanced push security, the
-# EXPO_ACCESS_TOKEN secret, the seed, and a test on a founder's own phone.
+# Same discipline as square-horizon.yml: commenting the two schedule lines out, in a
+# commit, is how this is disarmed. Do not disable it from the Actions UI, which anyone can
+# re-enable. The seed was written immediately before this was armed
+# (ops/push_announcer/seededAt); without it the announcer refuses to send at all.
 #
-# Even a manual dispatch cannot send today: `apply` needs EXPO_ACCESS_TOKEN (not set),
-# and the announcer refuses to send at all until the seed has been written
-# (ops/push_announcer/seededAt). Without the seed its first run would notify every
-# reader about the whole back catalogue — 207 stories and 4 instalments.
+# What a scheduled run does, every 15 minutes (docs/PUSH-GO-LIVE.md):
+#   · receipts for earlier tickets, then prunes dead and stale devices;
+#   · anything visible and never announced is due — but nothing leaves before 08:00
+#     London (held, sent on the first run after), and at most two go out per London
+#     day (a third is recorded `capped` and never sent);
+#   · writes ops/push_announcer/lastRunAt — the heartbeat W7's launch check reads.
 #
 # WHY HERE AND NOT A CLOUDFLARE WORKER
 # ────────────────────────────────────
@@ -25,18 +27,18 @@
 # THE COST OF THAT CHOICE, STATED
 # ───────────────────────────────
 # · Latency: */15, and GitHub's scheduler is best-effort — a story can reach readers'
-#   phones up to ~20 minutes after it goes live. A scheduled story (06:30 London) is
-#   announced between 06:30 and ~06:50.
+#   phones up to ~20 minutes after it goes live. A story scheduled before 08:00 London
+#   is held by ruling and announced on the 08:00 run (08:00–~08:20).
 # · GitHub DISABLES scheduled workflows after 60 days without repository activity, and a
 #   disabled cron produces NO RUN — silence looks exactly like a quiet news week. The
-#   heartbeat is ops/push_announcer/lastRunAt (founder-readable); a liveness check on it
-#   is not built yet. Commits land here most days, so the 60-day window has never been
+#   heartbeat is ops/push_announcer/lastRunAt, and W7's launch check (scripts/launch-check.mjs)
+#   turns red when it is older than 45 minutes while this schedule is armed. Commits land here most days, so the 60-day window has never been
 #   close, but it is a real failure mode and it would fail SILENTLY.
 name: push announce
 
 on:
-  # schedule:
-  #   - cron: '*/15 * * * *'
+  schedule:
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       mode:

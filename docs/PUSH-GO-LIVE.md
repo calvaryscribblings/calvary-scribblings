@@ -1,15 +1,16 @@
 # Push: the server half, and the go-live order
 
-**Status (23 Sep 2026):** the rules are **live**. The announcer is **built, tested and disarmed**.
-**Nothing has been sent to anyone.** No Expo token exists, the seed has not been written, and the
-workflow's `schedule:` block is commented out.
+**Status (25 Sep 2026, W8): LIVE.** The rulings are applied, the test notification reached
+Ikenna's phone (ticket ok, receipt ok), the seed is written, and the workflow's `schedule:` block
+is armed. The W8 record is at the end of this file.
 
 | Piece | Where | State |
 |---|---|---|
 | Rules: `push_tokens`, the two toggles, the announcer's books | `database.rules.json` | **deployed**, parity proven |
-| Announcer (scan → claim → send → receipts → prune) | `scripts/push/` | built, dry-run proven against production |
-| Job | `.github/workflows/push-announce.yml` | **disarmed**: tests on push, dispatch-only, no secret |
-| Test tool | `scripts/push-test.mjs <uid>` | built, never run: founder uids only unless `--any-uid` |
+| Announcer (scan → claim → hold/cap → send → receipts → prune) | `scripts/push/` | **live** |
+| Job | `.github/workflows/push-announce.yml` | **armed**, `*/15` |
+| Heartbeat check | `scripts/launch-check.mjs` (W7) | red if `ops/push_announcer/lastRunAt` is > 45 min old |
+| Test tool | `scripts/push-test.mjs <uid>` | run once in W8, to Ikenna's uid |
 
 ---
 
@@ -135,8 +136,22 @@ carry either field, because every write was refused. The app can't be checked fr
 **RULED (story):** title = the story's title. Body = `New {form} by {author} · {trailer quote}`,
 byline first. With no quote, the body ends at the byline. `data.url` = `/stories/{slug}`. No images.
 
-**DRAFT (instalment):** title = the instalment title. Body =
-`New instalment by {author} · {series} — {logline}`. `data.url` = `/series/instalment/{id}`.
+**RULED (instalment, 25 Sep):** title = the **series** name. Body = `{part} by {author} · {logline}`,
+where `{part}` is the instalment's own title, so the part is named as the series names it
+("Part Three", "Chapter I: It's Monday Again"). `data.url` = `/series/instalment/{id}`.
+
+**RULED (sound, 25 Sep):** every push carries `sound: "default"` (iOS plays the phone's default
+sound) and `channelId: "default"` (Android 8+ takes its sound from the channel). See *What the app
+must add*.
+
+**RULED (when, 25 Sep):** nothing before **08:00 London**. An item that goes live earlier is held
+and goes out on the first run at or after 08:00; later items go at once. London's clock comes from
+the tz database, so 08:00 is 07:00Z in summer and 08:00Z in winter.
+
+**RULED (how many, 25 Sep):** at most **two per reader per London day**. Every reader gets every
+announcement, so this is two per day: the count is what `push_announced` records as `sent` or
+`partial` since London midnight. A third is recorded `capped` and **never sent**. It isn't carried
+to tomorrow, where it would take one of tomorrow's slots.
 
 Live examples, as the builder produces them:
 
@@ -145,8 +160,8 @@ Live examples, as the builder produces them:
 | What the Light Remembers | New elegy by Tricia Ajax · The body forgets what it once could hold. |
 | Completely Alone | New short story by Kalu Rebecca · You've left me completely alone in this marriage. |
 | You've Been Using AI Wrong | New tech piece by Nzubechukwu Okere *(quote dropped: "buying")* |
-| Part Three *(DRAFT)* | New instalment by Monica Garcia · Beta Princess — With her king reported dead… |
-| Chapter I: It's Monday Again *(DRAFT)* | New instalment by Tricia Ajax · Diary of a Lagos 9-5er *(logline dropped: "₦2,200")* |
+| Beta Princess | Part Three by Monica Garcia · With her king reported dead… |
+| Diary of a Lagos 9-5er | Chapter I: It's Monday Again by Tricia Ajax *(logline dropped: "₦2,200")* |
 
 **Never a price, a purchase or the Book Store (iOS 3.1.1).** Three layers enforce it:
 - The destination must match `/stories/…` or `/series/instalment/…`, or the send throws.
@@ -155,12 +170,12 @@ Live examples, as the builder produces them:
 - A title carrying an amount, *purchase* or *book store* refuses the item. It's recorded as
   `refused` and never sent. No live title trips this. *The Price of Silence* would not.
 
-### DRAFT: the {form} table (`scripts/push/forms.mjs`)
+### RULED (25 Sep, as drafted): the {form} table (`scripts/push/forms.mjs`)
 
 Every category and subcategory the taxonomy can produce, with its live count. The suite fails if a
 subcategory is added to `app/lib/taxonomy.js` without a row here.
 
-| Category | Subcategory | Live stories | Proposed {form} | Reads as |
+| Category | Subcategory | Live stories | {form} | Reads as |
 |---|---|---:|---|---|
 | Flash Fiction | *(none)* | 0 | flash fiction | New flash fiction by … |
 | Flash Fiction | Romance | 3 | flash fiction | New flash fiction by … |
@@ -253,3 +268,69 @@ re-measures.
    Voices and search print it.
 5. **Heartbeat check not built.** `ops/push_announcer/lastRunAt` exists; nothing alarms when it
    goes stale.
+
+**Status of the open questions after W8:** 2 (sound/channel) and 3 (instalment titles) are ruled
+and built. 4 is fixed (below). 5 is built: W7's launch check reads the heartbeat. 1 still stands.
+
+---
+
+## What the app must add (Android channel)
+
+Every push names Android channel **`default`**. On Android 8+, the channel, not the message,
+decides the sound and importance, and the channel is created by the app. Before an Android build
+registers a push token, the app must run this once at start-up, before `getExpoPushTokenAsync`:
+
+```ts
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+
+if (Platform.OS === 'android') {
+  await Notifications.setNotificationChannelAsync('default', {
+    name: 'New stories',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    sound: 'default',
+  });
+}
+```
+
+- The id must be exactly `default`, because that's what the server sends
+  (`ANDROID_CHANNEL_ID` in `scripts/push/lib.mjs`).
+- **Android fixes a channel's importance and sound the first time it's created.** If a shipped
+  build already created `default` with other settings, re-running this won't change them on
+  devices that have it. Only a new channel id would, and that would need a server change to match.
+  The app session should check what its current builds create.
+- On 25 Sep every registered device was iOS (3 rows, app 1.7.0), so no Android reader is affected
+  yet.
+- iOS needs nothing: `sound: "default"` is in the payload.
+
+---
+
+## W8 record (25 Sep 2026)
+
+- **Rulings applied** in `scripts/push/` (`lib.mjs`, `run.mjs`, `forms.mjs`, `frequency.mjs`),
+  with tests in `tests/push/`. Each ruling was reverted on its own and watched failing:
+
+  | Revert | pure suite | emulator suite |
+  |---|---:|---:|
+  | 08:00 hold removed | 5 fail | 2 fail |
+  | 08:00 hold computed as UTC+1 (wrong in GMT) | 2 fail | 1 fail |
+  | cap removed | 4 fail | 2 fail |
+  | cap counted by UTC day | 2 fail | 0 |
+  | instalment title back to the part | 2 fail | 1 fail |
+  | instalment body back to "New instalment by …" | 4 fail | 1 fail |
+  | `sound` dropped | 13 fail | 13 fail |
+  | `channelId` dropped | 13 fail | 13 fail |
+
+- **The cap, over the last 30 days (26 Aug – 25 Sep):** it would have stopped **0** items. The
+  busiest London day had 2. For stories published without a schedule, the time is the display
+  date's UTC midnight, which bunches items onto one day, so 0 is an upper bound. The **hold**
+  would have delayed 13 of 25 items, mostly the 06:30 schedules, to 08:00.
+- **Beta Princess author:** the push reads `series_instalments_detail/{id}/author`. Changed from
+  `mgarcia91` to `Monica Garcia`: **`series_instalments_detail/beta-princess-i1/author`** and
+  **`series_instalments_detail/beta-princess-i2/author`**. The value was re-read before and after
+  each write, and no other field changed. `authorHandle` (`monica_garciaauthor`) and `authorUid`
+  were left as they were, and i3 already read `Monica Garcia`.
+- **Phone test:** one send to Ikenna's uid (1 iOS device). "Why Do Filmmakers Keep Working With
+  the Same Actors?" / "New film piece by Chioma Okonkwo · Film collaboration is not easy, and when
+  you find your people, you hold on to them." Ticket `01a0d90d-4365-724a-8ca7-31fee7d1c046`
+  **ok**; receipt **ok**.

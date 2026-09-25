@@ -135,6 +135,9 @@ export function judgeMemberships({ status, httpStatus }, now) {
   return row('Memberships', Object.values(flags).every((v) => v === true) ? GREEN : RED, ev);
 }
 
+/** The push announcer is armed when its workflow carries an uncommented cron line — the switch. */
+export const pushScheduleArmed = (yml) => /^\s*-\s*cron:/m.test(String(yml || ''));
+
 /** JOBS: one heartbeat. `armed` false means the job is not live yet (not yet due). */
 export function judgeHeartbeat(name, { lastAt, staleMs, armed = true }, now) {
   if (!armed) return row(name, NYD, 'not armed yet (its cron is commented out) — nothing is expected');
@@ -276,7 +279,7 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
   const scrubHb = await val('ops/account_scrub');
   const pushHb = await val('ops/push_announcer');
   let pushArmed = false;
-  try { pushArmed = /^\s*-\s*cron:/m.test(readFileSync('.github/workflows/push-announce.yml', 'utf8')); } catch { /* treated as not armed */ }
+  try { pushArmed = pushScheduleArmed(readFileSync('.github/workflows/push-announce.yml', 'utf8')); } catch { /* treated as not armed */ }
 
   const since = Number.isFinite(sinceArg) ? sinceArg : ((await previousRunStart()) ?? now - 24 * 3600_000);
   const signals = { moneyFailures: await val('ops/money_failures'), publishSkips: await val('ops/publish_skips'), since };
