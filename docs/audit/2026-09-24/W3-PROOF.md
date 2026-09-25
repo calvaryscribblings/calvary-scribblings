@@ -1,6 +1,6 @@
 # W3: the money proof (test mode, against the live site's endpoints)
 
-Run 25 Sep 2026, 00:49–02:40 UTC. The Stripe sandbox is `acct_…0BtuEAyw2t`, the one holding
+Run 25 Sep 2026, 00:49–03:00 UTC. The Stripe sandbox is `acct_…0BtuEAyw2t`, the one holding
 the August test purchases. Its API version is `2026-03-25.dahlia`. Paystack was in test
 mode. Nothing ran against a local server. Every checkout was opened by
 `calvaryscribblings.co.uk/api/…`, paid on the provider's own hosted page, and granted by the
@@ -26,11 +26,14 @@ here. All of them are throwaway `w3proof+…` accounts, deleted at the end of th
 | 11 | Cancel | Paystack (P4, via `/api/membership/paystack-cancel`) | Paystack `non-renewing` until 25 Oct; record `cancelAtPeriodEnd`, Platinum kept; a second press answers `already: true` |
 | 12 | Membership, **full** refund | Stripe (S1) | tier `free` at once, subscription `canceled` at Stripe (ruling) |
 | 13 | Pass, **full** refund | Stripe (S2), Paystack (P2) | both passes ended on the refund. Paystack's `refund.processed` came about 30s after the refund in test mode. |
-| 14 | **Forced handler failure** | Stripe (S3), Paystack (P3) | every grant answered **500**; `ops/money_failures/*` written, `retryable: true`, each emailed once through Resend (message ids on the records); the providers redelivered — see the retry note below |
+| 14 | **Forced handler failure** | Stripe (S3), Paystack (P3) | every grant answered **500**. `ops/money_failures/*` was written with `retryable: true`, and each was emailed once through Resend (the message ids are on the records). **Nobody intervened after that:** Paystack redelivered about every 3 minutes, and P3 became Platinum 10 min after paying (the charge was refused 3×, then granted). Stripe retried once at once, then backed off; S3 became Platinum at 02:28, 59 min after paying (each event refused 2×, then granted). |
 | 15 | **Replay** of a real delivered event | Stripe (S1: original `checkout.session.completed`), Paystack (P4: first Platinum charge) | `stale` / `skipped`; record byte-identical before and after; no alert |
 | 16 | **Out-of-order** event | Stripe (S1: the `subscription.updated` from the upgrade, saying *active Platinum*, after the refund had ended it), Paystack (P4: `subscription.create` for the *replaced* Gold plan) | `stale`, no re-grant, record byte-identical |
 | 17 | Deletion, subscription **never granted** | Stripe (S4), Paystack (P5) | our record empty (fault armed), account deleted through `/api/account/delete`; Stripe `canceled`, Paystack `non-renewing`; no `users/` node |
-| 18 | Deletion, **active** subscription | Stripe (S3), Paystack (P3) | see below |
+| 18 | Deletion, **active** subscription | Stripe (S5, annual Gold), Paystack (P3, Platinum) | Stripe `canceled`, Paystack `non-renewing`, both by the deletion endpoint. The provider events that followed wrote the kept billing record only: no `users/` node 30–45s later, `endedReason: account_deleted` kept, no failure naming the uid. |
+| 19 | Deletion whose record had **lost** the subscription code (P1, the race in finding 1) | Paystack | found through the customer's own `ms.<uid>.` reference, and set to `non-renewing` |
+| 20 | Deletion **after the reader cancelled** (P4, P6: `non-renewing`) | Paystack | **failed with a 500 before finding 7**; completed on the retry after the fix |
+| 21 | The Cancel button in a real browser, signed in through the site's own modal (P6) | Paystack | ready → confirm (with the date) → "Cancelling…" → "runs until October 25, 2026. Nothing more will be charged." The signed-out return banner rendered "SIGN IN TO SEE IT". The failed/retry state is unit-tested only; Paystack could not be made to refuse on demand. |
 
 Every Stripe event in the window reached both endpoints: `pending_webhooks` was 0 for each
 event checked, apart from the forced-failure events, which were deliberately refused.
@@ -56,6 +59,20 @@ is reverted.
    looked like new money. Every granted payment is now remembered. (`abdc34fb`)
 6. **A replayed old payment on an ended subscription** alarmed like new money. It is now
    history if it was paid before the end. (`1edb1735`)
+7. **A naira reader who had cancelled could not delete their account.** The subscription was
+   `non-renewing`, the deletion step disabled it again, and Paystack's "already inactive"
+   failed the step with a 500. (`e701a10f`)
+8. **The scrub's billing backstop fired in the ordinary flow** (caught by the emulator suite in
+   CI, not the live run). The record said `active` until the providers' webhooks arrived.
+   Deletion now writes what the providers confirmed. (`fe994f37`)
+
+## Afterwards
+
+All 11 throwaway accounts were deleted through `/api/account/delete`. Every subscription is
+cancelled at its provider. The two proof book purchases were cleared with
+`scripts/clear-test-purchases.mjs`, backup first, and readership reports clean.
+`ops/test_buyers` and `ops/money_fault` were removed. The 13 proof failure records are marked
+`resolved`.
 
 ## The alerts Ikenna received during the proof
 
@@ -65,7 +82,7 @@ looks like:
 - 5 × `[money] RETRYING: handler_failed` for S3/P3, the forced failure. One per refused event:
   three Stripe, two Paystack.
 - 1 × `[money] RETRYING: handler_failed (paystack)`, the false alarm in finding 4.
-- `[money] NEEDS A HUMAN: paid_after_deletion` for S4/P5 when their redeliveries land after the
-  fault expires (02:32–02:34 UTC). Those readers paid, never received a tier, and deleted their
-  accounts, so a human does decide whether to refund. In a test that is correct, and nothing
-  needs refunding.
+- **Still to come:** `[money] NEEDS A HUMAN: paid_after_deletion` for S4 and P5, whenever Stripe
+  and Paystack next redeliver their fault-refused events. Those readers paid, never received a
+  tier, and deleted their accounts, so a human does decide whether to refund. That is the
+  correct alert. In a test nothing needs refunding: mark the two records resolved.
