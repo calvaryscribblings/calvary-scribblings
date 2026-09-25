@@ -99,11 +99,13 @@ describe('W7 · JOBS and SIGNALS', () => {
 });
 
 describe('W7 · the schedule, in London time', () => {
-  test('30 Sept 00:10 and 08:05 London fire from their BST crons, even when GitHub is late', () => {
-    assert.equal(shouldRun('10 23 29 9 *', Date.parse('2026-09-29T23:10:00Z')), true);
-    assert.equal(shouldRun('10 23 29 9 *', Date.parse('2026-09-29T23:48:00Z')), true, '38 minutes late');
-    assert.equal(shouldRun('5 7 30 9 *', Date.parse('2026-09-30T07:05:00Z')), true);
-    assert.equal(shouldRun('10 23 29 9 *', Date.parse('2027-09-29T23:10:00Z')), false, 'not again next year');
+  test('launch day 00:10 and 08:05 London fire from their BST crons, even when GitHub is late', () => {
+    const MIN = 60_000;
+    assert.equal(shouldRun('10 23 29 9 *', GATE_ON_MS + 10 * MIN), true);
+    assert.equal(shouldRun('10 23 29 9 *', GATE_ON_MS + 48 * MIN), true, '38 minutes late');
+    assert.equal(shouldRun('5 7 30 9 *', GATE_ON_MS + (8 * 60 + 5) * MIN), true);
+    assert.equal(shouldRun('10 23 29 9 *', GATE_ON_MS + 365 * 24 * 60 * MIN + 10 * MIN), false, 'not again next year');
+    assert.equal(shouldRun('10 23 29 9 *', GATE_ON_MS - 24 * 60 * MIN + 10 * MIN), false, 'not the day before');
   });
   test('Monday 00:10: the BST cron in summer, the GMT cron in winter — never both', () => {
     const bstSun = Date.parse('2026-10-18T23:10:00Z');     // Mon 19 Oct 00:10 BST

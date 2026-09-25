@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // W7 — WHICH SCHEDULED RUN OF launch-check.yml IS THE REAL ONE. GitHub's cron is UTC only, and
-// the checks belong to London times: 30 Sept at 00:10 and 08:05, then every Monday at 00:10.
+// the checks belong to London times: launch day at 00:10 and 08:05, then every Monday at 00:10.
 // So the workflow carries each London time as the UTC cron(s) it can be, and this gate keeps the
 // one that matches London's offset ON THE DAY, using the cron string that fired
 // (github.event.schedule), so a run GitHub delays by half an hour still counts correctly.
@@ -8,6 +8,10 @@
 //   node scripts/launch-check-gate.mjs "<cron>"   → prints run=true|false (for $GITHUB_OUTPUT)
 
 import { pathToFileURL } from 'node:url';
+import { LAUNCH, LAUNCH_DATE_SHORT } from '../app/lib/launch.js';
+
+// The launch day as London's calendar writes it — derived, never retyped (tests/build/launch-literals).
+const LAUNCH_DAY = `${LAUNCH.y}-${String(LAUNCH.m).padStart(2, '0')}-${String(LAUNCH.d).padStart(2, '0')}`;
 
 /** London's offset from UTC at `ms`, in hours (0 or 1). */
 export function londonOffsetHours(ms) {
@@ -21,8 +25,10 @@ const londonDate = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/
 
 /** The crons, and when each one is the real London time. */
 export const SCHEDULES = {
-  '10 23 29 9 *': { label: '30 Sept 00:10 London (BST)', valid: (ms) => londonDate(ms) === '2026-09-30' && londonOffsetHours(ms) === 1 },
-  '5 7 30 9 *': { label: '30 Sept 08:05 London (BST)', valid: (ms) => londonDate(ms) === '2026-09-30' && londonOffsetHours(ms) === 1 },
+  // The two launch-day crons are written in UTC for BST (the launch falls in BST). The gate holds
+  // them to the launch's own London date, so they never fire again in another year.
+  '10 23 29 9 *': { label: `${LAUNCH_DATE_SHORT} 00:10 London (BST)`, valid: (ms) => londonDate(ms) === LAUNCH_DAY && londonOffsetHours(ms) === 1 },
+  '5 7 30 9 *': { label: `${LAUNCH_DATE_SHORT} 08:05 London (BST)`, valid: (ms) => londonDate(ms) === LAUNCH_DAY && londonOffsetHours(ms) === 1 },
   '10 23 * * 0': { label: 'Monday 00:10 London, in BST (Sunday 23:10 UTC)', valid: (ms) => londonOffsetHours(ms) === 1 },
   '10 0 * * 1': { label: 'Monday 00:10 London, in GMT', valid: (ms) => londonOffsetHours(ms) === 0 },
 };

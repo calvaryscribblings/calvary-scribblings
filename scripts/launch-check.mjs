@@ -11,7 +11,7 @@
 // questions a signed-out reader would, and asks /api/ops/launch-status for the membership
 // switches as BOOLEANS. The only thing it ever sends is the email.
 //
-// Each row is GREEN, RED, or NOT YET DUE (a switch whose date has not come — before 30 Sept the
+// Each row is GREEN, RED, or NOT YET DUE (a switch whose date has not come — before the launch date the
 // gate is off by design, and that is not a failure). Every row prints the evidence it read.
 // The verdicts are pure functions of that evidence and the clock, so tests/ci/w7-launch-check
 // can force each row green, red and not-yet-due without a network.
@@ -26,6 +26,7 @@ import { pathToFileURL } from 'node:url';
 import { execSync } from 'node:child_process';
 import { GATE_ON_MS, gatingOn, freeUntilFor, servesAsReader } from '../app/lib/storyAccess.js';
 import { endingOf } from './check-built-gate.mjs';
+import { LAUNCH_DATE_SHORT } from '../app/lib/launch.js';
 
 export const SITE = process.env.LAUNCH_SITE || 'https://calvaryscribblings.co.uk';
 export const GREEN = 'green';
@@ -74,7 +75,7 @@ export function judgeFreeWeek({ archive, thisWeek, poem }, now) {
     // Before the switch every story must still read in full, as today. Anything else is the
     // gate open EARLY, and that is red.
     const early = all.some((x) => x.res.access !== 'full' || x.res.reason !== 'gating_off');
-    return row('Free week', early ? RED : NYD, early ? `the gate is ON before 30 Sept. ${ev}` : `gating_off everywhere, as it should be before 30 Sept. ${ev}`);
+    return row('Free week', early ? RED : NYD, early ? `the gate is ON before ${LAUNCH_DATE_SHORT}. ${ev}` : `gating_off everywhere, as it should be before ${LAUNCH_DATE_SHORT}. ${ev}`);
   }
   const ok = archive.res.access === 'preview' && archive.res.reason === 'archive'
     && (!thisWeek || (thisWeek.res.access === 'full' && thisWeek.res.reason === 'free_week'))
@@ -96,7 +97,7 @@ export function judgeArchiveHtml({ slug, htmlStatus, ending, found }, now) {
   if (htmlStatus !== 200) return row('Archive page is preview-only', RED, `/stories/${slug} answered ${htmlStatus}`);
   if (!ending) return row('Archive page is preview-only', RED, `could not take a sample from beyond /stories/${slug}'s preview`);
   const ev = `/stories/${slug}: the ending "…${ending}" is ${found ? 'IN' : 'not in'} the built HTML`;
-  if (!gatingOn(now)) return row('Archive page is preview-only', NYD, `${ev} (before 30 Sept the page carries the body, locked by its own script at the switch)`);
+  if (!gatingOn(now)) return row('Archive page is preview-only', NYD, `${ev} (before ${LAUNCH_DATE_SHORT} the page carries the body, locked by its own script at the switch)`);
   return row('Archive page is preview-only', found ? RED : GREEN, ev);
 }
 
@@ -106,7 +107,7 @@ export function judgeSeries({ instalmentId, res }, now) {
   const ev = `signed-out /api/series/stream for ${instalmentId} → ${res ? `${res.status} ${res.code || (res.url ? 'a stream URL' : '')}` : 'no answer'}`;
   if (!res) return row('Series', RED, ev);
   if (!gatingOn(now)) {
-    return row('Series', res.status === 200 ? NYD : RED, res.status === 200 ? `${ev} — open to all before 30 Sept, as it should be` : `${ev} — refused BEFORE the switch`);
+    return row('Series', res.status === 200 ? NYD : RED, res.status === 200 ? `${ev} — open to all before ${LAUNCH_DATE_SHORT}, as it should be` : `${ev} — refused BEFORE the switch`);
   }
   return row('Series', res.status === 401 || res.status === 403 ? GREEN : RED, ev);
 }
@@ -114,7 +115,7 @@ export function judgeSeries({ instalmentId, res }, now) {
 /** BOOK STORE: the curtain lifts by date, and the catalogue renders. */
 export function judgeBookStore({ pageStatus, publishedTitles }, now) {
   const ev = `/bookstore → ${pageStatus ?? 'no answer'}; ${publishedTitles ?? '?'} published titles`;
-  if (now < GATE_ON_MS) return row('Book Store', NYD, `the curtain lifts at 30 Sept 00:00 London (by date, no deploy). ${ev}`);
+  if (now < GATE_ON_MS) return row('Book Store', NYD, `the curtain lifts at ${LAUNCH_DATE_SHORT} 00:00 London (by date, no deploy). ${ev}`);
   return row('Book Store', pageStatus === 200 && publishedTitles > 0 ? GREEN : RED, ev);
 }
 
@@ -130,7 +131,7 @@ export function judgeMemberships({ status, httpStatus }, now) {
     'Paystack webhook secret': s.paystack?.webhookSecretSet,
   };
   const ev = Object.entries(flags).map(([k, v]) => `${k} ${v === true ? 'yes' : 'NO'}`).join(', ');
-  if (now < GATE_ON_MS) return row('Memberships', NYD, `on sale from 30 Sept. ${ev}`);
+  if (now < GATE_ON_MS) return row('Memberships', NYD, `on sale from ${LAUNCH_DATE_SHORT}. ${ev}`);
   return row('Memberships', Object.values(flags).every((v) => v === true) ? GREEN : RED, ev);
 }
 
