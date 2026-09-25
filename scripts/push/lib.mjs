@@ -183,10 +183,11 @@ export function planSeed({ stories = {}, instalments = {}, series = {}, announce
 //
 // SOUND (RULED): the phone's default sound, on both platforms. iOS plays it from `sound`.
 // Android 8+ ignores `sound` and plays whatever the CHANNEL says, so every push names one
-// channel, which the app must create with default importance and the default sound — see
-// docs/PUSH-GO-LIVE.md, "What the app must add".
+// channel: "stories", which the app creates ("New stories", default importance) before it
+// registers a token (app A12, baa3c1a). No build ever created a channel called "default", so a
+// push naming "default" lands on expo's unconfigured fallback channel. See docs/PUSH-GO-LIVE.md.
 export const PUSH_SOUND = 'default';
-export const ANDROID_CHANNEL_ID = 'default';
+export const ANDROID_CHANNEL_ID = 'stories';
 const DELIVERY = { sound: PUSH_SOUND, channelId: ANDROID_CHANNEL_ID };
 
 // NEVER, in any push: a price, a purchase, or the Book Store — App Store Review Guideline

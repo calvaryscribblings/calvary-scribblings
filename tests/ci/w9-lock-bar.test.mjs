@@ -46,6 +46,13 @@ describe('W9 · the lock — the words', () => {
     }
     assert.equal(SERIES_LOCK_COPY.cta, STORY_LOCK_COPY.cta);
   });
+  test('the Series lock says what the app says (A12): "FROM THE SERIES" / "This instalment is closed."', () => {
+    assert.equal(SERIES_LOCK_COPY.eyebrow.toUpperCase(), 'FROM THE SERIES');
+    assert.equal(SERIES_LOCK_COPY.headline, 'This instalment is closed.');
+    assert.equal('body' in SERIES_LOCK_COPY, false, 'the body is the instalment\'s own refusal line');
+    assert.match(code('app/series/instalment/[instalmentId]/page-instalment.js'), /body=\{refusalCopy\(grant\)\}/);
+    assert.match(code('app/series/read/[instalmentId]/page-reader.js'), /body=\{copy\.body\}/);
+  });
 });
 
 describe('W9 · the lock — colour and contrast', () => {

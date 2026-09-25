@@ -141,8 +141,8 @@ where `{part}` is the instalment's own title, so the part is named as the series
 ("Part Three", "Chapter I: It's Monday Again"). `data.url` = `/series/instalment/{id}`.
 
 **RULED (sound, 25 Sep):** every push carries `sound: "default"` (iOS plays the phone's default
-sound) and `channelId: "default"` (Android 8+ takes its sound from the channel). See *What the app
-must add*.
+sound) and `channelId: "stories"` (Android 8+ takes its sound from the channel, which the app
+creates). The channel was `"default"` until A12; see *The Android channel*.
 
 **RULED (when, 25 Sep):** nothing before **08:00 London**. An item that goes live earlier is held
 and goes out on the first run at or after 08:00; later items go at once. London's clock comes from
@@ -274,34 +274,25 @@ and built. 4 is fixed (below). 5 is built: W7's launch check reads the heartbeat
 
 ---
 
-## What the app must add (Android channel)
+## The Android channel
 
-Every push names Android channel **`default`**. On Android 8+, the channel, not the message,
-decides the sound and importance, and the channel is created by the app. Before an Android build
-registers a push token, the app must run this once at start-up, before `getExpoPushTokenAsync`:
+Every push names Android channel **`stories`** (`ANDROID_CHANNEL_ID` in `scripts/push/lib.mjs`).
+On Android 8+, the channel, not the message, decides the sound and importance.
 
-```ts
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
-
-if (Platform.OS === 'android') {
-  await Notifications.setNotificationChannelAsync('default', {
-    name: 'New stories',
-    importance: Notifications.AndroidImportance.DEFAULT,
-    sound: 'default',
-  });
-}
-```
-
-- The id must be exactly `default`, because that's what the server sends
-  (`ANDROID_CHANNEL_ID` in `scripts/push/lib.mjs`).
-- **Android fixes a channel's importance and sound the first time it's created.** If a shipped
-  build already created `default` with other settings, re-running this won't change them on
-  devices that have it. Only a new channel id would, and that would need a server change to match.
-  The app session should check what its current builds create.
-- On 25 Sep every registered device was iOS (3 rows, app 1.7.0), so no Android reader is affected
-  yet.
-- iOS needs nothing: `sound: "default"` is in the payload.
+- **The app creates it.** From A12 (app `baa3c1a`), the app creates `stories` ("New stories",
+  default importance) before it registers a push token.
+- **Why not `default`.** Until A12 the server named `default`, but no app build ever created a
+  channel with that id. A push naming a channel the app never created lands on expo's
+  unconfigured fallback channel.
+- 🚨 **Never pass `sound: 'default'` to `setNotificationChannelAsync`.** An earlier version of
+  this doc told the app to. On Android, that string is looked up as a raw sound resource,
+  resolves to null, and makes the channel **permanently silent**. Android fixes a channel's
+  sound when it is first created, so a later build can't undo it. Leave `sound` out of the
+  channel, and the channel plays the phone's default sound.
+- The **message** keeps `sound: "default"`. That's right for iOS, which plays the phone's default
+  sound from it, and Android ignores it.
+- **Taps:** the payload is unchanged. The app reads `data.url` as a same-site path
+  (`/stories/{slug}`, `/series/instalment/{id}`).
 
 ---
 

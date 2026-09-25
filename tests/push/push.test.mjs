@@ -7,6 +7,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   isStoryVisible, isInstalmentVisible, planAnnouncements, planSeed, buildAudience,
   storyMessage, instalmentMessage, assertSafe, forbiddenIn, messagesFor, planTickets,
@@ -213,7 +214,7 @@ describe('payload — RULED: title, then "New {form} by {author} · {quote}", by
       body: 'New short story by Dera Okaro · She kept the door open an inch.',
       data: { url: '/stories/threshold' },
       sound: 'default',
-      channelId: 'default',
+      channelId: 'stories',
     });
   });
 
@@ -239,7 +240,7 @@ describe('payload — RULED: title, then "New {form} by {author} · {quote}", by
   });
 
   test('the destination is a story or an instalment and NOTHING ELSE — never the Book Store', () => {
-    const ok = { title: 't', body: 'New poem by A', sound: 'default', channelId: 'default' };
+    const ok = { title: 't', body: 'New poem by A', sound: 'default', channelId: 'stories' };
     assert.ok(assertSafe({ ...ok, data: { url: '/stories/a-slug' } }));
     assert.ok(assertSafe({ ...ok, data: { url: '/series/instalment/beta-princess-i1' } }));
     for (const url of ['/bookstore', '/bookstore/some-book', '/membership', '/shop', '/stories/../bookstore',
@@ -268,7 +269,7 @@ describe('payload — RULED: title, then "New {form} by {author} · {quote}", by
   });
 
   test('assertSafe is the last gate: a forbidden term anywhere in a finished push throws', () => {
-    const base = { title: 'T', body: 'New poem by A', data: { url: '/stories/s' }, sound: 'default', channelId: 'default' };
+    const base = { title: 'T', body: 'New poem by A', data: { url: '/stories/s' }, sound: 'default', channelId: 'stories' };
     assert.throws(() => assertSafe({ ...base, body: 'New poem by A · only £3' }), /forbidden/);
     assert.throws(() => assertSafe({ ...base, title: 'In the Book Store' }), /forbidden/);
     assert.throws(() => assertSafe({ ...base, body: 'A new poem' }), /byline/);
@@ -291,10 +292,10 @@ describe('payload — SOUND (RULED): the default sound on iOS, one named channel
     const i = instalmentMessage('beta-princess-i3', inst(), { title: 'Part Three', author: 'Monica Garcia' }, SERIES.bp).message;
     for (const m of [s, i]) {
       assert.equal(m.sound, 'default');
-      assert.equal(m.channelId, 'default');
+      assert.equal(m.channelId, 'stories');
     }
     assert.equal(PUSH_SOUND, 'default');
-    assert.equal(ANDROID_CHANNEL_ID, 'default');
+    assert.equal(ANDROID_CHANNEL_ID, 'stories');
   });
 
   test('a push without the sound, or on another channel, never leaves', () => {
@@ -303,7 +304,15 @@ describe('payload — SOUND (RULED): the default sound on iOS, one named channel
     assert.throws(() => assertSafe(silent), /unexpected keys/);
     assert.throws(() => assertSafe({ ...m, sound: null }), /sound\/channel/);
     assert.throws(() => assertSafe({ ...m, channelId: 'marketing' }), /sound\/channel/);
+    // A12: no app build ever created "default" — naming it lands on expo's fallback channel.
+    assert.throws(() => assertSafe({ ...m, channelId: 'default' }), /sound\/channel/);
     assert.throws(() => messagesFor(silent, [{ uid: 'u', tokenKey: 'k', token: 'ExpoPushToken[x]' }]), /unexpected keys/);
+  });
+
+  test('the test script sends through the same builder and gate, so it names the same channel', () => {
+    const src = readFileSync(new URL('../../scripts/push-test.mjs', import.meta.url), 'utf8');
+    assert.match(src, /import \{[^}]*storyMessage[^}]*\} from '\.\/push\/lib\.mjs'/);
+    assert.doesNotMatch(src, /channelId/, 'push-test.mjs must not set its own channel');
   });
 });
 
@@ -317,7 +326,7 @@ describe('payload — RULED: instalments are "{series}" / "{part} by {author} ·
       body: 'Part Three by Monica Garcia · Sibry holds the walls until dawn.',
       data: { url: '/series/instalment/beta-princess-i3' },
       sound: 'default',
-      channelId: 'default',
+      channelId: 'stories',
     });
   });
 
@@ -483,7 +492,7 @@ describe('forms — RULED table, and it covers the whole taxonomy', () => {
 // ── BATCHING, TICKETS, RECEIPTS ─────────────────────────────────────────────────────────
 
 describe('Expo — batches of 100, tickets, receipts, dead devices', () => {
-  const msg = { title: 'T', body: 'New poem by A', data: { url: '/stories/s' }, sound: 'default', channelId: 'default' };
+  const msg = { title: 'T', body: 'New poem by A', data: { url: '/stories/s' }, sound: 'default', channelId: 'stories' };
   const recips = (n) => Array.from({ length: n }, (_, i) => ({ uid: `u${i}`, tokenKey: `k${i}`, token: `ExpoPushToken[${i}]` }));
 
   test('250 devices → 100, 100, 50, every message addressed to one token', () => {

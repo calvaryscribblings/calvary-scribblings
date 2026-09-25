@@ -130,7 +130,7 @@ describe('once per item, across retries and concurrent runs', () => {
       to: expo.sent[0].to, title: 'Brand New',
       body: 'New short story by Dera Okaro · She kept the door open an inch.',
       data: { url: '/stories/brand-new' },
-      sound: 'default', channelId: 'default',
+      sound: 'default', channelId: 'stories',
     });
     const entry = await val('push_announced/story/brand-new');
     assert.equal(entry.state, 'sent');
@@ -202,7 +202,7 @@ describe('once per item, across retries and concurrent runs', () => {
     assert.equal(expo.sent[0].title, 'Beta Princess');
     assert.equal(expo.sent[0].body, 'Part Two by Monica Garcia · She survives the duel.');
     assert.equal(expo.sent[0].sound, 'default');
-    assert.equal(expo.sent[0].channelId, 'default');
+    assert.equal(expo.sent[0].channelId, 'stories');
     assert.deepEqual(expo.sent[0].data, { url: '/series/instalment/bp-i2' });
   });
 

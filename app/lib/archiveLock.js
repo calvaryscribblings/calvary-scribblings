@@ -80,12 +80,15 @@ export const DEGRADED_LOCK_COPY = {
   cta: 'Try again',
 };
 
+// Parity with the app's Series lock (app A12, baa3c1a). The body is the instalment's own refusal
+// line (refusalCopy / the reader's copy.body), so it is not held here. DRAFT, same as the app.
 export const SERIES_LOCK_COPY = {
-  eyebrow: 'The Series',
-  headline: 'This instalment is for members.',
+  eyebrow: 'From the Series',
+  headline: 'This instalment is closed.',
   cta: 'See membership',
   signIn: ['Already a member?', 'Sign in'],
 };
+export const SERIES_LOCK_STATUS = 'DRAFT';
 
 // ── THE MARK ────────────────────────────────────────────────────────────────────────────────
 // A 22-unit box drawn at 22px, stroke 1.5. Pixel-snapped at 2x (the phones and iPads this is
