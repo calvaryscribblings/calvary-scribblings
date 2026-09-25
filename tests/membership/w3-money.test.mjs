@@ -364,6 +364,8 @@ describe('MON-14 · the writeMembership race', () => {
       }, NOW);
       assert.equal(w.db.memberships[UID].paystackSubscriptionCode, 'SUB_1');
       assert.equal(w.db.memberships[UID].lastInvoiceRef, 'ms.first');
+      const patch = w.calls.filter((c) => c.method === 'PATCH').map((c) => JSON.parse(c.body)).find((b) => `users/${UID}/membership` in b);
+      assert.equal(`memberships/${UID}/lastInvoiceRef` in patch, false, 'not carried from a read that can be stale — not named at all');
     } finally { w.restore(); }
   });
 

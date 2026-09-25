@@ -537,7 +537,7 @@ describe('the webhook — signed, end to end', () => {
     const h = host({ subscription: sub({ price: ID('gold', 'monthly', 'gbp') }), detail: { lastInvoiceRef: 'in_001' } });
     try {
       await post({ type: 'customer.subscription.updated', data: { object: sub({ price: ID('gold', 'monthly', 'gbp') }) } });
-      assert.equal(detailOf(h.patchBody()).lastInvoiceRef, 'in_001');
+      assert.equal('lastInvoiceRef' in detailOf(h.patchBody()), false, 'the key is not touched at all');
     } finally { h.restore(); }
   });
 

@@ -413,7 +413,8 @@ describe('the lifecycle — same postures as the Stripe rail', () => {
     const h = host({ index: { SUB_1: UID } });
     try {
       await handleMembershipPaystackEvent(ENV, getToken, ev('invoice.create', { paid: false, invoice_code: 'INV_5', plan: { plan_code: CODE('gold', 'monthly') } }), NOW);
-      assert.equal(detailOf(h.membershipWrite()).lastInvoiceRef, null);
+      // W3: not consumed AND not touched — the unpaid invoice's code is never written.
+      assert.equal('lastInvoiceRef' in detailOf(h.membershipWrite()), false);
     } finally { h.restore(); }
   });
 

@@ -485,12 +485,10 @@ export async function applyMembershipChange(env, token, uid, {
     return { verdict: 'not_paid' };
   }
 
-  // The replay key is carried through any event that is not itself a payment. With per-field
-  // writes a null here would CLEAR it, and the next redelivery of that payment would no longer
-  // be recognised as one.
-  if (!detail.lastInvoiceRef && existing && typeof existing.lastInvoiceRef === 'string') {
-    detail = { ...detail, lastInvoiceRef: existing.lastInvoiceRef };
-  }
+  // The replay key belongs to PAYMENTS. An event that is not one leaves it exactly as stored —
+  // not carried from our read (which can be older than a payment landing at the same instant;
+  // measured live, 25 Sep, Paystack's charge.success + subscription.create), not written null.
+  if (!invoiceRef) keep = [...keep, 'lastInvoiceRef'];
 
   const accountDeleted = await isDeletedAccount(env, token, uid);
   if (accountDeleted) {

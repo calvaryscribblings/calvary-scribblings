@@ -549,7 +549,12 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
     const list = cus ? await paystackGet(env, `/subscription?customer=${encodeURIComponent(cus)}&plan=${encodeURIComponent(planCode)}`) : { ok: false };
     newCode = (list.ok && (list.body.data || []).find((x) => x.status === 'active' && x.subscription_code !== replacing)?.subscription_code) || null;
   }
-  const keep = newCode ? [] : ['paystackSubscriptionCode'];
+  const keep = [
+    ...(newCode ? [] : ['paystackSubscriptionCode']),
+    // charge.success carries no next_payment_date; subscription.create, arriving alongside it,
+    // does. The event that does not know the period end must not write it as null.
+    ...(periodEnd === null ? ['currentPeriodEnd'] : []),
+  ];
 
   const detail = buildDetail({
     tier: described.tier,
