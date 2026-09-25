@@ -1,7 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { useReliableLoad } from '../../lib/useReliable';
+import { readWithDeadline } from '../../lib/reliableRead';
+import AdminLoad from '../../components/AdminLoad';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
@@ -85,9 +88,6 @@ export default function QuizResetsPage() {
   const { user, loading: authLoading } = useAuth();
   const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
 
-  const [stories, setStories]           = useState([]);
-  const [quizStatuses, setQuizStatuses] = useState({});
-  const [loadingData, setLoadingData]   = useState(true);
   const [selectedSlug, setSelectedSlug] = useState('');
 
   const [submissions, setSubmissions]   = useState(null);
@@ -114,36 +114,30 @@ export default function QuizResetsPage() {
   const [resetMsg, setResetMsg]     = useState('');
   const [resetError, setResetError] = useState('');
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    loadStories();
+  // W6 (ADM-24) — the picker's read throws, under useReliableLoad's deadline. It used to end in
+  // `catch { /* non-fatal */ }`, which left the select with nothing but "Select a story…" — a
+  // screen for resetting quiz attempts that looked like a site with no stories. null = not an
+  // admin (yet), drawn as loading.
+  const storiesLoad = useReliableLoad(async () => {
+    if (!isAdmin) return null;
+    const { ref, get } = await import('firebase/database');
+    const [storiesSnap, quizzesSnap] = await Promise.all([
+      get(ref(db, 'cms_stories')),
+      get(ref(db, 'cms_quizzes')),
+    ]);
+    const stories = storiesSnap.exists()
+      ? Object.entries(storiesSnap.val())
+        .map(([slug, st]) => ({ slug, title: st.title || slug }))
+        .sort((a, b) => a.title.localeCompare(b.title))
+      : [];
+    const quizStatuses = {};
+    if (quizzesSnap.exists()) {
+      for (const [slug, q] of Object.entries(quizzesSnap.val())) quizStatuses[slug] = q.approvedAt ? 'live' : 'draft';
+    }
+    return { stories, quizStatuses };
   }, [isAdmin]);
-
-  async function loadStories() {
-    setLoadingData(true);
-    try {
-      const { ref, get } = await import('firebase/database');
-      const [storiesSnap, quizzesSnap] = await Promise.all([
-        get(ref(db, 'cms_stories')),
-        get(ref(db, 'cms_quizzes')),
-      ]);
-      if (storiesSnap.exists()) {
-        const data = storiesSnap.val();
-        setStories(
-          Object.entries(data)
-            .map(([slug, st]) => ({ slug, title: st.title || slug }))
-            .sort((a, b) => a.title.localeCompare(b.title))
-        );
-      }
-      if (quizzesSnap.exists()) {
-        const data = quizzesSnap.val();
-        const statuses = {};
-        for (const [slug, q] of Object.entries(data)) statuses[slug] = q.approvedAt ? 'live' : 'draft';
-        setQuizStatuses(statuses);
-      }
-    } catch { /* non-fatal */ }
-    setLoadingData(false);
-  }
+  const loadingData = storiesLoad.phase !== 'ready' || !storiesLoad.data;
+  const quizStatuses = storiesLoad.data?.quizStatuses || {};
 
   function selectSlug(slug) {
     setSelectedSlug(slug);
@@ -159,14 +153,18 @@ export default function QuizResetsPage() {
     setSubsLoading(true); setSubsError(''); setSubmissions(null);
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch(
-        `/api/admin/submissions-by-slug?slug=${encodeURIComponent(selectedSlug)}`,
-        { headers: { Authorization: `Bearer ${idToken}` } }
-      );
-      const data = await res.json();
+      // Under the read deadline: a request that never answers is a failure to say, not a
+      // spinner to leave running. The cause's message is the useful half here.
+      const { res, data } = await readWithDeadline(async () => {
+        const r = await fetch(
+          `/api/admin/submissions-by-slug?slug=${encodeURIComponent(selectedSlug)}`,
+          { headers: { Authorization: `Bearer ${idToken}` } }
+        );
+        return { res: r, data: await r.json() };
+      });
       if (!res.ok) throw new Error(data.error || 'Load failed');
       setSubmissions(data.submissions);
-    } catch (e) { setSubsError(e.message); }
+    } catch (e) { setSubsError(e?.cause?.message || e.message); }
     setSubsLoading(false);
   }
 
@@ -287,9 +285,15 @@ export default function QuizResetsPage() {
         <div style={s.card}>
           <div style={s.fg}>
             <label style={s.label}>Story / Quiz</label>
-            {loadingData ? (
-              <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Loading…</div>
-            ) : (
+            <AdminLoad
+              load={storiesLoad}
+              subject="the stories"
+              compact
+              loading={<div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Loading…</div>}
+              isEmpty={(d) => d.stories.length === 0}
+              empty={<div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>No stories yet.</div>}
+            >
+            {({ stories }) => (
               <select style={s.select} value={selectedSlug} onChange={e => selectSlug(e.target.value)}>
                 <option value="">Select a story…</option>
                 {stories.map(st => (
@@ -299,6 +303,7 @@ export default function QuizResetsPage() {
                 ))}
               </select>
             )}
+            </AdminLoad>
             {selectedSlug && quizStatuses[selectedSlug] && (
               <div style={s.hint}>
                 {quizStatuses[selectedSlug] === 'live' ? '✓ Quiz is live.' : '⚠ Quiz is a draft — submissions may exist from testing.'}

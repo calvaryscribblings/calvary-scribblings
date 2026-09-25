@@ -52,14 +52,15 @@ import {
   withdrawalRefusal,
   restoreRefusal,
   OWNERS_UNKNOWN,
-  ownersKnown,
+  holderCountFrom,
   deletionPlan,
   tombstoneOf,
   pruneClaims,
   nameMatches,
   confirmConsequence,
+  classifyRemoval,
+  retryablePaths,
 } from './withdrawal';
-import { READERSHIP_PATH, readershipCountOf } from './readership';
 import {
   validateSection,
   PLACEMENTS,
@@ -660,30 +661,44 @@ export async function setTitleStatus(titleId, status) {
 // made against, and the name has been given back its meaning.
 
 /**
- * How many readers own this book, RIGHT NOW, from live data.
+ * How many people HOLD this book, RIGHT NOW, from live data — sales and comps alike.
  *
- * bookstore_readership/{titleId}/count — the number of purchase records whose status is
- * 'active', written by the same atomic multi-path update that records each purchase (see
- * functions/api/bookstore/_lib.js). It is the ONLY number a browser may learn: bookstore_
- * purchases is readable per-uid, so even a founder cannot enumerate the node from here, and
- * this counter exists precisely so nothing has to.
+ * W6. This used to read bookstore_readership/{titleId}/count, the readers-who-bought counter,
+ * which by the W3b ruling does not count complimentary copies. So a title held only as a comp
+ * read as unowned, and the delete removed the master EPUB the comp opens. The number that
+ * decides whether the master may go is every active entitlement in bookstore_purchases,
+ * whatever its source — holdersOf() in purchaseSource.js — and bookstore_purchases cannot be
+ * enumerated from a browser (its read rule is per-uid), so functions/api/bookstore/holders.js
+ * counts it with an admin token and returns the two integers and nothing else.
  *
- * ⚠ A FAILED READ IS NOT ZERO. It returns OWNERS_UNKNOWN, and every caller refuses to delete
- * on it. An absent node IS zero — that is the node's documented contract, and today, before
- * the shop has opened, it is absent for every title.
+ * ⚠ A FAILED READ IS NOT ZERO. Anything but a 200 carrying two integers returns
+ * OWNERS_UNKNOWN, and every caller refuses to delete on it.
  */
-export async function readOwnerCount(titleId) {
+export const HOLDERS_ENDPOINT = '/api/bookstore/holders';
+
+export async function readHolderCount(titleId, { fetchImpl = fetch } = {}) {
   if (!titleId) return OWNERS_UNKNOWN;
   try {
-    const snap = await get(ref(db, `${READERSHIP_PATH}/${titleId}`));
-    return ownersKnown(snap.exists() ? readershipCountOf(snap.val()) : 0);
+    const token = await auth?.currentUser?.getIdToken();
+    if (!token) return OWNERS_UNKNOWN;
+    const res = await fetchImpl(`${HOLDERS_ENDPOINT}?titleId=${encodeURIComponent(titleId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    const body = await res.json().catch(() => null);
+    const owners = holderCountFrom(res.status, body);
+    if (!owners.ok) throw new Error(`holders endpoint answered ${res.status} without a usable count`);
+    return owners;
   } catch (err) {
     // LOUD, and it fails closed upstream. A silent zero here is how a master EPUB gets
-    // deleted out from under nine readers.
-    console.error('[bookstore.admin-writes] readOwnerCount failed', err);
+    // deleted out from under nine readers — or one founder's complimentary copy.
+    console.error('[bookstore.admin-writes] readHolderCount failed', err);
     return OWNERS_UNKNOWN;
   }
 }
+
+/** The refusal when the holder count could not be read. One wording, for both callers. */
+export const HOLDERS_UNREAD = "Couldn't check who holds this book, so nothing was deleted. Retry.";
 
 /**
  * Everything the confirm dialog needs, from live data, before anything happens.
@@ -706,13 +721,8 @@ export async function deletionPreview(titleId) {
     return { ok: false, errors: [`Could not read the title: ${err.message || 'unknown error'}`] };
   }
 
-  const owners = await readOwnerCount(titleId);
-  if (!owners.ok) {
-    return {
-      ok: false,
-      errors: ['The number of readers who own this book could not be read, so nothing was deleted. Try again.'],
-    };
-  }
+  const owners = await readHolderCount(titleId);
+  if (!owners.ok) return { ok: false, retry: true, errors: [HOLDERS_UNREAD] };
 
   const plan = deletionPlan({ titleId, title, owners });
   return {
@@ -720,9 +730,10 @@ export async function deletionPreview(titleId) {
     titleId,
     name: title.title,
     ownerCount: owners.count,
+    compCount: owners.comps,
     // The sentence, in plain words, stating the consequence BEFORE it happens. Never a bare
     // "are you sure" — see confirmConsequence().
-    consequence: confirmConsequence(owners.count),
+    consequence: confirmConsequence(owners.count, owners.comps),
     filesRemoved: plan.delete,
     filesKept: plan.held,
     filesReason: plan.reason,
@@ -820,7 +831,7 @@ export async function restoreTitle(titleId) {
  * the difference between deleting a book and deleting the book you meant to.
  *
  * ORDER OF OPERATIONS, and it is deliberate:
- *   1. read the record, and the LIVE owner count
+ *   1. read the record, and the LIVE holder count (sales and comps)
  *   2. refuse outright if the count could not be read       ⛔ ruling 2, fail closed
  *   3. write the tombstone, remove the record, prune the claims, correct titlesCount —
  *      ALL IN ONE atomic multi-path update
@@ -858,14 +869,10 @@ export async function deleteTitle(titleId, { confirmName } = {}) {
   }
 
   // ⛔ RULING 2, FAIL CLOSED. An unknown count is not zero, and a delete that guesses it would
-  // be a delete that might remove the file nine readers are streaming.
-  const owners = await readOwnerCount(titleId);
-  if (!owners.ok) {
-    return {
-      ok: false,
-      errors: ['The number of readers who own this book could not be read, so nothing was deleted. Try again.'],
-    };
-  }
+  // be a delete that might remove the file nine readers are streaming. W6: the count is of
+  // HOLDERS (sales and comps), so a comp-only title keeps its master too.
+  const owners = await readHolderCount(titleId);
+  if (!owners.ok) return { ok: false, retry: true, errors: [HOLDERS_UNREAD] };
 
   const plan = deletionPlan({ titleId, title, owners });
   if (!plan.ok) return { ok: false, errors: [plan.reason] };
@@ -916,37 +923,77 @@ export async function deleteTitle(titleId, { confirmName } = {}) {
 
   // ── THE FILES ────────────────────────────────────────────────────────────────────────────
   // After the record is gone, and never before. Reported rather than rolled back: the shop is
-  // already correct, and a leftover object is a tidiness problem, not a product one.
-  const removed = [];
-  const failed = [];
-  try {
-    const { ref: sref, deleteObject } = await import('firebase/storage');
-    for (const path of plan.delete) {
-      try {
-        await deleteObject(sref(storage, path));
-        removed.push(path);
-      } catch (err) {
-        // object-not-found is the ordinary case for a title that never had a sample or an
-        // author photograph. It is not a failure and must not be reported as one.
-        if (err?.code === 'storage/object-not-found') continue;
-        console.error('[bookstore.admin-writes] deleteTitle could not remove', path, err);
-        failed.push(path);
-      }
-    }
-  } catch (err) {
-    console.error('[bookstore.admin-writes] deleteTitle storage module failed', err);
-    failed.push(...plan.delete);
-  }
+  // already correct, and a leftover object is a tidiness problem, not a product one. W6: every
+  // result is counted — removed, already gone (a 404, which is not a failure), or failed — and
+  // the panel says which, with a retry for the failed ones (retryFileRemoval below).
+  const files = await removeObjects(plan.delete);
 
   return {
     ok: true,
     titleId,
     ownerCount: owners.count,
-    filesRemoved: removed,
+    compCount: owners.comps,
+    filesRemoved: files.removed,
+    filesGone: files.gone,
     filesKept: plan.held,
-    filesFailed: failed,
+    filesFailed: files.failed,
     claimsPruned: claimsTouched,
   };
+}
+
+/**
+ * Delete each path and sort the outcome. Never throws: a Storage module that will not load
+ * fails every path, rather than none of them.
+ */
+async function removeObjects(paths) {
+  const out = { removed: [], gone: [], failed: [] };
+  let sref;
+  let deleteObject;
+  try {
+    ({ ref: sref, deleteObject } = await import('firebase/storage'));
+  } catch (err) {
+    console.error('[bookstore.admin-writes] storage module failed', err);
+    out.failed.push(...paths);
+    return out;
+  }
+  for (const path of paths) {
+    let error = null;
+    try {
+      await deleteObject(sref(storage, path));
+    } catch (err) {
+      error = err || new Error('unknown');
+    }
+    const kind = classifyRemoval(error);
+    out[kind === 'removed' ? 'removed' : kind === 'gone' ? 'gone' : 'failed'].push(path);
+    if (kind === 'failed') console.error('[bookstore.admin-writes] could not remove', path, error);
+  }
+  return out;
+}
+
+/**
+ * W6 — RETRY THE FILES A DELETE LEFT BEHIND.
+ *
+ * `paths` is the filesFailed list deleteTitle returned. The title record is gone by now, so the
+ * guard is the tombstone: retryablePaths() drops the master and the shelf cover unless the
+ * tombstone says nobody held the book at deletion. An unreadable tombstone retries nothing.
+ */
+export async function retryFileRemoval(titleId, paths) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!titleId) return { ok: false, errors: ['titleId is required'] };
+  let tombstone;
+  try {
+    const snap = await get(ref(db, `${TOMBSTONES_PATH}/${titleId}`));
+    tombstone = snap.exists() ? snap.val() : null;
+  } catch (err) {
+    console.error('[bookstore.admin-writes] retryFileRemoval could not read the tombstone', err);
+    return { ok: false, errors: ["Couldn't read the deletion record, so no files were retried. Retry."] };
+  }
+  if (!tombstone) {
+    return { ok: false, errors: ["Couldn't find the deletion record for this title, so no files were retried."] };
+  }
+  const allowed = retryablePaths({ titleId, paths, tombstone });
+  const files = await removeObjects(allowed);
+  return { ok: true, titleId, filesRemoved: files.removed, filesGone: files.gone, filesFailed: files.failed };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

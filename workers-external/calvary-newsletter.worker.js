@@ -122,8 +122,63 @@ export default {
         if (badImage) {
           return Response.json({ error: badImage }, { status: 400, headers: cors });
         }
+        // W6: a Send pressed on a saved or scheduled draft LOCKS that draft first, so the cron
+        // cannot mail the same issue again at its scheduled time (before W6 it did: the draft
+        // stayed 'scheduled' and was sent twice).
+        const draftId = !testEmail && typeof body.draftId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(body.draftId) ? body.draftId : null;
+        if (draftId) {
+          const lock = await patchDraft(env, draftId, { status: "sending", sendingSince: new Date().toISOString() });
+          if (!lock.ok) return Response.json({ error: `Could not lock the draft (HTTP ${lock.status}). Nothing was sent.` }, { status: 502, headers: cors });
+        }
         const result = await sendNewsletter({ subject, blocks, issueNumber, testEmail }, env);
-        return Response.json(result, { headers: cors });
+        if (draftId) await settleDraftAfterSend(env, draftId, result);
+        // The addresses stay in the archive record (for the retry); the admin gets the counts.
+        const { failedRecipients: _addresses, ...answer } = result;
+        return Response.json(answer, { status: result.error ? (result.status || 400) : 200, headers: cors });
+      } catch (err) {
+        return Response.json({ error: err.message }, { status: 500, headers: cors });
+      }
+    }
+
+    // W6: "Retry the ones that failed" — mails the failedRecipients of one newsletter_sends record,
+    // and nobody else, then writes the outcome back onto that record.
+    if (request.method === "POST" && url.pathname === "/retry") {
+      try {
+        const authHeader = request.headers.get("authorization");
+        if (!authHeader || authHeader !== `Bearer ${env.NEWSLETTER_SEND_SECRET}`) {
+          return Response.json({ error: "Unauthorised" }, { status: 401, headers: cors });
+        }
+        const { sendId } = await request.json();
+        if (typeof sendId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(sendId)) {
+          return Response.json({ error: "sendId required" }, { status: 400, headers: cors });
+        }
+        const recUrl = `${env.FIREBASE_DATABASE_URL}/newsletter_sends/${sendId}.json?auth=${env.FIREBASE_SECRET}`;
+        const recRes = await fetch(recUrl);
+        if (!recRes.ok) return Response.json({ error: `Could not read that send (HTTP ${recRes.status}). Nothing was sent.` }, { status: 502, headers: cors });
+        const rec = await recRes.json();
+        const pending = Array.isArray(rec?.failedRecipients) ? rec.failedRecipients : [];
+        if (!pending.length) return Response.json({ error: "Nobody is waiting on that send. Nothing was sent." }, { status: 409, headers: cors });
+        // Lock: clear the list before sending, so two taps cannot mail it twice.
+        const lock = await fetch(recUrl, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ failedRecipients: null, retrying: true }) });
+        if (!lock.ok) return Response.json({ error: `Could not lock that send (HTTP ${lock.status}). Nothing was sent.` }, { status: 502, headers: cors });
+        const result = await sendNewsletter({ subject: rec.subject, blocks: rec.blocks, issueNumber: rec.issueNumber, onlyTo: pending, archive: false }, env);
+        const sentNow = result.sent || 0;
+        // Anything not confirmed sent is still owed: on a refusal before any batch, that is all of them.
+        const still = Array.isArray(result.failedRecipients) && (result.sent || result.failed) ? result.failedRecipients : pending;
+        const stillFailed = still.length;
+        await fetch(recUrl, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipientCount: (rec.recipientCount || 0) + sentNow,
+            failedCount: stillFailed,
+            failedRecipients: stillFailed > 0 ? still : null,
+            retrying: null,
+            retriedAt: new Date().toISOString(),
+          }),
+        });
+        const { failedRecipients: _addresses, ...answer } = result;
+        return Response.json({ ...answer, retriedFor: pending.length, stillFailed }, { status: result.error ? (result.status || 400) : 200, headers: cors });
       } catch (err) {
         return Response.json({ error: err.message }, { status: 500, headers: cors });
       }
@@ -151,14 +206,17 @@ export default {
           issueNumber: issueNumber || null,
           scheduledAt: scheduledAt || null,
           savedAt: new Date().toISOString(),
+          // W6: scheduledAt arrives as UTC ISO from the admin; see scheduledMs() for older drafts.
           status: scheduledAt ? "scheduled" : "draft",
         };
-        await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${draftId}.json?auth=${env.FIREBASE_SECRET}`, {
+        const put = await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${draftId}.json?auth=${env.FIREBASE_SECRET}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(draft),
         });
-        return Response.json({ success: true, id: draftId, status: draft.status }, { headers: cors });
+        // W6: the write's own answer. A refused PUT used to come back as "Draft saved!".
+        if (!put.ok) return Response.json({ error: `The draft was not saved (database refused it: HTTP ${put.status}).` }, { status: 502, headers: cors });
+        return Response.json({ success: true, id: draftId, status: draft.status, scheduledAt: draft.scheduledAt }, { headers: cors });
       } catch (err) {
         return Response.json({ error: err.message }, { status: 500, headers: cors });
       }
@@ -171,7 +229,8 @@ export default {
           return Response.json({ error: "Unauthorised" }, { status: 401, headers: cors });
         }
         const draftId = url.pathname.split("/draft/")[1];
-        await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${draftId}.json?auth=${env.FIREBASE_SECRET}`, { method: "DELETE" });
+        const del = await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${draftId}.json?auth=${env.FIREBASE_SECRET}`, { method: "DELETE" });
+        if (!del.ok) return Response.json({ error: `The draft was not deleted (database refused it: HTTP ${del.status}).` }, { status: 502, headers: cors });
         return Response.json({ success: true }, { headers: cors });
       } catch (err) {
         return Response.json({ error: err.message }, { status: 500, headers: cors });
@@ -399,16 +458,41 @@ async function fireDeployHook(env) {
   }
 }
 
+// W6 (ADM-04, ADM-05) — WHICH STORIES THIS TICK MAY PUBLISH. Pure; tests/ci/w6-worker.test.mjs
+// slices it out of this file and runs it.
+//
+//   'publish'      published:false, a publishAt that has arrived, a generated cover, no hold
+//   'hidden'       an editor took it down (hiddenAt). Before W6, Hide wrote only published:false,
+//                  and this loop republished any published:false story with a past publishAt —
+//                  48 live stories carried one — so a Hide lasted until the next */15 tick.
+//   'no_cover'     still held for its cover (coverHold), or carrying no generated cover at all.
+//                  Before W6 this loop ignored coverHold, so a story whose cover worker was late
+//                  or red went live coverless. It is skipped, and an alert is written.
+//   null           not due (already live, never scheduled, or scheduled for later)
+function publishDecision(story, now) {
+  if (!story || typeof story !== "object") return null;
+  if (story.published || !story.publishAt) return null;
+  const at = new Date(story.publishAt).getTime();
+  if (!Number.isFinite(at) || at > now.getTime()) return null;
+  if (story.hiddenAt) return "hidden";
+  if (story.coverHold === true || !/covers-typographic/.test(String(story.cover || ""))) return "no_cover";
+  return "publish";
+}
+
 // Returns true if anything went live, which is what earns the rebuild.
 async function publishDueStories(env, now) {
   const res = await fetch(`${env.FIREBASE_DATABASE_URL}/cms_stories.json?auth=${env.FIREBASE_SECRET}`);
+  if (!res.ok) throw new Error(`cms_stories read failed: HTTP ${res.status}`);
   const stories = await res.json();
   let published = false;
   if (stories && typeof stories === "object") {
     for (const [slug, story] of Object.entries(stories)) {
-      if (story.published || !story.publishAt) continue;
-      const publishTime = new Date(story.publishAt);
-      if (publishTime > now) continue;
+      const decision = publishDecision(story, now);
+      if (!decision || decision === "hidden") continue;
+      if (decision === "no_cover") {
+        await alertSkippedPublish(env, slug, story, now);
+        continue;
+      }
       try {
         // Flip published AND write the slim index record in ONE atomic multi-path
         // PATCH (root .json). A bare `cms_stories/<slug>/published: true` write would
@@ -418,14 +502,19 @@ async function publishDueStories(env, now) {
         // the story object read here is still pre-flip, so project { ...story,
         // published: true } to get published:true into the index record.
         const indexRecord = buildIndexRecordMirror(slug, { ...story, published: true });
-        await fetch(`${env.FIREBASE_DATABASE_URL}/.json?auth=${env.FIREBASE_SECRET}`, {
+        const flip = await fetch(`${env.FIREBASE_DATABASE_URL}/.json?auth=${env.FIREBASE_SECRET}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             [`cms_stories/${slug}/published`]: true,
             [`cms_stories_index/${slug}`]: indexRecord,
+            // A skip alert for this story, if one was raised, is answered by this publish.
+            [`ops/publish_skips/${slug}`]: null,
           }),
         });
+        // W6: the write's own answer. fetch() does not throw on a refusal, so a PATCH the
+        // database turned down used to count as a publish and earn a rebuild.
+        if (!flip.ok) { console.error(`Publish of ${slug} refused: HTTP ${flip.status}`); continue; }
         published = true;
       } catch (err) {
         console.error(`Failed to publish story ${slug}:`, err);
@@ -435,21 +524,105 @@ async function publishDueStories(env, now) {
   return published;
 }
 
+// W6 (ADM-05): a scheduled story reached its time without a cover. It is NOT published; the
+// alert lands at ops/publish_skips/{slug}, which /admin shows at the top of the story list
+// until the story publishes (the flip above clears it) or a founder dismisses it. Written
+// once per story, not on every tick.
+async function alertSkippedPublish(env, slug, story, now) {
+  const url = `${env.FIREBASE_DATABASE_URL}/ops/publish_skips/${slug}.json?auth=${env.FIREBASE_SECRET}`;
+  try {
+    const existing = await (await fetch(url)).json();
+    if (existing) return;
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        slug,
+        title: String(story.title || slug).slice(0, 200),
+        publishAt: story.publishAt,
+        reason: story.coverHold === true ? "held_for_cover" : "no_generated_cover",
+        at: now.getTime(),
+      }),
+    });
+    console.error(`NOT PUBLISHED: ${slug} was due at ${story.publishAt} but has no cover. Alert ${res.ok ? "raised" : `FAILED (HTTP ${res.status})`}.`);
+  } catch (err) {
+    console.error(`NOT PUBLISHED: ${slug} has no cover, and the alert could not be written (${err?.name || "Error"}).`);
+  }
+}
+
+// W6 (ADM-22) — WHEN A DRAFT IS DUE. The admin now sends `scheduledAt` as UTC ISO ("…Z"). Drafts
+// saved before W6 carry a zoneless datetime-local string ("2026-10-01T09:00"), which workerd reads
+// as UTC — so every one scheduled during BST sent an hour late. A zoneless value is Europe/London
+// wall time, which is what the person typing it meant. Pure; mirrored by app/lib/londonTime.js and
+// held to the same cases by tests/ci/w6-worker.test.mjs.
+function londonWallToUtcMs(wall) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(String(wall || "").trim());
+  if (!m) return NaN;
+  const asUtc = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+  const offsetAt = (ms) => {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+    return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - ms;
+  };
+  const first = asUtc - offsetAt(asUtc);
+  return asUtc - offsetAt(first);
+}
+function scheduledMs(value) {
+  const v = String(value || "").trim();
+  if (!v) return NaN;
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(v)) return Date.parse(v);
+  return londonWallToUtcMs(v);
+}
+
+async function patchDraft(env, id, fields) {
+  return fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${id}.json?auth=${env.FIREBASE_SECRET}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+}
+
 async function sendDueNewsletters(env, now) {
   const draftsRes = await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts.json?auth=${env.FIREBASE_SECRET}`);
+  if (!draftsRes.ok) throw new Error(`newsletter_drafts read failed: HTTP ${draftsRes.status}`);
   const drafts = await draftsRes.json();
   if (!drafts || typeof drafts !== "object") return;
   for (const [id, draft] of Object.entries(drafts)) {
     if (draft.status !== "scheduled" || !draft.scheduledAt) continue;
-    const scheduledTime = new Date(draft.scheduledAt);
-    if (scheduledTime > now) continue;
+    const at = scheduledMs(draft.scheduledAt);
+    if (!Number.isFinite(at) || at > now.getTime()) continue;
     try {
-      await sendNewsletter({ subject: draft.subject, blocks: draft.blocks, intro: draft.intro, stories: draft.stories, issueNumber: draft.issueNumber }, env);
-      await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${id}.json?auth=${env.FIREBASE_SECRET}`, { method: "DELETE" });
+      // W6: LOCK FIRST. Only a 'scheduled' draft is picked up, so a draft marked 'sending' can
+      // never be mailed twice — not by the next tick, not by a Send pressed on it in the admin.
+      const lock = await patchDraft(env, id, { status: "sending", sendingSince: now.toISOString() });
+      if (!lock.ok) { console.error(`Scheduled newsletter ${id} not sent: the lock was refused (HTTP ${lock.status}).`); continue; }
+      const result = await sendNewsletter({ subject: draft.subject, blocks: draft.blocks, intro: draft.intro, stories: draft.stories, issueNumber: draft.issueNumber }, env);
+      await settleDraftAfterSend(env, id, result);
     } catch (err) {
       console.error(`Failed to send scheduled newsletter ${id}:`, err);
+      try { await patchDraft(env, id, { status: "failed", failure: String(err?.message || err).slice(0, 300) }); } catch { /* logged above */ }
     }
   }
+}
+
+// After a send that came from a draft: a clean send removes the draft (the issue is archived in
+// newsletter_sends); anything else keeps it, marked 'failed' with the counts, so it is neither
+// lost nor re-sent by a later tick. Before W6 the draft was deleted whatever happened.
+async function settleDraftAfterSend(env, id, result) {
+  if (result && result.success && result.failed === 0) {
+    const del = await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_drafts/${id}.json?auth=${env.FIREBASE_SECRET}`, { method: "DELETE" });
+    if (!del.ok) console.error(`Newsletter ${id} was sent, but its draft could not be removed (HTTP ${del.status}).`);
+    return;
+  }
+  await patchDraft(env, id, {
+    status: "failed",
+    failure: result?.error ? String(result.error).slice(0, 300) : null,
+    sent: result?.sent ?? 0,
+    failedCount: result?.failed ?? 0,
+    sendId: result?.sendId ?? null,
+  });
 }
 
 function normaliseBlocks({ blocks, intro, stories }) {
@@ -464,13 +637,25 @@ function normaliseBlocks({ blocks, intro, stories }) {
   return out;
 }
 
-async function sendNewsletter({ subject, blocks, intro, stories, issueNumber, testEmail }, env) {
+// Resolves { success, mode, sent, failed, allowlistOpen, sendId } — or { error, status } when
+// nothing was sent. W6: `status` is the HTTP status the /send route answers with, so a refusal is a
+// refusal on the wire too (before W6 every one of these came back as HTTP 200, and the admin, which
+// checked only res.ok, said "Test sent" for a test the allowlist had refused).
+//
+// `onlyTo` (W6) sends to exactly those addresses — the retry of a partial send, which must mail the
+// ones that failed and nobody who already has the issue.
+async function sendNewsletter({ subject, blocks, intro, stories, issueNumber, testEmail, onlyTo, archive = true }, env) {
   const normalisedBlocks = normaliseBlocks({ blocks, intro, stories });
-  const subsRes = await fetch(`${env.FIREBASE_DATABASE_URL}/subscribers.json?auth=${env.FIREBASE_SECRET}`);
-  const subsData = await subsRes.json();
   let emails = [];
-  if (subsData && typeof subsData === "object") {
-    emails = Object.values(subsData).filter((s) => s.email && s.status !== "unsubscribed").map((s) => s.email);
+  if (Array.isArray(onlyTo)) {
+    emails = onlyTo.filter((e) => typeof e === "string" && e.includes("@"));
+  } else {
+    const subsRes = await fetch(`${env.FIREBASE_DATABASE_URL}/subscribers.json?auth=${env.FIREBASE_SECRET}`);
+    if (!subsRes.ok) return { error: `Could not read the subscriber list (HTTP ${subsRes.status}). Nothing was sent.`, status: 502 };
+    const subsData = await subsRes.json();
+    if (subsData && typeof subsData === "object") {
+      emails = Object.values(subsData).filter((s) => s.email && s.status !== "unsubscribed").map((s) => s.email);
+    }
   }
   let allowlistOpen = false;
   if (testEmail) {
@@ -487,17 +672,18 @@ async function sendNewsletter({ subject, blocks, intro, stories, issueNumber, te
     } else {
       const allowed = raw.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
       if (!allowed.includes(String(testEmail).trim().toLowerCase())) {
-        return { error: `Test sends are restricted. ${testEmail} is not on TEST_SEND_ALLOWLIST.` };
+        return { error: `Test sends are restricted. ${testEmail} is not on TEST_SEND_ALLOWLIST. Nothing was sent.`, status: 403 };
       }
     }
     emails = [testEmail];
   }
-  if (emails.length === 0) return { error: "No active subscribers" };
+  if (emails.length === 0) return { error: "No active subscribers. Nothing was sent.", status: 409 };
   const html = buildEmail({ subject, blocks: normalisedBlocks, issueNumber });
   const text = buildEmailText({ subject, blocks: normalisedBlocks, issueNumber });
   const BATCH_SIZE = 50;
   let sent = 0;
   let failed = 0;
+  const failedRecipients = [];
   for (let i = 0; i < emails.length; i += BATCH_SIZE) {
     const batch = emails.slice(i, i + BATCH_SIZE);
     const batchPayload = batch.map((email) => ({
@@ -507,15 +693,23 @@ async function sendNewsletter({ subject, blocks, intro, stories, issueNumber, te
       html: html.replace("token=TOKEN", `token=${btoa(email)}`),
       text: text.replace("token=TOKEN", `token=${btoa(email)}`),
     }));
-    const resendRes = await fetch("https://api.resend.com/emails/batch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.RESEND_API_KEY}` },
-      body: JSON.stringify(batchPayload),
-    });
-    if (resendRes.ok) { sent += batch.length; } else { failed += batch.length; }
+    let ok = false;
+    try {
+      const resendRes = await fetch("https://api.resend.com/emails/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${env.RESEND_API_KEY}` },
+        body: JSON.stringify(batchPayload),
+      });
+      ok = resendRes.ok;
+      if (!ok) console.error(`[send] Resend refused a batch of ${batch.length}: HTTP ${resendRes.status}`);
+    } catch (err) {
+      console.error(`[send] a batch of ${batch.length} could not reach Resend (${err?.name || "Error"})`);
+    }
+    if (ok) { sent += batch.length; } else { failed += batch.length; failedRecipients.push(...batch); }
   }
-  if (!testEmail) {
-    await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_sends.json?auth=${env.FIREBASE_SECRET}`, {
+  let sendId = null;
+  if (!testEmail && archive) {
+    const logRes = await fetch(`${env.FIREBASE_DATABASE_URL}/newsletter_sends.json?auth=${env.FIREBASE_SECRET}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -524,6 +718,9 @@ async function sendNewsletter({ subject, blocks, intro, stories, issueNumber, te
         sentAt: new Date().toISOString(),
         recipientCount: sent,
         failedCount: failed,
+        // W6: who did NOT get it, so "Retry the ones that failed" can reach exactly them.
+        failedRecipients: failedRecipients.length ? failedRecipients : null,
+        retryOf: Array.isArray(onlyTo) ? "retry" : null,
         storySlugs: normalisedBlocks.filter((b) => b.type === "story").map((b) => b.slug),
         // The archive. Until now this record held metadata only, so the body of
         // every issue ever sent was unrecoverable the moment the draft was
@@ -535,8 +732,11 @@ async function sendNewsletter({ subject, blocks, intro, stories, issueNumber, te
         formats: [...new Set(normalisedBlocks.filter((b) => b.type === "text").map((b) => b.format || "legacy-escaped"))],
       }),
     });
+    if (logRes.ok) { try { sendId = (await logRes.json())?.name || null; } catch { /* the mail went; only the id is missing */ } }
+    else console.error(`[send] the issue was mailed but its archive record was refused (HTTP ${logRes.status})`);
   }
-  return { success: true, mode: testEmail ? "test" : "live", sent, failed, allowlistOpen };
+  if (sent === 0) return { error: `The mail service refused every batch. None of the ${failed} emails went.`, status: 502, sent, failed, sendId, failedRecipients };
+  return { success: true, mode: testEmail ? "test" : "live", sent, failed, allowlistOpen, sendId, failedRecipients };
 }
 
 function escHtml(s) {

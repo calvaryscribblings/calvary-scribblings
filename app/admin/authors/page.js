@@ -1,7 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { useReliableLoad } from '../../lib/useReliable';
+import AdminLoad from '../../components/AdminLoad';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -114,11 +116,8 @@ function SocialFields({ form, set }) {
 
 export default function AuthorsAdmin() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
-  const [authors, setAuthors] = useState([]);
-  const [guests, setGuests] = useState([]);
 
   // Registered-author edit form
   const [editingUid, setEditingUid] = useState(null);
@@ -130,70 +129,70 @@ export default function AuthorsAdmin() {
 
   const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    load();
+  // W6 (ADM-24) — TWO READS, ONE PER SECTION, EACH ALLOWED TO FAIL ON ITS OWN. They were one
+  // try/catch that put "Error loading: …" at the top and left BOTH sections saying "No stories
+  // with an authorUid yet." and "No guest authors yet." beneath it. Each now runs under
+  // useReliableLoad (deadline, failure kind) and draws a compact <Unavailable> in its own place.
+  // null = not an admin (yet); AdminLoad draws that as loading, never as empty.
+  const authorsLoad = useReliableLoad(async () => {
+    if (!isAdmin) return null;
+    const { ref, get } = await import('firebase/database');
+    // cms_stories to derive author uids. The users node is locked to per-uid reads by RTDB
+    // rules, so it is NOT read wholesale here — each author is fetched individually below.
+    const storiesSnap = await get(ref(db, 'cms_stories'));
+
+    // Distinct, non-empty authorUid values actually used across stories + counts.
+    const counts = {};
+    if (storiesSnap.exists()) {
+      Object.values(storiesSnap.val()).forEach((st) => {
+        const uid = (st && st.authorUid ? String(st.authorUid) : '').trim();
+        if (uid) counts[uid] = (counts[uid] || 0) + 1;
+      });
+    }
+
+    // Fetch each author per-uid (rules permit users/{uid}). One bad uid never blanks the whole
+    // list — but a read that FAILED is counted and said, not silently dropped (an absent
+    // record is still skipped: that is an answer).
+    const uids = Object.keys(counts);
+    let unread = 0;
+    const fetched = await Promise.all(uids.map(async (uid) => {
+      try {
+        const snap = await get(ref(db, `users/${uid}`));
+        if (!snap.exists()) return null;
+        const u = snap.val() || {};
+        return {
+          uid,
+          displayName: u.displayName || '(unknown user)',
+          username: u.username || '',
+          bio: u.bio || '',
+          avatarUrl: u.avatarUrl || '',
+          authorBio: u.authorBio || '',
+          authorRole: u.authorRole || '',
+          authorPhotoUrl: u.authorPhotoUrl || '',
+          authorSocials: u.authorSocials || {},
+          count: counts[uid],
+        };
+      } catch (e) {
+        unread += 1;
+        return null;
+      }
+    }));
+    const list = fetched.filter(Boolean);
+    list.sort((a, b) => b.count - a.count || a.displayName.localeCompare(b.displayName));
+    return { list, unread };
   }, [isAdmin]);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const { ref, get } = await import('firebase/database');
-      // Top-level reads: cms_stories (to derive author uids) and cms_authors (public).
-      // The users node is locked to per-uid reads by RTDB rules, so it is NOT read
-      // wholesale here — each author is fetched individually below.
-      const [storiesSnap, guestsSnap] = await Promise.all([
-        get(ref(db, 'cms_stories')),
-        get(ref(db, 'cms_authors')),
-      ]);
+  const guestsLoad = useReliableLoad(async () => {
+    if (!isAdmin) return null;
+    const { ref, get } = await import('firebase/database');
+    const guestsSnap = await get(ref(db, 'cms_authors'));
+    const gv = guestsSnap.exists() ? guestsSnap.val() : {};
+    return Object.entries(gv)
+      .map(([id, g]) => ({ id, ...g }))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }, [isAdmin]);
 
-      // Distinct, non-empty authorUid values actually used across stories + counts.
-      const counts = {};
-      if (storiesSnap.exists()) {
-        Object.values(storiesSnap.val()).forEach((st) => {
-          const uid = (st && st.authorUid ? String(st.authorUid) : '').trim();
-          if (uid) counts[uid] = (counts[uid] || 0) + 1;
-        });
-      }
-
-      // Fetch each author per-uid (rules permit users/{uid}). A failed or empty
-      // read is skipped gracefully so one bad uid never blanks the whole list.
-      const uids = Object.keys(counts);
-      const fetched = await Promise.all(uids.map(async (uid) => {
-        try {
-          const snap = await get(ref(db, `users/${uid}`));
-          if (!snap.exists()) return null;
-          const u = snap.val() || {};
-          return {
-            uid,
-            displayName: u.displayName || '(unknown user)',
-            username: u.username || '',
-            bio: u.bio || '',
-            avatarUrl: u.avatarUrl || '',
-            authorBio: u.authorBio || '',
-            authorRole: u.authorRole || '',
-            authorPhotoUrl: u.authorPhotoUrl || '',
-            authorSocials: u.authorSocials || {},
-            count: counts[uid],
-          };
-        } catch (e) {
-          return null;
-        }
-      }));
-      const list = fetched.filter(Boolean);
-      list.sort((a, b) => b.count - a.count || a.displayName.localeCompare(b.displayName));
-      setAuthors(list);
-
-      const gv = guestsSnap.exists() ? guestsSnap.val() : {};
-      const glist = Object.entries(gv)
-        .map(([id, g]) => ({ id, ...g }))
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      setGuests(glist);
-    } catch (e) {
-      setMsg('Error loading: ' + e.message);
-    }
-    setLoading(false);
-  }
+  const load = () => { authorsLoad.reload(); guestsLoad.reload(); };
 
   // ── Registered authors ─────────────────────────────────────────────────
   function openEditAuthor(a) {
@@ -332,12 +331,22 @@ export default function AuthorsAdmin() {
             </div>
           </div>
 
-          {loading ? (
-            <div style={s.empty}>Loading…</div>
-          ) : authors.length === 0 ? (
-            <div style={s.empty}>No stories with an authorUid yet.</div>
-          ) : (
-            authors.map((a) => (
+          <AdminLoad
+            load={authorsLoad}
+            subject="the registered authors"
+            compact
+            loading={<div style={s.empty}>Loading…</div>}
+            empty={<div style={s.empty}>No stories with an authorUid yet.</div>}
+            isEmpty={(d) => d.list.length === 0 && d.unread === 0}
+          >
+          {({ list: authors, unread }) => (<>
+            {unread > 0 && (
+              <div style={{ ...s.msg, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                <span>{unread} author{unread === 1 ? '' : 's'} could not be read and {unread === 1 ? 'is' : 'are'} missing below.</span>
+                <button style={s.btnSm} onClick={authorsLoad.retry} disabled={authorsLoad.refreshing}>{authorsLoad.refreshing ? 'Trying…' : 'Try again'}</button>
+              </div>
+            )}
+            {authors.map((a) => (
               <div key={a.uid}>
                 <div style={s.card}>
                   <Avatar src={a.authorPhotoUrl || a.avatarUrl} name={a.displayName} />
@@ -388,8 +397,9 @@ export default function AuthorsAdmin() {
                   </div>
                 )}
               </div>
-            ))
-          )}
+            ))}
+          </>)}
+          </AdminLoad>
         </section>
 
         {/* ── Guest authors ── */}
@@ -437,12 +447,14 @@ export default function AuthorsAdmin() {
             </div>
           )}
 
-          {loading ? (
-            <div style={s.empty}>Loading…</div>
-          ) : guests.length === 0 ? (
-            <div style={s.empty}>No guest authors yet.</div>
-          ) : (
-            guests.map((g) => (
+          <AdminLoad
+            load={guestsLoad}
+            subject="the guest authors"
+            compact
+            loading={<div style={s.empty}>Loading…</div>}
+            empty={<div style={s.empty}>No guest authors yet.</div>}
+          >
+          {(guests) => guests.map((g) => (
               <div key={g.id} style={s.card}>
                 <Avatar src={g.photoUrl} name={g.name} />
                 <div style={s.cardInfo}>
@@ -454,8 +466,8 @@ export default function AuthorsAdmin() {
                   {g.bio && <div style={s.cardMeta}>{g.bio}</div>}
                 </div>
               </div>
-            ))
-          )}
+            ))}
+          </AdminLoad>
         </section>
       </div>
     </div>

@@ -45,6 +45,7 @@ import {
   confirmConsequence,
   nameMatches,
   deletionPlan,
+  classifyRemoval,
   tombstoneOf,
   pruneClaims,
   takenCatalogueNumbers,
@@ -351,9 +352,14 @@ describe('the storage objects that should go are actually gone', () => {
   });
 
   test('the delete loop treats object-not-found as ordinary, and everything else as a failure', () => {
+    // W6 — the classification moved into withdrawal.js (classifyRemoval) so it can be asserted
+    // directly; the loop sorts every result through it and returns the failures by name.
+    assert.equal(classifyRemoval(null), 'removed');
+    assert.equal(classifyRemoval({ code: 'storage/object-not-found' }), 'gone');
+    assert.equal(classifyRemoval({ code: 'storage/unauthorized' }), 'failed');
     const admin = src('app/lib/bookstore/admin-writes.js');
     const fn = admin.slice(admin.indexOf('export async function deleteTitle'));
-    assert.match(fn, /storage\/object-not-found/);
+    assert.match(fn, /classifyRemoval\(error\)/);
     assert.match(fn, /filesFailed/, 'a real failure is reported, not swallowed');
   });
 });
@@ -413,12 +419,15 @@ describe("the confirm step's count matches live data", () => {
     }
   });
 
-  test('the count is read LIVE, from the node that is written with each purchase', () => {
+  test('the count is read LIVE, from every holder record — sales and comps (W6)', () => {
+    // W6 replaced the readership counter (which excludes comps by ruling) with a holder count
+    // over bookstore_purchases, read server-side. tests/ci/w6-bookstore-delete.test.mjs holds
+    // the endpoint and the comp-only case.
     const admin = src('app/lib/bookstore/admin-writes.js');
-    assert.match(admin, /READERSHIP_PATH/, 'the count comes from bookstore_readership');
+    assert.match(admin, /HOLDERS_ENDPOINT = '\/api\/bookstore\/holders'/, 'the count comes from the holders endpoint');
     const preview = admin.slice(admin.indexOf('export async function deletionPreview'), admin.indexOf('export async function withdrawTitle'));
-    assert.match(preview, /readOwnerCount/);
-    assert.match(preview, /confirmConsequence\(owners\.count\)/, 'the sentence is built from the number that was read');
+    assert.match(preview, /readHolderCount/);
+    assert.match(preview, /confirmConsequence\(owners\.count, owners\.comps\)/, 'the sentence is built from the number that was read');
     assert.match(preview, /!owners\.ok/, 'and an unreadable count returns an error, not a dialog');
   });
 
@@ -449,7 +458,7 @@ describe("the confirm step's count matches live data", () => {
     const fn = admin.slice(admin.indexOf('export async function deleteTitle'));
     assert.match(fn, /nameMatches\(confirmName, title\.title\)/);
     // BEFORE the count is read, so a mistyped name never even asks the database.
-    assert.ok(fn.indexOf('nameMatches') < fn.indexOf('readOwnerCount'));
+    assert.ok(fn.indexOf('nameMatches') < fn.indexOf('readHolderCount'));
   });
 });
 

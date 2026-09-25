@@ -1,7 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { useReliableLoad } from '../../lib/useReliable';
+import Unavailable from '../../components/Unavailable';
 import { extractEpubFromUrl } from '../../lib/epubExtract';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
@@ -38,41 +40,35 @@ export default function ExtractTextPage() {
   const { user, loading: authLoading } = useAuth();
   const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
 
-  const [stories, setStories] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [statuses, setStatuses] = useState({});
   const [showAll, setShowAll] = useState(false);
   const [batchRunning, setBatchRunning] = useState(false);
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    loadStories();
+  // W6 (ADM-24) — the read throws, under useReliableLoad's deadline. It used to alert() and then
+  // draw the page anyway from an empty list: "0 stories have an EPUB. 0 need extraction." and
+  // "✓ All EPUBs have extracted text." — a clean bill of health for a read that failed. The
+  // counts and the all-clear are now drawn only from a read that came back. null = not an admin.
+  const storiesLoad = useReliableLoad(async () => {
+    if (!isAdmin) return null;
+    const { ref, get } = await import('firebase/database');
+    const snap = await get(ref(db, 'cms_stories'));
+    if (!snap.exists()) return [];
+    return Object.entries(snap.val())
+      .map(([slug, st]) => ({
+        slug,
+        title: st.title || slug,
+        author: st.author || '',
+        epubUrl: st.epubUrl || '',
+        extractedLength: (st.extractedText || '').length,
+      }))
+      .filter(st => st.epubUrl)
+      .sort((a, b) => a.title.localeCompare(b.title));
   }, [isAdmin]);
-
-  async function loadStories() {
-    setLoading(true);
-    try {
-      const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, 'cms_stories'));
-      if (snap.exists()) {
-        const data = snap.val();
-        const list = Object.entries(data)
-          .map(([slug, st]) => ({
-            slug,
-            title: st.title || slug,
-            author: st.author || '',
-            epubUrl: st.epubUrl || '',
-            extractedLength: (st.extractedText || '').length,
-          }))
-          .filter(st => st.epubUrl)
-          .sort((a, b) => a.title.localeCompare(b.title));
-        setStories(list);
-      }
-    } catch (e) {
-      alert('Failed to load stories: ' + e.message);
-    }
-    setLoading(false);
-  }
+  const loading = storiesLoad.phase !== 'ready' || !storiesLoad.data;
+  // An extraction run this session updates its row from the status it recorded, not a re-read.
+  const stories = useMemo(() => (storiesLoad.data || []).map((st) => (
+    statuses[st.slug]?.state === 'done' ? { ...st, extractedLength: statuses[st.slug].length } : st
+  )), [storiesLoad.data, statuses]);
 
   async function extractOne(slug) {
     const story = stories.find(s => s.slug === slug);
@@ -94,7 +90,6 @@ export default function ExtractTextPage() {
         [`story_bodies/${slug}/extractedText`]: text,
       });
       setStatuses(prev => ({ ...prev, [slug]: { state: 'done', length: text.length } }));
-      setStories(prev => prev.map(s => s.slug === slug ? { ...s, extractedLength: text.length } : s));
     } catch (e) {
       console.error('[extract-text]', slug, e);
       setStatuses(prev => ({ ...prev, [slug]: { state: 'error', error: e.message } }));
@@ -141,6 +136,11 @@ export default function ExtractTextPage() {
           Pull plain text from uploaded EPUBs into <code style={{ color: '#c4b5fd' }}>cms_stories/&lt;slug&gt;/extractedText</code>. Required before reader-mode quizzes can be generated.
         </div>
 
+        {storiesLoad.phase === 'failed' && (
+          <Unavailable kind={storiesLoad.failure} onRetry={storiesLoad.retry} refreshing={storiesLoad.refreshing} subject="the stories" />
+        )}
+
+        {storiesLoad.phase !== 'failed' && <>
         <div style={s.msg}>
           {loading ? 'Loading…' : `${stories.length} stor${stories.length === 1 ? 'y has' : 'ies have'} an EPUB. ${missingCount} need${missingCount === 1 ? 's' : ''} extraction.`}
         </div>
@@ -182,6 +182,7 @@ export default function ExtractTextPage() {
             </button>
           </div>
         ))}
+        </>}
       </div>
     </div>
   );

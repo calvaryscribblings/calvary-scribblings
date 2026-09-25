@@ -16,6 +16,10 @@ import { validateDescriptor, canonicalDescriptor, wordsEchoingTitle } from '../l
 // builds indefinitely. It was rotated on 26 Aug 2026 and is dead. The hook is now named, never
 // held: see app/lib/rebuild.js.
 import { fireRebuild, HOOKS } from '../lib/rebuild';
+import { liveBuildId, waitForNewBuild, rebuildLine } from '../lib/rebuildWatch';
+import { storyStatus, statusLine, scheduleRefusal, unscheduleDecision, hidePaths, unhidePlan } from '../lib/storyState';
+import { readWithDeadline, classifyFailure } from '../lib/reliableRead';
+import Unavailable from '../components/Unavailable';
 import { slugify, newStorySlug } from '../lib/storySlug';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
@@ -234,8 +238,16 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
   const textareaRef = useRef(null);
   const coverInputRef = useRef(null);
   const epubInputRef = useRef(null);
-  const isScheduled = !!form.publishAt;
-  const scheduleStatus = form.publishAt ? getScheduleStatus(form.publishAt) : null;
+  // W6 (ADM-07): a LIVE story is not offered a schedule — its past publishAt is history, and the
+  // form used to open it with "Schedule for later" ticked and a Schedule Story button.
+  const isLiveRecord = form.recordStatus === 'live';
+  const isScheduled = !!form.publishAt && !isLiveRecord;
+  const scheduleStatus = isScheduled ? getScheduleStatus(form.publishAt) : null;
+  const unscheduling = form.recordStatus === 'scheduled' && !form.publishAt;
+  const saveLabel = isScheduled && new Date(form.publishAt) > new Date() ? 'Schedule Story'
+    : unscheduling ? (form.unscheduleAs === 'publish' ? 'Publish Now' : form.unscheduleAs === 'hide' ? 'Save as Hidden' : 'Choose what happens')
+    : !editingId ? 'Publish Story'
+    : isLiveRecord ? 'Update Story' : 'Save';
   const subcatOptions = SUBCATEGORY_MAP[form.category] || [];
 
   // Live-resolve a typed @handle → uid when "Attribute by @handle" is chosen.
@@ -518,7 +530,16 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
           <div style={s.hint}>Pins this story into the featured carousel every rotation.</div>
         </div>
 
+        {isLiveRecord ? (
         <div style={s.scheduleBox}>
+          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#86efac', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{form.recordStatusLine || 'Live'}</div>
+          <div style={s.hint}>This story is live. Saving updates it in place; to take it down, use Hide on the story list.</div>
+        </div>
+        ) : (
+        <div style={s.scheduleBox}>
+          {editingId && form.recordStatusLine && (
+            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', marginBottom: '0.4rem' }}>Now: {form.recordStatusLine}</div>
+          )}
           <label style={s.scheduleToggle}>
             <input type="checkbox" checked={isScheduled}
               onChange={e => setForm(f => ({
@@ -539,8 +560,20 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
               )}
             </>
           )}
-          {!isScheduled && <div style={s.hint}>Untick to publish immediately. Tick to choose a future date and time.</div>}
+          {!isScheduled && !unscheduling && <div style={s.hint}>Untick to publish immediately. Tick to choose a future date and time.</div>}
+          {unscheduling && (
+            <div role="group" aria-label="What happens without its schedule" style={{ marginTop: '0.6rem', padding: '0.6rem 0.75rem', border: '1px solid rgba(252,211,77,0.45)', borderRadius: 8 }}>
+              <div style={{ fontSize: '0.8rem', color: '#fcd34d', marginBottom: '0.4rem' }}>You removed this story&rsquo;s schedule. What should happen instead?</div>
+              <label style={{ display: 'block', fontSize: '0.82rem', color: '#f5f0e8', marginBottom: '0.25rem' }}>
+                <input type="radio" name="unscheduleAs" checked={form.unscheduleAs === 'publish'} onChange={() => setForm(f => ({ ...f, unscheduleAs: 'publish' }))} /> Publish it now
+              </label>
+              <label style={{ display: 'block', fontSize: '0.82rem', color: '#f5f0e8' }}>
+                <input type="radio" name="unscheduleAs" checked={form.unscheduleAs === 'hide'} onChange={() => setForm(f => ({ ...f, unscheduleAs: 'hide' }))} /> Keep it hidden (it will not publish)
+              </label>
+            </div>
+          )}
         </div>
+        )}
 
         <div style={s.fg}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -604,7 +637,7 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
         <div style={s.formActions}>
           <button style={s.btnGhost} onClick={onCancel}>Cancel</button>
           <button style={{ ...s.btn, opacity: saving ? 0.6 : 1 }} onClick={onSave} disabled={saving}>
-            {saving ? 'Saving…' : isScheduled ? 'Schedule Story' : editingId ? 'Update Story' : 'Publish Story'}
+            {saving ? 'Saving…' : saveLabel}
           </button>
         </div>
       </div>
@@ -619,6 +652,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  // W6 (ADM-24): a failed load is drawn, never "No stories yet".
+  const [loadFail, setLoadFail] = useState(null);
+  // W6 (ADM-05): stories the scheduled-publish Worker refused to publish coverless.
+  const [skips, setSkips] = useState([]);
+  // W6 (ADM-10): the site's side of the last action — { stage, done, verdict }.
+  const [rebuild, setRebuild] = useState(null);
   const [editingId, setEditingId] = useState(null);
   // Stable-identity rosters for the author picker.
   const [roster, setRoster] = useState([]);       // [{ uid, displayName, username }]
@@ -631,6 +670,9 @@ export default function AdminPage() {
     extractedText: '',
     authorHandle: '', handleInput: '', resolvedHandle: null, handleError: '',
     trailerQuote: '', descriptor: '', published: true, coverHold: false,
+    // W6: the record's own status when the editor opened (app/lib/storyState.js), and the
+    // editor's answer when they remove a scheduled story's schedule.
+    recordStatus: null, recordStatusLine: '', unscheduleAs: null,
     slug: '', // W1 / ADM-08 — a NEW story's accepted free address; '' = slugify(title)
   };
   const [form, setForm] = useState(emptyForm);
@@ -696,9 +738,10 @@ export default function AdminPage() {
 
   async function loadStories() {
     setLoading(true);
+    setLoadFail(null);
     try {
       const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, 'cms_stories'));
+      const snap = await readWithDeadline(() => get(ref(db, 'cms_stories')));
       if (snap.exists()) {
         const data = snap.val();
         const list = Object.entries(data).map(([id, s]) => ({ id, ...s }));
@@ -709,8 +752,37 @@ export default function AdminPage() {
         });
         setStories(list);
       } else { setStories([]); }
-    } catch (e) { setMsg('Error loading: ' + e.message); }
+      // The skip alerts are a second, smaller read; their failure must not blank the list.
+      try {
+        const sk = await readWithDeadline(() => get(ref(db, 'ops/publish_skips')));
+        setSkips(sk.exists() ? Object.values(sk.val() || {}) : []);
+      } catch (e) { console.warn('[admin] publish-skip alerts could not be read', e); }
+    } catch (e) {
+      console.warn('[admin] stories load failed', e);
+      setLoadFail(e?.kind || classifyFailure(e));
+    }
     setLoading(false);
+  }
+
+  async function dismissSkip(slug) {
+    try {
+      const { ref, remove } = await import('firebase/database');
+      await remove(ref(db, `ops/publish_skips/${slug}`));
+      setSkips((list) => list.filter((k) => k.slug !== slug));
+    } catch (e) { setMsg(`✗ The alert for ${slug} was not dismissed — ${e.message}`); }
+  }
+
+  // W6 (ADM-10) — THE SITE'S SIDE OF AN ACTION. Runs AFTER the record write has succeeded and
+  // been reported, so the save never waits on it (before W6 the 10 s settle blocked "Saving…").
+  // "live" is said only when a NEW build is being served; see app/lib/rebuildWatch.js.
+  async function rebuildAfter(done) {
+    const before = await liveBuildId();
+    setRebuild({ stage: 'building', done });
+    const verdict = await fireRebuild({ hook: HOOKS.CMS, getIdToken: () => user?.getIdToken() });
+    if (!verdict.ok) { setRebuild({ stage: 'refused', done, verdict }); return; }
+    if (!before) { setRebuild({ stage: 'unverified', done }); return; }
+    const w = await waitForNewBuild(before);
+    setRebuild({ stage: w.live ? 'live' : 'timeout', done });
   }
 
   const saveStory = async () => {
@@ -749,6 +821,23 @@ export default function AdminPage() {
       setMsg('Select an author before saving.'); return;
     }
     const authorHandle = (form.authorHandle || '').trim() || defaultHandle || '';
+
+    // ── W6: WHAT THIS SAVE IS, DECIDED BEFORE ANYTHING IS WRITTEN ─────────────────────
+    // The story's status as it stands (app/lib/storyState.js), and the two refusals.
+    const prevRec = editingId ? (stories.find(x => x.id === editingId) || null) : null;
+    const prevStatus = prevRec ? storyStatus(prevRec) : null;
+    const publishAtMs = form.publishAt ? new Date(form.publishAt).getTime() : null;
+    const schedulingAhead = Number.isFinite(publishAtMs) && publishAtMs > Date.now() && prevStatus !== 'live';
+    // ADM-06: removing the schedule from a SCHEDULED story needs a choice, and says which.
+    const unscheduling = prevStatus === 'scheduled' && !form.publishAt;
+    const unschedule = unscheduling ? unscheduleDecision(form.unscheduleAs || null) : null;
+    if (unschedule?.refusal) { setMsg(unschedule.refusal); return; }
+    // ADM-05 (ruled 25 Sep): no schedule a cover cannot make in time.
+    const scheduleChanged = !prevRec || new Date(prevRec.publishAt || 0).getTime() !== publishAtMs;
+    if (schedulingAhead && scheduleChanged) {
+      const refusal = scheduleRefusal({ publishAtMs, cover: form.coverFilename });
+      if (refusal) { setMsg(refusal); return; }
+    }
 
     setSaving(true); setMsg('');
     try {
@@ -797,7 +886,11 @@ export default function AdminPage() {
         url: `/stories/${slug}`,
         // New/scheduled stories derive published from publishAt (unchanged). Edits
         // preserve the existing flag so saving never hides or unhides a story.
-        published: editingId ? (form.published !== false) : !(form.publishAt && new Date(form.publishAt) > new Date()),
+        // W6: an un-schedule publishes or hides BY THE EDITOR'S CHOICE (unscheduleDecision), and a
+        // new future schedule on a story that is not live leaves it unpublished until its time.
+        published: unschedule ? unschedule.published
+          : schedulingAhead ? false
+          : editingId ? (form.published !== false) : true,
         epubUrl: form.epubUrl || '',
         readerMode: form.readerMode || false,
         prosePoetry: form.prosePoetry || false,
@@ -859,8 +952,11 @@ export default function AdminPage() {
       // so the external scheduled-publish Worker flips it on time onto a cover
       // that already exists.
       const hasGeneratedCover = /covers-typographic/.test(coverPath);
-      const isLive = !!editingId && form.published !== false;
-      const deliberatelyHidden = !!editingId && form.published === false && !form.coverHold;
+      const isLive = !!editingId && prevStatus === 'live';
+      // W6: an editor who just chose "publish it now" on an un-schedule, or who scheduled a story
+      // ahead, has not hidden it — and a story they did hide stays unheld.
+      const deliberatelyHidden = !!editingId && storyData.published === false && !form.coverHold
+        && !schedulingAhead && !(unschedule && unschedule.published);
       const holdForCover = !hasGeneratedCover && !isLive && !deliberatelyHidden;
       if (holdForCover) {
         storyData.published = false;
@@ -870,6 +966,13 @@ export default function AdminPage() {
         // has to be said out loud or a stale hold would survive on the record.
         storyData.coverHold = null;
       }
+
+      // ── hiddenAt (W6, ADM-04) — the mark that makes a Hide stick ───────────────────────
+      // Written only when this save decides it: an un-schedule the editor chose to keep hidden
+      // sets it; a fresh schedule, or "publish it now", clears it. Any other save leaves the
+      // record's own value alone (it is not in the form), so editing a hidden story keeps it hidden.
+      if (unschedule?.hide) storyData.hiddenAt = Date.now();
+      else if (schedulingAhead || (unschedule && unschedule.published) || storyData.published === true) storyData.hiddenAt = null;
 
       // ── publishedAtMs — the field the free-window gate stands on ────────────
       // Epoch ms, UTC, a NUMBER. Derived by app/lib/storyAccess.js from the two
@@ -990,7 +1093,7 @@ export default function AdminPage() {
       // reconciler. They ARE preserved on every save, and that is the intended
       // behaviour rather than a field quietly going missing.
       const PRESERVED_EXPECTED = ['quizMeta', 'pdfUrl', 'reads', 'ageRestricted', 'publishedAtMs',
-        'descriptor', 'descriptorPending'];
+        'descriptor', 'descriptorPending', 'hiddenAt'];
       const preserved = Object.keys(prev).filter(k => !(k in storyData));
       const unexpected = preserved.filter(k => !PRESERVED_EXPECTED.includes(k));
       if (preserved.length) console.info(`[admin/save] ${slug}: preserved ${preserved.length} field(s) the editor does not own — ${preserved.join(', ')}`);
@@ -1028,37 +1131,37 @@ export default function AdminPage() {
         ...indexUpdatePaths(slug, projected),
         ...bodyPaths,
       });
-      // Notify followers of this author if publishing now (not scheduled).
+      // Notify followers of this author when the story GOES LIVE with this save — not on every
+      // later edit of a live story (before W6, each "Update Story" re-notified every follower).
       //
       // A story HELD for its cover is not live, so a notification here would send
       // every follower to a story that does not exist yet. The notification travels
       // with the publication instead: scripts/covers/on-publish.mjs sends it in the
       // run that flips the cover and publishes the story. Same rule as the index —
       // whatever announces a story must not outrun the story.
-      if (!holdForCover && (!form.publishAt || new Date(form.publishAt) <= new Date())) {
-        // Notify followers of the selected uid only — guest selections have no uid.
-        if (authorUid) {
-          try {
-            const { get: getSnap, push: pushNotif } = await import('firebase/database');
-            const followersSnap = await getSnap(ref(db, `followers/${authorUid}`));
-            if (followersSnap.exists()) {
-              const followerIds = Object.keys(followersSnap.val());
-              await Promise.all(followerIds.map(fid => pushNotif(ref(db, `library_notifications/${fid}`), {
-                type: 'new_story', fromUid: authorUid,
-                fromName: storyData.author,
-                storySlug: slug, storyTitle: storyData.title,
-                read: false, createdAt: Date.now(),
-              })));
-            }
-          } catch(e) { console.warn('Follower notifications failed:', e); }
+      const goesLiveNow = !holdForCover && storyData.published === true && prevStatus !== 'live';
+      let notifyNote = '';
+      if (goesLiveNow && authorUid) {
+        // W6 (ADM-10): counted, not swallowed — "N notified / N failed".
+        try {
+          const { get: getSnap, push: pushNotif } = await import('firebase/database');
+          const followersSnap = await getSnap(ref(db, `followers/${authorUid}`));
+          const followerIds = followersSnap.exists() ? Object.keys(followersSnap.val()) : [];
+          const results = await Promise.allSettled(followerIds.map(fid => pushNotif(ref(db, `library_notifications/${fid}`), {
+            type: 'new_story', fromUid: authorUid,
+            fromName: storyData.author,
+            storySlug: slug, storyTitle: storyData.title,
+            read: false, createdAt: Date.now(),
+          })));
+          const failedN = results.filter(r => r.status === 'rejected').length;
+          notifyNote = followerIds.length === 0 ? '  No followers to notify.'
+            : failedN ? `  ⚠ ${followerIds.length - failedN} follower(s) notified, ${failedN} NOT notified.`
+            : `  ${followerIds.length} follower(s) notified.`;
+        } catch (e) {
+          notifyNote = `  ⚠ Followers were NOT notified — their list could not be read (${e.message}).`;
         }
       }
-      // The settle wait is inside fireRebuild (SETTLE_MS): the RTDB write above must land
-      // before the build reads cms_stories, or the deploy renders the story as it was a moment
-      // ago. fireRebuild never throws, so a hook problem still cannot fail a successful save —
-      // but unlike the opaque no-cors POST this replaces, a failure is now VISIBLE as one.
-      await fireRebuild({ hook: HOOKS.CMS, getIdToken: () => user?.getIdToken() });
-      const isScheduled = form.publishAt && new Date(form.publishAt) > new Date();
+      const isScheduled = schedulingAhead;
       // An unexpected preserved field is surfaced HERE, not just in the console —
       // the console is where the last silent field loss hid for three months.
       const preservedNote = unexpected.length ? `  ⚠ Preserved unrecognised field(s): ${unexpected.join(', ')} — confirm they belong on cms_stories.` : '';
@@ -1076,18 +1179,28 @@ export default function AdminPage() {
       // A story held for its cover has NOT been published, and telling an editor it
       // has is the one thing this must not do. The hold is a normal, expected state
       // — most new stories will pass through it — so the wording is a status, not an
-      // apology.
+      // apology. W6: nor is anything "published" until the site is rebuilt — the record half
+      // is said here, and the site half by the rebuild line (rebuildAfter) when it knows.
+      const nextStatus = holdForCover ? 'waiting_cover' : storyStatus({ ...prev, ...storyData });
+      const needsRebuild = prevStatus === 'live' || nextStatus === 'live';
+      const done = unschedule?.published ? 'Unscheduled and published'
+        : nextStatus === 'live' ? (prevStatus === 'live' ? 'Updated' : 'Published') : null;
       const headline = holdForCover
         ? '◷ Saved, and held for its cover. It is NOT live yet — the cover is generated off-site and the story publishes itself the moment it lands (usually within about fifteen minutes). Nothing goes live without its cover.'
         : isScheduled
-          ? `⏰ Story scheduled for ${new Date(form.publishAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}.`
-          : editingId ? '✓ Story updated.' : '✓ Story published.';
+          ? `⏰ Scheduled for ${new Date(form.publishAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/London' })} (London).`
+            + (storyData.coverHold ? ' Its cover is still being made; if it is not ready by then, the story will NOT publish and an alert will appear here.' : '')
+          : unschedule?.hide ? '✓ Unscheduled, and hidden. It will not publish until you schedule it again or unhide it.'
+          : done ? `✓ ${done} in the database.`
+          : `✓ Saved. ${statusLine({ ...prev, ...storyData })}.`;
       const descriptorNote = descriptorQueued && !holdForCover
         ? `  ✎ The descriptor is queued: it appears on the record and on the cover together, when the cover regenerates. Until then the story still shows the words its current cover shows.`
         : '';
-      setMsg(headline + descriptorNote + preservedNote + dateWarning);
+      setMsg(headline + notifyNote + descriptorNote + preservedNote + dateWarning);
       setForm(emptyForm); setEditingId(null); setView('list');
       loadStories();
+      // Not awaited: the save is done and said; the site's half reports itself when it knows.
+      if (needsRebuild) rebuildAfter(done || 'Saved');
     } catch (e) { setMsg('Error saving: ' + e.message); }
     setSaving(false);
   };
@@ -1105,9 +1218,12 @@ export default function AdminPage() {
         [`cms_stories/${id}`]: null,
         [`cms_stories_index/${id}`]: null,
         [`story_bodies/${id}`]: null,
+        [`ops/publish_skips/${id}`]: null,
       });
-      setMsg('Story deleted.'); loadStories();
-    } catch (e) { setMsg('Error: ' + e.message); }
+      setMsg('✓ Story deleted from the database.'); loadStories();
+    } catch (e) { setMsg(`✗ Story NOT deleted — ${e.message}`); return; }
+    // W6: its page stops existing only when the site is rebuilt.
+    rebuildAfter('Deleted');
   }
 
   // Targeted field update — never rewrites the whole story object.
@@ -1115,33 +1231,42 @@ export default function AdminPage() {
     if (!confirm('Hide this story? It disappears from the platform immediately but keeps all data (reads, comments, quotes). Unhide anytime.')) return;
     try {
       const { ref, update } = await import('firebase/database');
-      // Flip published on the full record AND remove the (now-ineligible) index
-      // entry in one atomic update — the index only carries published rows.
-      await update(ref(db), { [`cms_stories/${id}/published`]: false, [`cms_stories_index/${id}`]: null });
-      setMsg('Story hidden.'); loadStories();
-    } catch (e) { setMsg('Error: ' + e.message); }
+      // W6 (ADM-04): published:false AND hiddenAt, with the (now-ineligible) index entry removed,
+      // in one atomic update. hiddenAt is what stops the scheduled-publish Worker republishing a
+      // story that carries a past publishAt on its next tick (app/lib/storyState.js).
+      await update(ref(db), hidePaths(id));
+      setMsg('✓ Story hidden. It stays hidden until you unhide it — the scheduled publisher will not bring it back.'); loadStories();
+    } catch (e) { setMsg(`✗ Story NOT hidden — ${e.message}`); return; }
+    rebuildAfter('Hidden');
   }
 
   async function unhideStory(id) {
+    let live = false;
     try {
       const { ref, update, get } = await import('firebase/database');
       // Unhide needs the full record to rebuild the index entry, so read it,
       // then flip published + re-project the index entry in one atomic update.
+      // W6: a story with no generated cover is HELD instead of published (unhidePlan).
       const snap = await get(ref(db, `cms_stories/${id}`));
-      const full = { ...(snap.val() || {}), published: true };
-      await update(ref(db), {
-        [`cms_stories/${id}/published`]: true,
-        ...indexUpdatePaths(id, full),
-      });
-      setMsg('Story unhidden.'); loadStories();
-    } catch (e) { setMsg('Error: ' + e.message); }
+      const plan = unhidePlan(id, snap.val() || {});
+      live = plan.live;
+      const full = { ...(snap.val() || {}), published: plan.live, hiddenAt: null };
+      await update(ref(db), { ...plan.paths, ...indexUpdatePaths(id, full) });
+      setMsg(plan.live
+        ? '✓ Story unhidden in the database.'
+        : '◷ Unhidden, and held for its cover: it has no generated cover yet, so it publishes itself when the cover lands (usually about fifteen minutes).');
+      loadStories();
+    } catch (e) { setMsg(`✗ Story NOT unhidden — ${e.message}`); return false; }
+    if (live) rebuildAfter('Unhidden');
+    return live ? 'live' : 'held';
   }
 
   // Unhide from within the editor, keeping the current edit session open.
   async function unhideFromEditor() {
     if (!editingId) return;
-    await unhideStory(editingId);
-    setForm(f => ({ ...f, published: true }));
+    const outcome = await unhideStory(editingId);
+    if (outcome === 'live') setForm(f => ({ ...f, published: true, recordStatus: 'live' }));
+    if (outcome === 'held') setForm(f => ({ ...f, coverHold: true, recordStatus: 'waiting_cover' }));
   }
 
   function openEdit(story) {
@@ -1181,6 +1306,7 @@ export default function AdminPage() {
       // editor deliberately hid. Both have published:false; only one may be published
       // by a robot.
       coverHold: story.coverHold === true,
+      recordStatus: storyStatus(story), recordStatusLine: statusLine(story), unscheduleAs: null,
     });
     setEditingId(story.id); setView('edit'); setMsg('');
   }
@@ -1204,18 +1330,15 @@ export default function AdminPage() {
     </div>
   );
 
-  // A future publishAt means "scheduled", not "hidden" — scheduled stories carry
-  // published:false but are pending publish, so they stay out of the Hidden bucket.
-  const isSchedRow = st => st.publishAt && new Date(st.publishAt) > new Date();
+  // W6 (ADM-07): ONE status per story, from app/lib/storyState.js — the same one the editor shows.
+  // A past publishAt is history: before W6 the counts treated it as a schedule's shadow.
   // A story HELD for its cover has published:false and is not hidden — it is waiting, and
   // it will publish itself. Filing it under Hidden would put a story the editor just saved
-  // into the drawer they use for things they deliberately took down, and the Unhide button
-  // there would publish it early, coverless, defeating the hold outright.
-  const isHeldRow = st => st.coverHold === true;
-  const isHiddenRow = st => st.published === false && !isSchedRow(st) && !isHeldRow(st);
-
-  const liveCount = stories.filter(s => !s.publishAt || new Date(s.publishAt) <= new Date()).length;
-  const scheduledCount = stories.filter(s => s.publishAt && new Date(s.publishAt) > new Date()).length;
+  // into the drawer they use for things they deliberately took down.
+  const statusOf = st => storyStatus(st);
+  const isHiddenRow = st => statusOf(st) === 'hidden';
+  const liveCount = stories.filter(st => statusOf(st) === 'live').length;
+  const scheduledCount = stories.filter(st => statusOf(st) === 'scheduled').length;
   const hiddenCount = stories.filter(isHiddenRow).length;
   const publishedCount = stories.length - hiddenCount;
   const visibleStories = stories.filter(st =>
@@ -1260,7 +1383,7 @@ export default function AdminPage() {
           <StoryForm form={form} setForm={setForm} editingId={editingId}
             saving={saving} msg={msg} onSave={saveStory} onCancel={handleCancel}
             roster={roster} guestList={guestList}
-            hidden={!!editingId && form.published === false && !(form.publishAt && new Date(form.publishAt) > new Date())}
+            hidden={!!editingId && form.recordStatus === 'hidden'}
             onUnhide={unhideFromEditor} />
         )}
         {view === 'list' && (
@@ -1272,7 +1395,28 @@ export default function AdminPage() {
               </div>
               <button style={s.btn} onClick={openNew}>+ New Story</button>
             </div>
-            {msg && <div style={s.msg}>{msg}</div>}
+            {msg && <div role="status" style={s.msg}>{msg}</div>}
+            {rebuild && (
+              <div role={rebuild.stage === 'refused' || rebuild.stage === 'timeout' ? 'alert' : 'status'}
+                style={{ ...s.msg, borderColor: rebuild.stage === 'live' ? 'rgba(134,239,172,0.5)' : rebuild.stage === 'building' || rebuild.stage === 'unverified' ? 'rgba(196,181,253,0.4)' : 'rgba(248,113,113,0.6)' }}>
+                {rebuildLine(rebuild.stage, rebuild)}
+                {(rebuild.stage === 'refused' || rebuild.stage === 'timeout') && (
+                  <button style={{ ...s.btnGhost, marginLeft: '0.75rem' }} onClick={() => rebuildAfter(rebuild.done)}>Retry the rebuild</button>
+                )}
+              </div>
+            )}
+            {skips.length > 0 && (
+              // W6 (ADM-05): the scheduled-publish Worker's alert. It did NOT publish these.
+              <div role="alert" style={{ ...s.msg, borderColor: 'rgba(248,113,113,0.7)' }}>
+                <strong>Not published — no cover.</strong> These stories reached their scheduled time without a generated cover, so the scheduled publisher skipped them. Each publishes itself as soon as its cover lands; if the cover worker is failing, that is what to fix.
+                {skips.map(k => (
+                  <div key={k.slug} style={{ marginTop: '0.4rem' }}>
+                    “{k.title || k.slug}” — due {k.publishAt ? new Date(k.publishAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/London' }) : '(no time)'}
+                    <button style={{ ...s.btnGhost, marginLeft: '0.6rem', padding: '0.2rem 0.6rem' }} onClick={() => dismissSkip(k.slug)}>Dismiss</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={s.filterRow}>
               {[
                 { key: 'all', label: `All (${stories.length})` },
@@ -1286,19 +1430,21 @@ export default function AdminPage() {
             </div>
             {loading
               ? <div style={s.empty}>Loading…</div>
+              : loadFail
+                ? <Unavailable kind={loadFail} onRetry={loadStories} subject="the stories" />
               : stories.length === 0
                 ? <div style={s.empty}>No stories yet.<br />Hit "+ New Story" to publish your first.</div>
                 : visibleStories.length === 0
                   ? <div style={s.empty}>No {filter} stories.</div>
                   : visibleStories.map(story => {
-                    const scheduled = story.publishAt && new Date(story.publishAt) > new Date();
-                    const hidden = isHiddenRow(story);
+                    const st = statusOf(story);
+                    const scheduled = st === 'scheduled';
+                    const hidden = st === 'hidden';
                     // Held for a cover: not live, but not hidden either, and it will
                     // publish itself. Distinct from Hidden on purpose — an editor
                     // seeing "Hidden" on a story they just published would go looking
                     // for a bug that is not there.
-                    const heldForCover = story.coverHold === true;
-                    const status = story.publishAt ? getScheduleStatus(story.publishAt) : null;
+                    const heldForCover = story.coverHold === true && st !== 'live';
                     return (
                       <div key={story.id} style={{ ...s.card, opacity: hidden ? 0.5 : scheduled ? 0.75 : 1 }}>
                         <img src={story.cover} alt={story.title} style={s.coverThumb} onError={e => { e.target.style.opacity = 0.2; }} />
@@ -1317,8 +1463,8 @@ export default function AdminPage() {
                           </div>
                           <div style={s.cardMeta}>
                             By {story.author}{story.authorHandle ? ` (@${story.authorHandle})` : ''} · {story.date}
-                            {status && status !== 'Live' && ` · ${status}`}
-                            {!scheduled && !hidden && !heldForCover && <> · <a href={story.url} target="_blank" rel="noreferrer" style={{ color: '#a78bfa', textDecoration: 'none' }}>View →</a></>}
+ · {statusLine(story)}
+                            {st === 'live' && <> · <a href={story.url} target="_blank" rel="noreferrer" style={{ color: '#a78bfa', textDecoration: 'none' }}>View →</a></>}
                             {story.readerMode && <> · <a href={`/reader/${story.id}`} target="_blank" rel="noreferrer" style={{ color: '#fcd34d', textDecoration: 'none' }}>Book Reader →</a></>}
                           </div>
                         </div>

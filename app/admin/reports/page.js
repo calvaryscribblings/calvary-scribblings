@@ -10,9 +10,11 @@
 // message and the reporter's note, and nothing else: no link, no read of dm_messages, no "load
 // the conversation". contextHrefFor() returns null for a DM so there is nothing here to click.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { useReliableLoad } from '../../lib/useReliable';
+import AdminLoad from '../../components/AdminLoad';
 import { ref, get, update, serverTimestamp } from 'firebase/database';
 import { queueRows, contextHrefFor } from '../../lib/contentReports';
 
@@ -38,58 +40,53 @@ const KIND_LABEL = { comment: 'Comment', dm: 'Direct message', user: 'Profile' }
 
 const when = (ms) => (ms ? new Date(ms).toLocaleString('en-GB', { timeZone: 'Europe/London', dateStyle: 'medium', timeStyle: 'short' }) : '');
 
+// The queue and the names of everyone in it. Throws on failure — see the load below.
+async function readQueue() {
+  const snap = await get(ref(db, 'content_reports'));
+  const t = snap.exists() ? snap.val() : {};
+  // Who is who: a name is what a moderator knows about a person; a uid is not.
+  const uids = new Set();
+  for (const node of Object.values(t)) {
+    for (const [k, r] of Object.entries(node || {})) {
+      if (r && typeof r === 'object') { uids.add(k); if (r.offenderUid) uids.add(r.offenderUid); }
+    }
+  }
+  // A name that fails to read shows as its uid — still true, just less friendly.
+  const pairs = await Promise.all([...uids].map(async (uid) => {
+    try {
+      const [n, h] = await Promise.all([get(ref(db, `users/${uid}/displayName`)), get(ref(db, `users/${uid}/username`))]);
+      return [uid, { name: n.val() || null, handle: h.val() || null }];
+    } catch { return [uid, { name: null, handle: null }]; }
+  }));
+  return { tree: t, names: Object.fromEntries(pairs) };
+}
+
 export default function ReportsAdmin() {
   const { user, loading } = useAuth() || {};
-  const [allowed, setAllowed] = useState(null); // null = checking
-  const [tree, setTree] = useState(null);
   const [filter, setFilter] = useState('all');
-  const [names, setNames] = useState({});
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
 
-  const load = useCallback(async () => {
-    const snap = await get(ref(db, 'content_reports'));
-    const t = snap.exists() ? snap.val() : {};
-    setTree(t);
-    // Who is who: a name is what a moderator knows about a person; a uid is not.
-    const uids = new Set();
-    for (const node of Object.values(t)) {
-      for (const [k, r] of Object.entries(node || {})) {
-        if (r && typeof r === 'object') { uids.add(k); if (r.offenderUid) uids.add(r.offenderUid); }
-      }
-    }
-    const pairs = await Promise.all([...uids].map(async (uid) => {
-      try {
-        const [n, h] = await Promise.all([get(ref(db, `users/${uid}/displayName`)), get(ref(db, `users/${uid}/username`))]);
-        return [uid, { name: n.val() || null, handle: h.val() || null }];
-      } catch { return [uid, { name: null, handle: null }]; }
-    }));
-    setNames(Object.fromEntries(pairs));
-  }, []);
-
-  useEffect(() => {
-    if (!user) return undefined;
-    let live = true;
-    (async () => {
-      try {
-        const s = await get(ref(db, `users/${user.uid}/canRemovePosts`));
-        if (!live) return;
-        const ok = s.val() === true;
-        setAllowed(ok);
-        if (ok) await load();
-      } catch (e) {
-        if (live) { setAllowed(false); setErr('Could not read the queue. ' + (e?.message || '')); }
-      }
-    })();
-    return () => { live = false; };
-  }, [user, load]);
+  // W6 (ADM-24) — the switch check and the queue are ONE read under useReliableLoad, so both have
+  // a deadline and a failure is drawn as a failure. Before, a failed check set allowed=false and
+  // told a moderator "This queue is for moderators", and a check that hung left "Loading…" for
+  // good. { allowed: false } is now only ever the switch's own answer. null = not signed in yet.
+  const queue = useReliableLoad(async () => {
+    if (!user) return null;
+    const sw = await get(ref(db, `users/${user.uid}/canRemovePosts`));
+    if (sw.val() !== true) return { allowed: false };
+    return { allowed: true, ...(await readQueue()) };
+  }, [user]);
+  const allowed = queue.phase === 'ready' && queue.data ? queue.data.allowed : null; // null = checking
+  const tree = allowed ? queue.data.tree : null;
+  const names = allowed ? queue.data.names : {};
 
   const resolve = async (contentKey) => {
     setBusy(contentKey); setErr('');
     try {
       // The server's clock, as on /admin/square: resolvedAt is an audit field.
       await update(ref(db, `content_reports/${contentKey}`), { resolved: true, resolvedBy: user.uid, resolvedAt: serverTimestamp() });
-      await load();
+      await queue.reload();
     } catch (e) { setErr('Could not resolve: ' + (e?.message || e)); }
     setBusy('');
   };
@@ -106,7 +103,7 @@ export default function ReportsAdmin() {
     return (
       <div style={S.page}><div style={S.wrap}>
         <h1 style={S.h1}>Reports</h1>
-        <p style={S.sub}>This queue is for moderators, the readers who can remove posts. {err}</p>
+        <p style={S.sub}>This queue is for moderators, the readers who can remove posts.</p>
       </div></div>
     );
   }
@@ -135,9 +132,9 @@ export default function ReportsAdmin() {
 
       {err && <div style={{ ...S.card, borderColor: 'rgba(224,87,79,0.5)', color: '#e0574f' }}>{err}</div>}
 
-      {tree === null ? (
-        <div style={S.card}><span style={S.quiet}>Loading…</span></div>
-      ) : rows.length === 0 ? (
+      <AdminLoad load={queue} subject="the report queue" isEmpty={() => false}
+        loading={<div style={S.card}><span style={S.quiet}>Loading…</span></div>}>
+      {() => rows.length === 0 ? (
         <div style={S.card}><span style={S.quiet}>Nothing reported{filter === 'all' ? '' : ' of this kind'}.</span></div>
       ) : rows.map((row) => {
         const href = contextHrefFor(row.reports[0]);
@@ -177,6 +174,7 @@ export default function ReportsAdmin() {
           </div>
         );
       })}
+      </AdminLoad>
     </div></div>
   );
 }

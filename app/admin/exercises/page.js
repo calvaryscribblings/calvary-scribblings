@@ -1,7 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { useReliableLoad } from '../../lib/useReliable';
+import AdminLoad from '../../components/AdminLoad';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -20,41 +22,37 @@ const s = {
 
 export default function SubmissionsPage() {
   const { user } = useAuth();
-  const [submissions, setSubmissions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [marking, setMarking] = useState({});
   const [scores, setScores] = useState({});
   const [msg, setMsg] = useState('');
 
   const isAdmin = user && (user.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || user.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL));
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    loadSubmissions();
-  }, [isAdmin]);
+  // W6 (ADM-24) — the read throws, under useReliableLoad's deadline. It used to end in
+  // `catch (e) { console.error(e); }`, so a failed read left the list at [] and the page said
+  // "No essay submissions pending review." to a marker with a queue waiting. null = not an admin
+  // (yet), which AdminLoad draws as loading, never as empty.
+  const subsLoad = useReliableLoad(async () => {
+    if (!isAdmin) return null;
+    const { ref, get } = await import('firebase/database');
+    const snap = await get(ref(db, 'exercise_submissions'));
+    if (!snap.exists()) return [];
 
-  async function loadSubmissions() {
-    setLoading(true);
-    try {
-      const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, 'exercise_submissions'));
-      if (!snap.exists()) { setSubmissions([]); setLoading(false); return; }
-
-      const all = [];
-      for (const [uid, slugs] of Object.entries(snap.val())) {
-        for (const [slug, sub] of Object.entries(slugs)) {
-          if (sub.status === 'pending_review') {
-            // Get user display name
-            const userSnap = await get(ref(db, `users/${uid}/displayName`));
-            const displayName = userSnap.exists() ? userSnap.val() : 'Reader';
-            all.push({ uid, slug, displayName, ...sub });
-          }
+    const all = [];
+    for (const [uid, slugs] of Object.entries(snap.val())) {
+      for (const [slug, sub] of Object.entries(slugs)) {
+        if (sub.status === 'pending_review') {
+          // Get user display name
+          const userSnap = await get(ref(db, `users/${uid}/displayName`));
+          const displayName = userSnap.exists() ? userSnap.val() : 'Reader';
+          all.push({ uid, slug, displayName, ...sub });
         }
       }
-      setSubmissions(all.sort((a, b) => a.submittedAt - b.submittedAt));
-    } catch (e) { console.error(e); }
-    setLoading(false);
-  }
+    }
+    return all.sort((a, b) => a.submittedAt - b.submittedAt);
+  }, [isAdmin]);
+  const submissions = subsLoad.phase === 'ready' && subsLoad.data ? subsLoad.data : [];
+  const loadSubmissions = subsLoad.reload;
 
   async function markSubmission(uid, slug, questionIndex, awardedPoints) {
     const key = `${uid}_${slug}_${questionIndex}`;
@@ -123,16 +121,18 @@ export default function SubmissionsPage() {
       <div style={s.body}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#fff' }}>Essay Submissions</h2>
-          <button style={s.btnGhost} onClick={loadSubmissions}>Refresh</button>
+          <button style={s.btnGhost} onClick={loadSubmissions} disabled={subsLoad.refreshing}>{subsLoad.refreshing ? 'Refreshing…' : 'Refresh'}</button>
         </div>
 
         {msg && <div style={{ padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1rem' }}>{msg}</div>}
 
-        {loading ? (
-          <div style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500, fontSize: '0.9rem' }}>Loading…</div>
-        ) : submissions.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '4rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.88rem' }}>No essay submissions pending review.</div>
-        ) : submissions.map((sub, si) => (
+        <AdminLoad
+          load={subsLoad}
+          subject="the submissions"
+          loading={<div style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500, fontSize: '0.9rem' }}>Loading…</div>}
+          empty={<div style={{ textAlign: 'center', padding: '4rem', color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.88rem' }}>No essay submissions pending review.</div>}
+        >
+        {(rows) => rows.map((sub, si) => (
           <div key={`${sub.uid}_${sub.slug}`} style={s.card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <div>
@@ -178,6 +178,7 @@ export default function SubmissionsPage() {
             })}
           </div>
         ))}
+        </AdminLoad>
       </div>
     </div>
   );

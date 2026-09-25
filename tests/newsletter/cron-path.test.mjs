@@ -80,13 +80,15 @@ function makeDb() {
     cms_stories: {
       'due-story': {
         title: 'The Due One', author: 'A. Writer', authorUid: 'uid1', authorHandle: 'awriter',
-        category: 'short', categoryName: 'Short Stories', cover: 'https://cdn.test/d.webp',
+        // W6: a due story publishes only onto a GENERATED cover (the Worker's publishDecision);
+        // the coverless and held cases are tests/ci/w6-worker.test.mjs.
+        category: 'short', categoryName: 'Short Stories', cover: 'https://cdn.test/covers-typographic/d.webp',
         date: '2026-07-30', published: false, publishAt: PAST,
         content: '<p>one two three four five</p>',
       },
       'also-due': {
         title: 'Also Due', author: 'B. Writer', published: false, publishAt: PAST,
-        content: 'words words',
+        cover: 'https://cdn.test/covers-typographic/a.webp', content: 'words words',
       },
       'not-yet': { title: 'Not Yet', published: false, publishAt: FUTURE, content: 'x' },
       'already-live': { title: 'Live', published: true, content: 'x' },

@@ -84,7 +84,7 @@ export async function getPublishedSeries(opts) {
  * The series node is `.read: true`, so this exposes nothing a curl could not already see —
  * which is exactly why the sensitive half of an instalment lives in the detail node instead.
  */
-export async function getAllSeries() {
+export async function getAllSeries(opts) {
   try {
     const snap = await get(ref(db, SERIES_PATH));
     return snapToRows(snap)
@@ -92,6 +92,8 @@ export async function getAllSeries() {
       .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
   } catch (err) {
     console.error('[series.loader] getAllSeries failed', err);
+    // W6 — the admin screen passes throwOnError too: a failed read there drew no series at all.
+    rethrowIf(opts, err);
     return [];
   }
 }
@@ -230,13 +232,14 @@ export async function getInstalmentPage(instalmentId, now = Date.now(), opts) {
  * releaseAtMs, and a derived boolean beside them invites reading the boolean instead of the
  * number that actually decides.
  */
-export async function getAllInstalments(seriesId) {
+export async function getAllInstalments(seriesId, opts) {
   if (!seriesId) return [];
   try {
     const snap = await get(query(ref(db, INSTALMENTS_PATH), orderByChild('seriesId'), equalTo(seriesId)));
     return snapToRows(snap).sort((a, b) => (a.ordinal || 0) - (b.ordinal || 0));
   } catch (err) {
     console.error(`[series.loader] getAllInstalments failed for ${seriesId}`, err);
+    rethrowIf(opts, err);
     return [];
   }
 }
@@ -252,13 +255,15 @@ export async function getAllInstalments(seriesId) {
  * the node directly and refuses. A caller that treated [] as "the id is free" would be
  * relying on the weaker of the two.
  */
-export async function getDeletedInstalments(seriesId) {
+export async function getDeletedInstalments(seriesId, opts) {
   if (!seriesId) return [];
   try {
     const snap = await get(query(ref(db, INSTALMENTS_DELETED_PATH), orderByChild('seriesId'), equalTo(seriesId)));
     return snapToRows(snap).sort((a, b) => (a.ordinal || 0) - (b.ordinal || 0));
   } catch (err) {
     console.debug(`[series.loader] getDeletedInstalments denied or failed for ${seriesId}`, err?.code || err);
+    // W6 — the admin screen (the only caller) is an admin, so a denial there is a failure too.
+    rethrowIf(opts, err);
     return [];
   }
 }

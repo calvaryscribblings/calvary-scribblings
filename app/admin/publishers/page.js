@@ -1,7 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { ref, get } from 'firebase/database';
+import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
-import { getAllPublishers, getPublisher } from '../../lib/bookstore/loader';
+import { useReliableLoad } from '../../lib/useReliable';
+import { readWithDeadline } from '../../lib/reliableRead';
+import AdminLoad from '../../components/AdminLoad';
 import { createPublisher, updatePublisher, setPublisherStatus } from '../../lib/bookstore/admin-writes';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
@@ -81,6 +85,34 @@ const emptyForm = {
   paymentMethod: '',
   paymentNotes: '',
 };
+
+// W6 (ADM-24) — the list's read, here rather than getAllPublishers(). That loader catches its read
+// and answers [], which is right for the shop and wrong for this screen: a failed read drew
+// "No publishers yet. Add your first." to the one person who knows there are publishers. Same
+// node, same shape as the loader; this one lets the failure through to useReliableLoad.
+async function readPublishers() {
+  const snap = await get(ref(db, 'bookstore_publishers'));
+  const list = [];
+  if (snap.exists()) {
+    snap.forEach((child) => {
+      list.push({ id: child.key, ...child.val() });
+      return false;
+    });
+  }
+  return list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+// The Edit form's read: the public record plus the private half (contact email, payment notes).
+// Not getPublisher(), which answers "no private data" for a private read that FAILED — the form
+// then opened with those fields blank, and Save would have written the blanks back.
+async function readPublisherForEdit(slug) {
+  const [pub, priv] = await Promise.all([
+    get(ref(db, `bookstore_publishers/${slug}`)),
+    get(ref(db, `bookstore_publishers_private/${slug}`)),
+  ]);
+  if (!pub.exists()) return null;
+  return { ...pub.val(), ...(priv.exists() ? priv.val() : {}) };
+}
 
 function PublisherForm({ form, setForm, editingSlug, saving, errors, onSave, onCancel }) {
   function handleNameBlur() {
@@ -215,21 +247,18 @@ function PublisherForm({ form, setForm, editingSlug, saving, errors, onSave, onC
   );
 }
 
-function PublisherList({ publishers, loading, onNew, onEdit, onToggleStatus }) {
-  if (loading) {
-    return <div style={s.empty}>Loading publishers…</div>;
-  }
+// Reached only through <AdminLoad empty=…>, i.e. only when the read SUCCEEDED with no rows.
+function PublisherEmpty({ onNew }) {
+  return (
+    <div style={s.empty}>
+      <div style={{ fontSize: '1rem', color: '#fff', fontWeight: 600 }}>No publishers yet.</div>
+      <div style={{ fontSize: '0.85rem' }}>Add your first.</div>
+      <button style={s.btn} onClick={onNew} type="button">+ Add publisher</button>
+    </div>
+  );
+}
 
-  if (publishers.length === 0) {
-    return (
-      <div style={s.empty}>
-        <div style={{ fontSize: '1rem', color: '#fff', fontWeight: 600 }}>No publishers yet.</div>
-        <div style={{ fontSize: '0.85rem' }}>Add your first.</div>
-        <button style={s.btn} onClick={onNew} type="button">+ Add publisher</button>
-      </div>
-    );
-  }
-
+function PublisherList({ publishers, onEdit, onToggleStatus }) {
   return (
     <table style={s.table}>
       <thead>
@@ -272,8 +301,6 @@ function PublisherList({ publishers, loading, onNew, onEdit, onToggleStatus }) {
 export default function AdminPublishersPage() {
   const { user } = useAuth();
   const [view, setView] = useState('list');
-  const [publishers, setPublishers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState([]);
   const [toast, setToast] = useState('');
@@ -291,22 +318,10 @@ export default function AdminPublishersPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    loadPublishers();
-  }, [isAdmin]);
-
-  async function loadPublishers() {
-    setLoading(true);
-    try {
-      const list = await getAllPublishers();
-      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      setPublishers(list);
-    } catch (e) {
-      console.error('[admin/publishers] load failed', e);
-    }
-    setLoading(false);
-  }
+  // null until the admin check passes — "not asked yet", never an answer. See AdminLoad.
+  const pubs = useReliableLoad(() => (isAdmin ? readPublishers() : null), [isAdmin]);
+  const publishers = pubs.phase === 'ready' ? pubs.data : null;
+  const loadPublishers = pubs.reload;
 
   function showToast(message) {
     setToast(message);
@@ -322,8 +337,16 @@ export default function AdminPublishersPage() {
 
   async function openEdit(pub) {
     // The list view's `pub` only carries public fields after the publishers split.
-    // Refetch via getPublisher to merge in contactEmail and paymentDetails for the form.
-    const merged = (await getPublisher(pub.slug)) || pub;
+    // Refetch to merge in contactEmail and paymentDetails for the form — and if that read fails,
+    // do not open a form whose private fields would be blank rather than unknown.
+    let merged;
+    try {
+      merged = (await readWithDeadline(() => readPublisherForEdit(pub.slug))) || pub;
+    } catch (e) {
+      console.warn('[admin/publishers] edit read failed', e?.kind, e?.cause || e);
+      alert(`Could not load ${pub.name || pub.slug} for editing. Nothing was changed — try again.`);
+      return;
+    }
     setForm({
       name: merged.name || '',
       slug: merged.slug || pub.slug || '',
@@ -459,16 +482,22 @@ export default function AdminPublishersPage() {
             <div style={s.topBar}>
               <div>
                 <h2 style={s.h2}>Publishers</h2>
-                <div style={s.h2sub}>{publishers.length} on file</div>
+                <div style={s.h2sub}>{publishers ? `${publishers.length} on file` : pubs.phase === 'failed' ? 'Not loaded' : 'Loading…'}</div>
               </div>
-              {publishers.length > 0 && (
+              {publishers?.length > 0 && (
                 <button style={s.btn} onClick={openNew} type="button">+ Add publisher</button>
               )}
             </div>
-            {isMobile && publishers.length > 0
-              ? (
+            <AdminLoad
+              load={pubs}
+              subject="the publishers"
+              loading={<div style={s.empty}>Loading publishers…</div>}
+              empty={<PublisherEmpty onNew={openNew} />}
+            >
+              {(list) => (isMobile
+                ? (
                 <div>
-                  {publishers.map((p) => (
+                  {list.map((p) => (
                     <div key={p.id} style={{ background: '#171717', border: '1px solid #242424', borderRadius: 10, padding: '1.1rem', marginBottom: '0.75rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
                         <div style={{ minWidth: 0 }}>
@@ -490,17 +519,10 @@ export default function AdminPublishersPage() {
                     </div>
                   ))}
                 </div>
-              )
-              : (
-                <PublisherList
-                  publishers={publishers}
-                  loading={loading}
-                  onNew={openNew}
-                  onEdit={openEdit}
-                  onToggleStatus={handleToggleStatus}
-                />
-              )
-            }
+                )
+                : <PublisherList publishers={list} onEdit={openEdit} onToggleStatus={handleToggleStatus} />
+              )}
+            </AdminLoad>
           </div>
         )}
       </div>

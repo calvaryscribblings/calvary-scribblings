@@ -240,11 +240,13 @@ export function restoreRefusal(title) {
 /**
  * The owner count, as a thing that can be UNKNOWN.
  *
- * bookstore_readership/{titleId}/count is the number of purchase records whose status is
- * 'active' — see the ledger note in readership.js. It is the only number a client may learn,
- * because bookstore_purchases is readable per-uid and cannot be aggregated in a browser, and
- * it is written by the SAME atomic multi-path update that records each purchase, so it cannot
- * drift from the grants it counts.
+ * W6 — IT IS A HOLDER COUNT NOW, NOT THE READERSHIP COUNTER. It used to be
+ * bookstore_readership/{titleId}/count, which counts readers who BOUGHT the book and so, by the
+ * W3b ruling, excludes complimentary copies (app/lib/bookstore/purchaseSource.js). A title held
+ * only as a comp therefore read as unowned, and deleteTitle removed the master the comp opens.
+ * The count is now every active entitlement in bookstore_purchases, whatever its source, read
+ * server-side by functions/api/bookstore/holders.js through holdersOf(). `comps` says how many
+ * of `count` are complimentary, so the confirm step can say so; it is never added to `count`.
  *
  * THE THIRD STATE IS LOAD-BEARING. `{ ok: false }` — the read failed — is not zero. A delete
  * that treats an unreadable count as "nobody owns it" would delete a master EPUB out from
@@ -254,8 +256,21 @@ export function restoreRefusal(title) {
  * An ABSENT node is a genuine zero, and that is the node's documented contract: absent means
  * nobody has bought it.
  */
-export const OWNERS_UNKNOWN = Object.freeze({ ok: false, count: null });
-export const ownersKnown = (count) => Object.freeze({ ok: true, count });
+export const OWNERS_UNKNOWN = Object.freeze({ ok: false, count: null, comps: null });
+export const ownersKnown = (count, comps = 0) => Object.freeze({ ok: true, count, comps });
+
+/**
+ * W6 — the holders endpoint's answer, as a count that can be UNKNOWN. Anything but a 200 whose
+ * body carries `ok: true` and two sane integers (comps never more than count) is unknown — a
+ * 500, a 403, an HTML error page, `{ count: "3" }`, a missing `comps`. Fails closed by shape.
+ */
+export function holderCountFrom(status, body) {
+  if (status !== 200 || !body || body.ok !== true) return OWNERS_UNKNOWN;
+  const { count, comps } = body;
+  if (!Number.isInteger(count) || count < 0) return OWNERS_UNKNOWN;
+  if (!Number.isInteger(comps) || comps < 0 || comps > count) return OWNERS_UNKNOWN;
+  return ownersKnown(count, comps);
+}
 
 // ── THE CONFIRM STEP ───────────────────────────────────────────────────────────────────────
 
@@ -274,9 +289,19 @@ function group(n) {
  * person can picture and starts reading as a figure. The same instinct as readership.js's
  * refusal to print "1 sales".
  */
-export function ownersSentence(count) {
+export function ownersSentence(count, comps = 0) {
   if (!Number.isInteger(count) || count < 0) return null;
   if (count === 0) return 'No one owns this book yet.';
+  // W6 — when some of the holders are complimentary copies, the sentence says so, because
+  // "owns" would be a claim about a purchase that never happened. The count is still the whole
+  // count: a comp keeps the master in the bucket exactly as a sale does.
+  if (Number.isInteger(comps) && comps > 0 && comps <= count) {
+    const who = count === 1 ? 'One reader holds' : `${count <= 12 ? WORDS[count] : group(count)} readers hold`;
+    const how = comps === count
+      ? (count === 1 ? 'a complimentary copy' : 'all complimentary copies')
+      : `${comps <= 12 ? WORDS[comps].toLowerCase() : group(comps)} complimentary cop${comps === 1 ? 'y' : 'ies'}`;
+    return `${who} this book (${how}).`;
+  }
   if (count === 1) return 'One reader owns this book.';
   const n = count <= 12 ? WORDS[count] : group(count);
   return `${n} readers own this book.`;
@@ -295,8 +320,8 @@ export function ownersSentence(count) {
  * guess a number, and admin-writes.js refuses the delete rather than showing a dialog with a
  * hole in it.
  */
-export function confirmConsequence(count) {
-  const owners = ownersSentence(count);
+export function confirmConsequence(count, comps = 0) {
+  const owners = ownersSentence(count, comps);
   if (!owners) return null;
   if (count === 0) {
     return `${owners} Deleting removes it from the shop and from the catalogue, `
@@ -419,11 +444,86 @@ export function deletionPlan({ titleId, title, owners }) {
     ok: true,
     owned,
     reason: owned
-      ? `${owners.count} reader${owners.count === 1 ? '' : 's'} own this book, so the master EPUB and its cover stay in Storage.`
+      ? `${owners.count} ${owners.count === 1 ? 'reader holds' : 'readers hold'} this book, so the master EPUB and its cover stay in Storage.`
       : 'Nobody owns this book, so every file it owns is removed.',
     delete: [...new Set(del)],
     held,
   };
+}
+
+// ── W6 — WHAT THE FILE CLEAN-UP ACTUALLY DID ───────────────────────────────────────────────
+//
+// deleteTitle removes the record first and the files second (see the order-of-operations note
+// there), so a Storage failure leaves the shop correct and a file behind. Before W6 the panel
+// said "Title deleted" whatever the loop did, and a file that would not go reached the console
+// and nowhere else. The founder is now told how many went, which did not, and is offered a
+// retry for exactly those.
+
+/** Storage's answer for an object that is not there. Already gone is not a failure. */
+export const OBJECT_NOT_FOUND = 'storage/object-not-found';
+
+/** One deleteObject() outcome: 'removed', 'gone' (a 404 — already absent), or 'failed'. */
+export function classifyRemoval(err) {
+  if (!err) return 'removed';
+  return err.code === OBJECT_NOT_FOUND ? 'gone' : 'failed';
+}
+
+const files = (n) => `${n} file${n === 1 ? '' : 's'}`;
+
+/**
+ * The sentence for a removal pass.
+ *
+ *   removed  paths deleted by this pass
+ *   gone     paths that were already absent (a 404) — counted as removed, and said so
+ *   failed   paths that are still in the bucket
+ *   held     paths deliberately kept because people hold the book (deletionPlan's `held`)
+ *   phase    'delete' (the first pass, inside deleteTitle) or 'retry'
+ *
+ * `ok` is true only when nothing failed. The headline never says the files were dealt with
+ * when one of them was not.
+ */
+export function summariseFileRemoval({ removed = [], gone = [], failed = [], held = [], phase = 'delete' } = {}) {
+  const done = removed.length + gone.length;
+  const doneLine = done === 0
+    ? ''
+    : `${files(done)} removed${gone.length ? ` (${gone.length} ${gone.length === 1 ? 'was' : 'were'} already gone)` : ''}.`;
+  const heldLine = held.length
+    ? ` ${files(held.length)} kept on purpose, because people hold this book: ${held.join(', ')}.`
+    : '';
+  if (!failed.length) {
+    const lead = phase === 'retry' ? 'The leftover files are cleared.' : 'Title deleted.';
+    return { ok: true, failed: [], text: `${lead}${doneLine ? ` ${doneLine}` : ''}${heldLine}` };
+  }
+  const total = done + failed.length;
+  const lead = phase === 'retry'
+    ? `${failed.length} of ${files(total)} still could not be removed: ${failed.join(', ')}.`
+    : `Title deleted, but ${failed.length} of its ${files(total)} could not be removed: ${failed.join(', ')}.`;
+  return {
+    ok: false,
+    failed: [...failed],
+    text: `${lead}${doneLine ? ` ${doneLine}` : ''}${heldLine} The shop is correct either way; these are leftover files in Storage. Retry to remove them.`,
+  };
+}
+
+/**
+ * Which of a retry's paths may actually be deleted.
+ *
+ * A retry runs after the title record is gone, so it cannot re-plan from the title. It takes the
+ * failed list the first pass returned, and ALSO re-checks it against the tombstone: if anyone held
+ * the book at deletion — or the tombstone does not say — the master and the tombstone's cover
+ * are dropped from the list, whatever the caller passed. Ruling 2 does not rest on the caller.
+ * NO TOMBSTONE, NO RETRY: deleteTitle writes one in the same atomic update that removes the
+ * record, so its absence means this is not a delete this function can reason about.
+ */
+export function retryablePaths({ titleId, paths, tombstone }) {
+  if (!tombstone || typeof tombstone !== 'object') return [];
+  const list = Array.isArray(paths) ? paths.filter(isStr) : [];
+  const nobodyHeld = !!tombstone && tombstone.ownersAtDeletion === 0;
+  if (nobodyHeld) return [...new Set(list)];
+  const protectedPaths = new Set([masterPathFor(titleId)]);
+  const cover = storagePathFromDownloadUrl(tombstone?.coverUrl);
+  if (cover) protectedPaths.add(cover);
+  return [...new Set(list.filter((p) => !protectedPaths.has(p)))];
 }
 
 // ── THE TOMBSTONE ──────────────────────────────────────────────────────────────────────────

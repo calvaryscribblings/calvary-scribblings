@@ -59,6 +59,8 @@
 //    The instalment page's hero band is that cover, so the gap had to close.
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
+import { useReliableLoad } from '../../lib/useReliable';
+import AdminLoad from '../../components/AdminLoad';
 import {
   getAllSeries, getAllInstalments, getInstalmentDetail, getDeletedInstalments,
 } from '../../lib/series/loader';
@@ -120,30 +122,27 @@ export default function SeriesAdminPage() {
   const { user, loading } = useAuth() || {};
   const isAdmin = !!user && ADMIN_UIDS.includes(user.uid);
 
-  const [list, setList] = useState([]);
   const [msg, setMsg] = useState(null);
 
-  const refresh = useCallback(async () => {
+  // W6 (ADM-24) — every read throws on failure and runs under useReliableLoad's deadline. The
+  // loaders' default is to answer [], and on this screen that drew NO SERIES AT ALL for a read
+  // that failed — or, worse, a series with "None yet." instalments and an Add form proposing
+  // ordinal 1 over rows that exist. null until the admin check passes (see AdminLoad).
+  const seriesLoad = useReliableLoad(async () => {
+    if (!isAdmin) return null;
+    const opts = { throwOnError: true };
     // getAllSeries, not getPublishedSeries: a series is created as a DRAFT and would be
     // invisible on the screen that just created it otherwise.
-    const all = await getAllSeries();
-    const withRows = await Promise.all(all.map(async (x) => ({
+    const all = await getAllSeries(opts);
+    return Promise.all(all.map(async (x) => ({
       ...x,
-      rows: await getAllInstalments(x.id),
+      rows: await getAllInstalments(x.id, opts),
       // R31 — the burned ordinals. Loaded so the Add form cannot propose a number that
-      // createInstalment() is going to refuse. Admin-only by rule, so this is [] for anyone
-      // who should not be on this screen at all.
-      dead: await getDeletedInstalments(x.id),
+      // createInstalment() is going to refuse. Admin-only by rule; this screen is admin-only.
+      dead: await getDeletedInstalments(x.id, opts),
     })));
-    setList(withRows);
-  }, []);
-
-  useEffect(() => {
-    if (!isAdmin) return undefined;
-    let cancelled = false;
-    (async () => { if (!cancelled) await refresh(); })();
-    return () => { cancelled = true; };
-  }, [isAdmin, refresh]);
+  }, [isAdmin]);
+  const refresh = seriesLoad.reload;
 
   if (loading) return <div style={s.page}><div style={s.body}>Loading…</div></div>;
   if (!isAdmin) {
@@ -167,56 +166,63 @@ export default function SeriesAdminPage() {
 
         <SeriesForm onDone={(m) => { setMsg(m); refresh(); }} />
 
-        {list.map((series) => (
-          <div key={series.id} style={s.card}>
-            <h2 style={s.h2}>{series.title}</h2>
-            <div style={s.note}>
-              {series.id} · {series.status} · {releasedCount(series.rows)} of {series.rows.length} instalments released
-              {/* Derived at read time from the rows — there is no stored instalmentCount and
-                  there must not be one. See the schema header: a counter cannot express
-                  "released so far", whose value changes at a moment nothing writes. Deleting a
-                  row IS the recount. */}
-              {series.dead?.length > 0 && (
-                <> · <span style={{ color: 'rgba(255,255,255,0.5)' }}>
-                  {series.dead.length === 1 ? 'ordinal' : 'ordinals'}{' '}
-                  {series.dead.map((d) => d.ordinal).join(', ')} deleted — permanently retired
-                </span></>
-              )}
-            </div>
-            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {SERIES_STATUSES.filter((st) => st !== series.status).map((st) => (
-                <button key={st} type="button" style={s.btnSm}
-                  onClick={async () => { setMsg(toMsg(await setSeriesStatus(series.id, st))); refresh(); }}>
-                  Set {st}
-                </button>
+        <AdminLoad
+          load={seriesLoad}
+          subject="the series"
+          loading={<div style={s.note}>Loading series…</div>}
+          empty={<div style={s.note}>No series yet.</div>}
+        >
+          {(list) => list.map((series) => (
+            <div key={series.id} style={s.card}>
+              <h2 style={s.h2}>{series.title}</h2>
+              <div style={s.note}>
+                {series.id} · {series.status} · {releasedCount(series.rows)} of {series.rows.length} instalments released
+                {/* Derived at read time from the rows — there is no stored instalmentCount and
+                    there must not be one. See the schema header: a counter cannot express
+                    "released so far", whose value changes at a moment nothing writes. Deleting a
+                    row IS the recount. */}
+                {series.dead?.length > 0 && (
+                  <> · <span style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    {series.dead.length === 1 ? 'ordinal' : 'ordinals'}{' '}
+                    {series.dead.map((d) => d.ordinal).join(', ')} deleted — permanently retired
+                  </span></>
+                )}
+              </div>
+              <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {SERIES_STATUSES.filter((st) => st !== series.status).map((st) => (
+                  <button key={st} type="button" style={s.btnSm}
+                    onClick={async () => { setMsg(toMsg(await setSeriesStatus(series.id, st))); refresh(); }}>
+                    Set {st}
+                  </button>
+                ))}
+                <PosterUpload seriesId={series.id} onDone={(m) => { setMsg(m); refresh(); }} />
+              </div>
+
+              <h3 style={{ ...s.h3, marginTop: 18 }}>Instalments</h3>
+              {series.rows.map((row) => (
+                <InstalmentRow key={row.id} row={row} onDone={(m) => { setMsg(m); refresh(); }} />
               ))}
-              <PosterUpload seriesId={series.id} onDone={(m) => { setMsg(m); refresh(); }} />
+              {!series.rows.length && <div style={s.note}>None yet.</div>}
+
+              <InstalmentForm
+                // ⚠ key: THE FORM MUST REMOUNT WHEN THE FREE ORDINAL MOVES. `blank` is read once,
+                // in useState's initialiser, so a changed nextOrdinal prop never reaches the
+                // field — after a delete the form went on proposing the number that had just been
+                // burned, and the writer refused a create the screen had suggested. Same remedy
+                // as InstalmentDetailEditor's key={detail.updatedAt}, and the same reasoning: an
+                // effect pushing the prop into the form would fight the editor's own typing.
+                key={nextFreeOrdinal(series.rows, series.dead)}
+                seriesId={series.id}
+                // ⚠ COUNTS THE DEAD. max(live) + 1 alone would hand the next create the id that
+                // was just burned, whenever the deleted instalment was the highest one — and the
+                // id is what a reader's saved position is keyed by. See deletion.js, ruling 2.
+                nextOrdinal={nextFreeOrdinal(series.rows, series.dead)}
+                retired={series.dead || []}
+                onDone={(m) => { setMsg(m); refresh(); }}
+              />
             </div>
-
-            <h3 style={{ ...s.h3, marginTop: 18 }}>Instalments</h3>
-            {series.rows.map((row) => (
-              <InstalmentRow key={row.id} row={row} onDone={(m) => { setMsg(m); refresh(); }} />
-            ))}
-            {!series.rows.length && <div style={s.note}>None yet.</div>}
-
-            <InstalmentForm
-              // ⚠ key: THE FORM MUST REMOUNT WHEN THE FREE ORDINAL MOVES. `blank` is read once,
-              // in useState's initialiser, so a changed nextOrdinal prop never reaches the
-              // field — after a delete the form went on proposing the number that had just been
-              // burned, and the writer refused a create the screen had suggested. Same remedy
-              // as InstalmentDetailEditor's key={detail.updatedAt}, and the same reasoning: an
-              // effect pushing the prop into the form would fight the editor's own typing.
-              key={nextFreeOrdinal(series.rows, series.dead)}
-              seriesId={series.id}
-              // ⚠ COUNTS THE DEAD. max(live) + 1 alone would hand the next create the id that
-              // was just burned, whenever the deleted instalment was the highest one — and the
-              // id is what a reader's saved position is keyed by. See deletion.js, ruling 2.
-              nextOrdinal={nextFreeOrdinal(series.rows, series.dead)}
-              retired={series.dead || []}
-              onDone={(m) => { setMsg(m); refresh(); }}
-            />
-          </div>
-        ))}
+          ))}
+        </AdminLoad>
       </div>
     </div>
   );

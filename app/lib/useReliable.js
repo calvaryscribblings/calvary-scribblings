@@ -62,7 +62,11 @@ export function useReliableLoad(load, deps = [], { deadlineMs = READ_DEADLINE_MS
     if (s.phase === 'failed' || s.quietFailures > 0) retry();
   });
 
-  return { ...state, retry };
+  // W6 — `reload` is the same read WITHOUT the reconnect: for a page that re-reads its own list
+  // after a write it just made (the admin screens). The connection plainly works — the write went
+  // through it — so dropping the socket would only cost a re-dial. Same rules as any read: a
+  // deadline, and content already drawn stays if the re-read fails.
+  return { ...state, retry, reload: run };
 }
 
 export function useReliableListener(attach, deps = [], { deadlineMs = READ_DEADLINE_MS } = {}) {

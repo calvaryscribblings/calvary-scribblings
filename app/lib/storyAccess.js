@@ -312,6 +312,9 @@ export function isGateable(story) {
 export function hasStaticPage(story) {
   const s = story || {};
   if (s.published !== false) return true;
+  // W6 (ADM-04): a story an editor HID keeps no page, even with a publishAt. Before hiddenAt
+  // existed, "unpublished with a publishAt" could only mean "scheduled"; now a Hide says so.
+  if (s.hiddenAt) return false;
   return typeof s.publishAt === 'string' && !!s.publishAt;
 }
 

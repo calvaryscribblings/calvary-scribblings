@@ -1,7 +1,10 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, createContext, useContext } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { readWithDeadline } from '../../lib/reliableRead';
+import { reconnectDatabase } from '../../lib/useReliable';
+import Unavailable from '../../components/Unavailable';
 import { BADGES } from '../../lib/badges';
 import {
   extractActivity, computeActives, computeCohorts,
@@ -57,7 +60,6 @@ const s = {
   coverage:    { fontSize: '0.72rem', fontWeight: 500, fontStyle: 'italic', color: 'rgba(255,255,255,0.3)', marginBottom: '0.9rem', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.4 },
   empty:       { fontSize: '0.9rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', padding: '0.75rem 0' },
   waiting:     { fontSize: '0.85rem', fontWeight: 500, color: '#fcd34d', background: 'rgba(252,211,77,0.06)', border: '1px solid rgba(252,211,77,0.18)', borderRadius: 6, padding: '0.65rem 0.85rem', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.5 },
-  errBox:      { fontSize: '0.85rem', fontWeight: 500, color: '#f87171', background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 6, padding: '0.65rem 0.85rem', fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.5 },
   errPath:     { fontFamily: 'monospace', fontSize: '0.72rem', color: '#fca5a5', background: 'rgba(220,38,38,0.1)', padding: '0.05rem 0.35rem', borderRadius: 3 },
   bigNum:      { fontFamily: "Cormorant Garamond, Georgia, serif", fontSize: '2.5rem', color: '#a78bfa', lineHeight: 1.1 },
   bigNumSub:   { fontSize: '0.78rem', fontWeight: 500, color: 'rgba(255,255,255,0.3)', marginTop: '0.3rem', fontFamily: 'Cormorant Garamond, Georgia, serif' },
@@ -253,16 +255,14 @@ function Card({ title, coverage, err, errPath, children }) {
   );
 }
 
+// W6 (ADM-24) — a card whose source failed draws the house panel, compact, with the page's
+// Retry. `err` is the failure KIND from fetchPath; the path stays in the note because on this
+// screen which node failed is the useful half of the message.
+const RetryContext = createContext({ retry: undefined, refreshing: false });
+
 function CardError({ msg, path }) {
-  return (
-    <div style={s.errBox}>
-      <div style={{ fontWeight: 700, marginBottom: '0.3rem' }}>Failed to read <span style={s.errPath}>{path}</span></div>
-      <div style={{ color: '#fca5a5', opacity: 0.8 }}>{msg}</div>
-      <div style={{ color: 'rgba(255,255,255,0.4)', marginTop: '0.45rem', fontSize: '0.72rem' }}>
-        Likely missing admin root-read rule. Update Firebase Realtime Database rules and refresh.
-      </div>
-    </div>
-  );
+  const { retry, refreshing } = useContext(RetryContext);
+  return <Unavailable kind={msg} onRetry={retry} refreshing={refreshing} compact note={`Failed to read ${path}.`} />;
 }
 
 export default function AnalyticsPage() {
@@ -285,12 +285,15 @@ export default function AnalyticsPage() {
     setFetching(true);
     const { ref, get } = await import('firebase/database');
 
+    // Each path under its own deadline: a get() against an unreachable database never settles,
+    // and one hung node used to hold every card on its skeleton for good. `error` is the kind.
     const fetchPath = async (path) => {
       try {
-        const snap = await get(ref(db, path));
+        const snap = await readWithDeadline(() => get(ref(db, path)));
         return { ok: true, data: snap.exists() ? snap.val() : null };
       } catch (e) {
-        return { ok: false, error: e.message || 'Read denied' };
+        console.warn(`[admin/analytics] ${path} failed`, e?.kind, e?.cause || e);
+        return { ok: false, error: e?.kind || 'ours' };
       }
     };
 
@@ -308,6 +311,14 @@ export default function AnalyticsPage() {
     setLastFetched(Date.now());
     setFetching(false);
   }
+
+  // The cards that COUNT ACTIVITY draw on eight nodes at once, and a failed one does not zero the
+  // figure, it quietly lowers it. So any failed activity source fails those cards too — a WAU
+  // that silently lost the comments is a wrong number, not a smaller one.
+  const activityErrKey = ['storyReads', 'comments', 'squarePosts', 'openPages', 'submissions', 'badges', 'points', 'streaks'].find(k => errors[k]);
+  const ACTIVITY_PATHS = { storyReads: 'storyReads', comments: 'comments', squarePosts: 'square_posts', openPages: 'open_pages', submissions: 'quiz_submissions', badges: 'userBadges', points: 'points', streaks: 'userStreaks' };
+  const activityErr = activityErrKey ? errors[activityErrKey] : undefined;
+  const activityErrPath = activityErrKey ? ACTIVITY_PATHS[activityErrKey] : undefined;
 
   const metrics = useMemo(() => {
     if (!raw) return null;
@@ -522,6 +533,7 @@ export default function AnalyticsPage() {
         </div>
       </header>
 
+      <RetryContext.Provider value={{ retry: async () => { await reconnectDatabase(); fetchAll(); }, refreshing: fetching }}>
       <div style={s.body}>
         <div style={s.topBar}>
           <div>
@@ -573,7 +585,7 @@ export default function AnalyticsPage() {
             <div style={s.section}>
               <div style={s.sectionTitle}>A · Growth & Active Users</div>
               <div style={s.grid2}>
-                <Card title="Weekly / Monthly active" coverage={COVERAGE.active}>
+                <Card title="Weekly / Monthly active" coverage={COVERAGE.active} err={activityErr} errPath={activityErrPath}>
                   <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
                     <div><div style={s.bigNum}>{m.actives.wau}</div><div style={s.bigNumSub}>WAU · last 7 days</div></div>
                     <div><div style={s.bigNum}>{m.actives.mau}</div><div style={s.bigNumSub}>MAU · last 30 days</div></div>
@@ -588,11 +600,11 @@ export default function AnalyticsPage() {
                   </div>
                 </Card>
 
-                <Card title="Daily active · last 30 days" coverage={COVERAGE.dau}>
+                <Card title="Daily active · last 30 days" coverage={COVERAGE.dau} err={activityErr} errPath={activityErrPath}>
                   <LineChart data={m.actives.line} />
                 </Card>
 
-                <Card title="Activation · signup → first read" coverage={COVERAGE.activation} err={errors.users} errPath="users">
+                <Card title="Activation · signup → first read" coverage={COVERAGE.activation} err={errors.users || activityErr} errPath={errors.users ? 'users' : activityErrPath}>
                   {m.activation && m.activation.activated > 0
                     ? (<div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
                         <div><div style={s.bigNum}>{pct(m.activation.rate)}</div><div style={s.bigNumSub}>{m.activation.activated}/{m.activation.eligible} activated</div></div>
@@ -607,10 +619,10 @@ export default function AnalyticsPage() {
             <div style={s.section}>
               <div style={s.sectionTitle}>B · Retention & Habit</div>
               <div style={s.grid2}>
-                <Card title="Registered cohort retention" coverage={COVERAGE.cohortReg} err={errors.users} errPath="users">
+                <Card title="Registered cohort retention" coverage={COVERAGE.cohortReg} err={errors.users || activityErr} errPath={errors.users ? 'users' : activityErrPath}>
                   <CohortTable rows={m.cohorts.registered} emptyNote="No cohortable users (need joinDate)." />
                 </Card>
-                <Card title="Anonymous reader retention" coverage={COVERAGE.cohortAnon}>
+                <Card title="Anonymous reader retention" coverage={COVERAGE.cohortAnon} err={errors.storyReads} errPath="storyReads">
                   <CohortTable rows={m.cohorts.anonymous} emptyNote="Awaiting read-ledger data — anonymous cohorts derive entirely from the storyReads UUID ledger, which is empty until the readerId build ships." />
                 </Card>
                 <Card title="Streak distribution · current" coverage={COVERAGE.streak} err={errors.streaks} errPath="userStreaks">
@@ -652,7 +664,7 @@ export default function AnalyticsPage() {
             <div style={s.section}>
               <div style={s.sectionTitle}>D · Engagement Breadth</div>
               <div style={s.grid2}>
-                <Card title="Social activity · in range" coverage={COVERAGE.breadth}>
+                <Card title="Social activity · in range" coverage={COVERAGE.breadth} err={errors.comments || errors.squarePosts} errPath={errors.comments ? 'comments' : 'square_posts'}>
                   <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
                     <div><div style={s.bigNum}>{m.commentsInRange ?? '—'}</div><div style={s.bigNumSub}>Comments</div></div>
                     <div><div style={s.bigNum}>{m.squarePostsInRange ?? '—'}</div><div style={s.bigNumSub}>Square posts</div></div>
@@ -733,6 +745,7 @@ export default function AnalyticsPage() {
           </>
         )}
       </div>
+      </RetryContext.Provider>
     </div>
   );
 }

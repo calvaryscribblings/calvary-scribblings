@@ -14,8 +14,9 @@
 //
 // ── WHY THE DELETE DIALOG COUNTS BEFORE IT OPENS ───────────────────────────────────────────
 //
-// It does not open on the click. It calls deletionPreview() first, reads the LIVE owner count
-// from bookstore_readership, and renders nothing until the number is in hand. A dialog that
+// It does not open on the click. It calls deletionPreview() first, reads the LIVE holder count
+// (sales and complimentary copies, from bookstore_purchases via /api/bookstore/holders — W6),
+// and renders nothing until the number is in hand. A dialog that
 // opened immediately and filled the number in afterwards would have a state in which the
 // consequence sentence is missing while the Delete button is already there, and that state is
 // the whole failure this design is avoiding.
@@ -203,9 +204,10 @@ export function DeleteDialog({ title, preview, onCancel, onConfirm }) {
           ))}
         </ul>
         {preview.ownerCount > 0 && (
-          <p style={s.note}>
+          <p style={s.note} data-testid="delete-held-note">
             The book file itself is not deleted, because people are reading it. That is not a
-            setting — it is the rule.
+            setting — it is the rule. If you only want the book off the shelf, withdraw it
+            instead: that keeps the record and every file, and can be undone.
           </p>
         )}
 

@@ -18,9 +18,11 @@
 // an Approve button that always failed with permission-denied. Both the client
 // list and the rules are now UID-only.
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { useReliableLoad } from '../../lib/useReliable';
+import AdminLoad from '../../components/AdminLoad';
 import { normalizeGenre } from '../../lib/openPages';
 import { stripMarkdown } from '../../lib/openPagesMarkdown';
 import { fireRebuild, HOOKS } from '../../lib/rebuild';
@@ -101,52 +103,54 @@ export default function AdminForumPage() {
   const isAdmin = !!user && ADMIN_UIDS.includes(user.uid);
 
   const [tab, setTab] = useState('flagged');
-  const [flagged, setFlagged] = useState([]);
-  const [reported, setReported] = useState([]);
-  const [busy, setBusy] = useState(false);      // initial/refresh load
+  // Ids acted on since the last read: an approve/remove/dismiss drops its row at once, without
+  // waiting for a re-read. Cleared by Refresh, which re-reads the truth.
+  const [gone, setGone] = useState(() => ({ flagged: new Set(), reported: new Set() }));
   const [acting, setActing] = useState('');       // id currently being acted on
   const [msg, setMsg] = useState('');
+  const drop = (id, both = true) => setGone((g) => ({
+    flagged: both ? new Set(g.flagged).add(id) : g.flagged,
+    reported: new Set(g.reported).add(id),
+  }));
 
-  const load = useCallback(async () => {
-    setBusy(true);
-    setMsg('');
-    try {
-      const { ref, get } = await import('firebase/database');
-      const [pendingSnap, reportsSnap, publicSnap] = await Promise.all([
-        get(ref(db, 'open_pages_pending')),
-        get(ref(db, 'open_pages_reports')),
-        get(ref(db, 'open_pages')),
-      ]);
+  // W6 (ADM-24) — the three reads run under useReliableLoad and THROW. They used to be caught
+  // into a message above a queue still at its initial [] — "Flagged (0)", "No flagged posts
+  // awaiting review." — and before the first read began at all, the same words showed. The
+  // empty copy is now reachable only through AdminLoad, i.e. after a read that succeeded.
+  // null = not an admin (yet).
+  const queue = useReliableLoad(async () => {
+    if (!isAdmin) return null;
+    const { ref, get } = await import('firebase/database');
+    const [pendingSnap, reportsSnap, publicSnap] = await Promise.all([
+      get(ref(db, 'open_pages_pending')),
+      get(ref(db, 'open_pages_reports')),
+      get(ref(db, 'open_pages')),
+    ]);
 
-      const pending = pendingSnap.exists() ? pendingSnap.val() : {};
-      const reportsRaw = reportsSnap.exists() ? reportsSnap.val() : {};
-      const publicPosts = publicSnap.exists() ? publicSnap.val() : {};
+    const pending = pendingSnap.exists() ? pendingSnap.val() : {};
+    const reportsRaw = reportsSnap.exists() ? reportsSnap.val() : {};
+    const publicPosts = publicSnap.exists() ? publicSnap.val() : {};
 
-      const flaggedList = Object.entries(pending)
-        .map(([id, p]) => ({ id, ...p }))
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const flaggedList = Object.entries(pending)
+      .map(([id, p]) => ({ id, ...p }))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-      const reportedList = Object.entries(reportsRaw)
-        .map(([postId, byUid]) => {
-          const reports = Object.values(byUid || {});
-          const post = publicPosts[postId] || null; // null = orphaned reports (post already gone)
-          const latest = reports.reduce((mx, r) => Math.max(mx, r?.createdAt || 0), 0);
-          return { id: postId, post, reports, count: reports.length, latest };
-        })
-        .sort((a, b) => b.count - a.count || b.latest - a.latest);
+    const reportedList = Object.entries(reportsRaw)
+      .map(([postId, byUid]) => {
+        const reports = Object.values(byUid || {});
+        const post = publicPosts[postId] || null; // null = orphaned reports (post already gone)
+        const latest = reports.reduce((mx, r) => Math.max(mx, r?.createdAt || 0), 0);
+        return { id: postId, post, reports, count: reports.length, latest };
+      })
+      .sort((a, b) => b.count - a.count || b.latest - a.latest);
 
-      setFlagged(flaggedList);
-      setReported(reportedList);
-    } catch (e) {
-      console.error('[admin/forum] load failed:', e);
-      setMsg('Failed to load the queue: ' + e.message);
-    }
-    setBusy(false);
-  }, []);
-
-  useEffect(() => {
-    if (isAdmin) load();
-  }, [isAdmin, load]);
+    return { flagged: flaggedList, reported: reportedList };
+  }, [isAdmin]);
+  const loaded = queue.phase === 'ready' && queue.data ? queue.data : null;
+  const flagged = loaded ? loaded.flagged.filter((p) => !gone.flagged.has(p.id)) : [];
+  const reported = loaded ? loaded.reported.filter((r) => !gone.reported.has(r.id)) : [];
+  const busy = queue.phase === 'loading' || queue.refreshing;
+  const load = () => { setMsg(''); setGone({ flagged: new Set(), reported: new Set() }); queue.reload(); };
 
   // ---- Actions (atomic multi-path writes at the DB root) ----
 
@@ -170,8 +174,7 @@ export default function AdminForumPage() {
       };
       if (record.authorUid) updates[`user_open_pages/${record.authorUid}/${id}`] = record;
       await update(ref(db), updates);
-      setFlagged((list) => list.filter((p) => p.id !== id));
-      setReported((list) => list.filter((r) => r.id !== id));
+      drop(id);
 
       // The post is live but /open-pages/[id] is only pre-rendered at build time
       // (output: 'export'), so without a rebuild the detail page 404s. Same hook
@@ -210,8 +213,7 @@ export default function AdminForumPage() {
       };
       if (authorUid) updates[`user_open_pages/${authorUid}/${id}`] = null;
       await update(ref(db), updates);
-      setFlagged((list) => list.filter((p) => p.id !== id));
-      setReported((list) => list.filter((r) => r.id !== id));
+      drop(id);
       setMsg('Post removed.');
     } catch (e) {
       console.error('[admin/forum] remove failed:', e);
@@ -226,7 +228,7 @@ export default function AdminForumPage() {
     try {
       const { ref, set } = await import('firebase/database');
       await set(ref(db, `open_pages_reports/${id}`), null);
-      setReported((list) => list.filter((r) => r.id !== id));
+      drop(id, false);
       setMsg('Reports dismissed — the post stays live.');
     } catch (e) {
       console.error('[admin/forum] dismiss failed:', e);
@@ -268,10 +270,10 @@ export default function AdminForumPage() {
       <div style={s.body}>
         <div style={s.tabs}>
           <button style={s.tab(tab === 'flagged')} onClick={() => setTab('flagged')}>
-            Flagged ({flagged.length})
+            Flagged{loaded ? ` (${flagged.length})` : ''}
           </button>
           <button style={s.tab(tab === 'reported')} onClick={() => setTab('reported')}>
-            Reported ({reported.length})
+            Reported{loaded ? ` (${reported.length})` : ''}
           </button>
         </div>
 
@@ -281,13 +283,18 @@ export default function AdminForumPage() {
           </div>
         ) : null}
 
-        {busy && list.length === 0 ? (
-          <div style={s.empty}>Loading the queue…</div>
-        ) : list.length === 0 ? (
-          <div style={s.empty}>
-            {tab === 'flagged' ? 'No flagged posts awaiting review.' : 'No reported posts right now.'}
-          </div>
-        ) : tab === 'flagged' ? (
+        <AdminLoad
+          load={queue}
+          subject="the moderation queue"
+          loading={<div style={s.empty}>Loading the queue…</div>}
+          isEmpty={() => list.length === 0}
+          empty={
+            <div style={s.empty}>
+              {tab === 'flagged' ? 'No flagged posts awaiting review.' : 'No reported posts right now.'}
+            </div>
+          }
+        >
+        {() => tab === 'flagged' ? (
           flagged.map((p) => (
             <FlaggedCard key={p.id} post={p} acting={acting === p.id} onApprove={() => approve(p)} onRemove={() => removePost({ id: p.id, authorUid: p.authorUid })} />
           ))
@@ -302,6 +309,7 @@ export default function AdminForumPage() {
             />
           ))
         )}
+        </AdminLoad>
       </div>
     </div>
   );

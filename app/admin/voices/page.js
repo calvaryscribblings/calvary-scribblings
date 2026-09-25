@@ -1,9 +1,14 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { readMatchNames, CARD_DERIVATIVE_WIDTHS, cardSizeKey } from '../../lib/voices';
-import { fireRebuild, HOOKS } from '../../lib/rebuild';
+import { fireRebuild, requestRebuild, HOOKS } from '../../lib/rebuild';
+// W6 — the admin tells the truth: the write's result at once, the rebuild's verdict when it
+// arrives, and a retry when it did not start. See the header there.
+import { voiceNotice, voiceRebuildNeeded, rebuildEffect } from '../../lib/voicesOutcome';
+import Unavailable from '../../components/Unavailable';
+import { classifyFailure, readWithDeadline } from '../../lib/reliableRead';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -195,6 +200,9 @@ const s = {
   hint: { fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 },
   formActions: { display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.25rem' },
   msg: { padding: '0.75rem 1rem', borderRadius: 6, fontSize: '0.85rem', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)', color: '#c4b5fd', marginBottom: '1.5rem' },
+  // W6 — a failure must not wear the success box's colour.
+  msgBad: { background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', color: '#fca5a5' },
+  msgPending: { background: 'rgba(255,255,255,0.03)', border: '1px solid #2e2e2e', color: 'rgba(255,255,255,0.7)' },
   gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
   row2: { display: 'flex', gap: '1rem', flexWrap: 'wrap' },
   checkRow: { display: 'flex', alignItems: 'center', gap: '0.6rem' },
@@ -235,6 +243,15 @@ export default function VoicesAdmin() {
   const [msg, setMsg] = useState('');
   const [voices, setVoices] = useState([]);
   const [roster, setRoster] = useState([]); // author picker options, derived from cms_stories
+  // W6 — the last action's outcome (see app/lib/voicesOutcome.js), kept apart from `msg`, which
+  // is the form's own validation and upload line. `seq` ties a rebuild verdict to the request
+  // that produced it, so a slow verdict cannot overwrite a newer action's notice.
+  const [outcome, setOutcome] = useState(null);
+  const [rebuildRetrying, setRebuildRetrying] = useState(false);
+  const rebuildSeq = useRef(0);
+  // W6 — a failed FIRST load draws the house failure panel, never "No voices yet".
+  const [loadFailure, setLoadFailure] = useState(null);
+  const [loadedOnce, setLoadedOnce] = useState(false);
 
   const [view, setView] = useState('list'); // 'list' | 'form'
   const [editingSlug, setEditingSlug] = useState(null); // null = creating
@@ -252,10 +269,11 @@ export default function VoicesAdmin() {
     setLoading(true);
     try {
       const { ref, get } = await import('firebase/database');
-      const [voicesSnap, storiesSnap] = await Promise.all([
+      // Under a deadline: a get() against an unreachable database never settles (PL-12).
+      const [voicesSnap, storiesSnap] = await readWithDeadline(() => Promise.all([
         get(ref(db, 'cms_voices')),
         get(ref(db, 'cms_stories')),
-      ]);
+      ]));
 
       const vv = voicesSnap.exists() ? voicesSnap.val() : {};
       const vlist = Object.entries(vv)
@@ -292,10 +310,64 @@ export default function VoicesAdmin() {
       }));
       fetched.sort((a, b) => b.count - a.count || a.displayName.localeCompare(b.displayName));
       setRoster(fetched);
+      setLoadFailure(null);
+      setLoadedOnce(true);
     } catch (e) {
-      setMsg('Error loading: ' + e.message);
+      // W6 — this used to set 'Error loading: …' and fall through to "No voices yet", which is
+      // a claim about the roster that a failed read cannot make. Once the list has drawn, a
+      // later failed reload keeps it and says so (see the compact panel in the render).
+      console.error('[admin/voices] load failed', e);
+      setLoadFailure(classifyFailure(e));
     }
     setLoading(false);
+  }
+
+  // ── W6 — REPORTING AN ACTION ────────────────────────────────────────────────────────────
+  //
+  // Called AFTER the write has answered. The write's result is on screen at once; when a rebuild
+  // is owed it is requested in the background (fireRebuild still waits SETTLE_MS so the build
+  // cannot race the write) and its verdict replaces the 'waiting' line when it lands. Nothing
+  // here awaits the rebuild, so no button sits on "Saving…" for the settle.
+  function report({ action, slug, published, wasPublished, write }) {
+    const needed = write.ok === true && voiceRebuildNeeded(wasPublished, published);
+    const base = { action, slug, published, write };
+    if (!needed) {
+      // A change that owes no build does not orphan one that is still waiting: the earlier
+      // request's verdict would otherwise land on nothing and a failure would go unseen.
+      setOutcome((prev) => (prev?.rebuild?.phase === 'waiting' && write.ok === true
+        ? { ...base, rebuild: prev.rebuild, seq: prev.seq }
+        : { ...base, rebuild: null, seq: null }));
+      return;
+    }
+    const effect = rebuildEffect(action, { slug, published });
+    startRebuild({ ...base }, effect, () => fireRebuild({ hook: HOOKS.CMS, getIdToken: () => user?.getIdToken() }));
+  }
+
+  function startRebuild(base, effect, ask) {
+    const seq = ++rebuildSeq.current;
+    setOutcome({ ...base, rebuild: { phase: 'waiting', effect }, seq });
+    Promise.resolve()
+      .then(ask)
+      .catch((e) => ({ ok: false, status: null, message: `The rebuild could not be requested: ${e?.message || 'unknown error'}.` }))
+      .then((verdict) => {
+        if (!verdict?.ok) console.error('[admin/voices] rebuild not started:', verdict?.status, verdict?.message);
+        setOutcome((o) => (o && o.seq === seq ? { ...o, rebuild: { phase: 'done', effect, verdict } } : o));
+      });
+  }
+
+  // "Retry the rebuild": the write settled long ago, so this asks at once (requestRebuild, not
+  // fireRebuild) and reports the new verdict in place of the old one.
+  function retryRebuild() {
+    if (!outcome?.rebuild || rebuildRetrying) return;
+    setRebuildRetrying(true);
+    const { action, slug, published, write } = outcome;
+    startRebuild({ action, slug, published, write }, outcome.rebuild.effect, async () => {
+      try {
+        return await requestRebuild({ hook: HOOKS.CMS, getIdToken: () => user?.getIdToken() });
+      } finally {
+        setRebuildRetrying(false);
+      }
+    });
   }
 
   // ── Form ───────────────────────────────────────────────────────────────
@@ -399,7 +471,10 @@ export default function VoicesAdmin() {
     const order = Number(form.order);
     if (!Number.isFinite(order)) { setMsg('Order must be a number.'); return; }
 
-    setSaving(true); setMsg('');
+    // What the live site had before this save: an edit to a draft that stays a draft owes no
+    // rebuild, and anything that was or will be published does.
+    const wasPublished = editingSlug ? voices.find((v) => v.slug === editingSlug)?.published === true : false;
+    setSaving(true); setMsg(''); setOutcome(null);
     try {
       const { ref, get, update } = await import('firebase/database');
       const now = Date.now();
@@ -432,29 +507,31 @@ export default function VoicesAdmin() {
       }
 
       await update(ref(db, `cms_voices/${slug}`), payload);
-      await fireDeployHook();
-
-      setMsg(form.published
-        ? `✓ Voice saved and published. The page is live at /voices/${slug} once the rebuild finishes (1–3 min).`
-        : '✓ Voice saved as a draft. It stays off /voices until you publish it.');
-      cancelForm();
-      load();
     } catch (e) {
-      setMsg('Error saving: ' + e.message);
+      // The form stays open with what was typed, and the notice says nothing was changed.
+      report({ action: 'save', slug, published: form.published === true, wasPublished, write: { ok: false, error: e.message } });
+      setSaving(false);
+      return;
     }
     setSaving(false);
+    report({ action: 'save', slug, published: form.published === true, wasPublished, write: { ok: true } });
+    cancelForm();
+    load();
   }
 
   // ── List actions ───────────────────────────────────────────────────────
   async function togglePublished(v) {
     if (v.published && !confirm(`Unpublish ${v.displayName}? The card leaves /voices and the author page 404s after the rebuild. The record is kept.`)) return;
+    const action = v.published ? 'unpublish' : 'publish';
     try {
       const { ref, update } = await import('firebase/database');
       await update(ref(db, `cms_voices/${v.slug}`), { published: !v.published, updatedAt: Date.now() });
-      await fireDeployHook();
-      setMsg(v.published ? 'Voice unpublished.' : 'Voice published.');
-      load();
-    } catch (e) { setMsg('Error: ' + e.message); }
+    } catch (e) {
+      report({ action, slug: v.slug, published: v.published === true, wasPublished: v.published === true, write: { ok: false, error: e.message } });
+      return;
+    }
+    report({ action, slug: v.slug, published: !v.published, wasPublished: v.published === true, write: { ok: true } });
+    load();
   }
 
   async function deleteVoice(v) {
@@ -462,10 +539,12 @@ export default function VoicesAdmin() {
     try {
       const { ref, remove } = await import('firebase/database');
       await remove(ref(db, `cms_voices/${v.slug}`));
-      await fireDeployHook();
-      setMsg('Voice deleted.');
-      load();
-    } catch (e) { setMsg('Error: ' + e.message); }
+    } catch (e) {
+      report({ action: 'delete', slug: v.slug, published: v.published === true, wasPublished: v.published === true, write: { ok: false, error: e.message } });
+      return;
+    }
+    report({ action: 'delete', slug: v.slug, published: false, wasPublished: v.published === true, write: { ok: true } });
+    load();
   }
 
   // Swap order values with the neighbour. Writing both in one multi-path update keeps
@@ -475,6 +554,8 @@ export default function VoicesAdmin() {
     if (target < 0 || target >= voices.length) return;
     const a = voices[index];
     const b = voices[target];
+    // Two drafts swapping places move nothing a reader can see.
+    const visible = a.published === true || b.published === true;
     try {
       const { ref, update } = await import('firebase/database');
       const now = Date.now();
@@ -484,17 +565,17 @@ export default function VoicesAdmin() {
         [`${b.slug}/order`]: a.order ?? index,
         [`${b.slug}/updatedAt`]: now,
       });
-      await fireDeployHook();
-      load();
-    } catch (e) { setMsg('Error reordering: ' + e.message); }
+    } catch (e) {
+      report({ action: 'reorder', slug: a.slug, published: visible, wasPublished: visible, write: { ok: false, error: e.message } });
+      return;
+    }
+    report({ action: 'reorder', slug: a.slug, published: visible, wasPublished: visible, write: { ok: true } });
+    load();
   }
 
   // The settle wait lives in fireRebuild (SETTLE_MS) — it lets the RTDB write land before the
-  // build reads cms_voices, so the rebuild cannot race the save that triggered it. Same helper,
-  // same number, one definition instead of two copies drifting.
-  async function fireDeployHook() {
-    await fireRebuild({ hook: HOOKS.CMS, getIdToken: () => user?.getIdToken() });
-  }
+  // build reads cms_voices, so the rebuild cannot race the save that triggered it. W6: it is
+  // requested from report() and never awaited by an action.
 
   // ── Gates (verbatim from app/admin/page.js) ─────────────────────────────
   if (!user) return (
@@ -530,6 +611,20 @@ export default function VoicesAdmin() {
 
       <div style={s.body}>
         {msg && <div style={s.msg}>{msg}</div>}
+        {outcome && (() => {
+          const n = voiceNotice(outcome);
+          const tone = n.tone === 'bad' ? s.msgBad : n.tone === 'pending' ? s.msgPending : null;
+          return (
+            <div style={{ ...s.msg, ...tone, display: 'flex', alignItems: 'flex-start', gap: '0.8rem' }} role="status" data-testid="voice-notice" data-tone={n.tone}>
+              <span style={{ flex: 1 }}>{n.text}</span>
+              {n.canRetryRebuild && (
+                <button style={s.btnSm} onClick={retryRebuild} disabled={rebuildRetrying} data-testid="voice-retry-rebuild">
+                  {rebuildRetrying ? 'Retrying…' : 'Retry the rebuild'}
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
         {view === 'list' ? (
           <section style={s.section}>
@@ -538,11 +633,18 @@ export default function VoicesAdmin() {
                 <h2 style={s.h2}>Voices</h2>
                 <div style={s.h2sub}>The curated roster behind /voices. Order here is the order on the page.</div>
               </div>
-              <button style={s.btn} onClick={openCreate}>+ Add voice</button>
+              {/* Not before the roster has loaded: the new voice's order and the taken-slug check
+                  are both read from it, and a guess at either overwrites a voice. */}
+              {loadedOnce && <button style={s.btn} onClick={openCreate}>+ Add voice</button>}
             </div>
 
-            {loading ? (
+            {loadFailure && loadedOnce && (
+              <Unavailable compact kind={loadFailure} onRetry={load} refreshing={loading} subject="the latest roster" note="The list below may be out of date." />
+            )}
+            {loading && !loadedOnce ? (
               <div style={s.empty}>Loading…</div>
+            ) : loadFailure && !loadedOnce ? (
+              <Unavailable kind={loadFailure} onRetry={load} refreshing={loading} subject="the Voices roster" tone="ink" />
             ) : voices.length === 0 ? (
               <div style={s.empty}>No voices yet. Add one — it appears on /voices once published.</div>
             ) : (
@@ -760,7 +862,7 @@ export default function VoicesAdmin() {
                 <button style={s.btn} onClick={saveVoice} disabled={saving}>{saving ? 'Saving…' : editingSlug ? 'Save voice' : 'Add voice'}</button>
               </div>
               <div style={{ ...s.hint, textAlign: 'right' }}>
-                Saving triggers a site rebuild — the page is live 1–3 minutes later.
+                Saving a published voice asks for a site rebuild — the page changes about two minutes after it starts.
               </div>
             </div>
           </section>

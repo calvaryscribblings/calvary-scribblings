@@ -4,6 +4,9 @@ import { db, DB_URL } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { buildQuizSummary, INDEX_PATH } from '../../lib/storyIndex';
 import { toRow, tokenize, quizState, selectRows } from '../../lib/quizPicker';
+import { readWithDeadline } from '../../lib/reliableRead';
+import { reconnectDatabase } from '../../lib/useReliable';
+import Unavailable from '../../components/Unavailable';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 const ADMIN_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
@@ -157,6 +160,14 @@ export default function QuizzesPage() {
   const [msgType, setMsgType] = useState('info');
   const [mcqsCollapsed, setMcqsCollapsed] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+  // W6 (ADM-24) — the picker's failure, as a kind ('offline' | 'slow' | 'ours'), or null. A failed
+  // index read used to set an error line and then draw the list anyway: "0 of 0 stories" and
+  // "No stories match." A read that hung drew "Loading stories…" for good.
+  const [dataFailure, setDataFailure] = useState(null);
+  // The selected story's quiz read: 'loading' | 'ready' | a failure kind. "No quiz yet for this
+  // story" is only true once the read has come back empty — before, it showed while the read
+  // was in flight, forever if it hung, and invited generating over a quiz that exists.
+  const [quizRead, setQuizRead] = useState('loading');
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -196,7 +207,7 @@ export default function QuizzesPage() {
     let indexSlugs = new Set();
     try {
       const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, INDEX_PATH));
+      const snap = await readWithDeadline(() => get(ref(db, INDEX_PATH)));
       if (snap.exists()) {
         const data = snap.val();
         const rows = Object.entries(data).map(([slug, r]) => toRow(slug, r, true));
@@ -205,15 +216,17 @@ export default function QuizzesPage() {
         setAdvertisedSlugs(new Set(rows.filter(r => r.advertised).map(r => r.slug)));
       }
     } catch (e) {
-      setError('Failed to load stories: ' + e.message);
+      console.warn('[admin/quizzes] index read failed', e?.kind, e?.cause || e);
+      setDataFailure(e?.kind || 'ours');
       setLoadingData(false);
       return;
     }
+    setDataFailure(null);
 
     // Which slugs have a quiz record. Non-fatal: on failure the picker falls back
     // to the story's own badge (see quizStateOf).
     try {
-      const res = await fetch(`${DB_URL}/cms_quizzes.json?shallow=true`);
+      const res = await readWithDeadline(() => fetch(`${DB_URL}/cms_quizzes.json?shallow=true`));
       if (res.ok) {
         const keys = (await res.json()) || {};
         setQuizSlugs(new Set(Object.keys(keys)));
@@ -225,7 +238,7 @@ export default function QuizzesPage() {
 
     // The unpublished remainder: story keys the index does not carry.
     try {
-      const res = await fetch(`${DB_URL}/cms_stories.json?shallow=true`);
+      const res = await readWithDeadline(() => fetch(`${DB_URL}/cms_stories.json?shallow=true`));
       if (res.ok) {
         const keys = (await res.json()) || {};
         setHiddenSlugs(Object.keys(keys).filter(slug => !indexSlugs.has(slug)));
@@ -245,7 +258,7 @@ export default function QuizzesPage() {
     setLoadingHidden(true);
     try {
       const { ref, get } = await import('firebase/database');
-      const snaps = await Promise.all(hiddenSlugs.map(slug => get(ref(db, `cms_stories/${slug}`))));
+      const snaps = await readWithDeadline(() => Promise.all(hiddenSlugs.map(slug => get(ref(db, `cms_stories/${slug}`)))));
       const rows = snaps
         .map((snap, i) => (snap.exists() ? toRow(hiddenSlugs[i], snap.val(), false) : null))
         .filter(Boolean);
@@ -262,9 +275,11 @@ export default function QuizzesPage() {
   }
 
   async function loadExistingQuiz(slug) {
+    setQuizRead('loading');
     try {
       const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, `cms_quizzes/${slug}`));
+      const snap = await readWithDeadline(() => get(ref(db, `cms_quizzes/${slug}`)));
+      setQuizRead('ready');
       if (snap.exists()) {
         setQuiz(snap.val());
         showMsg('Existing quiz loaded. Edit and re-approve if you make changes.', 'info');
@@ -278,7 +293,8 @@ export default function QuizzesPage() {
         } catch {}
       }
     } catch (e) {
-      setError('Failed to load quiz: ' + e.message);
+      console.warn('[admin/quizzes] quiz read failed', e?.kind, e?.cause || e);
+      setQuizRead(e?.kind || 'ours');
     }
   }
 
@@ -602,12 +618,17 @@ export default function QuizzesPage() {
 
           <div style={s.countLine}>
             <span style={s.meta}>
-              {loadingData ? 'Loading stories…' : `${visible.length} of ${allRows.length} stor${allRows.length === 1 ? 'y' : 'ies'}`}
+              {loadingData ? 'Loading stories…' : dataFailure ? 'Stories not loaded' : `${visible.length} of ${allRows.length} stor${allRows.length === 1 ? 'y' : 'ies'}`}
             </span>
             {filtersActive && !loadingData && <button style={s.linkBtn} onClick={clearFilters}>Clear filters</button>}
           </div>
 
-          {!loadingData && (
+          {dataFailure && (
+            <Unavailable kind={dataFailure} subject="the story list" compact refreshing={loadingData}
+              onRetry={async () => { await reconnectDatabase(); loadData(); }} />
+          )}
+
+          {!loadingData && !dataFailure && (
             <div style={s.listBox}>
               {visible.length === 0 ? (
                 <div style={s.empty}>
@@ -884,7 +905,13 @@ export default function QuizzesPage() {
           </div>
         )}
 
-        {!quiz && selectedSlug && !generating && !error && (
+        {!quiz && selectedSlug && !generating && !error && quizRead !== 'ready' && quizRead !== 'loading' && (
+          <Unavailable kind={quizRead} subject="this story’s quiz" compact
+            note="Don’t generate a new one until it loads: there may be a quiz already."
+            onRetry={async () => { await reconnectDatabase(); loadExistingQuiz(selectedSlug); }} />
+        )}
+
+        {!quiz && selectedSlug && !generating && !error && quizRead === 'ready' && (
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', padding: '3rem 0', fontSize: '0.88rem', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
             No quiz yet for this story. Hit 'Generate Quiz' to create one.
           </div>

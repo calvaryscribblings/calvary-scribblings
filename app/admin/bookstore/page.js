@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../lib/AuthContext';
-import { getAllPublishers, getTitlesByPublisher } from '../../lib/bookstore/loader';
 import {
   createTitle,
   updateTitle,
@@ -19,6 +18,8 @@ import {
   restoreTitle,
   deleteTitle,
   deletionPreview,
+  // W6 — the files a delete could not remove, retried by name.
+  retryFileRemoval,
 } from '../../lib/bookstore/admin-writes';
 // R19.6 — THE PUBLISH → DEPLOY HANDSHAKE. A static export serves files, so a published record
 // has no pages until a build runs. See app/lib/rebuild.js and functions/api/rebuild.js; this
@@ -44,7 +45,10 @@ import SectionsPanel from './SectionsPanel';
 // R21 — the confirm steps. Both dialogs live in their own file because both are ARGUMENTS as
 // much as furniture: the wording is the feature. See the header there.
 import { WithdrawDialog, DeleteDialog } from './RemovalDialog';
-import { WITHDRAWN, isScheduled } from '../../lib/bookstore/withdrawal';
+import { WITHDRAWN, isScheduled, summariseFileRemoval } from '../../lib/bookstore/withdrawal';
+// W6 — a failed load draws the house failure panel, never "No titles yet".
+import Unavailable from '../../components/Unavailable';
+import { classifyFailure, readWithDeadline } from '../../lib/reliableRead';
 import GenresPanel from './GenresPanel';
 // R7.4 — the same parser the reader's lookup is built on, so what an editor types here
 // and what a long-press finds cannot drift apart.
@@ -165,6 +169,8 @@ const s = {
   // happened (1.5s), this says what is about to (two minutes). Two different tenses, so two
   // different pieces of furniture rather than one that has to be both.
   rebuild: { position: 'fixed', bottom: '4.6rem', left: '50%', transform: 'translateX(-50%)', maxWidth: 'min(92vw, 30rem)', background: '#171717', border: '1px solid #2a2a2a', borderRadius: 8, padding: '0.85rem 1.1rem', fontSize: '0.82rem', lineHeight: 1.5, boxShadow: '0 12px 32px rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', gap: '0.7rem' },
+  // W6 — the removal notice. Inline in the Titles panel, the same palette as the rebuild notice.
+  removalNotice: { display: 'flex', alignItems: 'flex-start', gap: '0.8rem', background: '#171717', border: '1px solid #2a2a2a', borderRadius: 8, padding: '0.85rem 1.1rem', fontSize: '0.82rem', lineHeight: 1.55, marginBottom: '1.25rem', wordBreak: 'break-word' },
   rebuildDismiss: { background: 'none', border: 'none', color: 'rgba(255,255,255,0.35)', cursor: 'pointer', fontSize: '0.95rem', lineHeight: 1, padding: 0, marginLeft: 'auto' },
   toast: { position: 'fixed', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)', background: '#171717', border: '1px solid #2a2a2a', borderRadius: 8, padding: '0.85rem 1.4rem', color: '#86efac', fontSize: '0.85rem', fontWeight: 600, boxShadow: '0 12px 32px rgba(0,0,0,0.6)', zIndex: 1000 },
   gate: { minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: "Cormorant Garamond, Georgia, serif", flexDirection: 'column', gap: '1rem', textAlign: 'center' },
@@ -285,6 +291,16 @@ export default function AdminBookstorePage() {
   // R21 — the removal dialogs. One slot: at most one can be open.
   const [removal, setRemoval] = useState(null);
   const [removalBusy, setRemovalBusy] = useState(null);
+  // W6 — what a delete (or the count before it) actually did, in words, and what to retry.
+  // { tone: 'ok' | 'bad', text, retry: null | { kind: 'count', title } | { kind: 'files', titleId, paths } }
+  // Not the toast: it stays until dismissed, because a file that would not go is something to
+  // act on, not something to glimpse.
+  const [removalNotice, setRemovalNotice] = useState(null);
+  const [removalRetrying, setRemovalRetrying] = useState(false);
+  // W6 — the first load's failure kind, or null. Only a load that has never drawn the list may
+  // show the failure panel; see app/lib/reliableRead.js rule 3.
+  const [loadFailure, setLoadFailure] = useState(null);
+  const [loadedOnce, setLoadedOnce] = useState(false);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState('all');
@@ -319,31 +335,45 @@ export default function AdminBookstorePage() {
     loadAll();
   }, [isAdmin]);
 
+  // W6 — THE READS THAT DECIDE WHAT THIS SCREEN SAYS ARE READ DIRECTLY, UNDER A DEADLINE.
+  // getAllPublishers() answers a failure with [], which is right for the shop and wrong here:
+  // [] publishers draws "Add a publisher first", and a swallowed titles failure drew "No titles
+  // yet. Add your first." — both claims about the catalogue that a network drop cannot make. So
+  // the admin reads those two nodes itself, and a failure is a failure. getGenres() (seed
+  // vocabulary on failure) and getSections() ([] on failure — "silence is what an unclaimed
+  // section renders", loader.js) keep their documented answers.
   async function loadAll() {
     setLoading(true);
     try {
-      const [pubList] = await Promise.all([getAllPublishers()]);
-      pubList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      setPublishers(pubList);
-      // Read all titles for admin (status-agnostic). We bypass loader filters by reading directly.
       const { ref, get } = await import('firebase/database');
       const { db } = await import('../../lib/firebase');
-      const snap = await get(ref(db, TITLES_PATH));
-      const out = [];
-      if (snap.exists()) {
-        snap.forEach((child) => { out.push({ id: child.key, ...child.val() }); return false; });
-      }
+      const readList = async (path) => {
+        const snap = await get(ref(db, path));
+        const out = [];
+        if (snap.exists()) snap.forEach((child) => { out.push({ id: child.key, ...child.val() }); return false; });
+        return out;
+      };
+      // Read all titles for admin (status-agnostic). We bypass loader filters by reading directly.
+      // R17.2 — getSections takes no argument now; the bootstrap that needed titles is gone.
+      const [pubList, out, g, secs] = await readWithDeadline(() => Promise.all([
+        readList('bookstore_publishers'),
+        readList(TITLES_PATH),
+        getGenres(),
+        getSections(),
+      ]));
+      pubList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setPublishers(pubList);
       out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       setTitles(out);
-      // R17.2 — getSections takes no argument now. It used to be handed the published subset,
-      // because that is what its bootstrap read; the bootstrap is gone and so is the filter
-      // that existed only to feed it.
-      const [g, secs] = await Promise.all([getGenres(), getSections()]);
       setGenres(g);
       setSections(secs);
       setNow(Date.now());
+      setLoadFailure(null);
+      setLoadedOnce(true);
     } catch (e) {
       console.error('[admin/bookstore] load failed', e);
+      // Once the list has drawn, a later reload that fails keeps what is on screen.
+      setLoadFailure(classifyFailure(e));
     }
     setLoading(false);
   }
@@ -747,13 +777,18 @@ export default function AdminBookstorePage() {
 
   async function openDelete(title) {
     setRemovalBusy(title.id);
+    setRemovalNotice(null);
     const preview = await deletionPreview(title.id);
     setRemovalBusy(null);
     if (!preview.ok) {
       // NO DIALOG AT ALL when the count could not be read. deleteTitle refuses on an unknown
       // count anyway (ruling 2, failing closed), so a dialog here would offer something that
-      // cannot happen.
-      alert((preview.errors || ['Could not prepare the deletion']).join('\n'));
+      // cannot happen. W6: said on the page with a Retry, not in an alert().
+      setRemovalNotice({
+        tone: 'bad',
+        text: (preview.errors || ['Could not prepare the deletion.']).join(' '),
+        retry: preview.retry ? { kind: 'count', title } : null,
+      });
       return;
     }
     setRemoval({ mode: 'delete', title, preview });
@@ -791,13 +826,19 @@ export default function AdminBookstorePage() {
     const result = await deleteTitle(title.id, { confirmName });
     if (!result.ok) return result;
     setRemoval(null);
-    showToast('Title deleted');
-    // A file that could not be removed is reported HERE and not swallowed: the shop is already
-    // correct, but an orphan in the bucket is something a founder should know about rather than
-    // discover in a storage bill.
-    if (result.filesFailed?.length) {
-      console.warn('[admin/bookstore] some files survived the delete:', result.filesFailed);
-    }
+    // W6 — THE FILES, COUNTED. "Title deleted" alone was shown whatever the Storage loop did,
+    // and a file that would not go reached the console and nowhere else. The record IS deleted
+    // at this point (the database write came first), so the sentence starts there, and then says
+    // how many files went, which were already gone, which were kept for holders, and which did
+    // not go — with a retry for exactly those.
+    const summary = summariseFileRemoval({
+      removed: result.filesRemoved, gone: result.filesGone, failed: result.filesFailed, held: result.filesKept,
+    });
+    setRemovalNotice({
+      tone: summary.ok ? 'ok' : 'bad',
+      text: summary.text,
+      retry: summary.ok ? null : { kind: 'files', titleId: title.id, paths: summary.failed },
+    });
     // Both acts trigger a rebuild — rule C. A deleted title's page is a FILE that still exists
     // in the deployed export until a build runs without it.
     //
@@ -809,6 +850,35 @@ export default function AdminBookstorePage() {
     await summonDeploy(title.status || 'published', 'deleted');
     loadAll();
     return result;
+  }
+
+  // W6 — the notice's Retry. Either the count before a delete (which re-opens the dialog when it
+  // succeeds) or the leftover files after one.
+  async function retryRemoval() {
+    const r = removalNotice?.retry;
+    if (!r || removalRetrying) return;
+    setRemovalRetrying(true);
+    try {
+      if (r.kind === 'count') {
+        await openDelete(r.title);
+        return;
+      }
+      const res = await retryFileRemoval(r.titleId, r.paths);
+      if (!res.ok) {
+        setRemovalNotice({ tone: 'bad', text: (res.errors || ['The retry did not run.']).join(' '), retry: r });
+        return;
+      }
+      const summary = summariseFileRemoval({
+        removed: res.filesRemoved, gone: res.filesGone, failed: res.filesFailed, phase: 'retry',
+      });
+      setRemovalNotice({
+        tone: summary.ok ? 'ok' : 'bad',
+        text: summary.text,
+        retry: summary.ok ? null : { kind: 'files', titleId: r.titleId, paths: summary.failed },
+      });
+    } finally {
+      setRemovalRetrying(false);
+    }
   }
 
   async function handleQuickStatus(title, nextStatus) {
@@ -938,9 +1008,9 @@ export default function AdminBookstorePage() {
             <div style={s.topBar}>
               <div>
                 <h2 style={s.h2}>Titles</h2>
-                <div style={s.h2sub}>{titles.length} on file · {filteredTitles.length} shown</div>
+                <div style={s.h2sub}>{loadedOnce ? `${titles.length} on file · ${filteredTitles.length} shown` : '—'}</div>
               </div>
-              {publishers.length === 0 ? (
+              {!loadedOnce ? null : publishers.length === 0 ? (
                 <div style={{ fontSize: '0.78rem', color: '#fcd34d' }}>
                   Add a publisher first → <a href="/admin/publishers" style={{ color: '#fcd34d', textDecoration: 'underline' }}>/admin/publishers</a>
                 </div>
@@ -975,8 +1045,29 @@ export default function AdminBookstorePage() {
               </div>
             )}
 
-            {loading
+            {/* W6 — what the last delete did. Inline and persistent, with its retry. */}
+            {removalNotice && (
+              <div
+                role="status"
+                data-testid="removal-notice"
+                style={{ ...s.removalNotice, borderColor: removalNotice.tone === 'ok' ? '#2a2a2a' : '#7f1d1d', color: removalNotice.tone === 'ok' ? '#86efac' : '#fca5a5' }}
+              >
+                <span style={{ flex: 1 }}>{removalNotice.text}</span>
+                {removalNotice.retry && (
+                  <button type="button" style={s.btnSm} onClick={retryRemoval} disabled={removalRetrying} data-testid="removal-retry">
+                    {removalRetrying ? 'Retrying…' : removalNotice.retry.kind === 'files' ? 'Retry the failed files' : 'Retry'}
+                  </button>
+                )}
+                <button type="button" onClick={() => setRemovalNotice(null)} style={s.rebuildDismiss} aria-label="Dismiss">×</button>
+              </div>
+            )}
+
+            {/* W6 — A FAILED FIRST LOAD IS NOT AN EMPTY CATALOGUE. Before this, the catch in
+                loadAll logged and fell through to "No titles yet. Add your first." */}
+            {loading && !loadedOnce
               ? <div style={s.empty}>Loading titles…</div>
+              : loadFailure && !loadedOnce
+                ? <Unavailable kind={loadFailure} onRetry={loadAll} refreshing={loading} subject="the Book Store's titles" tone="ink" />
               : titles.length === 0
                 ? (
                   <div style={s.empty}>

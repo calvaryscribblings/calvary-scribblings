@@ -20,9 +20,11 @@
 // WHO MAY WORK THE QUEUE is anyone holding canRemovePosts, which is the point of
 // the switch. The rules on square_reports read the switch, not an identity.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { useReliableLoad } from '../../lib/useReliable';
+import AdminLoad from '../../components/AdminLoad';
 import { ref, get, set, remove, update, serverTimestamp } from 'firebase/database';
 
 const FOUNDERS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
@@ -72,26 +74,29 @@ export default function SquareAdmin() {
   const [target, setTarget] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
-  const [holders, setHolders] = useState([]);
-  const [reports, setReports] = useState([]);
-  const [horizon, setHorizon] = useState(null);
-  const [stale, setStale] = useState(false);
-  const [awaitingFirstBell, setAwaitingFirstBell] = useState(false);
+  // W6 (ADM-24) — THREE READS, THREE SECTIONS, EACH ALLOWED TO FAIL ON ITS OWN. They used to run
+  // as loadX().catch(() => {}), so a failed read left its section on its initial value: "Nobody
+  // yet.", "Nothing reported.", "Never run." — three confident statements about reads that never
+  // came back. Each now runs under useReliableLoad (a deadline, a failure kind) and draws its own
+  // compact <Unavailable> while the others show what they loaded. null = not a founder (yet): the
+  // page draws nothing for anyone else, so it reads nothing for them either.
 
   // Everyone who currently holds anything, so "who can do what" is a glance and
   // not an archaeology exercise.
-  const loadHolders = useCallback(async () => {
+  const holdersLoad = useReliableLoad(async () => {
+    if (!isFounder) return null;
     const snap = await get(ref(db, 'users'));
     const all = snap.exists() ? snap.val() : {};
-    setHolders(Object.entries(all)
+    return Object.entries(all)
       .filter(([, u]) => SWITCHES.some(s => u[s.key] === true))
       .map(([uid, u]) => ({ uid, name: u.displayName || u.username || 'Reader', username: u.username || null,
-        ...Object.fromEntries(SWITCHES.map(s => [s.key, u[s.key] === true])) })));
-  }, []);
+        ...Object.fromEntries(SWITCHES.map(s => [s.key, u[s.key] === true])) }));
+  }, [isFounder]);
 
-  const loadReports = useCallback(async () => {
+  const reportsLoad = useReliableLoad(async () => {
+    if (!isFounder) return null;
     const snap = await get(ref(db, 'square_reports'));
-    if (!snap.exists()) { setReports([]); return; }
+    if (!snap.exists()) return [];
     const rows = [];
     for (const [postId, node] of Object.entries(snap.val())) {
       const entries = Object.entries(node).filter(([k]) => !['resolved', 'resolvedBy', 'resolvedAt'].includes(k));
@@ -100,16 +105,18 @@ export default function SquareAdmin() {
     }
     rows.sort((a, b) => (a.resolved === b.resolved ? 0 : a.resolved ? 1 : -1)
       || Math.max(...b.reports.map(r => r.createdAt || 0)) - Math.max(...a.reports.map(r => r.createdAt || 0)));
-    setReports(rows);
-  }, []);
+    return rows;
+  }, [isFounder]);
 
   // Read the clock HERE, at the read, not during render. The staleness of the
   // bell is a fact about the moment the heartbeat was fetched, and rendering has
   // to stay pure. Shaped as a loader like the other two so the file has one idiom.
-  const loadHorizon = useCallback(async () => {
+  // Answers { h } rather than h: a heartbeat that has never been written is a real answer
+  // ("Never run"), and it must not look like null, which is "not read yet".
+  const horizonLoad = useReliableLoad(async () => {
+    if (!isFounder) return null;
     const snap = await get(ref(db, 'square_horizon'));
     const h = snap.exists() ? snap.val() : null;
-    setHorizon(h);
     // ⚠ A BELL THAT HAS NOT HAPPENED YET IS NOT A MISSED BELL, AND THIS PANEL USED
     // TO DISAGREE WITH THE SCRIPT ABOUT THAT. It defaulted `stale` to TRUE whenever
     // lastBellAt was absent, so from the moment the cron was armed until the first
@@ -120,16 +127,15 @@ export default function SquareAdmin() {
     // rather than unlikely. scripts/square/horizon-liveness.mjs already got this
     // right (`if (!hb.lastBellAt) … exit 0`); the two now agree, which matters
     // because a red that cries wolf on day one is a red nobody reads on day sixty.
-    setStale(h?.lastBellAt ? Date.now() - h.lastBellAt > STALE_AFTER_MS : false);
-    setAwaitingFirstBell(!h?.lastBellAt);
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    loadHolders().catch(() => {});
-    loadReports().catch(() => {});
-    loadHorizon().catch(() => {});
-  }, [user, loadHolders, loadReports, loadHorizon]);
+    return {
+      h,
+      stale: h?.lastBellAt ? Date.now() - h.lastBellAt > STALE_AFTER_MS : false,
+      awaitingFirstBell: !h?.lastBellAt,
+    };
+  }, [isFounder]);
+  const loadHolders = holdersLoad.reload;
+  const loadReports = reportsLoad.reload;
+  const stale = horizonLoad.phase === 'ready' && !!horizonLoad.data?.stale;
 
   // Reuse of the resolver the CMS already uses for story attribution: a handle
   // is what a person knows about another person; a uid is not.
@@ -220,7 +226,10 @@ export default function SquareAdmin() {
 
       <h2 style={S.h2}>Who holds what</h2>
       <div style={S.card}>
-        {holders.length === 0 ? <div style={{ color: 'rgba(240,236,228,0.45)' }}>Nobody yet.</div> : (
+        <AdminLoad load={holdersLoad} subject="who holds what" compact
+          loading={<div style={{ color: 'rgba(240,236,228,0.45)' }}>Loading…</div>}
+          empty={<div style={{ color: 'rgba(240,236,228,0.45)' }}>Nobody yet.</div>}>
+          {(holders) => (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 460 }}>
               <thead><tr>
@@ -241,14 +250,16 @@ export default function SquareAdmin() {
               </tbody>
             </table>
           </div>
-        )}
+          )}
+        </AdminLoad>
       </div>
 
       <h2 style={S.h2}>Reports</h2>
       <div style={S.card}>
-        {reports.length === 0 ? (
-          <div style={{ color: 'rgba(240,236,228,0.45)' }}>Nothing reported. Before R33.2 the report button did nothing at all, so an empty queue here is new information rather than the absence of it.</div>
-        ) : reports.map(r => (
+        <AdminLoad load={reportsLoad} subject="the report queue" compact
+          loading={<div style={{ color: 'rgba(240,236,228,0.45)' }}>Loading…</div>}
+          empty={<div style={{ color: 'rgba(240,236,228,0.45)' }}>Nothing reported. Before R33.2 the report button did nothing at all, so an empty queue here is new information rather than the absence of it.</div>}>
+        {(reports) => reports.map(r => (
           <div key={r.postId} style={{ borderTop: '1px solid rgba(240,236,228,0.07)', padding: '12px 0', opacity: r.resolved ? 0.45 : 1 }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
               <a href={`/square/p?id=${r.postId}`} target="_blank" rel="noreferrer" style={{ color: '#9b6dff', textDecoration: 'none', fontSize: '0.9rem' }}>View post →</a>
@@ -263,10 +274,15 @@ export default function SquareAdmin() {
             ))}
           </div>
         ))}
+        </AdminLoad>
       </div>
 
       <h2 style={S.h2}>The horizon</h2>
-      <div style={{ ...S.card, borderColor: stale ? 'rgba(224,87,79,0.45)' : 'rgba(111,174,125,0.35)' }}>
+      <div style={{ ...S.card, borderColor: stale ? 'rgba(224,87,79,0.45)' : horizonLoad.phase === 'ready' ? 'rgba(111,174,125,0.35)' : 'rgba(240,236,228,0.12)' }}>
+        <AdminLoad load={horizonLoad} subject="the horizon's heartbeat" compact
+          loading={<div style={{ color: 'rgba(240,236,228,0.45)' }}>Loading…</div>}
+          isEmpty={() => false}>
+        {({ h: horizon, awaitingFirstBell }) => <>
         {!horizon ? (
           <div>Never run. The first bell lands at the next 20:00 London.</div>
         ) : (
@@ -286,6 +302,8 @@ export default function SquareAdmin() {
           No bell in the last 26 hours. The workflow also fails loudly when this happens — check Actions.
           {' '}GitHub disables a cron after 60 days without repo activity, and that is the likeliest cause.
         </div>}
+        </>}
+        </AdminLoad>
       </div>
     </div></div>
   );

@@ -111,8 +111,11 @@ describe('PL-11 · the private publisher node', () => {
   test('the admin surfaces that DO need the merge still have it', () => {
     // Stated so the fix cannot be "over-applied" into breaking the publisher edit form, which
     // needs contactEmail and paymentDetails to populate its fields.
-    const src = readFileSync(join(ROOT, 'app/admin/publishers/page.js'), 'utf8');
-    assert.match(src, /\bgetPublisher\b(?!Public)/, 'the admin form still needs the merged record');
+    // W6 (ADM-24): the publishers screen now reads both halves itself, because getPublisher()
+    // answers "no private data" for a private read that FAILED and the form opened blank. Either
+    // shape keeps the merge; losing both is the regression this guards.
+    const src = code('app/admin/publishers/page.js');
+    assert.match(src, /\bgetPublisher\b(?!Public)|bookstore_publishers_private/, 'the admin form still needs the merged record');
   });
 
   test('admin-writes.js is imported by admin pages only', () => {

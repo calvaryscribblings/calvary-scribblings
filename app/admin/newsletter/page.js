@@ -6,6 +6,10 @@ import { initializeApp, getApps } from "firebase/app";
 import { TEXT_FORMAT, renderTextBlockParagraphs, renderImageHtml, imageBlockError } from "../../lib/newsletterRender";
 import { MARKERS, applyMarker, applyLink, isSafeUrl } from "../../lib/newsletterToolbar";
 import { uploadNewsletterImage } from "../../lib/newsletterImages";
+import { sendOutcome, retryOutcome, draftOutcome, confirmSendQuestion } from "../../lib/newsletterOutcome";
+import { londonWallToUtcIso, utcToLondonWall, scheduledMs, formatLondon } from "../../lib/londonTime";
+import { readWithDeadline, classifyFailure } from "../../lib/reliableRead";
+import Unavailable from "../../components/Unavailable";
 
 const uuid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -75,6 +79,16 @@ export default function NewsletterPage() {
   const [storySearch, setStorySearch] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [draftId, setDraftId] = useState(null);
+  // W6: the loaded draft's schedule as SAVED (not as typed), so Save Draft can keep it.
+  const [draftSchedule, setDraftSchedule] = useState(null);
+  // W6 (ADM-02): the full send asks first, naming the count.
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  // W6: a partial send's record id, for "Retry the ones that failed".
+  const [retrySendId, setRetrySendId] = useState(null);
+  // W6 (ADM-24): each load's failure, drawn — never an empty list or a "—" that looks like zero.
+  const [loadFail, setLoadFail] = useState({});
+  const [loadNonce, setLoadNonce] = useState(0);
+  const reloadLoads = () => { setLoadFail({}); setLoadNonce((n) => n + 1); };
   const [drafts, setDrafts] = useState([]);
   const [pickerOpenMobile, setPickerOpenMobile] = useState(false);
   const pickerSearchRef = useRef(null);
@@ -149,31 +163,35 @@ export default function NewsletterPage() {
         : [];
       setAllStories([...stories, ...pieces].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt)));
     });
-    get(ref(db, "subscribers")).then((snap) => {
+    const failed = (key) => (err) => { console.warn(`[newsletter] ${key} load failed`, err); setLoadFail((f) => ({ ...f, [key]: err?.kind || classifyFailure(err) })); };
+    readWithDeadline(() => get(ref(db, "subscribers"))).then((snap) => {
       if (snap.exists()) {
         const active = Object.values(snap.val()).filter((s) => s.email && s.status !== "unsubscribed");
         setSubscriberCount(active.length);
       } else { setSubscriberCount(0); }
-    });
+    }).catch((e) => { setSubscriberCount(null); failed("subscribers")(e); });
     // Load drafts via server-side proxy (Worker secret held in Pages env, never
     // shipped to the client). The proxy derives the admin uid from the ID token
     // below; the old ?uid= query param is gone, since anyone could type it.
-    user.getIdToken()
+    readWithDeadline(() => user.getIdToken()
       .then((idToken) => fetch('/api/newsletter/drafts', { headers: { Authorization: `Bearer ${idToken}` } }))
-    .then(r => r.json()).then(data => {
-      if (data && typeof data === 'object') {
+      .then(async (r) => { if (!r.ok) throw new Error(`drafts: HTTP ${r.status}`); return r.json(); }))
+    .then(data => {
+      if (data && typeof data === 'object' && !data.error) {
         const list = Object.values(data).sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
         setDrafts(list);
-      }
-    }).catch(() => {});
+      } else if (data?.error) throw new Error(data.error);
+    }).catch(failed("drafts"));
 
-    get(ref(db, 'newsletter_sends')).then((snap) => {
+    // W6: this read was DENIED by the rules for every account until W6 (newsletter_sends had no
+    // rule), and the denial was swallowed — so the history always read "No newsletters sent yet."
+    readWithDeadline(() => get(ref(db, 'newsletter_sends'))).then((snap) => {
       if (snap.exists()) {
         const list = Object.entries(snap.val()).map(([id, s]) => ({ id, ...s })).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
         setSendHistory(list);
-      }
-    });
-  }, [user]);
+      } else setSendHistory([]);
+    }).catch(failed("history"));
+  }, [user, loadNonce]);
 
   function insertBlock(block) {
     setBlocks((prev) => {
@@ -344,7 +362,11 @@ export default function NewsletterPage() {
   }
 
 
-  async function handleSaveDraft(scheduleTime) {
+  // W6 (ADM-22): one save path, four named intents — and the headline says which happened.
+  //   'save'        keeps the schedule the draft already has (before W6 it silently dropped it)
+  //   'schedule'    schedules it at the London time in the field, sent as UTC ISO
+  //   'unschedule'  keeps it as a draft that will not be sent
+  async function handleSaveDraft(intent = "save") {
     if (!subject.trim() && blocks.length === 0) {
       setStatus("error");
       setStatusMsg("Add a subject or at least one block before saving.");
@@ -359,11 +381,21 @@ export default function NewsletterPage() {
       setStatusMsg(saveProblems[0]);
       return;
     }
+    let schedule = null;
+    if (intent === "schedule") {
+      schedule = londonWallToUtcIso(scheduledAt);
+      if (!schedule) { setStatus("error"); setStatusMsg("NOT scheduled — pick a date and time first."); return; }
+      if (Date.parse(schedule) <= Date.now()) { setStatus("error"); setStatusMsg(`NOT scheduled — ${formatLondon(schedule)} has already passed.`); return; }
+    } else if (intent === "save") {
+      schedule = draftSchedule;
+    }
     setStatus("loading");
-    setStatusMsg(scheduleTime ? "Scheduling newsletter…" : "Saving draft…");
+    setStatusMsg(intent === "schedule" ? "Scheduling newsletter…" : intent === "unschedule" ? "Unscheduling…" : "Saving draft…");
+    let res = null;
+    let data = null;
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch("/api/newsletter/draft", {
+      res = await fetch("/api/newsletter/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
@@ -371,21 +403,25 @@ export default function NewsletterPage() {
           subject: subject.trim(),
           blocks,
           issueNumber: issueNumber ? parseInt(issueNumber) : undefined,
-          scheduledAt: scheduleTime || null,
+          scheduledAt: schedule || null,
         }),
       });
-      if (!res.ok) throw new Error(await describeFailure(res, scheduleTime ? "Schedule failed" : "Save failed"));
-      const data = await res.json();
-      setDraftId(data.id);
-      setStatus("success");
-      setStatusMsg(scheduleTime ? "Newsletter scheduled!" : "Draft saved!");
+      data = await res.json().catch(() => null);
     } catch (err) {
-      setStatus("error");
-      setStatusMsg(err.message);
+      setStatus("error"); setStatusMsg(`${intent === "schedule" ? "NOT scheduled" : "Draft NOT saved"} — ${err.message}.`); return;
     }
+    const out = draftOutcome({ httpStatus: res.status, data, action: intent, scheduledLabel: schedule ? formatLondon(schedule) : "" });
+    if (out.tone === "success") {
+      setDraftId(data.id);
+      setDraftSchedule(schedule || null);
+      if (!schedule) setScheduledAt("");
+    }
+    setStatus(out.tone);
+    setStatusMsg(out.message);
   }
 
-  async function handleSend(isTest) {
+  // W6 (ADM-02): the full send is two steps. This opens the confirmation; confirmSend() mails.
+  function handleSend(isTest) {
     const hasContent = blocks.some(
       (b) => b.type === "text" || b.type === "story" || (b.type === "image" && !imageBlockError(b))
     );
@@ -400,23 +436,85 @@ export default function NewsletterPage() {
       setStatusMsg(sendProblems[0]);
       return;
     }
-    if (isTest && !testEmail.trim()) { setStatus("error"); setStatusMsg("Enter a test email address."); return; }
+    if (isTest) {
+      if (!testEmail.trim()) { setStatus("error"); setStatusMsg("Enter a test email address."); return; }
+      return doSend(true);
+    }
+    if (!Number.isFinite(subscriberCount)) {
+      setStatus("error");
+      setStatusMsg("NOT sent — the subscriber count could not be loaded, so there is nothing to confirm. Retry the load first.");
+      return;
+    }
+    setConfirmOpen(true);
+  }
+
+  async function doSend(isTest) {
+    setConfirmOpen(false);
+    setRetrySendId(null);
     setStatus("loading");
-    setStatusMsg(isTest ? "Sending test email…" : "Sending to all subscribers…");
+    setStatusMsg(isTest ? "Sending test email…" : `Sending to ${subscriberCount} subscribers…`);
+    let res = null;
+    let data = null;
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch("/api/newsletter/send", {
+      res = await fetch("/api/newsletter/send", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ subject: subject.trim(), blocks, issueNumber: issueNumber ? parseInt(issueNumber) : undefined, testEmail: isTest ? testEmail.trim() : undefined }),
+        body: JSON.stringify({
+          subject: subject.trim(), blocks, issueNumber: issueNumber ? parseInt(issueNumber) : undefined,
+          testEmail: isTest ? testEmail.trim() : undefined,
+          // W6: a full send from a saved draft locks it, so its schedule cannot mail it again.
+          draftId: !isTest && draftId ? draftId : undefined,
+        }),
       });
-      if (!res.ok) throw new Error(await describeFailure(res, isTest ? "Test failed" : "Send failed"));
-      const data = await res.json();
-      setStatus("success");
-      setStatusMsg(isTest ? `Test sent to ${testEmail}!` : `Newsletter sent to ${data.sent} subscribers.`);
-      if (!isTest) setTimeout(() => window.location.reload(), 2000);
-    } catch (err) { setStatus("error"); setStatusMsg(err.message); }
+      data = await res.json().catch(() => null);
+    } catch (err) {
+      // The request itself did not complete: we cannot know whether the Worker mailed anyone.
+      setStatus("error");
+      setStatusMsg(`${isTest ? "Test" : "Send"} result unknown — the connection failed (${err.message}). ${isTest ? "" : "Check the History tab before sending again: mail cannot be recalled."}`);
+      return;
+    }
+    const out = sendOutcome({ httpStatus: res.status, data, isTest, testEmail: testEmail.trim() });
+    setStatus(out.tone);
+    setStatusMsg(out.message);
+    setRetrySendId(out.retrySendId);
+    if (!isTest && (data?.sent || 0) > 0) { setDraftId(null); setDraftSchedule(null); setLoadNonce((n) => n + 1); }
   }
+
+  async function retryFailed(sendId) {
+    setStatus("loading");
+    setStatusMsg("Retrying the ones that failed…");
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/newsletter/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ sendId }),
+      });
+      const out = retryOutcome({ httpStatus: res.status, data: await res.json().catch(() => null) });
+      setStatus(out.tone); setStatusMsg(out.message); setRetrySendId(null);
+      setLoadNonce((n) => n + 1);
+    } catch (err) {
+      setStatus("error"); setStatusMsg(`Retry result unknown — the connection failed (${err.message}). Check the History tab.`);
+    }
+  }
+
+  async function deleteDraft(d) {
+    if (!confirm(`Delete the draft "${d.subject || "(no subject)"}"? This cannot be undone.`)) return;
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/newsletter/draft?id=" + encodeURIComponent(d.id), { method: "DELETE", headers: { Authorization: `Bearer ${idToken}` } });
+      const out = draftOutcome({ httpStatus: res.status, data: await res.json().catch(() => null), action: "delete" });
+      if (out.tone === "success") {
+        setDrafts((prev) => prev.filter((x) => x.id !== d.id));
+        if (draftId === d.id) { setDraftId(null); setDraftSchedule(null); }
+      }
+      setStatus(out.tone); setStatusMsg(out.message);
+    } catch (err) {
+      setStatus("error"); setStatusMsg(`Draft NOT deleted — ${err.message}.`);
+    }
+  }
+
 
   const filteredStories = allStories.filter((s) => {
     const q = storySearch.toLowerCase();
@@ -480,8 +578,30 @@ export default function NewsletterPage() {
               <p style={s.tabSubtitle} className="ns-tabSubtitle">Build your letter from text, dividers, and stories, then send or preview.</p>
             </div>
             {status && (
-              <div style={{ ...s.banner, background: status === "success" ? "#edfaf3" : status === "error" ? "#fef2f2" : "#f3eefb", borderColor: status === "success" ? "#1a9e6b" : status === "error" ? "#dc2626" : "#6b2fad", color: status === "success" ? "#1a9e6b" : status === "error" ? "#dc2626" : "#6b2fad" }}>
+              <div role={status === "error" || status === "partial" ? "alert" : "status"} style={{ ...s.banner, background: status === "success" ? "#edfaf3" : status === "error" ? "#fef2f2" : status === "partial" ? "#fff7e6" : "#f3eefb", borderColor: status === "success" ? "#1a9e6b" : status === "error" ? "#dc2626" : status === "partial" ? "#b45309" : "#6b2fad", color: status === "success" ? "#1a9e6b" : status === "error" ? "#dc2626" : status === "partial" ? "#92400e" : "#6b2fad" }}>
                 {statusMsg}
+                {retrySendId && (
+                  <button type="button" onClick={() => retryFailed(retrySendId)} style={{ marginLeft: 12, background: "#92400e", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    Retry the ones that failed
+                  </button>
+                )}
+              </div>
+            )}
+            {confirmOpen && (
+              // W6 (ADM-02): the one irreversible action on this page asks first. Cancel is where
+              // the Send button was; Send is at the far end, so a second tap on the same spot cancels.
+              <div role="dialog" aria-modal="true" aria-labelledby="ns-confirm-q" style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(10,6,20,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+                <div style={{ background: "#fff", borderRadius: 12, padding: "24px 22px", maxWidth: 440, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+                  <div id="ns-confirm-q" style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 8 }}>{confirmSendQuestion(subscriberCount)}</div>
+                  <div style={{ fontSize: 14, color: "#444460", marginBottom: 6 }}>&ldquo;{subject.trim()}&rdquo;</div>
+                  <div style={{ fontSize: 13, color: "#666680", marginBottom: 20 }}>Mail cannot be recalled once it is sent.{draftSchedule ? ` This draft's schedule (${formatLondon(draftSchedule)}) will be cancelled.` : ""}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <button type="button" autoFocus onClick={() => setConfirmOpen(false)} style={{ ...s.btnSecondary, marginTop: 0 }}>Cancel</button>
+                    <button type="button" onClick={() => doSend(false)} style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, padding: "12px 18px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                      Send to {subscriberCount} subscribers
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
             <div style={s.grid} className="ns-grid">
@@ -679,19 +799,24 @@ export default function NewsletterPage() {
                 </div>
                 <div style={s.sendRow} className="ns-sendRow">
                   <div style={s.fieldGroup}>
-                    <label style={s.label}>Schedule Send (optional)</label>
+                    <label style={s.label}>Schedule Send (optional, London time)</label>
                     <input style={s.input} className="ns-input" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+                    {draftSchedule && <div style={{ fontSize: 12, color: "#1a9e6b", marginTop: 6 }}>This draft is scheduled for {formatLondon(draftSchedule)}.</div>}
                   </div>
                   <div style={s.testRow} className="ns-testRow">
                     <input style={{ ...s.input, flex: 1, marginBottom: 0 }} className="ns-input" type="email" placeholder="test@email.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} />
                     <button className="ns-btnSecondary" style={s.btnSecondary} onClick={() => handleSend(true)} disabled={status === "loading"}>Send Test</button>
                   </div>
                   <div style={s.testRow} className="ns-testRow">
-                    <button className="ns-btnSecondary" style={s.btnSecondary} onClick={() => handleSaveDraft(null)} disabled={status === "loading"}>Save Draft</button>
-                    {scheduledAt && <button className="ns-btnSecondary" style={{ ...s.btnSecondary, color: "#1a9e6b", border: "2px solid #1a9e6b" }} onClick={() => handleSaveDraft(scheduledAt)} disabled={status === "loading"}>Schedule</button>}
+                    <button className="ns-btnSecondary" style={s.btnSecondary} onClick={() => handleSaveDraft("save")} disabled={status === "loading"}>Save Draft</button>
+                    {scheduledAt && <button className="ns-btnSecondary" style={{ ...s.btnSecondary, color: "#1a9e6b", border: "2px solid #1a9e6b" }} onClick={() => handleSaveDraft("schedule")} disabled={status === "loading"}>Schedule</button>}
+                    {draftSchedule && <button className="ns-btnSecondary" style={s.btnSecondary} onClick={() => handleSaveDraft("unschedule")} disabled={status === "loading"}>Unschedule</button>}
                   </div>
-                  <button className="ns-btnPrimary" style={s.btnPrimary} onClick={() => handleSend(false)} disabled={status === "loading"}>
-                    {status === "loading" ? "Sending…" : `Send to ${subscriberCount ?? "—"} Subscribers`}
+                  {loadFail.subscribers && (
+                    <Unavailable compact tone="cream" kind={loadFail.subscribers} subject="the subscriber count" onRetry={reloadLoads} />
+                  )}
+                  <button className="ns-btnPrimary" style={s.btnPrimary} onClick={() => handleSend(false)} disabled={status === "loading" || !Number.isFinite(subscriberCount)}>
+                    {status === "loading" ? "Working…" : Number.isFinite(subscriberCount) ? `Send to ${subscriberCount} Subscribers…` : "Send (subscriber count not loaded)"}
                   </button>
                 </div>
               </div>
@@ -843,7 +968,17 @@ export default function NewsletterPage() {
               <h1 style={s.tabTitle} className="ns-tabTitle">Send History</h1>
               <p style={s.tabSubtitle} className="ns-tabSubtitle">A log of all newsletters sent from Calvary Scribblings.</p>
             </div>
+            {status && status !== "loading" && (
+              <div role={status === "error" || status === "partial" ? "alert" : "status"} style={{ ...s.banner, background: status === "success" ? "#edfaf3" : status === "partial" ? "#fff7e6" : "#fef2f2", borderColor: status === "success" ? "#1a9e6b" : status === "partial" ? "#b45309" : "#dc2626", color: status === "success" ? "#1a9e6b" : status === "partial" ? "#92400e" : "#dc2626" }}>
+                {statusMsg}
+              </div>
+            )}
             
+              {loadFail.drafts && (
+                <div style={{ marginBottom: 24 }}>
+                  <Unavailable compact tone="cream" kind={loadFail.drafts} subject="the drafts" onRetry={reloadLoads} />
+                </div>
+              )}
               {drafts.length > 0 && (
                 <div style={{marginBottom: 24}}>
                   <div style={{color: "#6b2fad", fontSize: 10, letterSpacing: 3, textTransform: "uppercase", fontWeight: 700, marginBottom: 12}}>Drafts & Scheduled</div>
@@ -856,24 +991,25 @@ export default function NewsletterPage() {
                           </div>
                           <div style={{fontSize:15, fontWeight:700, color:"#1a1a2e", marginBottom:4}}>{d.subject || "(no subject)"}</div>
                           <div style={{fontSize:12, color:"#666680"}}>
-                            {d.status === "scheduled" ? "Sends: " + new Date(d.scheduledAt).toLocaleString("en-GB") : "Saved: " + new Date(d.savedAt).toLocaleString("en-GB")}
+                            {d.status === "scheduled" ? "Sends: " + formatLondon(d.scheduledAt)
+                              : d.status === "failed" ? `Send FAILED${Number.isFinite(d.sent) ? ` — ${d.sent} went, ${d.failedCount || 0} did not` : ""}${d.failure ? ` (${d.failure})` : ""}. Not rescheduled.`
+                              : d.status === "sending" ? "Sending now (locked)."
+                              : "Saved: " + new Date(d.savedAt).toLocaleString("en-GB")}
                           </div>
                         </div>
                         <div style={{display:"flex", gap:8}}>
-                          <button onClick={() => { setSubject(d.subject||""); setBlocks(legacyDraftToBlocks(d)); setFocusedBlockId(null); setIssueNumber(d.issueNumber||""); setDraftId(d.id); setScheduledAt(d.scheduledAt||""); setTab("compose"); }}
+                          <button onClick={() => { setSubject(d.subject||""); setBlocks(legacyDraftToBlocks(d)); setFocusedBlockId(null); setIssueNumber(d.issueNumber||""); setDraftId(d.id); setDraftSchedule(d.status === "scheduled" ? d.scheduledAt : null); setScheduledAt(d.scheduledAt ? utcToLondonWall(d.scheduledAt) : ""); setTab("compose"); }}
                             style={{background:"#f3eefb", color:"#6b2fad", border:"none", borderRadius:6, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"}}>Edit</button>
-                          <button onClick={async () => {
-                            const idToken = await user.getIdToken();
-                            await fetch("/api/newsletter/draft?id=" + encodeURIComponent(d.id), { method:"DELETE", headers: { Authorization: `Bearer ${idToken}` } });
-                            setDrafts(prev => prev.filter(x => x.id !== d.id));
-                          }} style={{background:"#fef2f2", color:"#dc2626", border:"none", borderRadius:6, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"}}>Delete</button>
+                          <button onClick={() => deleteDraft(d)} style={{background:"#fef2f2", color:"#dc2626", border:"none", borderRadius:6, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer"}}>Delete</button>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-{sendHistory.length === 0 ? (
+{loadFail.history ? (
+              <Unavailable tone="cream" kind={loadFail.history} subject="the send history" onRetry={reloadLoads} />
+            ) : sendHistory.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 0" }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
                 <div style={{ color: "#666680", fontSize: 15 }}>No newsletters sent yet.</div>
@@ -889,6 +1025,15 @@ export default function NewsletterPage() {
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       <div style={s.historyStatBox}><div style={s.historyStatNum}>{h.recipientCount ?? "—"}</div><div style={s.historyStatLabel}>Sent</div></div>
+                      {(h.failedCount || 0) > 0 && (
+                        <div style={{ ...s.historyStatBox, borderColor: "#dc2626" }}>
+                          <div style={{ ...s.historyStatNum, color: "#dc2626" }}>{h.failedCount}</div>
+                          <div style={s.historyStatLabel}>Failed</div>
+                          {Array.isArray(h.failedRecipients) && h.failedRecipients.length > 0 && (
+                            <button type="button" onClick={() => retryFailed(h.id)} style={{ marginTop: 6, background: "#dc2626", color: "#fff", border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Retry</button>
+                          )}
+                        </div>
+                      )}
                       <div style={s.historyStatBox}><div style={s.historyStatNum}>{(h.storySlugs || []).length}</div><div style={s.historyStatLabel}>Stories</div></div>
                     </div>
                   </div>
