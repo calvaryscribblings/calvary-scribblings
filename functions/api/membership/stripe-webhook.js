@@ -201,7 +201,7 @@ export async function cancelStripeSubscription(env, subscriptionId) {
  * is what it now confers. ALWAYS the live object (MON-14): an event's own copy can be older than
  * what is already stored.
  */
-async function applySubscription(env, getToken, { subscription, uid, invoiceRef, now, newSubscription = false }) {
+async function applySubscription(env, getToken, { subscription, uid, invoiceRef, now, newSubscription = false, paidAt = null }) {
   const mode = modeOf(env.STRIPE_SECRET_KEY);
   const token = await getToken();
   let existing = null;
@@ -225,6 +225,7 @@ async function applySubscription(env, getToken, { subscription, uid, invoiceRef,
     subRef: subId,
     customerRef: asId(subscription?.customer),
     newSubscription,
+    paidAt,
     cancelAtProvider: () => cancelStripeSubscription(env, subId),
     detail: { ...detail, lastInvoiceRef: invoiceRef || (existing && typeof existing.lastInvoiceRef === 'string' ? existing.lastInvoiceRef : null) },
     label: LABEL,
@@ -311,6 +312,7 @@ async function handleCheckoutCompleted(env, getToken, session, now) {
   const subscription = await fetchSubscription(env, subscriptionId);
   return applySubscription(env, getToken, {
     subscription, uid, invoiceRef: asId(session.invoice), now, newSubscription: true,
+    paidAt: typeof session.created === 'number' ? session.created * 1000 : null,
   });
 }
 
@@ -328,7 +330,11 @@ async function handleInvoicePaid(env, getToken, invoice, now) {
   const subscription = await fetchSubscription(env, subscriptionId);
   const uid = extractUid(subscription) || invoiceSubscriptionUid(invoice);
   if (!uid) return { verdict: 'review', ref: invoice.id, why: `${LABEL}: invoice ${invoice.id} on ${subscriptionId} has no uid. Nothing recorded.` };
-  return applySubscription(env, getToken, { subscription, uid, invoiceRef: asId(invoice.id), now });
+  const paidS = invoice?.status_transitions?.paid_at;
+  return applySubscription(env, getToken, {
+    subscription, uid, invoiceRef: asId(invoice.id), now,
+    paidAt: typeof paidS === 'number' ? paidS * 1000 : null,
+  });
 }
 
 async function handleSubscriptionUpdated(env, getToken, eventSubscription, now) {

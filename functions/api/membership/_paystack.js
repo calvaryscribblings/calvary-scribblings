@@ -570,6 +570,7 @@ export async function handleMembershipPaystackEvent(env, getToken, event, now = 
     customerRef: customerCode,
     newSubscription: firstCharge && !sameSubscriptionAsStored,
     sanctioned,
+    paidAt: (() => { const t = Date.parse(data?.paid_at || data?.paidAt || ''); return Number.isFinite(t) ? t : null; })(),
     cancelAtProvider: subscriptionCode ? () => disablePaystackSubscription(env, subscriptionCode) : null,
   });
 

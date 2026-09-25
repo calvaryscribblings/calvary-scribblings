@@ -184,7 +184,7 @@ Two boxes, in this order. Both keep the shape of the current copy, which was the
 Three ship. A fourth is drafted below but held back — see the note.
 
 **Can I cancel?**
-> Any time, and you keep everything until the period you have paid for runs out. Card memberships cancel from your settings. Naira memberships, for now, cancel by email — we are building the self-service version.
+> Any time, and you keep everything until the period you have paid for runs out. Card and naira memberships both cancel from your settings; naira members can also use the “Manage subscription” link in Paystack’s emails.
 
 **What happens to the archive if I stop?**
 > New stories stay free to you, as they are to everyone. The archive closes. Anything you had saved stays saved.

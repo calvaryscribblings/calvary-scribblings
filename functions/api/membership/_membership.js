@@ -396,6 +396,7 @@ export async function applyMembershipChange(env, token, uid, {
   sanctioned = false,
   cancelAtProvider = null,
   endedReason = 'provider',
+  paidAt = null,     // ms — when the money in this event moved, if the event says
   detail,
   label = 'membership',
   now = Date.now(),
@@ -440,9 +441,13 @@ export async function applyMembershipChange(env, token, uid, {
   }
 
   if (isEndedSubscription(existing, subRef)) {
-    // MON-03. The subscription has ended. A lifecycle event about it is history; a PAYMENT on
-    // it is money taken for a membership that no longer exists, and a human must see that.
-    if (invoiceRef) {
+    // MON-03. The subscription has ended. A lifecycle event about it is history, and so is a
+    // payment made BEFORE it ended (a replay, a late delivery). A payment made AFTER it ended —
+    // or one whose time we cannot tell — is money taken for a membership that no longer
+    // exists, and a human must see that.
+    const endedAt = existing.ended[subRef]?.at;
+    const beforeTheEnd = typeof paidAt === 'number' && typeof endedAt === 'number' && paidAt <= endedAt;
+    if (invoiceRef && !beforeTheEnd) {
       return {
         verdict: 'review', uid, ref: invoiceRef,
         why: `${label}: payment ${invoiceRef} arrived for ${uid} on subscription ${subRef}, which has ENDED (${existing.ended[subRef]?.reason || '—'}). No tier was granted. Refund it or reinstate by hand.`,

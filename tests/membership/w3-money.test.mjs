@@ -289,6 +289,22 @@ describe('MON-03 · a late or out-of-order event never re-grants', () => {
     } finally { w.restore(); }
   });
 
+  test('a REPLAYED old payment on an ended subscription is history, not an alarm — a NEW one is', async () => {
+    const endedAt = NOW;
+    const db = () => ({ memberships: { [UID]: { ...live({ status: 'cancelled', tier: 'free' }), ended: { sub_A: { at: endedAt, reason: 'refunded' } } } }, users: { [UID]: { membership: 'free' } } });
+    const ev = (paidS) => ({ type: 'invoice.paid', data: { object: { id: 'in_x', status_transitions: { paid_at: paidS }, parent: { subscription_details: { subscription: 'sub_A' } } } } });
+    let w = world({ db: db(), stripe: { '/subscriptions/sub_A': () => sub() } });
+    try {
+      assert.equal((await (await deliver(stripeHook, ev(Math.floor((endedAt - 60_000) / 1000)))).json()).verdict, 'stale');
+      assert.equal(w.db.ops, undefined, 'a replay of a payment made before the end alarms nobody');
+    } finally { w.restore(); }
+    w = world({ db: db(), stripe: { '/subscriptions/sub_A': () => sub() } });
+    try {
+      assert.equal((await (await deliver(stripeHook, ev(Math.floor((endedAt + 60_000) / 1000)))).json()).verdict, 'review');
+      assert.equal(w.db.users[UID].membership, 'free');
+    } finally { w.restore(); }
+  });
+
   test('a grant-shaped event whose LIVE state is canceled writes free, not gold', async () => {
     const w = world({ db: { memberships: { [UID]: live() } }, stripe: { '/subscriptions/sub_A': () => sub({ status: 'canceled' }) } });
     try {
