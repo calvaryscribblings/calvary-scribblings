@@ -106,9 +106,10 @@ import {
   policyGrantForInstalment,
   refusalCopy,
   REFUSAL_STATUS,
-  SERIES_TIER_GATE_ENABLED,
+  seriesGateOn,
   TIER_GATE_OFF,
 } from '../../../app/lib/series/access.js';
+import { isFounder } from '../../../app/lib/founders.js';
 import { epubObjectPath, INSTALMENT_ID_RE, INSTALMENTS_PATH } from '../../../app/lib/series/schema.js';
 
 const SIGNED_URL_TTL_SECONDS = 300;
@@ -247,7 +248,15 @@ export async function onRequestPost(context) {
   let uid = null;
   let grant;
 
-  if (!SERIES_TIER_GATE_ENABLED) {
+  // W4: the gate is a DATE (30 Sept 00:00 London), asked per request — no deploy at midnight.
+  // A founder may ask for the after-switch view early (body.previewGate); for anyone else the
+  // flag is ignored. It can only ever lock, never unlock.
+  let forceGate = false;
+  if (body?.previewGate === true && idToken && !seriesGateOn(now)) {
+    const who = await verifyIdToken(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
+    forceGate = isFounder(who);
+  }
+  if (!seriesGateOn(now) && !forceGate) {
     grant = { access: 'granted', reason: TIER_GATE_OFF, code: null, status: 200 };
     console.log(`[series/stream] tier gate OFF — granting instalmentId=${instalmentId} to an unauthenticated caller`);
   } else {

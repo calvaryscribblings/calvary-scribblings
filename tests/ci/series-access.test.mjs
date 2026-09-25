@@ -14,6 +14,7 @@ import {
   grantForInstalment,
   policyGrantForInstalment,
   SERIES_TIER_GATE_ENABLED,
+  seriesGateOn,
   TIER_GATE_OFF,
   isReleased,
   releasedCount,
@@ -21,6 +22,7 @@ import {
   refusalCopy,
   REFUSAL_STATUS,
 } from '../../app/lib/series/access.js';
+import { GATE_ON_MS } from '../../app/lib/storyAccess.js';
 import {
   validateSeries,
   validateInstalment,
@@ -367,49 +369,50 @@ describe('THE TIER GATE FLAG — and the release gate that does not move with it
   // Same shape as GATING_ENABLED — the POLICY is asserted through policyGrantForInstalment so
   // it cannot rot while switched off, the SWITCH through grantForInstalment.
 
-  // ── THE THREE TESTS BELOW ASSERT THE FLAG'S CURRENT POSITION, NOT THE POLICY ──────────
-  //
-  // They are a TRIPWIRE, and going red is their job on the day someone flips
-  // SERIES_TIER_GATE_ENABLED to true. That is not a bug to route around: turning the Series
-  // on is a commercial decision that should require touching the suite that describes it, in
-  // the same commit, deliberately. The instruction is in the message so nobody has to guess.
-  //
-  // WHAT TO DO WHEN THEY FAIL AFTER AN INTENTIONAL FLIP: change `false` to `true` here and
-  // delete the two 'with the flag off' cases. Change NOTHING else — every other test in this
-  // file is about the policy or the release gate and must keep passing untouched. If one of
-  // those goes red too, the flip broke something real.
-  const FLIP_HINT = 'flag flipped? update this describe and nothing else — see the note above';
+  // ── W4: THE FLAG IS A DATE ─────────────────────────────────────────────────────────────
+  // 30 Sept 00:00 London (GATE_ON_MS, from LAUNCH). Both positions are asserted by PINNING THE
+  // CLOCK either side of it, not by reading today's value.
+  const BEFORE = GATE_ON_MS - 1;
+  const BEFORE_ROW = { releaseAtMs: GATE_ON_MS - 30 * 86400000 };
 
-  test('the flag is off today, matching MEMBERSHIPS_ON_SALE', () => {
-    assert.equal(SERIES_TIER_GATE_ENABLED, false, FLIP_HINT);
+  test('the switch is launch day 00:00 London (23:00 UTC the day before), the archive gate\'s instant', () => {
+    assert.equal(new Date(GATE_ON_MS).toISOString(), '2026-09-29T23:00:00.000Z');
+    assert.equal(seriesGateOn(BEFORE), false);
+    assert.equal(seriesGateOn(GATE_ON_MS), true);
   });
 
-  test('with the flag off, an anonymous reader is granted a released instalment', () => {
+  test('before the switch, an anonymous reader is granted a released instalment', () => {
     for (const freeForGold of [true, false]) {
-      const g = grantForInstalment(row({ freeForGold }), { subscriptionTier: 'free', signedIn: false, now: NOW });
-      assert.equal(g.access, 'granted', `freeForGold=${freeForGold} — ${FLIP_HINT}`);
+      const g = grantForInstalment(row({ freeForGold, ...BEFORE_ROW }), { subscriptionTier: 'free', signedIn: false, now: BEFORE });
+      assert.equal(g.access, 'granted', `freeForGold=${freeForGold}`);
       assert.equal(g.reason, TIER_GATE_OFF);
       assert.equal(g.status, 200);
     }
   });
 
-  test('...and so is a day-pass holder, who the policy would refuse', () => {
-    const g = grantForInstalment(row({ freeForGold: true }), { subscriptionTier: 'free', effectiveTier: 'gold', now: NOW });
-    assert.equal(g.access, 'granted', FLIP_HINT);
+  test('from the switch on, the same reader is refused — the gate is ON by the clock alone', () => {
+    const g = grantForInstalment(row({ freeForGold: false, ...BEFORE_ROW }), { subscriptionTier: 'free', signedIn: false, now: GATE_ON_MS });
+    assert.equal(g.access, 'locked');
+    assert.equal(g.code, 'signed_out');
+    const gold = grantForInstalment(row({ freeForGold: false, ...BEFORE_ROW }), { subscriptionTier: 'gold', now: GATE_ON_MS });
+    assert.equal(gold.code, 'tier_too_low', 'Gold cannot open a Platinum instalment');
+    const plat = grantForInstalment(row({ freeForGold: false, ...BEFORE_ROW }), { subscriptionTier: 'platinum', now: GATE_ON_MS });
+    assert.equal(plat.access, 'granted');
+  });
+
+  test('the founder preview (forceGate) applies the gate early — and only ever locks', () => {
+    const g = grantForInstalment(row({ freeForGold: false, ...BEFORE_ROW }), { subscriptionTier: 'free', signedIn: true, now: BEFORE, forceGate: true });
+    assert.equal(g.code, 'tier_too_low');
+  });
+
+  test('...before the switch a day-pass holder is granted, whom the policy would refuse', () => {
+    const g = grantForInstalment(row({ freeForGold: true, ...BEFORE_ROW }), { subscriptionTier: 'free', effectiveTier: 'gold', now: BEFORE });
+    assert.equal(g.access, 'granted');
     assert.equal(g.reason, TIER_GATE_OFF);
   });
 
-  test('flipping the flag ON restores the policy EXACTLY — a toggle, not a one-way door', () => {
-    // The mathematical form of "flipping it back off restores exactly the tier-gated
-    // behaviour". grantForInstalment is `policy + switch`, and the switch's only clause is
-    // `if (!FLAG && code is tier_too_low|signed_out)`. So with FLAG true the wrapper IS the
-    // policy for every possible input — asserted here over the whole space rather than
-    // reasoned about, because "it's obviously the same" is how a wrapper grows a second
-    // clause nobody notices.
-    //
-    // Verified by direct execution too: with the constant temporarily set true, 0 of 432
-    // input combinations differed between the two functions.
-    let differing = 0;
+  test('after the switch the wrapper IS the policy, for every input — a date, not a one-way door', () => {
+    let differingBefore = 0;
     for (const tier of ['free', 'gold', 'platinum']) {
       for (const eff of ['free', 'gold', 'platinum', null]) {
         for (const freeForGold of [true, false]) {
@@ -417,12 +420,14 @@ describe('THE TIER GATE FLAG — and the release gate that does not move with it
             for (const status of ['published', 'draft', 'unpublished']) {
               for (const signedIn of [true, false]) {
                 const r = row({ freeForGold, releaseAtMs, status });
-                const o = { subscriptionTier: tier, effectiveTier: eff, signedIn, now: NOW };
-                const policy = policyGrantForInstalment(r, o);
-                const wrapped = grantForInstalment(r, o);
-                // With the flag OFF the only permitted divergence is a tier refusal opening.
+                const after = { subscriptionTier: tier, effectiveTier: eff, signedIn, now: NOW };
+                assert.deepEqual(grantForInstalment(r, after), policyGrantForInstalment(r, after));
+                const r0 = row({ freeForGold, releaseAtMs: releaseAtMs - (NOW - BEFORE), status });
+                const before = { ...after, now: BEFORE };
+                const policy = policyGrantForInstalment(r0, before);
+                const wrapped = grantForInstalment(r0, before);
                 if (JSON.stringify(policy) !== JSON.stringify(wrapped)) {
-                  differing++;
+                  differingBefore++;
                   assert.ok(['tier_too_low', 'signed_out'].includes(policy.code),
                     `divergence on a ${policy.code} grant — the switch reaches further than its two codes`);
                 }
@@ -432,8 +437,7 @@ describe('THE TIER GATE FLAG — and the release gate that does not move with it
         }
       }
     }
-    // Sanity: the switch must actually be doing something, or this test proves nothing.
-    assert.ok(differing > 0, 'the switch changed no grant at all — is it wired in?');
+    assert.ok(differingBefore > 0, 'before the switch the wrapper must be opening tier refusals');
   });
 
   test('⛔ THE RELEASE GATE DOES NOT MOVE — unreleased is still refused to everyone', () => {
@@ -493,13 +497,12 @@ describe('THE TIER GATE FLAG — and the release gate that does not move with it
     assert.equal(p(row({ freeForGold: true }), { subscriptionTier: 'free', effectiveTier: 'gold' }).reason, 'pass_excluded');
   });
 
-  test('the endpoint skips identity and the membership reads while the flag is off', () => {
+  test('the endpoint asks the DATE per request, after the release check', () => {
     const src = readFileSync(fileURLToPath(new URL('functions/api/series/stream.js', ROOT)), 'utf8');
-    assert.ok(/if \(!SERIES_TIER_GATE_ENABLED\)/.test(src), 'the endpoint does not branch on the flag');
-    // The release check must sit ABOVE that branch, or an unreleased instalment could be
-    // handed out by the free path.
-    assert.ok(src.indexOf("reason === 'not_released'") < src.indexOf('if (!SERIES_TIER_GATE_ENABLED)'),
+    assert.ok(/if \(!seriesGateOn\(now\) && !forceGate\)/.test(src), 'the endpoint does not branch on seriesGateOn(now)');
+    assert.ok(src.indexOf("reason === 'not_released'") < src.indexOf('if (!seriesGateOn(now) && !forceGate)'),
       'the release check must run BEFORE the tier-gate branch');
+    assert.ok(/forceGate = isFounder\(who\)/.test(src), 'the preview is founders only');
   });
 
   test('the homepage row and the landing page follow the same flag', () => {
@@ -567,9 +570,9 @@ describe('wiring', () => {
     assert.ok(/\['\/serial',\s*'\/series'\]/.test(redirects), 'no /serial → /series redirect');
   });
 
-  test('the gating kill switch states that it does not cover the Series', () => {
-    const src = readFileSync(fileURLToPath(new URL('app/lib/storyAccess.js', ROOT)), 'utf8');
-    assert.ok(/WHAT THIS SWITCH DOES NOT COVER: THE SERIES/.test(src));
+  test('W4: the Series gate switches at the archive gate\'s instant, from the same constant', () => {
+    const src = readFileSync(fileURLToPath(new URL('app/lib/series/access.js', ROOT)), 'utf8');
+    assert.match(src, /export const seriesGateOn = \(now = Date\.now\(\)\) => gatingOn\(now\);/);
   });
 
   test('the release rule is in database.rules.json and compares against `now`', () => {

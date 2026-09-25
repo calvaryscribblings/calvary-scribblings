@@ -49,7 +49,8 @@ import {
   FIREBASE_TIMEOUT_MS,
 } from './bookstore/_lib.js';
 import { effectiveTier } from '../../app/lib/membership.js';
-import { grantFor, resolveRecentFloor, readerShapeError } from '../../app/lib/storyAccess.js';
+import { grantFor, readerShapeError } from '../../app/lib/storyAccess.js';
+import { isFounder } from '../../app/lib/founders.js';
 import { indexReadTime } from '../../app/lib/storyIndex.js';
 import { cutPreview } from '../../app/lib/previewCut.js';
 import { MalformedHtmlError } from '../../app/lib/htmlBlocks.js';
@@ -57,50 +58,13 @@ import { readTelemetry, recordClient } from './_telemetry.js';
 
 const STORIES_PATH = 'cms_stories';
 const BODIES_PATH = 'story_bodies';
-const INDEX_PATH = 'cms_stories_index';
 
 // Slugs are produced by slugify() in the admin composer. Generous rather than tight —
 // it exists to stop a crafted id walking out of the node into some other path.
 const SLUG_RE = /^[A-Za-z0-9_-]{1,200}$/;
 
-// ── THE FLOOR CACHE ──────────────────────────────────────────────────────────────
-// The most-recent-5 set is IDENTICAL for every reader and every slug, and changes
-// only when a story publishes or is withdrawn. Resolving it per request would put a
-// second RTDB round-trip on every story open to learn a value that changes a few
-// times a week.
-//
-// Cached in the isolate, which Cloudflare keeps warm across requests. 60s.
-//
-// STALENESS ONLY EVER ERRS TOWARD FREE, and that is why 60s is safe: a story that
-// should have LEFT the floor stays free for up to a minute longer. It cannot err the
-// other way, because a story that should have JOINED the floor is newly published and
-// therefore inside the seven-day window regardless.
-const FLOOR_TTL_MS = 60_000;
-let floorCache = { at: 0, slugs: [] };
-
-// limitToLast is over ALL index records, but the floor counts only GATEABLE ones
-// (published, not reader-mode, not poetry — see isGateable). So the query has to
-// over-fetch and filter. 40 gives comfortable headroom: it would take 35 consecutive
-// poetry/reader-mode publications to exhaust it, against a corpus where they are ~15%.
-const FLOOR_QUERY_LIMIT = 40;
-
-async function loadRecentFloor(env, token, now) {
-  if (now - floorCache.at < FLOOR_TTL_MS && floorCache.slugs.length) return floorCache.slugs;
-
-  // Requires "publishedAtMs" in .indexOn on cms_stories_index (database.rules.json).
-  // Without it Firebase REFUSES the query rather than answering slowly, so a failure
-  // here is a rules problem, not a performance one.
-  const url = `${dbBase(env)}/${INDEX_PATH}.json`
-    + `?orderBy=${encodeURIComponent('"publishedAtMs"')}&limitToLast=${FLOOR_QUERY_LIMIT}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`floor query failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
-  const slugs = resolveRecentFloor((await res.json()) || {});
-  floorCache = { at: now, slugs };
-  return slugs;
-}
+// (W4: the most-recent-5 floor and its cache are gone — the free week is the London calendar
+// week, app/lib/storyAccess.js.)
 
 /** The ID token, preferring the header. Same precedence as bookstore/stream.js. */
 function readIdToken(request, body) {
@@ -209,24 +173,15 @@ async function handlePost(context) {
     return respond({ error: 'That story could not be found.', code: 'not_found' }, 404);
   }
 
-  // ── the floor, then entitlement ────────────────────────────────────────────
-  let floorSlugs = [];
-  let floorDegraded = false;
-  try {
-    floorSlugs = await loadRecentFloor(env, token, now);
-  } catch (e) {
-    // NOT fatal. The floor can only ever make a story MORE free, so losing it
-    // withholds a grant rather than handing one out — the safe direction. Logged
-    // loudly because a persistent failure silently gates five stories that policy
-    // says are free, which is invisible from the outside.
-    console.error('[story] recent-floor query FAILED — five stories may gate early:', e.message || e);
-    floorDegraded = true;
-  }
-
+  // ── entitlement ────────────────────────────────────────────────────────────
+  // W4: the founder-only PREVIEW. A founder may ask to see the gate as it will be after 30 Sept
+  // (body.previewGate === true). For anyone else the flag is ignored — it is never an unlock,
+  // only ever a lock applied early, and only to the two founder accounts.
+  const forceGate = body?.previewGate === true && isFounder(uid);
   // The membership read is SKIPPED unless it can change the answer: a story that is
   // already free to everyone costs a signed-out reader zero membership reads, and a
   // membership outage cannot degrade a story nobody needed a tier for.
-  const provisional = grantFor(story, { tier: 'free', floorSlugs, slug, now });
+  const provisional = grantFor(story, { tier: 'free', now, forceGate });
 
   let tier = 'free';
   let entitlementDegraded = false;
@@ -245,7 +200,7 @@ async function handlePost(context) {
 
   const grant = entitlementDegraded
     ? provisional
-    : grantFor(story, { tier, floorSlugs, slug, now });
+    : grantFor(story, { tier, now, forceGate });
 
   const base = {
     slug,
@@ -264,7 +219,8 @@ async function handlePost(context) {
     // response and null on access:'reader', where the text is an EPUB this endpoint
     // never opens — an explicit null the app can branch on, not an omission.
     readTimeMinutes: null,
-    degraded: entitlementDegraded || floorDegraded,
+    degraded: entitlementDegraded,
+    ...(forceGate ? { preview: 'after_switch' } : {}),
   };
 
   console.log(

@@ -1,4 +1,5 @@
 'use client';
+import { GatePreviewToggle } from '../components/GatePreview';
 import { useState, useEffect, useRef } from 'react';
 import { db, storage } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
@@ -1222,6 +1223,8 @@ export default function AdminPage() {
 
   return (
     <div style={s.page}>
+      {/* W4 — founders only; renders nothing for the admin email or anyone else. */}
+      <div style={{ padding: '0.75rem 1.5rem 0' }}><GatePreviewToggle /></div>
       <header style={s.header}>
         <div>
           <div style={s.logo}>Calvary Scribblings</div>

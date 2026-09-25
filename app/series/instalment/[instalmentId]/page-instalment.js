@@ -45,6 +45,7 @@ import { getInstalmentPage } from '../../../lib/series/loader';
 import { useReliableLoad } from '../../../lib/useReliable';
 import Unavailable from '../../../components/Unavailable';
 import { grantForInstalment, refusalCopy } from '../../../lib/series/access';
+import { useGatePreview } from '../../../lib/gatePreview';
 import {
   formatRelease, instalmentLabel, instalmentEyebrow, readActionLabel,
   releaseCreditLabel, readingTimeLabel, SPONSOR_PREAMBLE,
@@ -61,6 +62,7 @@ const INK = '#f5f0e8';
 export default function InstalmentDetailClient({ instalmentId, sentinel }) {
   const router = useRouter();
   const { user } = useAuth() || {};
+  const gatePreview = useGatePreview(user);   // W4: founders only; can only lock
   const membership = useMembership() || {};
   // W2 / SER-01 — under a deadline, and a failed read is DRAWN. It used to await the loader with
   // no deadline ("Loading…" for good on a hung read) and take its caught-and-nulled failure for
@@ -88,6 +90,7 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
     subscriptionTier: membership.subscriptionTier || 'free',
     effectiveTier: membership.tier || 'free',
     signedIn: !!user,
+    forceGate: gatePreview,
   });
   const open = grant.access === 'granted';
 

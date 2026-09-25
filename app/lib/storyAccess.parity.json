@@ -1,0 +1,387 @@
+{
+ "version": 1,
+ "about": "W4 story access parity fixture. grantFor(story, {tier, now}) must give expect for every case, on the web (app/lib/storyAccess.js) and in the app (lib/storyAccess.ts). tier is the EFFECTIVE tier. Times are ms since epoch; the ISO strings are for humans.",
+ "gateOnMs": 1790722800000,
+ "gateOnIso": "2026-09-29T23:00:00.000Z",
+ "weeks": [
+  {
+   "atIso": "2026-09-30T12:00:00.000Z",
+   "at": 1790769600000,
+   "weekStart": 1790550000000,
+   "weekEnd": 1791154799999
+  },
+  {
+   "atIso": "2026-10-25T12:00:00.000Z",
+   "at": 1792929600000,
+   "weekStart": 1792364400000,
+   "weekEnd": 1792972799999
+  },
+  {
+   "atIso": "2026-10-26T00:00:00.000Z",
+   "at": 1792972800000,
+   "weekStart": 1792972800000,
+   "weekEnd": 1793577599999
+  },
+  {
+   "atIso": "2027-03-28T12:00:00.000Z",
+   "at": 1806235200000,
+   "weekStart": 1805673600000,
+   "weekEnd": 1806274799999
+  }
+ ],
+ "cases": [
+  {
+   "name": "29 Sept 23:59 London \u2014 as today: an old story is full (gating_off)",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T22:59:00.000Z",
+   "now": 1790722740000,
+   "expect": {
+    "access": "full",
+    "reason": "gating_off",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "29 Sept 23:59:59.999 London \u2014 one ms before the switch, still full",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1789981200000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T22:59:59.999Z",
+   "now": 1790722799999,
+   "expect": {
+    "access": "full",
+    "reason": "gating_off",
+    "freeUntilMs": 1790549999999
+   }
+  },
+  {
+   "name": "30 Sept 00:00 London \u2014 this week's story (Mon 28 Sept) is free",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1790586000000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "full",
+    "reason": "free_week",
+    "freeUntilMs": 1791154799999
+   }
+  },
+  {
+   "name": "30 Sept 00:00 London \u2014 last week's Sunday 23:58 story is archive",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1790549880000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": 1790549999999
+   }
+  },
+  {
+   "name": "30 Sept 00:00 London \u2014 an old story is archive",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "Sun 4 Oct 23:59:59.999 London \u2014 Sunday 23:58 story is still free",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1791154680000
+   },
+   "tier": "free",
+   "nowIso": "2026-10-04T22:59:59.999Z",
+   "now": 1791154799999,
+   "expect": {
+    "access": "full",
+    "reason": "free_week",
+    "freeUntilMs": 1791154799999
+   }
+  },
+  {
+   "name": "Sun 4 Oct 23:59:59.999 London \u2014 Monday's story is still free",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1790586000000
+   },
+   "tier": "free",
+   "nowIso": "2026-10-04T22:59:59.999Z",
+   "now": 1791154799999,
+   "expect": {
+    "access": "full",
+    "reason": "free_week",
+    "freeUntilMs": 1791154799999
+   }
+  },
+  {
+   "name": "Mon 5 Oct 00:00 London \u2014 the WHOLE week locks: Sunday 23:58 story",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1791154680000
+   },
+   "tier": "free",
+   "nowIso": "2026-10-04T23:00:00.000Z",
+   "now": 1791154800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": 1791154799999
+   }
+  },
+  {
+   "name": "Mon 5 Oct 00:00 London \u2014 the WHOLE week locks: Monday's story",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1790586000000
+   },
+   "tier": "free",
+   "nowIso": "2026-10-04T23:00:00.000Z",
+   "now": 1791154800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": 1791154799999
+   }
+  },
+  {
+   "name": "news locks like fiction",
+   "story": {
+    "category": "news",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "news this week is free",
+   "story": {
+    "category": "news",
+    "published": true,
+    "publishedAtMs": 1790724600000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "full",
+    "reason": "free_week",
+    "freeUntilMs": 1791154799999
+   }
+  },
+  {
+   "name": "poetry stays free at any age",
+   "story": {
+    "category": "poetry",
+    "published": true,
+    "publishedAtMs": 1735722000000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "full",
+    "reason": "poetry",
+    "freeUntilMs": 1736121599999
+   }
+  },
+  {
+   "name": "gold opens the archive",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "gold",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "full",
+    "reason": "tier",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "platinum opens the archive",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "platinum",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "full",
+    "reason": "tier",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "an active pass is gold through the effective tier",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "gold",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "full",
+    "reason": "tier",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "an expired pass is free: archive",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1788253200000
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "NO FLOOR \u2014 the newest story, published last week, is archive after Monday",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1790539200000
+   },
+   "tier": "free",
+   "nowIso": "2026-10-01T12:00:00.000Z",
+   "now": 1790856000000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": 1790549999999
+   }
+  },
+  {
+   "name": "GMT week: Sun 25 Oct 23:30 London story, free until 23:59:59.999 GMT",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1792971000000
+   },
+   "tier": "free",
+   "nowIso": "2026-10-25T23:59:59.999Z",
+   "now": 1792972799999,
+   "expect": {
+    "access": "full",
+    "reason": "free_week",
+    "freeUntilMs": 1792972799999
+   }
+  },
+  {
+   "name": "GMT week: at Mon 26 Oct 00:00 London it locks",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1792971000000
+   },
+   "tier": "free",
+   "nowIso": "2026-10-26T00:00:00.000Z",
+   "now": 1792972800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": 1792972799999
+   }
+  },
+  {
+   "name": "no publication date: archive, freeUntil null",
+   "story": {
+    "category": "short",
+    "published": true
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "preview",
+    "reason": "archive",
+    "freeUntilMs": null
+   }
+  },
+  {
+   "name": "reader-mode is served at /reader whatever the date",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1788253200000,
+    "readerMode": true
+   },
+   "tier": "free",
+   "nowIso": "2026-09-29T23:00:00.000Z",
+   "now": 1790722800000,
+   "expect": {
+    "access": "reader",
+    "reason": "reader_mode",
+    "freeUntilMs": 1788735599999
+   }
+  },
+  {
+   "name": "reader-mode before the switch too",
+   "story": {
+    "category": "short",
+    "published": true,
+    "publishedAtMs": 1788253200000,
+    "readerMode": true
+   },
+   "tier": "free",
+   "nowIso": "2026-09-20T12:00:00.000Z",
+   "now": 1789905600000,
+   "expect": {
+    "access": "reader",
+    "reason": "reader_mode",
+    "freeUntilMs": 1788735599999
+   }
+  }
+ ]
+}

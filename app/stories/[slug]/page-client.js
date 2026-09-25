@@ -31,6 +31,8 @@ import { tagSubheads } from '../../lib/subheadTag';
 import { proseCSS } from '../../lib/proseCSS';
 import SaveForOffline from '../../components/SaveForOffline';
 import { requestStory, bodyOf } from '../../lib/story';
+import { useGatePreview } from '../../lib/gatePreview';
+import { lockedForFirstPaint, lockScript } from '../../lib/storyLock';
 import StoryGate from '../../components/StoryGate';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
 
@@ -840,7 +842,10 @@ export default function StoryPageClient({ params, initialStory = null }) {
   const { slug } = use(params);
   // First paint from the build-inlined record (prose ships in the static HTML),
   // falling back to the legacy hardcoded story, then to the live fetch below.
-  const [story, setStory] = useState(initialStory || stories.find(s => s.id === slug) || null);
+  // W4: a page built before its story's lock instant (the end of its London week, or the
+  // 30 Sept switch) carries the full body; past that instant the first render is the preview —
+  // the same thing the inline StoryLock script has already put in the DOM before paint.
+  const [story, setStory] = useState(() => lockedForFirstPaint(initialStory, Date.now()) || stories.find(s => s.id === slug) || null);
   const [storyReady, setStoryReady] = useState(!!initialStory || !!stories.find(s => s.id === slug));
 
   useEffect(() => {
@@ -960,12 +965,13 @@ export default function StoryPageClient({ params, initialStory = null }) {
   // `access` is deliberately not cached anywhere. It is a property of this response,
   // not of the story.
   const [gate, setGate] = useState(null);
+  const gatePreview = useGatePreview(storyUser);
   useEffect(() => {
     if (!slug) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const data = await requestStory(storyUser, slug);
+        const data = await requestStory(storyUser, slug, { previewGate: gatePreview });
         if (cancelled) return;
         if (data.access === 'reader') { window.location.replace(data.readerHref || `/reader/${slug}`); return; }
         setGate(data);
@@ -982,7 +988,7 @@ export default function StoryPageClient({ params, initialStory = null }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [slug, storyUser]);
+  }, [slug, storyUser, gatePreview]);
 
   useEffect(() => {
     if (slug !== PAYWALL_SLUG) {
@@ -1524,6 +1530,13 @@ useEffect(() => {
                 </>
               ) : (
                 <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: tagSubheads(story.content || '<p>Content coming soon.</p>') }} />
+              )}
+              {/* W4 — THE PAGE'S OWN REFUSAL, before paint. Emitted only on a page whose build
+                  inlined a full body that will lock (lockAtMs); it swaps #story-content for the
+                  preview the moment the clock is past that instant, before the reader sees a
+                  word. Runs from the static HTML at parse time; React never re-runs it. */}
+              {initialStory?.lockAtMs && initialStory?.previewHtml != null && (
+                <script dangerouslySetInnerHTML={{ __html: lockScript(initialStory.lockAtMs, tagSubheads(initialStory.previewHtml)) }} />
               )}
               {/* Inside the article so the fade sits over the prose it is fading,
                   and outside .prose so the drop-cap tagger — which scopes its query

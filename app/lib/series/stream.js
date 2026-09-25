@@ -13,6 +13,8 @@
 // /api/ is in PASS_THROUGH_PATHS in public/sw.js, so the service worker never caches or
 // replays this. A cached signed URL is a stale one.
 
+import { readGatePreview, gatePreviewActive } from '../gatePreview';
+
 export class SeriesStreamError extends Error {
   constructor(message, code, extra = {}) {
     super(message);
@@ -47,7 +49,11 @@ export async function requestInstalmentUrl(user, instalmentId) {
     res = await fetch('/api/series/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(idToken ? { idToken, instalmentId } : { instalmentId }),
+      // W4: the founder-only preview of the 30 Sept gate rides along; the endpoint honours it
+      // only for a founder uid, and it can only ever lock.
+      body: JSON.stringify(idToken
+        ? { idToken, instalmentId, ...(gatePreviewActive(user?.uid, readGatePreview()) ? { previewGate: true } : {}) }
+        : { instalmentId }),
     });
   } catch {
     throw new SeriesStreamError('No connection. Please check your network and try again.', 'offline');

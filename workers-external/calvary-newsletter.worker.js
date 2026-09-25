@@ -342,7 +342,31 @@ async function processScheduled(env) {
   } catch (err) {
     console.error("Cron error (scheduled newsletters):", err);
   }
-  if (published) await fireDeployHook(env);
+  // W4 (Ikenna's rulings, 24–25 Sep 2026) — THE REBUILD AFTER EVERY LONDON MIDNIGHT.
+  // The site is a static export and the free week ends at Monday 00:00 London, when the whole
+  // week goes to the archive; the archive gate itself switches on at 30 Sept 00:00 London (a
+  // Wednesday). A story page built before either instant carries a body that has just become
+  // an archive story's, so a build must run right after. This tick is the first after every
+  // London midnight — which covers every Monday and the switch without this Worker holding a
+  // copy of any date. London's hour comes from Intl, so it stays right across BST/GMT. Until
+  // the new build is live the story page refuses the body itself (app/lib/storyLock.js).
+  const midnight = isFirstTickAfterLondonMidnight(now);
+  if (midnight) console.log("London midnight: firing the rebuild for the free week / archive gate.");
+  if (published || midnight) await fireDeployHook(env);
+}
+
+// True in the first 15 minutes after 00:00 Europe/London — exactly one */15 tick per day.
+function isFirstTickAfterLondonMidnight(now) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London", hourCycle: "h23", hour: "2-digit", minute: "2-digit",
+    }).formatToParts(now);
+    const hour = Number(parts.find((p) => p.type === "hour").value);
+    const minute = Number(parts.find((p) => p.type === "minute").value);
+    return hour === 0 && minute < 15;
+  } catch {
+    return false;
+  }
 }
 
 // W1 (24 Sep 2026) — THE HOOK IS A WORKER SECRET, NEVER A LITERAL. This line used to hold

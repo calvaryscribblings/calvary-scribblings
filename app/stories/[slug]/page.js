@@ -1,6 +1,7 @@
 import { stories } from '../../lib/stories';
 import { cutPreview } from '../../lib/previewCut';
-import { GATING_ENABLED, hasStaticPage } from '../../lib/storyAccess';
+import { hasStaticPage } from '../../lib/storyAccess';
+import { buildInlinePlan } from '../../lib/storyLock';
 import StoryPageClient from './page-client';
 // PL-12 — the deadline and the retries. See app/lib/build-read.mjs for why the deadline is the
 // fix rather than a precaution.
@@ -112,15 +113,15 @@ export default async function StoryPage({ params }) {
       // The build's question is narrower and is asked directly: is this story free
       // to EVERYONE, always? Poetry is (contract §3.3). Nothing else is.
       //
-      // ⛔ …AND WITH THE KILL SWITCH OFF, EVERY STORY IS FREE TO EVERYONE. That is
-      // not a special case bolted on here; it is the same sentence `alwaysFree`
-      // already asks, answered by the one constant that also turns the endpoint's
-      // gate off (app/lib/storyAccess.js). Both halves must flip together: leaving
-      // this one cutting previews while the Function serves full bodies would give
-      // every reader a preview at first paint and the rest a round-trip later —
-      // a flash of paywall on a site with no paywall, and nothing at all for a
-      // reader without JS.
-      const alwaysFree = !GATING_ENABLED || (rec.category === 'poetry' && !rec.epubUrl);
+      // ── W4: THE BUILD ASKS THE SAME POLICY, WITH A LOOKAHEAD ──────────────────
+      // The full body is inlined only if a SIGNED-OUT reader may read it in full both at
+      // build time AND BUILD_LOOKAHEAD_MS later (app/lib/storyLock.js). A build that starts before a Monday 00:00
+      // London (or before the 30 Sept switch) and deploys after it therefore cannot carry a
+      // body that has just gone to the archive: inside the lookahead the page ships the
+      // preview, and /api/story — which is still free for that story until the boundary —
+      // supplies the rest to everyone in the meantime.
+      const plan = buildInlinePlan(rec);
+      const alwaysFree = plan.inlineFull;
 
       if (!alwaysFree) {
         isPreview = true;
@@ -142,7 +143,20 @@ export default async function StoryPage({ params }) {
         }
       }
 
-      initialStory = { id: slug, ...rest, content: inlined, contentIsPreview: isPreview };
+      // THE PAGE'S OWN REFUSAL (W4). A page carrying a FULL body also carries the instant a
+      // signed-out reader stops being entitled to it, and the preview to show from then on.
+      // Until the scheduled rebuild after that instant replaces this HTML, the inline check in
+      // the page (StoryLock, page-client.js) swaps the body for the preview before paint.
+      // Poetry never locks (null). The preview is a prefix of what is already here, so carrying
+      // it exposes nothing.
+      let lockAtMs = null;
+      let previewHtml = null;
+      if (!isPreview && plan.lockAtMs !== null) {
+        lockAtMs = plan.lockAtMs;
+        try { previewHtml = cutPreview(content || '').html; } catch { previewHtml = ''; }
+      }
+
+      initialStory = { id: slug, ...rest, content: inlined, contentIsPreview: isPreview, lockAtMs, previewHtml };
     }
   } catch (e) {
     console.error('StoryPage build fetch error:', e);

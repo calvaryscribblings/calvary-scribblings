@@ -33,7 +33,8 @@ import { useMembership } from '../../lib/MembershipContext';
 import { getSeriesPage } from '../../lib/series/loader';
 import { useReliableLoad } from '../../lib/useReliable';
 import Unavailable from '../../components/Unavailable';
-import { grantForInstalment, refusalCopy, SERIES_TIER_GATE_ENABLED } from '../../lib/series/access';
+import { grantForInstalment, refusalCopy, seriesGateOn } from '../../lib/series/access';
+import { useGatePreview } from '../../lib/gatePreview';
 import { formatRelease, shelfLine, instalmentLabel } from '../../lib/series/format';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
@@ -43,6 +44,8 @@ const BODY = "Cormorant Garamond, Georgia, serif";
 export default function SeriesDetailClient({ slug, sentinel }) {
   const router = useRouter();
   const { user } = useAuth() || {};
+  // W4: the founder-only preview draws the rows as they will read after 30 Sept.
+  const gatePreview = useGatePreview(user);
   const membership = useMembership() || {};
   // W2 / SER-01 — under a deadline, and a failed read is DRAWN (see page-instalment.js).
   // null still means not found; a failure is <Unavailable>, never "No such series."
@@ -104,6 +107,7 @@ export default function SeriesDetailClient({ slug, sentinel }) {
             subscriptionTier={subscriptionTier}
             effectiveTier={membership.tier || 'free'}
             signedIn={!!user}
+            forceGate={gatePreview}
             // R12.4: the row now opens the INSTALMENT PAGE, not the reader. The file is one
             // tap further away and that is the point — an instalment has a logline, a writer,
             // a reading time and a sponsor credit, and a row that jumped straight into the
@@ -123,9 +127,9 @@ export default function SeriesDetailClient({ slug, sentinel }) {
   );
 }
 
-function InstalmentRow({ inst, subscriptionTier, effectiveTier, signedIn, onOpen }) {
+function InstalmentRow({ inst, subscriptionTier, effectiveTier, signedIn, onOpen, forceGate = false }) {
   // Advisory only — this picks a sentence, it does not open a file. See the header.
-  const grant = grantForInstalment(inst, { subscriptionTier, effectiveTier, signedIn });
+  const grant = grantForInstalment(inst, { subscriptionTier, effectiveTier, signedIn, forceGate });
   const open = grant.access === 'granted';
   const detail = inst.detail;
 
@@ -169,7 +173,7 @@ function InstalmentRow({ inst, subscriptionTier, effectiveTier, signedIn, onOpen
               while that gate is up. With the flag off every instalment is open to everyone
               and badging one of them "Open to Gold" would read as a restriction on the
               others — the opposite of what is true. */}
-          {open && SERIES_TIER_GATE_ENABLED && inst.freeForGold && (
+          {open && (seriesGateOn() || forceGate) && inst.freeForGold && (
             <span style={{ display: 'block', fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: LABEL, color: '#c9a84c', marginTop: 4 }}>
               Open to Gold
             </span>

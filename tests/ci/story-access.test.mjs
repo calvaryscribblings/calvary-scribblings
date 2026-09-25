@@ -1,140 +1,85 @@
-// The entitlement policy: which stories are free, and why.
+// The entitlement policy: which stories are free, and why. W4 (Ikenna's rulings, 24–25 Sep 2026).
 //
 //   node --test tests/ci/story-access.test.mjs      (npm run test:ci)
 //
-// This is STORY-SERVING-CONTRACT.md §3 as assertions. The endpoint
-// (functions/api/story.js) does I/O and nothing else — it verifies a token, reads
-// three nodes and calls grantFor() — precisely so that the policy can be tested
-// here without a network, a Worker or a database.
+// PINNED CLOCKS, never today's. The free week is Monday 00:00 → Sunday 23:59:59.999 London; at
+// Monday 00:00 the whole week goes to the archive; the gate itself switches on at 30 Sept 00:00
+// London; poetry stays free; news locks; there is no floor.
 //
-// The tier is passed in ALREADY RESOLVED (effectiveTier from app/lib/membership.js
-// does that, pass included), so the pass cases below assert the composition of the
-// two modules rather than a second expiry implementation living in this one.
+// The cases live in app/lib/storyAccess.parity.json — written by hand, not generated — and the
+// app's port runs the SAME file (harness/story-access-parity.mjs in the app repo). A change of
+// policy is a change to that file, on both sides at once.
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
-  policyGrantFor as grantFor, grantFor as shippedGrantFor,
-  isGateable, resolveRecentFloor, isReaderMode, readerShapeError,
-  GATING_ENABLED,
-  FREE_WINDOW_DAYS, FREE_WINDOW_MS, RECENT_FLOOR_COUNT, ARCHIVE_MIN_TIER,
+  policyGrantFor as grantFor, grantFor as shippedGrantFor, gatingOn, GATE_ON_MS,
+  isGateable, isReaderMode, readerShapeError, ARCHIVE_MIN_TIER, freeUntilFor,
 } from '../../app/lib/storyAccess.js';
+import { londonWeekStart, londonWeekEnd } from '../../app/lib/londonWeek.js';
 import { effectiveTier } from '../../app/lib/membership.js';
 
-// ── WHY `grantFor` HERE IS THE POLICY FUNCTION ───────────────────────────────────
-//
-// Everything below this line tests THE POLICY — free window, floor, tier, archive —
-// and it must keep doing so while the gate is switched off, or the policy quietly
-// rots and the day someone flips GATING_ENABLED back on is the day they find out.
-// So the policy suite binds `grantFor` to policyGrantFor, and the shipped function
-// (policy + switch) is imported under its own name and tested in exactly one place:
-// the block directly below. Those are the only two things that need saying about it.
-const NOW = Date.UTC(2026, 7, 8);              // 2026-08-08, the day the corpus was measured
+const FIXTURE = JSON.parse(readFileSync(new URL('../../app/lib/storyAccess.parity.json', import.meta.url), 'utf8'));
+const NOW = GATE_ON_MS + 3 * 86400000;           // Sat 3 Oct 2026, gate on
 const DAY = 86400000;
 const ago = (days) => NOW - days * DAY;
+const story = (over = {}) => ({ title: 'A Story', category: 'short', published: true, publishedAtMs: ago(30), ...over });
 
-const story = (over = {}) => ({
-  title: 'A Story', category: 'short', published: true,
-  publishedAtMs: ago(30), ...over,
+describe('THE PARITY FIXTURE — every case, by value (the app runs the same file)', () => {
+  for (const c of FIXTURE.cases) {
+    test(c.name, () => {
+      const g = shippedGrantFor(c.story, { tier: c.tier, now: c.now });
+      assert.deepEqual({ access: g.access, reason: g.reason, freeUntilMs: g.freeUntilMs }, c.expect);
+    });
+  }
+  for (const w of FIXTURE.weeks) {
+    test(`the London week containing ${w.atIso}`, () => {
+      assert.equal(londonWeekStart(w.at), w.weekStart);
+      assert.equal(londonWeekEnd(w.at), w.weekEnd);
+    });
+  }
+  test('the fixture\'s switch instant is the code\'s', () => assert.equal(FIXTURE.gateOnMs, GATE_ON_MS));
 });
 
-// ── THE KILL SWITCH ──────────────────────────────────────────────────────────────
-//
-// Added 2026-08-08 after R11.9 put a reader-visible paywall on production without
-// meaning to. These tests are written so they PASS IN BOTH POSITIONS of the switch —
-// each one asserts what must be true given GATING_ENABLED, rather than assuming it
-// is off. A suite that has to be edited to flip the switch is a suite that will be
-// edited wrongly, at speed, on the bad day.
-describe('the kill switch', () => {
-  const archived = story({ publishedAtMs: ago(30) });
-
-  test('the shipped grantFor obeys GATING_ENABLED for a free reader on an old story', () => {
-    const g = shippedGrantFor(archived, { tier: 'free', slug: 'x', now: NOW });
-    if (GATING_ENABLED) {
-      assert.equal(g.access, 'preview', 'gate is ON — an old story is a preview to a free reader');
-      assert.equal(g.reason, 'archive');
-    } else {
-      assert.equal(g.access, 'full', 'gate is OFF — nobody may be shown a preview');
-      assert.equal(g.reason, 'gating_off');
-    }
+describe('the date switch', () => {
+  test('launch day 00:00 London = 23:00 UTC the day before, derived from LAUNCH', () => {
+    assert.equal(new Date(GATE_ON_MS).toISOString(), '2026-09-29T23:00:00.000Z');
+    assert.equal(gatingOn(GATE_ON_MS - 1), false);
+    assert.equal(gatingOn(GATE_ON_MS), true);
   });
-
-  test('the POLICY is unaffected by the switch, so it keeps being tested while off', () => {
-    const g = grantFor(archived, { tier: 'free', slug: 'x', now: NOW });
-    assert.equal(g.access, 'preview');
-    assert.equal(g.reason, 'archive');
+  test('before it, every prose story reads as today — even to a signed-out reader', () => {
+    const g = shippedGrantFor(story({ publishedAtMs: GATE_ON_MS - 400 * DAY }), { tier: 'free', now: GATE_ON_MS - 1 });
+    assert.deepEqual([g.access, g.reason], ['full', 'gating_off']);
   });
-
-  test('reader-mode still answers reader with the switch off — it has no HTML body', () => {
-    // The one branch the switch must NOT overwrite. Forcing 'full' here would send
-    // /api/story looking for an HTML body that does not exist for an EPUB record,
-    // and 502 every novel on the site. Asserted unconditionally: true either way.
-    const g = shippedGrantFor(story({ readerMode: true }), { tier: 'free', slug: 'n', now: NOW });
-    assert.equal(g.access, 'reader');
-    assert.equal(g.reason, 'reader_mode');
+  test('the founder preview (forceGate) applies the gate early, at the real time', () => {
+    const t = GATE_ON_MS - 5 * DAY;   // Thu 24 Sept
+    assert.equal(shippedGrantFor(story({ publishedAtMs: t - 20 * DAY }), { tier: 'free', now: t, forceGate: true }).access, 'preview');
+    assert.equal(shippedGrantFor(story({ publishedAtMs: t - DAY }), { tier: 'free', now: t, forceGate: true }).reason, 'free_week',
+      'this week\'s story still opens in full in the preview');
   });
-
-  test('freeUntilMs survives the switch, so the UI can still say when a story opened', () => {
-    const g = shippedGrantFor(archived, { tier: 'free', slug: 'x', now: NOW });
-    assert.equal(g.freeUntilMs, ago(30) + FREE_WINDOW_MS);
-  });
-});
-
-describe('the settled constants', () => {
-  test('the window is 7 days — the newsletter cycle', () => {
-    assert.equal(FREE_WINDOW_DAYS, 7);
-    assert.equal(FREE_WINDOW_MS, 7 * DAY);
-  });
-  test('the floor is 5', () => assert.equal(RECENT_FLOOR_COUNT, 5));
   test('the archive opens at gold', () => assert.equal(ARCHIVE_MIN_TIER, 'gold'));
 });
 
-describe('the four grants are ORed — whichever leaves a story free wins', () => {
-  test('inside the window: free to a signed-out reader', () => {
-    const g = grantFor(story({ publishedAtMs: ago(3) }), { tier: 'free', now: NOW });
-    assert.equal(g.access, 'full');
-    assert.equal(g.reason, 'free_window');
+describe('the whole week locks together — no story has its own window', () => {
+  test('every story of one week shares ONE freeUntil: Sunday 23:59:59.999 London', () => {
+    const monday = Date.parse('2026-09-28T00:30:00+01:00');
+    const ends = [0, 1, 2, 3, 4, 5, 6].map((d) => freeUntilFor({ publishedAtMs: monday + d * DAY + 23 * 3600000 - 3600000 }));
+    assert.equal(new Set(ends).size, 1);
+    assert.equal(new Date(ends[0]).toISOString(), '2026-10-04T22:59:59.999Z');
   });
-
-  test('on the boundary: still free at exactly 7 days', () => {
-    const g = grantFor(story({ publishedAtMs: NOW - FREE_WINDOW_MS }), { tier: 'free', now: NOW });
-    assert.equal(g.access, 'full', 'the window is inclusive of its own edge');
+  test('NO FLOOR: six stories from last week, the newest still archives on Monday', () => {
+    const lastWeek = GATE_ON_MS + 12 * 3600000;   // launch day, midday London
+    for (let i = 0; i < 6; i++) {
+      assert.equal(grantFor(story({ publishedAtMs: lastWeek + i * 3600000 }), { tier: 'free', now: Date.parse('2026-10-05T00:00:00+01:00') }).access, 'preview');
+    }
   });
-
-  test('one millisecond past the boundary: gated', () => {
-    const g = grantFor(story({ publishedAtMs: NOW - FREE_WINDOW_MS - 1 }), { tier: 'free', now: NOW });
-    assert.equal(g.access, 'preview');
-    assert.equal(g.reason, 'archive');
-  });
-
-  test('in the most-recent-5: free regardless of age', () => {
-    const g = grantFor(story({ publishedAtMs: ago(400) }), {
-      tier: 'free', floorSlugs: ['old-but-recent'], slug: 'old-but-recent', now: NOW,
-    });
-    assert.equal(g.access, 'full');
-    assert.equal(g.reason, 'recent_floor');
-  });
-
-  test('poetry: free at any age, to anyone', () => {
-    const g = grantFor(story({ category: 'poetry', publishedAtMs: ago(400) }), { tier: 'free', now: NOW });
-    assert.equal(g.access, 'full');
-    assert.equal(g.reason, 'poetry');
-  });
-
-  test('gold opens the archive', () => {
-    const g = grantFor(story({ publishedAtMs: ago(400) }), { tier: 'gold', now: NOW });
-    assert.equal(g.access, 'full');
-    assert.equal(g.reason, 'tier');
-  });
-
-  test('platinum opens the archive', () => {
-    assert.equal(grantFor(story({ publishedAtMs: ago(400) }), { tier: 'platinum', now: NOW }).access, 'full');
-  });
-
-  test('free tier, outside every grant: a preview', () => {
-    const g = grantFor(story({ publishedAtMs: ago(400) }), { tier: 'free', now: NOW });
-    assert.equal(g.access, 'preview');
-    assert.equal(g.reason, 'archive');
+  test('the old policy is gone from the module: no floor, no 7-day window', () => {
+    const src = readFileSync(new URL('../../app/lib/storyAccess.js', import.meta.url), 'utf8');
+    const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n');
+    assert.doesNotMatch(code, /RECENT_FLOOR|resolveRecentFloor|FREE_WINDOW_(MS|DAYS)|floorSlugs/);
+    const endpoint = readFileSync(new URL('../../functions/api/story.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(endpoint, /resolveRecentFloor|floorSlugs|loadRecentFloor/);
   });
 });
 
@@ -205,36 +150,12 @@ describe('reader-mode is FLAG-DRIVEN, and the category-only shape is a data erro
     assert.equal(g.access, 'reader', 'breaking a reader to make a point about a bad record is worse');
   });
 
-  test('an erroneous record does not occupy a floor slot either', () => {
+  test('an erroneous record is never a gateable prose story', () => {
     assert.equal(isGateable({ category: 'novel', published: true }), false);
   });
 });
 
-describe('an unparseable publication date cannot open the window', () => {
-  test('publishedAtMs null → freeUntilMs null, and the story gates', () => {
-    const g = grantFor({ category: 'short', published: true, date: 'wat', publishAt: null }, { tier: 'free', now: NOW });
-    assert.equal(g.freeUntilMs, null);
-    assert.equal(g.access, 'preview', 'treating null as "just published" would hand over the archive');
-  });
-
-  test('…but the floor and the tier still work on it', () => {
-    const s = { category: 'short', published: true, date: 'wat' };
-    assert.equal(grantFor(s, { tier: 'gold', now: NOW }).access, 'full');
-    assert.equal(grantFor(s, { tier: 'free', floorSlugs: ['x'], slug: 'x', now: NOW }).access, 'full');
-  });
-});
-
-describe('freeUntilMs', () => {
-  test('is publishedAtMs + the window, and is in the PAST on a floor grant', () => {
-    const s = story({ publishedAtMs: ago(400) });
-    const g = grantFor(s, { tier: 'free', floorSlugs: ['s'], slug: 's', now: NOW });
-    assert.equal(g.freeUntilMs, s.publishedAtMs + FREE_WINDOW_MS);
-    assert.ok(g.freeUntilMs < NOW, 'a client printing "free until {date}" here would print a date that has gone');
-    assert.equal(g.reason, 'recent_floor', 'which is exactly why reason must be checked before rendering it');
-  });
-});
-
-describe('isGateable — the set the floor counts over', () => {
+describe('isGateable', () => {
   test('a published prose story is gateable', () => {
     assert.equal(isGateable(story()), true);
   });
@@ -245,35 +166,3 @@ describe('isGateable — the set the floor counts over', () => {
   });
 });
 
-describe('resolveRecentFloor', () => {
-  const index = {
-    'poem-new': { category: 'poetry', published: true, publishedAtMs: ago(0) },
-    'book-new': { category: 'short', readerMode: true, published: true, publishedAtMs: ago(1) },
-    'hidden': { category: 'short', published: false, publishedAtMs: ago(2) },
-    a: { category: 'short', published: true, publishedAtMs: ago(3) },
-    b: { category: 'short', published: true, publishedAtMs: ago(4) },
-    c: { category: 'short', published: true, publishedAtMs: ago(5) },
-    d: { category: 'short', published: true, publishedAtMs: ago(6) },
-    e: { category: 'short', published: true, publishedAtMs: ago(7) },
-    f: { category: 'short', published: true, publishedAtMs: ago(8) },
-    nodate: { category: 'short', published: true },
-  };
-
-  test('picks the 5 newest GATEABLE records, newest first', () => {
-    assert.deepEqual(resolveRecentFloor(index), ['a', 'b', 'c', 'd', 'e']);
-  });
-
-  test('poetry and reader-mode do not consume floor slots', () => {
-    const floor = resolveRecentFloor(index);
-    assert.ok(!floor.includes('poem-new'), 'poetry is already free — a slot spent on it protects nothing');
-    assert.ok(!floor.includes('book-new'));
-  });
-
-  test('a record with no publishedAtMs is invisible to the floor', () => {
-    assert.ok(!resolveRecentFloor(index).includes('nodate'));
-  });
-
-  test('fewer than five gateable records yields fewer than five', () => {
-    assert.deepEqual(resolveRecentFloor({ a: index.a, 'poem-new': index['poem-new'] }), ['a']);
-  });
-});

@@ -11,6 +11,7 @@
 //
 // ── WHY THE POLICY CONSTANTS ARE HERE, IN A BROWSER-IMPORTABLE FILE ──────────────
 //
+// (W4: the window is now the London calendar week, freeUntilFor(); the point stands.)
 // An earlier draft kept FREE_WINDOW_MS out of this module on the theory that the
 // window length must not reach a client. That theory was wrong and it is worth
 // saying why, because it nearly produced two copies of the same number.
@@ -42,6 +43,10 @@
 // So the parser handles both, plus full month names, because the next hand-typed
 // value is not bound by what the last 175 happened to be. Anything it cannot read
 // becomes null rather than a guess — see publishedAtMsFor.
+
+import { LAUNCH } from './launch.js';
+import { londonMidnightUtc, londonWeekEnd } from './londonWeek.js';
+import { tierAtLeast } from './membership.js';
 
 const MONTHS = [
   'jan', 'feb', 'mar', 'apr', 'may', 'jun',
@@ -202,81 +207,54 @@ export function servesAsReader(story) {
 // behind each; the short version is recorded here so a reader of this file is not
 // left guessing why the numbers are the numbers.
 
+// ── W4 (Ikenna's rulings, 24–25 Sep 2026): THE FREE WEEK AND THE ARCHIVE ─────────────
+//
+//   · The free week is Monday 00:00 → Sunday 23:59:59.999 LONDON. A story is free to everyone
+//     until the end of the London week it was published in. At Monday 00:00 the whole week
+//     goes to the archive together — Sunday night's story included. One clock
+//     (app/lib/londonWeek.js); no story calculates its own window.
+//   · The archive is open at or above ARCHIVE_MIN_TIER, through the EFFECTIVE tier (passes
+//     count).
+//   · Poetry stays free. News locks like fiction. The most-recent-5 floor is GONE.
+//   · The gate switches on at ONE instant: 30 September 00:00 London, derived from LAUNCH in
+//     app/lib/launch.js (the only file allowed a date). No deploy happens at that moment — the
+//     endpoint, the static page's own check and the Series all read the same clock. The Series
+//     tier gate (app/lib/series/access.js) switches on at the same instant, from the same
+//     constant.
+//
+// ── WHAT THE OLD KILL SWITCH TAUGHT, KEPT ────────────────────────────────────────────────
+// GATING_ENABLED (false since R11.11) existed because R11.9 put a reader-visible paywall on
+// production that nobody had decided to turn on: both halves of the gate — the static build
+// and /api/story — had flipped as a side effect of a phase meant to be invisible. The lesson
+// is why this is a DATE both halves read, not a flag one of them might forget: every surface
+// asks gatingOn(now), and the static half is covered twice (the build cuts previews for any
+// story archived at or soon after its build time, and the story page refuses to show more
+// than the preview once the clock says archive — app/stories/[slug]).
+
+export const GATE_ON_MS = londonMidnightUtc(LAUNCH.y, LAUNCH.m, LAUNCH.d);
+
+/** Is the archive gate on at `now`? Before 30 Sept 00:00 London every story reads as today. */
+export const gatingOn = (now = Date.now()) => now >= GATE_ON_MS;
+
 /**
- * ⛔ THE KILL SWITCH. FALSE = NO STORY IS EVER GATED, FOR ANYONE.
- *
- * Set false 2026-08-08 ~20:00, in response to a reader-visible gate on production
- * that was not supposed to be live. R11.9 (8a8b5872) shipped BOTH halves of the
- * paywall at once — the static build stopped inlining full bodies and started
- * inlining `cutPreview()` output, and /api/story began applying grantFor() — and
- * the round's own report described that state as "gating live for nobody". It was
- * live for every signed-out reader on the web, on every prose story older than the
- * free window. See the R11.9 divergence note.
- *
- * WHY A CONSTANT AND NOT AN ENV VAR. Both halves of the gate must flip together and
- * one of them is the STATIC BUILD (app/stories/[slug]/page.js), which bakes its
- * decision into HTML at build time. An env var read at request time could not reach
- * it — the deployed HTML would keep shipping previews no matter what the Function
- * decided. A constant in the module both halves already import is the only thing
- * that flips both with one edit, and it is greppable, diffable and reviewable, which
- * a dashboard toggle is not.
- *
- * TO RE-ENABLE: set true — and understand first that NO PHASE OF THE CONTRACT EVER
- * ASKED FOR THAT AS A STEP, which is the actual defect here and the reason this
- * constant now exists.
- *
- * ── WHAT THIS SWITCH DOES NOT COVER: THE SERIES ─────────────────────────────────
- *
- * This constant governs cms_stories PROSE and nothing else. The Series
- * (app/lib/series/access.js, functions/api/series/stream.js) is deliberately outside
- * it, and saying so here is the point — the switch's contract above is written as
- * "FALSE = NO STORY IS EVER GATED, FOR ANYONE", and the Series is a gated thing on
- * this platform to which that sentence does not apply.
- *
- * THE REASON IS THAT THE TWO SWITCHES WOULD MEAN OPPOSITE THINGS. This one exists to
- * UNDO an accident: R11.9 paywalled 130 archive stories for signed-out readers that
- * nobody had decided to paywall, and flipping it false restores a state the site had
- * always been in. There is no equivalent state for the Series. It has never been
- * ungated, its files have never been public, and "turn the Series gate off" does not
- * restore anything — it gives away a Platinum benefit and, because the bytes leave the
- * bucket, cannot be taken back.
- *
- * The mechanics differ too. This switch has to be a compile-time constant because one
- * of the two halves it governs is the STATIC BUILD. The Series gate has no static half
- * at all: every decision is made by a Pages Function at request time, against the
- * server clock, and there is nothing baked into HTML for a constant to reach.
- *
- * If the Series ever needs a kill switch, it gets its own, in its own module, with its
- * own written reason for existing. It must not be folded into this one.
- *
- * §7 runs T1 (dual-write) → T2 (app adoption) → T3 (the node's bodies cut). Its T1
- * bullet says "Gating is not live for anybody." Three paragraphs later §7.1 puts the
- * preview-only static render in "the same phase as T1". BOTH WERE IMPLEMENTED, and
- * they contradict each other: the first sentence is only ever true of OLD APP
- * INSTALLS reading cms_stories directly, and §7.1 describes the web page, which is
- * a client too — the one client T1 also changed to stop reading the node's body.
- *
- * So there was never a "turn the gate on" step to skip or to perform early. Going
- * live for readers was a SIDE EFFECT of a phase whose stated purpose was to be
- * invisible to them. Before setting this true, give the contract that step
- * explicitly, and decide separately for each surface who it turns on for.
+ * DEPRECATED name, kept so a stale import fails loudly in review rather than silently: the gate
+ * is a date now. It answers for the moment the module was loaded — never branch a request on it;
+ * call gatingOn(now).
  */
-export const GATING_ENABLED = false;
+export const GATING_ENABLED = gatingOn();
 
-/** 7 days. The floor is the NEWSLETTER CYCLE — a story is free while its issue is
- *  the current issue — not a guess at reader tolerance. */
-export const FREE_WINDOW_DAYS = 7;
-export const FREE_WINDOW_MS = FREE_WINDOW_DAYS * 86400000;
-
-/** The 5 newest GATEABLE stories are free regardless of age. Dormant at healthy
- *  cadence; simulated over 1 Apr – 8 Aug 2026 it fires on 26 of 130 days, and
- *  across 9 Apr → 2 May it was the only thing keeping any story free at all. */
-export const RECENT_FLOOR_COUNT = 5;
-
-/** Gold unlocks the whole archive. Platinum's differentiators are elsewhere (the
- *  Book Reader Collection, unlimited saves, the Series), and a pass confers gold
- *  through effectiveTier — which is the entire point of "24 hours of Gold". */
+/** Gold unlocks the whole archive. A pass confers gold through effectiveTier — which is the
+ *  entire point of "24 hours of Gold". */
 export const ARCHIVE_MIN_TIER = 'gold';
+
+/** The last millisecond a story is free: Sunday 23:59:59.999 London of its publication week. */
+export function freeUntilFor(story) {
+  const s = story || {};
+  const publishedAtMs = typeof s.publishedAtMs === 'number' && Number.isFinite(s.publishedAtMs)
+    ? s.publishedAtMs
+    : publishedAtMsFor(s);
+  return publishedAtMs === null ? null : londonWeekEnd(publishedAtMs);
+}
 
 /**
  * Could this story ever be gated at all?
@@ -286,15 +264,13 @@ export const ARCHIVE_MIN_TIER = 'gold';
  * live poetry records carry no stanza markup, so a preview stops a poem
  * mid-breath). Also false for anything unpublished.
  *
- * This is the set the most-recent-5 floor counts over. A floor whose slots were
- * spent on stories that are free anyway would protect fewer than five and quietly
- * fail at the one job it has.
+ * (It was also the set the most-recent-5 floor counted over; the floor was dropped in W4.)
  */
 export function isGateable(story) {
   const s = story || {};
   if (s.published === false) return false;
   // servesAsReader, not isReaderMode: a record with the erroneous category-only
-  // shape is still routed to /reader, so it must not occupy a floor slot either.
+  // shape is still routed to /reader, so it is never a prose story that can be gated.
   if (servesAsReader(s)) return false;
   if (s.category === 'poetry') return false;
   return true;
@@ -342,98 +318,33 @@ export function hasStaticPage(story) {
 /**
  * THE ENTITLEMENT DECISION, as one pure function.
  *
- *   grantFor(story, { tier, floorSlugs, slug, now }) → { access, reason, freeUntilMs }
+ *   grantFor(story, { tier, now, forceGate }) → { access, reason, freeUntilMs }
  *
  *     access  'full' | 'preview' | 'reader'
- *     reason  'reader_mode' | 'poetry' | 'free_window' | 'recent_floor' | 'tier' | 'archive'
+ *     reason  'reader_mode' | 'poetry' | 'gating_off' | 'free_week' | 'tier' | 'archive'
  *
- * `floorSlugs` is the resolved most-recent-5 set (a Set or array of slugs); pass an
- * empty one where it is not known and the floor simply never fires. `tier` is the
- * reader's EFFECTIVE tier — already resolved through effectiveTier() in
- * app/lib/membership.js, pass included — because this function must not know how
- * memberships work.
+ * `tier` is the reader's EFFECTIVE tier (effectiveTier() in app/lib/membership.js, pass
+ * included). `forceGate` applies the gate before its date — the founder-only preview, and
+ * nothing else; every caller that is not that preview leaves it false.
  *
- * FOUR GRANTS, ORed. Whichever leaves the story free wins. Written as an ordered
- * chain rather than a boolean only so `reason` can say WHICH one opened it: "free
- * this week", "poetry is always free" and "your Gold membership" are three
- * different true sentences and a single boolean cannot pick between them.
- *
- * Not handled here, deliberately: missing/unpublished stories. Those are a 404 and
- * the endpoint answers them before it gets this far — a function that returns an
- * access level should not also be the thing that says a story does not exist.
+ * Not handled here: missing/unpublished stories. The endpoint answers those as 404 first.
  */
-export function grantFor(story, opts = {}) {
-  const grant = policyGrantFor(story, opts);
-
-  // ⛔ THE KILL SWITCH, and note WHERE it sits: AFTER the policy has run, and it
-  // spares the 'reader' answer. A reader-mode record must still answer 'reader'
-  // with the switch off — its body is an EPUB, /api/story has no HTML to send for
-  // it, and forcing 'full' would make the endpoint read a body that isn't there and
-  // return 502 on every novel on the site. Turning the gate off must not break a
-  // surface that was never gated in the first place.
-  //
-  // Applied HERE rather than inside policyGrantFor so the policy stays testable
-  // while it is switched off — tests/ci/story-access.test.mjs asserts the policy
-  // through policyGrantFor and the switch through this function. A kill switch
-  // that also blinds the suite guarding what it kills is how you discover, on the
-  // day you flip it back, that the policy rotted while nobody was looking.
-  if (!GATING_ENABLED && grant.access !== 'reader') {
+export function grantFor(story, { tier = 'free', now = Date.now(), forceGate = false } = {}) {
+  const grant = policyGrantFor(story, { tier, now });
+  if (!forceGate && !gatingOn(now) && grant.access !== 'reader') {
     return { access: 'full', reason: 'gating_off', freeUntilMs: grant.freeUntilMs };
   }
   return grant;
 }
 
-/** The policy itself, with no kill switch. Exported for the tests; every PRODUCTION
- *  caller wants grantFor above, which is this plus the switch. */
-export function policyGrantFor(story, { tier = 'free', floorSlugs = [], slug = '', now = Date.now() } = {}) {
+/** The policy as it stands once the gate is on, whatever the date. Tests and parity use it. */
+export function policyGrantFor(story, { tier = 'free', now = Date.now() } = {}) {
   const s = story || {};
-  const publishedAtMs = typeof s.publishedAtMs === 'number' && Number.isFinite(s.publishedAtMs)
-    ? s.publishedAtMs
-    : publishedAtMsFor(s);
-  const freeUntilMs = publishedAtMs === null ? null : publishedAtMs + FREE_WINDOW_MS;
+  const freeUntilMs = freeUntilFor(s);
 
   if (servesAsReader(s)) return { access: 'reader', reason: 'reader_mode', freeUntilMs };
   if (s.category === 'poetry') return { access: 'full', reason: 'poetry', freeUntilMs };
-
-  // An unparseable publication date CANNOT open the window. Treating null as "just
-  // published" would hand the archive to every record whose date the composer could
-  // not read — the same reasoning as publishedAtMsFor's refusal to guess.
-  if (freeUntilMs !== null && now <= freeUntilMs) {
-    return { access: 'full', reason: 'free_window', freeUntilMs };
-  }
-
-  const floor = floorSlugs instanceof Set ? floorSlugs : new Set(floorSlugs || []);
-  if (slug && floor.has(slug)) return { access: 'full', reason: 'recent_floor', freeUntilMs };
-
-  if (tierAtLeastGold(tier)) return { access: 'full', reason: 'tier', freeUntilMs };
-
+  if (freeUntilMs !== null && now <= freeUntilMs) return { access: 'full', reason: 'free_week', freeUntilMs };
+  if (tierAtLeast(tier, ARCHIVE_MIN_TIER)) return { access: 'full', reason: 'tier', freeUntilMs };
   return { access: 'preview', reason: 'archive', freeUntilMs };
-}
-
-// Local, tiny, and NOT a second copy of membership.js's tierAtLeast: this module is
-// imported by scripts and by a Worker, and pulling in the membership module for one
-// comparison would drag its whole surface along. The caller resolves the effective
-// tier with the real thing; this only asks whether the answer clears the bar.
-function tierAtLeastGold(tier) {
-  return tier === 'gold' || tier === 'platinum';
-}
-
-/**
- * The most-recent-5 floor, from a set of index records.
- *
- * Takes `{ slug: record }` (or an array of `{ slug, ... }`) and returns the slugs of
- * the RECENT_FLOOR_COUNT newest GATEABLE ones. Shared by the endpoint, which reads a
- * limitToLast query off cms_stories_index, and by the tests, which build the set by
- * hand — so "newest five" means one thing.
- */
-export function resolveRecentFloor(records) {
-  const rows = Array.isArray(records)
-    ? records.filter(Boolean)
-    : Object.entries(records || {}).map(([slug, rec]) => ({ slug, ...(rec || {}) }));
-
-  return rows
-    .filter((r) => isGateable(r) && typeof r.publishedAtMs === 'number')
-    .sort((a, b) => b.publishedAtMs - a.publishedAtMs)
-    .slice(0, RECENT_FLOOR_COUNT)
-    .map((r) => r.slug);
 }

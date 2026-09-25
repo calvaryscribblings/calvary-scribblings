@@ -46,10 +46,13 @@ export class StoryError extends Error {
  * it as an error would replace readable prose with an error page over a membership
  * lookup that failed.
  */
-export async function requestStory(user, slug, { client = 'web', clientVersion = '' } = {}) {
+export async function requestStory(user, slug, { client = 'web', clientVersion = '', previewGate = false } = {}) {
   if (!slug) throw new StoryError('That story could not be opened.', 'bad_request');
 
   const payload = { slug, client, clientVersion };
+  // W4: the founder-only preview of the gate. The server honours it for the two founder
+  // accounts only, and it can only ever lock.
+  if (previewGate) payload.previewGate = true;
 
   if (user) {
     try {

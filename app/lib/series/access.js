@@ -30,6 +30,7 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
 import { normaliseTier } from '../membership.js';
+import { gatingOn } from '../storyAccess.js';
 
 /**
  * ⛔ THE TIER GATE. FALSE = THE SERIES IS OPEN AND FREE TO EVERYONE.
@@ -82,7 +83,17 @@ import { normaliseTier } from '../membership.js';
  * thing that flips both, and it is greppable, diffable and reviewable, which a dashboard
  * toggle is not. Same argument, same words, as GATING_ENABLED's.
  */
-export const SERIES_TIER_GATE_ENABLED = false;
+//
+// ── W4: THE CONSTANT IS NOW A DATE ──────────────────────────────────────────────────────
+// Ikenna's ruling (24–25 Sep 2026): the Series tier gate switches on at the same moment as the
+// archive gate — 30 September 00:00 London — from the same instant, GATE_ON_MS in
+// app/lib/storyAccess.js (derived from LAUNCH). The endpoint asks seriesGateOn(now) on every
+// request, so nothing needs deploying at midnight; the static pages read the constant below at
+// build time, and the scheduled rebuild right after 00:00 redraws them.
+export const seriesGateOn = (now = Date.now()) => gatingOn(now);
+
+/** The gate as of module load — for build-time copy only. Requests branch on seriesGateOn(now). */
+export const SERIES_TIER_GATE_ENABLED = seriesGateOn();
 
 /** Reason code a grant carries when the flag above opened it. */
 export const TIER_GATE_OFF = 'tier_gate_off';
@@ -197,7 +208,8 @@ export function grantForInstalment(row, opts = {}) {
   // the tests guarding what it disables is how you discover, on the day you flip it back,
   // that the policy rotted while nobody was looking. That lesson is GATING_ENABLED's, learned
   // the expensive way, and it is copied here deliberately.
-  if (!SERIES_TIER_GATE_ENABLED && (grant.code === 'tier_too_low' || grant.code === 'signed_out')) {
+  const now = typeof opts.now === 'number' ? opts.now : Date.now();
+  if (!opts.forceGate && !seriesGateOn(now) && (grant.code === 'tier_too_low' || grant.code === 'signed_out')) {
     return { access: 'granted', reason: TIER_GATE_OFF, code: null, status: 200 };
   }
   return grant;

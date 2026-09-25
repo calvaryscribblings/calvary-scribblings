@@ -50,7 +50,13 @@ import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cert } from 'firebase-admin/app';
-import { policyGrantFor, resolveRecentFloor } from '../app/lib/storyAccess.js';
+// W4 (25 Sep 2026) retired the policy this script measures (the 7-day window and the
+// most-recent-5 floor). Its question was about THAT policy on the day of the R11.9 incident,
+// so it is not ported: run it from the last commit that has it —
+//   git worktree add /tmp/pre-w4 25532ec3 && node /tmp/pre-w4/scripts/incident-quiz-impact.mjs
+console.error('incident-quiz-impact measures the pre-W4 policy. Run it from commit 25532ec3 (see the header).');
+process.exit(2);
+const policyGrantFor = null; const resolveRecentFloor = null;
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';

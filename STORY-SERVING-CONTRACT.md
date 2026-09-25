@@ -1,5 +1,15 @@
 # The story-serving contract
 
+> **W4 (25 Sep 2026) — SUPERSEDES the window, the floor and the kill switch below.** Ikenna's rulings:
+> the free week is **Monday 00:00 → Sunday 23:59:59.999, London**; at Monday 00:00 the whole week goes
+> to the archive together; the archive opens at `ARCHIVE_MIN_TIER` (gold) through the effective tier;
+> poetry stays free; news locks like fiction; **no most-recent-5 floor**. The gate is a **date**, not a
+> flag: `gatingOn(now)` from **30 Sept 00:00 London** (`GATE_ON_MS`, derived from `LAUNCH`); the Series
+> tier gate switches at the same instant. This is §7.3's "turn the gate on" step, taken explicitly and
+> per surface — see `docs/W4-FREE-WEEK.md`. The parity fixture both platforms run is
+> `app/lib/storyAccess.parity.json`. Wherever the sections below say "7 days", "the floor" or
+> `GATING_ENABLED`, read the W4 rule.
+
 **Status:** LIVE. `functions/api/story.js` ships and phase T1 is complete — bodies
 are dual-written, the node is untouched, and gating is therefore active for nobody
 yet (§7). The app session implements the client half against this document.

@@ -108,15 +108,14 @@ const When = ({ children }) => <em className="mb-when">{children}</em>;
 // sentinel is replaced with shelfLine(tier) at render.
 const PERKS = {
   free: [
-    'Every new story, free for seven days',
-    'The five newest stories, always free',
+    'This week’s stories, free to everyone, Monday to Sunday',
     'All poetry, always',
     'Every quiz on every free story',
     'The Square, and every competition in it',
     SHELF,
   ],
   gold: [
-    'More than a hundred and sixty stories, all of them, all the way back',
+    'The whole archive: more than a hundred and sixty stories, all the way back',
     SHELF,
     <>Island Games in full, <When>from November</When></>,
     <>A Gold mark on your profile, <When>from October</When></>,
@@ -132,7 +131,7 @@ const PERKS = {
 // The one-line promise at the top of each card, under the price (§3).
 const CARD_LINE = {
   free: 'Read the island as it is published.',
-  gold: 'The archive opens.',
+  gold: 'The archive opens with membership.',
   platinum: 'Nothing held back.',
 };
 
@@ -469,8 +468,9 @@ export default function MembershipPage() {
         <h1 className="mb-h1">Every story is free the week it is published.</h1>
         <p className="mb-subhead">Membership opens everything before that.</p>
         <p className="mb-lede">
-          The island publishes new stories several times a week, and those stories are free to
-          everyone — no account, no card, no membership. After seven days they join the archive,
+          The island publishes new stories several times a week, and every story published this
+          week is free to everyone — no account, no card, no membership. On Monday the week’s
+          stories join the archive together,
           where more than a hundred and sixty stories are waiting. That is what a membership
           opens.
         </p>
@@ -482,14 +482,14 @@ export default function MembershipPage() {
             leads with the price is asking to be trusted before it has said anything true.
 
             Every line here is a policy this codebase actually enforces, and each one is
-            checkable: seven days is FREE_WINDOW_DAYS, the five newest is RECENT_FLOOR_COUNT,
+            checkable: the free week is freeUntilFor() (the London calendar week, W4; the floor is gone),
             poetry is exempt in grantFor(), the Square carries no tier gate, and the quiz
             endpoints take no tier and no window at all. Nothing in this block is aspirational. */}
         <section className="mb-free" aria-labelledby="mb-free-h">
           <h2 className="mb-free-h" id="mb-free-h">What stays free</h2>
           <div className="mb-free-body">
-            <p>Seven days from publication, every story is free to read, in full, to anyone who finds it.</p>
-            <p>The five most recent stories are always free, however quiet a week has been.</p>
+            <p>Every story published this week, Monday to Sunday, is free to read, in full, to anyone who finds it.</p>
+            <p>On Monday the week’s stories join the archive together, and a new free week begins.</p>
             <p>All poetry is free. Always, and to everyone.</p>
             <p>The Square is free — every conversation and every competition in it.</p>
             <p>Every quiz on every free story is free to take.</p>

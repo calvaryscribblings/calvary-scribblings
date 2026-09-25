@@ -9,6 +9,7 @@ import { MembershipProvider } from '../lib/MembershipContext';
 import CookieBanner from './CookieBanner';
 import VerifyEmailBanner from './VerifyEmailBanner';
 import ProfileCompletion from './ProfileCompletion';
+import GatePreviewBanner from './GatePreview';
 
 export default function Providers({ children }) {
   // W2 / SPD-09 — THE SERVICE WORKER, SITE-WIDE. It used to register only from the shelf
@@ -77,6 +78,7 @@ export default function Providers({ children }) {
         {/* A signed-in reader with no identity chooses one first — app/lib/profileCompletion.js. */}
         <ProfileCompletion />
         <CookieBanner />
+        <GatePreviewBanner />
       </MembershipProvider>
     </AuthProvider>
   );
