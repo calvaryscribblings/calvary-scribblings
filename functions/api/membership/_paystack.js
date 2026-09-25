@@ -283,6 +283,10 @@ export async function disablePaystackSubscription(env, code) {
     signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
   const body = await res.json().catch(() => null);
+  // Two of our own paths can disable the same subscription at the same instant (an upgrade's
+  // charge.success and subscription.create — measured live, 25 Sep). The loser is told "not
+  // found or already inactive", which is the state it wanted: success, not a failure.
+  if (res.status === 404 && /already inactive|not found/i.test(body?.message || '')) return { status: 'non-renewing', nextPaymentDate, already: true };
   if (!res.ok || body?.status !== true) throw new MoneyTransientError(`Paystack disable ${code} failed: ${res.status} ${body?.message || ''}`);
   return { status: str(body?.data?.status) || 'non-renewing', nextPaymentDate, customer: str(sub.customer?.customer_code) };
 }

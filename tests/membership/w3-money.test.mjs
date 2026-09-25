@@ -423,6 +423,32 @@ describe('MON-12 · refunds, as ruled on 24 Sep 2026', () => {
     } finally { w.restore(); }
   });
 
+  test('the provider\'s own deletion, caused by the refund, does not overwrite WHY it ended', async () => {
+    const w = refundWorld();
+    try {
+      await deliver(stripeHook, { type: 'charge.refunded', data: { object: { id: 'ch_1', payment_intent: 'pi_1', refunded: true, amount: 299, amount_refunded: 299, metadata: {} } } });
+      await deliver(stripeHook, { type: 'customer.subscription.deleted', data: { object: sub({ status: 'canceled' }) } });
+      assert.equal(w.db.memberships[UID].endedReason, 'refunded');
+      assert.equal(w.db.memberships[UID].ended.sub_A.reason, 'refunded');
+      assert.equal(w.db.users[UID].membership, 'free');
+    } finally { w.restore(); }
+  });
+
+  test('Paystack "already inactive" on a disable is success — two of our paths can race to it', async () => {
+    const { disablePaystackSubscription } = await import('../../functions/api/membership/_paystack.js');
+    const w = world({ paystack: {
+      '/subscription/SUB_Z': () => ({ status: true, data: { status: 'active', email_token: 't', next_payment_date: '2026-10-25T00:00:00.000Z' } }),
+      '/subscription/disable': () => ({ status: false, message: 'Subscription with code not found or already inactive' }),
+    } });
+    const real = globalThis.fetch;
+    const inner = globalThis.fetch;
+    globalThis.fetch = async (u, o) => (String(u).endsWith('/subscription/disable') ? new Response(JSON.stringify({ status: false, message: 'Subscription with code not found or already inactive' }), { status: 404 }) : inner(u, o));
+    try {
+      const r = await disablePaystackSubscription(ENV, 'SUB_Z');
+      assert.equal(r.already, true);
+    } finally { globalThis.fetch = real; w.restore(); }
+  });
+
   test('a PARTIAL refund on a membership keeps it', async () => {
     const w = refundWorld();
     try {

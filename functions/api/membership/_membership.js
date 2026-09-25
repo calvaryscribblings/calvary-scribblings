@@ -173,8 +173,6 @@ export function buildDetail({
 export const KNOWN_REF_FIELDS = [
   'stripeSubscriptionId', 'stripeCustomerId', 'stripePriceId', 'priceGeneration',
   'paystackSubscriptionCode', 'paystackCustomerCode', 'paystackPlanCode', 'planGeneration',
-  // not an identifier, but state of the same kind: true of one subscription, cleared by the next
-  'endedReason',
 ];
 const NEVER_IN_THE_BODY = new Set(['pass', 'ended', 'upgrade', 'passRefunds']);
 
@@ -423,7 +421,10 @@ export async function applyMembershipChange(env, token, uid, {
 
   if (kind === 'downgrade') {
     const { verdict, stored } = classifyDowngrade(existing, subRef, customerRef);
-    const tomb = endedUpdate(uid, subRef, endedReason, now);
+    // A tombstone already written (by a refund, say) is the better record of WHY it ended; the
+    // provider's own cancellation event, which our cancel caused, must not overwrite it.
+    const tomb = isEndedSubscription(existing, subRef) ? {} : endedUpdate(uid, subRef, endedReason, now);
+    const keepReason = existing && typeof existing.endedReason === 'string' ? ['endedReason'] : [];
     if (verdict !== 'revoke') {
       if (verdict === 'stale' && Object.keys(tomb).length && existing) {
         await rootPatch(env, token, tomb, 'tombstone PATCH');
@@ -436,7 +437,7 @@ export async function applyMembershipChange(env, token, uid, {
           : undefined,
       };
     }
-    const written = await writeMembership(env, token, uid, detail, { extra: tomb });
+    const written = await writeMembership(env, token, uid, { endedReason, ...detail }, { extra: tomb, keep: keepReason });
     console.log(`[${label}] downgraded ${uid} (sub ${subRef || '—'}, ${endedReason})`);
     return { verdict: 'written', written };
   }
@@ -522,7 +523,7 @@ export async function applyMembershipChange(env, token, uid, {
     console.error(`[${label}] scalar repair probe failed for ${uid} (continuing):`, e.message || e);
   }
 
-  const written = await writeMembership(env, token, uid, detail, { accountDeleted: false, keep });
+  const written = await writeMembership(env, token, uid, { ...detail, endedReason: null }, { accountDeleted: false, keep });
   console.log(
     `[${label}] wrote ${uid} tier=${written[SCALAR_PATH(uid)]} ` +
     `status=${detail.status || '—'} invoice=${invoiceRef || '—'}`,
