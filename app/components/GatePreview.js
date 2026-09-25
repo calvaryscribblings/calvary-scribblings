@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
-import { useGatePreview, setGatePreview } from '../lib/gatePreview';
+import { useGatePreview, useGatePreviewState, setGatePreview } from '../lib/gatePreview';
 import { isFounder } from '../lib/founders';
 import { gatingOn } from '../lib/storyAccess';
 import { LAUNCH_DATE_LABEL, LAUNCH_DATE_SHORT } from '../lib/launch';
@@ -14,7 +14,7 @@ const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 
 export function GatePreviewToggle() {
   const { user } = useAuth() || {};
-  const on = useGatePreview(user);
+  const { on, known } = useGatePreviewState(user);
   // W4b: the switch waits for the ACCOUNT write, and says so when it fails, rather than showing a
   // state the story pages would not honour.
   const [busy, setBusy] = useState(false);
@@ -33,9 +33,9 @@ export function GatePreviewToggle() {
         preview and the locked panel. It follows your account, on every device you are signed in
         on. Nobody else is affected.
       </p>
-      <button type="button" onClick={flip} disabled={busy} aria-pressed={on}
+      <button type="button" onClick={flip} disabled={busy || !known} aria-pressed={known ? on : undefined}
         style={{ fontFamily: LABEL, fontSize: 11, letterSpacing: '0.16em', padding: '0.55rem 1rem', borderRadius: 8, border: '1px solid #c9a84c', background: on ? 'transparent' : '#c9a84c', color: on ? '#f0dda0' : '#241a06', cursor: 'pointer' }}>
-        {on ? 'TURN THE PREVIEW OFF' : 'TURN THE PREVIEW ON'}
+        {!known ? 'CHECKING…' : on ? 'TURN THE PREVIEW OFF' : 'TURN THE PREVIEW ON'}
       </button>
       {failed && (
         <p role="alert" style={{ margin: '0.6rem 0 0', fontSize: 13, color: '#f2b8a8' }}>

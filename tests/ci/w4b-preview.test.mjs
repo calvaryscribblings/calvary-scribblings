@@ -223,3 +223,19 @@ describe('W4b · /api/series/stream — the same account flag, the same non-memb
     assert.match(inst, /effectiveTier: gatePreview \? 'free' :/);
   });
 });
+
+describe('W4b · the /admin switch — it never offers the wrong way round', () => {
+  test('disabled, and reads CHECKING…, until the account has answered', () => {
+    const src = readFileSync('app/components/GatePreview.js', 'utf8');
+    assert.match(src, /const \{ on, known \} = useGatePreviewState\(user\);/);
+    assert.match(src, /disabled=\{busy \|\| !known\}/);
+    assert.match(src, /!known \? 'CHECKING…'/);
+    const hook = readFileSync('app/lib/gatePreview.js', 'utf8');
+    assert.match(hook, /known: known \|\| !isFounder\(uid\)/);
+  });
+  test('it waits for the account write, and says when it failed', () => {
+    const src = readFileSync('app/components/GatePreview.js', 'utf8');
+    assert.match(src, /try \{ await setGatePreview\(!on, user\); \} catch \{ setFailed\(true\); \}/);
+    assert.match(src, /That didn&rsquo;t save\./);
+  });
+});

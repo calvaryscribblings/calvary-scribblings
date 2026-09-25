@@ -67,8 +67,18 @@ export const gatePreviewActive = (uid, stored) => stored === true && isFounder(u
 
 /** True only for a signed-in founder who has turned the preview on. */
 export function useGatePreview(user) {
+  return useGatePreviewState(user).on;
+}
+
+/**
+ * { on, known }. `known` turns true once the ACCOUNT's value has arrived (or could not be read),
+ * so the /admin switch never offers "turn on" for a preview that is already on — a tap in that
+ * moment would flip it the wrong way.
+ */
+export function useGatePreviewState(user) {
   const uid = user?.uid || null;
   const [stored, setStored] = useState(false);
+  const [known, setKnown] = useState(false);
   useEffect(() => {
     const sync = () => setStored(readGatePreview());
     const first = setTimeout(sync, 0);
@@ -90,10 +100,11 @@ export function useGatePreview(user) {
           const on = snap.val() === true;
           if (on !== readGatePreview()) writeLocalCopy(on);
           setStored(on);
-        }, () => { /* unreadable: keep the local copy's answer */ });
-      } catch { /* keep the local copy's answer */ }
+          setKnown(true);
+        }, () => { setKnown(true); /* unreadable: keep the local copy's answer */ });
+      } catch { setKnown(true); /* keep the local copy's answer */ }
     })();
     return () => { cancelled = true; if (off) off(); };
   }, [uid]);
-  return gatePreviewActive(uid, stored);
+  return { on: gatePreviewActive(uid, stored), known: known || !isFounder(uid) };
 }
