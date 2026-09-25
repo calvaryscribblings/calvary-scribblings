@@ -43,7 +43,10 @@ export const COPY = {
   doneBody: 'Your profile and handle are gone, and you’ve been signed out. Your comments, posts and the rest of your activity are cleared from the site within the hour.',
 };
 
-// ── THE TWO CONDITIONAL LINES — DRAFT, pending Ikenna's rulings on refunds and content ──────
+// ── THE TWO CONDITIONAL LINES ─────────────────────────────────────────────────────────────
+// The membership line is RULED (Ikenna, 24 Sep 2026, W3): deleting an account does not refund
+// unused time, and the confirmation says so. The endpoint cancels every subscription the
+// providers hold for the reader (functions/api/account/_deletion.js) and refunds nothing.
 // Kept together, here and nowhere else, so either can change in a single edit. Each shows only
 // to the reader it is true for.
 export const CONDITIONAL_LINES = {
@@ -63,7 +66,11 @@ export function conditionalLines({ hasPaidMembership, isAuthor }) {
 }
 
 /** A tier other than free is a paid membership, whether a subscription or a pass holds it up. */
-export const hasPaidMembership = (membership) => !!membership && typeof membership.tier === 'string' && membership.tier !== 'free';
+export const hasPaidMembership = (membership) => !!membership && (
+  (typeof membership.tier === 'string' && membership.tier !== 'free')
+  // W3: a live billing record counts even while the tier reads free (a grant still in flight).
+  || membership.status === 'active' || membership.status === 'past_due'
+);
 
 /**
  * The flow. Confirm → call → (sign in again → call ONCE more) → sign out.

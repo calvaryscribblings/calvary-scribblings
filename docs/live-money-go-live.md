@@ -1,305 +1,181 @@
-# Live money: the Book Store go-live sequence
+# Going live with money, 30 September 2026: Ikenna's walk
 
-Written 23 Sep 2026 (live-money preflight). **Book Store rails only.** Memberships stay
-closed until the launch; nothing here creates a live Price, a live Plan, or a live membership
-webhook.
+Rewritten in W3 (25 Sep 2026). **This is everything a person has to do by hand, in order.**
+Anything a Claude session can do from the codespace is not in the steps. It is listed once, in
+the box at step 6, so you know what happens between your steps.
 
-Nothing in this document is done by a Claude session. Every step below is Ikenna's hands,
-in this order. Where a step says *verify*, the command and the expected output are given, so
-the step either passes or stops the sequence.
+Before this, everything below had been proven in **test mode** against the live site: both
+subscriptions and both passes on both rails, Gold → Platinum, cancel on both rails, refunds
+(full and partial, books and memberships), replayed and out-of-order webhooks, deletion with a
+live subscription, and a forced failure that the providers retried. The record is
+`docs/audit/2026-09-24/W3-PROOF.md`.
 
----
-
-## What is true before you start
-
-**Memberships cannot be bought, on either rail, with a live key in.** Since commit
-`60b0ed4c` all four membership checkouts (two subscription, two pass) open on one condition,
-`functions/api/membership/_onSale.js`:
-
-> `MEMBERSHIPS_ON_SALE` **and** `isConfigured(modeOf(key))`
-
-`MEMBERSHIPS_ON_SALE` is `false` and no live Prices or Plans exist, so every one of them
-answers **409 "Memberships open on 30 September."** before it touches Firebase, Stripe or
-Paystack. Before that commit the day and week passes had no gate. A live key would have
-sold them, and on Paystack granted them. The gate sits at checkout **creation** only. If a
-membership payment ever did arrive, it would be honoured.
-
-`modeOf()` now reads restricted keys by their mode (`rk_live_…` counts as live), so a
-restricted live key is safe to use.
-
-**Ruling 3: direct-API book sales before the doors open are ACCEPTED.** The access-key
-curtain is **client-side by design** (`isCurtainUp()` in the browser). The two book checkout
-endpoints do not check the access key. A signed-in reader who calls
-`/api/bookstore/checkout` or `/api/bookstore/paystack-checkout` directly buys a real book at
-the real catalogue price, and that is a real sale. The curtain is a shop window, not a wall,
-and nothing in this sequence treats it as one.
-
-The app side: Android hands checkout to the web, so it gets exactly the web's behaviour.
-iOS has no buy path.
+**How long it takes you:** about 45 minutes of dashboard work, plus the two real purchases.
 
 ---
 
-## Webhooks: what each rail needs
+## Before the day (any time from now)
 
-### Stripe (GBP / USD)
+### 1. Two-factor authentication on every account that holds money or keys
 
-One **live** endpoint, created in the Stripe dashboard with the **live** toggle on:
+Turn it on for Stripe, Paystack, Cloudflare, GitHub, and the Google account that owns
+Firebase. Use an authenticator app or a hardware key, not SMS, wherever the dashboard offers
+one.
 
-- **URL:** `https://calvaryscribblings.co.uk/api/bookstore/stripe-webhook`
-- **Events (exactly these five):**
-  - `checkout.session.completed` (grant)
-  - `checkout.session.async_payment_succeeded` (grant, for delayed methods)
-  - `checkout.session.async_payment_failed` (revoke: payment-failed)
-  - `charge.refunded` (revoke: refunded)
-  - `charge.dispute.created` (revoke: disputed)
-- Its signing secret (`whsec_…`, **the live one**) goes in `STRIPE_WEBHOOK_SECRET`.
+### 2. Check that the money alerts reach you
 
-The **membership** endpoint (`/api/membership/stripe-webhook`,
-`STRIPE_MEMBERSHIP_WEBHOOK_SECRET`) is **not** created in live today. It belongs to the
-membership launch.
+During W3 the system sent real test alerts to **ikennaworksfromhome@gmail.com**. Their subject
+lines start **`[money]`** (for example `[money] RETRYING: handler_failed (stripe)`).
 
-### Paystack (NGN): one webhook URL per mode
+- Find them in Gmail. If any are in **Spam**, mark them *Not spam*.
+- Create a filter: *Subject contains `[money]`* → **Never send to Spam**, **Always mark as
+  important**.
 
-Paystack has **one webhook URL per mode**: a Test Webhook URL and a Live Webhook URL, set
-under *Settings → API Keys & Webhooks*. You cannot register a second URL in the same mode.
-The code agrees: the signature is an HMAC keyed with the per-mode secret key, so one
-endpoint can only ever verify one mode's deliveries.
+After launch, a `[money]` email means a reader paid and something needs a human. **Every
+money failure sends one.** Each email names its record, `ops/money_failures/…`. A Claude
+session can read those records and resolve them.
 
-- **Live Webhook URL:** `https://calvaryscribblings.co.uk/api/bookstore/paystack-webhook`
-- Paystack has no per-event selection; it sends everything. The handler acts on:
-  - `charge.success` (grant, after re-verifying the amount, currency and status with
-    `GET /transaction/verify`)
-  - `refund.processed` (revoke: refunded)
-  - `charge.dispute.create` / `dispute.create` (revoke: disputed)
-  - `charge.reversed` (revoke: reversed)
-  - It deliberately **ignores** `refund.pending` and `refund.failed`. A pending refund is an
-    intention, and a failed one means the money never went back, so the reader keeps the book.
-
-**The same URL also carries the membership launch.** That single live URL must also receive
-membership subscription events once memberships open, and it already routes them. The
-bookstore webhook hands `subscription.*`, `invoice.*`, `ms.`/`mp.` references and
-plan-bearing charges to `functions/api/membership/_paystack.js` (`isMembershipEvent()`).
-When memberships open, the Paystack side needs **no new URL and no new code**. It needs
-only the live Plan codes pasted into `paystack-plans.js`, which is the membership launch's
-own step.
-
-**Swapping the key does not register the URL.** Setting a live `PAYSTACK_SECRET_KEY` and
-setting the Live Webhook URL are two separate actions. Miss the second, and live purchases
-charge the reader but never grant the book.
-
-### Cloudflare Pages: Production environment only
-
-| Variable | Set to | Today |
-|---|---|---|
-| `STRIPE_SECRET_KEY` | `sk_live_…` (or `rk_live_…`, see below) | test |
-| `STRIPE_WEBHOOK_SECRET` | the **live** bookstore endpoint's `whsec_…` | test |
-| `PAYSTACK_SECRET_KEY` | `sk_live_…` | test |
-| `STRIPE_MEMBERSHIP_WEBHOOK_SECRET` | **leave as is**, not part of this | test |
-| `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `NEXT_PUBLIC_FIREBASE_API_KEY` | unchanged | — |
-
-- Set them as **encrypted** variables on the **Production** environment. **Leave Preview on
-  the test keys**, so no branch preview can ever take real money.
-- **Encrypted Pages variables take effect only on the next deployment.** Changing them does
-  nothing to the site that is already serving. Step 7 is the redeploy.
-- If you use a restricted Stripe key, it needs **Checkout Sessions: Write**. It will need
-  more for memberships later (Customers, Subscriptions, Billing Portal). A standard
-  `sk_live_` is simpler for now.
+To send alerts somewhere else, tell a session the address. It is one Pages secret.
 
 ---
 
-## The sequence
+## 30 September
 
-### 1. Confirm the gate deploy is live (Rulings 1 and 2, commit `60b0ed4c`)
+### 3. Stripe, in the **live** account (toggle *Test mode* OFF, top right)
 
-This must pass **before any live key goes anywhere**:
+Your live account is **Calvary Media UK Ltd.** The test work used its sandbox. The live
+account is a separate place, so nothing below has been done in it yet.
 
-```sh
-for p in 'pass-checkout {"kind":"day","currency":"gbp"}' \
-         'paystack-pass-checkout {"kind":"day"}' \
-         'checkout {"tier":"gold","interval":"monthly","currency":"gbp"}' \
-         'paystack-checkout {"tier":"gold","interval":"monthly"}'; do
-  set -- $p
-  curl -s -X POST "https://calvaryscribblings.co.uk/api/membership/$1" \
-    -H 'Content-Type: application/json' -H 'Authorization: Bearer probe' -d "$2"; echo
-done
-```
+1. **Activate payments** if Stripe still asks: business details, then the payout bank account.
+2. **Settings → Business → Public details.** Set these, because a buyer sees them on Checkout,
+   on receipts, on their bank statement and in the billing portal:
+   - Public business name: `Calvary Scribblings`
+   - Support email: `contact@calvaryscribblings.co.uk`
+   - Statement descriptor: `CALVARY SCRIB` (it can be at most 22 characters)
+   - Website: `https://calvaryscribblings.co.uk`
+   - Privacy policy and terms URLs, if you have them.
+3. **Settings → Business → Branding:** add the icon and the brand colour.
+4. **Settings → Customer emails:** turn **ON** *Successful payments* and *Refunds*. Stripe's
+   receipt is the buyer's only receipt at launch.
+5. **Settings → Billing → Subscriptions and emails**:
+   - **Manage failed payments:** Smart Retries **ON**.
+   - **If all retries for a payment fail:** choose **Cancel the subscription**. ⚠ This one
+     matters. Our code keeps a member's tier while Stripe is retrying a card. Only a
+     *cancellation* takes the tier away. If Stripe is set to "mark as unpaid" instead, a
+     member whose card is dead keeps their tier for ever.
+   - **Customer emails:** turn **ON** *Send emails about upcoming renewals*, *Send emails
+     when card payments fail* and *Send emails about expiring cards*.
+6. **Developers → API keys:** click *Reveal live key*, copy the **Secret key** (`sk_live_…`),
+   and go straight to step 5 below.
+   - Don't create the webhook endpoints or the portal by hand. The session creates both from
+     code, at the pinned API version (`2026-03-25.dahlia`, which is the account's own
+     version).
 
-**Expected:** all four print `{"error":"Memberships open on 30 September.","code":"not_configured"}`.
-A `401` or `Sign in…` from either pass endpoint means the gate is **not** deployed. Stop.
-(Verified 23 Sep 2026 11:04 UTC, test keys in place: all four 409.)
+### 4. Paystack, in **Live** mode (the Test/Live switch, top of the dashboard)
 
-### 2. Two-factor authentication, everywhere money or keys live
+1. **Activate the business** for live transactions if Paystack still asks.
+2. **Settings → API Keys & Webhooks, in the *Live* section:**
+   - **Live Webhook URL:** paste `https://calvaryscribblings.co.uk/api/bookstore/paystack-webhook`
+     and **Save**. ⚠ Paystack has **no API for this** field. It is the one Paystack step
+     nobody else can do. Without it, naira buyers are charged and receive nothing.
+   - Copy the **Live Secret Key** (`sk_live_…`).
+3. **Settings → Preferences:** if there is a setting that lets customers manage or cancel
+   their subscriptions from Paystack's emails, leave it **ON**. The membership page tells
+   naira members that link exists. (In test mode the link came by default; the setting's
+   exact name was not checked from here.)
 
-Stripe, Paystack, Cloudflare, GitHub, and the Google account that owns Firebase. Use an
-authenticator app or a hardware key, not SMS where the dashboard offers better.
+### 5. Give the codespace the two live keys
 
-### 3. Back up and clear the test purchases — **on Ikenna's word only**
+GitHub → the repo → **Settings → Secrets and variables → Codespaces → New repository secret**:
 
-Census, 23 Sep 2026: **8 records, all test-mode, all on house accounts** (Ikenna's, and
-Calvary Films'). Seven are Stripe `cs_test_…` sessions. One is Paystack (basil, ₦1,800,
-4 Aug), and its reference carries no mode marker, so the script **refuses it unless
-Paystack's test mode confirms it**. That is why the test key goes in here.
+| Name | Value |
+|---|---|
+| `STRIPE_LIVE_SECRET_KEY` | the `sk_live_…` from step 3.6 |
+| `PAYSTACK_LIVE_SECRET_KEY` | the `sk_live_…` from step 4.2 |
 
-```sh
-# dry run: reads, writes the backup file, prints the plan, changes nothing
-FIREBASE_SERVICE_ACCOUNT_PATH=serviceAccountKey.json \
-PAYSTACK_TEST_SECRET_KEY=sk_test_… \
-  node scripts/clear-test-purchases.mjs
-```
+**Restart the codespace** afterwards (*Codespaces → … → Stop*, then open it again). A running
+codespace does not see a changed secret. W3 lost a round to exactly that.
 
-**Expected:** `WOULD REMOVE (8)`, `REFUSED (0)`. Every readership line ends in `(absent)`.
-If anything is refused, or the count is not 8, **stop and look**. A refused record is not
-test-mode-proven, and there is no override flag.
+Don't paste either key anywhere else: not into Cloudflare, not into a chat, not into a file.
 
-```sh
-# apply: only with the number the dry run printed
-FIREBASE_SERVICE_ACCOUNT_PATH=serviceAccountKey.json \
-PAYSTACK_TEST_SECRET_KEY=sk_test_… \
-  node scripts/clear-test-purchases.mjs --apply --confirm=8
-```
+### 6. Tell a session: "go live"
 
-**Expected:** `✓ removed 8, readership as planned, 0 refused record(s) untouched`, plus the
-backup path under `backups/clear-test-purchases/`. Keep that file; it is not committed.
+That is the whole instruction. What the session then does, with no dashboard involved:
 
-This also removes the one known anomaly
-(`XaG6bTGqdDXh7VkBTw4y1H2d2s82/the-fire-in-the-flint`: status active with
-`revokedReason: refunded`, and `revokedAt` earlier than `purchasedAt`). As ruled at R9.1,
-the cleanup and the repair are the same act.
+> Checks both keys really are live, and which account each belongs to. Creates the 8 live
+> founding Stripe Prices and the live portal configuration, and the 4 live Paystack Plans.
+> Pastes their ids into `prices.js` / `paystack-plans.js`. Flips `MEMBERSHIPS_ON_SALE` and
+> `MEMBERSHIP_LAUNCHED` in the same commit, which the interlock test enforces. Deletes the
+> one "ships no live ids" test. Creates both live Stripe webhook endpoints (books and
+> memberships) with `scripts/money/stripe-webhooks.mjs --i-mean-live`. Sets the four
+> **Production** Pages secrets: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+> `STRIPE_MEMBERSHIP_WEBHOOK_SECRET`, `PAYSTACK_SECRET_KEY`. **Preview keeps its test
+> keys.** Then it deploys, and proves the deployment is the one serving: both webhooks
+> answer 400 to a bad signature, and a signed-out checkout answers 401. It clears
+> `ops/test_buyers` (inert on live keys, and removed anyway).
+>
+> It stops and tells you if anything doesn't match. It reports the commit and the deployment
+> id when it is done.
 
-Then `FIREBASE_SERVICE_ACCOUNT_PATH=serviceAccountKey.json node scripts/readership.mjs report`
-must print no DRIFT. (Today it reports three titles with drift: the counter shipped after
-those test purchases. The clear resolves it.)
+Wait for that report before step 7.
 
-### 4. Stripe, live mode
+### 7. One real purchase and one refund, per rail
 
-1. Account activated for live payments (business details, payout bank).
-2. *Settings → Customer emails*: **Successful payments** ON and **Refunds** ON. Stripe's
-   receipt is the buyer's only receipt at launch; the checkout sends `customer_email`.
-3. *Developers → Webhooks* (**live**): add the endpoint and the five events above. Copy the
-   live `whsec_…`.
-4. *Developers → API keys* (**live**): copy the secret key.
+Use **your own account** in a normal browser (not the codespace), signed in, at
+`https://calvaryscribblings.co.uk/membership`.
 
-### 5. Paystack, live mode
+**Card (Stripe):**
 
-1. Business activated for live transactions.
-2. *Settings → API Keys & Webhooks*, **Live** section:
-   - **Live Webhook URL** = `https://calvaryscribblings.co.uk/api/bookstore/paystack-webhook`
-   - Copy the **Live Secret Key**.
+1. Choose **GBP**, *Monthly*, **CHOOSE GOLD**. Pay £2.99 with your own card.
+2. You land back on `/membership`. The banner reads **YOU'RE IN** within a few seconds.
+   - If it says *PAID — BUT NOT SHOWING YET* after 90 seconds, stop here and tell the session.
+     An alert will already be in your inbox.
+3. Open **/settings**. Membership shows **Gold · Monthly · GBP**, *Renews on …*, and a
+   **Manage** button.
+4. **Refund it:** Stripe (live) → *Payments* → the £2.99 payment → **Refund** → full amount.
+5. Refresh /settings within a minute. It must read **Free**. Ruling: a full refund ends a
+   membership at once. In Stripe, the subscription now shows **Canceled**.
 
-### 6. Cloudflare Pages, Production environment
+**Naira (Paystack):**
 
-Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `PAYSTACK_SECRET_KEY` as in the table
-above, encrypted. Leave Preview alone.
+1. On the same page, switch the currency selector to **₦**. Choose *Monthly*, then
+   **CHOOSE GOLD**, and pay ₦1,500 with your own card.
+2. **YOU'RE IN** within a few seconds, then /settings shows **Gold · Monthly · NGN** with a
+   **Cancel** button.
+3. **Refund it the same day:** Paystack (live) → *Transactions* → the ₦1,500 payment →
+   **Refund** → full amount. On a Starter business Paystack takes a refund from the pending
+   payout and refuses it if the payout can't cover it. Paystack settles the next day.
+4. ⚠ **A live Paystack refund can take days.** The membership ends when Paystack says the
+   refund is *processed*, which is 3 to 10 working days in live mode. It took 30 seconds in
+   test mode. Until then /settings still shows Gold, and that is correct: the money hasn't
+   gone back yet. **Don't change anything by hand.** When it reads **Free**, the naira rail is
+   proven.
 
-### 7. Redeploy, and prove the new deployment is the one serving
-
-*Workers & Pages → the project → Deployments*: retry the latest **production** deployment
-(or push a commit). Wait for it to finish, and check that its time is **after** step 6.
-
-Then run **step 1's probe again**. All four must still answer 409. That proves the gate
-holds **with the live keys in place**. If any pass endpoint now returns a URL, **remove the
-live keys at once** and stop.
-
-### 8. One real purchase per rail, on the cheapest classic
-
-Use Ikenna's own account (`XaG6bTGqdDXh7VkBTw4y1H2d2s82`, signed in, with the access key).
-Use **two different titles**, so each rail's record, count and refund stand on their own:
-
-| Rail | Title | Price |
-|---|---|---|
-| Stripe (£) | `mrs-dalloway` | £1.99 (199) |
-| Paystack (₦) | `the-awakening` | ₦1,800 (180000 kobo) |
-
-Both are £1.99 / ₦1,800 classics. On the detail page, pick GBP for the first and NGN for
-the second.
-
-### 9. Verify each purchase
-
-```sh
-FIREBASE_SERVICE_ACCOUNT_PATH=serviceAccountKey.json \
-  node scripts/verify-live-purchase.mjs XaG6bTGqdDXh7VkBTw4y1H2d2s82 mrs-dalloway
-
-FIREBASE_SERVICE_ACCOUNT_PATH=serviceAccountKey.json PAYSTACK_SECRET_KEY=sk_live_… \
-  node scripts/verify-live-purchase.mjs XaG6bTGqdDXh7VkBTw4y1H2d2s82 the-awakening
-```
-
-**Expected, each:**
-- `status active`
-- mode `LIVE` (Stripe from the `cs_live_` session id; Paystack from its own
-  `domain=live`)
-- the amount as above
-- `stream ticket YES`
-- `readership count stored 1 · true 1 ✓`
-- exit 0
-
-Also: open each book in the reader on the web, and check that the Stripe receipt email
-arrived.
-
-A Stripe grant lands within seconds. A Paystack grant lands after its `charge.success`
-webhook, usually seconds and at most a few minutes. If the record is not there after
-10 minutes, check *Paystack → Settings → Webhooks* (live) for failed deliveries before
-anything else.
-
-### 10. Refund each
-
-- **Stripe:** *Payments → the £1.99 payment → Refund*, full amount. `charge.refunded` fires
-  within seconds.
-- **Paystack:** *Transactions → the ₦1,800 transaction → Refunds → New Refund*, full amount.
-  - Do this **the same day**. On a Starter business, a refund is deducted from the
-    **pending payout**, and Paystack refuses it if the pending payout cannot cover it.
-    Paystack settles next day.
-
-### 11. Verify revocation, and the counts back to 0
-
-Run the two commands from step 9 again. **Expected, each:**
-- `status revoked`
-- `revokedReason refunded`
-- `stream ticket NO — stream.js answers 403 revoked (refunded)`
-- `readership count stored 0 · true 0 ✓` (the counter decrements to `0`, and `0` and
-  absent read the same)
-- exit 0
-
-**Paystack refund latency: expect it to be slow, and do not revoke by hand.**
-- The book is revoked on `refund.processed`, and Paystack sends that only when the refund
-  has **been processed to the customer**. It goes Pending, then Processing, then Processed.
-  `refund.pending` arrives first, within minutes, and is deliberately ignored.
-- Paystack publishes no fixed time for Processing → Processed. Its own guidance to
-  customers is **3 to 10 working days**.
-- So the Paystack half of step 11 may take **days**, not minutes. Until it arrives the
-  record stays `active` and the book stays readable. That is correct: the money hasn't gone
-  back yet.
-- Re-run the verify script daily until the record reads `revoked`.
-- **Do not write to the record by hand.** If Paystack reports the refund **Failed**, the
-  handler correctly leaves the book with the reader.
-
-Stripe's half should read `revoked` within a minute of the refund.
-
-Once both read revoked with counts at 0, the rails are proven end to end in live mode, and
-the store stays live-keyed for the doors opening.
+Tell the session when both refunds are through. It checks the records and the webhook
+deliveries, and signs the rails off.
 
 ---
 
-## Known, and deliberately not fixed here
+## What the rulings mean, for anyone answering a reader
 
-- **Fees.** Card processing fees are generally not returned on a refund; the two test
-  purchases cost a few pence/naira each.
-- **🚨 Deleting a title can remove an owned master, whenever the readership counter
-  under-counts.** Found 23 Sep 2026, and it explains `basil` and `the-fire-in-the-flint`.
-  Both were **deleted** (not withdrawn) through R21's `deleteTitle` on 27 Aug 2026 09:15 UTC.
-  Their tombstones in `bookstore_titles_deleted` record `ownersAtDeletion: 0`, yet 4 test
-  purchases existed. `deleteTitle` counts owners from `bookstore_readership`, and that node
-  was absent for both titles: they were bought before the counter shipped, and the backfill
-  never ran. So `deletionPlan()` saw no owners and deleted the masters, the samples and the
-  covers.
-  - **Withdrawal is safe.** `withdrawTitle()` only patches `status` and a `withdrawal` block,
-    and it never touches Storage.
-  - **Deletion is safe only when the counter is right.** Today one live title is exposed:
-    `the-rescue` has 2 active (test) owners and no counter.
-  - **So until step 3 above has run, do not Delete any title.** Run
-    `node scripts/readership.mjs report` first and delete only on a clean report. After the
-    clear, every remaining count comes from the atomic counter.
+- **A full refund ends a membership or a pass immediately.** A partial refund on a book keeps
+  the book; a full book refund revokes it. A partial refund on a membership or a pass changes
+  nothing.
+- **Deleting an account doesn't refund unused time.** The deletion confirmation says so.
+  Every subscription the providers hold for that reader is cancelled at deletion, including
+  one whose tier never arrived.
+- **Naira members cancel from /settings.** That stops renewal, and they keep everything until
+  the paid period ends. They can also use the "Manage subscription" link in Paystack's emails.
+- **Card members change plan or cancel through /settings → Manage** (Stripe's portal). Gold →
+  Platinum switches the *same* subscription, and Stripe shows the price difference before they
+  confirm. Naira Gold → Platinum starts a new plan and stops the old one renewing. Paystack
+  doesn't carry the unused Gold time over, and the page says so before they pay.
 
-- **CI.** `rules and hygiene` has been red on `main` since at least 10 Sep, for two reasons
-  unrelated to payments: a Square browser test timing out, and `npm audit` blocking on a
-  **critical advisory against `next`**. Neither touches the money path. The advisory needs
-  its own round, and not one run in the week of a money launch without a decision.
+## If something goes wrong on the day
+
+- **A `[money]` email:** forward it to a session. The record it names says what happened and
+  what was, or wasn't, written.
+- **Buyers charged and nothing granted on naira:** check step 4.2 first, the Live Webhook URL.
+- **Take the store down fast:** tell a session "close memberships". It flips
+  `MEMBERSHIPS_ON_SALE` back and deploys, and all four membership checkouts answer 409 again.
+  Anyone already paid keeps what they paid for. Books have no switch (Ruling 3).
