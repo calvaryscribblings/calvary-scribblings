@@ -319,6 +319,16 @@ describe('MON-03 · a late or out-of-order event never re-grants', () => {
     } finally { w.restore(); }
   });
 
+  test('a redelivery of an OLDER payment — after a newer one — is a replay, not new money', async () => {
+    const w = world({ db: { memberships: { [UID]: live({ lastInvoiceRef: 'in_1' }) } }, stripe: { '/subscriptions/sub_A': () => sub() } });
+    try {
+      const paid = (id) => ({ type: 'invoice.paid', data: { object: { id, parent: { subscription_details: { subscription: 'sub_A' } } } } });
+      assert.equal((await (await deliver(stripeHook, paid('in_2'))).json()).verdict, 'written');
+      assert.equal((await (await deliver(stripeHook, paid('in_3'))).json()).verdict, 'written');
+      assert.equal((await (await deliver(stripeHook, paid('in_2'))).json()).verdict, 'skipped', 'in_2 is no longer the LAST invoice, and is still a replay');
+    } finally { w.restore(); }
+  });
+
   test('a REPLAYED old payment on an ended subscription is history, not an alarm — a NEW one is', async () => {
     const endedAt = NOW;
     const db = () => ({ memberships: { [UID]: { ...live({ status: 'cancelled', tier: 'free' }), ended: { sub_A: { at: endedAt, reason: 'refunded' } } } }, users: { [UID]: { membership: 'free' } } });

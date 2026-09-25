@@ -174,7 +174,7 @@ export const KNOWN_REF_FIELDS = [
   'stripeSubscriptionId', 'stripeCustomerId', 'stripePriceId', 'priceGeneration',
   'paystackSubscriptionCode', 'paystackCustomerCode', 'paystackPlanCode', 'planGeneration',
 ];
-const NEVER_IN_THE_BODY = new Set(['pass', 'ended', 'upgrade', 'passRefunds']);
+const NEVER_IN_THE_BODY = new Set(['pass', 'ended', 'upgrade', 'passRefunds', 'seen']);
 
 /**
  * The atomic pair, as a multi-path update body ready for a root PATCH.
@@ -261,8 +261,16 @@ export async function isDeletedAccount(env, token, uid) {
 export function shouldSkipMembershipGrant(existingDetail, invoiceRef) {
   if (!existingDetail || typeof existingDetail !== 'object') return false;
   if (typeof invoiceRef !== 'string' || !invoiceRef) return false;
-  return existingDetail.lastInvoiceRef === invoiceRef;
+  if (existingDetail.lastInvoiceRef === invoiceRef) return true;
+  // W3: EVERY payment ever granted, not only the last. Found staging the Paystack replay proof:
+  // after a renewal or an upgrade, a redelivery of an OLDER payment no longer matched
+  // lastInvoiceRef and was treated as new money.
+  return !!(existingDetail.seen && existingDetail.seen[seenKey(invoiceRef)]);
 }
+
+/** RTDB-safe key for a payment reference (Paystack's `ms.` references contain dots). */
+export const seenKey = (ref) => String(ref).replace(/[.$#[\]/]/g, '_');
+export const SEEN_PATH = (uid, ref) => `${DETAIL_PATH(uid)}/seen/${seenKey(ref)}`;
 
 /**
  * The pass update, as a multi-path body ready for a root PATCH. ONE path, deliberately.
@@ -523,7 +531,10 @@ export async function applyMembershipChange(env, token, uid, {
     console.error(`[${label}] scalar repair probe failed for ${uid} (continuing):`, e.message || e);
   }
 
-  const written = await writeMembership(env, token, uid, { ...detail, endedReason: null }, { accountDeleted: false, keep });
+  const written = await writeMembership(env, token, uid, { ...detail, endedReason: null }, {
+    accountDeleted: false, keep,
+    extra: invoiceRef ? { [SEEN_PATH(uid, invoiceRef)]: now } : {},
+  });
   console.log(
     `[${label}] wrote ${uid} tier=${written[SCALAR_PATH(uid)]} ` +
     `status=${detail.status || '—'} invoice=${invoiceRef || '—'}`,
