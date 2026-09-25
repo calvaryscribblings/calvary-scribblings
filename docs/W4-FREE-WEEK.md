@@ -84,8 +84,10 @@ Verified live on 25 Sept, with @byokpara's account:
 
 ## GATE-01, done
 
-The backup comes first: `backups/gate-01/<stamp>/`, md5-verified and git-ignored. It is the only
-copy of the deleted objects, since the RTDB backups don't cover Storage. Then:
+The backup comes first: `backups/gate-01/<stamp>/`, md5-verified and git-ignored. It was the only
+copy of the deleted objects, since the RTDB backups don't cover Storage. **W5 (25 Sep) copied it off
+the codespace** to `gs://calvary-scribblings-storage-backups/gate-01/` (private, MD5-verified; see
+`scripts/backup/RESTORE.md`). Then:
 - **18 legacy `epubs/` objects deleted.** None was used by a published story. Beta Princess I1 and
   I2 among them were byte-identical to the locked Series masters.
 - **`extractedText` and `epubUrl` stripped from the 10 withdrawn books** in `cms_stories`.

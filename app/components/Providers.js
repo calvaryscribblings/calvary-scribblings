@@ -9,6 +9,8 @@ import { MembershipProvider } from '../lib/MembershipContext';
 import CookieBanner from './CookieBanner';
 import VerifyEmailBanner from './VerifyEmailBanner';
 import ProfileCompletion from './ProfileCompletion';
+import DobCheck from './DobCheck';
+import SaveToast from './SaveToast';
 import GatePreviewBanner from './GatePreview';
 
 export default function Providers({ children }) {
@@ -77,6 +79,10 @@ export default function Providers({ children }) {
         <VerifyEmailBanner />
         {/* A signed-in reader with no identity chooses one first — app/lib/profileCompletion.js. */}
         <ProfileCompletion />
+        {/* W5 — a stored date of birth under 18 or unreadable is confirmed — app/lib/dobCheck.js. */}
+        <DobCheck />
+        {/* W5 — "Saved to My Library" / "Removed from My Library" — app/lib/saveToast.js. */}
+        <SaveToast />
         <CookieBanner />
         <GatePreviewBanner />
       </MembershipProvider>

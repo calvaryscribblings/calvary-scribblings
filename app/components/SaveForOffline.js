@@ -26,8 +26,9 @@
 // before the read, not after.
 import { useCallback, useEffect, useState } from 'react';
 import {
-  isSaved, saveStory, removeSaved, listSaved, capFor, ShelfFullError,
+  isSaved, saveStory, removeSaved, restoreSaved, listSaved, capFor, ShelfFullError,
 } from '../lib/shelf';
+import { toastSaved, toastRemoved } from '../lib/saveToast';
 import { sealShelf, registerShelfWorker } from '../lib/shelfWorker';
 import { useOffline } from '../lib/useOffline';
 import { useMembership } from '../lib/MembershipContext';
@@ -103,6 +104,7 @@ export default function SaveForOffline({ slug, story, user, readingTime = 0, onS
       // make a completed save look unfinished.
       sealShelf();
       await refresh();
+      toastSaved();
     } catch (e) {
       if (e instanceof ShelfFullError) { await refresh(); setOpen('full'); }
       else setError(offline ? 'You need a connection to save.' : (e?.message || 'Could not save that.'));
@@ -115,9 +117,10 @@ export default function SaveForOffline({ slug, story, user, readingTime = 0, onS
     if (!uid) return;
     setBusy(true);
     try {
-      await removeSaved(uid, targetSlug);
+      const taken = await removeSaved(uid, targetSlug);
       await refresh();
       if (targetSlug === slug) setOpen(null);
+      if (taken) toastRemoved(async () => { await restoreSaved(taken); await refresh(); });
     } finally {
       setBusy(false);
     }

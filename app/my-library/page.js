@@ -29,13 +29,14 @@ import AuthModal from '../components/AuthModal';
 import TabBar, { TabLinks } from '../components/TabBar';
 import CoverImage from '../components/CoverImage';
 import {
-  listSaved, removeSaved, getCoverURL, capFor, isUnlimitedCap, keptAgo,
+  listSaved, removeSaved, restoreSaved, getCoverURL, capFor, isUnlimitedCap, keptAgo,
   isIOSSafariBrowser, getMeta, setMeta,
 } from '../lib/shelf';
 import { useMembership } from '../lib/MembershipContext';
 import { formatCatalogueNumber } from '../bookstore/components/fields';
 import { registerShelfWorker, sealShelf } from '../lib/shelfWorker';
 import { useOffline } from '../lib/useOffline';
+import { toastRemoved } from '../lib/saveToast';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
@@ -314,8 +315,9 @@ export default function MyLibraryPage() {
     if (!user) return;
     setRemoving(true);
     try {
-      await removeSaved(user.uid, slug);
+      const taken = await removeSaved(user.uid, slug);
       await loadShelf();
+      if (taken) toastRemoved(async () => { await restoreSaved(taken); await loadShelf(); });
     } finally {
       setRemoving(false);
     }

@@ -1434,6 +1434,55 @@
         }
       }
     },
+    "content_reports": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('canRemovePosts').val() === true",
+      "$contentKey": {
+        "$reporterUid": {
+          ".read": "auth != null && auth.uid === $reporterUid",
+          ".write": "auth != null && auth.uid === $reporterUid && !data.exists() && newData.exists()",
+          ".validate": "newData.hasChildren(['kind','reason','reporterUid','offenderUid','contextPath','snapshot','createdAt']) && newData.child('reporterUid').val() === $reporterUid && newData.child('createdAt').val() <= now + 300000 && newData.child('offenderUid').val() !== $reporterUid && ((newData.child('kind').val() === 'comment' && $contentKey.beginsWith('comment_') && newData.child('contextPath').val().beginsWith('comments/')) || (newData.child('kind').val() === 'dm' && (($contentKey === 'dm_' + $reporterUid + '_' + newData.child('offenderUid').val() && newData.child('contextPath').val().beginsWith('dm_messages/' + $reporterUid + '_' + newData.child('offenderUid').val() + '/')) || ($contentKey === 'dm_' + newData.child('offenderUid').val() + '_' + $reporterUid && newData.child('contextPath').val().beginsWith('dm_messages/' + newData.child('offenderUid').val() + '_' + $reporterUid + '/'))) && root.child(newData.child('contextPath').val()).child('senderUid').val() === newData.child('offenderUid').val() && root.child(newData.child('contextPath').val()).child('text').isString() && root.child(newData.child('contextPath').val()).child('text').val().beginsWith(newData.child('snapshot').val())) || (newData.child('kind').val() === 'user' && $contentKey === 'user_' + newData.child('offenderUid').val() && newData.child('contextPath').val() === 'users/' + newData.child('offenderUid').val()))",
+          "kind": {
+            ".validate": "newData.isString() && (newData.val() === 'comment' || newData.val() === 'dm' || newData.val() === 'user')"
+          },
+          "reason": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+          },
+          "reporterUid": {
+            ".validate": "newData.isString()"
+          },
+          "offenderUid": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+          },
+          "contextPath": {
+            ".validate": "newData.isString() && newData.val().length <= 300"
+          },
+          "snapshot": {
+            ".validate": "newData.isString() && newData.val().length <= 200"
+          },
+          "note": {
+            ".validate": "newData.isString() && newData.val().length <= 300"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "resolved": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('canRemovePosts').val() === true",
+          ".validate": "newData.isBoolean()"
+        },
+        "resolvedBy": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('canRemovePosts').val() === true",
+          ".validate": "newData.isString() && newData.val() === auth.uid"
+        },
+        "resolvedAt": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('canRemovePosts').val() === true",
+          ".validate": "newData.isNumber() && newData.val() <= now + 300000"
+        }
+      }
+    },
     "push_tokens": {
       ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
       "$uid": {

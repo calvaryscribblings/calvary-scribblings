@@ -70,6 +70,8 @@ on:
       # the whole hygiene set lives and a suite that can only be started by its own workflow is
       # a suite one path filter away from never running.
       - 'tests/reconcile/**'
+      # W5 — the safety browser suite (test:safety, in the rules job).
+      - 'tests/safety/**'
       - 'app/**'
       - 'functions/**'
       - 'scripts/**'
@@ -172,6 +174,10 @@ jobs:
         run: npm run test:square:room
       - name: Series admin — the sponsor logo upload, end to end
         run: npm run test:sponsor
+      # W5 — the report queue page, the under-18 check and the save toast, against the same
+      # emulators. This job's path list names suites one by one, so tests/safety/** is in it too.
+      - name: W5 safety — /admin/reports, the under-18 check, the save toast
+        run: npm run test:safety
 
   # ───────────────────────────────────────────────────────────────────────────
   # 2. DRIFT. Proves the console has not been edited behind the repo (RULES.md).

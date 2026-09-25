@@ -40,6 +40,7 @@
 // (tests/bookstore/sections.test.mjs), and bare Node does not resolve extensionless
 // specifiers. Same as app/lib/series/access.js's import of ../membership.js.
 import { groupThousands } from '../../lib/bookstore/readership.js';
+import { pullQuoteText } from '../../lib/pullQuote.js';
 
 const CURRENCY_FORMAT = {
   gbp: { symbol: '£', decimals: 2 },
@@ -91,11 +92,13 @@ export function truncate(text, max = 180) {
   return (sp > max * 0.6 ? cut.slice(0, sp) : cut).trimEnd() + '…';
 }
 
+// W5 — every caller prints this inside its own “ ”, so the words come back with their inner
+// quotes turned to singles and any outer pair taken off (app/lib/pullQuote.js).
 export function resolveOpeningLine(title) {
-  if (title?.openingLine && title.openingLine.trim()) return title.openingLine.trim();
+  if (title?.openingLine && title.openingLine.trim()) return pullQuoteText(title.openingLine) || null;
   if (title?.excerpt) {
     const s = firstSentence(title.excerpt);
-    if (s) return s;
+    if (s) return pullQuoteText(s) || null;
   }
   return null;
 }

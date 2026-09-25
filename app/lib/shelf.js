@@ -355,13 +355,37 @@ export async function saveStory({ uid, slug, story, readingTime = 0, tier = 'fre
   return record;
 }
 
+// W5 — THE REMOVAL HANDS BACK WHAT IT TOOK, so the toast's UNDO can put the story back exactly
+// as it was: the same record (so the same savedAt, and the same place on a shelf sorted by it)
+// and the same cover bytes, with no network. Truthy on success, as before; false if it was not
+// on the shelf.
 export async function removeSaved(uid, slug, kind = 'story') {
   const rec = await getSaved(uid, slug, kind);
   if (!rec) return false;
   const db = await openShelf();
   const { t, done } = tx(db, [STORE_SHELF, STORE_ASSETS], 'readwrite');
+  let asset = null;
+  if (rec.coverBlobKey) {
+    const assets = t.objectStore(STORE_ASSETS);
+    const read = assets.get(rec.coverBlobKey);
+    read.onsuccess = () => { asset = read.result || null; assets.delete(rec.coverBlobKey); };
+  }
   t.objectStore(STORE_SHELF).delete(rec.id);
-  if (rec.coverBlobKey) t.objectStore(STORE_ASSETS).delete(rec.coverBlobKey);
+  await done;
+  return { record: rec, asset };
+}
+
+/**
+ * Undo a removal: put back the snapshot removeSaved() returned, verbatim. No cap check — the
+ * story was on the shelf a moment ago, and the toast that offers this is replaced by the next
+ * save or removal, so nothing can have taken its place in between.
+ */
+export async function restoreSaved(snapshot) {
+  if (!snapshot?.record?.id) return false;
+  const db = await openShelf();
+  const { t, done } = tx(db, [STORE_SHELF, STORE_ASSETS], 'readwrite');
+  t.objectStore(STORE_SHELF).put(snapshot.record);
+  if (snapshot.asset?.key) t.objectStore(STORE_ASSETS).put(snapshot.asset);
   await done;
   return true;
 }

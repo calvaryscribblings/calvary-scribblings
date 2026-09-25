@@ -1250,6 +1250,8 @@ export default function AdminPage() {
             ) : null}
             <span>→</span>
           </a>
+          {/* W5 — the queue for reported comments, DMs and profiles. */}
+          <a href="/admin/reports" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>Reports →</a>
           <a href="/" style={{ fontSize: '0.78rem', color: '#a78bfa', textDecoration: 'none' }}>← Site</a>
         </div>
       </header>

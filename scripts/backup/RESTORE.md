@@ -165,18 +165,31 @@ and Apple) re-link on their own and do not need them.
 
 ### 4. The master EPUBs
 
-**Restore the objects; do not re-upload the files.** Cloud Storage soft delete keeps deleted
-and overwritten objects for 7 days, and restoring an object preserves its identity:
+**Restore the objects; do not re-upload the files.** Since **25 Sep 2026 (W5)** the file
+bucket's soft delete keeps every deleted **and every overwritten** object for **30 days**
+(it was Google's default 7 before). Proven live that day on a throwaway object: overwritten,
+then deleted, both generations listed as soft-deleted, the overwritten one restored
+byte-exact.
 
 ```bash
-gcloud storage restore gs://calvary-scribblings.firebasestorage.app/bookstore_epubs/<id>/master.epub
+# list what can come back (JSON API; no gcloud in the codespace — mintToken() is the credential)
+GET  https://storage.googleapis.com/storage/v1/b/calvary-scribblings.firebasestorage.app/o?softDeleted=true&prefix=<path>
+# restore one generation
+POST https://storage.googleapis.com/storage/v1/b/calvary-scribblings.firebasestorage.app/o/<url-encoded path>/restore?generation=<gen>
 ```
 
-Re-uploading from `backups/<stamp>/epubs/` works and gets the right bytes back, but it mints
-a **new generation** — and the generation *is* the reading-position pin
-(`docs/reading-position-pin.md`). Every reader of that title drops from an exact resume
-position to an approximate one and silently re-downloads the book. `MANIFEST.json` records
-the original generation of each file so you can tell whether that has happened.
+⚠ **A restore MINTS A NEW GENERATION.** This file used to say that restoring "preserves its
+identity". It does not: the W5 probe restored generation `…434836` and got back `…819244`.
+The bytes and the MD5 are the same; the generation — which *is* the reading-position pin
+(`docs/reading-position-pin.md`) — is not. So for a master EPUB a restore and a re-upload
+cost readers the same thing: every reader of that title drops from an exact resume position
+to an approximate one and silently re-downloads the book. Restore anyway (it is the faster,
+exact-bytes path), and expect the pin to move. `MANIFEST.json` records each file's original
+generation so you can tell that it has.
+
+To restore an object that has since been overwritten, restore the old generation (it becomes
+the live one) — the live object must be deleted first if it still exists, and that deletion is
+itself soft-deleted, so nothing is lost by doing it.
 
 ### 5. The site
 
@@ -225,17 +238,25 @@ a month. Enable Gzip (default) and the 30-day lifecycle.
 This creates a second bucket. The project currently has exactly one, which is how the audit
 established that no backup has ever been configured.
 
-### Harden the bucket
+### Harden the bucket — DONE (W5, 25 Sep 2026)
 
-Cloud console → **Cloud Storage** → the bucket → **Protection**:
-
-- **Object Versioning: on.** At 787 MB the cost is pennies and it removes the 7-day cliff.
-- **Soft delete: raise from 7 days to 30.** Seven days is the default nobody chose.
+- **Soft delete: 30 days** on `calvary-scribblings.firebasestorage.app` (was 7). Soft delete
+  covers overwrites as well as deletions — proven live, see §4 — so Object Versioning is
+  **not** switched on: it would keep every covers-worker overwrite forever unless a lifecycle
+  rule pruned it, for no protection soft delete does not already give inside 30 days.
+- ⚠ The 30 days applies to objects deleted **from 25 Sep 08:33 UTC on**. Objects already
+  soft-deleted keep the expiry they were given: GATE-01's 18 `epubs/` objects still show
+  `hardDeleteTime` 2 Oct 2026. Their bytes are also in the backups bucket below.
+- **`calvary-scribblings-storage-backups`** (europe-west2, created W5): private backups that must
+  outlive the codespace. Uniform access, public access prevention **enforced**, versioning on,
+  30-day soft delete, no lifecycle rule (nothing expires). Not a Firebase bucket, so no
+  `storage.rules` reach it: only IAM does. Holds `gate-01/<stamp>/` — the 18 EPUBs and
+  `removed-fields.json` GATE-01 deleted, 19 files, each MD5-verified on upload.
 
 ### Put a copy somewhere that is not Google
 
 The 13 master EPUBs are 7.2 MB and they are the inventory. One copy in the live bucket plus
-a 7-day undo window is not a backup of a business asset.
+a 30-day undo window (7 days before W5) is still not a backup of a business asset.
 
 ---
 

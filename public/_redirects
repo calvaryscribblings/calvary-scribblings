@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (377 of 2000 permitted) ───────────────
+# ── Static rules (381 of 2000 permitted) ───────────────
 /voices/arthor-eze                                           /voices/arthur-eze                                           301
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
@@ -43,6 +43,8 @@
 /adadiorama.html                                             /stories/adadiorama                                          301
 /after-the-tremor                                            /stories/after-the-tremor                                    301
 /after-the-tremor.html                                       /stories/after-the-tremor                                    301
+/alive                                                       /stories/alive                                               301
+/alive.html                                                  /stories/alive                                               301
 /almost-like-her                                             /stories/almost-like-her                                     301
 /almost-like-her.html                                        /stories/almost-like-her                                     301
 /amor-s-cage                                                 /stories/amor-s-cage                                         301
@@ -361,6 +363,8 @@
 /where-we-begin-the-story.html                               /stories/where-we-begin-the-story                            301
 /why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it /stories/why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it 301
 /why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it.html /stories/why-ai-will-take-your-job-and-here-s-what-you-can-do-about-it 301
+/why-do-filmmakers-keep-working-with-the-same-actors         /stories/why-do-filmmakers-keep-working-with-the-same-actors 301
+/why-do-filmmakers-keep-working-with-the-same-actors.html    /stories/why-do-filmmakers-keep-working-with-the-same-actors 301
 /widow-s-fire                                                /stories/widow-s-fire                                        301
 /widow-s-fire.html                                           /stories/widow-s-fire                                        301
 /witness-me                                                  /stories/witness-me                                          301
