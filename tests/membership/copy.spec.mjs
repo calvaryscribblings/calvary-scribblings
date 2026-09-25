@@ -66,8 +66,10 @@ test('the argument renders before any price', async ({ page }) => {
   // Node.DOCUMENT_POSITION_FOLLOWING === 4
   expect(order & 4).toBeTruthy();
 
-  await expect(free).toContainText('Seven days from publication, every story is free to read, in full, to anyone who finds it.');
-  await expect(free).toContainText('The five most recent stories are always free, however quiet a week has been.');
+  // W4 (Ikenna's ruling): the London calendar week, and no floor.
+  await expect(free).toContainText('Every story published this week, Monday to Sunday, is free to read, in full, to anyone who finds it.');
+  await expect(free).toContainText('On Monday the week’s stories join the archive together, and a new free week begins.');
+  await expect(free).not.toContainText('five most recent');
   await expect(free).toContainText('All poetry is free. Always, and to everyone.');
   await expect(free).toContainText('The Square is free — every conversation and every competition in it.');
   await expect(free).toContainText('Every quiz on every free story is free to take.');
