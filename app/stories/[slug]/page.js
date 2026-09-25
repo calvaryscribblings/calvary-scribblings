@@ -150,13 +150,15 @@ export default async function StoryPage({ params }) {
       // Poetry never locks (null). The preview is a prefix of what is already here, so carrying
       // it exposes nothing.
       let lockAtMs = null;
+      let previewLockAtMs = null;   // W4b: the founder preview's instant — the end of the week
       let previewHtml = null;
       if (!isPreview && plan.lockAtMs !== null) {
         lockAtMs = plan.lockAtMs;
+        previewLockAtMs = plan.previewLockAtMs;
         try { previewHtml = cutPreview(content || '').html; } catch { previewHtml = ''; }
       }
 
-      initialStory = { id: slug, ...rest, content: inlined, contentIsPreview: isPreview, lockAtMs, previewHtml };
+      initialStory = { id: slug, ...rest, content: inlined, contentIsPreview: isPreview, lockAtMs, previewLockAtMs, previewHtml };
     }
   } catch (e) {
     console.error('StoryPage build fetch error:', e);

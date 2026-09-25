@@ -76,6 +76,9 @@ endpoints honour it only for a verified founder uid, and it can only ever lock. 
 at today's real date, so this week's stories stay free. A gold pill, *Founder preview · after
 30 Sept · Turn off*, stays on screen while the preview is on. Nobody else is affected.
 
+> **W4b (25 Sept) changed where the flag lives.** It is on the account now, and the story pages
+> lock before paint. See *W4b* at the end of this file.
+
 Verified live on 25 Sept, with @byokpara's account:
 - **Preview on:** `trouble-shooting` (18 Sept) → preview / archive. `till-debt-do-us-part` (22 Sept) →
   full / free_week. Poetry → full. Series I2 → 403 `needs_platinum`. I1 → 403 `needs_gold` (his tier
@@ -105,3 +108,69 @@ the codespace** to `gs://calvary-scribblings-storage-backups/gate-01/` (private,
 3. **This week's story** (for example `/stories/till-debt-do-us-part`): opens in full.
 4. **/series/beta-princess → Part Two:** locked (Platinum).
 5. **Tap *Turn off* on the pill:** every story reads in full again, and the Series opens, as today.
+
+## W4b — the preview didn't work on Ikenna's iPad
+
+**The report:** on his iPad in Safari, Ikenna turned the preview on in /admin and walked
+`trouble-shooting`, `till-debt-do-us-part` and Beta Princess Part Two. Nothing locked.
+
+**His path, reproduced before the fix** (the live site, WebKit at 820×1180, signed in as
+@byokpara with a warmed service worker, preview tapped on in /admin, each story opened through the
+site's router): **it worked.**
+- `trouble-shooting` sent `previewGate:true` with the ID token and got `preview / archive`. The
+  locked panel drew (515 words shown, down from 1485).
+- `till-debt-do-us-part` got `full / free_week`.
+- The Series rows read *Part Two · The Series is a Platinum membership benefit* with a lock.
+
+It also worked after pressing Back to a story opened earlier, in a second tab opened before the
+toggle, and after a reload.
+
+**The five causes, ruled on:**
+- **The static page renders its built body before 30 Sept: IN, measured.** With the preview on and
+  `/api/story` slowed, the first paint was the whole story (1485 words, no pill). It was taken back
+  only when the endpoint answered. The page does ask `/api/story`, and `previewGate` does reach it.
+- **The inline lock script reads only the clock: IN, by the code.** That is why the first paint
+  was the whole story.
+- **The flag is stored where the story pages can't read it: IN for a whole class of cases.** The
+  flag was one browser's `localStorage`, and nothing else knew about it. On the same origin in
+  the same browser it carried (probed). But the site's manifest is `display: standalone`, so a
+  Home Screen copy of the site on iPadOS has its own storage, separate from Safari. The same goes
+  for another browser or another device. In all of those, a toggle set in one place never reaches
+  the story pages, and nothing says so.
+- **The service worker serves a cached page: OUT.** No version of `sw.js` has ever cached a
+  `/stories/` document (they are cached only for `isShelfPath`), and the documents are served
+  `max-age=0, must-revalidate`.
+- **The preview is tied to a session the story pages don't share: OUT on one origin.** The story
+  pages, the Series and /admin share one Firebase session (the ID token was present, and the
+  founder was honoured). `www` does not serve (523), and `*.pages.dev` is not an authorised sign-in
+  domain.
+
+Which of these Ikenna actually hit can't be recovered: Pages Functions keep no log history, and
+the observability API refuses this token.
+
+**The fix:**
+- **The flag lives on the account:** `founder_preview/{uid} = true`. Only that founder can read or
+  write it, and `true` is the only value it can hold (rules, emulator-tested). `/api/story` and
+  `/api/series/stream` read it themselves, from the verified uid, whenever a founder asks. So a
+  page locks even when its browser never heard of the flag. The request flag still works.
+  `app/lib/gatePreviewPolicy.js` decides: founders only, before the switch only, and it can only
+  lock.
+- **The toggle waits for the account write**, and says *That didn't save* if it fails.
+  `useGatePreview()` follows the account node and keeps the local copy in step with it.
+- **Before paint:** each full page carries `previewLockAtMs`, the end of its own London week. The
+  inline script and the first render lock from that instant when the local copy is set. The page
+  therefore paints the opening, not the whole story.
+- **The non-member view**, by ruling: under the preview the endpoints skip the membership read
+  and judge at `free`, and the Series rows draw at `free`.
+
+**Proof:**
+- `tests/ci/w4b-preview.test.mjs` (28), including the real `/api/story` handler driven with a
+  stubbed network: the account flag alone locks, a reader's flag is never read, and a Gold
+  founder still sees the locked archive.
+- `tests/rules/founder-preview.test.mjs` (5).
+- Every protection was reverted once and its test went red.
+- Live WebKit screenshots at 820 and 1180, preview on and off.
+
+**Tabs:** Ikenna does not need to close his open Safari tabs. The documents are never cached, and
+the next load of any page picks up the new code. A tab that has been sitting open since before
+this deploy is still running the old code, so reload it once or open the story again.

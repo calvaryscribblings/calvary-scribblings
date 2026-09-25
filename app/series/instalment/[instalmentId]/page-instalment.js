@@ -87,8 +87,9 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
 
   // Advisory only — this picks a sentence and a destination, it does not open a file.
   const grant = grantForInstalment(row, {
-    subscriptionTier: membership.subscriptionTier || 'free',
-    effectiveTier: membership.tier || 'free',
+    // W4b: the preview is the NON-MEMBER view, so it is judged at 'free' (as the endpoint does).
+    subscriptionTier: gatePreview ? 'free' : (membership.subscriptionTier || 'free'),
+    effectiveTier: gatePreview ? 'free' : (membership.tier || 'free'),
     signedIn: !!user,
     forceGate: gatePreview,
   });

@@ -110,6 +110,7 @@ import {
   TIER_GATE_OFF,
 } from '../../../app/lib/series/access.js';
 import { isFounder } from '../../../app/lib/founders.js';
+import { previewInForce, founderPreviewPath } from '../../../app/lib/gatePreviewPolicy.js';
 import { epubObjectPath, INSTALMENT_ID_RE, INSTALMENTS_PATH } from '../../../app/lib/series/schema.js';
 
 const SIGNED_URL_TTL_SECONDS = 300;
@@ -251,10 +252,19 @@ export async function onRequestPost(context) {
   // W4: the gate is a DATE (30 Sept 00:00 London), asked per request — no deploy at midnight.
   // A founder may ask for the after-switch view early (body.previewGate); for anyone else the
   // flag is ignored. It can only ever lock, never unlock.
+  //
+  // W4b: the preview also belongs to the founder's ACCOUNT (founder_preview/{uid}), so a signed-in
+  // founder's request is checked against it even when this browser did not send the flag. It is
+  // the NON-MEMBER view, by ruling: under it the tier read below is skipped and judged 'free'.
   let forceGate = false;
-  if (body?.previewGate === true && idToken && !seriesGateOn(now)) {
+  if (idToken && !seriesGateOn(now)) {
     const who = await verifyIdToken(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
-    forceGate = isFounder(who);
+    let accountFlag = null;
+    if (isFounder(who) && body?.previewGate !== true) {
+      try { accountFlag = await readJson(env, token, founderPreviewPath(encodeURIComponent(who))); }
+      catch (e) { console.error('[series/stream] founder preview read failed:', e.message || e); }
+    }
+    forceGate = previewInForce({ uid: who, requested: body?.previewGate === true, accountFlag, now });
   }
   if (!seriesGateOn(now) && !forceGate) {
     grant = { access: 'granted', reason: TIER_GATE_OFF, code: null, status: 200 };
@@ -269,10 +279,11 @@ export async function onRequestPost(context) {
       return json({ error: 'Your session has expired. Please sign in again.', code: 'signed_out' }, REFUSAL_STATUS.signed_out);
     }
 
-    // Two reads, subscription decides.
-    let scalar;
-    let detail;
-    try {
+    // Two reads, subscription decides — except under the founder preview, which is the
+    // non-member view and reads nothing (scalar and detail stay null → 'free').
+    let scalar = null;
+    let detail = null;
+    if (!forceGate) try {
       [scalar, detail] = await Promise.all([
         readJson(env, token, `users/${encodeURIComponent(uid)}/membership`),
         readJson(env, token, `memberships/${encodeURIComponent(uid)}`),

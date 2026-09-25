@@ -73,7 +73,8 @@ export default function SeriesDetailClient({ slug, sentinel }) {
 
   const { series, instalments } = data;
   // The REAL membership, never the pass-lifted one. See the header.
-  const subscriptionTier = membership.subscriptionTier || 'free';
+  // W4b: under the founder preview, the NON-MEMBER view — judged at 'free', as the endpoint does.
+  const subscriptionTier = gatePreview ? 'free' : (membership.subscriptionTier || 'free');
 
   return (
     <Shell>
@@ -105,7 +106,7 @@ export default function SeriesDetailClient({ slug, sentinel }) {
             key={inst.id}
             inst={inst}
             subscriptionTier={subscriptionTier}
-            effectiveTier={membership.tier || 'free'}
+            effectiveTier={gatePreview ? 'free' : (membership.tier || 'free')}
             signedIn={!!user}
             forceGate={gatePreview}
             // R12.4: the row now opens the INSTALMENT PAGE, not the reader. The file is one

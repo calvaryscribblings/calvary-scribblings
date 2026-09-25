@@ -3,6 +3,7 @@
 // that says it is on (everywhere, for the founder who turned it on). Neither renders anything
 // for any other account. See app/lib/gatePreview.js.
 
+import { useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { useGatePreview, setGatePreview } from '../lib/gatePreview';
 import { isFounder } from '../lib/founders';
@@ -14,19 +15,33 @@ const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 export function GatePreviewToggle() {
   const { user } = useAuth() || {};
   const on = useGatePreview(user);
+  // W4b: the switch waits for the ACCOUNT write, and says so when it fails, rather than showing a
+  // state the story pages would not honour.
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   if (!isFounder(user?.uid) || gatingOn()) return null;
+  const flip = async () => {
+    setBusy(true); setFailed(false);
+    try { await setGatePreview(!on, user); } catch { setFailed(true); } finally { setBusy(false); }
+  };
   return (
     <div style={{ margin: '0 0 1rem', padding: '0.9rem 1rem', border: '1px solid rgba(201,168,76,0.4)', borderRadius: 10, background: 'rgba(201,168,76,0.07)' }}>
       <div style={{ fontFamily: LABEL, fontSize: 11, letterSpacing: '0.18em', color: '#e2c876' }}>{`FOUNDER PREVIEW — THE SITE AFTER ${LAUNCH_DATE_LABEL.toUpperCase()}`}</div>
       <p style={{ margin: '0.45rem 0 0.7rem', fontSize: 14, lineHeight: 1.55, color: '#e6ddce' }}>
         Shows this browser the archive gate and the Series tier gate as they will be after the
         switch, at today&rsquo;s date: this week&rsquo;s stories stay free, older ones show their
-        preview and the locked panel. Nobody else is affected.
+        preview and the locked panel. It follows your account, on every device you are signed in
+        on. Nobody else is affected.
       </p>
-      <button type="button" onClick={() => setGatePreview(!on)}
+      <button type="button" onClick={flip} disabled={busy} aria-pressed={on}
         style={{ fontFamily: LABEL, fontSize: 11, letterSpacing: '0.16em', padding: '0.55rem 1rem', borderRadius: 8, border: '1px solid #c9a84c', background: on ? 'transparent' : '#c9a84c', color: on ? '#f0dda0' : '#241a06', cursor: 'pointer' }}>
         {on ? 'TURN THE PREVIEW OFF' : 'TURN THE PREVIEW ON'}
       </button>
+      {failed && (
+        <p role="alert" style={{ margin: '0.6rem 0 0', fontSize: 13, color: '#f2b8a8' }}>
+          That didn&rsquo;t save. Check your connection and try again.
+        </p>
+      )}
     </div>
   );
 }
@@ -38,7 +53,7 @@ export default function GatePreviewBanner() {
   return (
     <div role="status" style={{ position: 'fixed', left: 12, bottom: 12, zIndex: 900, display: 'flex', gap: 10, alignItems: 'center', padding: '0.5rem 0.8rem', borderRadius: 999, background: '#241a06', border: '1px solid #c9a84c', color: '#f0dda0', fontFamily: LABEL, fontSize: 10.5, letterSpacing: '0.14em' }}>
       {`FOUNDER PREVIEW · AFTER ${LAUNCH_DATE_SHORT.toUpperCase()}`}
-      <button type="button" onClick={() => setGatePreview(false)}
+      <button type="button" onClick={() => { setGatePreview(false, user).catch(() => {}); }}
         style={{ fontFamily: LABEL, fontSize: 10, letterSpacing: '0.14em', background: 'transparent', border: 'none', color: '#c9a84c', cursor: 'pointer', textDecoration: 'underline' }}>
         TURN OFF
       </button>

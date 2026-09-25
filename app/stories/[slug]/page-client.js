@@ -31,7 +31,7 @@ import { tagSubheads } from '../../lib/subheadTag';
 import { proseCSS } from '../../lib/proseCSS';
 import SaveForOffline from '../../components/SaveForOffline';
 import { requestStory, bodyOf } from '../../lib/story';
-import { useGatePreview } from '../../lib/gatePreview';
+import { useGatePreview, readGatePreview } from '../../lib/gatePreview';
 import { lockedForFirstPaint, lockScript } from '../../lib/storyLock';
 import StoryGate from '../../components/StoryGate';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
@@ -845,7 +845,9 @@ export default function StoryPageClient({ params, initialStory = null }) {
   // W4: a page built before its story's lock instant (the end of its London week, or the
   // 30 Sept switch) carries the full body; past that instant the first render is the preview —
   // the same thing the inline StoryLock script has already put in the DOM before paint.
-  const [story, setStory] = useState(() => lockedForFirstPaint(initialStory, Date.now()) || stories.find(s => s.id === slug) || null);
+  // W4b: and under the founder preview (this browser's copy of the flag), from the end of the
+  // story's week — the same test the inline script has just run.
+  const [story, setStory] = useState(() => lockedForFirstPaint(initialStory, Date.now(), { preview: readGatePreview() }) || stories.find(s => s.id === slug) || null);
   const [storyReady, setStoryReady] = useState(!!initialStory || !!stories.find(s => s.id === slug));
 
   useEffect(() => {
@@ -1536,7 +1538,7 @@ useEffect(() => {
                   preview the moment the clock is past that instant, before the reader sees a
                   word. Runs from the static HTML at parse time; React never re-runs it. */}
               {initialStory?.lockAtMs && initialStory?.previewHtml != null && (
-                <script dangerouslySetInnerHTML={{ __html: lockScript(initialStory.lockAtMs, tagSubheads(initialStory.previewHtml)) }} />
+                <script dangerouslySetInnerHTML={{ __html: lockScript(initialStory.lockAtMs, tagSubheads(initialStory.previewHtml), initialStory.previewLockAtMs ?? null) }} />
               )}
               {/* Inside the article so the fade sits over the prose it is fading,
                   and outside .prose so the drop-cap tagger — which scopes its query

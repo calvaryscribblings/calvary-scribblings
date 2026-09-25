@@ -24,7 +24,8 @@ const prose = (publishedIso, over = {}) => ({ category: 'short', published: true
 describe('THE BUILD — what a static page may carry', () => {
   test('before the switch, far from it: the full body, locking at the switch', () => {
     const p = buildInlinePlan(prose('2026-09-01T09:00:00Z'), at('2026-09-25T09:00:00Z'));
-    assert.deepEqual(p, { inlineFull: true, lockAtMs: GATE_ON_MS });
+    assert.equal(p.inlineFull, true);
+    assert.equal(p.lockAtMs, GATE_ON_MS);   // (previewLockAtMs: tests/ci/w4b-preview.test.mjs)
   });
 
   test('a build within the lookahead of the switch ships the PREVIEW of an old story', () => {
@@ -49,7 +50,7 @@ describe('THE BUILD — what a static page may carry', () => {
   });
 
   test('poetry is full and never locks', () => {
-    assert.deepEqual(buildInlinePlan(prose('2025-01-01T09:00:00Z', { category: 'poetry' }), at('2026-10-01T12:00:00Z')), { inlineFull: true, lockAtMs: null });
+    assert.deepEqual(buildInlinePlan(prose('2025-01-01T09:00:00Z', { category: 'poetry' }), at('2026-10-01T12:00:00Z')), { inlineFull: true, lockAtMs: null, previewLockAtMs: null });
   });
 });
 
@@ -85,8 +86,8 @@ describe('THE PAGE\'S OWN REFUSAL — until the rebuild lands', () => {
 
   test('the page emits it, and the client\'s first render uses the same preview', () => {
     const src = readFileSync('app/stories/[slug]/page-client.js', 'utf8');
-    assert.match(src, /lockScript\(initialStory\.lockAtMs, tagSubheads\(initialStory\.previewHtml\)\)/);
-    assert.match(src, /useState\(\(\) => lockedForFirstPaint\(initialStory, Date\.now\(\)\)/);
+    assert.match(src, /lockScript\(initialStory\.lockAtMs, tagSubheads\(initialStory\.previewHtml\)/);
+    assert.match(src, /useState\(\(\) => lockedForFirstPaint\(initialStory, Date\.now\(\)/);
     const page = readFileSync('app/stories/[slug]/page.js', 'utf8');
     assert.match(page, /const plan = buildInlinePlan\(rec\);/);
     assert.doesNotMatch(page, /GATING_ENABLED/);
@@ -126,9 +127,10 @@ describe('THE FOUNDER PREVIEW — founders only, and it can only lock', () => {
   });
   test('the endpoints honour it only for a verified founder uid', () => {
     const story = readFileSync('functions/api/story.js', 'utf8');
-    assert.match(story, /const forceGate = body\?\.previewGate === true && isFounder\(uid\);/);
+    // W4b: both decide through previewInForce(), which is founders-only (tests/ci/w4b-preview).
+    assert.match(story, /const forceGate = previewInForce\(\{ uid, requested: body\?\.previewGate === true, accountFlag, now \}\);/);
     const stream = readFileSync('functions/api/series/stream.js', 'utf8');
-    assert.match(stream, /forceGate = isFounder\(who\);/);
+    assert.match(stream, /forceGate = previewInForce\(\{ uid: who,/);
     assert.equal(isFounder('XaG6bTGqdDXh7VkBTw4y1H2d2s82'), true);
     assert.equal(isFounder('anybodyElse'), false);
   });

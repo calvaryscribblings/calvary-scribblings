@@ -35,16 +35,27 @@ export const BUILD_LOOKAHEAD_MS = 3 * 3600000;
 export function buildInlinePlan(rec, now = Date.now()) {
   const openAt = (t) => grantFor(rec, { tier: 'free', now: t }).access === 'full';
   const inlineFull = openAt(now) && openAt(now + BUILD_LOOKAHEAD_MS);
-  if (!inlineFull || (rec && rec.category === 'poetry')) return { inlineFull, lockAtMs: null };
+  if (!inlineFull || (rec && rec.category === 'poetry')) return { inlineFull, lockAtMs: null, previewLockAtMs: null };
   const freeUntil = freeUntilFor(rec);
-  return { inlineFull, lockAtMs: Math.max(GATE_ON_MS, freeUntil === null ? GATE_ON_MS : freeUntil + 1) };
+  const weekEnd = freeUntil === null ? 0 : freeUntil + 1;
+  // previewLockAtMs (W4b): the same instant with the 30 Sept switch taken away — the end of the
+  // story's own London week. The founder preview locks from there, before paint, exactly as
+  // grantFor(…, { forceGate: true }) does on the server.
+  return { inlineFull, lockAtMs: Math.max(GATE_ON_MS, weekEnd || GATE_ON_MS), previewLockAtMs: weekEnd };
 }
 
-/** The story as it should first render at `now`: the preview once past its lock instant. */
-export function lockedForFirstPaint(initialStory, now) {
+/**
+ * The story as it should first render at `now`: the preview once past its lock instant — or,
+ * under the founder preview (`preview`: this browser's copy of the flag), once past the end of
+ * its week. The preview can only lock: a reader who is entitled gets the whole body back from
+ * /api/story a moment later, as on any locked page.
+ */
+export function lockedForFirstPaint(initialStory, now, { preview = false } = {}) {
   const s = initialStory;
   if (!s || s.contentIsPreview || typeof s.lockAtMs !== 'number' || typeof s.previewHtml !== 'string') return s;
-  if (now < s.lockAtMs) return s;
+  const byClock = now >= s.lockAtMs;
+  const byPreview = preview === true && typeof s.previewLockAtMs === 'number' && now >= s.previewLockAtMs;
+  if (!byClock && !byPreview) return s;
   return { ...s, content: s.previewHtml, contentIsPreview: true, lockedByClock: true };
 }
 
@@ -55,10 +66,25 @@ export function scriptSafeJson(value) {
     .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
-/** The inline script. Swallows its own errors: a failed swap must never break the page. */
-export function lockScript(lockAtMs, previewHtml) {
+/**
+ * The inline script. Swallows its own errors: a failed swap must never break the page.
+ *
+ * W4b: it also reads the founder preview's local copy (localStorage 'cs:gatePreview', see
+ * app/lib/gatePreview.js) and locks from `previewLockAtMs` when it is set. W4's script read only
+ * the clock, so with the preview on, the page painted the whole story and waited on a network
+ * round-trip to take it back.
+ */
+export function lockScript(lockAtMs, previewHtml, previewLockAtMs = null) {
   const at = Number(lockAtMs);
   if (!Number.isFinite(at)) return '';
-  return `(function(){try{if(Date.now()>=${at}){var c=document.getElementById('story-content');`
+  const pat = Number(previewLockAtMs);
+  const previewTerm = previewLockAtMs !== null && Number.isFinite(pat)
+    ? `||(n>=${pat}&&(function(){try{return localStorage.getItem(${JSON.stringify(GATE_PREVIEW_STORAGE_KEY)})==='1';}catch(e){return false;}})())`
+    : '';
+  return `(function(){try{var n=Date.now();if(n>=${at}${previewTerm}){var c=document.getElementById('story-content');`
     + `if(c){c.innerHTML=${scriptSafeJson(String(previewHtml || ''))};c.setAttribute('data-locked-by-clock','1');}}}catch(e){}})();`;
 }
+
+/** The founder preview's localStorage key. Mirrors GATE_PREVIEW_KEY in app/lib/gatePreview.js
+ *  (a client module this pure one cannot import); tests/ci/w4b-preview.test.mjs asserts they match. */
+export const GATE_PREVIEW_STORAGE_KEY = 'cs:gatePreview';

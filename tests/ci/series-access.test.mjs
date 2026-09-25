@@ -502,7 +502,7 @@ describe('THE TIER GATE FLAG — and the release gate that does not move with it
     assert.ok(/if \(!seriesGateOn\(now\) && !forceGate\)/.test(src), 'the endpoint does not branch on seriesGateOn(now)');
     assert.ok(src.indexOf("reason === 'not_released'") < src.indexOf('if (!seriesGateOn(now) && !forceGate)'),
       'the release check must run BEFORE the tier-gate branch');
-    assert.ok(/forceGate = isFounder\(who\)/.test(src), 'the preview is founders only');
+    assert.ok(/forceGate = previewInForce\(\{ uid: who,/.test(src), 'the preview is founders only (previewInForce; W4b)');
   });
 
   test('the homepage row and the landing page follow the same flag', () => {

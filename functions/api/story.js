@@ -51,6 +51,7 @@ import {
 import { effectiveTier } from '../../app/lib/membership.js';
 import { grantFor, readerShapeError } from '../../app/lib/storyAccess.js';
 import { isFounder } from '../../app/lib/founders.js';
+import { previewInForce, founderPreviewPath } from '../../app/lib/gatePreviewPolicy.js';
 import { indexReadTime } from '../../app/lib/storyIndex.js';
 import { cutPreview } from '../../app/lib/previewCut.js';
 import { MalformedHtmlError } from '../../app/lib/htmlBlocks.js';
@@ -177,7 +178,16 @@ async function handlePost(context) {
   // W4: the founder-only PREVIEW. A founder may ask to see the gate as it will be after 30 Sept
   // (body.previewGate === true). For anyone else the flag is ignored — it is never an unlock,
   // only ever a lock applied early, and only to the two founder accounts.
-  const forceGate = body?.previewGate === true && isFounder(uid);
+  //
+  // W4b: and the preview belongs to the founder's ACCOUNT (founder_preview/{uid}), read here from
+  // the verified uid — so it holds on a page whose browser forgot, or never had, the local flag.
+  // Only a founder's request costs this read. A failed read leaves the request's own flag.
+  let accountFlag = null;
+  if (isFounder(uid) && body?.previewGate !== true) {
+    try { accountFlag = await readJson(env, token, founderPreviewPath(encodeURIComponent(uid))); }
+    catch (e) { console.error(`[story] founder preview read failed:`, e.message || e); }
+  }
+  const forceGate = previewInForce({ uid, requested: body?.previewGate === true, accountFlag, now });
   // The membership read is SKIPPED unless it can change the answer: a story that is
   // already free to everyone costs a signed-out reader zero membership reads, and a
   // membership outage cannot degrade a story nobody needed a tier for.
@@ -185,7 +195,9 @@ async function handlePost(context) {
 
   let tier = 'free';
   let entitlementDegraded = false;
-  if (provisional.access === 'preview' && uid) {
+  // Under the founder preview the read is skipped too: the preview is the NON-MEMBER view, by
+  // ruling, so it is judged at 'free' whatever the founder's own membership (W4b).
+  if (provisional.access === 'preview' && uid && !forceGate) {
     try {
       const [scalar, detail] = await Promise.all([
         readJson(env, token, `users/${encodeURIComponent(uid)}/membership`),
