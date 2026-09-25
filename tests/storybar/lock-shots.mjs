@@ -170,7 +170,7 @@ for (const signedIn of [true, false]) {
       m.contrast = m.bodyColour ? +contrast(m.bodyColour, theme === 'dark' ? '#080610' : m.ground).toFixed(2) : null;
       report.shots.push(name); report.measures.push({ name, ...m });
       if (signedIn) report.pill.push({ name, ...(await pillWatch(page)) });
-      console.log(name, JSON.stringify({ contrast: m.contrast, fade: m.fade && { left: +(m.fade.left - m.fade.articleLeft).toFixed(2), width: +(m.fade.width - m.fade.articleWidth).toFixed(2), gapToMark: +m.fade.gapToMark.toFixed(2) } }));
+      console.log(name, JSON.stringify({ contrast: m.contrast, fade: m.fade && { vsTextLeft: +(m.fade.left - m.fade.proseLeft).toFixed(2), vsTextWidth: +(m.fade.width - m.fade.proseWidth).toFixed(2), gapToMark: +m.fade.gapToMark.toFixed(2) } }));
       await ctx.close();
     }
   }

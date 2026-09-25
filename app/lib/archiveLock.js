@@ -132,9 +132,8 @@ export function glowGradient(glow) {
 // ── THE FOUNDER-PREVIEW PILL ────────────────────────────────────────────────────────────────
 // The pill is fixed at the bottom-left; the lock scrolls. At 390 the block is the full width, so
 // there is no resting place the lock cannot pass under. The pill therefore STEPS ASIDE — slides
-// below the viewport edge — whenever its resting box would overlap a lock block, by more than
-// nothing, plus a gap of PILL_CLEARANCE. It comes back as soon as the block has moved on.
-export const PILL_CLEARANCE = 12;
+// below the viewport edge — whenever its resting box would overlap a lock block, or come within PILL_CLEARANCE of one. It comes back as soon as the block has moved on.
+export const PILL_CLEARANCE = 24;
 /** True when two {left, top, right, bottom} boxes come within `gap` px of each other. */
 export function boxesClash(a, b, gap = PILL_CLEARANCE) {
   return a.left < b.right + gap && b.left < a.right + gap && a.top < b.bottom + gap && b.top < a.bottom + gap;

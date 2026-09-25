@@ -52,8 +52,9 @@ export default function GatePreviewBanner() {
   const on = useGatePreview(user);
   const ref = useRef(null);
   // W9: never over the lock. The pill's RESTING box (left 12, bottom 12 — transforms aside) is
-  // compared with every lock block on each scroll frame; on a clash the pill slides below the
-  // viewport edge until the block has passed.
+  // compared with every lock block on each scroll frame; on a clash the pill leaves AT ONCE (in
+  // the frame the check runs, before paint — a 220ms slide-away was caught touching the lock on
+  // live) and slides back once the block has passed.
   useEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
@@ -78,7 +79,7 @@ export default function GatePreviewBanner() {
   return (
     <div ref={ref} role="status" data-founder-pill="" data-aside="0" className="founder-pill" style={{ position: 'fixed', left: 12, bottom: 12, zIndex: 900, display: 'flex', gap: 10, alignItems: 'center', padding: '0.5rem 0.8rem', borderRadius: 999, background: '#241a06', border: '1px solid #c9a84c', color: '#f0dda0', fontFamily: LABEL, fontSize: 10.5, letterSpacing: '0.14em' }}>
       <style>{`.founder-pill { transition: transform 220ms ease, opacity 220ms ease; }
-        .founder-pill[data-aside="1"] { transform: translateY(calc(100% + 24px)); opacity: 0; pointer-events: none; }
+        .founder-pill[data-aside="1"] { transform: translateY(calc(100% + 24px)); opacity: 0; pointer-events: none; transition: none; }
         @media (prefers-reduced-motion: reduce) { .founder-pill { transition: none; } }`}</style>
       {`FOUNDER PREVIEW · AFTER ${LAUNCH_DATE_SHORT.toUpperCase()}`}
       <button type="button" onClick={() => { setGatePreview(false, user).catch(() => {}); }}

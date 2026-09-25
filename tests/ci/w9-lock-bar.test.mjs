@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   LOCK_THEMES, LOCK_RHYTHM, LOCK_MAX_WIDTH, LOCK_REVEAL_MS, LOCK_GLYPH, STORY_LOCK_COPY, SERIES_LOCK_COPY,
-  contrast, fadeGradient, boxesClash,
+  contrast, fadeGradient, boxesClash, PILL_CLEARANCE,
 } from '../../app/lib/archiveLock.js';
 import { nextBar, initialBar, BAR_THRESHOLD, BAR_TOP_ZONE } from '../../app/lib/storyBar.js';
 
@@ -132,14 +132,15 @@ describe('W9 · the founder pill never sits on the lock', () => {
   test('boxesClash: overlap and near-miss clash; clear boxes do not', () => {
     const pill = { left: 12, right: 280, top: 800, bottom: 832 };
     assert.equal(boxesClash(pill, { left: 0, right: 390, top: 700, bottom: 900 }), true);
-    assert.equal(boxesClash(pill, { left: 0, right: 390, top: 836, bottom: 1000 }), true, 'within the 12px clearance');
-    assert.equal(boxesClash(pill, { left: 0, right: 390, top: 850, bottom: 1000 }), false);
+    assert.equal(boxesClash(pill, { left: 0, right: 390, top: 850, bottom: 1000 }), true, 'within the 24px clearance');
+    assert.equal(boxesClash(pill, { left: 0, right: 390, top: 860, bottom: 1000 }), false);
     assert.equal(boxesClash(pill, { left: 330, right: 850, top: 700, bottom: 900 }), false, 'beside it at 1180');
+    assert.equal(PILL_CLEARANCE, 24);
   });
   test('the pill checks every lock block, steps aside on a clash, and the lock block carries the marker', () => {
     const g = code('app/components/GatePreview.js');
     assert.match(g, /querySelectorAll\('\[data-archive-lock\]'\)/);
-    assert.match(g, /data-aside="1"\] \{ transform: translateY\(calc\(100% \+ 24px\)\); opacity: 0; pointer-events: none;/);
+    assert.match(g, /data-aside="1"\] \{ transform: translateY\(calc\(100% \+ 24px\)\); opacity: 0; pointer-events: none; transition: none; \}/, 'leaves at once — no visible slide over the lock');
     assert.match(src('app/components/ArchiveLock.js'), /data-archive-lock=""/);
   });
 });
