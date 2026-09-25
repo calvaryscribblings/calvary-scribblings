@@ -579,6 +579,8 @@ describe('MON-04 · no money failure is silent; a retry-fixable one is retried',
       assert.equal(rec.retryable, true);
       assert.equal(rec.count, 3);
       assert.equal(w.emails.length, 1, 'one email per failure, however many retries');
+      assert.equal(rec.emailId, 'em_1', 'Resend\'s acceptance is on the record');
+      assert.equal(typeof rec.emailedAt, 'number');
       assert.equal(w.emails[0].to[0], 'alerts@example.com');
     } finally { w.restore(); }
   });

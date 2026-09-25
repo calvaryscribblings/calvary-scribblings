@@ -137,6 +137,17 @@ export async function recordMoneyFailure(env, {
         });
         emailed = res.ok;
         if (!res.ok) console.error(`[money] alert email for ${k} refused: HTTP ${res.status}`);
+        else {
+          // The proof that Resend ACCEPTED it, on the record itself: its message id and when.
+          const sent = await res.json().catch(() => ({}));
+          const t = await adminToken(env, token);
+          await fetchImpl(`${dbBase(env)}/.json`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [`${path}/emailedAt`]: now, [`${path}/emailId`]: typeof sent?.id === 'string' ? sent.id : null }),
+            signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
+          }).catch(() => null);
+        }
       }
     } catch (e) {
       console.error(`[money] alert email for ${k} failed:`, e?.message || e);
