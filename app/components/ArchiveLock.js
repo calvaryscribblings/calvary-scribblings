@@ -40,10 +40,12 @@ export default function ArchiveLock({
   const ref = useRef(null);
   // Revealed when it scrolls into view. Starts shown if there is no observer to tell us, so a
   // browser that cannot observe never hides the lock.
-  const [shown, setShown] = useState(false);
+  // (The lock only ever renders on the client — after the gate answers — so reading the global
+  // in the initial state cannot disagree with a server render.)
+  const [shown, setShown] = useState(() => typeof IntersectionObserver === 'undefined');
   useEffect(() => {
     const el = ref.current;
-    if (!el || typeof IntersectionObserver === 'undefined') { setShown(true); return undefined; }
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
     const io = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) { setShown(true); io.disconnect(); }
     }, { threshold: 0.15 });
