@@ -547,6 +547,17 @@ describe('MON-05 · deleting an account cancels what the PROVIDER holds', () => 
       assert.equal(w.emails.length, 1);
     } finally { w.restore(); }
   });
+  test('…and a LIFECYCLE event after deletion cancels quietly — only money alarms', async () => {
+    const w = world({ db: { deletions: { [UID]: { uid: UID } } }, stripe: { '/subscriptions/sub_A': (p, o) => (o.method === 'DELETE' ? sub({ status: 'canceled' }) : sub()) } });
+    try {
+      const res = await deliver(stripeHook, { type: 'customer.subscription.updated', data: { object: sub() } });
+      assert.equal((await res.json()).verdict, 'stale');
+      assert.equal(w.stripeCalls('DELETE', '/subscriptions/sub_A').length, 1);
+      assert.equal(w.db.users, undefined);
+      assert.equal(w.emails.length, 0);
+    } finally { w.restore(); }
+  });
+
   test('the scrub backstop reports a deleted reader whose record is still live', () => {
     assert.deepEqual(billingBackstop(UID, live()), { rail: 'stripe', ref: 'sub_A' });
     assert.equal(billingBackstop(UID, live({ status: 'cancelled' })), null);

@@ -511,6 +511,12 @@ export async function applyMembershipChange(env, token, uid, {
     await writeMembership(env, token, uid, { ...detail, status: 'cancelled', tier: 'free' }, {
       accountDeleted: true, extra: endedUpdate(uid, subRef, 'account_deleted', now),
     });
+    // A lifecycle event (no payment in it) needs nothing more than the cancel above. Money is
+    // what a human must decide about.
+    if (!invoiceRef) {
+      console.log(`[${label}] DELETED-ACCOUNT ${uid}: ${subRef || '—'} ${cancelled}; no payment in this event`);
+      return { verdict: 'stale' };
+    }
     return {
       verdict: 'paid_after_deletion', uid, ref: invoiceRef || subRef,
       why: `${label}: ${uid} deleted their account, then a live subscription (${subRef || '—'}, payment ${invoiceRef || 'none'}) reached us. ${cancelled}. Nothing was recreated. Decide whether to refund the payment.`,
