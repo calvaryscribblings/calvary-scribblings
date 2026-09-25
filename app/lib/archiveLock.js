@@ -60,7 +60,8 @@ export const LOCK_THEMES = {
 };
 
 // ── COPY ────────────────────────────────────────────────────────────────────────────────────
-// The story body is the APP's words (DRAFT), so both platforms say the same thing. The old
+// RULED (Ikenna, 26 Sep 2026): the story lock's words stand exactly as W9 set them. The body is
+// the app's sentence, so both platforms say the same thing. The old
 // "free to read for its first week" contradicted the ruled LONDON CALENDAR WEEK (W4): a story
 // published on a Sunday is free for one day, not seven.
 export const STORY_LOCK_COPY = {
@@ -70,7 +71,6 @@ export const STORY_LOCK_COPY = {
   cta: 'See membership',
   signIn: ['Already a member?', 'Sign in'],
 };
-export const STORY_LOCK_STATUS = 'DRAFT';
 
 // Degraded: the membership read failed. NO UPSELL (see StoryGate.js) — a retry and nothing else.
 export const DEGRADED_LOCK_COPY = {
@@ -80,15 +80,15 @@ export const DEGRADED_LOCK_COPY = {
   cta: 'Try again',
 };
 
-// Parity with the app's Series lock (app A12, baa3c1a). The body is the instalment's own refusal
-// line (refusalCopy / the reader's copy.body), so it is not held here. DRAFT, same as the app.
+// RULED (Ikenna, 26 Sep 2026): the Series lock's words stand as A12 set them, matching the app's
+// Series lock (app A12, baa3c1a). The body is the instalment's own refusal line (refusalCopy /
+// the reader's copy.body), so it is not held here.
 export const SERIES_LOCK_COPY = {
   eyebrow: 'From the Series',
   headline: 'This instalment is closed.',
   cta: 'See membership',
   signIn: ['Already a member?', 'Sign in'],
 };
-export const SERIES_LOCK_STATUS = 'DRAFT';
 
 // ── THE MARK ────────────────────────────────────────────────────────────────────────────────
 // A 22-unit box drawn at 22px, stroke 1.5. Pixel-snapped at 2x (the phones and iPads this is

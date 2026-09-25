@@ -14,10 +14,11 @@ One component, `app/components/ArchiveLock.js`. Its numbers, colours and words a
   measure to 0px at 390, 820 and 1180 and ends 24px above the mark.
 - **Body contrast** (measured on live): 7.61:1 on cream, 11.88:1 on dark. The old grey `#8a8378` was
   3.12:1.
-- **Copy (DRAFT, the app's words):** "Every story published this week is free to read, Monday to
-  Sunday. Earlier stories are open to members." The "first week" line is gone. Series: the
-  eyebrow is "THE SERIES", the headline is "This instalment is for members.", and the body is the
-  existing refusal sentence.
+- **Copy (the app's words, ruled 26 Sep — see *Rulings*):** "Every story published this week is
+  free to read, Monday to Sunday. Earlier stories are open to members." The "first week" line is
+  gone. Series (from A12, `5f624360`): the eyebrow is "FROM THE SERIES", the headline is "This
+  instalment is closed.", and the body is the instalment's own refusal line. W9 first shipped
+  "THE SERIES" / "This instalment is for members.".
 - Cormorant 300 is now actually loaded. It wasn't in the font request, so any "300" rendered at 400.
 - **The founder-preview pill** steps aside at once whenever its resting box comes within 24px of
   a lock block. Measured on live: 0 of 559 sampled frames overlapped. The first version slid away
@@ -65,5 +66,15 @@ and nothing sets React state per scroll. It is used on `/stories/[slug]` (story,
 
 ## For the app
 
-The lock body copy is the app's sentence. If the app's wording changes, change
-`STORY_LOCK_COPY.body`. The DRAFT is Ikenna's to rule.
+The lock body copy is the app's sentence. Both locks' wording is now ruled (below), so the
+app matches the web, not the other way round. A change to either needs a new ruling.
+
+## Rulings
+
+- **26 Sep 2026, 00:36 (Ikenna) — archive lock:** the "this week" sentence stays exactly as W9 left
+  it. `STORY_LOCK_COPY` is no longer DRAFT.
+- **26 Sep 2026, 00:36 (Ikenna) — Series lock:** "FROM THE SERIES" / "This instalment is closed.",
+  with the instalment's own refusal line as the body, stays as it is. `SERIES_LOCK_COPY` is no
+  longer DRAFT.
+
+Cleared in W10. `tests/ci/w9-lock-bar.test.mjs` pins both sets of words.

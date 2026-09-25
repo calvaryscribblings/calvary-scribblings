@@ -17,7 +17,11 @@ const src = (p) => readFileSync(p, 'utf8');
 const code = (p) => src(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
 
 describe('W9 · the lock — the words', () => {
-  test('the app\'s words, and "this week" — never "first week"', () => {
+  // RULED (Ikenna, 26 Sep 2026): these words stand exactly as they are. Changing one needs a new ruling.
+  test('no lock carries a DRAFT mark any more', () => {
+    assert.doesNotMatch(src('app/lib/archiveLock.js'), /DRAFT/);
+  });
+  test('the ruled words, and "this week" — never "first week"', () => {
     assert.equal(STORY_LOCK_COPY.eyebrow, 'From the archive');
     assert.equal(STORY_LOCK_COPY.headline, 'This story is in the archive.');
     assert.equal(STORY_LOCK_COPY.body, 'Every story published this week is free to read, Monday to Sunday. Earlier stories are open to members.');
@@ -46,9 +50,12 @@ describe('W9 · the lock — the words', () => {
     }
     assert.equal(SERIES_LOCK_COPY.cta, STORY_LOCK_COPY.cta);
   });
-  test('the Series lock says what the app says (A12): "FROM THE SERIES" / "This instalment is closed."', () => {
+  // RULED (Ikenna, 26 Sep 2026): the Series lock stands as A12 set it, matching the app.
+  test('the Series lock\'s ruled words: "FROM THE SERIES" / "This instalment is closed." / the refusal line', () => {
     assert.equal(SERIES_LOCK_COPY.eyebrow.toUpperCase(), 'FROM THE SERIES');
     assert.equal(SERIES_LOCK_COPY.headline, 'This instalment is closed.');
+    assert.equal(SERIES_LOCK_COPY.cta, 'See membership');
+    assert.deepEqual(SERIES_LOCK_COPY.signIn, ['Already a member?', 'Sign in']);
     assert.equal('body' in SERIES_LOCK_COPY, false, 'the body is the instalment\'s own refusal line');
     assert.match(code('app/series/instalment/[instalmentId]/page-instalment.js'), /body=\{refusalCopy\(grant\)\}/);
     assert.match(code('app/series/read/[instalmentId]/page-reader.js'), /body=\{copy\.body\}/);
