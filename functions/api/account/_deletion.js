@@ -72,6 +72,7 @@ export const OWNED_NODES = [
   'open_pages_drafts', 'open_pages_rate', 'notifications', 'library_notifications',
   'dm_conversations', 'followers', 'following', 'user_comments', 'user_square_posts',
   'user_open_pages', 'exercise_submissions',
+  'founder_preview',   // W4b: a founder's own preview switch — nothing to keep
 ].filter((v, i, a) => a.indexOf(v) === i);
 
 // Kept on purpose, keyed by the same uid. Listed so the test can prove every uid-keyed node in
