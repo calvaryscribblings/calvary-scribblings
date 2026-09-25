@@ -446,7 +446,7 @@ export default function MembershipPage() {
         {switchTo && settled && (
           <div className="mb-banner is-done" role="status">
             <div className="mb-banner-t">YOUR PLAN HAS CHANGED</div>
-            <p className="mb-banner-p">{`You’re now on ${TIER_NAME[subscriptionTier]}. Nothing else about your membership has changed.`}</p>
+            <p className="mb-banner-p">{`You’ve moved to ${TIER_NAME[subscriptionTier]}. Nothing else about your membership has changed.`}</p>
           </div>
         )}
         {returned === 'pass' && settled && (

@@ -274,7 +274,10 @@ describe('webhooks after a deletion', () => {
     const m = (await db.ref(`memberships/${T}`).get()).val();
     assert.equal(m.lastInvoiceRef, 'in_after', 'the event is still recorded');
     assert.ok(m.pass?.ref === 'pay_after');
-    assert.ok(errs.some((e) => e.includes('DELETED-ACCOUNT')));
+    // W3: the alarm for money after a deletion is raised by applyMembershipChange (verdict
+    // paid_after_deletion → ops/money_failures + email), not by this low-level writer —
+    // asserted in tests/membership/w3-money.test.mjs.
+    void errs;
   });
 
   test('the stub backstop: a users node that reappears after a finished deletion is removed next tick', async () => {

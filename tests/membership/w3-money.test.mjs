@@ -519,7 +519,8 @@ describe('MON-05 · deleting an account cancels what the PROVIDER holds', () => 
     return {
       calls, now: () => NOW,
       async get(p) { return p.split('/').reduce((o, k) => (o == null ? null : o[k] ?? null), db); },
-      async patch() {}, async storageList() { return []; }, async storageDelete() {}, async authDelete() {},
+      patches: [],
+      async patch(u) { this.patches.push(u); }, async storageList() { return []; }, async storageDelete() {}, async authDelete() {},
       async stripeCancel(id) { calls.push(`stripe ${id}`); },
       async paystackDisable(code) { calls.push(`paystack ${code}`); },
       async stripeFindSubscriptions() { return found.stripe; },
@@ -535,6 +536,11 @@ describe('MON-05 · deleting an account cancels what the PROVIDER holds', () => 
     const io = memIo({ memberships: { [UID]: live() } }, { stripe: ['sub_A'], paystack: [] });
     await runDeletion(UID, null, io, { log() {} });
     assert.deepEqual(io.calls, ['stripe sub_A']);
+    // …and the kept billing record says so at once, so the scrub's backstop stays quiet.
+    const marked = io.patches.find((u) => `memberships/${UID}/status` in u);
+    assert.equal(marked[`memberships/${UID}/status`], 'cancelled');
+    assert.ok(marked[`memberships/${UID}/ended/sub_A`]);
+    assert.equal(Object.keys(marked).some((k) => k.startsWith('users/')), false);
   });
   test('THE WRITER: a subscription going live AFTER deletion is cancelled at the provider and recreates nothing', async () => {
     const w = world({ db: { deletions: { [UID]: { uid: UID } } }, stripe: { '/subscriptions/sub_A': (p, o) => (o.method === 'DELETE' ? sub({ status: 'canceled' }) : sub()) } });

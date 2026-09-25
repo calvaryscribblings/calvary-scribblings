@@ -78,6 +78,7 @@ export const OWNED_NODES = [
 // the rules is either deleted or kept by a decision, never by omission.
 export const KEPT_NODES = {
   memberships: 'billing record: tier, rail, status, period end, Stripe/Paystack ids — accounting',
+  ops: 'ops/money_failures only: a payment that needs a human names the reader, so they can be refunded — accounting',
   bookstore_purchases: 'book purchase records: title, amount, provider refs — accounting; a purchase is permanent',
   purchases: 'legacy single-story purchase records — accounting',
   deletions: 'this record',
@@ -223,6 +224,21 @@ export async function runDeletion(uid, email, io, log = console) {
         if (t.rail === 'stripe') await io.stripeCancel(t.id);
         else await io.paystackDisable(t.code);
         log.log(`[account/delete] cancelled ${t.rail} subscription ${t.id || t.code} for ${uid} — NO refund (ruling, 24 Sep 2026)`);
+      }
+      // The billing record (KEPT, for accounting) now says what the providers just confirmed,
+      // rather than 'active' until their webhooks arrive. The scrub's billing backstop reads
+      // this, so it speaks only when a cancellation was genuinely missed. Nothing under users/.
+      if (action || targets.size) {
+        const at = io.now();
+        const u = {
+          [`memberships/${uid}/status`]: 'cancelled',
+          [`memberships/${uid}/tier`]: 'free',
+          [`memberships/${uid}/cancelAtPeriodEnd`]: false,
+          [`memberships/${uid}/endedReason`]: 'account_deleted',
+          [`memberships/${uid}/updatedAt`]: at,
+        };
+        for (const ref of targets.keys()) if (/^[A-Za-z0-9_]+$/.test(ref)) u[`memberships/${uid}/ended/${ref}`] = { at, reason: 'account_deleted' };
+        await io.patch(u);
       }
     },
     async owned() {
