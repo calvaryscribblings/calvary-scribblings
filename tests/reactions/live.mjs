@@ -1,14 +1,16 @@
 // W13 — THE REACTIONS ON THE REAL PAGES: the local static export (out/, from `next build`),
-// reading the LIVE database, signed in as Ikenna, in WebKit and Chromium at 390, 820 and 1180.
+// reading the LIVE database, signed in as the TEST READER (W17: never a founder — tests/live/),
+// in WebKit and Chromium at 390, 820 and 1180.
 //
 //   node tests/reactions/live.mjs <outDir>          (needs out/ and serviceAccountKey.json)
 //
 // Surfaces: a story's responses (/stories/…), the Square (clock pinned to 21:00 London, when
 // the room is open), and an Open Pages piece (its own heart, then its thread).
 //
-// NOTHING IS WRITTEN (CLAUDE.md, "Probes that write to live data"). The Realtime Database socket
-// is proxied, and EVERY client write — the reaction, the count transaction, the page's own
-// read-tracking — is answered by the proxy and never forwarded: "ok" when the proof wants a
+// NOTHING IS WRITTEN (CLAUDE.md, "Probes that write to live data"). tests/live/firewall.mjs in
+// 'answer' mode: long-polling and every non-GET are refused, and EVERY socket write — the
+// reaction, the count transaction, the page's own read-tracking — is answered by the proxy and
+// never forwarded: "ok" when the proof wants a
 // save to succeed, "permission_denied" when it forces a failure. The records the taps aim at
 // are read before and after, and must match.
 //
@@ -18,7 +20,8 @@
 import { chromium, webkit } from '@playwright/test';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
-import { getAuth } from 'firebase-admin/auth';
+import { ensureTestReader, testReaderSession, signInPage } from '../live/test-reader.mjs';
+import { installFirewall, newStats, statsLine } from '../live/firewall.mjs';
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -28,8 +31,6 @@ const OUT = process.argv[2];
 if (!OUT) { console.error('usage: node tests/reactions/live.mjs <outDir>'); process.exit(2); }
 if (!existsSync('out/square.html') && !existsSync('out/square/index.html')) { console.error('out/ is missing — run `npm run build` first'); process.exit(2); }
 mkdirSync(OUT, { recursive: true });
-const API_KEY = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
-const IKENNA = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 const PORT = 4351;
 const SITE = `http://127.0.0.1:${PORT}`;
 const STORY = process.env.W13_STORY || '47-sessions';
@@ -38,11 +39,12 @@ const SIZES = [[390, 844], [820, 1180], [1180, 820]];
 
 initializeApp({ credential: cert(JSON.parse(readFileSync('serviceAccountKey.json', 'utf8'))), databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app' });
 const adb = getDatabase();
+const READER = await ensureTestReader();
 const results = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail }); console.log(`  ${ok ? '✓' : '✗'} ${name}${detail ? ` — ${detail}` : ''}`); };
 
 // ── integrity: what a tap could touch, read before and after ────────────────
-const WATCH = [`comments/${STORY}`, `comment_reactions/${STORY}/${IKENNA}`, 'square_reactions', `open_pages_reactions/${PIECE}`, `comment_likes/${PIECE}`, `comments/${PIECE}`];
+const WATCH = [`comments/${STORY}`, `comment_reactions/${STORY}/${READER}`, 'square_reactions', `open_pages_reactions/${PIECE}`, `comment_likes/${PIECE}`, `comments/${PIECE}`];
 const snapshot = async () => {
   const out = Object.fromEntries(await Promise.all(WATCH.map(async (p) => [p, JSON.stringify((await adb.ref(p).get()).val())])));
   const posts = (await adb.ref('square_posts').get()).val() || {};
@@ -50,66 +52,18 @@ const snapshot = async () => {
   return out;
 };
 
-async function session() {
-  const tok = await getAuth().createCustomToken(IKENNA);
-  const r = await (await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: tok, returnSecureToken: true }) })).json();
-  if (!r.idToken) throw new Error('custom-token sign-in failed');
-  return r;
-}
-const SIGNED_IN = ({ key, user }) => new Promise((resolve) => {
-  const open = indexedDB.open('firebaseLocalStorageDb', 1);
-  open.onupgradeneeded = () => open.result.createObjectStore('firebaseLocalStorage', { keyPath: 'fbase_key' });
-  open.onsuccess = () => {
-    const tx = open.result.transaction('firebaseLocalStorage', 'readwrite');
-    tx.objectStore('firebaseLocalStorage').put({ fbase_key: key, value: user });
-    tx.oncomplete = () => resolve();
-  };
-});
-
-// The firewall: every write is ANSWERED here and never reaches the server.
-const WRITE_ACTIONS = new Set(['p', 'm', 'o', 'om', 'oc', 'on']);
-const wall = { mode: 'ok', answered: 0, forwarded: 0 };
-async function firewall(page) {
-  await page.route('**/api/hit**', (r) => r.abort());
-  await page.routeWebSocket(/firebasedatabase\.app|firebaseio\.com/, (ws) => {
-    const server = ws.connectToServer();
-    let pending = 0, parts = [];
-    const handle = (text, raw) => {
-      let f; try { f = JSON.parse(text); } catch { f = null; }
-      if (f?.t === 'd' && WRITE_ACTIONS.has(f?.d?.a)) {
-        wall.answered++;
-        const deny = wall.mode === 'deny' && (f.d.a === 'p' || f.d.a === 'm');
-        // The server pushes an accepted write to every listener on its path BEFORE it acks, and
-        // the SDK relies on that: on the ack it drops its local copy and shows the server's. So an
-        // "ok" answered here must be preceded by that push, or the page falls back to the old value.
-        if (!deny && (f.d.a === 'p' || f.d.a === 'm')) ws.send(JSON.stringify({ t: 'd', d: { a: f.d.a === 'p' ? 'd' : 'm', b: { p: f.d.b.p, d: f.d.b.d } } }));
-        ws.send(JSON.stringify({ t: 'd', d: { r: f.d.r, b: deny ? { s: 'permission_denied', d: 'Permission denied' } : { s: 'ok', d: '' } } }));
-        return;
-      }
-      if (raw !== undefined) server.send(raw); else { server.send(String(parts.length)); parts.forEach((p) => server.send(p)); }
-    };
-    ws.onMessage((m) => {
-      const text = typeof m === 'string' ? m : m.toString();
-      if (pending === 0 && /^\d+$/.test(text) && Number(text) > 1) { pending = Number(text); parts = []; return; }
-      if (pending > 0) { parts.push(text); pending--; if (pending === 0) handle(parts.join('')); return; }
-      handle(text, m);
-    });
-    server.onMessage((m) => ws.send(m));
-  });
-}
+// The firewall answers every socket write locally ('answer' mode); wall.mode 'deny' makes it answer
+// set/update with permission_denied, which is how a failure is forced.
+const wall = { mode: 'ok' };
+const fwStats = newStats();
 
 async function open(browser, [w, h], account, { reduce = false, squareOpen = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, hasTouch: true, isMobile: w < 1000 && browser.browserType().name() === 'chromium', serviceWorkers: 'block', reducedMotion: reduce ? 'reduce' : 'no-preference' });
+  await installFirewall(ctx, { site: SITE, mode: 'answer', deny: () => wall.mode === 'deny', stats: fwStats });
   const page = await ctx.newPage();
   await page.addInitScript(() => { try { localStorage.setItem('cs_cookie_consent', 'accepted'); } catch {} });
   if (squareOpen) await page.clock.setFixedTime(new Date('2026-09-26T20:00:00Z')); // 21:00 London (BST)
-  await firewall(page);
-  await page.goto(SITE + '/terms', { waitUntil: 'domcontentloaded' });
-  await page.evaluate(SIGNED_IN, { key: `firebase:authUser:${API_KEY}:[DEFAULT]`, user: {
-    uid: IKENNA, email: null, emailVerified: true, isAnonymous: false, providerData: [], displayName: 'Ikenna Okpara',
-    stsTokenManager: { refreshToken: account.refreshToken, accessToken: account.idToken, expirationTime: Date.now() + 3500e3 },
-    createdAt: String(Date.now()), lastLoginAt: String(Date.now()), apiKey: API_KEY, appName: '[DEFAULT]',
-  } });
+  await signInPage(page, SITE, account);
   return { ctx, page };
 }
 
@@ -331,7 +285,7 @@ const SPECS = SPECS_ALL.filter((x) => !ONLY || ONLY.split(',').includes(x.name))
 const server = spawn(process.execPath, [new URL('../reader/app-server.mjs', import.meta.url).pathname], { env: { ...process.env, APP_PORT: String(PORT) }, stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 1500));
 const before = await snapshot();
-const account = await session();
+const account = await testReaderSession(READER);
 try {
   for (const [ename, engine] of [['webkit', webkit], ['chromium', chromium]]) {
     const browser = await engine.launch();
@@ -350,7 +304,7 @@ try {
 }
 const after = await snapshot();
 const changed = Object.keys(before).filter((k) => before[k] !== after[k]);
-check('live records unchanged (every write answered at the proxy, none forwarded)', changed.length === 0, changed.length ? `changed: ${changed.join(', ')}` : `${Object.keys(before).length} records re-read; ${wall.answered} writes answered locally`);
+check('live records unchanged (every write answered at the proxy, none forwarded)', changed.length === 0, changed.length ? `changed: ${changed.join(', ')}` : `${Object.keys(before).length} records re-read; ${statsLine(fwStats)}`);
 const failed = results.filter((r) => !r.ok);
 writeFileSync(join(OUT, 'results.json'), JSON.stringify(results, null, 2));
 console.log(`\n${results.length - failed.length}/${results.length} checks pass`);

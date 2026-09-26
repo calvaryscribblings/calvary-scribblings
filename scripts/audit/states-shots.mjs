@@ -7,18 +7,19 @@
 // looks like to the SDK: reads that never answer), captured 16s in, past the 12s read deadline.
 // Plus: the 404, offline navigation, and "rendered content stays" (load, then cut the database).
 //
-// Signed-in surfaces use a THROWAWAY account this script creates and deletes itself: a scratch uid
-// (never a reader, never a founder), a name and handle so the completion dialog stays away, signed
-// in through a custom token. Everything it wrote is removed at the end and re-read to prove it.
+// W17: signed-in surfaces use the TEST READER (tests/live/test-reader.mjs) — never a founder, and no
+// longer a throwaway account made and deleted per run — and EVERY context runs behind
+// tests/live/firewall.mjs: socket writes dropped, long-polling and every non-GET refused. The
+// test reader's records are re-read at the end and compared.
 import { chromium } from '@playwright/test';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
-import { getAuth } from 'firebase-admin/auth';
+import { ensureTestReader, testReaderSession, signInPage, testReaderWatch } from '../../tests/live/test-reader.mjs';
+import { installFirewall, newStats, statsLine } from '../../tests/live/firewall.mjs';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SITE = process.env.SITE || 'https://calvaryscribblings.co.uk';
-const API_KEY = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
 const OUT = process.argv[2];
 const ONLY = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
 mkdirSync(OUT, { recursive: true });
@@ -26,7 +27,10 @@ mkdirSync(OUT, { recursive: true });
 const svc = JSON.parse(readFileSync('serviceAccountKey.json', 'utf8'));
 initializeApp({ credential: cert(svc), databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app' });
 const adb = getDatabase();
-const aauth = getAuth();
+const READER = await ensureTestReader();
+const WATCH = testReaderWatch(READER);
+const snapshot = async () => Object.fromEntries(await Promise.all(WATCH.map(async (p) => [p, JSON.stringify((await adb.ref(p).get()).val())])));
+const fw = newStats();
 
 const DEAD_SOCKET = () => {
   class DeadSocket { constructor(u) { this.url = String(u); this.readyState = 0; } send() {} close() {} addEventListener() {} removeEventListener() {} }
@@ -41,45 +45,13 @@ const SEED = () => {
 };
 const SQUARE_OPEN = new Date('2026-09-24T19:30:00Z'); // 20:30 London
 
-async function throwaway() {
-  const uid = `w2shots${Date.now()}`;
-  for (const p of [`users/${uid}`, `usernames/${uid}`]) if ((await adb.ref(p).once('value')).exists()) throw new Error(`${p} exists`);
-  await adb.ref().update({ [`users/${uid}`]: { displayName: 'W2 Probe', username: uid, handle: uid, handleLowercased: uid, ageConfirmed: true, createdAt: Date.now() }, [`usernames/${uid}`]: uid });
-  const tok = await aauth.createCustomToken(uid);
-  const r = await (await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: tok, returnSecureToken: true }) })).json();
-  return { uid, idToken: r.idToken, refreshToken: r.refreshToken };
-}
-async function cleanup(uid) {
-  await adb.ref().update({ [`users/${uid}`]: null, [`usernames/${uid}`]: null, [`user_search/${uid}`]: null, [`users_private/${uid}`]: null, [`presence/${uid}`]: null, [`userStreaks/${uid}`]: null, [`leaderboard/${uid}`]: null });
-  try { await aauth.deleteUser(uid); } catch {}
-  const left = [];
-  for (const p of [`users/${uid}`, `usernames/${uid}`, `user_search/${uid}`, `users_private/${uid}`]) if ((await adb.ref(p).once('value')).exists()) left.push(p);
-  let authGone = false; try { await aauth.getUser(uid); } catch { authGone = true; }
-  return { left, authGone };
-}
-// Firebase's own persistence record, so the page boots signed in (the SDK refreshes the token itself).
-const SIGNED_IN = ({ key, user }) => new Promise((resolve) => {
-  const open = indexedDB.open('firebaseLocalStorageDb', 1);
-  open.onupgradeneeded = () => open.result.createObjectStore('firebaseLocalStorage', { keyPath: 'fbase_key' });
-  open.onsuccess = () => {
-    const tx = open.result.transaction('firebaseLocalStorage', 'readwrite');
-    tx.objectStore('firebaseLocalStorage').put({ fbase_key: key, value: user });
-    tx.oncomplete = () => resolve();
-  };
-});
-
 async function shoot(browser, s, width, account) {
   const ctx = await browser.newContext({ viewport: { width, height: width < 600 ? 844 : 900 }, deviceScaleFactor: 1 });
+  await installFirewall(ctx, { site: SITE, stats: fw }); // W17 — service workers stay on: offline-nav is about the worker
   const page = await ctx.newPage();
   await page.addInitScript(SEED);
   if (s.clock) await page.clock.setFixedTime(s.clock);
-  if (account) {
-    await page.goto(SITE + '/terms', { waitUntil: 'domcontentloaded' });
-    await page.evaluate(SIGNED_IN, { key: `firebase:authUser:${API_KEY}:[DEFAULT]`, user: {
-      uid: account.uid, email: null, emailVerified: false, isAnonymous: false, providerData: [], displayName: 'W2 Probe',
-      stsTokenManager: { refreshToken: account.refreshToken, accessToken: account.idToken, expirationTime: Date.now() + 3500e3 },
-      createdAt: String(Date.now()), lastLoginAt: String(Date.now()), apiKey: API_KEY, appName: '[DEFAULT]' } });
-  }
+  if (account) await signInPage(page, SITE, account);
   if (s.mode === 'unreachable') {
     await page.addInitScript(DEAD_SOCKET);
     await page.route(/firebasedatabase\.app|firebaseio\.com/, (r) => r.abort());
@@ -134,13 +106,15 @@ const SURFACES = [
 
 const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
 const list = SURFACES.filter((s) => !ONLY.length || ONLY.includes(s.id));
-const account = list.some((s) => s.signedIn) ? await throwaway() : null;
+const account = list.some((s) => s.signedIn) ? await testReaderSession(READER) : null;
+const before = await snapshot();
 try {
   for (const s of list) for (const w of [390, 1180]) {
     try { await shoot(browser, s, w, s.signedIn ? account : null); } catch (e) { console.log(`  ✗ ${s.id} ${w}: ${e.message.split('\n')[0]}`); }
   }
 } finally {
   await browser.close();
-  if (account) console.log('cleanup', JSON.stringify(await cleanup(account.uid)));
+  const after = await snapshot();
+  console.log(`${statsLine(fw)}; test-reader records changed: ${WATCH.filter((p) => before[p] !== after[p]).length || 'none'}`);
 }
 process.exit(0);

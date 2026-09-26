@@ -107,6 +107,16 @@ Four rules, each of which would have prevented it on its own:
    the pre-probe read. R36's probe did print `live body unchanged (false)` — the check worked;
    the round nearly shipped past it.
 
+5. **A SIGNED-IN LIVE BROWSER TEST RUNS AS THE TEST READER, BEHIND `tests/live/firewall.mjs`.**
+   (W17, 26 Sep 2026.) Never as a founder: a founder session is an admin session. The W9–W16
+   harnesses guarded only the database WebSocket, but the SDK falls back to long-polling (plain
+   HTTP to `/.lp`) after a single socket failure and re-sends every write still waiting for an
+   ack. `tests/live/firewall-proof.mjs` showed a write landing that way under the old guard. The
+   firewall aborts all long-polling, every non-GET not on its six-entry read-only allow-list, and
+   `/api/hit`, and stops write frames on the socket. The test reader comes from
+   `tests/live/test-reader.mjs` (custom token, no password, uid only at `ops/live_test_reader`,
+   never printed). `tests/ci/w17-live-safety.test.mjs` fails if a harness signs in any other way.
+
 And before concluding anything is unrecoverable: **check
 `calvary-scribblings-default-rtdb-backups`.** Daily archives, 30-day retention. See
 `scripts/backup/RESTORE.md`.

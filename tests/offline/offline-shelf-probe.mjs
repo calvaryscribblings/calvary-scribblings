@@ -7,24 +7,29 @@
 // sign in, tap "Save for offline" on a story, visit My Library (which seals the shelf shell into
 // the service worker's cache), cut the network, then open the story's own address and the shelf.
 //
-// The save is IndexedDB in this throwaway browser and nothing else. Signed in as Ikenna, a story
-// visit writes to his account, so the Realtime Database socket is proxied and EVERY CLIENT WRITE
-// is dropped, /api/hit is aborted, and his records are re-read afterwards and compared (CLAUDE.md,
-// "Probes that write to live data").
+// The save is IndexedDB in this throwaway browser and nothing else. W17: signed in as the TEST
+// READER (never a founder), behind tests/live/firewall.mjs — socket writes dropped, long-polling
+// and every non-GET refused — and the test reader's records are re-read afterwards and compared
+// (CLAUDE.md, "Probes that write to live data").
+//
+// The one harness that keeps the SERVICE WORKER (it is what is being tested). A context route
+// cannot see a request the worker answers itself. The worker answers only GETs of its own origin
+// (public/sw.js: every non-GET and every database host is passed through untouched), so every
+// write path still reaches the firewall — and the run fails unless the firewall saw requests.
 import { chromium } from '@playwright/test';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
-import { getAuth } from 'firebase-admin/auth';
+import { ensureTestReader, testReaderSession, signInPage, testReaderWatch } from '../live/test-reader.mjs';
+import { installFirewall, newStats, statsLine } from '../live/firewall.mjs';
 import { readFileSync } from 'node:fs';
 
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i > 0 ? process.argv[i + 1] : d; };
 const SITE = arg('--site', 'https://calvaryscribblings.co.uk');
-const API_KEY = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
-const IKENNA = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 
 initializeApp({ credential: cert(JSON.parse(readFileSync('serviceAccountKey.json', 'utf8'))), databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app' });
 const adb = getDatabase();
-const WATCH = [`users/${IKENNA}`, `points/${IKENNA}`, `userStreaks/${IKENNA}`, `founder_preview/${IKENNA}`, `library_notifications/${IKENNA}`];
+const READER = await ensureTestReader();
+const WATCH = testReaderWatch(READER);
 const snapshot = async () => Object.fromEntries(await Promise.all(WATCH.map(async (p) => [p, JSON.stringify((await adb.ref(p).get()).val())])));
 
 // A story from this week is open to everyone, founder preview or not, so the save holds the whole text.
@@ -37,57 +42,16 @@ async function pickSlug() {
   return rows[0][0];
 }
 
-const WRITE_ACTIONS = new Set(['p', 'm', 'o', 'om', 'oc', 'on']);
-let dropped = 0;
-async function firewall(ctx) {
-  await ctx.route('**/api/hit**', (r) => r.abort());
-  await ctx.routeWebSocket(/firebasedatabase\.app|firebaseio\.com/, (ws) => {
-    const server = ws.connectToServer();
-    let pending = 0, parts = [];
-    const decide = (text) => {
-      try { const f = JSON.parse(text); if (f?.t === 'd' && WRITE_ACTIONS.has(f?.d?.a)) { dropped++; return false; } } catch {}
-      return true;
-    };
-    ws.onMessage((m) => {
-      const text = typeof m === 'string' ? m : m.toString();
-      if (pending === 0 && /^\d+$/.test(text) && Number(text) > 1) { pending = Number(text); parts = []; return; }
-      if (pending > 0) {
-        parts.push(text); pending--;
-        if (pending === 0) { const whole = parts.join(''); if (decide(whole)) { server.send(String(parts.length)); parts.forEach((p) => server.send(p)); } }
-        return;
-      }
-      if (decide(text)) server.send(m);
-    });
-    server.onMessage((m) => ws.send(m));
-  });
-}
-
-const SIGNED_IN = ({ key, user }) => new Promise((resolve) => {
-  const open = indexedDB.open('firebaseLocalStorageDb', 1);
-  open.onupgradeneeded = () => open.result.createObjectStore('firebaseLocalStorage', { keyPath: 'fbase_key' });
-  open.onsuccess = () => {
-    const tx = open.result.transaction('firebaseLocalStorage', 'readwrite');
-    tx.objectStore('firebaseLocalStorage').put({ fbase_key: key, value: user });
-    tx.oncomplete = () => resolve();
-  };
-});
-
 const slug = await pickSlug();
 const before = await snapshot();
-const tok = await getAuth().createCustomToken(IKENNA);
-const account = await (await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: tok, returnSecureToken: true }) })).json();
+const account = await testReaderSession(READER);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-await firewall(ctx);
+const fw = await installFirewall(ctx, { site: SITE, stats: newStats() });
 const page = await ctx.newPage();
 await page.addInitScript(() => { try { localStorage.setItem('cs_cookie_consent', 'accepted'); } catch {} });
-await page.goto(SITE + '/terms', { waitUntil: 'domcontentloaded' });
-await page.evaluate(SIGNED_IN, { key: `firebase:authUser:${API_KEY}:[DEFAULT]`, user: {
-  uid: IKENNA, email: null, emailVerified: true, isAnonymous: false, providerData: [], displayName: 'Ikenna Okpara',
-  stsTokenManager: { refreshToken: account.refreshToken, accessToken: account.idToken, expirationTime: Date.now() + 3500e3 },
-  createdAt: String(Date.now()), lastLoginAt: String(Date.now()), apiKey: API_KEY, appName: '[DEFAULT]',
-} });
+await signInPage(page, SITE, account);
 
 const result = { site: SITE, slug };
 await page.goto(`${SITE}/stories/${slug}`, { waitUntil: 'networkidle' });
@@ -129,7 +93,7 @@ await ctx.setOffline(false);
 await browser.close();
 
 const after = await snapshot();
-result.integrity = { dropped, changed: WATCH.filter((p) => before[p] !== after[p]) };
+result.integrity = { firewall: statsLine(fw), firewallSawThePage: fw.requestsSeen > 0, changed: WATCH.filter((p) => before[p] !== after[p]).map((p) => p.replace(READER, '{test reader}')) };
 result.liveOpening = liveOpening;
 console.log(JSON.stringify(result, null, 2));
-process.exit(result.integrity.changed.length ? 2 : 0);
+process.exit(result.integrity.changed.length || !result.integrity.firewallSawThePage ? 2 : 0);

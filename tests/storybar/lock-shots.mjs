@@ -5,21 +5,22 @@
 // Cream = a story page (trouble-shooting). Dark = the Series (beta-princess-i2). At 390, 820 and
 // 1180, signed in and signed out.
 //
-// SIGNED IN is Ikenna's own account, whose founder preview (founder_preview/{uid}) is already on:
-// the live /api/story answers it with the preview, exactly as it will answer a free reader after
-// 30 Sept. A story visit by a signed-in reader WRITES to that account (readStories, readCount,
-// streak, points) — so this script proxies the Realtime Database socket and DROPS EVERY CLIENT
-// WRITE (put, merge, onDisconnect), aborts /api/hit, and re-reads the account's records before and
-// after to prove it left them as it found them (CLAUDE.md, "Probes that write to live data").
+// W17: SIGNED IN is the TEST READER (tests/live/test-reader.mjs), never a founder, behind
+// tests/live/firewall.mjs — socket writes dropped, long-polling and every non-GET refused — and
+// the test reader's records are re-read before and after (CLAUDE.md, "Probes that write to live
+// data"). Until W17 this signed in as Ikenna and used his founder preview to see the lock early.
+// A non-founder sees the lock only once the gate is on for everyone, so this harness now RUNS
+// ONLY AFTER THE 30 SEPT SWITCH, and refuses before it. The founder pill is founder-only, so the
+// pill watch reports "no pill" (W9 measured it: 0 of 559 frames overlapped).
 //
-// SIGNED OUT has no founder preview — the preview is an account flag. So the page clock is set to
-// 1 Oct 2026 (after the switch): the page's own pre-paint lock and the Series gate both act on it,
-// and /api/story (which uses the SERVER's clock, still before the switch) is answered with the
-// preview body the live endpoint gave the signed-in run — the response the gate will give then.
+// SIGNED OUT: the page clock is set to 1 Oct 2026 as before; /api/story is answered with the
+// locked body the signed-in run received.
 import { launchWebKit } from './webkit.mjs'; // W16: this codespace's WebKit crashes without it — see webkit.mjs
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
-import { API_KEY, IKENNA, WATCH, session, SIGNED_IN, firewall, firewallStats } from './founder-session.mjs';
+import { ensureTestReader, testReaderSession, signInPage, testReaderWatch } from '../live/test-reader.mjs';
+import { installFirewall, newStats, statsLine } from '../live/firewall.mjs';
+import { gatingOn } from '../../app/lib/storyAccess.js';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { contrast } from '../../app/lib/archiveLock.js';
@@ -31,28 +32,29 @@ const STORY = 'trouble-shooting';
 const INSTALMENT = 'beta-princess-i2';
 const AFTER_SWITCH = new Date('2026-10-01T09:00:00Z');
 const SIZES = [[390, 844], [820, 1180], [1180, 820]];
+if (!gatingOn(Date.now())) {
+  console.error('lock-shots: before the 30 Sept switch only a founder sees the lock, and live harnesses no longer sign in as one (W17). Run it after the switch.');
+  process.exit(2);
+}
 mkdirSync(OUT, { recursive: true });
 
 initializeApp({ credential: cert(JSON.parse(readFileSync('serviceAccountKey.json', 'utf8'))), databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app' });
 const adb = getDatabase();
+const READER = await ensureTestReader();
+const WATCH = testReaderWatch(READER);
+const fw = newStats();
 const snapshot = async () => Object.fromEntries(await Promise.all(WATCH.map(async (p) => [p, JSON.stringify((await adb.ref(p).get()).val())])));
 
 async function openPage(browser, [w, h], { signedIn, account, previewBody }) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, hasTouch: true, isMobile: w < 1000, serviceWorkers: 'block' });
+  await installFirewall(ctx, { site: SITE, stats: fw });
   const page = await ctx.newPage();
   await page.addInitScript(() => { try { localStorage.setItem('cs_cookie_consent', 'accepted'); } catch {} });
-  await firewall(page);
   if (!signedIn) {
     await page.clock.install({ time: AFTER_SWITCH });
     if (previewBody) await page.route('**/api/story', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: previewBody }));
   } else {
-    await page.goto(SITE + '/terms', { waitUntil: 'domcontentloaded' });
-    await page.evaluate(SIGNED_IN, { key: `firebase:authUser:${API_KEY}:[DEFAULT]`, user: {
-      uid: IKENNA, email: null, emailVerified: true, isAnonymous: false, providerData: [], displayName: 'Ikenna Okpara',
-      stsTokenManager: { refreshToken: account.refreshToken, accessToken: account.idToken, expirationTime: Date.now() + 3500e3 },
-      createdAt: String(Date.now()), lastLoginAt: String(Date.now()), apiKey: API_KEY, appName: '[DEFAULT]',
-    } });
-    await page.evaluate(() => { try { localStorage.setItem('cs:gatePreview', '1'); } catch {} });
+    await signInPage(page, SITE, account);
   }
   return { ctx, page };
 }
@@ -99,7 +101,7 @@ async function pillWatch(page) {
 const before = await snapshot();
 const report = { site: SITE, shots: [], measures: [], pill: [] };
 const browser = await launchWebKit();
-const account = await session();
+const account = await testReaderSession(READER);
 let previewBody = null;
 
 for (const signedIn of [true, false]) {
@@ -131,8 +133,8 @@ await browser.close();
 
 const after = await snapshot();
 const changed = WATCH.filter((p) => before[p] !== after[p]);
-report.integrity = { dropped: firewallStats.dropped, changed };
-console.log(`\nwrites dropped at the socket: ${firewallStats.dropped}; account records changed: ${changed.length ? changed.join(', ') : 'none'}`);
+report.integrity = { firewall: statsLine(fw), changed: changed.map((p) => p.replace(READER, '{test reader}')) };
+console.log(`\n${statsLine(fw)}; test-reader records changed: ${changed.length || 'none'}`);
 for (const p of report.pill) console.log('pill', p.name, JSON.stringify({ frames: p.frames, clashes: p.clashes, skipped: p.skipped }));
 writeFileSync(join(OUT, 'report.json'), JSON.stringify(report, null, 2));
 process.exit(changed.length ? 2 : 0);
