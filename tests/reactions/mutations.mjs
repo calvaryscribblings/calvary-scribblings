@@ -21,6 +21,7 @@ const STORY = 'app/stories/[slug]/page-client.js';
 const SQUARE = 'app/square/page.js';
 const OPEN = 'app/open-pages/[id]/page-client.js';
 const CI = ['node', ['--test', 'tests/ci/w13-reactions.test.mjs']];
+const CI15 = ['node', ['--test', 'tests/ci/w15-counts.test.mjs']];
 const PROOF = (only) => ['node', ['tests/reactions/proof.mjs', join(SCRATCH, `proof-${only}`), '--quick', `--only=${only}`, '--engine=webkit']];
 
 const MUTANTS = [
@@ -34,10 +35,10 @@ const MUTANTS = [
   ['Reply reads Cancel while open (Open Pages)', OPEN, "{replyOpen ? 'Cancel' : 'Reply'}", 'Reply', CI],
   ['the section says Responses', STORY, '<div className="cs-title">Responses</div>', '<div className="cs-title">Discussion</div>', CI],
   ['the placeholder says Add a response…', STORY, 'placeholder="Add a response…"', 'placeholder="Share your thoughts on this story…"', CI],
-  ['no slide on mount', R, '    setCount(b, count);\n    return () => clear(b);', '    setCount(b, count - 1); setCount(b, count);\n    return () => clear(b);', PROOF('count')],
+  ['no slide on mount', R, '    showCount(b, count);\n    return () => clear(b);', '    showCount(b, count - 1); showCount(b, count);\n    return () => clear(b);', PROOF('count')],
   // The echo guard is DOUBLE: the count effect runs only when `count` changes, and the
   // prototype's setCount returns on an equal value. Either alone holds; the mutant drops both.
-  ['no slide on a same-value echo', [[M, '  if (cur && +cur.textContent === n) return;\n', ''], [R, '    setCount(btn.current, count);\n  }, [count]);', '    setCount(btn.current, count);\n  });']], PROOF('count')],
+  ['no slide on a same-value echo', [[M, '  if (cur && +cur.textContent === n) return;\n', ''], [R, '    showCount(btn.current, count);\n  }, [count]);', '    showCount(btn.current, count);\n  });']], PROOF('count')],
   ['full strength once reacted', R, 'color: on ? REACTION_FULL : REACTION_REST', 'color: on ? REACTION_REST : REACTION_REST', PROOF('count')],
   ['Reduce Motion: at once, no burst', R, '    if (!reducedMotion()) {\n      clear(b);', '    if (true) {\n      clear(b);', PROOF('behaviour')],
   ['a failed save shakes and says so', R, '() => { busy.current = false; clear(b); shake(b); onFail?.(); },', '() => { busy.current = false; },', PROOF('behaviour')],
@@ -51,6 +52,14 @@ const MUTANTS = [
   ['nothing moves while an effect plays', R, '.rx-count>.n{grid-area:1/1;display:block}', '.rx-count>.n{display:inline-block}', PROOF('stability')],
   ['the Square never remounts its buttons', SQUARE, '{ReactionBar({ p, size: 16 })}', '<ReactionBar p={p} size={16} />', CI],
   ['16px icons in replies', SQUARE, '{ReactionBar({ p: r, size: 16 })}', '{ReactionBar({ p: r, size: 14 })}', CI],
+  // W15 — ruling 37 (26 Sept): zero shows the icon alone, and 0→1 / 1→0 move nothing.
+  ['zero is hidden (CI)', R, '.rx-count>.n.z{visibility:hidden}\n', '', CI15],
+  ['zero is hidden (browser: a painted 0)', R, '.rx-count>.n.z{visibility:hidden}\n', '', PROOF('zero')],
+  ['zero is marked on every count, not only at mount', R, "  for (const s of b.st.count.querySelectorAll('.n')) s.classList.toggle('z', s.textContent === '0');\n", "  if (b.st.count.children.length === 1) for (const s of b.st.count.querySelectorAll('.n')) s.classList.toggle('z', s.textContent === '0');\n", PROOF('zero')],
+  ['zero keeps its box (visibility, not display)', R, '.rx-count>.n.z{visibility:hidden}', '.rx-count>.n.z{display:none}', PROOF('zero')],
+  // Ruling 36 (26 Sept): 9.25px after a two-digit count. A quarter-pixel of tracking per digit
+  // leaves the slot at 44 and every other row check standing; only the ruled clear sees it.
+  ['9.25px after two digits', R, '.rx-count>.n{grid-area:1/1;display:block}', '.rx-count>.n{grid-area:1/1;display:block;letter-spacing:.125px}', PROOF('row')],
   ['a non-flat ground takes the mask', M, '  if (bg == null) return burstMasked(b, S, R, from, to, delay); // W13-MASK\n', '', PROOF('hole')],
 ];
 

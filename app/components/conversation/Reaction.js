@@ -14,7 +14,7 @@
 //         svg.rx-fx              3S × 3S, centred, behind, overflow visible, no pointer events
 //         svg.rx-off             outline
 //         svg.rx-on              filled (fire: FIRE, TONGUE on top)
-//     span.rx-count              .n spans, owned by setCount alone
+//     span.rx-count              .n spans, owned by setCount alone (through showCount)
 //
 // THE ROW (the app's A14). Each reaction has a 44px slot, which is also its touch area. The
 // icon sits at the slot's left edge, the count 5px after it. Counts are 14px lining tabular
@@ -25,7 +25,15 @@
 // digits are 13.75px, so 16 + 5 + 13.75 + 10 = 44.75: the letter of the rule would move every
 // neighbour at 10. The outcome is the ruling, so 0–99 holds the 44px slot exactly (the clear
 // at two digits is the 9.25px left), and from 100 the slot widens by the letter (data-wide:
-// min 44, 10px clear). Reported to Ikenna in W13 as a question, not settled here.
+// min 44, 10px clear). RULED 26 Sept (ruling 36): the 44px slot stays, with 9.25px after a
+// two-digit count. W13 asked; W15 pins it.
+//
+// ZERO. RULED 26 Sept (ruling 37): a count is hidden until the first reaction, so zero shows
+// the icon alone. The prototype's setCount (verbatim, untouchable) always draws the number, so
+// showCount below marks a "0" with .z and the stylesheet hides it with visibility, never
+// display: the count keeps its box, the slot keeps its 44px, and 0→1 or 1→0 moves nothing in
+// or around the row. 0→1 is the 1 sliding in with no 0 leaving; 1→0 is the 1 sliding out with
+// nothing arriving. The aria-label already names no zero.
 //
 // THE CONTRACT WITH THE SURFACE. onToggle() flips the state AT ONCE (optimistically) and
 // returns a promise. If the save fails, it restores the state and rejects. The button
@@ -75,6 +83,7 @@ export const REACTION_CSS = `
 .rx-icon>.rx-fx{left:-100%;top:-100%;width:300%;height:300%;pointer-events:none}
 .rx-count{display:inline-grid;margin-left:5px;font-family:'Cormorant Garamond',Georgia,serif;font-size:14px;font-weight:500;line-height:1;font-variant-numeric:lining-nums tabular-nums;font-feature-settings:"lnum" 1,"tnum" 1}
 .rx-count>.n{grid-area:1/1;display:block}
+.rx-count>.n.z{visibility:hidden}
 .rx-row{display:flex;align-items:center;flex-wrap:wrap}
 .rx-note{margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:15px;font-style:italic;line-height:1.4;color:${REACTION_REST}}
 `;
@@ -82,6 +91,13 @@ export const REACTION_CSS = `
 // href, and kept there by React itself. A <style> appended by hand is not React's, and one run
 // of the live proof caught it gone after the document re-rendered: the buttons measured 300px.
 const styleTag = () => h('style', { href: 'w13-reaction', precedence: 'medium' }, REACTION_CSS);
+
+// setCount, then ruling 37: every number showing "0" (arriving or at rest) is marked .z and
+// so hidden. Every count on every surface goes through here, never through setCount directly.
+export function showCount(b, n) {
+  setCount(b, n);
+  for (const s of b.st.count.querySelectorAll('.n')) s.classList.toggle('z', s.textContent === '0');
+}
 
 export function Reaction({ kind, on, count = 0, size = 16, onToggle, canReact = true, onFail }) {
   const btn = useRef(null), press = useRef(null), icon = useRef(null), fx = useRef(null);
@@ -95,13 +111,13 @@ export function Reaction({ kind, on, count = 0, size = 16, onToggle, canReact = 
   useLayoutEffect(() => {
     const b = btn.current;
     b.st = { n: count, icon: icon.current, fx: fx.current, off: offEl.current, on: onEl.current, count: countEl.current, timers: [] };
-    setCount(b, count);
+    showCount(b, count);
     return () => clear(b);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useLayoutEffect(() => {
     if (!mounted.current) { mounted.current = true; return; }
-    setCount(btn.current, count);
+    showCount(btn.current, count);
   }, [count]);
 
   const onClick = () => {

@@ -1,7 +1,7 @@
 // W13 — THE REACTION PROOF, on the real components in WebKit (Safari is Ikenna's browser) and
 // Chromium.
 //
-//   node tests/reactions/proof.mjs <outDir> [--quick] [--only=frames,row,count,behaviour,stability,hole] [--engine=webkit]
+//   node tests/reactions/proof.mjs <outDir> [--quick] [--only=frames,row,count,behaviour,stability,hole,zero] [--engine=webkit]
 //
 // 1. FRAMES. Every reaction, turned on and turned off, frozen at the same instants on two pages:
 //    web.html (the real Reaction) and bare.html (the prototype's code VERBATIM from
@@ -14,6 +14,7 @@
 // 4. REDUCE MOTION, A FORCED FAILURE, THE PRESS-DOWN, THE 9ms TICK.
 // 5. NO LAYOUT SHIFT, NO LONG TASKS while an effect plays.
 // 6. THE HOLE: painted in the exact ground, or masked where the ground isn't flat.
+// 7. ZERO (W15, ruling 37): a zero is not painted; 0→1 and 1→0 move nothing; 44px throughout.
 //
 // Exit code 1 on any failure. --quick runs frames at 390 only.
 /* global H */ // the harness page's probe handle, used inside page.evaluate callbacks
@@ -168,7 +169,13 @@ async function row(engine, browser) {
       await p.evaluate(() => { for (const k of ['heart', 'like', 'fire']) H.set(k, { count: 88 }); });
       await p.evaluate(() => document.getAnimations().forEach((a) => a.finish()));
       const clear2 = await p.evaluate(() => { const b = document.querySelector('.rx'); return b.getBoundingClientRect().right - b.querySelector('.rx-count').getBoundingClientRect().right; });
-      check(`${tag}: two digits clear ≥ 9px inside the 44 (A14 asks 10; see Reaction.js)`, clear2 >= 9, `${clear2.toFixed(2)}px`);
+      // Ruling 36 (26 Sept): the 44px slot stays, with 9.25px after a two-digit count. That is
+      // WebKit's measure (Safari: two Cormorant digits at 14px are 13.75px). Headless Chromium on
+      // Linux has no subpixel glyph positioning and rounds each digit's advance to 7px, so there
+      // the clear is what the same slot leaves, 9px: held to the slot's arithmetic, not to 9.25.
+      const pair = adv[8];
+      const ruled = engine === 'webkit' ? Math.abs(clear2 - 9.25) < 0.02 : Math.abs(clear2 - (44 - 16 - 5 - pair)) < 0.02 && clear2 >= 9;
+      check(`${tag}: two digits clear ${engine === 'webkit' ? '9.25px' : 'what the 44 leaves'} (ruling 36, 26 Sept)`, ruled, `${clear2.toFixed(2)}px, digits ${pair.toFixed(2)}px`);
       results.push({ name: `${tag}: two-digit clear`, ok: true, detail: `${clear2.toFixed(2)}px` });
       for (const n of [100, 999, 12345]) {
         await p.evaluate((n) => { for (const k of ['heart', 'like', 'fire']) H.set(k, { count: n }); }, n);
@@ -359,6 +366,123 @@ async function hole(engine, browser) {
   await ctx.close();
 }
 
+// ── 7. ZERO (W15, ruling 37, 26 Sept) ──────────────────────────────────────────
+// A count is hidden until the first reaction: zero shows the icon alone. The "0" keeps its box
+// (visibility, not display), so the slot keeps its 44px and 0→1 / 1→0 move nothing.
+async function zero(engine, browser) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 420 }, deviceScaleFactor: 2 });
+  const p = await ctx.newPage();
+  const tick = () => p.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+  const settle = async () => { await p.evaluate(() => document.getAnimations().forEach((a) => a.finish())); await p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); };
+  const state = () => p.evaluate(() => ({
+    ns: [...document.querySelectorAll('.rx-count .n')].map((n) => `${n.textContent}${getComputedStyle(n).visibility === 'hidden' ? ':hidden' : ''}`),
+    anims: document.querySelector('.rx-count').getAnimations({ subtree: true }).length,
+    w: document.querySelector('.rx').getBoundingClientRect().width,
+  }));
+  // The button's own pixels; and the same button with its numbers taken out (icon alone).
+  const clip = async () => { const b = await p.locator('.rx').boundingBox(); return p.screenshot({ clip: { x: b.x, y: b.y - 4, width: b.width + 20, height: b.height + 8 } }); };
+  const iconOnly = async () => {
+    const saved = await p.evaluate(() => { const box = document.querySelector('.rx-count'); const w = box.getBoundingClientRect().width; const kids = [...box.childNodes]; window.__kids = kids; box.replaceChildren(); box.style.width = `${w}px`; return true; });
+    await p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const shot = await clip();
+    await p.evaluate(() => { const box = document.querySelector('.rx-count'); box.replaceChildren(...window.__kids); box.style.width = ''; });
+    await p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    return shot && saved ? shot : null;
+  };
+  for (const kind of KINDS) {
+    await p.goto(U('web', { case: 'single', kind, count: 0 }));
+    await ready(p);
+    let s = await state();
+    check(`zero ${engine} ${kind}: mount at 0 — the 0 is there but not visible, no slide`, s.ns.join() === '0:hidden' && s.anims === 0, JSON.stringify(s));
+    check(`zero ${engine} ${kind}: the 44px slot at 0`, s.w === 44, s.w);
+    const a = await clip(), bare = await iconOnly();
+    check(`zero ${engine} ${kind}: at 0 no digit is painted (pixel-identical to the icon alone)`, a.equals(bare), a.equals(bare) ? '' : JSON.stringify(await diff(p, a, bare)));
+    const aria = await p.evaluate(() => document.querySelector('.rx').getAttribute('aria-label'));
+    check(`zero ${engine} ${kind}: the label names no zero`, !/\d/.test(aria), aria);
+    // 0 → 1: the 1 slides in once; nothing leaves that can be seen.
+    await p.evaluate((k) => H.set(k, { count: 1 }), kind); await tick();
+    s = await state();
+    check(`zero ${engine} ${kind}: 0→1 slides the 1 in once, no visible 0 leaving`, s.ns.join() === '0:hidden,1' && s.anims === 2, JSON.stringify(s));
+    await settle();
+    s = await state();
+    check(`zero ${engine} ${kind}: at 1 the 1 shows, 44px`, s.ns.join() === '1' && s.w === 44, JSON.stringify(s));
+    const one = await clip();
+    check(`zero ${engine} ${kind}: at 1 a digit is painted (the pixel check can see one)`, !one.equals(bare));
+    // 1 → 0: the 1 slides out; nothing arrives that can be seen.
+    await p.evaluate((k) => H.set(k, { count: 0 }), kind); await tick();
+    s = await state();
+    check(`zero ${engine} ${kind}: 1→0 slides the 1 out, nothing visible arriving`, s.ns.join() === '1,0:hidden' && s.anims === 2, JSON.stringify(s));
+    await settle();
+    s = await state();
+    const back = await clip();
+    check(`zero ${engine} ${kind}: back at 0 — icon alone again, 44px`, s.ns.join() === '0:hidden' && s.w === 44 && back.equals(bare), JSON.stringify(s));
+    // 99 holds the slot too.
+    await p.evaluate((k) => H.set(k, { count: 99 }), kind); await settle();
+    s = await state();
+    check(`zero ${engine} ${kind}: 44px at 99`, s.w === 44 && s.ns.join() === '99', JSON.stringify(s));
+  }
+  // A real tap from 0: one slide, the 1 visible, at full strength.
+  await p.goto(U('web', { case: 'single', kind: 'heart', count: 0 }));
+  await ready(p);
+  await p.evaluate(() => document.querySelector('.rx').click()); await tick();
+  let s = await state();
+  const col = await p.evaluate(() => getComputedStyle(document.querySelector('.rx-count')).color);
+  check(`zero ${engine}: a first tap slides the 1 in once, at full strength`, s.ns.join() === '0:hidden,1' && s.anims === 2 && col === 'rgb(241, 228, 200)', JSON.stringify({ ...s, col }));
+  await ctx.close();
+
+  // Reduce Motion: the 1 at once; back to nothing at once.
+  {
+    const rc = await browser.newContext({ viewport: { width: 390, height: 420 }, reducedMotion: 'reduce' });
+    const q = await rc.newPage();
+    await q.goto(U('web', { case: 'single', kind: 'heart', count: 0 }));
+    await ready(q);
+    const st = () => q.evaluate(() => ({ ns: [...document.querySelectorAll('.rx-count .n')].map((n) => `${n.textContent}${getComputedStyle(n).visibility === 'hidden' ? ':hidden' : ''}`).join(), anims: document.getAnimations().length }));
+    await q.evaluate(() => document.querySelector('.rx').click()); await q.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+    const up = await st();
+    check(`zero ${engine}: Reduce Motion shows the 1 at once`, up.ns === '1' && up.anims === 0, JSON.stringify(up));
+    await q.evaluate(() => document.querySelector('.rx').click()); await q.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+    const down = await st();
+    check(`zero ${engine}: Reduce Motion hides it again at once`, down.ns === '0:hidden' && down.anims === 0, JSON.stringify(down));
+    await rc.close();
+  }
+
+  // Nothing in or around the row moves at 0→1 or 1→0 — the same measure as stability(), every
+  // frame through a tap on each button (0→1) and a second tap (1→0), both sets.
+  for (const set of ['comment', 'square']) {
+    const sc = await browser.newContext({ viewport: { width: 390, height: 600 } });
+    const q = await sc.newPage();
+    await q.goto(U('web', { case: 'row', set, count: 0 }));
+    await ready(q);
+    const r = await q.evaluate(async () => {
+      const out = { shifts: 0, moved: 0, frames: 0, widths: [] };
+      try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) out.shifts += e.value; }).observe({ type: 'layout-shift', buffered: true }); out.cls = true; } catch { out.cls = false; }
+      const nodes = [document.querySelector('#above'), document.querySelector('#below'), document.querySelector('#reply'), ...document.querySelectorAll('.rx, .rx-count')];
+      const snap = () => nodes.map((n) => { const b = n.getBoundingClientRect(); return `${b.left},${b.top},${b.width},${b.height}`; }).join('|');
+      const base = snap();
+      for (const pass of [1, 2]) {
+        for (const b of document.querySelectorAll('.rx')) {
+          b.click();
+          const t0 = performance.now();
+          while (performance.now() - t0 < 1300) {
+            await new Promise((res) => requestAnimationFrame(res));
+            out.frames++;
+            if (snap() !== base) out.moved++;
+          }
+          out.widths.push(b.getBoundingClientRect().width);
+        }
+        out[`pass${pass}`] = [...document.querySelectorAll('.rx-count .n')].map((n) => `${n.textContent}${getComputedStyle(n).visibility === 'hidden' ? ':hidden' : ''}`).join();
+      }
+      return out;
+    });
+    const want = set === 'comment' ? 2 : 3;
+    check(`zero ${engine} ${set}: 0→1 and 1→0 move nothing in or around the row`, r.moved === 0 && r.frames > 0, JSON.stringify(r));
+    check(`zero ${engine} ${set}: the taps went 0→1→0`, r.pass1 === Array(want).fill('1').join() && r.pass2 === Array(want).fill('0:hidden').join(), `${r.pass1} / ${r.pass2}`);
+    check(`zero ${engine} ${set}: every slot 44px throughout`, r.widths.every((w) => w === 44), r.widths.join());
+    if (r.cls) check(`zero ${engine} ${set}: layout-shift score 0`, r.shifts === 0, r.shifts);
+    await sc.close();
+  }
+}
+
 const ONLY = (process.argv.find((x) => x.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
 const ENGINE = (process.argv.find((x) => x.startsWith('--engine=')) || '').slice(9);
 const want = (k) => !ONLY.length || ONLY.includes(k);
@@ -371,6 +495,7 @@ for (const [name, engine] of [['webkit', webkit], ['chromium', chromium]].filter
   if (want('behaviour')) await behaviour(name, browser);
   if (want('stability')) await stability(name, browser);
   if (want('hole')) await hole(name, browser);
+  if (want('zero')) await zero(name, browser);
   await browser.close();
 }
 srv.close();
