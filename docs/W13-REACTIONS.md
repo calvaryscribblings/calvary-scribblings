@@ -62,10 +62,11 @@ moves a neighbour". In Cormorant at 14px, two tabular digits take **13.75px**:
 - **100 and up:** the slot widens by the letter of the rule (`data-wide`: at least 44px, with a
   10px clear).
 
-This is question 2 for Ikenna below.
+This was question 2 for Ikenna below. **Ruled 26 Sept (ruling 36): keep it.** W15 pins it.
 
-**Zero is shown.** The prototype's `setCount` draws the number, and A14 says "0–99". Before W13,
-story comments hid a zero. This is question 3.
+**Zero was shown in W13.** The prototype's `setCount` draws the number, and A14 says "0–99".
+Before W13, story comments hid a zero. This was question 3. **Ruled 26 Sept (ruling 37): hide it
+until the first reaction.** W15 does this outside the verbatim block; see `docs/W15-COUNTS.md`.
 
 ## Proof
 
@@ -158,5 +159,8 @@ that they still point at something. They are **not ruled**.
 2. **Two-digit counts:** A14's two sentences can't both hold in the web's Cormorant. The slot
    stays 44px for 0–99, and the clear after a two-digit count is 9.25px, not 10. Keep that, or
    widen to 44.75px?
+   **Ruled 26 Sept (ruling 36):** keep the 44px slot, with 9.25px after a two-digit count.
 3. **Zero:** show "0" (now), or hide it until the first reaction (before)?
+   **Ruled 26 Sept (ruling 37):** hide it until the first reaction; the slot keeps its 44px, so
+   nothing moves. Done in W15.
 4. **The two quiz lines** and "Sign in to join the discussion": rule on the words.
