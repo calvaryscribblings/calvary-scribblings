@@ -87,11 +87,15 @@ by `next.config.mjs`.
   A canary puts a transform on `<body>` and requires the check to catch it.
   - **before, live** (`51dec01c`): every W9 scenario passes, and no ancestor is hit on any frame.
     **Viewports apart: the bar stays shown on 81 of 90 frames**, drawn 300–520px down the glass.
-    That is Ikenna's picture. Canary caught.
+    That is Ikenna's picture. Canary caught. (With the probe's final settings, 1× density and
+    event sampling, the same run gave 79 of 91.)
   - **after, local build:** **24 of 24 runs pass.** That covers the story page and a Series
     instalment, at iPhone and iPad sizes, across all 6 scenarios. On every sampled frame, the shown
     bar at rest is at 0px on the glass and no ancestor is hit. **Viewports apart: 0 of 90 frames
     shown.** Canary caught 4 of 4.
+  - **after, live** (`09af89155d10`, deployed 26 Sep ~22:35 UTC): **24 of 24 runs pass**, with
+    the same figures as the local build. Viewports apart: 0 of 90 frames shown, on every surface
+    and size. Canary caught 4 of 4.
   - The toolbar scenario samples thinly (3–56 frames). Software GL starves `requestAnimationFrame`
     during a viewport resize, so the probe also samples on `resize`/`scroll` events.
 - **`tests/storybar/readout-shot.mjs`** (founder session, write firewall). The readout appears
@@ -100,6 +104,11 @@ by `next.config.mjs`.
   the page. Founder session end to end, with the pill up: no containing-block ancestor. **Writes
   dropped: 0; Ikenna's records re-read afterwards: unchanged.** The screenshot is kept locally,
   because the repo is public.
+- **Live, founder readout** (`readout-shot.mjs` against `09af89155d10`): the same 13 checks pass.
+  The readout reads `build 09af89155d10 (live)`, and the stamp reads `Build 09af89155d10`. 0
+  writes dropped. Records unchanged.
+- **Live, a stale tab** (Chromium, a newer `/build.json` faked, then a bfcache-style `pageshow`): in
+  the top zone it reloads. Mid-story (y 3000) it does not. On the same build it does not.
 - **`tests/ci/w16-bar.test.mjs`**: 39 of 39. Each of 8 reverts was watched failing: no viewport
   guard, `offsetTop` ignored, `will-change` unchecked, the bar back inside the wrapper,
   `will-change: transform` on `html`, the SW timeout race restored, a static readout import, and
