@@ -1332,9 +1332,17 @@ useEffect(() => {
         @keyframes heroUp { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
         .story-badge-hero { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; padding: 0.3em 0.9em; border: 1px solid ${accentColor}; color: ${accentColor}; border-radius: 2px; margin-bottom: 1.1rem; font-family: Cormorant Garamond, Georgia, serif; }
         .story-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 400; line-height: 1.1; color: #f0ead8; margin-bottom: 1.1rem; font-family: Cormorant Garamond, Georgia, serif; }
-        .story-byline { display: flex; align-items: center; gap: 1.4rem; font-size: 0.82rem; letter-spacing: 0.06em; color: #f5f0e8; flex-wrap: wrap; }
-        .byline-dot { width: 3px; height: 3px; border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
-        .byline-by { font-style: italic; font-family: Cormorant Garamond, Georgia, serif; margin-right: -0.8rem; }
+        /* W11 — THE BYLINE DOT (the app's A13 fix). Every item carries a LEADING separator of one
+           fixed width (gap + 3px dot + gap), and the row is pulled left by exactly that width
+           inside a clipping box. Whichever item starts a line has its separator in the clipped
+           strip, so no line ever begins with a dot, and every item after the first on a line
+           shows one, with the same gap either side. The old dots were flex items of their own
+           and could wrap to the head of a line: "• 2 MIN. READ" at 390 and 402. */
+        .story-byline-clip { overflow: hidden; }
+        .story-byline { --byline-gap: 1.4rem; display: flex; align-items: center; flex-wrap: wrap; row-gap: var(--byline-gap); column-gap: 0; margin-left: calc(-2 * var(--byline-gap) - 3px); font-size: 0.82rem; letter-spacing: 0.06em; color: #f5f0e8; }
+        .byline-item { display: inline-flex; align-items: center; }
+        .byline-dot { flex: none; width: 3px; height: 3px; margin: 0 var(--byline-gap); border-radius: 50%; background: ${accentColor}; opacity: 0.7; }
+        .byline-by { font-style: italic; font-family: Cormorant Garamond, Georgia, serif; margin-right: 0.6rem; }
         .story-body-wrap { background: #f0ead8; opacity: 0; }
         /* Prose entrance. Deliberately NOT part of the [data-reveal] scroll system: this is
            keyed to readiness, not scroll position, so the body is already in place by the
@@ -1436,8 +1444,7 @@ useEffect(() => {
           .cs-section { padding: 2rem 1.2rem 5rem; }
           .story-badge-hero { font-size: 0.72rem; letter-spacing: 0.14em; padding: 0.22em 0.7em; margin-bottom: 0.7rem; }
           .story-title { font-size: clamp(1.75rem, 6vw, 2.5rem); line-height: 1.15; margin-bottom: 0.7rem; }
-          .story-byline { gap: 0.6rem; font-size: 0.78rem; }
-          .byline-by { margin-right: 0; }
+          .story-byline { --byline-gap: 0.6rem; font-size: 0.78rem; }
         }
       .prose figure { margin: 2em 0; }
 .prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
@@ -1465,18 +1472,30 @@ useEffect(() => {
               {displaySubcategory || displayCategory}
             </div>
             <h1 className="story-title">{story.title}</h1>
-            <div className="story-byline">
-              <span className="byline-by">by</span>
-              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.45em', flexWrap: 'wrap' }}>
-                <span>{story.author}</span>
-                {story.authorHandle && story.authorHandle !== story.authorUid && (
-                  <AuthorHandleLink handle={story.authorHandle}
-                    style={{ fontSize: '0.8rem', fontWeight: 500, color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Cormorant Garamond, Georgia, serif' }} />
+            <div className="story-byline-clip">
+              <div className="story-byline">
+                <span className="byline-item">
+                  <span className="byline-dot" aria-hidden="true" />
+                  <span className="byline-by">by</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.45em', flexWrap: 'wrap' }}>
+                    <span>{story.author}</span>
+                    {story.authorHandle && story.authorHandle !== story.authorUid && (
+                      <AuthorHandleLink handle={story.authorHandle}
+                        style={{ fontSize: '0.8rem', fontWeight: 500, color: 'rgba(167,139,250,0.65)', textDecoration: 'none', letterSpacing: '0.04em', fontStyle: 'normal', fontFamily: 'Cormorant Garamond, Georgia, serif' }} />
+                    )}
+                  </span>
+                </span>
+                <span className="byline-item">
+                  <span className="byline-dot" aria-hidden="true" />
+                  <span>{story.date}</span>
+                </span>
+                {readingTime > 0 && (
+                  <span className="byline-item">
+                    <span className="byline-dot" aria-hidden="true" />
+                    <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline-block',verticalAlign:'middle',marginRight:3}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>{readingTime} MIN. READ</span>
+                  </span>
                 )}
-              </span>
-              <div className="byline-dot" />
-              <span>{story.date}</span>
-              {readingTime > 0 && (<><div className="byline-dot" /><span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline-block',verticalAlign:'middle',marginRight:3}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>{readingTime} MIN. READ</span></>)}
+              </div>
             </div>
             {advertisesQuiz(story) && (
               <a
