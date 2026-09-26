@@ -75,17 +75,20 @@ export const STORY_LOCK_COPY = {
 // Degraded: the membership read failed. NO UPSELL (see StoryGate.js) — a retry and nothing else.
 export const DEGRADED_LOCK_COPY = {
   eyebrow: 'From the archive',
-  headline: 'We could not check your membership just now.',
-  body: 'You are reading the opening. If you are a member, a refresh should bring the rest.',
+  headline: 'We couldn’t check your membership just now.',
+  body: 'You’re reading the opening. If you’re a member, a refresh should bring the rest.',
   cta: 'Try again',
 };
 
 // RULED (Ikenna, 26 Sep 2026): the Series lock's words stand as A12 set them, matching the app's
 // Series lock (app A12, baa3c1a). The body is the instalment's own refusal line (refusalCopy /
-// the reader's copy.body), so it is not held here.
+// the reader's copy.body), so it is not held here — EXCEPT for a signed-out reader:
+// RULED (Ikenna, 26 Sep 2026, 01:53): signed out, both Series surfaces say the reader's line,
+// not "Sign in to read this instalment." — the sign-in link under the button already says that.
 export const SERIES_LOCK_COPY = {
   eyebrow: 'From the Series',
   headline: 'This instalment is closed.',
+  signedOutBody: 'The Series comes with a Gold or Platinum membership.',
   cta: 'See membership',
   signIn: ['Already a member?', 'Sign in'],
 };

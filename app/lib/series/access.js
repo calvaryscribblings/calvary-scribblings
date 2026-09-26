@@ -284,7 +284,7 @@ export const REFUSAL_COPY = {
   signed_out: 'Sign in to read this instalment.',
   needs_platinum: 'The Series is a Platinum membership benefit.',
   needs_gold: 'This instalment is open to Gold and Platinum members.',
-  pass_excluded: 'Day and week passes do not include the Series — it comes with a Gold or Platinum membership.',
+  pass_excluded: 'Day and week passes don’t include the Series — it comes with a Gold or Platinum membership.',
   unavailable: 'Could not open this instalment just now. Please try again.',
 };
 

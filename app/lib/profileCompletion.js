@@ -40,14 +40,14 @@ export function signupSettled() {
   return inFlight || Promise.resolve();
 }
 
-// DRAFT for Ikenna — house voice.
+// RULED (Ikenna, 26 Sep 2026, 01:53): approved, in house style — docs/COPY-RULINGS.md.
 export const COMPLETION_COPY = {
   title: 'One last thing.',
   subtitle: 'Choose how the island knows you. This takes a moment, and you only do it once.',
   nameLabel: 'Full name',
   submit: 'Continue',
   signOut: 'Sign out instead',
-  failed: 'We could not save your details, so nothing was changed. Please try again.',
+  failed: 'We couldn’t save your details, so nothing was changed. Please try again.',
 };
 
 /**

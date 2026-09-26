@@ -165,7 +165,7 @@ describe('THE £1 DAY PASS IS EXCLUDED — the one that will not fall out of cop
   test('and is told the actual reason, not a generic Platinum line', () => {
     const g = grant(row({ freeForGold: true }), { ...dayPassHolder, now: NOW });
     assert.equal(g.reason, 'pass_excluded');
-    assert.match(refusalCopy(g), /passes do not include the Series/i);
+    assert.match(refusalCopy(g), /passes don’t include the Series/i);
   });
 
   test('a real Gold member with the same effective tier DOES get it', () => {

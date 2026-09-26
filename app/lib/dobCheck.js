@@ -72,9 +72,9 @@ export function confirmedDobUpdate(uid, dob) {
   return { [`users_private/${uid}/dob`]: dob, [`users/${uid}/dob`]: null };
 }
 
-// DRAFT for Ikenna — house voice. The app's DRAFT copy is in the app repo; see the note above.
+// RULED (Ikenna, 26 Sep 2026, 01:53): approved, in house style — docs/COPY-RULINGS.md. The app's copy is in the app repo.
 export const DOB_COPY = {
-  title: 'Please confirm your date of birth',
+  title: 'Please confirm your date of birth.',
   body: 'Story Island is for readers aged 18 and over. The date of birth on your account needs checking, so please enter it again.',
   label: 'Date of birth',
   confirm: 'Confirm',
@@ -82,11 +82,11 @@ export const DOB_COPY = {
   missing: 'Please enter your date of birth.',
   unreadable: 'Please check your date of birth.',
   failed: 'We couldn’t save that. Please try again.',
-  underTitle: 'Story Island is for readers aged 18 and over',
-  underBody: (dateText) => `You’ve told us you were born on ${dateText}. That means we can’t keep an account for you, so it will be deleted now, with everything in it. This can’t be undone.`,
+  underTitle: 'Story Island is for readers aged 18 and over.',
+  underBody: (dateText) => `You’ve told us you were born on ${dateText}. That means we can’t keep an account for you, so it’ll be deleted now, with everything in it. This can’t be undone.`,
   underDelete: 'Delete my account',
   underBack: 'I entered the wrong date',
   working: 'Deleting…',
-  reauthTitle: 'Sign in again to continue',
+  reauthTitle: 'Sign in again to continue.',
   reauthBody: 'For your security, please sign in once more. Your account is deleted as soon as you do.',
 };

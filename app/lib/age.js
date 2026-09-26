@@ -11,13 +11,13 @@
 
 export const MIN_AGE = 18;
 
-// DRAFT for Ikenna — house voice.
+// RULED (Ikenna, 26 Sep 2026, 01:53): approved, in house style — docs/COPY-RULINGS.md.
 export const AGE_COPY = {
   label: 'Date of birth',
   hint: 'Story Island is for readers aged 18 and over.',
-  under: 'Story Island is for readers aged 18 and over, so we cannot open an account for you.',
+  under: 'Story Island is for readers aged 18 and over, so we can’t open an account for you.',
   // The completion step: the reader signed in with Google, so the account already exists.
-  underSignedIn: 'Story Island is for readers aged 18 and over, so we cannot finish setting up your account. We will sign you out now.',
+  underSignedIn: 'Story Island is for readers aged 18 and over, so we can’t finish setting up your account. We’ll sign you out now.',
   missing: 'Please enter your date of birth.',
   unreadable: 'Please check your date of birth.',
 };

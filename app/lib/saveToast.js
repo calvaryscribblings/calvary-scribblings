@@ -11,7 +11,7 @@
 //
 // No React here, so tests/ci/save-toast.test.mjs can drive the queue directly.
 
-// DRAFT for Ikenna — the app's words, as the brief gives them.
+// RULED (Ikenna, 26 Sep 2026, 01:53): the app's words, approved as they stand — docs/COPY-RULINGS.md.
 export const SAVE_TOAST_COPY = {
   saved: 'Saved to My Library',
   view: 'View',

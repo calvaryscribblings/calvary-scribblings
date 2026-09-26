@@ -36,7 +36,7 @@ export default function Unavailable({ kind = 'ours', onRetry, refreshing = false
         {lead || copy.title}
       </h2>
       <p style={{ fontFamily: DISPLAY, fontSize: compact ? 15 : 16, lineHeight: 1.55, color: t.soft, margin: '8px 0 0', textWrap: 'pretty' }}>
-        {lead ? `${copy.title}. ${copy.body}` : copy.body}{note ? ` ${note}` : ''}
+        {lead ? `${copy.title} ${copy.body}` : copy.body}{note ? ` ${note}` : ''}
       </p>
       {onRetry && (
         <button type="button" onClick={onRetry} disabled={refreshing} aria-busy={refreshing}

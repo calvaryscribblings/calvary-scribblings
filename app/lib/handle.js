@@ -59,9 +59,10 @@ export function normaliseHandle(raw) {
  */
 export function handleProblem(handle) {
   if (!handle) return 'Choose a handle.';
-  if (/[^a-z0-9_]/.test(handle)) return 'Letters, numbers and underscores only.';
-  if (handle.length < HANDLE_MIN) return `At least ${HANDLE_MIN} characters.`;
-  if (handle.length > HANDLE_MAX) return `No more than ${HANDLE_MAX} characters.`;
+  // Short fragments under the field, so no full stop; "Choose a handle." is a sentence (rule 13).
+  if (/[^a-z0-9_]/.test(handle)) return 'Letters, numbers and underscores only';
+  if (handle.length < HANDLE_MIN) return `At least ${HANDLE_MIN} characters`;
+  if (handle.length > HANDLE_MAX) return `No more than ${HANDLE_MAX} characters`;
   return null;
 }
 
@@ -174,14 +175,14 @@ export function renameUpdate(uid, { from, to, oldClaimOwner }) {
   return u;
 }
 
-// THE FIELD'S WORDS. DRAFT for Ikenna — house voice, no copy here is approved yet.
+// THE FIELD'S WORDS. RULED (Ikenna, 26 Sep 2026, 01:53): approved, in house style — docs/COPY-RULINGS.md.
 export const HANDLE_COPY = {
   label: 'Handle',
   helper: 'How other readers find you and mention you on the island. 3 to 20 characters: lowercase letters, numbers and underscores.',
   checking: 'Checking…',
   available: (h) => `@${h} is yours if you want it.`,
   taken: (h) => `@${h} already belongs to another reader. Try another.`,
-  unknown: 'We could not check that handle just now. It will be checked again when you continue.',
+  unknown: 'We couldn’t check that handle just now. It’ll be checked again when you continue.',
   reserved: (h) => `@${h} is reserved for the island's own use. Choose another.`,
   renameLost: (h) => `Another reader claimed @${h} a moment ago, so nothing was changed. Choose another handle.`,
   required: 'Your handle can be changed, but not removed.',

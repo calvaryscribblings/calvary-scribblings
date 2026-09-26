@@ -144,7 +144,8 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
       ) : (
         <div style={{ padding: '3rem 6% 0' }}>
           <ArchiveLock theme="dark" eyebrow={SERIES_LOCK_COPY.eyebrow} headline={SERIES_LOCK_COPY.headline}
-            body={refusalCopy(grant)} cta={{ label: SERIES_LOCK_COPY.cta, href: '/membership' }}
+            body={grant.reason === 'signed_out' ? SERIES_LOCK_COPY.signedOutBody : refusalCopy(grant)}
+            cta={{ label: SERIES_LOCK_COPY.cta, href: '/membership' }}
             signIn={user ? null : { label: SERIES_LOCK_COPY.signIn, onClick: () => setShowAuth(true) }} />
         </div>
       )}

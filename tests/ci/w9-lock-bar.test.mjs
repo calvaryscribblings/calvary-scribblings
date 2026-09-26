@@ -8,10 +8,11 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  LOCK_THEMES, LOCK_RHYTHM, LOCK_MAX_WIDTH, LOCK_REVEAL_MS, LOCK_GLYPH, STORY_LOCK_COPY, SERIES_LOCK_COPY,
+  LOCK_THEMES, LOCK_RHYTHM, LOCK_MAX_WIDTH, LOCK_REVEAL_MS, LOCK_GLYPH, STORY_LOCK_COPY, SERIES_LOCK_COPY, DEGRADED_LOCK_COPY,
   contrast, fadeGradient, boxesClash, PILL_CLEARANCE,
 } from '../../app/lib/archiveLock.js';
 import { nextBar, initialBar, BAR_THRESHOLD, BAR_TOP_ZONE } from '../../app/lib/storyBar.js';
+import { REFUSAL_COPY } from '../../app/lib/series/access.js';
 
 const src = (p) => readFileSync(p, 'utf8');
 const code = (p) => src(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
@@ -57,8 +58,31 @@ describe('W9 · the lock — the words', () => {
     assert.equal(SERIES_LOCK_COPY.cta, 'See membership');
     assert.deepEqual(SERIES_LOCK_COPY.signIn, ['Already a member?', 'Sign in']);
     assert.equal('body' in SERIES_LOCK_COPY, false, 'the body is the instalment\'s own refusal line');
-    assert.match(code('app/series/instalment/[instalmentId]/page-instalment.js'), /body=\{refusalCopy\(grant\)\}/);
+    assert.match(code('app/series/instalment/[instalmentId]/page-instalment.js'),
+      /body=\{grant\.reason === 'signed_out' \? SERIES_LOCK_COPY\.signedOutBody : refusalCopy\(grant\)\}/);
     assert.match(code('app/series/read/[instalmentId]/page-reader.js'), /body=\{copy\.body\}/);
+  });
+  // RULED (Ikenna, 26 Sep 2026, 01:53 — ruling 12): signed out, the instalment page says the reader's
+  // line, not "Sign in to read this instalment."
+  test('signed out, both Series surfaces say "The Series comes with a Gold or Platinum membership."', () => {
+    assert.equal(SERIES_LOCK_COPY.signedOutBody, 'The Series comes with a Gold or Platinum membership.');
+    const reader = code('app/series/read/[instalmentId]/page-reader.js');
+    assert.match(reader, /signedout: \{[^}]*body: SERIES_LOCK_COPY\.signedOutBody,/);
+    for (const p of ['app/series/instalment/[instalmentId]/page-instalment.js', 'app/series/read/[instalmentId]/page-reader.js']) {
+      assert.doesNotMatch(code(p), /Sign in to read this instalment/, p);
+    }
+  });
+  // RULED (Ikenna, 26 Sep 2026, 01:53 — ruling 13): house style on both locks, degraded face included.
+  test('the story lock\'s degraded face, in short forms', () => {
+    assert.equal(DEGRADED_LOCK_COPY.eyebrow, 'From the archive');
+    assert.equal(DEGRADED_LOCK_COPY.headline, 'We couldn’t check your membership just now.');
+    assert.equal(DEGRADED_LOCK_COPY.body, 'You’re reading the opening. If you’re a member, a refresh should bring the rest.');
+    assert.equal(DEGRADED_LOCK_COPY.cta, 'Try again');
+  });
+  test('the Series lock\'s pass refusal, in short forms', () => {
+    assert.equal(REFUSAL_COPY.pass_excluded, 'Day and week passes don’t include the Series — it comes with a Gold or Platinum membership.');
+    assert.equal(REFUSAL_COPY.needs_gold, 'This instalment is open to Gold and Platinum members.');
+    assert.equal(REFUSAL_COPY.needs_platinum, 'The Series is a Platinum membership benefit.');
   });
 });
 

@@ -2,7 +2,7 @@
 // W2 / BS-13 — THE HOUSE 404. Before W2 there was no root app/not-found.js, so /stories/nope,
 // /series/nope and every mistyped address got Next's default: a white page in Arial with no nav
 // and no way back. This is the page instead — house faces on ink, what happened, two ways on, and
-// the tab bar. Words are DRAFT for Ikenna (listed in the W2 report).
+// the tab bar. Words RULED (Ikenna, 26 Sep 2026, 01:53): approved as W2 wrote them, in house style (docs/COPY-RULINGS.md).
 import Link from 'next/link';
 import TabBar, { TabLinks } from './TabBar';
 
@@ -11,7 +11,7 @@ const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 
 export const NOT_FOUND_COPY = {
   eyebrow: 'NOT ON THE ISLAND',
-  title: 'There’s nothing at this address',
+  title: 'There’s nothing at this address.',
   body: 'The link may be mistyped, or the page may have moved. Everything on the island starts from the library.',
   home: 'Go to the library',
   search: 'Search',

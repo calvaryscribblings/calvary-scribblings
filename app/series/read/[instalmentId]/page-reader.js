@@ -171,7 +171,7 @@ function Interstitial({ gate, message, releaseAtMs, instalmentId }) {
     },
     signedout: {
       head: 'Sign in to read.',
-      body: 'The Series comes with a Gold or Platinum membership.',
+      body: SERIES_LOCK_COPY.signedOutBody,
       cta: ['Sign in', '/account'],
     },
     locked: {
