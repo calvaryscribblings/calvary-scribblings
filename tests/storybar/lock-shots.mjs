@@ -33,7 +33,7 @@ const INSTALMENT = 'beta-princess-i2';
 const AFTER_SWITCH = new Date('2026-10-01T09:00:00Z');
 const SIZES = [[390, 844], [820, 1180], [1180, 820]];
 if (!gatingOn(Date.now())) {
-  console.error('lock-shots: before the 30 Sept switch only a founder sees the lock, and live harnesses no longer sign in as one (W17). Run it after the switch.');
+  console.error('lock-shots: until the archive gate is on for everyone only a founder sees the lock, and live harnesses no longer sign in as one (W17). Run it once gatingOn() is true.');
   process.exit(2);
 }
 mkdirSync(OUT, { recursive: true });
