@@ -103,17 +103,19 @@ jobs:
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > serviceAccountKey.json
 
       - name: Sweep
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
           ARGS=""
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.apply }}" = "true" ]; then
             ARGS="--apply"
           fi
           if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
-          node scripts/square/horizon.mjs $ARGS
+          node scripts/square/horizon.mjs $ARGS 2>&1 | node scripts/ops/log-guard.mjs
 
       - name: Liveness — fail loudly if the bell has been missed
         if: github.event_name == 'schedule'
-        run: node scripts/square/horizon-liveness.mjs
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
+        run: node scripts/square/horizon-liveness.mjs 2>&1 | node scripts/ops/log-guard.mjs
 
       - name: Shred the credential
         if: always()

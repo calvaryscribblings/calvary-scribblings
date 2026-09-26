@@ -177,7 +177,7 @@ async function notifyFollowers(token, slug, story) {
     const r = await fetch(`${DB_URL}/library_notifications/${fid}.json?access_token=${token}`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
     });
-    if (!r.ok) throw new Error(`notification POST failed for ${fid}: HTTP ${r.status}`);
+    if (!r.ok) throw new Error(`a follower notification POST failed: HTTP ${r.status}`); // W12: never the follower's uid — this log is public
   }
   return followers.length;
 }

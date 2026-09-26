@@ -5,6 +5,7 @@
 // refuse twice, survive a crash, prune a dead device. scripts/push/announce.mjs is the thin
 // CLI around it.
 
+import { mask } from '../ops/redact.mjs';
 import {
   planAnnouncements, planSeed, buildAudience, messagesFor, planTickets,
   receiptsToFetch, planReceipts, storyMessage, instalmentMessage, chunk, planSendWindow, londonDay,
@@ -12,6 +13,21 @@ import {
 } from './lib.mjs';
 import * as store from './store.mjs';
 import { BATCH_PAUSE_MS } from './expo.mjs';
+
+/**
+ * "DeviceNotRegistered ×2, unknown ×1". Expo's error CODE is the key; a free-text fallback can
+ * quote the token ("ExponentPushToken[…] is not a registered…"), so anything that is not a
+ * bare code is masked and cut short.
+ */
+export function errorTally(errors) {
+  const n = {};
+  for (const e of errors) {
+    const raw = String(e?.error ?? 'unknown');
+    const k = /^[A-Za-z]{1,40}$/.test(raw) ? raw : mask(raw).slice(0, 60);
+    n[k] = (n[k] || 0) + 1;
+  }
+  return Object.entries(n).map(([k, v]) => `${k} ×${v}`).join(', ');
+}
 
 const noop = () => {};
 
@@ -24,7 +40,8 @@ export async function processReceipts(db, expo, now, { apply, log = noop }) {
   if (apply) for (const ids of chunk(asked, RECEIPT_BATCH)) Object.assign(answers, await expo.getReceipts(ids));
   const plan = planReceipts(stored, answers, asked, now);
   log(`receipts: ${Object.keys(stored).length} held, ${asked.length} asked, ${plan.ok} ok, ${plan.dead.length} dead device(s), ${plan.errors.length} other error(s)`);
-  for (const e of plan.errors) log(`  receipt error ${e.ticketId}: ${e.error}`);
+  // W12: this log is PUBLIC. Errors are tallied by kind; never a ticket id, uid or token.
+  if (plan.errors.length) log(`  receipt errors: ${errorTally(plan.errors)}`);
   if (apply) {
     await store.deleteTokens(db, plan.dead);
     await store.clearReceipts(db, plan.clear);
@@ -74,17 +91,17 @@ async function announceOne(db, expo, item, message, recipients, ctx) {
       await store.addReceipts(db, t.pending, now);
       await store.deleteTokens(db, t.dead);
       ok += t.pending.length; dead += t.dead.length; errors += t.errors.length;
-      for (const e of t.errors) log(`  ticket error ${e.uid}/${e.tokenKey}: ${e.error}`);
+      if (t.errors.length) log(`  ticket errors: ${errorTally(t.errors)}`);
     }
   } catch (err) {
     if (accepted === 0) {
       await store.release(db, item.kind, item.id);
-      log(`  ${item.kind}/${item.id}: send failed before anything left — released for the next run (${err.message})`);
+      log(`  ${item.kind}/${item.id}: send failed before anything left — released for the next run (${mask(err.message)})`);
       throw err;
     }
     const entry = { state: 'partial', sentAt: now, batches: batches.length, accepted, ok, dead, errors, error: String(err.message).slice(0, 300) };
     await store.finish(db, item.kind, item.id, entry);
-    log(`  ${item.kind}/${item.id}: PARTIAL — ${accepted}/${batches.length} batches left before: ${err.message}`);
+    log(`  ${item.kind}/${item.id}: PARTIAL — ${accepted}/${batches.length} batches left before: ${mask(err.message)}`);
     throw err;
   }
   const entry = { state: 'sent', sentAt: now, recipients: recipients.length, ok, dead, errors, title: message.title };
@@ -137,8 +154,10 @@ export async function runAnnouncer(db, expo, now, {
       results.push({ ...item, refused: built.refused });
       continue;
     }
-    if (built.dropped) log(`  ${item.kind}/${item.id}: tail dropped (carried "${built.dropped}") — byline only`);
-    log(`  ${item.kind}/${item.id}: "${built.message.title}" — ${built.message.body}`);
+    // W12: the words are not printed — a byline can name a reader who writes (Open Pages), and
+    // this log is public for 90 days. push_announced holds what was sent.
+    if (built.dropped) log(`  ${item.kind}/${item.id}: tail dropped — byline only`);
+    log(`  ${item.kind}/${item.id}: ready (title ${built.message.title.length} chars, body ${built.message.body.length} chars)`);
     ready.push({ item, message: built.message });
   }
 

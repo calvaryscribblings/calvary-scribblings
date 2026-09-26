@@ -120,13 +120,14 @@ jobs:
           PUSH_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
           EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
           MODE: ${{ github.event_name == 'schedule' && 'apply' || inputs.mode }}
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
           case "$MODE" in
-            dry-run)      node scripts/push/announce.mjs ;;
-            frequency)    node scripts/push/announce.mjs --frequency ;;
-            seed-dry-run) node scripts/push/announce.mjs --seed ;;
-            seed)         node scripts/push/announce.mjs --seed --apply ;;
-            apply)        node scripts/push/announce.mjs --apply ;;
+            dry-run)      node scripts/push/announce.mjs 2>&1 | node scripts/ops/log-guard.mjs ;;
+            frequency)    node scripts/push/announce.mjs --frequency 2>&1 | node scripts/ops/log-guard.mjs ;;
+            seed-dry-run) node scripts/push/announce.mjs --seed 2>&1 | node scripts/ops/log-guard.mjs ;;
+            seed)         node scripts/push/announce.mjs --seed --apply 2>&1 | node scripts/ops/log-guard.mjs ;;
+            apply)        node scripts/push/announce.mjs --apply 2>&1 | node scripts/ops/log-guard.mjs ;;
             *) echo "::error::unknown mode $MODE"; exit 1 ;;
           esac
 

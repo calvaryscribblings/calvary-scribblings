@@ -139,13 +139,14 @@ jobs:
           # W3: the fallback when the one above is unset (it has never been set). Same Pages
           # project, same branch, so it rebuilds the shop just the same.
           CMS_DEPLOY_HOOK_URL: ${{ secrets.CMS_DEPLOY_HOOK_URL }}
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
           ARGS=""
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event.inputs.apply }}" = "true" ]; then
             ARGS="--apply"
           fi
           echo "node scripts/bookstore/withdrawals.mjs $ARGS"
-          node scripts/bookstore/withdrawals.mjs $ARGS
+          node scripts/bookstore/withdrawals.mjs $ARGS 2>&1 | node scripts/ops/log-guard.mjs
 
       - name: Shred the key
         if: always()

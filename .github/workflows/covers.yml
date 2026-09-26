@@ -103,7 +103,8 @@ jobs:
         # A moved probe hash means the DESIGN changed. That is allowed — but it
         # has to be approved by committing the new lock, and until it is, the
         # reconciler below refuses to push it over 158 live covers.
-        run: node scripts/covers/design-lock.mjs
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
+        run: node scripts/covers/design-lock.mjs 2>&1 | node scripts/ops/log-guard.mjs
 
   # ─────────────────────────────────────────────────────────────────────────────
   # The reconciler. Only ever writes on a schedule or a deliberate dispatch —
@@ -142,6 +143,7 @@ jobs:
           # run summons one. The stories hook, the same value as the Pages project's
           # CMS_DEPLOY_HOOK_URL. Read server-side only; never printed (scripts/deploy-hook.mjs).
           CMS_DEPLOY_HOOK_URL: ${{ secrets.CMS_DEPLOY_HOOK_URL }}
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
           ARGS=""
           if [ -n "${{ github.event.inputs.slug }}" ]; then
@@ -151,7 +153,7 @@ jobs:
             ARGS="$ARGS --apply"
           fi
           echo "node scripts/covers/on-publish.mjs $ARGS"
-          node scripts/covers/on-publish.mjs $ARGS
+          node scripts/covers/on-publish.mjs $ARGS 2>&1 | node scripts/ops/log-guard.mjs
 
       - name: Shred the key
         if: always()
@@ -178,4 +180,5 @@ jobs:
         # NOT --check: staleness is not a failure on a PR. A design change that
         # moves covers is legitimate; this is here so the number is in the diff's
         # own log, where a reviewer sees it before approving the lock.
-        run: node scripts/covers/on-publish.mjs
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
+        run: node scripts/covers/on-publish.mjs 2>&1 | node scripts/ops/log-guard.mjs

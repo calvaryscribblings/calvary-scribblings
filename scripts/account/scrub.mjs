@@ -32,6 +32,7 @@ import { pathToFileURL } from 'node:url';
 import { planScrub, SCAN_NODES } from './scrub-plan.mjs';
 import { planOwned, handlesOf, OWNED_NODES, STORAGE_PREFIXES, membershipAction } from '../../functions/api/account/_deletion.js';
 import { runPrivateSweep } from './private-fields.mjs';
+import { randomRef, LOG_REF_RE } from '../ops/redact.mjs';
 
 const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 const CHUNK = 400;
@@ -70,13 +71,32 @@ export function billingBackstop(uid, membership) {
   return a ? { rail: a.rail, ref: a.id || a.code } : null;
 }
 
+/**
+ * The record's log reference: deletions/{uid}/logRef, a random `del-xxxxxxxx` written the first
+ * time a run has to mention the record. W12: THIS RUN'S LOG IS PUBLIC. It never prints a uid, a
+ * provider reference or anything else that names the reader — only this tag, which leads
+ * nowhere without the database. A report-only run has nothing to write it with, so an
+ * untagged record is printed by its position in this run instead.
+ */
+async function logRefFor(db, uid, rec, { apply, ordinal }) {
+  if (LOG_REF_RE.test(rec?.logRef || '')) return rec.logRef;
+  if (!apply) return `record #${ordinal} (untagged)`;
+  const ref = randomRef();
+  await db.ref(`deletions/${uid}/logRef`).set(ref);
+  return ref;
+}
+
 /** One pass over every deletions/{uid} record. */
 export async function runScrub(db, { apply = false, now = Date.now, log = console.log } = {}) {
   const records = (await db.ref('deletions').get()).val() || {};
   const summary = { pending: 0, scrubbed: 0, stubs: 0 };
   let snap = null;
+  let ordinal = 0;
   for (const [uid, rec] of Object.entries(records)) {
+    ordinal++;
     const steps = rec?.steps || {};
+    let ref = null;
+    const tag = async () => (ref ||= await logRefFor(db, uid, rec, { apply, ordinal }));
     const userNode = (await db.ref(`users/${uid}`).get()).val();
 
     // W3 / MON-05 — THE BILLING BACKSTOP. The endpoint cancels every subscription it can find,
@@ -87,7 +107,7 @@ export async function runScrub(db, { apply = false, now = Date.now, log = consol
     const billing = billingBackstop(uid, (await db.ref(`memberships/${uid}`).get()).val());
     if (billing) {
       summary.billing = (summary.billing || 0) + 1;
-      log(`::error::[scrub] ${uid}: deleted account still has a LIVE ${billing.rail} subscription ${billing.ref} — recorded in ops/money_failures`);
+      log(`::error::[scrub] ${await tag()}: deleted account still has a LIVE ${billing.rail} subscription — recorded in ops/money_failures`);
       if (apply) {
         const at = now();
         const path = `ops/money_failures/deleted-live-${uid}`;
@@ -104,23 +124,23 @@ export async function runScrub(db, { apply = false, now = Date.now, log = consol
       // THE STUB BACKSTOP.
       if (userNode !== null) {
         summary.stubs++;
-        log(`[scrub] ${uid}: finished deletion has a users node again (${Object.keys(userNode).join(',')}) — ${apply ? 'removing' : 'would remove'}`);
+        log(`[scrub] ${await tag()}: finished deletion has a users node again (${Object.keys(userNode).length} field(s)) — ${apply ? 'removing' : 'would remove'}`);
         if (apply) await db.ref(`users/${uid}`).remove();
       }
       continue;
     }
-    if (!steps.auth) { log(`[scrub] ${uid}: endpoint has not finished (steps: ${Object.keys(steps).join(',') || 'none'}) — waiting`); continue; }
+    if (!steps.auth) { log(`[scrub] ${await tag()}: endpoint has not finished (steps: ${Object.keys(steps).join(',') || 'none'}) — waiting`); continue; }
 
     summary.pending++;
     snap ||= await readScan(db);
     const plan = planScrub(uid, { ...snap, userNode });
-    log(`[scrub] ${uid}: ${plan.nulls.length} paths, ${plan.decrements.length} counters — ${JSON.stringify(plan.counts)}`);
+    log(`[scrub] ${await tag()}: ${plan.nulls.length} paths, ${plan.decrements.length} counters — ${JSON.stringify(plan.counts)}`);
     if (!apply) continue;
     const moved = await applyPlan(db, plan);
     const t = now();
     await db.ref(`deletions/${uid}`).update({ 'steps/scrub': t, updatedAt: t, completedAt: t });
     summary.scrubbed++;
-    log(`[scrub] ${uid}: done (${moved} counters moved)`);
+    log(`[scrub] ${await tag()}: done (${moved} counters moved)`);
     snap = null; // the next record plans against a fresh read
   }
   return summary;
@@ -154,7 +174,7 @@ export async function preview(db, uid, email) {
       bookstore_purchases: (await get(`bookstore_purchases/${uid}`)) !== null,
       purchases: (await get(`purchases/${uid}`)) !== null,
     },
-    storagePrefixes: STORAGE_PREFIXES(uid),
+    storagePrefixes: STORAGE_PREFIXES('{uid}'),
     ownedNodes: OWNED_NODES.length,
   };
 }

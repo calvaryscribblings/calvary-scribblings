@@ -203,6 +203,7 @@ jobs:
       - name: Reconcile
         env:
           RECONCILE_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
           ARGS=""
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.apply }}" = "true" ]; then
@@ -210,7 +211,7 @@ jobs:
           fi
           if [ -n "${{ inputs.slug }}" ]; then ARGS="$ARGS --slug ${{ inputs.slug }}"; fi
           if [ -n "${{ inputs.max }}" ]; then ARGS="$ARGS --max ${{ inputs.max }}"; fi
-          node scripts/reconcile-index.mjs $ARGS
+          node scripts/reconcile-index.mjs $ARGS 2>&1 | node scripts/ops/log-guard.mjs
 
       - name: Remove the service account
         if: always()

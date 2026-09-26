@@ -31,7 +31,8 @@
 //
 //   { uid, requestedAt, updatedAt, steps: { membership, owned, storage, auth, scrub }, completedAt }
 //
-// Timestamps and step names, and nothing else — no email, no name, no reason. It is written
+// Timestamps and step names, and nothing else — no email, no name, no reason. The scrub adds
+// `logRef` (W12): a random `del-xxxxxxxx` it prints in its PUBLIC Actions log instead of the uid. It is written
 // FIRST, before any money moves, because the membership webhooks read it: a cancellation makes
 // Stripe send customer.subscription.deleted, and that event must find the record already there
 // or it would write users/{uid}/membership and put a stub node back (see _membership.js).

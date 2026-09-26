@@ -151,7 +151,9 @@ export function judgeSignals({ moneyFailures, publishSkips, since }) {
     .filter(([, v]) => v && v.resolved !== true && Number(v.lastAt ?? v.firstAt ?? 0) > since).map(([k]) => k);
   const newSkips = Object.entries(publishSkips || {})
     .filter(([, v]) => v && Number(v.at ?? 0) > since).map(([k]) => k);
-  const ev = `since ${fmt(since)}: ${newMoney.length} new unresolved money failure(s)${newMoney.length ? ` (${newMoney.slice(0, 3).join(', ')})` : ''}, `
+  // W12: money-failure KEYS are never printed — they can carry a reader's uid or a provider
+  // reference, and this row lands in a public Actions log. The count, and where to look.
+  const ev = `since ${fmt(since)}: ${newMoney.length} new unresolved money failure(s)${newMoney.length ? ' (see ops/money_failures)' : ''}, `
     + `${newSkips.length} new publish skip(s)${newSkips.length ? ` (${newSkips.slice(0, 3).join(', ')})` : ''}`;
   return row('Signals', newMoney.length || newSkips.length ? RED : GREEN, ev);
 }

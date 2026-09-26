@@ -89,11 +89,12 @@ jobs:
       - name: Scrub
         env:
           SCRUB_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.apply }}" = "true" ]; then
-            node scripts/account/scrub.mjs --apply
+            node scripts/account/scrub.mjs --apply 2>&1 | node scripts/ops/log-guard.mjs
           else
-            node scripts/account/scrub.mjs
+            node scripts/account/scrub.mjs 2>&1 | node scripts/ops/log-guard.mjs
           fi
       - name: Remove the service account
         if: always()

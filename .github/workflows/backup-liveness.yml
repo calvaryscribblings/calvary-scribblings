@@ -90,7 +90,8 @@ jobs:
           printf '%s' "$KEY" > "$GITHUB_WORKSPACE/serviceAccountKey.json"
 
       - name: backup liveness
-        run: node scripts/backup/liveness.mjs
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
+        run: node scripts/backup/liveness.mjs 2>&1 | node scripts/ops/log-guard.mjs
 
       - name: Shred the key
         if: always()

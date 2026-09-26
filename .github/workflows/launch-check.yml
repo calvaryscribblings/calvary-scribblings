@@ -69,11 +69,12 @@ jobs:
         env:
           LAUNCH_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
           GITHUB_TOKEN: ${{ github.token }}
+        shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.email }}" != "true" ]; then
-            node scripts/launch-check.mjs
+            node scripts/launch-check.mjs 2>&1 | node scripts/ops/log-guard.mjs
           else
-            node scripts/launch-check.mjs --email
+            node scripts/launch-check.mjs --email 2>&1 | node scripts/ops/log-guard.mjs
           fi
       - name: Remove the service account
         if: always()
