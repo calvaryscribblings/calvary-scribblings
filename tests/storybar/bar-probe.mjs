@@ -14,7 +14,7 @@
 // The assertion (W9 rule B.2): on every sampled frame where the bar is AT REST SHOWN, its top is
 // 0 ± 0.5px; the progress line's top equals the bar's bottom; and the bar only ever rests fully
 // shown or fully hidden.
-import { webkit } from '@playwright/test';
+import { launchWebKit } from './webkit.mjs'; // W16: this codespace's WebKit crashes without it — see webkit.mjs
 import { writeFileSync } from 'node:fs';
 
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i > 0 ? process.argv[i + 1] : d; };
@@ -123,7 +123,7 @@ function judge(samples) {
 }
 
 const out = [];
-const browser = await webkit.launch();
+const browser = await launchWebKit();
 for (const path of PAGES) {
   for (const size of SIZES) {
     const ctx = await browser.newContext({ viewport: { width: size.w, height: size.h }, deviceScaleFactor: 2, hasTouch: true, isMobile: size.w < 1000 });

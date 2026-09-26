@@ -16,10 +16,10 @@
 // 1 Oct 2026 (after the switch): the page's own pre-paint lock and the Series gate both act on it,
 // and /api/story (which uses the SERVER's clock, still before the switch) is answered with the
 // preview body the live endpoint gave the signed-in run — the response the gate will give then.
-import { webkit } from '@playwright/test';
+import { launchWebKit } from './webkit.mjs'; // W16: this codespace's WebKit crashes without it — see webkit.mjs
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
-import { getAuth } from 'firebase-admin/auth';
+import { API_KEY, IKENNA, WATCH, session, SIGNED_IN, firewall, firewallStats } from './founder-session.mjs';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { contrast } from '../../app/lib/archiveLock.js';
@@ -27,8 +27,6 @@ import { contrast } from '../../app/lib/archiveLock.js';
 const OUT = process.argv[2];
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i > 0 ? process.argv[i + 1] : d; };
 const SITE = arg('--site', 'https://calvaryscribblings.co.uk');
-const API_KEY = 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY';
-const IKENNA = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 const STORY = 'trouble-shooting';
 const INSTALMENT = 'beta-princess-i2';
 const AFTER_SWITCH = new Date('2026-10-01T09:00:00Z');
@@ -37,53 +35,7 @@ mkdirSync(OUT, { recursive: true });
 
 initializeApp({ credential: cert(JSON.parse(readFileSync('serviceAccountKey.json', 'utf8'))), databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app' });
 const adb = getDatabase();
-const WATCH = [`users/${IKENNA}/readStories`, `users/${IKENNA}/readCount`, `points/${IKENNA}`, `userStreaks/${IKENNA}`, `founder_preview/${IKENNA}`, `library_notifications/${IKENNA}`];
 const snapshot = async () => Object.fromEntries(await Promise.all(WATCH.map(async (p) => [p, JSON.stringify((await adb.ref(p).get()).val())])));
-
-async function session() {
-  const tok = await getAuth().createCustomToken(IKENNA);
-  const r = await (await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${API_KEY}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: tok, returnSecureToken: true }) })).json();
-  if (!r.idToken) throw new Error('custom-token sign-in failed');
-  return r;
-}
-const SIGNED_IN = ({ key, user }) => new Promise((resolve) => {
-  const open = indexedDB.open('firebaseLocalStorageDb', 1);
-  open.onupgradeneeded = () => open.result.createObjectStore('firebaseLocalStorage', { keyPath: 'fbase_key' });
-  open.onsuccess = () => {
-    const tx = open.result.transaction('firebaseLocalStorage', 'readwrite');
-    tx.objectStore('firebaseLocalStorage').put({ fbase_key: key, value: user });
-    tx.oncomplete = () => resolve();
-  };
-});
-
-const WRITE_ACTIONS = new Set(['p', 'm', 'o', 'om', 'oc', 'on']);
-let dropped = 0;
-async function firewall(page) {
-  await page.route('**/api/hit**', (r) => r.abort());
-  await page.routeWebSocket(/firebasedatabase\.app|firebaseio\.com/, (ws) => {
-    const server = ws.connectToServer();
-    let pending = 0, parts = [];
-    const decide = (text) => {
-      try {
-        const f = JSON.parse(text);
-        if (f?.t === 'd' && WRITE_ACTIONS.has(f?.d?.a)) { dropped++; return false; }
-      } catch { /* not JSON: pass */ }
-      return true;
-    };
-    ws.onMessage((m) => {
-      const text = typeof m === 'string' ? m : m.toString();
-      // The SDK splits a large frame: first a bare count, then that many chunks.
-      if (pending === 0 && /^\d+$/.test(text) && Number(text) > 1) { pending = Number(text); parts = []; return; }
-      if (pending > 0) {
-        parts.push(text); pending--;
-        if (pending === 0) { const whole = parts.join(''); if (decide(whole)) { server.send(String(parts.length)); parts.forEach((p) => server.send(p)); } }
-        return;
-      }
-      if (decide(text)) server.send(m);
-    });
-    server.onMessage((m) => ws.send(m));
-  });
-}
 
 async function openPage(browser, [w, h], { signedIn, account, previewBody }) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, hasTouch: true, isMobile: w < 1000, serviceWorkers: 'block' });
@@ -146,7 +98,7 @@ async function pillWatch(page) {
 
 const before = await snapshot();
 const report = { site: SITE, shots: [], measures: [], pill: [] };
-const browser = await webkit.launch();
+const browser = await launchWebKit();
 const account = await session();
 let previewBody = null;
 
@@ -179,8 +131,8 @@ await browser.close();
 
 const after = await snapshot();
 const changed = WATCH.filter((p) => before[p] !== after[p]);
-report.integrity = { dropped, changed };
-console.log(`\nwrites dropped at the socket: ${dropped}; account records changed: ${changed.length ? changed.join(', ') : 'none'}`);
+report.integrity = { dropped: firewallStats.dropped, changed };
+console.log(`\nwrites dropped at the socket: ${firewallStats.dropped}; account records changed: ${changed.length ? changed.join(', ') : 'none'}`);
 for (const p of report.pill) console.log('pill', p.name, JSON.stringify({ frames: p.frames, clashes: p.clashes, skipped: p.skipped }));
 writeFileSync(join(OUT, 'report.json'), JSON.stringify(report, null, 2));
 process.exit(changed.length ? 2 : 0);

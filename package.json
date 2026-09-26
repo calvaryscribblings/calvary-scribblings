@@ -92,6 +92,8 @@
     "test:search:render": "next build && playwright test -c tests/search/playwright.config.mjs",
     "test:push": "node --test tests/push/push.test.mjs",
     "test:storybar": "node tests/storybar/bar-probe.mjs --pages /stories/trouble-shooting,/series/instalment/beta-princess-i2",
+    "test:storybar:glass": "node tests/storybar/w16-probe.mjs --pages /stories/the-number-thirteen,/series/instalment/beta-princess-i2",
+    "test:storybar:readout": "node tests/storybar/readout-shot.mjs",
     "test:push:emulator": "firebase emulators:exec --only database --project demo-calvary-push \"node --test --test-concurrency=1 tests/push/announcer.emulator.test.mjs\"",
     "push:announce": "node scripts/push/announce.mjs",
     "push:test": "node scripts/push-test.mjs",
