@@ -1,5 +1,7 @@
 # Rule 13: reader-facing copy that breaks it, for a ruling
 
+**Applied in W15 (26 Sep 2026, ruling 18):** §1, §2, §3, §6 and §8 are changed, except `CurrencySelector.js:86` (clause-final *are*), `openPagesDrafts.js:248` (§5e) and `reading-program/page.js:163` (Ikenna's page). §4, §5, §7, §9 and §10 are left as written. Every change is listed in `docs/COPY-RULINGS.md`; the list below is kept as the W11 record.
+
 Swept 26 Sep 2026 (W11), read-only. Rule 13: short forms throughout; a full-sentence heading ends with a full stop; eyebrows, labels, buttons, field names and short status fragments don't.
 
 ## Before you read

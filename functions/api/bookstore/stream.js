@@ -176,11 +176,11 @@ export async function onRequestPost(context) {
 
   if (!env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     console.error('[bookstore/stream] NEXT_PUBLIC_FIREBASE_API_KEY is not set');
-    return json({ error: 'Reading is not configured yet. Please try again later.' }, 500);
+    return json({ error: 'Reading isn’t configured yet. Please try again later.' }, 500);
   }
   if (!env.FIREBASE_CLIENT_EMAIL || !env.FIREBASE_PRIVATE_KEY) {
     console.error('[bookstore/stream] Missing FIREBASE_CLIENT_EMAIL or FIREBASE_PRIVATE_KEY');
-    return json({ error: 'Reading is not configured yet. Please try again later.' }, 500);
+    return json({ error: 'Reading isn’t configured yet. Please try again later.' }, 500);
   }
 
   // A body is now OPTIONAL — the native client may carry the credential in the Authorization
@@ -221,7 +221,7 @@ export async function onRequestPost(context) {
     token = await mintAccessToken(env.FIREBASE_CLIENT_EMAIL, env.FIREBASE_PRIVATE_KEY, STREAM_SCOPES);
   } catch (e) {
     console.error('[bookstore/stream] admin token mint failed:', e.message || e);
-    return json({ error: 'Could not open your copy just now. Please try again.' }, 502);
+    return json({ error: 'Couldn’t open your copy just now. Please try again.' }, 502);
   }
 
   let purchase;
@@ -238,11 +238,11 @@ export async function onRequestPost(context) {
     // reading of an unknown entitlement is to withhold the file, not hand it over. 502 rather
     // than 403 so the client shows "try again" instead of "buy this book".
     console.error(`[bookstore/stream] purchase read failed for ${uid}/${titleId}:`, e.message || e);
-    return json({ error: 'Could not open your copy just now. Please try again.' }, 502);
+    return json({ error: 'Couldn’t open your copy just now. Please try again.' }, 502);
   }
 
   if (!purchase || typeof purchase !== 'object') {
-    return json({ error: 'You do not own this book yet.', code: 'not_purchased' }, 403);
+    return json({ error: 'You don’t own this book yet.', code: 'not_purchased' }, 403);
   }
   if (purchase.status !== 'active') {
     return json(
@@ -269,7 +269,7 @@ export async function onRequestPost(context) {
     });
   } catch (e) {
     console.error(`[bookstore/stream] signing failed for ${objectPath}:`, e.message || e);
-    return json({ error: 'Could not open your copy just now. Please try again.' }, 500);
+    return json({ error: 'Couldn’t open your copy just now. Please try again.' }, 500);
   }
 
   // AFTER the entitlement check, deliberately: a caller who does not own the book learns

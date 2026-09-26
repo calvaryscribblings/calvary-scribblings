@@ -56,7 +56,7 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
   // never going to open.
   const [gate, setGate] = useState(instalmentId === sentinel ? 'failed' : 'checking');
   const [gateMessage, setGateMessage] = useState(
-    instalmentId === sentinel ? 'That instalment could not be found.' : null,
+    instalmentId === sentinel ? 'That instalment couldn’t be found.' : null,
   );
   const [releaseAtMs, setReleaseAtMs] = useState(null);
   // Title and author for the reader's top bar. Read from series_instalments_detail, which the
@@ -88,7 +88,7 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
         setGateMessage(e?.message || null);
       } else if (code === 'not_found') {
         setGate('failed');
-        setGateMessage('That instalment could not be found.');
+        setGateMessage('That instalment couldn’t be found.');
       } else {
         console.error('[series-reader] stream request failed', e);
         setGate('failed');
@@ -165,10 +165,10 @@ function Interstitial({ gate, message, releaseAtMs, instalmentId }) {
   const copy = {
     checking: { head: 'One moment…', body: null, cta: null },
     notyet: {
-      head: 'Not yet.',
+      head: 'Not yet',
       body: releaseAtMs
         ? `This instalment arrives on ${formatRelease(releaseAtMs)}. Nobody can read it before then.`
-        : 'This instalment has not arrived yet.',
+        : 'This instalment hasn’t arrived yet.',
       cta: ['Back to The Series', '/series'],
     },
     signedout: {
@@ -177,12 +177,12 @@ function Interstitial({ gate, message, releaseAtMs, instalmentId }) {
       cta: ['Sign in', '/account'],
     },
     locked: {
-      head: 'Locked.',
+      head: 'Locked',
       body: message || 'The Series is a Platinum membership benefit.',
       cta: ['See memberships', '/membership'],
     },
     failed: {
-      head: 'Could not open this instalment.',
+      head: 'Couldn’t open this instalment.',
       body: message || 'Please try again in a moment.',
       cta: ['Back to The Series', '/series'],
     },

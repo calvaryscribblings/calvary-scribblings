@@ -49,7 +49,7 @@ export default function SeriesDetailClient({ slug, sentinel }) {
   const gatePreview = useGatePreview(user);
   const membership = useMembership() || {};
   // W2 / SER-01 — under a deadline, and a failed read is DRAWN (see page-instalment.js).
-  // null still means not found; a failure is <Unavailable>, never "No such series."
+  // null still means not found; a failure is <Unavailable>, never "No such series"
   const page = useReliableLoad(
     () => (slug === sentinel ? null : getSeriesPage(slug, Date.now(), { throwOnError: true })),
     [slug, sentinel],
@@ -65,7 +65,7 @@ export default function SeriesDetailClient({ slug, sentinel }) {
     return (
       <Shell>
         <section style={{ padding: '5rem 4%', textAlign: 'center' }}>
-          <h1 style={{ fontFamily: DISPLAY, fontSize: '1.8rem', color: '#f5f0e8', marginBottom: '0.75rem' }}>No such series.</h1>
+          <h1 style={{ fontFamily: DISPLAY, fontSize: '1.8rem', color: '#f5f0e8', marginBottom: '0.75rem' }}>No such series</h1>
           <Link href="/series" style={{ color: '#c9a84c', fontSize: 14 }}>← Back to The Series</Link>
         </section>
       </Shell>
@@ -121,7 +121,7 @@ export default function SeriesDetailClient({ slug, sentinel }) {
         ))}
         {instalments.length === 0 && (
           <li style={{ padding: '2.5rem 0', color: 'rgba(245,240,232,0.35)', fontSize: 14 }}>
-            No instalments listed yet.
+            No instalments listed yet
           </li>
         )}
       </ul>

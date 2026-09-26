@@ -21,7 +21,7 @@ import {
   oversizeReason, planSync, allocateSlot, pruneEmpty, draftPath,
 } from './openPagesDraftStore';
 
-const NO_STORAGE = 'This browser is not storing anything, so your work is only in this tab. Copy it somewhere before you close it.';
+const NO_STORAGE = 'This browser isn’t storing anything, so your work is only in this tab. Copy it somewhere before you close it.';
 
 export function useOpenPagesDraft({ uid, title, body, genre, coverImage, enabled = true }) {
   const [slot, setSlot] = useState(null);

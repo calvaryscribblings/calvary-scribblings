@@ -48,7 +48,7 @@ const ACCEPT_ATTR = 'image/jpeg,image/png,image/webp,image/gif';
 
 // Validate a chosen file before upload. Returns an error string, or null if ok.
 function validateImageFile(file) {
-  if (!file) return 'No file selected.';
+  if (!file) return 'No file selected';
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) return 'Please choose a JPG, PNG, WebP, or GIF image.';
   if (file.size > MAX_IMAGE_BYTES) return 'Image is too large — please keep it under 5MB.';
   return null;
@@ -527,8 +527,8 @@ export default function EditPageClient({ params }) {
           >
             <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: '1.2rem', color: outcome.kind === 'pending' || outcome.kind === 'rate_limited' ? GOLD : '#e88', marginBottom: '0.25rem' }}>
               {outcome.kind === 'pending' && 'Under review'}
-              {outcome.kind === 'rejected' && 'Couldn’t save these changes'}
-              {outcome.kind === 'error' && 'Hmm — that didn’t work'}
+              {outcome.kind === 'rejected' && 'Couldn’t save these changes.'}
+              {outcome.kind === 'error' && 'Hmm — that didn’t work.'}
               {outcome.kind === 'rate_limited' && 'Just a moment'}
             </div>
             <p style={{ margin: 0, lineHeight: 1.6, color: 'rgba(245,240,232,0.9)' }}>{outcome.message}</p>
@@ -652,7 +652,7 @@ export default function EditPageClient({ params }) {
               />
             ) : (
               <div style={{ width: '100%', boxSizing: 'border-box', minHeight: 340, fontSize: '1.18rem', lineHeight: 1.75, color: 'rgba(245,240,232,0.85)' }}>
-                {body.trim() ? renderMarkdown(body) : <span style={{ color: 'rgba(245,240,232,0.35)' }}>Nothing to preview yet.</span>}
+                {body.trim() ? renderMarkdown(body) : <span style={{ color: 'rgba(245,240,232,0.35)' }}>Nothing to preview yet</span>}
               </div>
             )}
 

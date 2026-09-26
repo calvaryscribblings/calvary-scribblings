@@ -60,7 +60,7 @@ export function readIdToken(request, body) {
 export function validatePassSelection({ kind }) {
   if (!PASS_KINDS.includes(kind)) return { ok: false, status: 400, code: 'bad_kind', error: 'Choose a day or week pass.' };
   if (!isPassOffered(kind, PAYSTACK_PASS_CURRENCY)) {
-    return { ok: false, status: 409, code: 'not_offered', error: 'That pass is not sold in naira.' };
+    return { ok: false, status: 409, code: 'not_offered', error: 'That pass isn’t sold in naira.' };
   }
   return { ok: true, kind };
 }
@@ -71,7 +71,7 @@ export async function onRequestPost(context) {
 
   if (!env.PAYSTACK_SECRET_KEY || !env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     console.error(`[${LABEL}] PAYSTACK_SECRET_KEY or NEXT_PUBLIC_FIREBASE_API_KEY is not set`);
-    return json({ error: 'Naira passes are not available yet.', code: 'not_configured' }, 500);
+    return json({ error: 'Naira passes aren’t available yet.', code: 'not_configured' }, 500);
   }
 
   let body = {};
@@ -114,7 +114,7 @@ export async function onRequestPost(context) {
 
   if (!REF_SAFE_UID.test(uid)) {
     console.error(`[${LABEL}] uid ${uid} cannot be encoded in a Paystack reference`);
-    return json({ error: 'Passes could not be opened for this account.', code: 'bad_uid' }, 500);
+    return json({ error: 'Passes couldn’t be opened for this account.', code: 'bad_uid' }, 500);
   }
 
   const reference = buildPassReference(uid, kind);
@@ -142,17 +142,17 @@ export async function onRequestPost(context) {
     result = await res.json();
     if (!res.ok || result?.status !== true) {
       console.error(`[${LABEL}] initialize failed for ${uid} ${kind}:`, result?.message || res.status);
-      return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+      return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
     }
   } catch (e) {
     console.error(`[${LABEL}] Paystack request failed:`, e.message || e);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   const url = result?.data?.authorization_url;
   if (!url) {
     console.error(`[${LABEL}] no authorization_url for ${reference}`);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   console.log(`[${LABEL}] initialized ${reference} uid=${uid} ${kind} ${amount} kobo`);

@@ -367,7 +367,7 @@ export default function VoicePageClient({ slug, initialVoice }) {
         >
           {state === 'missing' ? (
             <>
-              <p className="cs-vp-missing">This voice has not been gathered yet.</p>
+              <p className="cs-vp-missing">This voice hasn’t been gathered yet.</p>
               {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a className="cs-vp-back" href="/voices" onClick={markReturn}>All the voices</a>
             </>
@@ -443,7 +443,7 @@ export default function VoicePageClient({ slug, initialVoice }) {
                   </Link>
                 ))
               ) : (
-                <p className="cs-vp-works-empty cs-vp-stage">No published work yet.</p>
+                <p className="cs-vp-works-empty cs-vp-stage">No published work yet</p>
               )}
 
               {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}

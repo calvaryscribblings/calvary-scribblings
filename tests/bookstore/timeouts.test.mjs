@@ -202,7 +202,7 @@ describe('stream (the reader gate)', () => {
     // button) and must never hand over the file.
     assert.equal(res.status, 502, 'unknown entitlement withholds the file');
     const body = await res.json();
-    assert.match(body.error, /Could not open your copy/i);
+    assert.match(body.error, /Couldn’t open your copy/i);
     assert.notEqual(body.code, 'not_purchased', 'a timeout must not be reported as "you do not own this"');
     budgetOf(calls, 'bookstore_purchases');
   });

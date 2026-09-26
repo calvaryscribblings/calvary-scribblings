@@ -277,15 +277,15 @@ export function policyGrantForInstalment(row, {
  * not noticed they just paid us.
  */
 export const REFUSAL_COPY = {
-  not_released: 'This instalment has not arrived yet.',
+  not_released: 'This instalment hasn’t arrived yet.',
   // Never shown as a refusal — tier_gate_off is a GRANT. It is here so refusalCopy() cannot
   // fall through to the generic "could not open" line if a caller passes a granted reason in.
-  [TIER_GATE_OFF]: 'The Series is free to read while memberships are not yet on sale.',
+  [TIER_GATE_OFF]: 'The Series is free to read while memberships aren’t yet on sale.',
   signed_out: 'Sign in to read this instalment.',
   needs_platinum: 'The Series is a Platinum membership benefit.',
   needs_gold: 'This instalment is open to Gold and Platinum members.',
   pass_excluded: 'Day and week passes don’t include the Series — it comes with a Gold or Platinum membership.',
-  unavailable: 'Could not open this instalment just now. Please try again.',
+  unavailable: 'Couldn’t open this instalment just now. Please try again.',
 };
 
 export function refusalCopy(grant) {

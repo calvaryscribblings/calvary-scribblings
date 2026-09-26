@@ -5,7 +5,7 @@ import NotFoundPage, { NOT_FOUND_COPY } from '../components/NotFoundPage';
 const COPY = {
   ...NOT_FOUND_COPY,
   eyebrow: 'THE BOOK STORE',
-  title: 'This book isn’t on the shelf',
+  title: 'This book isn’t on the shelf.',
   body: 'It may have been withdrawn, or the link may be mistyped.',
   home: 'Back to the Book Store',
 };

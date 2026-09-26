@@ -139,10 +139,10 @@ function Permalink() {
   if (state.phase === 'gone') {
     return (
       <Shell>
-        <h1 style={{ fontFamily: FF, fontWeight: 400, fontSize: '1.6rem', margin: '0 0 10px' }}>This post is gone</h1>
+        <h1 style={{ fontFamily: FF, fontWeight: 400, fontSize: '1.6rem', margin: '0 0 10px' }}>This post is gone.</h1>
         <p style={{ fontFamily: FF, fontSize: '0.95rem', lineHeight: 1.65, color: 'rgba(245,240,232,0.55)' }}>
           It was deleted by its author or removed by a moderator. Posts that simply pass the
-          48-hour horizon are kept and still open here — this one is not among them.
+          48-hour horizon are kept and still open here — this one isn’t among them.
         </p>
       </Shell>
     );
@@ -154,7 +154,7 @@ function Permalink() {
         <div style={{ border: '1px solid rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.06)', borderRadius: 8, padding: '12px 14px', marginBottom: 18 }}>
           <div style={{ fontFamily: FF, fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 4 }}>Past the horizon</div>
           <div style={{ fontFamily: FF, fontSize: '0.9rem', lineHeight: 1.6, color: 'rgba(245,240,232,0.6)' }}>
-            This thread has left the Square. The room holds 48 hours; nothing is deleted, so it is
+            This thread has left the Square. The room holds 48 hours; nothing is deleted, so it’s
             still readable here — just no longer in the room.
           </div>
         </div>

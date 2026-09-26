@@ -110,7 +110,7 @@ function PaywallGate({ user, onSignIn }) {
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
         <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 20, color: '#f5f0e8', lineHeight: 1.3 }}>
-          Dead End is a collector's read
+          Dead End is a collector's read.
         </div>
         <p style={{
           fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 15, fontWeight: 500,
@@ -804,7 +804,7 @@ function CommentsSection({ slug, onSignIn }) {
         </div>
       ) : (
         <div className="cs-signin-prompt">
-          <p>Sign in to join the discussion</p>
+          <p>Sign in to add a response.</p>
           <button className="cs-signin-btn" onClick={onSignIn}>Sign in to comment</button>
         </div>
       )}

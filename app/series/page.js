@@ -86,7 +86,7 @@ export default function SeriesLandingPage() {
         <section style={{ padding: '5rem 4%', textAlign: 'center' }}>
           <h2 style={{ fontFamily: DISPLAY, fontSize: '1.6rem', color: '#e5e5e5', marginBottom: '0.75rem' }}>The first series is being written.</h2>
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, maxWidth: 420, margin: '0 auto' }}>
-            Nothing is listed yet. When the first instalment has a date, it will appear here with it.
+            Nothing is listed yet. When the first instalment has a date, it’ll appear here with it.
           </p>
         </section>
       )}

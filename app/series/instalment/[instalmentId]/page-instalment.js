@@ -301,12 +301,12 @@ function NotYet({ series, row }) {
           {instalmentEyebrow(series.title, row.ordinal)}
         </span>
         <h1 style={{ fontFamily: DISPLAY, fontSize: 'clamp(1.9rem, 7.5vw, 3rem)', fontWeight: 600, color: INK, lineHeight: 1.08, margin: '0 0 12px' }}>
-          Not yet.
+          Not yet
         </h1>
         <p style={{ fontFamily: DISPLAY, fontSize: 16, color: 'rgba(245,240,232,0.55)', lineHeight: 1.6, margin: '0 0 22px' }}>
           {when
             ? `This instalment arrives on ${when}. Nobody can read it before then.`
-            : 'This instalment has not arrived yet.'}
+            : 'This instalment hasn’t arrived yet.'}
         </p>
         <Link href={`/series/${series.slug}`} style={{ fontFamily: BODY, fontSize: 14, color: GOLD, textDecoration: 'none' }}>
           ← {series.title}
@@ -320,7 +320,7 @@ function Missing() {
   return (
     <Shell>
       <section style={{ padding: '5rem 6%', textAlign: 'center' }}>
-        <h1 style={{ fontFamily: DISPLAY, fontSize: '1.8rem', color: INK, marginBottom: '0.75rem' }}>No such instalment.</h1>
+        <h1 style={{ fontFamily: DISPLAY, fontSize: '1.8rem', color: INK, marginBottom: '0.75rem' }}>No such instalment</h1>
         <Link href="/series" style={{ color: GOLD, fontSize: 14 }}>← Back to The Series</Link>
       </section>
     </Shell>

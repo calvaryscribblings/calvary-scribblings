@@ -125,11 +125,11 @@ export async function onRequestPost(context) {
 
   if (!env.STRIPE_SECRET_KEY) {
     console.error(`[${LABEL}] STRIPE_SECRET_KEY is not set`);
-    return json({ error: 'Memberships are not available yet. Please try again later.', code: 'not_configured' }, 500);
+    return json({ error: 'Memberships aren’t available yet. Please try again later.', code: 'not_configured' }, 500);
   }
   if (!env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     console.error(`[${LABEL}] NEXT_PUBLIC_FIREBASE_API_KEY is not set`);
-    return json({ error: 'Memberships are not available yet. Please try again later.', code: 'not_configured' }, 500);
+    return json({ error: 'Memberships aren’t available yet. Please try again later.', code: 'not_configured' }, 500);
   }
 
   let body = {};
@@ -173,7 +173,7 @@ export async function onRequestPost(context) {
   const priceId = priceIdFor({ tier, interval, currency, mode });
   if (!priceId) {
     console.error(`[${LABEL}] no ${mode} price for ${tier}/${interval}/${currency}`);
-    return json({ error: 'That membership is not available in this currency.', code: 'not_priced' }, 409);
+    return json({ error: 'That membership isn’t available in this currency.', code: 'not_priced' }, 409);
   }
 
   // ── the existing customer, if this reader has ever checked out ─────────────
@@ -207,7 +207,7 @@ export async function onRequestPost(context) {
     live = await liveStripeSubscription(env, customerId);
   } catch (e) {
     console.error(`[${LABEL}] live-subscription check failed for ${uid}:`, e.message || e);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
   const held = live ? { ...(detail || {}), rail: 'stripe', status: 'active', ...(describePrice(live.items?.data?.[0]?.price?.id, mode) || {}) } : detail;
   const change = planChange(held, { tier, interval });
@@ -218,7 +218,7 @@ export async function onRequestPost(context) {
     const cur = String(live.currency || currency).toLowerCase();
     const target = priceIdFor({ tier, interval, currency: cur, mode });
     const configuration = PORTAL_CONFIGURATION[CURRENT_GENERATION]?.[mode] || null;
-    if (!target || !configuration) return json({ error: 'That membership is not available yet.', code: 'not_configured' }, 409);
+    if (!target || !configuration) return json({ error: 'That membership isn’t available yet.', code: 'not_configured' }, 409);
     const portal = await stripe(env, '/billing_portal/sessions', {
       form: {
         customer: customerId,
@@ -235,7 +235,7 @@ export async function onRequestPost(context) {
     }).catch((e) => ({ ok: false, body: { error: { message: e.message } } }));
     if (!portal.ok || !portal.body?.url) {
       console.error(`[${LABEL}] switch session failed for ${uid} ${live.id} → ${target}:`, portal.body?.error?.message || portal.status);
-      return json({ error: 'Your plan could not be changed just now. Please try again.' }, 502);
+      return json({ error: 'Your plan couldn’t be changed just now. Please try again.' }, 502);
     }
     console.log(`[${LABEL}] switch ${uid} ${live.id} → ${tier}/${interval} (${target})`);
     return json({ url: portal.body.url, switch: true });
@@ -272,16 +272,16 @@ export async function onRequestPost(context) {
     session = res.body;
     if (!res.ok) {
       console.error(`[${LABEL}] session create failed for ${uid} ${tier}/${interval}/${currency}:`, session?.error?.message || res.status);
-      return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+      return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
     }
   } catch (e) {
     console.error(`[${LABEL}] Stripe request failed:`, e.message || e);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   if (!session?.url) {
     console.error(`[${LABEL}] Stripe returned a session with no url: ${session?.id}`);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   console.log(`[${LABEL}] session ${session.id} uid=${uid} ${tier}/${interval}/${currency} price=${priceId} customer=${customerId || 'new'}`);

@@ -276,7 +276,7 @@ export default function RewardsPage() {
                 ))}
                 {pointsHistory.length === 0 && (
                   <div style={{ color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem', fontWeight: 500, fontStyle: 'italic' }}>
-                    No Scribbles history yet.
+                    No Scribbles history yet
                   </div>
                 )}
               </div>

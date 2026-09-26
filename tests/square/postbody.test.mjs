@@ -222,7 +222,7 @@ describe('a withdrawn post draws a tombstone, on every surface', () => {
 
   test('the feed says the replies are not the withdrawer\'s to remove', () => {
     const html = render(createElement(PostBody, { text: '', surface: 'feed-post', withdrawn: true }));
-    assert.match(html, /replies below are not theirs to remove/);
+    assert.match(html, /replies below aren’t theirs to remove/);
   });
 
   test('a withdrawn record does not leak its old text', () => {

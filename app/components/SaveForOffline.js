@@ -107,7 +107,7 @@ export default function SaveForOffline({ slug, story, user, readingTime = 0, onS
       toastSaved();
     } catch (e) {
       if (e instanceof ShelfFullError) { await refresh(); setOpen('full'); }
-      else setError(offline ? 'You need a connection to save.' : (e?.message || 'Could not save that.'));
+      else setError(offline ? 'You need a connection to save.' : (e?.message || 'Couldn’t save that.'));
     } finally {
       setBusy(false);
     }
@@ -206,7 +206,7 @@ export default function SaveForOffline({ slug, story, user, readingTime = 0, onS
                   away. The ruling above CAPS in app/lib/shelf.js is that those saves persist;
                   this is where the reader is told so, in the place they discover it. */}
               <div style={{ fontSize: 14, color: '#f5f0e8', lineHeight: 1.4 }}>
-                {shelf.length > cap ? 'More saved than your plan holds' : 'Your shelf is full'}
+                {shelf.length > cap ? 'More saved than your plan holds.' : 'Your shelf is full.'}
               </div>
               <p style={{ margin: '4px 0 0', fontSize: 12.5, lineHeight: 1.5, color: 'rgba(245,240,232,0.55)' }}>
                 {shelf.length > cap ? (

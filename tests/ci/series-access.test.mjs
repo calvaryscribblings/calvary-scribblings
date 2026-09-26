@@ -70,7 +70,7 @@ describe('release is a gate before tier, for everyone', () => {
   test('a Platinum member is never told an unreleased instalment is a tier problem', () => {
     const g = grantForInstalment(row({ releaseAtMs: FUTURE }), { subscriptionTier: 'platinum', now: NOW });
     assert.notEqual(g.code, 'tier_too_low');
-    assert.match(refusalCopy(g), /not arrived yet/i);
+    assert.match(refusalCopy(g), /hasn’t arrived yet/i);
   });
 
   test('unreleased answers identically signed out and signed in — no schedule leak', () => {

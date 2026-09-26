@@ -250,5 +250,5 @@ export function capNotice() {
 
 /** The sentence shown when a draft is too long to sync. The device copy still has it. */
 export function oversizeNotice() {
-  return `This draft is longer than ${DRAFT_BODY_MAX.toLocaleString()} characters, so it is saved on this device only until it is shorter. Nothing has been cut.`;
+  return `This draft is longer than ${DRAFT_BODY_MAX.toLocaleString()} characters, so it’s saved on this device only until it’s shorter. Nothing has been cut.`;
 }

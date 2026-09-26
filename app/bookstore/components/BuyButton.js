@@ -66,7 +66,7 @@ export default function BuyButton({ title, className, align = 'flex-start' }) {
       // pending state until the navigation takes the page, so it cannot be double-fired.
       window.location.assign(url);
     } catch (e) {
-      setError(e?.message || 'Checkout could not be opened. Please try again.');
+      setError(e?.message || 'Checkout couldn’t be opened. Please try again.');
       setPending(false);
     }
   };

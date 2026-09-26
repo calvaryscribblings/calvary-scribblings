@@ -87,7 +87,7 @@ export default function AgeVerifiedPage() {
                 fontSize: '0.92rem', fontStyle: 'italic',
                 color: 'rgba(240,234,216,0.4)',
               }}>
-                Just a moment.
+                Just a moment
               </p>
             </>
           )}
@@ -140,7 +140,7 @@ export default function AgeVerifiedPage() {
                 fontSize: '1.8rem', fontWeight: 300, color: '#f0ead8',
                 marginBottom: '1rem',
               }}>
-                {status === 'fail' ? 'Verification Failed' : 'Something Went Wrong'}
+                {status === 'fail' ? 'Verification Failed' : 'Something went wrong.'}
               </h1>
               <p style={{
                 fontFamily: "'Cormorant Garamond', serif",
@@ -150,7 +150,7 @@ export default function AgeVerifiedPage() {
               }}>
                 {status === 'fail'
                   ? 'You must be 18 or over to access this content.'
-                  : 'We could not complete your verification. Please try again.'}
+                  : 'We couldn’t complete your verification. Please try again.'}
               </p>
               <a href="/" style={{
                 fontFamily: "'Cinzel', serif",

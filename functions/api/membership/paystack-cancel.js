@@ -72,7 +72,7 @@ export async function onRequestPost(context) {
   }
 
   const target = cancellable(detail);
-  if (!target) return json({ error: 'There is no naira membership to cancel.', code: 'nothing_to_cancel' }, 409);
+  if (!target) return json({ error: 'There’s no naira membership to cancel.', code: 'nothing_to_cancel' }, 409);
 
   let out;
   try {

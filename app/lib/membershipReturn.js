@@ -38,14 +38,14 @@ export function returnBanner({ returned, settled, signedIn, authKnown, provider,
       title: returned === 'switch' ? 'CHANGING YOUR PLAN' : returned === 'pass' ? 'SETTING UP YOUR PASS' : 'SETTING UP YOUR MEMBERSHIP',
       body: provider === 'paid'
         ? `Your payment has gone through. Your ${thing} will appear here in a few seconds — this page updates on its own.`
-        : 'Checking with the payment provider. This page updates on its own, so there is nothing to refresh.',
+        : 'Checking with the payment provider. This page updates on its own, so there’s nothing to refresh.',
     };
   }
   if (provider === 'paid') {
     return {
       tone: 'bad',
       title: 'PAID — BUT NOT SHOWING YET',
-      body: `Your payment went through, but your ${thing} hasn’t appeared yet. That is on our side, and we have already been alerted. It usually sorts itself out within a few minutes; if it hasn’t within ten,`,
+      body: `Your payment went through, but your ${thing} hasn’t appeared yet. That’s on our side, and we’ve already been alerted. It usually sorts itself out within a few minutes; if it hasn’t within ten,`,
       contact: true,
     };
   }

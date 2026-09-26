@@ -99,7 +99,7 @@ export default function QuizGuidelinesModal({ onBegin, onCancel, mode = 'story' 
           <p style={{ margin: 0 }}>The Scribbles catalogue — what you can spend them on — is coming soon.</p>
 
           <p style={{ margin: 0 }}>
-            The first question is a close-reading comprehension check — and it is strict.
+            The first question is a close-reading comprehension check — and it&apos;s strict.
             Your answer must use specific words from the story. Don't paraphrase: name the
             thing the way the writer named it. One small word out of place can mark you wrong.
             You have two attempts. Fail both and the quiz locks — though Responses

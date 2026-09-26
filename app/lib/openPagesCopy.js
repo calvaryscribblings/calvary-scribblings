@@ -10,7 +10,7 @@
 // strength of a lottery ticket and hears nothing has been misled; a writer who submits
 // because they were told it would be READ has been told the truth, and it was true.
 //
-// The line "that is how most of our contributors were found" is the only claim about
+// The line "that’s how most of our contributors were found" is the only claim about
 // outcome, and it is in the PAST TENSE and about other people — a fact about the
 // island's history, not an offer. Keep it that way.
 //
@@ -25,7 +25,7 @@
 /** The index, under the title. The invitation — this is the one doing the recruiting. */
 export const INDEX_INVITATION = Object.freeze({
   line1: 'Anyone can write here. We read everything.',
-  line2: 'When a piece belongs in the house, we come and ask — that is how most of our contributors were found.',
+  line2: 'When a piece belongs in the house, we come and ask — that’s how most of our contributors were found.',
 });
 
 /** The composer, near publish. Quiet: a reassurance, not a pitch. */

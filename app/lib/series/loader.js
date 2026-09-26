@@ -52,7 +52,7 @@ function snapToRows(snap) {
 // Every reader-facing loader below catches its read and answers [] or null, which is right for
 // the admin and for a homepage strip ("a missing section rather than a broken page") and WRONG
 // for a page whose whole content is that read: /series drew "The first series is being written"
-// and /series/{slug} "No such series." for a read that FAILED, and "Loading…" for good for one
+// and /series/{slug} "No such series" for a read that FAILED, and "Loading…" for good for one
 // that hung (SER-01). Reader pages pass { throwOnError: true } and run the call under
 // useReliableLoad, which adds the deadline; the failure is then drawn, not disguised as empty.
 // The default is unchanged for every other caller.

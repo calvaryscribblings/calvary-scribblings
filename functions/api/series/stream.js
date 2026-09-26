@@ -171,11 +171,11 @@ export async function onRequestPost(context) {
 
   if (!env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     console.error('[series/stream] NEXT_PUBLIC_FIREBASE_API_KEY is not set');
-    return json({ error: 'The Series is not configured yet. Please try again later.', code: 'unavailable' }, 500);
+    return json({ error: 'The Series isn’t configured yet. Please try again later.', code: 'unavailable' }, 500);
   }
   if (!env.FIREBASE_CLIENT_EMAIL || !env.FIREBASE_PRIVATE_KEY) {
     console.error('[series/stream] Missing FIREBASE_CLIENT_EMAIL or FIREBASE_PRIVATE_KEY');
-    return json({ error: 'The Series is not configured yet. Please try again later.', code: 'unavailable' }, 500);
+    return json({ error: 'The Series isn’t configured yet. Please try again later.', code: 'unavailable' }, 500);
   }
 
   let body = {};
@@ -217,7 +217,7 @@ export async function onRequestPost(context) {
   }
 
   if (!row || typeof row !== 'object') {
-    return json({ error: 'That instalment could not be found.', code: 'not_found' }, REFUSAL_STATUS.not_found);
+    return json({ error: 'That instalment couldn’t be found.', code: 'not_found' }, REFUSAL_STATUS.not_found);
   }
 
   // ── GATE 1: release. Everyone, tier ignored, before identity. ──────────────

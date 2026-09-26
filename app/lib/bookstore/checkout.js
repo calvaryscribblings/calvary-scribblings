@@ -35,7 +35,7 @@ export const railFor = (currency) => RAILS[currency] || RAILS.gbp;
 // common path and refreshes itself on the uncommon one. The server verifies it either way.
 export async function createCheckoutSession(user, titleId, currency = 'gbp') {
   if (!user) throw new Error('Sign in to buy this book.');
-  if (!titleId) throw new Error('This title cannot be purchased yet.');
+  if (!titleId) throw new Error('This title can’t be purchased yet.');
 
   let idToken;
   try {
@@ -66,7 +66,7 @@ export async function createCheckoutSession(user, titleId, currency = 'gbp') {
     // not_priced_in_ngn says "buy it in pounds instead", 400 no_email says to add an address.
     // Preferring data.error keeps those in the reader's hands rather than replacing them with
     // this file's generic line.
-    throw new Error(data?.error || 'Checkout could not be opened. Please try again.');
+    throw new Error(data?.error || 'Checkout couldn’t be opened. Please try again.');
   }
   return data.url;
 }

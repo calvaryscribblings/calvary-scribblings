@@ -85,7 +85,7 @@ export function validatePassSelection({ kind, currency }) {
     return { ok: false, status: 400, code: 'bad_currency', error: 'Unsupported currency.' };
   }
   if (!isPassOffered(kind, cur)) {
-    return { ok: false, status: 409, code: 'not_offered', error: 'That pass is not sold in this currency.' };
+    return { ok: false, status: 409, code: 'not_offered', error: 'That pass isn’t sold in this currency.' };
   }
   return { ok: true, kind, currency: cur };
 }
@@ -96,7 +96,7 @@ export async function onRequestPost(context) {
 
   if (!env.STRIPE_SECRET_KEY || !env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     console.error(`[${LABEL}] STRIPE_SECRET_KEY or NEXT_PUBLIC_FIREBASE_API_KEY is not set`);
-    return json({ error: 'Passes are not available yet. Please try again later.', code: 'not_configured' }, 500);
+    return json({ error: 'Passes aren’t available yet. Please try again later.', code: 'not_configured' }, 500);
   }
 
   let body = {};
@@ -172,16 +172,16 @@ export async function onRequestPost(context) {
     session = await res.json();
     if (!res.ok) {
       console.error(`[${LABEL}] session create failed for ${uid} ${kind}/${currency}:`, session?.error?.message || res.status);
-      return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+      return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
     }
   } catch (e) {
     console.error(`[${LABEL}] Stripe request failed:`, e.message || e);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   if (!session?.url) {
     console.error(`[${LABEL}] session ${session?.id || '—'} has no url`);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   console.log(`[${LABEL}] opened ${session.id} uid=${uid} ${kind}/${currency} ${amount}`);

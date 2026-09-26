@@ -425,7 +425,7 @@ test(`a book that will not open shows a failure state with a way out (${FIXTURE.
 
   // It must read as the Reading Room, not as a stack trace...
   await expect(page.locator('.rr-fail-kicker')).toHaveText('The Reading Room');
-  await expect(page.locator('.rr-fail-note')).toContainText('would not open');
+  await expect(page.locator('.rr-fail-note')).toContainText('wouldn’t open');
 
   // ...and it must offer the route the whole state exists for: the prose is still on the
   // story page even when the EPUB is not.
@@ -471,7 +471,7 @@ test('a sample whose bytes never arrive shows the room\'s failure state, not a s
 
   // It must read as the Reading Room, not as a stack trace…
   await expect(page.locator('.rr-fail-kicker')).toHaveText('The Reading Room');
-  await expect(page.locator('.rr-fail-note')).toContainText('would not open');
+  await expect(page.locator('.rr-fail-note')).toContainText('wouldn’t open');
 
   // …and the door is the BOOK's page, not the story page. A sample that will not open is a
   // sale that has not happened yet, and /bookstore/{slug} is where the buy button lives.

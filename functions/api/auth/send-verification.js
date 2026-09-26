@@ -93,13 +93,13 @@ export async function onRequestPost(context) {
     });
   } catch (e) {
     console.error('[auth/send-verification] Worker unreachable:', e.message);
-    return json({ error: 'Could not reach the mail service.' }, 502);
+    return json({ error: 'Couldn’t reach the mail service.' }, 502);
   }
 
   const text = await workerRes.text();
   if (!workerRes.ok) {
     console.error('[auth/send-verification] Worker rejected:', workerRes.status, text.slice(0, 300));
-    return json({ error: 'Verification email could not be sent.', upstream: workerRes.status }, 502);
+    return json({ error: 'Verification email couldn’t be sent.', upstream: workerRes.status }, 502);
   }
 
   console.log('[auth/send-verification] sent | uid:', account.localId);
