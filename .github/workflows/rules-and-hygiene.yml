@@ -72,6 +72,12 @@ on:
       - 'tests/reconcile/**'
       # W5 — the safety browser suite (test:safety, in the rules job).
       - 'tests/safety/**'
+      # W17 — the live harnesses tests/ci/w17-live-safety.test.mjs pins: a change to any of them
+      # must re-run the check that it signs in only as the test reader, behind the firewall.
+      - 'tests/live/**'
+      - 'tests/storybar/**'
+      - 'tests/reactions/**'
+      - 'tests/offline/**'
       - 'app/**'
       - 'functions/**'
       - 'scripts/**'
