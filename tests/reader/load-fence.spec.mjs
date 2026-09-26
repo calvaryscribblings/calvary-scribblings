@@ -60,7 +60,7 @@ test('a book that never answers fails at the headers fence, it does not spin', a
   const glass = await hostGlass(page);
   expect(glass.spinnerHidden, 'the spinner must stop').toBe(true);
   expect(glass.errorShown, 'and the host must say something in its place').toBe(true);
-  expect(glass.text, 'in the Reading Room’s voice, not a browser error').toBe('This book would not open.');
+  expect(glass.text, 'in the Reading Room’s voice, not a browser error').toBe('This book wouldn’t open.');
 });
 
 test('a body that stops arriving fails at the stall fence', async ({ page }) => {

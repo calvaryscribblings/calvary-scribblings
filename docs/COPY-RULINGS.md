@@ -305,6 +305,7 @@ Where one string recurs, every place is in the one row.
 | functions/api/auth/send-verification.js:102 (§6) | Verification email could not be sent. | Verification email couldn’t be sent. |
 | functions/api/open-pages/moderate.js:446 (§6) | Could not load the post to edit. | Couldn’t load the post to edit. |
 | stories/[slug]/page-client.js:806 · reader/[slug]/page-reader.js:395 (ruling 38) | Sign in to join the discussion | Sign in to add a response. |
+| public/reading-room.html:64 (rule 13, W17) | This book would not open. | This book wouldn’t open. |
 
 Notes:
 - **The shelf error** (`lib/shelf.js`) also gained a full stop. It's a sentence, and it can surface
