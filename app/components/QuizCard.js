@@ -448,7 +448,7 @@ function CardSurface({ quizState, submission, onSignIn, onBeginQuiz, socialProof
               margin: '0 0 0.85rem',
               lineHeight: 1.65,
             }}>
-              No Scribbles awarded this round, but your read still counts. The Discussion below is open.
+              No Scribbles awarded this round, but your read still counts. Responses below are open.
             </p>
             <p style={{
               fontFamily: 'Cormorant Garamond, Georgia, serif',

@@ -26,6 +26,7 @@ import { PUBLISHED_FOOTER } from '../../lib/openPagesCopy';
 import { pruneBlocked, countNodes } from '../../lib/openPagesThread';
 import { renderMarkdown } from '../../lib/openPagesMarkdown';
 import { indexedCommentWrite } from '../../lib/userComments';
+import { Reaction, useReactionNote, useKeyedReactionNote } from '../../components/conversation/Reaction';
 
 const REPORT_REASONS = ['Harmful content', 'Spam', 'Plagiarism', 'Other'];
 
@@ -203,6 +204,9 @@ export default function OpenPageDetailClient({ params }) {
   // Reactions — open_pages_reactions/{postId}/{uid} = true. Held as a uid->true
   // map; count and "did I like it" are derived at render so they react to auth.
   const [reactions, setReactions] = useState({});
+  // W13 — a failed save says so, under the heart that failed.
+  const [pieceNote, pieceFail] = useReactionNote();
+  const [threadNoteFor, threadFail] = useKeyedReactionNote();
 
   // Comments — comments/{postId}. null = loading. Commenter profiles (avatar,
   // handle) are resolved lazily from users/{uid} into commenterProfiles.
@@ -481,7 +485,7 @@ export default function OpenPageDetailClient({ params }) {
         if (willLike) delete next[user.uid];
         else next[user.uid] = true;
         return next;
-      });
+      });      throw e; // W13 — the button shakes and says so
     }
   }
 
@@ -593,7 +597,7 @@ export default function OpenPageDetailClient({ params }) {
         const cur = { ...(prev[path] || {}) };
         if (willLike) delete cur[user.uid]; else cur[user.uid] = true;
         return { ...prev, [path]: cur };
-      });
+      });      throw err; // W13 — the button shakes and says so
     }
   }
 
@@ -686,29 +690,11 @@ export default function OpenPageDetailClient({ params }) {
               {node.text}
             </div>
 
-            {/* Actions — like (gold when liked) + reply (hidden at max depth). */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8 }}>
-              <button
-                type="button"
-                onClick={() => toggleNodeLike(node)}
-                aria-pressed={liked}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: 'transparent',
-                  border: 'none',
-                  padding: 0,
-                  color: liked ? GOLD : CREAM_MUTE,
-                  fontFamily: CINZEL,
-                  fontSize: 10,
-                  letterSpacing: '0.1em',
-                  cursor: 'pointer',
-                  transition: 'color 0.15s',
-                }}
-              >
-                <IconHeart size={13} style={{ fill: liked ? GOLD : 'none' }} /> {likeCount}
-              </button>
+            {/* Actions — the heart (W13: the approved choreography, components/conversation/
+                Reaction.js) + block + reply (hidden at max depth). */}
+            <div className="rx-row" data-thread-row style={{ gap: 6, marginTop: 2 }}>
+              <Reaction kind="heart" size={16} on={liked} count={likeCount} canReact={!!user}
+                onToggle={() => toggleNodeLike(node)} onFail={() => threadFail(node.path)} />
               {user && node.authorUid && node.authorUid !== user.uid ? (
                 <button
                   type="button"
@@ -730,21 +716,23 @@ export default function OpenPageDetailClient({ params }) {
                   onClick={() => handleReplyClick(node)}
                   className="op-reply-btn"
                   style={{
+                    // W13 — a word, not grey capitals (ruling, 26 Sept).
                     background: 'transparent',
                     border: 'none',
-                    padding: 0,
-                    color: 'rgba(245,240,232,0.45)',
-                    fontFamily: CINZEL,
-                    fontSize: 10,
-                    letterSpacing: '0.14em',
-                    textTransform: 'uppercase',
+                    padding: '0 4px',
+                    color: '#9062DA',
+                    fontFamily: SERIF,
+                    fontSize: 15,
+                    fontWeight: 500,
+                    lineHeight: '44px',
                     cursor: 'pointer',
                   }}
                 >
-                  Reply
+                  {replyOpen ? 'Cancel' : 'Reply'}
                 </button>
               ) : null}
             </div>
+            {threadNoteFor(node.path)}
 
             {/* Inline reply composer — collapses on submit/cancel. */}
             {replyOpen ? (
@@ -960,34 +948,14 @@ export default function OpenPageDetailClient({ params }) {
           {PUBLISHED_FOOTER}
         </p>
 
-        {/* Like — open_pages_reactions/{postId}/{uid}. A quiet heart + count, no
-            chrome; the heart gives one small scale pulse when it turns gold. */}
-        <div style={{ display: 'flex', alignItems: 'center', marginTop: 20 }}>
-          <button
-            type="button"
-            onClick={toggleLike}
-            aria-pressed={liked}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              color: liked ? GOLD : CREAM_MUTE,
-              fontFamily: CINZEL,
-              fontSize: 11,
-              letterSpacing: '0.12em',
-              cursor: 'pointer',
-              transition: 'color 0.18s',
-            }}
-          >
-            <IconHeart
-              size={18}
-              style={{ fill: liked ? GOLD : 'none', animation: liked ? 'opLikePulse 200ms ease' : 'none' }}
-            />
-            {likeCount}
-          </button>
+        {/* The piece's own heart — open_pages_reactions/{postId}/{uid}. W13: the approved
+            choreography (components/conversation/Reaction.js), at the 18px this row always had. */}
+        <div style={{ marginTop: 20 }}>
+          <div className="rx-row">
+            <Reaction kind="heart" size={18} on={liked} count={likeCount} canReact={!!user}
+              onToggle={toggleLike} onFail={pieceFail} />
+          </div>
+          {pieceNote}
         </div>
 
         {/* Author card — enriched from users/{authorUid} (Fix 4), clickable (Fix 3). */}
@@ -1284,14 +1252,12 @@ function AuthorAvatar({ src, initial, size = 40, fontSize = '1.1rem' }) {
   );
 }
 
-// Styling-only CSS: the one signature moment (heart pulse on like), the gold
-// focus ring on the composers (inline styles can't express :focus), and the two
-// quiet hover brightenings. Injected once via Shell.
+// Styling-only CSS: the gold focus ring on the composers (inline styles can't
+// express :focus) and the hover states. The hearts' motion is Reaction.js's (W13). Injected once via Shell.
 const GLOBAL_CSS = `
-@keyframes opLikePulse { from { transform: scale(1.2); } to { transform: scale(1); } }
 .op-input { border: 1px solid rgba(245,240,232,0.08); outline: none; transition: border-color 0.2s; }
 .op-input:focus { border-color: ${GOLD_SOFT}; }
-.op-reply-btn:hover { color: ${CREAM_DIM} !important; }
+.op-reply-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
 .op-subscribe:hover { background: rgba(107,47,173,0.1) !important; }
 `;
 

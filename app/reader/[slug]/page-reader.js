@@ -19,9 +19,8 @@ import AboutTheAuthor from '../../components/AboutTheAuthor';
 import ReadSeal from '../../components/ReadSeal';
 import { use } from 'react';
 import { getReaderId } from '../../lib/readerId';
-import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
+import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, COMMENT_REACTIONS } from '../../components/conversation/ConversationKit';
 
-const COMMENT_REACTIONS = buildReactions('heart');
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -144,7 +143,6 @@ const CommentNode = React.memo(function CommentNode({
             activeMap={commentReactions[comment.id]}
             onToggle={(key) => toggleCommentReaction(comment.id, key, comment.authorUid)}
             canReact={!!user}
-            iconSize={depth === 1 ? 16 : 14}
             trailing={user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
           />
           {replyTo === comment.id && (
@@ -236,35 +234,45 @@ function CommentsSection({ slug, onSignIn }) {
     return () => { if (unsubDB) unsubDB(); if (unsubReactions) unsubReactions(); };
   }, [slug, user]);
 
+  // W13 — optimistic, as on the story page: the state flips on the tap, and a failed save
+  // restores it and rejects, so the button can shake and say so (components/conversation/Reaction.js).
   const toggleCommentReaction = useCallback(async (commentId, type, commentAuthorUid) => {
     if (!user) return;
+    const hasReacted = !!commentReactions[commentId]?.[type];
+    const currentCount = comments.find(c => c.id === commentId)?.[type + 'Count'] || 0;
+    const apply = (reacted, count) => {
+      setCommentReactions(prev => ({ ...prev, [commentId]: { ...prev[commentId], [type]: reacted } }));
+      setComments(prev => prev.map(c => (c.id === commentId ? { ...c, [type + 'Count']: count } : c)));
+    };
+    apply(!hasReacted, hasReacted ? Math.max(0, currentCount - 1) : currentCount + 1);
     try {
       const db = await getDB();
-      const { ref, set, remove, runTransaction, push } = await import('firebase/database');
+      const { ref, set, remove, runTransaction } = await import('firebase/database');
       const reactionRef = ref(db, `comment_reactions/${slug}/${user.uid}/${commentId}/${type}`);
       const countRef = ref(db, `comments/${slug}/${commentId}/${type}Count`);
-      const hasReacted = commentReactions[commentId]?.[type];
       if (hasReacted) {
         await remove(reactionRef);
         await runTransaction(countRef, c => Math.max(0, (c || 0) - 1));
       } else {
         await set(reactionRef, true);
         await runTransaction(countRef, c => (c || 0) + 1);
-        if (commentAuthorUid && commentAuthorUid !== user.uid) {
-          await push(ref(db, `library_notifications/${commentAuthorUid}`), {
-            type, fromUid: user.uid, fromName: user.displayName || 'Reader',
-            slug, read: false, createdAt: Date.now(),
-          });
-        }
       }
-      setCommentReactions(prev => {
-        const updated = { ...prev };
-        if (!updated[commentId]) updated[commentId] = {};
-        updated[commentId] = { ...updated[commentId], [type]: !hasReacted };
-        return updated;
-      });
-    } catch (e) {}
-  }, [user, slug, commentReactions]);
+    } catch (e) {
+      apply(hasReacted, currentCount);
+      throw e;
+    }
+    // Saved. The author's notification is a courtesy after it and never undoes the reaction.
+    if (!hasReacted && commentAuthorUid && commentAuthorUid !== user.uid) {
+      try {
+        const db = await getDB();
+        const { ref, push } = await import('firebase/database');
+        await push(ref(db, `library_notifications/${commentAuthorUid}`), {
+          type, fromUid: user.uid, fromName: user.displayName || 'Reader',
+          slug, read: false, createdAt: Date.now(),
+        });
+      } catch (e) {}
+    }
+  }, [user, slug, commentReactions, comments]);
 
   const postComment = useCallback(async (commentText, parentId = null) => {
     if (!commentText.trim() || !user) return;
@@ -365,8 +373,8 @@ function CommentsSection({ slug, onSignIn }) {
   return (
     <div className="cs-section">
       <div className="cs-header">
-        <div className="cs-title">Discussion</div>
-        {comments.length > 0 && <div className="cs-count">{comments.length} {comments.length === 1 ? 'comment' : 'comments'}</div>}
+        <div className="cs-title">Responses</div>
+        {comments.length > 0 && <div className="cs-count">{comments.length} {comments.length === 1 ? 'response' : 'responses'}</div>}
       </div>
       {user ? (
         <div className="cs-compose">
@@ -375,7 +383,7 @@ function CommentsSection({ slug, onSignIn }) {
               {userAvatarUrl ? <img src={userAvatarUrl} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : userInitials}
             </a>
             <div className="cs-input-wrap">
-              <MentionTextarea value={text} onChange={setText} placeholder="Share your thoughts on this story..." rows={3} />
+              <MentionTextarea value={text} onChange={setText} placeholder="Add a response…" rows={3} />
               <button className={`cs-kite-btn${text.trim() ? ' active' : ''}`} onClick={() => postComment(text)} disabled={posting || !text.trim()} title="Post comment">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#c9a84c"/></svg>
               </button>
@@ -663,8 +671,9 @@ export default function StoryReaderClient({ params, initialStory = null }) {
         .cs-comment-text{font-family:'Cormorant Garamond',Georgia,serif;font-size:.98rem;color:#f5f0e8;line-height:1.68;margin-top:0}
         .cs-comment-text-sm{font-size:.92rem}
         .cs-comment-footer{margin-top:.5rem}
-        .cs-reply-btn{background:none;border:none;font-size:.74rem;font-weight:500;color:rgba(245,240,232,.42);cursor:pointer;font-family:Cormorant Garamond,Georgia,serif;letter-spacing:.08em;padding:0;transition:color .2s}
-        .cs-reply-btn:hover{color:#c9a84c}
+        /* W13 — a word, not grey capitals (ruling, 26 Sept). It reads Cancel while its box is open. */
+        .cs-reply-btn{background:none;border:none;font-size:15px;font-weight:500;line-height:44px;color:#9062DA;cursor:pointer;font-family:Cormorant Garamond,Georgia,serif;letter-spacing:0;text-transform:none;padding:0 4px}
+        .cs-reply-btn:hover{text-decoration:underline;text-underline-offset:3px}
         .cs-reply-compose{margin-top:.75rem}
         .cs-replies{margin-top:.75rem;padding-left:1rem;border-left:1px solid rgba(107,47,173,.25);display:flex;flex-direction:column;gap:.75rem}
         .cs-reply{display:flex;gap:10px}

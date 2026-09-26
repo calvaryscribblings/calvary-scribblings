@@ -35,9 +35,8 @@ import { useGatePreview, readGatePreview } from '../../lib/gatePreview';
 import { lockedForFirstPaint, lockScript } from '../../lib/storyLock';
 import StoryGate from '../../components/StoryGate';
 import StoryBar from '../../components/StoryBar';
-import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, buildReactions } from '../../components/conversation/ConversationKit';
+import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, COMMENT_REACTIONS } from '../../components/conversation/ConversationKit';
 
-const COMMENT_REACTIONS = buildReactions('heart');
 
 
 const FB = {
@@ -477,7 +476,6 @@ const CommentNode = React.memo(function CommentNode({
             activeMap={commentReactions[comment.id]}
             onToggle={(key) => toggleCommentReaction(comment.id, key, comment.authorUid)}
             canReact={!!user}
-            iconSize={depth === 1 ? 16 : 14}
             trailing={user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
           />
           {replyTo === comment.id && (
@@ -601,7 +599,7 @@ function CommentsSection({ slug, onSignIn }) {
     ));
     try {
       const db = await getDB();
-      const { ref, set, remove, runTransaction, push, get } = await import('firebase/database');
+      const { ref, set, remove, runTransaction } = await import('firebase/database');
       const reactionRef = ref(db, `comment_reactions/${slug}/${user.uid}/${commentId}/${type}`);
       const countRef = ref(db, `comments/${slug}/${commentId}/${type}Count`);
       if (hasReacted) {
@@ -610,14 +608,6 @@ function CommentsSection({ slug, onSignIn }) {
       } else {
         await set(reactionRef, true);
         await runTransaction(countRef, c => (c || 0) + 1);
-        if (commentAuthorUid && commentAuthorUid !== user.uid) {
-          const commentSnap = await get(ref(db, `comments/${slug}/${commentId}`));
-          const commentText = commentSnap.exists() ? (commentSnap.val().text || '').slice(0, 120) : '';
-          await push(ref(db, `library_notifications/${commentAuthorUid}`), {
-            type, fromUid: user.uid, fromName: user.displayName || 'Reader',
-            slug, commentId, commentText, read: false, createdAt: Date.now(),
-          });
-        }
       }
       reactingRef.current.delete(key);
     } catch (e) {
@@ -635,6 +625,22 @@ function CommentsSection({ slug, onSignIn }) {
         return updated;
       });
       reactingRef.current.delete(key);
+      // W13 — the button needs to know: it shakes and says so. See components/conversation/Reaction.js.
+      throw e;
+    }
+    // The reaction is saved. Telling the comment's author is a courtesy after it, and its
+    // failure is not the reader's failure to react, so it never turns the reaction back off.
+    if (!hasReacted && commentAuthorUid && commentAuthorUid !== user.uid) {
+      try {
+        const db = await getDB();
+        const { ref, push, get } = await import('firebase/database');
+        const commentSnap = await get(ref(db, `comments/${slug}/${commentId}`));
+        const commentText = commentSnap.exists() ? (commentSnap.val().text || '').slice(0, 120) : '';
+        await push(ref(db, `library_notifications/${commentAuthorUid}`), {
+          type, fromUid: user.uid, fromName: user.displayName || 'Reader',
+          slug, commentId, commentText, read: false, createdAt: Date.now(),
+        });
+      } catch (e) { console.error('Reaction notification error:', e); }
     }
   }, [user, slug, commentReactions, comments]);
 
@@ -778,8 +784,8 @@ function CommentsSection({ slug, onSignIn }) {
   return (
     <div className="cs-section" data-reveal="up">
       <div className="cs-header">
-        <div className="cs-title">Discussion</div>
-        {comments.length > 0 && <div className="cs-count">{comments.length} {comments.length === 1 ? 'comment' : 'comments'}</div>}
+        <div className="cs-title">Responses</div>
+        {comments.length > 0 && <div className="cs-count">{comments.length} {comments.length === 1 ? 'response' : 'responses'}</div>}
       </div>
       {user ? (
         <div className="cs-compose">
@@ -788,7 +794,7 @@ function CommentsSection({ slug, onSignIn }) {
               {userAvatarUrl ? <img src={userAvatarUrl} alt={userInitials} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : userInitials}
             </a>
             <div className="cs-input-wrap">
-              <MentionTextarea value={text} onChange={setText} placeholder="Share your thoughts on this story…" rows={3} />
+              <MentionTextarea value={text} onChange={setText} placeholder="Add a response…" rows={3} />
               <button className={`cs-kite-btn${text.trim() ? ' active' : ''}`} onClick={() => postComment(text)} disabled={posting || !text.trim()} title="Post comment">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#c9a84c"/></svg>
               </button>
@@ -1429,8 +1435,9 @@ useEffect(() => {
         .cs-save-btn:hover { background: #7c3aed; }
         .cs-cancel-btn { background: transparent; border: 1px solid rgba(166,61,76,0.5); color: #a63d4c; font-family: Cormorant Garamond, Georgia, serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
         .cs-cancel-btn:hover { background: rgba(166,61,76,0.12); border-color: #a63d4c; }
-        .cs-reply-btn { background: none; border: none; font-size: 0.7rem; font-weight: 500; color: rgba(255,255,255,0.4); cursor: pointer; padding: 0; letter-spacing: 0.1em; text-transform: uppercase; font-family: Cormorant Garamond, Georgia, serif; transition: color 0.2s; }
-        .cs-reply-btn:hover { color: #c9a84c; }
+        /* W13 — a word, not grey capitals (ruling, 26 Sept). It reads Cancel while its box is open. */
+        .cs-reply-btn { background: none; border: none; font-size: 15px; font-weight: 500; line-height: 44px; color: #9062DA; cursor: pointer; padding: 0 4px; letter-spacing: 0; text-transform: none; font-family: Cormorant Garamond, Georgia, serif; }
+        .cs-reply-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
         .cs-reply-compose { background: rgba(107,47,173,0.06); border: 1px solid rgba(107,47,173,0.18); border-radius: 10px; padding: 0.75rem; margin-top: 0.75rem; margin-bottom: 0.5rem; }
         .cs-replies { margin-top: 0.75rem; padding-left: 1rem; border-left: 1px solid rgba(107,47,173,0.25); display: flex; flex-direction: column; gap: 0.75rem; }
         .cs-reply { display: flex; gap: 10px; }

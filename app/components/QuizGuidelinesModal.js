@@ -102,8 +102,8 @@ export default function QuizGuidelinesModal({ onBegin, onCancel, mode = 'story' 
             The first question is a close-reading comprehension check — and it is strict.
             Your answer must use specific words from the story. Don't paraphrase: name the
             thing the way the writer named it. One small word out of place can mark you wrong.
-            You have two attempts. Fail both and the quiz locks — though the Discussion
-            remains open.
+            You have two attempts. Fail both and the quiz locks — though Responses
+            remain open.
           </p>
 
           <p style={{ margin: 0, fontStyle: 'italic', color: 'rgba(240,234,216,0.6)' }}>

@@ -141,3 +141,24 @@ The CSS is `app/lib/proseCSS.js`: `.prose p { margin-bottom: 0 }` and
 1. The Series indent (0.5cm, set by the EPUB files) is narrower than the stories' 1.5em.
 2. Whether a paragraph after a section break should be indented is currently decided story by
    story.
+
+## 26 Sep 2026 (Ikenna): the responses section and the reactions (W13)
+
+- The section under a story is **"Responses"**, its count **"3 responses"** ("1 response"), and
+  the box **"Add a response…"**. They replace "Discussion", "3 comments" and "Share your
+  thoughts on this story…", on `/stories/…` and on `/reader/…`.
+- **"Reply"** is a word, Cormorant 500, 15px, #9062DA. It reads **"Cancel"** while its box is
+  open. It replaces the grey capitals under story responses and in the Open Pages thread.
+- A failed reaction says **"Couldn't save your reaction. Try again."** (`FAIL_COPY` in
+  `app/components/conversation/Reaction.js`).
+
+Pinned in `tests/ci/w13-reactions.test.mjs`.
+
+**Not ruled: two lines W13 had to change so they still point at something.** The quiz named
+"the Discussion", a section that no longer exists by that name:
+- `QuizCard.js`: "The Discussion below is open." is now "Responses below are open."
+- `QuizGuidelinesModal.js`: "though the Discussion remains open." is now "though Responses
+  remain open."
+
+They await a ruling. "Sign in to join the discussion", on the signed-out story page, names no
+section and was left alone. It too is for Ikenna.

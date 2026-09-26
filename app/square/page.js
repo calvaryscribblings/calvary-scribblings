@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { stories as allStaticStories } from '../lib/stories';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
-import { Avatar, UserBadge, timeAgo, ReactionRow, buildReactions, BADGE_SVG_PATH, CHECK_PATH } from '../components/conversation/ConversationKit';
+import { Avatar, UserBadge, timeAgo, ReactionRow, SQUARE_REACTIONS, BADGE_SVG_PATH, CHECK_PATH } from '../components/conversation/ConversationKit';
 import PostBody from '../components/conversation/PostBody';
 import AttachmentCard from '../components/conversation/AttachmentCard';
 import { MAX_POST_CHARS, MAX_REPLY_CHARS, showCounter, refusalFor, attachmentOf, slimAttachedStory } from '../lib/squarePostBody';
@@ -13,7 +13,6 @@ import { READ_DEADLINE_MS, classifyFailure } from '../lib/reliableRead';
 import { useOnline, reconnectDatabase } from '../lib/useReliable';
 import Unavailable from '../components/Unavailable';
 
-const SQUARE_REACTIONS = buildReactions('like');
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -1180,29 +1179,44 @@ export default function SquarePage() {
     setPosting(false);
   };
 
+  // W13 — optimistic: the state and count flip on the tap, and a failed save restores both
+  // and rejects, so the button can shake and say so (components/conversation/Reaction.js).
+  // The listeners' echo then carries the same values and moves nothing.
   const toggleReaction = async (postId, type) => {
     if (!user) return;
+    const hasReacted = !!reactions[postId]?.[type];
+    const currentCount = posts.find(p => p.id === postId)?.[`${type}Count`] || 0;
+    const apply = (reacted, count) => {
+      setReactions(prev => ({ ...prev, [postId]: { ...prev[postId], [type]: reacted } }));
+      setPosts(prev => prev.map(p => (p.id === postId ? { ...p, [`${type}Count`]: count } : p)));
+    };
+    apply(!hasReacted, hasReacted ? Math.max(0, currentCount - 1) : currentCount + 1);
     const db = await getDB();
     const { ref, set, remove, runTransaction, push } = await import('firebase/database');
     const reactionRef = ref(db, `square_reactions/${postId}/${type}/${user.uid}`);
     const countRef = ref(db, `square_posts/${postId}/${type}Count`);
-    const hasReacted = reactions[postId]?.[type];
-
-    if (hasReacted) {
-      await remove(reactionRef);
-      await runTransaction(countRef, c => Math.max(0, (c || 0) - 1));
-    } else {
-      await set(reactionRef, true);
-      await runTransaction(countRef, c => (c || 0) + 1);
-      // Send notification to post author
-      const post = posts.find(p => p.id === postId);
-      if (post && post.authorUid !== user.uid) {
+    try {
+      if (hasReacted) {
+        await remove(reactionRef);
+        await runTransaction(countRef, c => Math.max(0, (c || 0) - 1));
+      } else {
+        await set(reactionRef, true);
+        await runTransaction(countRef, c => (c || 0) + 1);
+      }
+    } catch (e) {
+      apply(hasReacted, currentCount);
+      throw e;
+    }
+    // Saved. Telling the post's author is a courtesy after it and never undoes the reaction.
+    const post = posts.find(p => p.id === postId);
+    if (!hasReacted && post && post.authorUid !== user.uid) {
+      try {
         await push(ref(db, `notifications/${post.authorUid}`), {
           type, fromUid: user.uid, fromName: user.displayName || 'Reader',
           fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
           postId, read: false, createdAt: Date.now(),
         });
-      }
+      } catch (e) { console.error('Reaction notification error:', e); }
     }
   };
 
@@ -1349,6 +1363,9 @@ export default function SquarePage() {
   // drifted apart in the first place.
   const who = (p) => identityOf(p, identities[p.authorUid]);
 
+  // Called as a FUNCTION, never as a JSX element: declared inside this render, it would be a
+  // new component type every render, and React would remount every reaction button on each
+  // state change, tearing a burst out mid-flight (W13).
   const ReactionBar = ({ p, size = 16 }) => {
     const idleColor = 'rgba(245,240,232,0.45)';
     const trailing = (
@@ -1649,7 +1666,7 @@ export default function SquarePage() {
                           </>
                         )}
 
-                        <ReactionBar p={p} size={16} />
+                        {ReactionBar({ p, size: 16 })}
 
                         {replyTo === p.id && (
                           <div style={{ marginTop: 10, position: 'relative' }}>
@@ -1709,7 +1726,7 @@ export default function SquarePage() {
                                         {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} who={who} />}
                                       </>
                                     )}
-                                    <ReactionBar p={r} size={14} />
+                                    {ReactionBar({ p: r, size: 16 })}
                                   </div>
                                 </div>
                               );

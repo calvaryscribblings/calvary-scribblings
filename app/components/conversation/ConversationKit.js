@@ -13,6 +13,7 @@
 // touched here — this module is presentation only.
 
 import { useEffect, useState, useRef } from 'react';
+import { Reaction, useReactionNote, COMMENT_REACTIONS, SQUARE_REACTIONS } from './Reaction.js';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -46,19 +47,10 @@ const AVATAR_BG_AUTHOR = 'rgba(88,28,135,0.25)';
 const AVATAR_BORDER_AUTHOR = 'rgba(88,28,135,0.5)';
 const MENTION_COLOR = GOLD;
 
-// Reaction active colours — shared by both surfaces so a reaction reads the
-// same on comment and Square. Applause is gold on this island; fire is a warm
-// ember, not a Tailwind red; the heart keeps its rose.
-export const REACTION_COLORS = { heart: '#d4537e', clap: GOLD, fire: '#e0762e' };
-const REACTION_INACTIVE = 'rgba(245,240,232,0.45)';
-
 // ── Icon paths ────────────────────────────────────────────────────────────────
 export const BADGE_SVG_PATH = "M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91C1.87 9.33 1 10.57 1 12s.87 2.67 2.19 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91C21.37 14.67 22.25 13.43 22.25 12z";
 export const CHECK_PATH = "M9.13 17.75L5.5 14.12l1.41-1.41 2.22 2.22 6.34-7.59 1.53 1.28z";
 export const HEART_PATH = "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z";
-const CLAP_PATH_1 = "M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z";
-const CLAP_PATH_2 = "M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3";
-const FIRE_PATH = "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z";
 
 // ── timeAgo ───────────────────────────────────────────────────────────────────
 // Unified to the comments behaviour: minutes → hours → Nd up to 7 days → date.
@@ -231,118 +223,28 @@ export function UserBadge({ uid, readCount, isAuthor, self = false, size = 12, l
 }
 
 // ── Reactions ─────────────────────────────────────────────────────────────────
-// A reaction descriptor maps a per-surface DB key onto a shared icon + colour:
-//   comments → [{ key:'heart', icon:'heart', ... }, ...]
-//   Square   → [{ key:'like',  icon:'heart', ... }, ...]
-export function buildReactions(heartKey) {
-  return [
-    { key: heartKey, icon: 'heart', activeColor: REACTION_COLORS.heart },
-    { key: 'clap', icon: 'clap', activeColor: REACTION_COLORS.clap },
-    { key: 'fire', icon: 'fire', activeColor: REACTION_COLORS.fire },
-  ];
-}
+// W13. The button, its motion, the row's measure and the per-surface descriptors live in
+// ./Reaction.js (no JSX, so node tests import them); this row only lays them out.
+export { COMMENT_REACTIONS, SQUARE_REACTIONS };
 
-function ReactionIcon({ type, size, active, color, bursting }) {
-  const common = {
-    width: size, height: size, viewBox: '0 0 24 24',
-    fill: active ? color : 'none', stroke: color, strokeWidth: 1.75,
-    strokeLinecap: 'round', strokeLinejoin: 'round',
-    style: { display: 'block', transformOrigin: 'center', animation: bursting ? 'ck-burst 350ms cubic-bezier(0.34,1.56,0.64,1)' : 'none' },
-  };
-  if (type === 'heart') return <svg {...common}><path d={HEART_PATH} /></svg>;
-  if (type === 'clap') return <svg {...common}><path d={CLAP_PATH_1} /><path d={CLAP_PATH_2} /></svg>;
-  if (type === 'fire') return <svg {...common}><path d={FIRE_PATH} /></svg>;
-  return null;
-}
-
-// The count rolls up on increment: the incoming digit slides in from below
-// inside a clipping box, so a reaction feels like it lands. Decrements just
-// swap. Reduced motion snaps.
-function RollingCount({ value, color, reducedMotion }) {
-  const prev = useRef(value);
-  const rolling = !reducedMotion && value > prev.current;
-  useEffect(() => { prev.current = value; });
-  return (
-    <span style={{ display: 'inline-block', overflow: 'hidden', verticalAlign: 'bottom', color, fontSize: '0.74rem', fontFamily: FONT, letterSpacing: '0.04em', lineHeight: 1.1 }}>
-      <span key={value} style={{ display: 'inline-block', animation: rolling ? 'ck-roll 200ms ease' : 'none' }}>{value}</span>
-    </span>
-  );
-}
-
-// Injected once per document — keyframes for the activation spring and the
-// count roll. Kept out of the surfaces' style blocks so the kit owns its motion.
-let ckStylesInjected = false;
-function useReactionStyles() {
-  useEffect(() => {
-    if (ckStylesInjected || typeof document === 'undefined') return;
-    ckStylesInjected = true;
-    const el = document.createElement('style');
-    el.textContent = '@keyframes ck-burst{0%{transform:scale(1)}45%{transform:scale(1.18)}100%{transform:scale(1)}}@keyframes ck-roll{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}';
-    document.head.appendChild(el);
-  }, []);
-}
-
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const apply = () => setReduced(mq.matches);
-    apply();
-    mq.addEventListener?.('change', apply);
-    return () => mq.removeEventListener?.('change', apply);
-  }, []);
-  return reduced;
-}
-
-// Unified across both surfaces: 16px icons (14 for replies), a 32px minimum
-// touch target regardless of icon size, a spring overshoot when a reaction is
-// added (never when removed — celebration is for adding), gold counts once the
-// viewer has reacted, and colour-only changes under reduced motion.
+// onToggle(key) must flip the state at once and return a promise that rejects, after
+// restoring the state, if the save fails. See the contract in ./Reaction.js.
 export function ReactionRow({
   reactions, item, activeMap, onToggle, canReact,
   iconSize = 16, trailing = null,
 }) {
-  const [pressed, setPressed] = useState(null);
-  const [burst, setBurst] = useState(null);
-  const reducedMotion = usePrefersReducedMotion();
-  useReactionStyles();
-
-  // Celebrate only a fresh add — fire the spring off the click, when the
-  // reaction is about to switch on. Un-reacting and background data loads never
-  // burst.
-  const handleClick = (key) => {
-    if (!activeMap?.[key] && !reducedMotion) {
-      setBurst(key);
-      setTimeout(() => setBurst(b => (b === key ? null : b)), 360);
-    }
-    onToggle(key);
-  };
-
-  const clearPress = () => setPressed(null);
+  const [note, fail] = useReactionNote();
   return (
-    <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-      {reactions.map(({ key, icon, activeColor }) => {
-        const active = !!activeMap?.[key];
-        const count = item[`${key}Count`] || 0;
-        const color = active ? activeColor : REACTION_INACTIVE;
-        return (
-          <button key={key} onClick={() => handleClick(key)}
-            onMouseDown={() => setPressed(key)} onMouseUp={clearPress} onMouseLeave={clearPress}
-            onTouchStart={() => setPressed(key)} onTouchEnd={clearPress}
-            style={{
-              background: 'none', border: 'none', cursor: canReact ? 'pointer' : 'default',
-              minWidth: 32, minHeight: 32, padding: '0 4px',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-              transform: (pressed === key && !reducedMotion) ? 'scale(0.82)' : 'scale(1)',
-              transition: reducedMotion ? 'none' : 'transform 0.15s ease',
-            }}>
-            <ReactionIcon type={icon} size={iconSize} active={active} color={color} bursting={burst === key} />
-            {count > 0 && <RollingCount value={count} color={active ? GOLD : REACTION_INACTIVE} reducedMotion={reducedMotion} />}
-          </button>
-        );
-      })}
-      {trailing}
+    <div>
+      <div className="rx-row" style={{ marginTop: 2 }}>
+        {reactions.map(({ key, kind }) => (
+          <Reaction key={key} kind={kind} size={iconSize}
+            on={!!activeMap?.[key]} count={item[`${key}Count`] || 0}
+            canReact={canReact} onToggle={() => onToggle(key)} onFail={fail} />
+        ))}
+        {trailing && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 16 }}>{trailing}</span>}
+      </div>
+      {note}
     </div>
   );
 }
