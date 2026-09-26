@@ -89,6 +89,10 @@ jobs:
       - name: Scrub
         env:
           SCRUB_SERVICE_ACCOUNT: ${{ runner.temp }}/serviceAccountKey.json
+          # W17 / ruling 33 — a reader voice that comes down with a deletion has a static page;
+          # the run summons a build to remove it. Read server-side only; never printed
+          # (scripts/deploy-hook.mjs).
+          CMS_DEPLOY_HOOK_URL: ${{ secrets.CMS_DEPLOY_HOOK_URL }}
         shell: bash   # pipefail: the script's own exit status still fails the step (W12)
         run: |
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.apply }}" = "true" ]; then

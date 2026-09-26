@@ -90,6 +90,8 @@ const fixture = () => ({
       c3: { authorUid: A, text: 'theirs', heartCount: 2, fireCount: 1, replies: { r1: { authorUid: T, text: 'nested mine' }, r2: { authorUid: B, text: 'nested B' } } },
     },
     op1: { oc1: { authorUid: A, text: 'comment on the leaving reader\'s piece' } },
+    // W17 / ruling 30, nested: their comment on another reader's piece, with a reply beneath it.
+    op2: { oc5: { authorUid: T, authorName: 'Leaving Reader', text: 'mine on A\'s piece', createdAt: 3, replies: { or1: { authorUid: B, text: 'B under mine' } } } },
   },
   user_comments: { [T]: { c1: { slug: 'story' } }, [A]: { c2: { slug: 'story' }, c3: { slug: 'story' } } },
   comment_reactions: { story: { [T]: { c3: { heart: true, fire: true } }, [A]: { c1: { heart: true } } } },
@@ -118,7 +120,10 @@ const fixture = () => ({
   },
   user_open_pages: { [T]: { op1: { authorUid: T } }, [A]: { op2: { authorUid: A } } },
   open_pages_reactions: { op1: { [A]: true }, op2: { [T]: true, [A]: true } },
-  cms_voices: { v1: { matchUid: T, displayName: 'Leaving Reader', message: 'a published voice' } },
+  cms_voices: { v1: { matchUid: T, slug: 'v1', displayName: 'Leaving Reader', message: 'a published voice' }, v2: { matchUid: A, slug: 'v2', message: 'stays' } },
+  // ── KEPT BY RULING 34: what they wrote in the CMS, and their author page ────────────────
+  cms_stories: { st1: { authorUid: T, title: 'their story', published: true } },
+  story_authors: { leaving: { uid: T, name: 'Leaving Reader' } },
   subscribers: { s1: { email: 'Leaving@Example.com' }, s2: { email: 'stays@example.com' } },
   bookstore_waitlist: { w1: { email: EMAIL }, w2: { email: 'stays@example.com' } },
   // ── KEPT ─────────────────────────────────────────────────────────────────────────────
@@ -137,7 +142,9 @@ const KEPT = [
   new RegExp(`^deletions/${T}(/|$)`),              // the record
   /^reports\//,                                    // safety records
   /^rate_limits\//,                                // self-cleaning windows
-  // DRAFT: the other reader keeps their half of a DM. A conversation id IS the sorted pair of
+  /^cms_stories\/st1\/authorUid$/,                  // ruling 34: stories they wrote stay, pending the editorial call
+  /^story_authors\/leaving\/uid$/,                  // ruling 34: and their author page
+  // Ruling 32: the other reader keeps their half of a DM. A conversation id IS the sorted pair of
   // uids (square/page.js), so their half is necessarily filed under an id that contains this
   // one. Only the id: the deleted reader's messages, profile and pointer are gone.
   new RegExp(`^dm_messages/${conv}$`),
@@ -168,9 +175,14 @@ after(async () => { globalThis.fetch = realFetch; await deleteApp(app); });
 beforeEach(async () => { await db.ref().set(fixture()); });
 
 const quiet = { log() {} };
+// The scrub's two outside hands (ruling 33): Storage and the rebuild hook, stood in.
+const scrubHands = (outside) => ({
+  removeStoragePrefix: async (prefix) => { outside.push(`rm-prefix ${prefix}`); return 2; },
+  rebuild: async () => { outside.push('rebuild'); return 'fired'; },
+});
 async function deleteFully(outside = [], opts = {}) {
   await runDeletion(T, EMAIL, ioFor(outside, opts), quiet);
-  await runScrub(db, { apply: true, log() {} });
+  await runScrub(db, { apply: true, log() {}, ...scrubHands(outside) });
   return (await db.ref().get()).val();
 }
 
@@ -182,7 +194,7 @@ describe('the whole deletion, endpoint then scrub', () => {
     assert.deepEqual(leaks, [], `the uid survives at:\n${leaks.join('\n')}`);
     // …and the email is gone from every row keyed by it
     assert.deepEqual(walkFor(after, 'eaving@').concat(walkFor(after, EMAIL)), []);
-    assert.deepEqual(outside, [`stripe sub_T`, `list avatars/${T}`, `rm avatars/${T}`, `list headers/${T}`, `list open_pages/${T}/`, `auth ${T}`]);
+    assert.deepEqual(outside, [`stripe sub_T`, `list avatars/${T}`, `rm avatars/${T}`, `list headers/${T}`, `list open_pages/${T}/`, `auth ${T}`, 'rm-prefix voices/v1/', 'rebuild']);
   });
 
   test('KEPT records are kept, and nothing that identifies a person points at them', async () => {
@@ -208,33 +220,91 @@ describe('the whole deletion, endpoint then scrub', () => {
     assert.deepEqual(Object.keys(c3.replies), ['r2']);
     assert.equal(c3.heartCount, 1, 'heart recorded in both shapes → down ONE');
     assert.equal(c3.fireCount, 0);
-    assert.equal(after.comments.story.c1, undefined);
-    assert.equal(after.comments.story.c2, undefined, 'DRAFT: the thread under their comment goes with it');
     assert.equal(after.comments.op1, undefined, 'comments on their Open Pages piece go with it');
-    assert.deepEqual(after.user_comments[A], { c3: { slug: 'story' } });
+    assert.deepEqual(after.user_comments[A], { c2: { slug: 'story' }, c3: { slug: 'story' } }, 'A\'s reply under a deleted comment keeps its index entry');
     assert.equal(after.storyReactions.story.heart, 1);
     assert.equal(after.storyReactions.story.quill, 0);
     assert.equal(after.square_posts.p1.likeCount, 1);
     assert.equal(after.square_posts.p1.clapCount, 0);
-    assert.equal(after.square_posts.p3, undefined);
-    assert.deepEqual(Object.keys(after.user_square_posts[A]), ['p1']);
+    assert.deepEqual(Object.keys(after.user_square_posts[A]).sort(), ['p1', 'p3']);
+    assert.equal(after.square_archive.a1, undefined, 'their archived post, with no reply, is deleted');
     assert.equal(after.square_archive.a2.likeCount, 0);
     assert.deepEqual(after.square_archive.a2.poll.votes, { [A]: 1 });
     assert.deepEqual(after.open_pages_reactions, { op2: { [A]: true } });
-    assert.equal(after.dm_messages[conv].m2.text, 'hi back', 'DRAFT: the other reader keeps their half');
-    assert.deepEqual(after.dm_conversations[A], { [conv]: { lastAt: 1 } });
-    assert.equal(after.cms_voices.v1.message, 'a published voice', 'DRAFT: the voice is detached, not deleted');
     assert.deepEqual(after.followers[A], { [B]: true });
     assert.deepEqual(after.notifications[A], { n2: { fromUid: B } });
     assert.equal(after.users[A].displayName, 'Stays A');
     assert.deepEqual(after.subscribers, { s2: { email: 'stays@example.com' } });
   });
 
+  test('RULING 29: their comments and Square posts are deleted — none stays up under "a deleted reader"', async () => {
+    const after = await deleteFully();
+    // Every word they wrote, as stored: none may survive anywhere but the kept records.
+    const THEIRS = new Set(['mine', 'nested mine', 'my post', 'archived mine', 'mine on A\'s piece', 'hello', 'Leaving Reader']);
+    const hits = [];
+    const walk = (v, path) => { if (v && typeof v === 'object') { for (const [k, x] of Object.entries(v)) walk(x, `${path}/${k}`); } else if (THEIRS.has(v)) hits.push(path); };
+    walk(after, '');
+    assert.deepEqual(hits.filter((p) => !/^\/(reports|cms_stories|story_authors)\//.test(p)), []);
+    assert.equal(after.comments.story.c3.replies.r1, undefined);
+  });
+
+  test('RULING 30: other readers\' replies stay, under a tombstone that says nothing of the author', async () => {
+    const after = await deleteFully();
+    const c1 = after.comments.story.c1;
+    assert.equal(c1.deleted, true);
+    assert.equal(typeof c1.deletedAt, 'number');
+    for (const k of ['text', 'authorUid', 'authorName', 'heartCount']) assert.equal(c1[k], undefined, k);
+    assert.equal(after.comments.story.c2.text, 'a reply to mine');
+    assert.equal(after.comments.story.c2.parentId, 'c1', 'the reply keeps its thread');
+    assert.equal(after.commentReactions?.story?.c1, undefined, 'reactions on the deleted words go');
+    // nested (Open Pages thread)
+    assert.deepEqual(after.comments.op2.oc5, { deleted: true, deletedAt: after.comments.op2.oc5.deletedAt, createdAt: 3, replies: { or1: { authorUid: B, text: 'B under mine' } } });
+    // the Square
+    const p2 = after.square_posts.p2;
+    assert.deepEqual(Object.keys(p2).sort(), ['deleted', 'deletedAt'], 'a top-level post: no parentId stored, no words, no author');
+    assert.equal(after.square_posts.p3.text, 'A replying to T');
+    assert.equal(after.square_posts.p3.parentId, 'p2');
+    assert.equal(after.square_likes?.p2, undefined);
+    assert.equal(after.square_reactions?.p2, undefined);
+  });
+
+  test('RULING 31: their row comes off the finished season\'s boards; the others stay', async () => {
+    const after = await deleteFully();
+    assert.deepEqual(after.leaderboards['summer-2026'].final, { [A]: { points: 9 } });
+    assert.equal(after.leaderboards['summer-2026'].snapshot, undefined);
+  });
+
+  test('RULING 32: in DMs, only what they sent is removed', async () => {
+    const after = await deleteFully();
+    assert.deepEqual(after.dm_messages[conv], { m2: { senderUid: A, text: 'hi back' } });
+    assert.deepEqual(after.dm_conversations[A], { [conv]: { lastAt: 1 } });
+  });
+
+  test('RULING 33: the reader voice quoting them comes down — record, images, and a rebuild for its page', async () => {
+    const outside = [];
+    const after = await deleteFully(outside);
+    assert.equal(after.cms_voices.v1, undefined);
+    assert.equal(after.cms_voices.v2.message, 'stays');
+    assert.ok(outside.includes('rm-prefix voices/v1/') && outside.includes('rebuild'));
+  });
+
+  test('RULING 33: without its Storage and rebuild hands the run refuses rather than half-apply', async () => {
+    await runDeletion(T, EMAIL, ioFor([]), quiet);
+    await assert.rejects(runScrub(db, { apply: true, log() {} }), /refusing to half-apply/);
+    assert.equal((await db.ref('cms_voices/v1/message').get()).val(), 'a published voice', 'nothing applied');
+  });
+
+  test('RULING 34: stories and series they wrote, and their author page, stay', async () => {
+    const after = await deleteFully();
+    assert.deepEqual(after.cms_stories.st1, { authorUid: T, title: 'their story', published: true });
+    assert.deepEqual(after.story_authors.leaving, { uid: T, name: 'Leaving Reader' });
+  });
+
   test('a scrub run twice changes nothing the second time — no counter goes down twice', async () => {
     const once = await deleteFully();
     // Put the record back to "not scrubbed" and run again.
     await db.ref(`deletions/${T}/steps/scrub`).remove();
-    await runScrub(db, { apply: true, log() {} });
+    await runScrub(db, { apply: true, log() {}, ...scrubHands([]) });
     const twice = (await db.ref().get()).val();
     delete once.deletions; delete twice.deletions;
     assert.deepEqual(twice, once);
@@ -242,7 +312,7 @@ describe('the whole deletion, endpoint then scrub', () => {
 
   test('the scrub waits for the endpoint: nothing is scrubbed before the Auth step is recorded', async () => {
     await db.ref(`deletions/${T}`).set({ uid: T, requestedAt: 1, updatedAt: 1, steps: { membership: 1 } });
-    await runScrub(db, { apply: true, log() {} });
+    await runScrub(db, { apply: true, log() {}, ...scrubHands([]) });
     assert.equal((await db.ref('comments/story/c1').get()).val().text, 'mine');
   });
 });
@@ -257,7 +327,7 @@ describe('resume: a failure at each step, then a retry', () => {
       assert.equal(mid[step], undefined);
       assert.ok(!('auth' in mid), 'never claims the account is gone');
       await runDeletion(T, EMAIL, ioFor(outside), quiet);
-      await runScrub(db, { apply: true, log() {} });
+      await runScrub(db, { apply: true, log() {}, ...scrubHands(outside) });
       const after = (await db.ref().get()).val();
       assert.deepEqual(walkFor(after, T).filter((p) => !KEPT.some((re) => re.test(p))), []);
       assert.equal(outside.filter((c) => c === 'stripe sub_T').length, 1, 'money moved once');
@@ -300,7 +370,9 @@ test('preview: a live account is reported, and nothing is written', async () => 
   const before = (await db.ref().get()).val();
   const p = await preview(db, T, EMAIL);
   assert.ok(p.owned[`users/{uid}`]);
-  assert.equal(p.scrub.comments, 1);
+  assert.equal(p.scrub.comments, 0, 'c1 has a reply by A beneath it — ruling 30');
+  assert.equal(p.scrub.commentTombstones, 2, 'c1, and oc5 on A\'s piece');
+  assert.equal(p.scrub.replies, 1, 'r1, nested in A\'s comment');
   assert.deepEqual(p.membershipToCancel, { rail: 'stripe', id: 'sub_T' });
   assert.deepEqual((await db.ref().get()).val(), before);
 });

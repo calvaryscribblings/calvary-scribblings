@@ -1,7 +1,8 @@
 # The account scrub plan, in plain English
 
-For Ikenna to sign off (ruling 14, 26 Sep 2026). This describes `scripts/account/scrub-plan.mjs`
-as it stands at W11. Nothing in the plan was changed to write this.
+Signed off by Ikenna on 26 Sep 2026: rulings 29–34, recorded under **Rulings** below and applied
+in W17. This describes `scripts/account/scrub-plan.mjs` as it stands after W17. (Written for
+sign-off under ruling 14, at W11.)
 
 ## Where it sits
 
@@ -35,32 +36,46 @@ made earlier, or by an app build that didn't check.
 
 ## What the scrub deletes
 
-- **Their comments and replies**, and every reply under a comment of theirs, **including other
-  readers' replies**. A reply left behind would hang off nothing. *(Marked DRAFT in the code. The
-  alternative is to keep the text under "a deleted reader".)*
-- **Their Square posts**, live and archived, with the replies under them. *(DRAFT, same choice.)*
-- **Their Open Pages pieces**, with the comments, likes and reports attached to them. *(DRAFT.)*
+- **Their comments and replies (ruling 29).** Nothing of theirs stays up under "a deleted reader".
+- **Other readers' replies stay (ruling 30).** A comment of theirs that has someone else's reply
+  beneath it is kept as a **tombstone**: `{ deleted: true, deletedAt, createdAt, parentId, replies }`,
+  with no words, no author, no counts and no reactions. Every thread draws it as **"This response
+  was deleted."**, with the other readers' replies beneath it, in their thread. A comment of
+  theirs with nothing of anyone else's beneath it is simply deleted. This covers both comment
+  shapes: flat replies (`parentId`) on stories and the reader, and nested replies (`replies/…`,
+  two levels) in Open Pages threads. W17 also closed a gap there: a reply of theirs two levels
+  deep was never removed before.
+- **Their Square posts, live and archived (rulings 29 and 30).** These work the same way. A post of
+  theirs with another reader's reply beneath it becomes a tombstone that reads **"This post was
+  deleted."**, and the reply keeps its thread. Otherwise the post is deleted. Reactions and likes
+  on a deleted or tombstoned comment or post go with its words.
+- **Their Open Pages pieces**, with the comments, likes and reports attached to them. *Rulings
+  29–34 don't cover pieces, so this is unchanged. See "Still open" below.*
 - **Their reactions, likes and poll votes on other people's work.** Each counter goes down by
   one, so "12 hearts" stops counting someone who is gone.
 - **Notifications they caused in other readers' inboxes**, because those carry their name and
   picture.
-- **Their reading records and their rows on the seasonal boards.** *(DRAFT for finished seasons:
-  a closed contest's standings lose a row.)*
-- **The DMs they sent.** The other reader's own messages, and their link to the conversation,
-  stay, because those are the other reader's. *(DRAFT.)*
+- **Their reading records and their rows on the seasonal boards (ruling 31)**, finished seasons
+  included, as before.
+- **The DMs they sent (ruling 32).** The other reader's own messages, and their link to the
+  conversation, stay, because those are the other reader's.
+- **A reader voice that quotes them (ruling 33).** The `cms_voices` record, and its card images
+  under Storage `voices/{slug}/`, which keeps them for 30 days under soft delete. The voice's page
+  is static, so the scrub fires the site's deploy hook (`CMS_DEPLOY_HOOK_URL`, added to
+  `account-scrub.yml`) and the page is gone after that build. If the run has no Storage or rebuild
+  access, it refuses to apply that deletion rather than half-apply it, and tries again on the next
+  tick.
 - **A backstop.** It re-checks everything the endpoint should already have removed: handle,
   follows, blocks, and any profile a payment webhook might have written back. So a miss is
   caught on the next run.
 
 ## What it keeps, and why
 
-- **Published reader voices** (`cms_voices`). The voice is editorial and stays. Only its link to
-  the account is removed. *(DRAFT: whether the voice itself should come down.)*
+- **Stories and series they wrote in the CMS, and their author page (ruling 34).** These stay up
+  until Ikenna makes the editorial call.
 - **Reports.** This covers reports they filed and reports about them (`content_reports`, the
   legacy `reports`). They are safety records, kept under the privacy policy. A report about one
   of their comments keeps its snapshot of up to 200 characters of that comment, and their uid.
-- **Stories and series they wrote in the CMS, and their author page.** These are editorial; *a
-  ruling is still owed.*
 - **Rate-limit windows.** They clear themselves.
 
 ## What the endpoint keeps (not the scrub's decision, listed for completeness)
@@ -95,13 +110,42 @@ runs all succeeded (last checked 26 Sep, 01:05 UTC). It applies this plan to eve
 - The web's under-18 screen is live. The app has its own check (`lib/dobCheck.ts` in the app
   repo), and whether it calls this endpoint can't be seen from this repository.
 
-## Decisions waiting on the sign-off
+## Rulings (Ikenna, 26 Sep 2026)
 
-1. **Replies, Square posts and Open Pages pieces:** delete them, or keep the text as "a deleted
-   reader"?
-2. **Other readers' replies** under a deleted comment: delete them with it (today), or keep them?
-3. **Finished seasonal boards:** remove the row (today), or freeze closed seasons?
-4. **DMs:** delete only what they sent (today)?
-5. **Reader voices:** keep them without the link (today), or take them down?
-6. **CMS stories, series and author pages** they wrote: keep them (today), pending the editorial
-   ruling?
+| # | Question | Ruling | Before W17 |
+|---|---|---|---|
+| **29** | Their comments and Square posts | **Deleted with the account**, not kept under "a deleted reader" | deleted |
+| **30** | Other readers' replies under a deleted comment or post | **Stay**, beneath "This response was deleted." / "This post was deleted.", in their thread | deleted with it |
+| **31** | Finished seasonal boards | **Their row comes off**, as today | row removed |
+| **32** | Direct messages | **Only what they sent** is removed, as today | the same |
+| **33** | Reader voices quoting them | **Come down** (record, images, page) | kept, link removed |
+| **34** | Stories, series and author pages they wrote | **Stay** until Ikenna makes the editorial call | kept |
+
+Proof: `tests/account/deletion.test.mjs` (the plan, pure) and `tests/account/deletion.emulator.test.mjs`
+(the endpoint then the scrub, against the database emulator), with one test per ruling. The
+drawing is pinned in `tests/ci/w17-deletion-rulings.test.mjs`.
+
+## Readers deleted before these rulings — nothing touched, waiting on Ikenna
+
+All 18 deletion records (23–25 Sep) finished their scrub under the old plan, and the 15-minute
+scrub never revisits a finished record. `scripts/account/rulings-report.mjs` (read-only, counts
+only) says what 29, 30 and 33 would do for them now:
+
+| Ruling | Would remove or change | How it was counted |
+|---|---|---|
+| 29 | **0** comments, **0** replies, **0** Square posts of theirs are still up | new plan against today's data |
+| 30 | **0** replies by other readers were removed that ruling 30 keeps (so **0** tombstones to write, **0** replies to restore) | new plan against the daily backup taken before each deletion |
+| 33 | **0** reader voices: none is linked to a deleted reader today, and none was detached earlier | today's `cms_voices` against each backup |
+
+**How far the 30 count reaches.** 17 of the 18 accounts were created and deleted on the same day
+(11 of them were the W3 proof's throwaway accounts on 25 Sep), so no backup ever held them. The
+only other record of what the old scrub removed was each run's log, and the nine runs that
+scrubbed were the nine W12 deleted because they printed uids. Every surviving run found nothing
+pending. The one reader who was in a backup had 2 seasonal-board rows and nothing else. So 0 is
+exact for that reader, and a floor for the other 17.
+
+## Still open
+
+1. **Open Pages pieces** they wrote. Today the piece goes, with every comment on it, including
+   other readers'. Rulings 29–34 don't cover pieces. Should a piece follow ruling 30 (the piece
+   goes, but a thread of other readers' comments stays under a tombstone), or stay as it is?

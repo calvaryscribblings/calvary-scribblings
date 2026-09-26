@@ -27,6 +27,7 @@ import { pruneBlocked, countNodes } from '../../lib/openPagesThread';
 import { renderMarkdown } from '../../lib/openPagesMarkdown';
 import { indexedCommentWrite } from '../../lib/userComments';
 import { Reaction, useReactionNote, useKeyedReactionNote } from '../../components/conversation/Reaction';
+import { DELETED_RESPONSE, isTombstone } from '../../lib/deletedContent';
 
 const REPORT_REASONS = ['Harmful content', 'Spam', 'Plagiarism', 'Other'];
 
@@ -382,6 +383,7 @@ export default function OpenPageDetailClient({ params }) {
             authorName: cval?.authorName || 'Anonymous',
             authorUid: cval?.authorUid || '',
             createdAt: cval?.createdAt || 0,
+            deleted: cval?.deleted === true,
             replies: cval?.replies ? Object.entries(cval.replies).map(([rid, rval]) => ({
               id: rid,
               path: `${cid}/replies/${rid}`,
@@ -389,6 +391,7 @@ export default function OpenPageDetailClient({ params }) {
               authorName: rval?.authorName || 'Anonymous',
               authorUid: rval?.authorUid || '',
               createdAt: rval?.createdAt || 0,
+              deleted: rval?.deleted === true,
               replies: rval?.replies ? Object.entries(rval.replies).map(([r2id, r2val]) => ({
                 id: r2id,
                 path: `${cid}/replies/${rid}/replies/${r2id}`,
@@ -396,10 +399,12 @@ export default function OpenPageDetailClient({ params }) {
                 authorName: r2val?.authorName || 'Anonymous',
                 authorUid: r2val?.authorUid || '',
                 createdAt: r2val?.createdAt || 0,
+                deleted: r2val?.deleted === true,
                 replies: [],
-              })).filter(r2 => r2.text) : [],
-            })).filter(r => r.text).sort((a, b) => a.createdAt - b.createdAt) : [],
-          })).filter(c => c.text).sort((a, b) => b.createdAt - a.createdAt);
+              })).filter(r2 => r2.text || r2.deleted) : [],
+            })).filter(r => r.text || (r.deleted && r.replies.length)).sort((a, b) => a.createdAt - b.createdAt) : [],
+            // W17 / ruling 30: a deleted reader's tombstone stays only while a reply hangs beneath it.
+          })).filter(c => c.text || (c.deleted && c.replies.length)).sort((a, b) => b.createdAt - a.createdAt);
           setComments(list);
         } else {
           setComments([]);
@@ -659,6 +664,20 @@ export default function OpenPageDetailClient({ params }) {
   // Recursive renderer for a comment / reply / reply-to-reply. depth 0 = comment,
   // 1 = reply, 2 = reply-to-reply (no further "Reply" affordance — max depth).
   function renderNode(node, depth) {
+    // W17 / ruling 30 — a deleted reader's comment with another reader's reply beneath it: the
+    // ruled words and the thread, with no name, avatar, like or Reply.
+    if (isTombstone(node)) {
+      return (
+        <div key={node.path} data-tombstone="" style={{ marginTop: depth ? 10 : 18 }}>
+          <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '0.95rem', color: 'rgba(245,240,232,0.45)' }}>{DELETED_RESPONSE}</div>
+          {node.replies && node.replies.length ? (
+            <div style={{ marginTop: 6, marginLeft: 4, paddingLeft: 14, borderLeft: THREAD_BORDER }}>
+              {node.replies.map((child) => renderNode(child, depth + 1))}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
     const profile = commenterProfiles[node.authorUid];
     const name = profile?.displayName || node.authorName || 'Reader';
     const handle = profile?.username || '';

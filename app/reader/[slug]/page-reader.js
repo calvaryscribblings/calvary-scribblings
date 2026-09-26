@@ -20,6 +20,7 @@ import ReadSeal from '../../components/ReadSeal';
 import { use } from 'react';
 import { getReaderId } from '../../lib/readerId';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, COMMENT_REACTIONS } from '../../components/conversation/ConversationKit';
+import { DELETED_RESPONSE, isTombstone } from '../../lib/deletedContent';
 
 
 const FB = {
@@ -92,6 +93,34 @@ const CommentNode = React.memo(function CommentNode({
   const visualDepth = Math.min(depth, 3);
   const isFlattened = depth > 3;
   const indentPx = (visualDepth - 1) * 28;
+  const replies = children.length > 0 && (
+      <div className="cs-replies">
+        {children.map(child => (
+          <CommentNode
+            key={child.id} comment={child} depth={depth + 1} parentAuthorName={comment.authorName}
+            user={user} comments={comments} commentReactions={commentReactions}
+            replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
+            setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
+            toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
+          />
+        ))}
+      </div>
+  );
+
+  // W17 / ruling 30 — a deleted reader's comment that still has someone else's reply beneath it.
+  // No name, no avatar, no reactions, no Reply: the ruled words, and the thread beneath.
+  if (isTombstone(comment)) {
+    return (
+      <div style={{ marginLeft: indentPx }} data-tombstone="">
+        <div className={depth === 1 ? "cs-comment" : "cs-reply"}>
+          <div className="cs-comment-body">
+            <div className={depth === 1 ? "cs-comment-text" : "cs-comment-text cs-comment-text-sm"} style={{ fontStyle: 'italic', opacity: 0.55 }}>{DELETED_RESPONSE}</div>
+          </div>
+        </div>
+        {replies}
+      </div>
+    );
+  }
 
   return (
     <div style={{ marginLeft: indentPx }}>
@@ -157,19 +186,7 @@ const CommentNode = React.memo(function CommentNode({
           )}
         </div>
       </div>
-      {children.length > 0 && (
-        <div className="cs-replies">
-          {children.map(child => (
-            <CommentNode
-              key={child.id} comment={child} depth={depth + 1} parentAuthorName={comment.authorName}
-              user={user} comments={comments} commentReactions={commentReactions}
-              replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
-              setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
-              toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
-            />
-          ))}
-        </div>
-      )}
+      {replies}
     </div>
   );
 });
@@ -369,12 +386,14 @@ function CommentsSection({ slug, onSignIn }) {
   // reader's comments are gone from the database, not hidden behind a flag.
   const visibleComments = comments;
   const topLevel = visibleComments.filter(c => !c.parentId);
+  const liveResponses = comments.filter(c => !isTombstone(c)).length;
 
   return (
     <div className="cs-section">
       <div className="cs-header">
         <div className="cs-title">Responses</div>
-        {comments.length > 0 && <div className="cs-count">{comments.length} {comments.length === 1 ? 'response' : 'responses'}</div>}
+        {/* W17: a deleted reader's tombstone is not a response. */}
+        {liveResponses > 0 && <div className="cs-count">{liveResponses} {liveResponses === 1 ? 'response' : 'responses'}</div>}
       </div>
       {user ? (
         <div className="cs-compose">

@@ -45,5 +45,6 @@ export function pruneBlocked(nodes, blocked) {
 /** Total nodes in a tree, replies included — so a heading agrees with what renders. */
 export function countNodes(nodes) {
   if (!Array.isArray(nodes)) return 0;
-  return nodes.reduce((sum, n) => sum + 1 + (n.replies ? countNodes(n.replies) : 0), 0);
+  // W17: a deleted reader's tombstone (ruling 30) is not a comment; the replies beneath it are.
+  return nodes.reduce((sum, n) => sum + (n?.deleted === true ? 0 : 1) + (n.replies ? countNodes(n.replies) : 0), 0);
 }

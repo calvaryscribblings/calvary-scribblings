@@ -150,31 +150,70 @@ describe('membershipAction', () => {
   });
 });
 
-describe('planScrub', () => {
+describe('planScrub — rulings 29–34 (Ikenna, 26 Sep 2026)', () => {
+  const B = 'BBBBother0000000000000000003';
+  const NOW = 1790500000000;
   const snap = {
     comments: {
       story: {
-        c1: { authorUid: T, text: 'mine', heartCount: 1 },
-        c2: { authorUid: A, text: 'reply to mine', parentId: 'c1' },
+        c1: { authorUid: T, text: 'mine', heartCount: 1, createdAt: 10 },
+        c2: { authorUid: A, text: 'reply to mine', parentId: 'c1', createdAt: 11 },
         c3: { authorUid: A, text: 'theirs', heartCount: 3, replies: { r1: { authorUid: T, text: 'nested' }, r2: { authorUid: A } } },
+        c4: { authorUid: T, text: 'mine, alone', createdAt: 12 },
+        c5: { authorUid: T, text: 'mine, with only my own reply', createdAt: 13 },
+        c6: { authorUid: T, text: 'my reply to myself', parentId: 'c5' },
+      },
+      op2: {
+        oc1: { authorUid: T, text: 'mine on their piece', createdAt: 20, replies: { or1: { authorUid: A, text: 'A under mine' } } },
+        oc2: { authorUid: A, text: 'theirs', replies: { or2: { authorUid: T, text: 'mine', replies: { or3: { authorUid: B, text: 'B, two deep' } } }, or4: { authorUid: A, replies: { or5: { authorUid: T, text: 'mine, two deep' } } } } },
       },
     },
-    comment_reactions: { story: { [T]: { c3: { heart: true } } } },
-    commentReactions: { story: { c3: { [T]: { heart: true } } } },
-    square_posts: { p1: { authorUid: A, likeCount: 2 }, p2: { authorUid: T }, p3: { authorUid: A, parentId: 'p2' } },
-    square_likes: { p1: { [T]: true, [A]: true } },
-    square_reactions: { p1: { like: { [T]: true } } },
+    comment_reactions: { story: { [T]: { c3: { heart: true } }, [A]: { c1: { heart: true } } } },
+    commentReactions: { story: { c3: { [T]: { heart: true } }, c1: { [A]: { heart: true } } } },
+    comment_likes: { op2: { oc1: { [A]: true }, oc2: { [T]: true, replies: { or4: { [T]: true, replies: { or5: { [A]: true } } } } } } },
+    square_posts: {
+      p1: { authorUid: A, likeCount: 2 }, p2: { authorUid: T, text: 'mine', createdAt: 5, likeCount: 1 },
+      p3: { authorUid: A, parentId: 'p2' }, p4: { authorUid: T, text: 'mine, no replies' }, p5: { authorUid: T, parentId: 'p1', text: 'my reply' },
+    },
+    square_likes: { p1: { [T]: true, [A]: true }, p2: { [A]: true } },
+    square_reactions: { p1: { like: { [T]: true } }, p2: { like: { [A]: true } } },
     storyReactionUsers: { story: { [T]: { heart: true, fire: false } } },
+    leaderboards: { 'summer-2026': { final: { [T]: { points: 5 }, [A]: { points: 9 } } } },
     notifications: { [A]: { n1: { fromUid: T }, n2: { fromUid: 'X' } } },
     dm_messages: { [[A, T].sort().join('_')]: { m1: { senderUid: T }, m2: { senderUid: A } } },
-    cms_voices: { v1: { matchUid: T, message: 'kept' } },
+    cms_voices: { v1: { matchUid: T, slug: 'v1', message: 'their words' }, v2: { matchUid: A, message: 'stays' } },
   };
-  const plan = planScrub(T, snap);
+  const plan = planScrub(T, snap, { now: NOW });
   const has = (p) => plan.nulls.includes(p);
+  const tomb = (p) => plan.sets[p];
 
-  test('their comment, and the reply that hung off it', () => {
-    assert.ok(has('comments/story/c1') && has('comments/story/c2'));
-    assert.equal(plan.counts.threadRepliesByOthers, 1);
+  test('29: their comment with nothing of anyone else\'s beneath it is deleted — and so is a thread that is all theirs', () => {
+    assert.ok(has('comments/story/c4'));
+    assert.ok(has('comments/story/c5') && has('comments/story/c6'));
+    assert.equal(tomb('comments/story/c4'), undefined);
+  });
+  test('30: their comment with another reader\'s reply beneath it becomes a TOMBSTONE; the reply stays, parent intact', () => {
+    assert.deepEqual(tomb('comments/story/c1'), { deleted: true, deletedAt: NOW, createdAt: 10 });
+    assert.ok(!has('comments/story/c1') && !has('comments/story/c2'));
+    assert.equal(plan.counts.commentTombstones, 3, 'c1, oc1 and the nested or2');
+    assert.ok(plan.counts.repliesByOthersKept >= 2);
+  });
+  test('30: the tombstone carries no words, no author, no counts', () => {
+    for (const [, t] of Object.entries(plan.sets)) {
+      for (const k of ['text', 'authorUid', 'uid', 'authorName', 'heartCount', 'likeCount']) assert.equal(t[k], undefined, k);
+    }
+  });
+  test('30, nested (Open Pages): a tombstone keeps the replies beneath it; their two-deep reply goes', () => {
+    assert.deepEqual(tomb('comments/op2/oc1'), { deleted: true, deletedAt: NOW, createdAt: 20, replies: { or1: { authorUid: A, text: 'A under mine' } } });
+    assert.deepEqual(tomb('comments/op2/oc2/replies/or2'), { deleted: true, deletedAt: NOW, replies: { or3: { authorUid: B, text: 'B, two deep' } } });
+    assert.ok(has('comments/op2/oc2/replies/or4/replies/or5'), 'the two-deep reply of theirs — missed before W17');
+    assert.ok(!has('comments/op2/oc2') && !has('comments/op2/oc2/replies/or4'));
+  });
+  test('reactions and likes ON a tombstoned comment go with its words; their likes elsewhere go at any depth', () => {
+    assert.ok(has('commentReactions/story/c1') && has(`comment_reactions/story/${A}/c1`));
+    assert.ok(has('comment_likes/op2/oc1'));
+    assert.ok(has(`comment_likes/op2/oc2/${T}`) && has(`comment_likes/op2/oc2/replies/or4/${T}`));
+    assert.ok(has('comment_likes/op2/oc2/replies/or4/replies/or5'), 'likes on their deleted two-deep reply');
   });
   test('their nested reply inside a comment that stays — and nothing else of it', () => {
     assert.ok(has('comments/story/c3/replies/r1'));
@@ -183,25 +222,47 @@ describe('planScrub', () => {
   test('a reaction recorded in BOTH legacy shapes takes the counter down ONCE', () => {
     assert.deepEqual(plan.decrements.filter((d) => d === 'comments/story/c3/heartCount'), ['comments/story/c3/heartCount']);
   });
-  test('Square: their post and its replies go; their like on a post that stays is taken down once', () => {
-    assert.ok(has('square_posts/p2') && has('square_posts/p3'));
+  test('29/30 Square: a post of theirs with another reader\'s reply is a tombstone; alone, or a reply of theirs, it goes', () => {
+    assert.deepEqual(tomb('square_posts/p2'), { deleted: true, deletedAt: NOW, parentId: null, createdAt: 5 });
+    assert.ok(!has('square_posts/p3'), 'the other reader\'s reply stays');
+    assert.ok(has('square_posts/p4') && has('square_posts/p5'));
+    assert.ok(has('square_likes/p2') && has('square_reactions/p2'), 'reactions on the tombstoned post go');
     assert.ok(has(`square_likes/p1/${T}`) && has(`square_reactions/p1/like/${T}`));
     assert.equal(plan.decrements.filter((d) => d === 'square_posts/p1/likeCount').length, 1);
+    assert.equal(plan.counts.squareTombstones, 1);
   });
-  test('story reactions: only the types that were on', () => {
-    assert.ok(plan.decrements.includes('storyReactions/story/heart'));
-    assert.ok(!plan.decrements.includes('storyReactions/story/fire'));
+  test('31: their row comes off a finished season\'s board', () => {
+    assert.ok(has(`leaderboards/summer-2026/final/${T}`) && !has(`leaderboards/summer-2026/final/${A}`));
   });
-  test('notifications they caused; their DMs only; voice DETACHED not deleted', () => {
-    assert.ok(has(`notifications/${A}/n1`) && !has(`notifications/${A}/n2`));
+  test('32: DMs — only what they sent', () => {
     const conv = [A, T].sort().join('_');
     assert.ok(has(`dm_messages/${conv}/m1`) && !has(`dm_messages/${conv}/m2`));
-    assert.ok(has('cms_voices/v1/matchUid') && !has('cms_voices/v1'));
   });
-  test('no counter under a path being deleted; no overlapping paths', () => {
-    assert.ok(!plan.decrements.some((d) => d.startsWith('comments/story/c1/')));
+  test('33: the reader voice quoting them comes down — the record and its images; another voice stays', () => {
+    assert.ok(has('cms_voices/v1') && !has('cms_voices/v2'));
+    assert.deepEqual(plan.voices, [{ id: 'v1', storagePrefixes: ['voices/v1/'] }]);
+    assert.equal(plan.counts.voicesRemoved, 1);
+  });
+  test('story reactions: only the types that were on; notifications they caused', () => {
+    assert.ok(plan.decrements.includes('storyReactions/story/heart'));
+    assert.ok(!plan.decrements.includes('storyReactions/story/fire'));
+    assert.ok(has(`notifications/${A}/n1`) && !has(`notifications/${A}/n2`));
+  });
+  test('no counter under a path being deleted or tombstoned; no path overlaps another, removal or tombstone', () => {
+    assert.ok(!plan.decrements.some((d) => d.startsWith('comments/story/c1/') || d.startsWith('square_posts/p2/')));
     assert.deepEqual(dropCovered(plan.nulls), plan.nulls);
+    const all = [...plan.nulls, ...Object.keys(plan.sets)];
+    for (const p of all) for (const q of all) if (p !== q) assert.ok(!q.startsWith(`${p}/`), `${q} under ${p}`);
     assert.deepEqual(dropCovered(['a/b', 'a', 'a/bc', 'ab']), ['a', 'ab']);
+  });
+  test('a second plan over the scrubbed data finds nothing of theirs (tombstones carry no author)', () => {
+    const after = structuredClone(snap);
+    const setAt = (p, v) => { const ks = p.split('/'); let o = after; for (const k of ks.slice(0, -1)) o = o[k] ??= {}; if (v === null) delete o[ks.at(-1)]; else o[ks.at(-1)] = v; };
+    for (const p of plan.nulls) setAt(p, null);
+    for (const [p, v] of Object.entries(plan.sets)) setAt(p, v);
+    const again = planScrub(T, after, { now: NOW + 1 });
+    assert.deepEqual(again.nulls, []);
+    assert.deepEqual(again.sets, {});
   });
 });
 

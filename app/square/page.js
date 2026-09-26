@@ -12,6 +12,7 @@ import { resolveIdentities, identityOf } from '../lib/squareIdentity';
 import { READ_DEADLINE_MS, classifyFailure } from '../lib/reliableRead';
 import { useOnline, reconnectDatabase } from '../lib/useReliable';
 import Unavailable from '../components/Unavailable';
+import { isTombstone } from '../lib/deletedContent';
 
 
 const FB = {
@@ -156,7 +157,8 @@ function QuotedCard({ quotedPost, who, onClear }) {
   };
   return (
     <div style={cardStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap', paddingRight: onClear ? 18 : 0 }}>
+      {/* W17 / ruling 30: a deleted account's post is quoted as its tombstone — no author. */}
+      {!isTombstone(quotedPost) && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap', paddingRight: onClear ? 18 : 0 }}>
         <Avatar uid={quotedPost.authorUid} initials={initials} size={24} isAuthor={isWriter} avatarUrl={avatar} />
         <span style={{ fontSize: '0.81rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500 }}>{name}</span>
         {handle && <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{handle}</span>}
@@ -164,8 +166,8 @@ function QuotedCard({ quotedPost, who, onClear }) {
             LIVE record now, so it changes when the reader reads and not when the
             quote was written. */}
         <UserBadge uid={quotedPost.authorUid} readCount={reads} isAuthor={isWriter} />
-      </div>
-      <PostBody text={quotedPost.text} surface="quoted-card" />
+      </div>}
+      <PostBody text={quotedPost.text} surface="quoted-card" deleted={isTombstone(quotedPost)} />
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
         <a href={`#${quotedPost.id}`} onClick={handleViewPost}
           style={{ fontSize: '0.74rem', color: '#6b2fad', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none', fontWeight: 500 }}>
@@ -1509,14 +1511,14 @@ export default function SquarePage() {
                   {/* R33.2 — this bypassed the shared Avatar for a raw <img>, so it
                       inherited none of the fallback behaviour, and drew neither the
                       handle nor the island badge. Same components as everywhere else now. */}
-                  <Avatar uid={p.authorUid} initials={who(p).initials} size={28} isAuthor={who(p).isAuthor} avatarUrl={who(p).avatarUrl} />
+                  {isTombstone(p) ? <div style={{ width: 28, flex: 'none' }} /> : <Avatar uid={p.authorUid} initials={who(p).initials} size={28} isAuthor={who(p).isAuthor} avatarUrl={who(p).avatarUrl} />}
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
+                    {!isTombstone(p) && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{who(p).displayName}</span>
                       {who(p).handle && <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{who(p).handle}</span>}
                       <UserBadge uid={p.authorUid} readCount={who(p).readCount} isAuthor={who(p).isAuthor} />
-                    </div>
-                    <PostBody text={p.text} surface="closed-preview" />
+                    </div>}
+                    <PostBody text={p.text} surface="closed-preview" deleted={isTombstone(p)} />
                   </div>
                 </div>
               ))}
@@ -1623,9 +1625,11 @@ export default function SquarePage() {
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 10 }}>
-                      <Avatar uid={p.authorUid} initials={who(p).initials} size={34} isAuthor={who(p).isAuthor} avatarUrl={who(p).avatarUrl} />
+                      {/* W17 / ruling 30 — a deleted account's post with replies beneath it: no avatar,
+                          no name, no menu, no reactions, no Reply; the ruled words and the thread. */}
+                      {isTombstone(p) ? <div style={{ width: 34, flex: 'none' }} /> : <Avatar uid={p.authorUid} initials={who(p).initials} size={34} isAuthor={who(p).isAuthor} avatarUrl={who(p).avatarUrl} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
+                        {!isTombstone(p) && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
                           <a href={isOwn ? '/profile' : `/user?id=${p.authorUid}`} style={{ fontSize: '0.92rem', fontWeight: 600, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none' }}
                             onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
                             onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{who(p).displayName}</a>
@@ -1633,7 +1637,7 @@ export default function SquarePage() {
                           <UserBadge uid={p.authorUid} readCount={who(p).readCount} isAuthor={who(p).isAuthor} />
                           <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.42)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>· {timeAgo(p.createdAt)}{p.edited && <span style={{ color: 'rgba(245,240,232,0.25)' }}> · edited</span>}</span>
                           {user && <PostMenu post={p} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} onReport={setReportingPost} canPin={canPin} canRemove={canRemove} />}
-                        </div>
+                        </div>}
 
                         {isEditing ? (
                           <div style={{ marginBottom: 8, position: 'relative' }}>
@@ -1659,14 +1663,14 @@ export default function SquarePage() {
                                 WRITTEN here and read zero times, so a withdrawn post drew
                                 an avatar above an empty div. The branch now lives inside
                                 PostBody, so all eight surfaces have it or none does. */}
-                            <PostBody text={p.text} surface="feed-post" withdrawn={p.withdrawn === true} style={{ marginBottom: 6 }} />
-                            {!p.withdrawn && <AttachmentCard attachment={attachmentOf(p)} />}
+                            <PostBody text={p.text} surface="feed-post" withdrawn={p.withdrawn === true} deleted={isTombstone(p)} style={{ marginBottom: 6 }} />
+                            {!p.withdrawn && !isTombstone(p) && <AttachmentCard attachment={attachmentOf(p)} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
                             {p.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === p.quotedPostId)} who={who} />}
                           </>
                         )}
 
-                        {ReactionBar({ p, size: 16 })}
+                        {!isTombstone(p) && ReactionBar({ p, size: 16 })}
 
                         {replyTo === p.id && (
                           <div style={{ marginTop: 10, position: 'relative' }}>
@@ -1693,9 +1697,9 @@ export default function SquarePage() {
                               const rIsOwn = user?.uid === r.authorUid;
                               return (
                                 <div key={r.id} style={{ display: 'flex', gap: 8 }}>
-                                  <Avatar uid={r.authorUid} initials={who(r).initials} size={26} isAuthor={who(r).isAuthor} avatarUrl={who(r).avatarUrl} />
+                                  {isTombstone(r) ? <div style={{ width: 26, flex: 'none' }} /> : <Avatar uid={r.authorUid} initials={who(r).initials} size={26} isAuthor={who(r).isAuthor} avatarUrl={who(r).avatarUrl} />}
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
+                                    {!isTombstone(r) && <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
                                       <a href={rIsOwn ? '/profile' : `/user?id=${r.authorUid}`} style={{ fontSize: '0.92rem', fontWeight: 600, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none' }}
                                         onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
                                         onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{who(r).displayName}</a>
@@ -1703,7 +1707,7 @@ export default function SquarePage() {
                                       <UserBadge uid={r.authorUid} readCount={who(r).readCount} isAuthor={who(r).isAuthor} />
                                       <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.42)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>· {timeAgo(r.createdAt)}{r.edited && <span style={{ color: 'rgba(245,240,232,0.25)' }}> · edited</span>}</span>
                                       {user && <PostMenu post={r} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} onReport={setReportingPost} canPin={canPin} canRemove={canRemove} />}
-                                    </div>
+                                    </div>}
                                     {editingPost === r.id ? (
                                       <div style={{ position: 'relative' }}>
                                         <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem', marginBottom: 6 }} />
@@ -1722,11 +1726,11 @@ export default function SquarePage() {
                                       </div>
                                     ) : (
                                       <>
-                                        <PostBody text={r.text} surface="feed-reply" withdrawn={r.withdrawn === true} />
+                                        <PostBody text={r.text} surface="feed-reply" withdrawn={r.withdrawn === true} deleted={isTombstone(r)} />
                                         {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} who={who} />}
                                       </>
                                     )}
-                                    {ReactionBar({ p: r, size: 16 })}
+                                    {!isTombstone(r) && ReactionBar({ p: r, size: 16 })}
                                   </div>
                                 </div>
                               );

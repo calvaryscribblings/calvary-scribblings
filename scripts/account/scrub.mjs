@@ -50,6 +50,10 @@ export async function applyPlan(db, plan) {
     for (const p of plan.nulls.slice(i, i + CHUNK)) u[p] = null;
     await db.ref().update(u);
   }
+  // W17 / ruling 30 — the tombstones, after the removals (they never overlap: planScrub drops any
+  // removal beneath a tombstone, which is written whole).
+  const sets = Object.entries(plan.sets || {});
+  for (let i = 0; i < sets.length; i += CHUNK) await db.ref().update(Object.fromEntries(sets.slice(i, i + CHUNK)));
   let moved = 0;
   for (const p of plan.decrements) {
     const res = await db.ref(p).transaction((c) => {
@@ -63,6 +67,17 @@ export async function applyPlan(db, plan) {
     if (res.committed && typeof res.snapshot.val() === 'number') moved++;
   }
   return moved;
+}
+
+/**
+ * W17 / ruling 33 — a reader voice that came down: its card images (Storage voices/{slug}/, which
+ * keeps a 30-day soft delete) and its static page, which only a new build removes.
+ */
+export async function voicesDown(plan, { removeStoragePrefix, rebuild }) {
+  if (!plan.voices?.length) return { images: 0, rebuild: 'not needed' };
+  let images = 0;
+  for (const v of plan.voices) for (const prefix of v.storagePrefixes) images += await removeStoragePrefix(prefix);
+  return { images, rebuild: await rebuild() };
 }
 
 /** A deleted reader's billing record that still says live, or null. Pure. */
@@ -87,7 +102,7 @@ async function logRefFor(db, uid, rec, { apply, ordinal }) {
 }
 
 /** One pass over every deletions/{uid} record. */
-export async function runScrub(db, { apply = false, now = Date.now, log = console.log } = {}) {
+export async function runScrub(db, { apply = false, now = Date.now, log = console.log, removeStoragePrefix = null, rebuild = null } = {}) {
   const records = (await db.ref('deletions').get()).val() || {};
   const summary = { pending: 0, scrubbed: 0, stubs: 0 };
   let snap = null;
@@ -133,10 +148,15 @@ export async function runScrub(db, { apply = false, now = Date.now, log = consol
 
     summary.pending++;
     snap ||= await readScan(db);
-    const plan = planScrub(uid, { ...snap, userNode });
-    log(`[scrub] ${await tag()}: ${plan.nulls.length} paths, ${plan.decrements.length} counters — ${JSON.stringify(plan.counts)}`);
+    const plan = planScrub(uid, { ...snap, userNode }, { now: now() });
+    log(`[scrub] ${await tag()}: ${plan.nulls.length} paths, ${Object.keys(plan.sets).length} tombstones, ${plan.decrements.length} counters — ${JSON.stringify(plan.counts)}`);
     if (!apply) continue;
+    if (plan.voices.length && (!removeStoragePrefix || !rebuild)) throw new Error('a reader voice comes down with this deletion, but the run has no Storage or rebuild hand — refusing to half-apply');
     const moved = await applyPlan(db, plan);
+    if (plan.voices.length) {
+      const v = await voicesDown(plan, { removeStoragePrefix, rebuild });
+      log(`[scrub] ${await tag()}: ${plan.voices.length} reader voice(s) down — ${v.images} image(s) removed, rebuild ${v.rebuild}`);
+    }
     const t = now();
     await db.ref(`deletions/${uid}`).update({ 'steps/scrub': t, updatedAt: t, completedAt: t });
     summary.scrubbed++;
@@ -195,7 +215,14 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const email = await getAuth().getUser(uid).then((u) => u.email || null).catch(() => null);
     console.log(JSON.stringify(await preview(db, uid, email), null, 2));
   } else {
-    const s = await runScrub(db, { apply: args.includes('--apply') });
+    const { getStorage } = await import('firebase-admin/storage');
+    const { fireDeployHook } = await import('../deploy-hook.mjs');
+    const bucket = getStorage().bucket(process.env.SCRUB_STORAGE_BUCKET || 'calvary-scribblings.firebasestorage.app');
+    const s = await runScrub(db, {
+      apply: args.includes('--apply'),
+      removeStoragePrefix: async (prefix) => { const [files] = await bucket.getFiles({ prefix }); await Promise.all(files.map((f) => f.delete())); return files.length; },
+      rebuild: () => fireDeployHook(process.env.CMS_DEPLOY_HOOK_URL, { envName: 'CMS_DEPLOY_HOOK_URL', what: 'a deleted reader\'s voice came down' }),
+    });
     console.log(`[scrub] ${args.includes('--apply') ? 'APPLIED' : 'report only'}: ${JSON.stringify(s)}`);
     const p = await runPrivateSweep(db, { apply: args.includes('--apply') });
     console.log(`[private] ${args.includes('--apply') ? 'APPLIED' : 'report only'}: ${JSON.stringify(p)}`);

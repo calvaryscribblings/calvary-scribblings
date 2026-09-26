@@ -26,6 +26,7 @@ import { resolveIdentities, identityOf } from '../../lib/squareIdentity';
 import PostBody from '../../components/conversation/PostBody';
 import AttachmentCard from '../../components/conversation/AttachmentCard';
 import { attachmentOf } from '../../lib/squarePostBody';
+import { isTombstone } from '../../lib/deletedContent';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -60,21 +61,22 @@ function Row({ post, who, small }) {
   const id = who(post);
   return (
     <div style={{ display: 'flex', gap: 10, padding: small ? '10px 0' : '14px 0' }}>
-      <Avatar uid={post.authorUid} initials={id.initials} size={small ? 26 : 34} isAuthor={id.isAuthor} avatarUrl={id.avatarUrl} />
+      {/* W17 / ruling 30 — a deleted account's post kept as a tombstone: no author. */}
+      {isTombstone(post) ? <div style={{ width: small ? 26 : 34, flex: 'none' }} /> : <Avatar uid={post.authorUid} initials={id.initials} size={small ? 26 : 34} isAuthor={id.isAuthor} avatarUrl={id.avatarUrl} />}
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 }}>
+        {!isTombstone(post) && <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 }}>
           <span style={{ fontFamily: FF, fontWeight: 500, fontSize: small ? '0.86rem' : '0.95rem' }}>{id.displayName}</span>
           {id.handle && <span style={{ fontFamily: FF, fontSize: '0.72rem', color: 'rgba(245,240,232,0.45)' }}>@{id.handle}</span>}
           <UserBadge uid={post.authorUid} readCount={id.readCount} isAuthor={id.isAuthor} />
           <span style={{ fontFamily: FF, fontSize: '0.72rem', color: 'rgba(245,240,232,0.3)' }}>{timeAgo(post.createdAt)}</span>
-        </div>
+        </div>}
         {/* R43 — this surface was the ONLY one of the eight that already rendered
             paragraphs, via whiteSpace: pre-wrap, and the only one that did NOT render
             @mentions. Both now come from the shared renderer, so the feed and the
             permalink stopped being wrong in opposite directions. Its tombstone, which
             was the only one that existed, moved into that renderer with it. */}
-        <PostBody text={post.text} surface="permalink" withdrawn={post.withdrawn === true} style={small ? { fontSize: '0.9rem' } : null} />
-        {!post.withdrawn && <AttachmentCard attachment={attachmentOf(post)} />}
+        <PostBody text={post.text} surface="permalink" withdrawn={post.withdrawn === true} deleted={isTombstone(post)} style={small ? { fontSize: '0.9rem' } : null} />
+        {!post.withdrawn && !isTombstone(post) && <AttachmentCard attachment={attachmentOf(post)} />}
       </div>
     </div>
   );

@@ -114,7 +114,8 @@ describe('the rulings (26 Sept)', () => {
   test('the section says Responses', () => {
     for (const src of [STORY, READER]) {
       assert.match(src, /<div className="cs-title">Responses<\/div>/);
-      assert.match(src, /\{comments\.length === 1 \? 'response' : 'responses'\}/);
+      // W17: the count leaves out a deleted reader's tombstone (ruling 30); the words are the same.
+      assert.match(src, /\{liveResponses === 1 \? 'response' : 'responses'\}/);
       assert.match(src, /placeholder="Add a response…"/);
       assert.doesNotMatch(src, /Discussion|Share your thoughts|'comment' : 'comments'/);
     }

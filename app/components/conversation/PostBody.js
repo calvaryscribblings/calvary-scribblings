@@ -19,6 +19,7 @@
 
 import { createElement as h } from 'react';
 import { BODY_FONT, SURFACES, bodyOf, mentionHref } from '../../lib/squarePostBody.js';
+import { DELETED_POST } from '../../lib/deletedContent.js';
 
 const MENTION_COLOR = '#9b6dff';
 
@@ -26,8 +27,9 @@ const MENTION_COLOR = '#9b6dff';
  * @param {string}  text     the post's stored text
  * @param {string}  surface  a key of SURFACES — the draw site names itself
  * @param {object}  style    per-site overrides (size only; never the paragraph rule)
+ * @param {boolean} deleted  W17 / ruling 30: a deleted reader's post kept as a tombstone
  */
-export default function PostBody({ text, surface, withdrawn = false, style }) {
+export default function PostBody({ text, surface, withdrawn = false, deleted = false, style }) {
   const spec = SURFACES[surface];
   // ⚠ AN UNKNOWN KEY IS A HARD FAILURE, NOT A FALLBACK. A ninth surface that
   // forgets to register itself in SURFACES must not be able to quietly render
@@ -39,7 +41,7 @@ export default function PostBody({ text, surface, withdrawn = false, style }) {
   // ⚠ THE WITHDRAWN CASE IS DECIDED HERE, ONCE, FOR ALL EIGHT. R33.2 claimed the
   // feed drew a tombstone; it drew an empty div, because the branch existed only on
   // the permalink. Eight copies of a branch is how that happened, so there is one.
-  const paragraphs = withdrawn ? [] : bodyOf(text, { excerpt: spec.excerpt || null });
+  const paragraphs = withdrawn || deleted ? [] : bodyOf(text, { excerpt: spec.excerpt || null });
 
   const base = {
     fontFamily: BODY_FONT,
@@ -50,6 +52,16 @@ export default function PostBody({ text, surface, withdrawn = false, style }) {
     ...(spec.italic ? { fontStyle: 'italic' } : null),
     ...style,
   };
+
+  // W17 / ruling 30 — a deleted account's post that still has another reader's reply beneath it.
+  // The same words on every surface (app/lib/deletedContent.js), decided here like the withdrawn case.
+  if (deleted) {
+    return h(
+      'div',
+      { style: { ...base, fontStyle: 'italic', color: 'rgba(245,240,232,0.35)' }, 'data-postbody': surface, 'data-deleted': 'true' },
+      DELETED_POST
+    );
+  }
 
   if (withdrawn) {
     return h(
