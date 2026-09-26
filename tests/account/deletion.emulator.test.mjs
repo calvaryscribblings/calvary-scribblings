@@ -6,6 +6,7 @@
 // the four outside services (Stripe, Paystack, Storage, Auth) stood in. The scrub runs through
 // the same runScrub the cron runs.
 
+import { LOG_REF_RE } from '../../scripts/ops/redact.mjs';
 import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from 'firebase-admin/app';
@@ -194,7 +195,9 @@ describe('the whole deletion, endpoint then scrub', () => {
     assert.equal(after.users?.[T], undefined);
     assert.ok(!Object.values(after.usernames || {}).includes(T));
     assert.equal(after.user_search?.[T], undefined);
-    assert.deepEqual(Object.keys(after.deletions[T]).sort(), ['completedAt', 'requestedAt', 'steps', 'uid', 'updatedAt']);
+    // W12: plus logRef — a random del-xxxxxxxx the scrub prints in its public log instead of the uid.
+    assert.deepEqual(Object.keys(after.deletions[T]).sort(), ['completedAt', 'logRef', 'requestedAt', 'steps', 'uid', 'updatedAt']);
+    assert.match(after.deletions[T].logRef, LOG_REF_RE);
     assert.deepEqual(Object.keys(after.deletions[T].steps).sort(), ['auth', 'membership', 'owned', 'scrub', 'storage']);
   });
 
