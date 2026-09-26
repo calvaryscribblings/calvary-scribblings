@@ -31,6 +31,34 @@ export default function Providers({ children }) {
     return () => clearTimeout(t);
   }, []);
 
+  // W16 — A TAB THAT OUTLIVED A DEPLOY. iOS keeps a Safari tab's page in memory for days, and a
+  // back/forward restore hands back the old document whole; either way the page keeps running
+  // the build it loaded with. When a reading page comes back (bfcache restore, or visible again
+  // after 30s away) and /build.json names a newer build, reload — but only while the reader is
+  // in the top zone, where nothing is lost. Mid-story it is left alone: the next navigation is a
+  // fresh document anyway (public/sw.js, THE ONE RULE), and the footer's build stamp and the
+  // founder readout both say which build is running. Reading routes only — never a page that
+  // might hold an unsent form.
+  useEffect(() => {
+    const reading = () => /^\/(stories|series)\//.test(window.location.pathname);
+    let hiddenAt = 0;
+    const check = () => {
+      if (!reading() || window.scrollY > 80) return;
+      import('../lib/buildId').then(async (m) => {
+        const live = await m.readLiveBuild();
+        if (m.isStaleBuild(m.BUILD_COMMIT, live) && window.scrollY <= 80) window.location.reload();
+      }).catch(() => {});
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 30000) check();
+    };
+    const onShow = (e) => { if (e.persisted) check(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pageshow', onShow);
+    return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('pageshow', onShow); };
+  }, []);
+
   // Global scroll-reveal: adds .is-revealed to [data-reveal] elements as they
   // enter the viewport (see globals.css for the animations). The
   // MutationObserver picks up elements added after mount — client-side

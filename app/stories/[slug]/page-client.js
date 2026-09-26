@@ -36,6 +36,7 @@ import { useGatePreview, readGatePreview } from '../../lib/gatePreview';
 import { lockedForFirstPaint, lockScript } from '../../lib/storyLock';
 import StoryGate from '../../components/StoryGate';
 import StoryBar from '../../components/StoryBar';
+import BuildStamp from '../../components/BuildStamp';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, COMMENT_REACTIONS } from '../../components/conversation/ConversationKit';
 
 
@@ -1457,14 +1458,17 @@ useEffect(() => {
       .prose figure { margin: 2em 0; }
 .prose figure img { margin: 0; } @media (max-width: 600px) { .cs-textarea, .cs-textarea-sm { font-size: 16px !important; } }`}</style>
 
+      {/* W16: the bar is a child of <body> and nothing else — OUTSIDE the fade-in wrapper, which
+          animates. Nothing that ever wraps it can become its containing block. It fades with the
+          story on its own element instead. */}
+      <StoryBar hideOnScroll progressRef={threadRef} className={storyReady ? 'story-nav story-fade-in' : 'story-nav'} style={storyReady ? undefined : { opacity: 0 }}>
+        <div className="story-nav-row">
+          {/* The library, not the gateway: a reader mid-story is returning to the shelves. */}
+          <a href="/public-library" className="nav-logo">Calvary <span>Scribblings</span></a>
+          <span className="nav-meta">{displayCategory}</span>
+        </div>
+      </StoryBar>
       <div className={storyReady ? 'story-fade-in' : ''} style={{ opacity: storyReady ? undefined : 0 }}>
-        <StoryBar hideOnScroll progressRef={threadRef} className="story-nav">
-          <div className="story-nav-row">
-            {/* The library, not the gateway: a reader mid-story is returning to the shelves. */}
-            <a href="/public-library" className="nav-logo">Calvary <span>Scribblings</span></a>
-            <span className="nav-meta">{displayCategory}</span>
-          </div>
-        </StoryBar>
         <header className="story-hero">
           <img className="hero-bg" src={story.coverSizes?.w720 || story.cover} alt="" aria-hidden="true" loading="eager" fetchPriority="high" />
           <div className="hero-overlay" />
@@ -1596,6 +1600,7 @@ useEffect(() => {
                 {displaySubcategory || displayCategory}
               </span>
             </div>
+            <BuildStamp style={{ background: '#f0ead8', padding: '0 2rem 2rem' }} />
           </main>
         </div>
         <ExerciseSection slug={slug} />

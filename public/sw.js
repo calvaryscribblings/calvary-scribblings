@@ -208,46 +208,30 @@ async function cacheFirst(request) {
   return res;
 }
 
-// ── the timeout rule ─────────────────────────────────────────────────────────────────────
-// A timeout may ONLY be applied when there is something cached to fall back TO.
-//
-// This is not a detail. A blanket "network-first with a 3s timeout" turns a slow-but-
-// working connection into an offline page: the reader has signal, the story is coming, and
-// the worker gives up and shows them an apology. That is strictly worse than no service
-// worker at all, and it would hit hardest exactly the readers this feature is for — the
-// ones on a train.
-//
-// So: no cached copy means we wait as long as the browser would have waited, which makes
-// the worker's behaviour on an uncached page indistinguishable from having no worker. The
-// timeout exists only to shorten the wait when the alternative is a real, complete page we
-// already hold.
+// ── the timeout rule — RETIRED in W16 ────────────────────────────────────────────────────
+// Until W16 a cached shelf document (and its RSC payload) raced the network against a 3s
+// (2.5s) timeout, and the cached copy won on a slow connection. That was the one path in this
+// file by which an ONLINE reader was handed an old build's document after a deploy — against
+// THE ONE RULE above. The W16 brief (26 Sep 2026) made the rule absolute: "pages and scripts
+// must never be served stale once a new build is live." So there is no timeout any more. The
+// cache answers only when the network has FAILED. The cost, accepted: on a connection that
+// hangs rather than fails, /my-library waits as long as the browser would have, exactly as it
+// would with no worker. Do not bring the race back to make a slow train faster.
 function fetchWithCacheRefresh(request, cache, shouldCache) {
   const p = fetch(request).then((res) => {
-    // Attached to the fetch itself, not to the race: a response that arrives after the
-    // timeout still refreshes the cache instead of being thrown away.
     if (res && res.ok && shouldCache) { try { cache.put(request, res.clone()); } catch {} }
     return res;
   });
-  // When the timeout below wins the race, nothing awaits `p` any more. Attaching a handler
-  // to a derived promise marks the original as handled, so a later network error is a
-  // no-op instead of an unhandled rejection in the worker's console.
   p.catch(() => {});
   return p;
 }
 
-function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-  ]);
-}
-
-async function networkFirst(request, timeoutMs = 2500) {
+async function networkFirst(request) {
   const cache = await caches.open(SHELL_CACHE);
   const cached = await cache.match(request);
   const live = fetchWithCacheRefresh(request, cache, true);
   try {
-    return await (cached ? withTimeout(live, timeoutMs) : live);
+    return await live;
   } catch {
     if (cached) return cached;
     throw new Error('offline and uncached');
@@ -263,7 +247,7 @@ async function navigateNetworkFirst(event) {
   const cached = await cache.match(request, { ignoreSearch: true });
   const live = fetchWithCacheRefresh(request, cache, isShelfPath(url.pathname));
   try {
-    return await (cached ? withTimeout(live, 3000) : live);
+    return await live;
   } catch {
     // We are here because the network failed. Tell the open clients so the shelf can
     // raise its offline banner without trusting navigator.onLine, which reports "has an

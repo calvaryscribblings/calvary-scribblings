@@ -1,5 +1,6 @@
 'use client';
 import AppInvite from './AppInvite';
+import BuildStamp from './BuildStamp';
 
 // ⭑ THE FOOTER CARRIES THE APP ROW, AND IT IS SAFE HERE BY CONSTRUCTION.
 // The 3.1.1 constraint is that a page which says "buy this book" must not, in the same
@@ -61,6 +62,7 @@ export default function Footer({ showAppRow = true }) {
       <div style={{ borderTop: showAppRow ? 'none' : '1px solid rgba(255,255,255,0.06)', paddingTop: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.8rem' }}>
         © 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.
       </div>
+      <BuildStamp tone="dark" style={{ marginTop: '0.75rem' }} />
     </footer>
   );
 }

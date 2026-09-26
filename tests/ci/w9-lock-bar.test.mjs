@@ -248,7 +248,8 @@ describe('W9 · the bar — pinned, and the line on its edge', () => {
   });
   test('the story page (story, news, poetry) uses it, and the old 3px bar and its per-scroll state are gone', () => {
     const p = code('app/stories/[slug]/page-client.js');
-    assert.match(p, /<StoryBar hideOnScroll progressRef=\{threadRef\} className="story-nav">/);
+    // W16: the className now also carries the fade (the bar left the fade-in wrapper).
+    assert.match(p, /<StoryBar hideOnScroll progressRef=\{threadRef\} className=\{storyReady \? 'story-nav story-fade-in' : 'story-nav'\}/);
     assert.doesNotMatch(p, /top: 3px/);
     assert.doesNotMatch(p, /\.story-nav\.hidden|className="reading-progress"|setLastScrollY|setIsHeaderVisible/);
   });
