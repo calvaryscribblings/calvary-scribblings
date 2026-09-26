@@ -28,6 +28,7 @@ import { attachDropcap } from '../../lib/dropcap';
 // tagging in the render is what keeps out/stories/<slug>.html identical to the hydrated
 // page. See app/lib/subheadTag.js.
 import { tagSubheads } from '../../lib/subheadTag';
+import { tagParagraphs } from '../../lib/paragraphTag';
 import { proseCSS } from '../../lib/proseCSS';
 import SaveForOffline from '../../components/SaveForOffline';
 import { requestStory, bodyOf } from '../../lib/story';
@@ -1562,14 +1563,14 @@ useEffect(() => {
                   )}
                 </>
               ) : (
-                <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: tagSubheads(story.content || '<p>Content coming soon.</p>') }} />
+                <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: tagParagraphs(tagSubheads(story.content || '<p>Content coming soon.</p>')) }} />
               )}
               {/* W4 — THE PAGE'S OWN REFUSAL, before paint. Emitted only on a page whose build
                   inlined a full body that will lock (lockAtMs); it swaps #story-content for the
                   preview the moment the clock is past that instant, before the reader sees a
                   word. Runs from the static HTML at parse time; React never re-runs it. */}
               {initialStory?.lockAtMs && initialStory?.previewHtml != null && (
-                <script dangerouslySetInnerHTML={{ __html: lockScript(initialStory.lockAtMs, tagSubheads(initialStory.previewHtml), initialStory.previewLockAtMs ?? null) }} />
+                <script dangerouslySetInnerHTML={{ __html: lockScript(initialStory.lockAtMs, tagParagraphs(tagSubheads(initialStory.previewHtml)), initialStory.previewLockAtMs ?? null) }} />
               )}
               {/* Inside the article so the fade sits over the prose it is fading,
                   and outside .prose so the drop-cap tagger — which scopes its query

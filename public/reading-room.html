@@ -187,6 +187,28 @@ function respectAuthorAlignment(doc) {
   } catch (e) { /* non-fatal: alignment is cosmetic */ }
 }
 
+// W15, ruling 21 (Ikenna, 26 Sep 2026): a Series instalment sets its indented paragraphs at the
+// stories' 1.5em in place of the files' 0.5cm. The files still decide WHICH paragraphs are
+// indented (their p.no-indent and p.scene-break stay at 0), so this changes the length only:
+// every rule in the section's own stylesheets that indents by exactly 0.5cm now indents by 1.5em,
+// at the same priority. Only for a frame the Series reader opened with ?indent=series; a book is
+// set as its publisher set it. Measured by tests/typography/paragraph-census.mjs --epubs.
+const SERIES_INDENT = params.get('indent') === 'series'
+function seriesIndent(doc) {
+  if (!SERIES_INDENT) return
+  const walk = (rules) => {
+    for (const r of rules) {
+      if (r.cssRules) walk(r.cssRules)
+      if (r.style && r.style.getPropertyValue('text-indent').trim() === '0.5cm') {
+        r.style.setProperty('text-indent', '1.5em', r.style.getPropertyPriority('text-indent'))
+      }
+    }
+  }
+  for (const sheet of doc.styleSheets) {
+    try { walk(sheet.cssRules) } catch (e) { /* a sheet we cannot read keeps its own indent */ }
+  }
+}
+
 const state = { ...initial }
 let view = null
 let ready = false
@@ -1062,6 +1084,7 @@ if (!url) {
     // background and painted the margin gutters white — the white L-shape around the page.
     // Re-asserting our CSS here lands it in the document before that sample is taken.
     view.renderer?.setStyles?.(buildCSS(state))
+    seriesIndent(detail.doc)
     respectAuthorAlignment(detail.doc)
     currentIndex = detail.index
     if (!sectionWords.has(currentIndex)) sectionWords.set(currentIndex, countWords(detail.doc))

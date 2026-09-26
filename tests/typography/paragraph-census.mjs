@@ -15,6 +15,9 @@ import { join } from 'node:path';
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i > 0 ? process.argv[i + 1] : d; };
 const SITE = arg('--site', 'http://127.0.0.1:4337');
 const EPUBS = arg('--epubs', null);
+// W15: the Series reader opens its frame with ?indent=series (ruling 21). --as-book measures the
+// files' own 0.5cm, which is what W11 measured.
+const INDENT = !process.argv.includes('--as-book');
 const slugs = arg('--slugs', null)?.split(',')
   || readdirSync('out/stories').filter((f) => f.endsWith('.html')).map((f) => f.replace(/\.html$/, '')).filter((s) => s !== '_');
 
@@ -77,7 +80,7 @@ if (EPUBS) {
   for (const f of readdirSync(EPUBS).filter((x) => x.endsWith('.epub'))) {
     const body = readFileSync(join(EPUBS, f));
     await page.route(`**/w11-epub/${f}`, (r) => r.fulfill({ status: 200, contentType: 'application/epub+zip', body }));
-    await page.goto(`${SITE}/reading-room.html?url=${encodeURIComponent(`${SITE}/w11-epub/${f}`)}&flow=scrolled`, { waitUntil: 'load' });
+    await page.goto(`${SITE}/reading-room.html?url=${encodeURIComponent(`${SITE}/w11-epub/${f}`)}&flow=scrolled${INDENT ? '&indent=series' : ''}`, { waitUntil: 'load' });
     await page.waitForTimeout(4000);
     const series = (byCat[`Series · ${f.replace(/\.epub$/, '')}`] = blank());
     // Walk the book: each section is its own blob: document; measure each one once.

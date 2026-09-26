@@ -86,7 +86,8 @@ describe('THE PAGE\'S OWN REFUSAL — until the rebuild lands', () => {
 
   test('the page emits it, and the client\'s first render uses the same preview', () => {
     const src = readFileSync('app/stories/[slug]/page-client.js', 'utf8');
-    assert.match(src, /lockScript\(initialStory\.lockAtMs, tagSubheads\(initialStory\.previewHtml\)/);
+    // W15: the preview goes through the same two render transforms as the body it replaces.
+    assert.match(src, /lockScript\(initialStory\.lockAtMs, tagParagraphs\(tagSubheads\(initialStory\.previewHtml\)\)/);
     assert.match(src, /useState\(\(\) => lockedForFirstPaint\(initialStory, Date\.now\(\)/);
     const page = readFileSync('app/stories/[slug]/page.js', 'utf8');
     assert.match(page, /const plan = buildInlinePlan\(rec\);/);

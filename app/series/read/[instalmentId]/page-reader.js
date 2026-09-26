@@ -131,6 +131,8 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
         // behind a signed URL, which is the book register's shape in every respect that
         // matters to the Reading Room.
         register="book"
+        // W15, ruling 21: indented paragraphs at the stories' 1.5em, not the files' 0.5cm.
+        indent="series"
         epubSource={epubUrl}
         meta={{ slug: instalmentId, title: detail?.title || instalmentId, author: detail?.author || '' }}
         escape={{ href: '/series', label: 'The Series' }}

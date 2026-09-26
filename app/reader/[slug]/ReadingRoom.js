@@ -120,12 +120,17 @@ function stylesMsg(p) {
 // R7.0 §9 recorded two of these — page-reader.js:438 and book-reader.js:36 — with their
 // own copies of the paper map, so a typography fix could land on one path and miss the
 // other. Everything now goes through here.
-export function readingRoomSrc(epubUrl, p) {
+//
+// W15, ruling 21: `indent: 'series'` asks the room to set a Series instalment's indented
+// paragraphs at the stories' 1.5em in place of the files' 0.5cm (public/reading-room.html,
+// seriesIndent). The files still decide WHICH paragraphs are indented.
+export function readingRoomSrc(epubUrl, p, { indent = null } = {}) {
   const paper = PAPERS[p.paper] || PAPERS.vellum;
   const qs = new URLSearchParams({
     url: epubUrl, bg: paper.bg, fg: paper.fg, face: p.face,
     size: String(p.sizePct), leading: String(p.leading), flow: p.flow,
   });
+  if (indent === 'series') qs.set('indent', 'series');
   return '/reading-room.html?' + qs.toString();
 }
 
@@ -662,6 +667,7 @@ export default function ReadingRoom({
   onEnded,
   onError,
   onRequireAuth,
+  indent = null,
 }) {
   const slug = meta?.slug;
 
@@ -1228,9 +1234,11 @@ export default function ReadingRoom({
   // WALL §7.10/§7.12 — the src is built from the CAPTURED prefs and the source URL only.
   // useMemo, not render-time computation, so a re-render can never hand the iframe a new
   // string identity. epubSource changing is the purchased path's re-mint, and is meant to
-  // rebuild the frame; nothing else can.
+  // rebuild the frame; nothing else can. (`indent` is fixed by the register that mounts the
+  // room, W15, so it is read here and deliberately not a dependency.)
   const iframeSrc = useMemo(
-    () => (epubSource ? readingRoomSrc(epubSource, prefsInit.current) : null),
+    () => (epubSource ? readingRoomSrc(epubSource, prefsInit.current, { indent }) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [epubSource],
   );
 

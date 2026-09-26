@@ -37,6 +37,10 @@
 // same 1.90:1 problem on the same surface, and it was held back from this round for its own
 // ruling rather than swept along with the subheadings. It is not an oversight; do not
 // "finish the job" here without that ruling.
+// ── W15: THE PARAGRAPH RULINGS (26 Sep 2026) ─────────────────────────────────────────────
+// Ruling 22 (which paragraphs are flush) and the centred-line rule are the two blocks marked
+// W15 below. They pair with app/lib/paragraphTag.js, which every caller of this stylesheet runs
+// on the body; tests/typography/prose-census.mjs measured what they moved.
 // Extension included on purpose: this module is loaded by `node --test` tooling as well as
 // by the bundler, and bare Node ESM does not resolve extensionless specifiers.
 import { HOUSE_GOLD_ON_LIGHT } from './houseGold.js';
@@ -46,6 +50,16 @@ export function proseCSS(accentColor = '#6b46c1') {
         .prose { font-size: 1.15rem; line-height: 1.85; color: #1a1a1a; font-family: Cormorant Garamond, Georgia, serif; font-weight: 400; }
         .prose em, .prose i { font-family: Cormorant Garamond, Georgia, serif; font-style: italic; }
         .prose p { margin-bottom: 0; } .prose:not(.is-verse) p + p { text-indent: 1.5em; }
+        /* W15, ruling 22: a story paragraph after a list, a blockquote or a figure is indented
+           too, and the opener and the first paragraph after a scene break or a heading are
+           flush. Which is which is decided at render by app/lib/paragraphTag.js (para-flush).
+           An inline indent in the body outranks both. */
+        .prose:not(.is-verse) > :is(ul, ol, blockquote, figure, div, img, table, pre, section, aside) + p { text-indent: 1.5em; }
+        .prose:not(.is-verse) > p.para-flush { text-indent: 0; }
+        /* W15: a centred line is never indented, even when the body writes an indent inline
+           (hence !important), and a tracked one gives back the letter-space its last glyph
+           carries, so the ink sits on the true centre: 0.3em, the tracking below. */
+        .prose p[style*='text-align:center'], .prose p[style*='text-align: center'], .prose p.section-break, .prose p.poem-numeral { text-indent: 0 !important; padding-left: 0.3em; }
         .prose.has-dropcap p.dropcap-target::first-letter { font-size: 4.2em; font-weight: 600; float: left; line-height: 0.78; margin: 0.06em 0.12em 0 0; color: #c9a84c; font-family: Cormorant Garamond, Georgia, serif; }
         .prose.has-dropcap p.dropcap-target { text-indent: 0; }
         .prose.has-dropcap p.story-frontmatter { font-style: italic; font-size: 0.85em; color: rgba(26,26,26,0.55); margin-bottom: 1.5em; }

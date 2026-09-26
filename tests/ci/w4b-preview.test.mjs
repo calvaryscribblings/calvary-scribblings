@@ -92,7 +92,8 @@ describe('W4b · the first render — the preview locks before paint, not after 
   test('the client\'s first render reads the local copy', () => {
     const src = readFileSync('app/stories/[slug]/page-client.js', 'utf8');
     assert.match(src, /useState\(\(\) => lockedForFirstPaint\(initialStory, Date\.now\(\), \{ preview: readGatePreview\(\) \}\)/);
-    assert.match(src, /lockScript\(initialStory\.lockAtMs, tagSubheads\(initialStory\.previewHtml\), initialStory\.previewLockAtMs \?\? null\)/);
+    // W15: the preview goes through the same two render transforms as the body it replaces.
+    assert.match(src, /lockScript\(initialStory\.lockAtMs, tagParagraphs\(tagSubheads\(initialStory\.previewHtml\)\), initialStory\.previewLockAtMs \?\? null\)/);
   });
 });
 
