@@ -29,7 +29,7 @@ export class SeriesStreamError extends Error {
 }
 
 export async function requestInstalmentUrl(user, instalmentId) {
-  if (!instalmentId) throw new SeriesStreamError('This instalment cannot be opened yet.', 'unavailable');
+  if (!instalmentId) throw new SeriesStreamError('This instalment can’t be opened yet.', 'unavailable');
 
   // NOT short-circuited on a missing user. The endpoint answers not_released BEFORE it looks
   // at identity, so a signed-out reader tapping a future instalment gets the date rather than
@@ -63,7 +63,7 @@ export async function requestInstalmentUrl(user, instalmentId) {
 
   if (!res.ok || !data?.url) {
     throw new SeriesStreamError(
-      data?.error || 'Could not open this instalment just now. Please try again.',
+      data?.error || 'Couldn’t open this instalment just now. Please try again.',
       data?.code || (res.status === 401 ? 'signed_out' : 'unavailable'),
       data || {},
     );

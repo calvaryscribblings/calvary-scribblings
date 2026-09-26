@@ -26,7 +26,7 @@ import { railFor } from './membershipPasses.js';
 /** Thrown for any non-2xx answer, carrying the endpoint's own `code` so callers can branch. */
 export class MembershipCheckoutError extends Error {
   constructor(message, code, status) {
-    super(message || 'Checkout could not be opened. Please try again.');
+    super(message || 'Checkout couldn’t be opened. Please try again.');
     this.name = 'MembershipCheckoutError';
     this.code = code || null;
     this.status = status || 0;
@@ -70,7 +70,7 @@ async function postJson(url, body, idToken) {
     });
   } catch {
     // A dead network is not a rail failure and must not read as one.
-    throw new MembershipCheckoutError('Could not reach the checkout. Check your connection and try again.', 'network', 0);
+    throw new MembershipCheckoutError('Couldn’t reach the checkout. Check your connection and try again.', 'network', 0);
   }
 
   let data = null;
@@ -91,7 +91,7 @@ export async function startMembershipCheckout({ product, tier, interval, kind, c
   if (!idToken) throw new MembershipCheckoutError('Sign in to continue.', 'signed_out', 401);
 
   const route = routeFor({ product, tier, interval, kind, currency });
-  if (!route) throw new MembershipCheckoutError('That is not available in this currency.', 'bad_currency', 0);
+  if (!route) throw new MembershipCheckoutError('That isn’t available in this currency.', 'bad_currency', 0);
 
   const data = await postJson(route.url, route.body, idToken);
   if (!data.url) throw new MembershipCheckoutError(null, 'no_url', 200);

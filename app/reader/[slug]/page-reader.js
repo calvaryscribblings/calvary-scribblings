@@ -392,7 +392,7 @@ function CommentsSection({ slug, onSignIn }) {
         </div>
       ) : (
         <div className="cs-signin-prompt">
-          <p>Sign in to join the discussion</p>
+          <p>Sign in to add a response.</p>
           <button className="cs-signin-btn" onClick={onSignIn}>Sign in to comment</button>
         </div>
       )}
@@ -624,7 +624,7 @@ export default function StoryReaderClient({ params, initialStory = null }) {
       <div className="rr-fail-kicker">The Reading Room</div>
       <div className="rr-fail-title">{story.title}</div>
       <p className="rr-fail-note">
-        This copy would not open. The story itself is still here — it is waiting on its own page.
+        This copy wouldn’t open. The story itself is still here — it’s waiting on its own page.
       </p>
       <div className="rr-fail-actions">
         <a href={`/stories/${slug}`} className="rr-ebtn">Read it on the story page →</a>

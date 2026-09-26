@@ -32,7 +32,7 @@ export default function DeleteAccountPage() {
 
         <h2 style={S.h2}>Request by email</h2>
         <p style={S.p}>
-          If you can't access the app, email <a href="mailto:contact@calvaryscribblings.co.uk" style={S.link}>contact@calvaryscribblings.co.uk</a> from your registered email address and we will process your deletion request.
+          If you can't access the app, email <a href="mailto:contact@calvaryscribblings.co.uk" style={S.link}>contact@calvaryscribblings.co.uk</a> from your registered email address and we&apos;ll process your deletion request.
         </p>
 
         <h2 style={S.h2}>What gets deleted</h2>

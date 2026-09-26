@@ -163,7 +163,7 @@ export function openShelf() {
         req.result.onversionchange = () => { try { req.result.close(); } catch {} _dbPromise = null; };
         resolve(req.result);
       };
-      req.onerror = () => reject(req.error || new Error('Could not open the shelf database'));
+      req.onerror = () => reject(req.error || new Error('Couldn’t open the shelf database.'));
       // Private-mode Safari and some lockdown configurations never fire either handler.
       req.onblocked = () => reject(new Error('The shelf database is blocked by another tab'));
     });

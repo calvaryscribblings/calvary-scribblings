@@ -133,7 +133,7 @@ function SquarePostsModal({ uid, profileData, isAuthor, badge, onClose }) {
         {loading
           ? <div style={{ color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.88rem', fontWeight: 500 }}>Loading…</div>
           : posts.length === 0
-            ? <div style={{ color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No posts yet.</div>
+            ? <div style={{ color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No posts yet</div>
             : posts.map(p => {
               const ini = (p.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
               return (
@@ -210,7 +210,7 @@ function UserListModal({ title, uids, onClose }) {
         {loadingUsers
           ? <div style={{ padding: '1.5rem 0', color: 'rgba(255,255,255,0.3)', fontSize: '0.9rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Loading…</div>
           : users.length === 0
-            ? <div style={{ padding: '1.5rem 0', color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No one here yet.</div>
+            ? <div style={{ padding: '1.5rem 0', color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No one here yet</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                 {users.map(({ uid, data }) => {
                   const ini = (data.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -263,7 +263,7 @@ function CommentHistoryModal({ uid, displayName, onClose, allStoriesMerged }) {
         {loading
           ? <div style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem', fontWeight: 500, padding: '1rem 0' }}>Loading…</div>
           : comments.length === 0
-            ? <div style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No comments yet.</div>
+            ? <div style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No comments yet</div>
             : comments.map(c => {
                 const story = allStoriesMerged.find(s => s.id === c.slug);
                 return (
@@ -426,7 +426,7 @@ export default function UserPage() {
   if (!uid || !profileData) return (
     <AccountFrame>
       <div style={{ textAlign: 'center', padding: '64px 24px', maxWidth: 420, margin: '0 auto' }}>
-        <h1 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 26, fontWeight: 600, color: '#f5f0e8', margin: 0, textWrap: 'balance' }}>There’s no reader by that name</h1>
+        <h1 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 26, fontWeight: 600, color: '#f5f0e8', margin: 0, textWrap: 'balance' }}>There’s no reader by that name.</h1>
         <p style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 16, lineHeight: 1.55, color: 'rgba(245,240,232,0.78)', margin: '10px 0 0' }}>They may have changed their handle, or left the island. You can look for them in Search.</p>
         <a href="/search" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, marginTop: 20, padding: '0 22px', borderRadius: 999, border: '1px solid rgba(201,168,76,0.45)', color: '#f5f0e8', textDecoration: 'none', fontFamily: "'Cinzel', 'Cormorant Garamond', Georgia, serif", fontSize: 11, letterSpacing: '0.18em' }}>SEARCH</a>
       </div>

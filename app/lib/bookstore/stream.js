@@ -21,7 +21,7 @@ export class StreamError extends Error {
 
 export async function requestStreamUrl(user, titleId) {
   if (!user) throw new StreamError('Sign in to read this book.', 'signed_out');
-  if (!titleId) throw new StreamError('This book cannot be opened yet.', 'unavailable');
+  if (!titleId) throw new StreamError('This book can’t be opened yet.', 'unavailable');
 
   let idToken;
   try {
@@ -46,7 +46,7 @@ export async function requestStreamUrl(user, titleId) {
 
   if (!res.ok || !data?.url) {
     throw new StreamError(
-      data?.error || 'Could not open your copy just now. Please try again.',
+      data?.error || 'Couldn’t open your copy just now. Please try again.',
       data?.code || (res.status === 401 ? 'signed_out' : 'unavailable'),
     );
   }

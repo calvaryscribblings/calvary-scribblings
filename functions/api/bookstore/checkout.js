@@ -61,11 +61,11 @@ export async function onRequestPost(context) {
 
   if (!env.STRIPE_SECRET_KEY) {
     console.error('[bookstore/checkout] STRIPE_SECRET_KEY is not set');
-    return json({ error: 'Purchasing is not configured yet. Please try again later.' }, 500);
+    return json({ error: 'Purchasing isn’t configured yet. Please try again later.' }, 500);
   }
   if (!env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     console.error('[bookstore/checkout] NEXT_PUBLIC_FIREBASE_API_KEY is not set');
-    return json({ error: 'Purchasing is not configured yet. Please try again later.' }, 500);
+    return json({ error: 'Purchasing isn’t configured yet. Please try again later.' }, 500);
   }
 
   let body;
@@ -127,11 +127,11 @@ export async function onRequestPost(context) {
     title = await res.json();
   } catch (e) {
     console.error('[bookstore/checkout] title read failed:', e.message || e);
-    return json({ error: 'Could not reach the catalogue. Please try again.' }, 502);
+    return json({ error: 'Couldn’t reach the catalogue. Please try again.' }, 502);
   }
 
-  if (!title || typeof title !== 'object') return json({ error: 'That title is not in the catalogue.' }, 404);
-  if (title.status !== 'published') return json({ error: 'That title is not on sale.' }, 403);
+  if (!title || typeof title !== 'object') return json({ error: 'That title isn’t in the catalogue.' }, 404);
+  if (title.status !== 'published') return json({ error: 'That title isn’t on sale.' }, 403);
 
   // Defence in depth, mirroring filterByActivePublisher in app/lib/bookstore/loader.js:
   // every public read already hides titles from a suspended publisher, and checkout must not
@@ -145,7 +145,7 @@ export async function onRequestPost(context) {
       if (pres.ok) {
         const pub = await pres.json();
         if (pub && pub.status && pub.status !== 'active') {
-          return json({ error: 'That title is not on sale.' }, 403);
+          return json({ error: 'That title isn’t on sale.' }, 403);
         }
       }
     } catch {
@@ -242,16 +242,16 @@ export async function onRequestPost(context) {
     if (!res.ok) {
       const msg = session?.error?.message || `HTTP ${res.status}`;
       console.error(`[bookstore/checkout] Stripe session create failed for ${titleId}:`, msg);
-      return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+      return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
     }
   } catch (e) {
     console.error('[bookstore/checkout] Stripe request failed:', e.message || e);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   if (!session?.url) {
     console.error('[bookstore/checkout] Stripe returned a session with no url:', session?.id);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   console.log(`[bookstore/checkout] session ${session.id} uid=${uid} titleId=${titleId} ${cur}/${unitAmount}`);

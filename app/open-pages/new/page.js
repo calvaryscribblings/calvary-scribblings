@@ -41,7 +41,7 @@ const ACCEPT_ATTR = 'image/jpeg,image/png,image/webp,image/gif';
 
 // Validate a chosen file before upload. Returns an error string, or null if ok.
 function validateImageFile(file) {
-  if (!file) return 'No file selected.';
+  if (!file) return 'No file selected';
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) return 'Please choose a JPG, PNG, WebP, or GIF image.';
   if (file.size > MAX_IMAGE_BYTES) return 'Image is too large — please keep it under 5MB.';
   return null;
@@ -216,11 +216,11 @@ const COMPOSER_CSS = `
 // they can write again — a silent failure on a writing surface reads as the platform
 // losing the piece.
 const OUTCOME_TITLES = Object.freeze({
-  published: 'It is live',
+  published: 'It’s live.',
   pending: 'Held for an editor',
-  rejected: 'We cannot publish this one',
+  rejected: 'We can’t publish this one.',
   rate_limited: 'Just a moment',
-  error: 'That did not go through',
+  error: 'That didn’t go through.',
 });
 
 // ---------------------------------------------------------------------------
@@ -457,7 +457,7 @@ export default function NewOpenPagePage() {
         setOutcome({
           kind: 'pending',
           message:
-            'An editor will read this before it goes up. Your piece is safe — nothing has been lost, and you will see it on Open Pages once they have.',
+            'An editor will read this before it goes up. Your piece is safe — nothing has been lost, and you’ll see it on Open Pages once they have.',
         });
         setTitle('');
         setBody('');
@@ -642,7 +642,7 @@ export default function NewOpenPagePage() {
              ground-agnostic — and the CSS is the geometry and the on-dark gold,
              never proseCSS's cream-assuming colours. */
           <div ref={previewRef} className="op-body op-prose has-dropcap" data-composer-preview>
-            {body.trim() ? renderMarkdown(body) : <span className="op-empty">Nothing to preview yet.</span>}
+            {body.trim() ? renderMarkdown(body) : <span className="op-empty">Nothing to preview yet</span>}
           </div>
         )}
 

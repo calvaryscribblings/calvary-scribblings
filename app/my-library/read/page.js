@@ -212,7 +212,7 @@ export default function ShelfReaderPage() {
             </>
           ) : (
             <>
-              <div className="sr-gate-h">This story isn&rsquo;t on your shelf</div>
+              <div className="sr-gate-h">This story isn&rsquo;t on your shelf.</div>
               <p className="sr-gate-p">
                 {offline
                   ? 'You’re offline, and this one wasn’t saved for reading without a connection.'

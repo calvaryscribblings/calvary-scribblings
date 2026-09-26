@@ -73,8 +73,8 @@ export function noCustomerResponse(detail) {
     // Mid-webhook: they have a membership record but the customer id has not landed yet.
     pending: hasRecord,
     error: hasRecord
-      ? 'We are still setting up your membership. Try again in a moment.'
-      : 'You do not have a membership to manage yet.',
+      ? 'We’re still setting up your membership. Try again in a moment.'
+      : 'You don’t have a membership to manage yet.',
   };
 }
 
@@ -84,7 +84,7 @@ export async function onRequestPost(context) {
 
   if (!env.STRIPE_SECRET_KEY || !env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     console.error(`[${LABEL}] STRIPE_SECRET_KEY or NEXT_PUBLIC_FIREBASE_API_KEY is not set`);
-    return json({ error: 'Membership management is not available yet.', code: 'not_configured' }, 500);
+    return json({ error: 'Membership management isn’t available yet.', code: 'not_configured' }, 500);
   }
 
   let body = {};
@@ -105,7 +105,7 @@ export async function onRequestPost(context) {
     // Refuse rather than open an unrestricted portal. See the header: an unrestricted portal
     // works, and silently ends the founding lock on the first upgrade.
     console.error(`[${LABEL}] no ${mode} portal configuration for generation ${CURRENT_GENERATION}`);
-    return json({ error: 'Membership management is not available yet.', code: 'not_configured' }, 409);
+    return json({ error: 'Membership management isn’t available yet.', code: 'not_configured' }, 409);
   }
 
   // The reader's own record, read with the reader's own token — memberships/{uid} is
@@ -121,7 +121,7 @@ export async function onRequestPost(context) {
     // Fail CLOSED, but honestly: we cannot prove they have a customer, so we do not open a
     // portal — and we do not claim they have no membership either.
     console.error(`[${LABEL}] membership read failed for ${uid}:`, e.message || e);
-    return json({ error: 'Could not reach your membership just now. Please try again.' }, 502);
+    return json({ error: 'Couldn’t reach your membership just now. Please try again.' }, 502);
   }
 
   const customerId = detail && typeof detail.stripeCustomerId === 'string' && detail.stripeCustomerId
@@ -152,16 +152,16 @@ export async function onRequestPost(context) {
     session = await res.json();
     if (!res.ok) {
       console.error(`[${LABEL}] portal session failed for ${uid}/${customerId}:`, session?.error?.message || res.status);
-      return json({ error: 'Could not open membership management. Please try again.' }, 502);
+      return json({ error: 'Couldn’t open membership management. Please try again.' }, 502);
     }
   } catch (e) {
     console.error(`[${LABEL}] Stripe request failed:`, e.message || e);
-    return json({ error: 'Could not open membership management. Please try again.' }, 502);
+    return json({ error: 'Couldn’t open membership management. Please try again.' }, 502);
   }
 
   if (!session?.url) {
     console.error(`[${LABEL}] Stripe returned a portal session with no url for ${uid}`);
-    return json({ error: 'Could not open membership management. Please try again.' }, 502);
+    return json({ error: 'Couldn’t open membership management. Please try again.' }, 502);
   }
 
   console.log(`[${LABEL}] opened ${uid} customer=${customerId} configuration=${configuration}`);

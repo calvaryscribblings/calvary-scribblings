@@ -185,7 +185,7 @@ describe('the portal — the honest no-customer state', () => {
     assert.equal(r.url, null);
     assert.equal(r.code, 'no_customer');
     assert.equal(r.pending, false);
-    assert.match(r.error, /do not have a membership/);
+    assert.match(r.error, /don’t have a membership/);
   });
 
   test('a reader mid-webhook is told to wait, and is distinguishable', () => {

@@ -328,7 +328,7 @@ function shelfHasStory(slug) {
 // redirect-versus-asset argument at the edge.
 function offlineResponse(url) {
   const isStory = isStoryPath(url.pathname);
-  const head = isStory ? 'This story isn&rsquo;t on your shelf' : 'No signal';
+  const head = isStory ? 'This story isn&rsquo;t on your shelf.' : 'No signal';
   const body = isStory
     ? 'You&rsquo;re offline, and this one wasn&rsquo;t saved for reading without a connection. Your shelf is still here.'
     : 'You&rsquo;re offline. The stories you saved are still readable &mdash; everything else needs a connection.';

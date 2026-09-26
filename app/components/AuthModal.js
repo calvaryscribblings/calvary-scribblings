@@ -81,7 +81,7 @@ export default function AuthModal({ onClose }) {
         onClose();
       } else if (mode === 'register') {
         if (!name.trim()) { setError('Please enter your name.'); setLoading(false); return; }
-        if (password !== confirmPassword) { setError('Passwords do not match.'); setLoading(false); return; }
+        if (password !== confirmPassword) { setError("Passwords don't match."); setLoading(false); return; }
         if (!dob) { setError(AGE_COPY.missing); setLoading(false); return; }
 
         // The order, and what each failure leaves behind, is app/lib/signup.js. In short: a
@@ -125,8 +125,8 @@ export default function AuthModal({ onClose }) {
           console.error('[AuthModal] signup could not be completed:', err.message);
           if (err.handleTaken) setHandleCheck({ state: 'taken', handle: err.handle });
           setError(err.rolledBack
-            ? (err.handleTaken ? HANDLE_COPY.raceLost(err.handle) : 'We could not finish creating your account, so nothing was saved. Please try again.')
-            : 'We could not finish creating your account. Please contact us before trying again.');
+            ? (err.handleTaken ? HANDLE_COPY.raceLost(err.handle) : "We couldn't finish creating your account, so nothing was saved. Please try again.")
+            : "We couldn't finish creating your account. Please contact us before trying again.");
           setLoading(false);
           return;
         }
@@ -135,7 +135,7 @@ export default function AuthModal({ onClose }) {
 
         switchMode('verify');
         if (mailError) {
-          setError(`Your account was created, but we could not send the verification email (${mailError}) — tap Resend below.`);
+          setError(`Your account was created, but we couldn't send the verification email (${mailError}) — tap Resend below.`);
         }
       } else if (mode === 'forgot') {
         await sendPasswordResetEmail(auth, email);
@@ -176,12 +176,12 @@ export default function AuthModal({ onClose }) {
       setTimeout(() => setResendCooldown(false), 30000);
       // Success is claimed AFTER the send succeeds, not before it is attempted.
       // The old order set the success message first and ignored the result, so
-      // "Verification email resent." appeared even as the request 401'd.
+      // "Verification email resent" appeared even as the request 401'd.
       await postAuthMail('send-verification', user, user.displayName?.split(' ')[0]);
-      setSuccess('Verification email resent.');
+      setSuccess('Verification email resent');
     } catch (err) {
       console.error('[AuthModal] resend failed:', err.message);
-      setError(`Could not resend: ${err.message}`);
+      setError(`Couldn't resend: ${err.message}`);
     }
   };
 

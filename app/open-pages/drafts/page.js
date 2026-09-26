@@ -73,7 +73,7 @@ export default function DraftsPage() {
   }, [user, loading]);
 
   async function del(slot) {
-    if (!window.confirm('Delete this draft? This cannot be undone.')) return;
+    if (!window.confirm('Delete this draft? This can’t be undone.')) return;
     setBusy(slot);
     const next = { ...readLocal(user.uid) }; delete next[slot];
     writeLocal(user.uid, next);

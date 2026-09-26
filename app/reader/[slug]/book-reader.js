@@ -211,7 +211,7 @@ export default function BookstoreReaderClient({ slug, title }) {
       <div className="rr-colo-cat">End of sample</div>
       <div className="rr-colo-rule" />
       <div className="rr-colo-title">{title.title}</div>
-      <p className="rr-colo-note">That is as far as the sample goes. The rest is waiting in the Book Store.</p>
+      <p className="rr-colo-note">That’s as far as the sample goes. The rest is waiting in the Book Store.</p>
       <BuyButton title={title} className="br-buy" align="center" />
       <div style={{ marginTop: '1.6rem', display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
         <button type="button" className="rr-ebtn" onClick={close}>← Back to the sample</button>
@@ -270,7 +270,7 @@ export default function BookstoreReaderClient({ slug, title }) {
       <div className="rr-fail-kicker">The Reading Room</div>
       <div className="rr-fail-title">{title.title}</div>
       <p className="rr-fail-note">
-        This sample would not open. The book itself is still here — it is waiting on its own page.
+        This sample wouldn’t open. The book itself is still here — it’s waiting on its own page.
       </p>
       {/* ONE DOOR, and it is the book's own page. The story register offers two because its
           second (← Library) goes somewhere the top bar does not; here the top bar's escape is

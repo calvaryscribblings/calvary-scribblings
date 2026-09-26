@@ -102,9 +102,9 @@ export default function QuizzesPage() {
             </div>
           ) : visible.length === 0 ? (
             <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.88rem', textAlign: 'center', paddingTop: '3rem' }}>
-              {filter === 'completed' ? 'No completed quizzes yet.' :
-               filter === 'unattempted' ? 'All quizzes attempted.' :
-               'No quizzes available.'}
+              {filter === 'completed' ? 'No completed quizzes yet' :
+               filter === 'unattempted' ? 'All quizzes attempted' :
+               'No quizzes available'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>

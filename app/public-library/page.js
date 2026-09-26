@@ -1617,7 +1617,7 @@ export default function Home() {
         setSubscribeStatus("Thank you! You're now subscribed.");
         setEmail('');
       } else if (res.status === 409) {
-        setSubscribeStatus('You are already subscribed.');
+        setSubscribeStatus('You’re already subscribed.');
       } else {
         setSubscribeStatus('Something went wrong. Please try again.');
       }

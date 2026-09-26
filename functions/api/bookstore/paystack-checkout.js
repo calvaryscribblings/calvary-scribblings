@@ -62,7 +62,7 @@ export function selectNgnAmount(title) {
       ok: false,
       status: 409,
       code: 'not_priced_in_ngn',
-      error: 'This book is not yet priced in naira. Please buy it in pounds instead.',
+      error: 'This book isn’t yet priced in naira. Please buy it in pounds instead.',
     };
   }
   return { ok: true, amount };
@@ -76,11 +76,11 @@ export async function onRequestPost(context) {
 
   if (!env.PAYSTACK_SECRET_KEY) {
     console.error(`[${LABEL}] PAYSTACK_SECRET_KEY is not set`);
-    return json({ error: 'Naira payments are not configured yet. Please try again later.' }, 500);
+    return json({ error: 'Naira payments aren’t configured yet. Please try again later.' }, 500);
   }
   if (!env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     console.error(`[${LABEL}] NEXT_PUBLIC_FIREBASE_API_KEY is not set`);
-    return json({ error: 'Purchasing is not configured yet. Please try again later.' }, 500);
+    return json({ error: 'Purchasing isn’t configured yet. Please try again later.' }, 500);
   }
 
   let body;
@@ -123,11 +123,11 @@ export async function onRequestPost(context) {
     title = await res.json();
   } catch (e) {
     console.error(`[${LABEL}] title read failed:`, e.message || e);
-    return json({ error: 'Could not reach the catalogue. Please try again.' }, 502);
+    return json({ error: 'Couldn’t reach the catalogue. Please try again.' }, 502);
   }
 
-  if (!title || typeof title !== 'object') return json({ error: 'That title is not in the catalogue.' }, 404);
-  if (title.status !== 'published') return json({ error: 'That title is not on sale.' }, 403);
+  if (!title || typeof title !== 'object') return json({ error: 'That title isn’t in the catalogue.' }, 404);
+  if (title.status !== 'published') return json({ error: 'That title isn’t on sale.' }, 403);
 
   // The publisher suspension cascade, identical to checkout.js: fail OPEN on a read error
   // (a transient Firebase blip must not stop sales), CLOSED on a definite non-active status.
@@ -138,7 +138,7 @@ export async function onRequestPost(context) {
       if (pres.ok) {
         const pub = await pres.json();
         if (pub && pub.status && pub.status !== 'active') {
-          return json({ error: 'That title is not on sale.' }, 403);
+          return json({ error: 'That title isn’t on sale.' }, 403);
         }
       }
     } catch {
@@ -177,7 +177,7 @@ export async function onRequestPost(context) {
   if (!REF_SAFE_TITLE_ID.test(titleId)) {
     console.error(`[${LABEL}] titleId ${titleId} cannot be encoded in a Paystack reference`);
     return json(
-      { error: 'This title cannot be purchased in naira.', code: 'unsupported_title_id' },
+      { error: 'This title can’t be purchased in naira.', code: 'unsupported_title_id' },
       400,
     );
   }
@@ -187,7 +187,7 @@ export async function onRequestPost(context) {
     reference = buildPaystackReference(uid, titleId);
   } catch (e) {
     console.error(`[${LABEL}] reference build failed for ${uid}/${titleId}:`, e.message || e);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 500);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 500);
   }
 
   // ── the Paystack transaction ───────────────────────────────────────────────
@@ -224,17 +224,17 @@ export async function onRequestPost(context) {
     if (!res.ok || result?.status !== true) {
       const msg = result?.message || `HTTP ${res.status}`;
       console.error(`[${LABEL}] initialize failed for ${titleId}:`, msg);
-      return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+      return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
     }
   } catch (e) {
     console.error(`[${LABEL}] Paystack request failed:`, e.message || e);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   const url = result?.data?.authorization_url;
   if (!url) {
     console.error(`[${LABEL}] Paystack returned no authorization_url for ${reference}`);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   console.log(`[${LABEL}] initialized ${reference} uid=${uid} titleId=${titleId} ngn/${amount}`);

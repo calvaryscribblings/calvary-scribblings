@@ -156,7 +156,7 @@ export default function OpenPagesProfileSection({ profileUid, isOwner = false, p
         <div style={subhead}>Publication history</div>
         {posts.length === 0 ? (
           <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '1.05rem', color: 'rgba(245,240,232,0.4)', padding: '0.4rem 0' }}>
-            No stories published yet.
+            No stories published yet
           </div>
         ) : (
           <div>

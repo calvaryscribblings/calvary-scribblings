@@ -193,7 +193,7 @@ export const BODY_FONT = 'Cormorant Garamond, Georgia, serif';
 // above an empty div. Only the permalink, written later, had the branch. Putting
 // the branch in eight places again is how that happens twice, so it lives here:
 // every surface gets it, in the same words, or none does.
-const NOTE_POST  = 'The author withdrew this post. The replies below are not theirs to remove.';
+const NOTE_POST  = 'The author withdrew this post. The replies below aren’t theirs to remove.';
 const NOTE_SHORT = 'The author withdrew this post.';
 
 export const SURFACES = {

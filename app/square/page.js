@@ -397,7 +397,7 @@ function ReportModal({ post, onSubmit, onClose }) {
         ) : (
           <>
             <div style={{ fontFamily: ff, fontSize: '1.25rem', color: '#f5f0e8', marginBottom: 4 }}>Report this post</div>
-            <p style={{ fontFamily: ff, fontSize: '0.85rem', color: 'rgba(245,240,232,0.45)', margin: '0 0 14px' }}>Only moderators see reports. The author is not told who reported them.</p>
+            <p style={{ fontFamily: ff, fontSize: '0.85rem', color: 'rgba(245,240,232,0.45)', margin: '0 0 14px' }}>Only moderators see reports. The author isn&apos;t told who reported them.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
               {REASONS.map(([v, label]) => (
                 <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: ff, fontSize: '0.9rem', color: reason === v ? '#f5f0e8' : 'rgba(245,240,232,0.6)', cursor: 'pointer' }}>
@@ -822,7 +822,7 @@ function NotificationsPanel({ user, onClose }) {
           {loading ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#f5f0e8', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem' }}>Loading…</div>
           ) : notifs.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet.</div>
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet</div>
           ) : notifs.map(n => {
             const href = n.type === 'follow' ? `/user?id=${n.fromUid}` : n.type === 'open_pages_reply' ? (n.postId ? `/open-pages/${n.postId}` : null) : n.postId ? `/square#${n.postId}` : null;
             const ini = (n.fromName || 'R').split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
@@ -1281,8 +1281,8 @@ export default function SquarePage() {
   const handleDelete = async (p) => {
     const replies = posts.filter(r => r.parentId === p.id).length;
     const msg = replies > 0
-      ? `Withdraw this post?\n\nThe ${replies} ${replies === 1 ? 'reply' : 'replies'} beneath it will stay — they are not yours to delete.`
-      : 'Withdraw this post? It will be removed from the Square.';
+      ? `Withdraw this post?\n\nThe ${replies} ${replies === 1 ? 'reply' : 'replies'} beneath it will stay — they aren't yours to delete.`
+      : "Withdraw this post? It'll be removed from the Square.";
     if (!confirm(msg)) return;
     const db = await getDB();
     const { ref, remove, update } = await import('firebase/database');

@@ -330,7 +330,7 @@ function SearchPanel({ query, setQuery, results, truncated, searching, onPick, o
         </div>
         <div className="rr-scroll">
           {searching && <div className="rr-empty">Searching…</div>}
-          {!searching && query.trim() && results.length === 0 && <div className="rr-empty">No matches.</div>}
+          {!searching && query.trim() && results.length === 0 && <div className="rr-empty">No matches</div>}
           {results.map((r, i) => (
             <button key={i} className="rr-result" onClick={() => onPick(r)}>
               {r.chapterLabel && <span className="rr-result-chapter">{r.chapterLabel}</span>}

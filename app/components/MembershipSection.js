@@ -86,7 +86,7 @@ export default function MembershipSection({ authUser }) {
     } catch (e) {
       setPortal({
         state: 'error',
-        message: e instanceof MembershipCheckoutError ? e.message : 'Could not open membership management. Please try again.',
+        message: e instanceof MembershipCheckoutError ? e.message : 'Couldn’t open membership management. Please try again.',
       });
     }
   };
@@ -273,7 +273,7 @@ export default function MembershipSection({ authUser }) {
       {!hasSubscription && (
         <div className="ms-note">
           {activePass
-            ? 'A pass is a one-off — there is nothing to cancel and it will not renew.'
+            ? 'A pass is a one-off — there’s nothing to cancel and it won’t renew.'
             : 'You’re on the free plan. Every story stays free either way.'}
           {!activePass && <><br /><a className="ms-join" href="/membership">See what membership gives</a></>}
         </div>

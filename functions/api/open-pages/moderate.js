@@ -443,7 +443,7 @@ export async function onRequestPost(context) {
       }
     } catch (e) {
       console.error('[open-pages/moderate] edit: existing read failed:', e.message);
-      return json({ error: 'Could not load the post to edit.' }, 500);
+      return json({ error: 'Couldn’t load the post to edit.' }, 500);
     }
     if (!existing) return json({ error: 'Post not found.' }, 404);
     // Authorship is decided here, from the stored record and the VERIFIED uid —

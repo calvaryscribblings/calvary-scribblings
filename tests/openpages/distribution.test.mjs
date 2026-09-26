@@ -20,7 +20,7 @@ describe('R38 · the copy promises ATTENTION, not outcome', () => {
 
   test('the three approved lines are exactly what Ikenna approved', () => {
     assert.equal(INDEX_INVITATION.line1, 'Anyone can write here. We read everything.');
-    assert.equal(INDEX_INVITATION.line2, 'When a piece belongs in the house, we come and ask — that is how most of our contributors were found.');
+    assert.equal(INDEX_INVITATION.line2, 'When a piece belongs in the house, we come and ask — that’s how most of our contributors were found.');
     assert.equal(COMPOSER_NOTE, 'Published pieces are read by the editors.');
     assert.equal(PUBLISHED_FOOTER, 'Thank you for writing on the island. We read everything published here.');
   });

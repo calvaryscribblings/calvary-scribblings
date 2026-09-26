@@ -72,7 +72,7 @@ export async function onRequestPost(context) {
 
   if (!env.PAYSTACK_SECRET_KEY || !env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     console.error(`[${LABEL}] PAYSTACK_SECRET_KEY or NEXT_PUBLIC_FIREBASE_API_KEY is not set`);
-    return json({ error: 'Naira memberships are not available yet.', code: 'not_configured' }, 500);
+    return json({ error: 'Naira memberships aren’t available yet.', code: 'not_configured' }, 500);
   }
 
   let body = {};
@@ -94,7 +94,7 @@ export async function onRequestPost(context) {
     return json(CLOSED_BODY, CLOSED_STATUS);
   }
   const planCode = planCodeFor({ tier, interval, mode });
-  if (!planCode) return json({ error: 'That membership is not available in naira.', code: 'not_priced' }, 409);
+  if (!planCode) return json({ error: 'That membership isn’t available in naira.', code: 'not_priced' }, 409);
 
   // ── identity, and the email Paystack requires ──────────────────────────────
   const user = await lookupUser(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
@@ -113,7 +113,7 @@ export async function onRequestPost(context) {
   }
   if (!REF_SAFE_UID.test(uid)) {
     console.error(`[${LABEL}] uid ${uid} cannot be encoded in a Paystack reference`);
-    return json({ error: 'This account cannot pay in naira.', code: 'unsupported_uid' }, 400);
+    return json({ error: 'This account can’t pay in naira.', code: 'unsupported_uid' }, 400);
   }
 
   // ── W3 / MON-02: one subscription per reader ────────────────────────────────
@@ -130,7 +130,7 @@ export async function onRequestPost(context) {
     detail = await res.json();
   } catch (e) {
     console.error(`[${LABEL}] membership read failed for ${uid}:`, e.message || e);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
   const change = paystackPlanChange(detail, { tier, interval });
   if (change.action === 'refuse') return json({ error: change.error, code: change.code }, change.status);
@@ -145,7 +145,7 @@ export async function onRequestPost(context) {
       body: JSON.stringify({ from: change.from, plan: planCode, at: Date.now(), reference }),
       signal: AbortSignal.timeout(FIREBASE_TIMEOUT_MS),
     }).catch(() => null);
-    if (!res || !res.ok) return json({ error: 'Your plan could not be changed just now. Please try again.' }, 502);
+    if (!res || !res.ok) return json({ error: 'Your plan couldn’t be changed just now. Please try again.' }, 502);
   }
 
   const payload = {
@@ -175,17 +175,17 @@ export async function onRequestPost(context) {
     result = await res.json();
     if (!res.ok || result?.status !== true) {
       console.error(`[${LABEL}] initialize failed for ${uid} ${tier}/${interval}:`, result?.message || res.status);
-      return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+      return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
     }
   } catch (e) {
     console.error(`[${LABEL}] Paystack request failed:`, e.message || e);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   const url = result?.data?.authorization_url;
   if (!url) {
     console.error(`[${LABEL}] no authorization_url for ${reference}`);
-    return json({ error: 'Checkout could not be opened. Please try again.' }, 502);
+    return json({ error: 'Checkout couldn’t be opened. Please try again.' }, 502);
   }
 
   console.log(`[${LABEL}] initialized ${reference} uid=${uid} plan=${planCode} ${tier}/${interval}`);

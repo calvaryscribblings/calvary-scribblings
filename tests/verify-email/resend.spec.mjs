@@ -171,7 +171,7 @@ test.describe('failures are mapped through the real fetch, not just the mapper',
   const CASES = [
     {
       name: 'the Worker rate-limits (proxy reports it as upstream 429)',
-      respond: fail(502, { error: 'Verification email could not be sent.', upstream: 429 }),
+      respond: fail(502, { error: 'Verification email couldn’t be sent.', upstream: 429 }),
       expect: 'THROTTLED',
     },
     {
@@ -186,7 +186,7 @@ test.describe('failures are mapped through the real fetch, not just the mapper',
     },
     {
       name: 'the Worker is unreachable',
-      respond: fail(502, { error: 'Could not reach the mail service.' }),
+      respond: fail(502, { error: 'Couldn’t reach the mail service.' }),
       expect: 'ERROR',
     },
     {

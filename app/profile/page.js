@@ -294,7 +294,7 @@ function SquarePostsModal({ uid, profileData, isAuthor, badge, onClose }) {
         {loading
           ? <div style={{ padding: '1.5rem 0', color: 'rgba(255,255,255,0.28)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.88rem' }}>Loading…</div>
           : posts.length === 0
-            ? <div style={{ padding: '1rem 0', color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No posts yet.</div>
+            ? <div style={{ padding: '1rem 0', color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No posts yet</div>
             : posts.map(p => <SquarePostCard key={p.id} post={p} profileData={profileData} isAuthor={isAuthor} badge={badge} />)
         }
         {posts.length > 0 && (
@@ -332,7 +332,7 @@ function UserListModal({ title, uids, onClose }) {
         {loadingUsers
           ? <div style={{ padding: '1.5rem 0', color: 'rgba(255,255,255,0.28)', fontSize: '0.88rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Loading…</div>
           : users.length === 0
-            ? <div style={{ padding: '1.5rem 0', color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No one here yet.</div>
+            ? <div style={{ padding: '1.5rem 0', color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No one here yet</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                 {users.map(({ uid, data }) => {
                   const ini = (data.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -384,7 +384,7 @@ function CommentHistoryModal({ uid, onClose, allStoriesMerged }) {
         {loading
           ? <div style={{ color: 'rgba(255,255,255,0.28)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.88rem', padding: '1rem 0' }}>Loading…</div>
           : comments.length === 0
-            ? <div style={{ color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No comments yet.</div>
+            ? <div style={{ color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No comments yet</div>
             : comments.map(c => {
                 const story = allStoriesMerged.find(s => s.id === c.slug);
                 return (
@@ -1158,7 +1158,7 @@ export default function ProfilePage() {
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {libNotifs.length === 0
-                ? <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No notifications yet.</div>
+                ? <div style={{ padding: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>No notifications yet</div>
                 : libNotifs.map(n => {
                   const href = notifHref(n);
                   const isReward = n.type === 'reward';

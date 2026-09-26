@@ -372,7 +372,7 @@ export default function SeasonBoard({ board }) {
           ) : phase === 'pre' || phase === 'awaiting-snapshot' ? (
             <WaitingState board={board} phase={phase} />
           ) : phase === 'error' ? (
-            <Notice>The board could not be loaded just now. Refresh in a moment.</Notice>
+            <Notice>The board couldn’t be loaded just now. Refresh in a moment.</Notice>
           ) : rows.length === 0 ? (
             <Notice>
               {state.closed
