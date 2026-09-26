@@ -214,7 +214,7 @@ describe('W12 · the scripts print counts, never a reader', () => {
   });
 
   test('the launch check\'s Signals row counts money failures and never names one', () => {
-    const now = Date.parse('2026-09-30T08:05:00Z');
+    const now = Date.parse('2026-10-05T08:05:00Z');
     const row = judgeSignals({
       moneyFailures: { [`deleted-live-${UID_A}`]: { lastAt: now }, 'webhook-sub_1QxSECRETREF': { lastAt: now } },
       publishSkips: {}, since: now - 3600000,

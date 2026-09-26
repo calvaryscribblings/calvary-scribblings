@@ -81,7 +81,7 @@ made earlier, or by an app build that didn't check.
 | Reports | Kept by decision (above): reporter uid, reported uid, and a snapshot of up to 200 characters | Permanent |
 | Purchases and entitlements | Kept by decision (above) | Permanent |
 | Stripe and Paystack | The subscription is cancelled, but the customer record (email, payment history) stays with the provider. The endpoint doesn't delete customers | The providers' own retention |
-| GitHub Actions logs | The scrub logs each uid with counts (no name, no email). **The repository is public, so these logs are public** | 90 days (GitHub's default) |
+| GitHub Actions logs | **Fixed in W12.** Until 26 Sep the scrub printed each uid, and these logs are public. It now prints a random `del-xxxxxxxx` tag stored on the deletion record, and the past runs' logs were cleaned up. See `docs/W12-LOG-PRIVACY.md` | None from 26 Sep |
 
 ## Does the live path run this plan today?
 
