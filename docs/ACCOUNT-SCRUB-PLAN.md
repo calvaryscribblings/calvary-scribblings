@@ -50,7 +50,9 @@ made earlier, or by an app build that didn't check.
   deleted."**, and the reply keeps its thread. Otherwise the post is deleted. Reactions and likes
   on a deleted or tombstoned comment or post go with its words.
 - **Their Open Pages pieces**, with the comments, likes and reports attached to them. *Rulings
-  29–34 don't cover pieces, so this is unchanged. See "Still open" below.*
+  29–34 don't cover pieces, so this is unchanged. See "Still open" below.* A link to a deleted
+  piece shows "This piece was deleted." (ruling 47), and the run fires the deploy hook so the
+  piece's static page, with its title and excerpt, goes.
 - **Their reactions, likes and poll votes on other people's work.** Each counter goes down by
   one, so "12 hearts" stops counting someone who is gone.
 - **Notifications they caused in other readers' inboxes**, because those carry their name and
@@ -125,7 +127,14 @@ Proof: `tests/account/deletion.test.mjs` (the plan, pure) and `tests/account/del
 (the endpoint then the scrub, against the database emulator), with one test per ruling. The
 drawing is pinned in `tests/ci/w17-deletion-rulings.test.mjs`.
 
-## Readers deleted before these rulings — nothing touched, waiting on Ikenna
+## Readers deleted before these rulings — ruling 48 (27 Sep 2026): same treatment as today
+
+**Ruling 48 (Ikenna, 27 Sep):** rulings 29, 30 and 33 apply to accounts deleted before they
+shipped. W19 wrote `scripts/account/rulings-backfill.mjs` (one-off, idempotent, backs up before
+it writes) and ran it: dry run 0 / 0 / 0, applied (nothing to write), dry run again 0 left. A
+removed reply it finds in a backup is counted but not restored: the run refuses, because a reply
+missing today may since have been taken down by its own author or a moderator. See
+`docs/W19-DELETIONS-PUSH.md`.
 
 All 18 deletion records (23–25 Sep) finished their scrub under the old plan, and the 15-minute
 scrub never revisits a finished record. `scripts/account/rulings-report.mjs` (read-only, counts
@@ -149,3 +158,6 @@ exact for that reader, and a floor for the other 17.
 1. **Open Pages pieces** they wrote. Today the piece goes, with every comment on it, including
    other readers'. Rulings 29–34 don't cover pieces. Should a piece follow ruling 30 (the piece
    goes, but a thread of other readers' comments stays under a tombstone), or stay as it is?
+   *Ruling 47 (27 Sep) settled what a link to a deleted piece shows, "This piece was deleted.",
+   and that lists leave it out. It doesn't say whether other readers' comments survive the piece,
+   so this plan still removes them with it.*
