@@ -332,3 +332,14 @@ Notes:
 - **§9 and §10**, out of scope: `functions/api/story.js`, `app/lib/story.js`,
   `functions/api/account/delete.js`, `_deletion.js`, `functions/api/auth/welcome.js`, the quiz
   endpoints, admin-only and ops copy, and the API validation fragments.
+
+## 27 Sep 2026 (Ikenna): a deleted Open Pages piece, and the deletion screen (W19)
+
+- **Ruling 47.** A link to a deleted Open Pages piece shows exactly **"This piece was deleted."**,
+  in the style of the site's empty-state notes, with no link and no byline. That covers the piece's
+  own page, the site 404 its address reaches after a rebuild, and every Square surface that draws
+  the announcement quoting it. Lists of pieces leave it out. The words live in
+  `app/lib/deletedContent.js` (`DELETED_PIECE`) and are pinned in `tests/ci/w19-piece-deleted.test.mjs`.
+- **Ruling 49.** The account-deletion screen keeps its wording: the modal, its two conditional
+  lines, the settings danger zone and the page after deletion. Nothing changed. Every word is
+  pinned verbatim in `tests/ci/w19-deletion-screen.test.mjs`, so a later copy sweep turns it red.
