@@ -43,8 +43,9 @@ create account, forgot password, Edit profile, the Square's messages, and delete
 | Search | /search | 20 | 20 (large) |
 | Title, body | Open Pages new / edit | 46.4 / 19.5 | kept (large) |
 
-That's **12 of 20 fields under 16px before, and 0 after** (on the local build; the live re-run is
-below). /admin is founders-only, so no live test reaches it; its fields are covered by the same
+That's **12 of 20 fields under 16px before, and 0 after**. The re-run on live after the deploy
+(`fa74a49c79d5`) found 19 fields, the DM search box included, and **0 under 16px**. The test
+reader's records were unchanged. /admin is founders-only, so no live test reaches it; its fields are covered by the same
 rule.
 
 **Look changes worth noticing.** These are phone only; a desktop is unchanged.
