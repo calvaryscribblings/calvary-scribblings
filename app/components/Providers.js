@@ -40,7 +40,9 @@ export default function Providers({ children }) {
   // founder readout both say which build is running. Reading routes only — never a page that
   // might hold an unsent form.
   useEffect(() => {
-    const reading = () => /^\/(stories|series)\//.test(window.location.pathname);
+    // W18 / ruling 42: My Library too — on a slow connection the worker shows its saved copy,
+    // which may be an older build; the reload waits for the top, as everywhere else.
+    const reading = () => /^\/(stories|series)\/|^\/my-library(\/|$)/.test(window.location.pathname);
     let hiddenAt = 0;
     const check = () => {
       if (!reading() || window.scrollY > 80) return;
@@ -54,9 +56,16 @@ export default function Providers({ children }) {
       if (hiddenAt && Date.now() - hiddenAt > 30000) check();
     };
     const onShow = (e) => { if (e.persisted) check(); };
+    // Ruling 42: the worker showed a saved copy and the network has now answered.
+    const onWorker = (e) => { if (e.data?.type === 'CS_SHELL_REFRESHED') check(); };
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('pageshow', onShow);
-    return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('pageshow', onShow); };
+    try { navigator.serviceWorker?.addEventListener('message', onWorker); } catch { /* no worker */ }
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pageshow', onShow);
+      try { navigator.serviceWorker?.removeEventListener('message', onWorker); } catch { /* no worker */ }
+    };
   }, []);
 
   // Global scroll-reveal: adds .is-revealed to [data-reveal] elements as they

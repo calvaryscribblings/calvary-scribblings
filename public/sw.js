@@ -8,7 +8,9 @@
 // edit cannot quietly undo it.
 //
 // ── THE ONE RULE ─────────────────────────────────────────────────────────────────────────
-// AN ONLINE USER IS NEVER SERVED A CACHED DOCUMENT.
+// AN ONLINE USER IS NEVER SERVED A CACHED DOCUMENT — with one exception, by ruling 42: a SLOW
+// connection is shown the saved My Library after 3s, and refreshed when the network answers
+// (see "the timeout rule" below).
 //
 // Every document and every RSC payload is network-first. A new deploy is therefore picked
 // up on the very next navigation, and there is no code path in which a reader with a
@@ -208,32 +210,54 @@ async function cacheFirst(request) {
   return res;
 }
 
-// ── the timeout rule — RETIRED in W16 ────────────────────────────────────────────────────
-// Until W16 a cached shelf document (and its RSC payload) raced the network against a 3s
-// (2.5s) timeout, and the cached copy won on a slow connection. That was the one path in this
-// file by which an ONLINE reader was handed an old build's document after a deploy — against
-// THE ONE RULE above. The W16 brief (26 Sep 2026) made the rule absolute: "pages and scripts
-// must never be served stale once a new build is live." So there is no timeout any more. The
-// cache answers only when the network has FAILED. The cost, accepted: on a connection that
-// hangs rather than fails, /my-library waits as long as the browser would have, exactly as it
-// would with no worker. Do not bring the race back to make a slow train faster.
+// ── the timeout rule ─────────────────────────────────────────────────────────────────────
+// A timeout may ONLY be applied when there is something cached to fall back TO. With no cached
+// copy the worker waits as long as the browser would have, exactly as if it were not there.
+//
+// RULING 42 (Ikenna, 27 Sep 2026) put the race back. W16 had removed it, so that an online
+// reader was never handed an old build's document — but on a slow train that meant My Library
+// sat blank until the network answered. Now, as before W16: a cached shelf document (and its
+// RSC payload) is shown after 3s (2.5s) if the network hasn't answered. What W16 added stays and
+// finishes the job: when the network DOES answer, the cache is refreshed and every open window
+// is told (CS_SHELL_REFRESHED). The page then runs W16's build check (app/components/
+// Providers.js), which reloads it onto the live build if it is older — only near the top, so no
+// reader loses their place. The shelf's offline banner clears on the same message.
+//
+// This race is the ONLY place an online reader can be shown an older copy, and it is scoped to
+// the shelf: story documents are never cached, and the content-hashed chunks cannot be stale.
 function fetchWithCacheRefresh(request, cache, shouldCache) {
   const p = fetch(request).then((res) => {
+    // Attached to the fetch itself, not to the race: a response that arrives after the
+    // timeout still refreshes the cache instead of being thrown away.
     if (res && res.ok && shouldCache) { try { cache.put(request, res.clone()); } catch {} }
     return res;
   });
+  // When the timeout wins the race, nothing awaits `p` any more; a handler on a derived promise
+  // turns a later network error into a no-op instead of an unhandled rejection.
   p.catch(() => {});
   return p;
 }
 
-async function networkFirst(request) {
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
+}
+
+// Ruling 42: once the network answers a request the cache stood in for, say so.
+function whenItAnswers(live) {
+  live.then((res) => { if (res && res.ok) broadcast({ type: 'CS_SHELL_REFRESHED', build: BUILD }); }, () => {});
+}
+
+async function networkFirst(request, timeoutMs = 2500) {
   const cache = await caches.open(SHELL_CACHE);
   const cached = await cache.match(request);
   const live = fetchWithCacheRefresh(request, cache, true);
   try {
-    return await live;
+    return await (cached ? withTimeout(live, timeoutMs) : live);
   } catch {
-    if (cached) return cached;
+    if (cached) { whenItAnswers(live); return cached; }
     throw new Error('offline and uncached');
   }
 }
@@ -247,14 +271,14 @@ async function navigateNetworkFirst(event) {
   const cached = await cache.match(request, { ignoreSearch: true });
   const live = fetchWithCacheRefresh(request, cache, isShelfPath(url.pathname));
   try {
-    return await live;
+    return await (cached ? withTimeout(live, 3000) : live);
   } catch {
-    // We are here because the network failed. Tell the open clients so the shelf can
-    // raise its offline banner without trusting navigator.onLine, which reports "has an
-    // interface", not "has internet".
+    // We are here because the network failed, or was slower than 3s with a copy in hand. Tell
+    // the open clients so the shelf can raise its offline banner without trusting
+    // navigator.onLine, which reports "has an interface", not "has internet".
     broadcast({ type: 'CS_OFFLINE' });
 
-    if (cached) return cached;
+    if (cached) { whenItAnswers(live); return cached; }
 
     // A saved story requested by its real URL. Hand it to the reader rather than an
     // apology — the prose is sitting in IndexedDB.

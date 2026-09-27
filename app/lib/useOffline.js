@@ -23,7 +23,12 @@ export function useOffline() {
     window.addEventListener('offline', goOffline);
     window.addEventListener('online', goOnline);
 
-    const onMsg = (e) => { if (e.data?.type === 'CS_OFFLINE') setOffline(true); };
+    // W18 / ruling 42: CS_OFFLINE also comes from a SLOW connection (the saved shelf shown after
+    // 3s); CS_SHELL_REFRESHED is the network answering after all, so the banner clears.
+    const onMsg = (e) => {
+      if (e.data?.type === 'CS_OFFLINE') setOffline(true);
+      if (e.data?.type === 'CS_SHELL_REFRESHED') setOffline(false);
+    };
     try { navigator.serviceWorker?.addEventListener('message', onMsg); } catch {}
 
     return () => {

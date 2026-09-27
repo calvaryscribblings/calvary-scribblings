@@ -151,12 +151,24 @@ describe('W16 · the build ID', () => {
   });
 });
 
-describe('W16 · the service worker never hands an online reader an old build', () => {
+describe('W16 + ruling 42 · the service worker: a slow shelf is shown its saved copy, then refreshed', () => {
   const sw = code('public/sw.js');
-  test('no timeout race: the cache answers only when the network FAILS', () => {
-    assert.doesNotMatch(sw, /withTimeout|Promise\.race/);
-    assert.match(sw, /async function networkFirst\(request\) \{[\s\S]*?return await live;/);
-    assert.match(sw, /async function navigateNetworkFirst\(event\) \{[\s\S]*?return await live;/);
+  test('ruling 42 (27 Sep): the saved shelf after 3s (2.5s for its RSC payload), ONLY when a copy is in hand', () => {
+    assert.match(sw, /return await \(cached \? withTimeout\(live, 3000\) : live\);/);
+    assert.match(sw, /async function networkFirst\(request, timeoutMs = 2500\) \{[\s\S]*?return await \(cached \? withTimeout\(live, timeoutMs\) : live\);/);
+    assert.equal((sw.match(/withTimeout\(live/g) || []).length, 2, 'the race exists in exactly these two places');
+  });
+  test('ruling 42: when the network answers, the cache is refreshed and every window is told', () => {
+    assert.match(sw, /if \(res && res\.ok && shouldCache\) \{ try \{ cache\.put\(request, res\.clone\(\)\);/);
+    assert.match(sw, /function whenItAnswers\(live\) \{\s*live\.then\(\(res\) => \{ if \(res && res\.ok\) broadcast\(\{ type: 'CS_SHELL_REFRESHED'/);
+    assert.equal((sw.match(/whenItAnswers\(live\); return cached;/g) || []).length, 2);
+  });
+  test('ruling 42: the page runs W16\'s build check on that message — reload only near the top — and My Library is covered', () => {
+    const p = code('app/components/Providers.js');
+    assert.match(p, /e\.data\?\.type === 'CS_SHELL_REFRESHED'\) check\(\)/);
+    assert.match(p, /\^\\\/my-library\(\\\/\|\$\)/);
+    assert.match(p, /window\.scrollY > 80\) return/);
+    assert.match(code('app/lib/useOffline.js'), /CS_SHELL_REFRESHED'\) setOffline\(false\)/);
   });
   test('cache-first is still ONLY the content-hashed chunks', () => {
     assert.equal((sw.match(/cacheFirst\(event\.request\)/g) || []).length, 1);
