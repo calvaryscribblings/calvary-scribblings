@@ -16,7 +16,7 @@
 // is what the storefront filter needs. The fail-open behaviour in loadPublisherIndex is a guard
 // against transient read failures (network drops), nothing more.
 
-import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
+import { ref, query, orderByChild, equalTo, get, onValue } from 'firebase/database';
 import { db } from '../firebase';
 import { SCHEMA_VERSION } from './schema';
 import { GENRES_PATH, GENRE_SEED, sortGenres, validateGenre } from './genres';
@@ -417,5 +417,31 @@ export async function getReadership(titleId) {
   } catch (err) {
     console.error('[bookstore.loader] getReadership failed', err);
     return 0;
+  }
+}
+
+/**
+ * W21 — the same count, LIVE, for the one page load that needs it: the return from checkout.
+ *
+ * Both rails send the buyer back to /bookstore/{slug}?purchase=success, and the count moves
+ * inside the WEBHOOK's write, not the redirect's. The webhook can land after the redirect —
+ * seconds later for a card, and for a Paystack bank transfer whenever the transfer clears. A
+ * single getReadership() on that load can read the old number, and the buyer's own book then
+ * shows no line until a reload. Found checking the W20 proof buys, 27 Sep.
+ *
+ * Same node, same key, same zero-on-failure rule as getReadership. Returns the unsubscribe.
+ * Every other load keeps the one-shot read: a guest browsing has no reason to hold a listener.
+ */
+export function watchReadership(titleId, onCount) {
+  if (!titleId) return () => {};
+  try {
+    return onValue(
+      ref(db, `${READERSHIP_PATH}/${titleId}`),
+      (snap) => onCount(snap.exists() ? readershipCountOf(snap.val()) : 0),
+      (err) => console.error('[bookstore.loader] watchReadership failed', err),
+    );
+  } catch (err) {
+    console.error('[bookstore.loader] watchReadership failed', err);
+    return () => {};
   }
 }

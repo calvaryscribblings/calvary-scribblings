@@ -6,7 +6,7 @@ import Unavailable from '../../components/Unavailable';
 import { getTitleBySlug, getPublisherPublic } from '../../lib/bookstore/loader';
 // R13 — the taxonomy, read as data. This used to import sectionForGenre from the storefront
 // route AND keep its own byte-identical copy of GENRE_LABELS four lines below. Both are gone.
-import { getGenres, getReadership } from '../../lib/bookstore/loader';
+import { getGenres, getReadership, watchReadership } from '../../lib/bookstore/loader';
 // R14 — the readership line. Pure, money-free and portable; see the module header.
 import { readershipFor } from '../../lib/bookstore/readership';
 import { genreLabel as labelOf, groupOf } from '../../lib/bookstore/genres';
@@ -163,8 +163,11 @@ export default function BookDetailClient({ params, seed = null }) {
       // R14 — one key of a public node, keyed by the RECORD KEY (t.id), which is what
       // bookstore_purchases is keyed by and therefore what the webhook counted against.
       // Deliberately not gated on sign-in: this is public data and a guest sees it.
-      const r = await getReadership(title.id);
-      if (!cancelled) setReadership(r);
+      // W21 — on a return from checkout the listener below owns the count; see watchReadership.
+      if (!purchased) {
+        const r = await getReadership(title.id);
+        if (!cancelled) setReadership(r);
+      }
       if (title.publisherId) {
         // R9.2 PL-11 — the PUBLIC getter. Only `name` is ever used here, and the merged
         // getPublisher() also reached for bookstore_publishers_private, which is
@@ -174,7 +177,16 @@ export default function BookDetailClient({ params, seed = null }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [title]);
+  }, [title, purchased]);
+
+  // W21 — THE RETURN FROM CHECKOUT. The webhook moves the count, and it can land after this
+  // redirect (a Paystack bank transfer can take far longer). A one-shot read here could show
+  // the buyer their own book with no line. Listen instead, for this load only.
+  const titleId = title?.id;
+  useEffect(() => {
+    if (!purchased || !titleId) return undefined;
+    return watchReadership(titleId, setReadership);
+  }, [purchased, titleId]);
 
   // Strip the marker from the URL once it has been read, so a refresh or a shared link never
   // re-announces a purchase that already happened. Pure side effect on an external system —
