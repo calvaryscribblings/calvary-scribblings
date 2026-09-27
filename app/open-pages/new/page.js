@@ -622,6 +622,7 @@ export default function NewOpenPagePage() {
           aria-label="Title"
           disabled={submitting}
           className="op-title"
+          data-field-large=""
         />
 
         {!preview ? (
@@ -634,6 +635,7 @@ export default function NewOpenPagePage() {
             aria-label="Your piece"
             disabled={submitting}
             className="op-body"
+            data-field-large=""
           />
         ) : (
           /* ⭑ THE DROP CAP IS REAL WHILE YOU WRITE. The ground is the same ink the

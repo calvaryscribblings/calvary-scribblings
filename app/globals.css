@@ -32,6 +32,28 @@ button, input, textarea, select, optgroup {
   font-family: inherit;
 }
 
+/* W18 — NO ZOOM WHEN A TEXT FIELD IS TAPPED. iOS Safari zooms the page whenever a focused
+   field's text is under 16px, and the zoom outlasts the keyboard. That zoom is what put the
+   story bar mid-screen (W16). So on a touch screen EVERY text field sets its text at 16px:
+   one rule at the source, rather than 217 field sites that each have to remember.
+
+   - !important because most fields set their size inline (React style props can't be
+     !important, so this always wins over them).
+   - A field that is deliberately LARGER — the Open Pages title and body, the search box —
+     carries data-field-large and keeps its own size, which must itself be 16px or more.
+     tests/typography/field-census.mjs measures every field on the live site.
+   - Pinch zoom stays. Nothing here, and nothing in the viewport meta (app/layout.js), sets
+     maximum-scale or user-scalable=no; tests/ci/w18-fields.test.mjs keeps it that way.
+   - Only touch screens: a mouse-and-keyboard page keeps every field exactly as designed. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([data-field-large]),
+  textarea:not([data-field-large]),
+  select:not([data-field-large]),
+  [contenteditable]:not([contenteditable="false"]):not([data-field-large]) {
+    font-size: 16px !important;
+  }
+}
+
 /* Remove default list styles */
 ul, ol {
   list-style: none;

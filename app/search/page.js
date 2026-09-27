@@ -661,6 +661,7 @@ export default function SearchPage() {
               <span className="ix-rule-glyph"><Glass /></span>
               <input
                 className="ix-input"
+                data-field-large=""
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}

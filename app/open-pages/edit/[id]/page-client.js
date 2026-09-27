@@ -579,6 +579,7 @@ export default function EditPageClient({ params }) {
               {titleLeft}
             </div>
             <input
+              data-field-large=""
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX))}
@@ -641,6 +642,7 @@ export default function EditPageClient({ params }) {
 
             {!preview ? (
               <textarea
+                data-field-large=""
                 ref={bodyRef}
                 value={body}
                 onChange={(e) => setBody(e.target.value.slice(0, BODY_MAX))}
