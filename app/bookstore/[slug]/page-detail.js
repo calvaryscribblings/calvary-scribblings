@@ -18,6 +18,8 @@ import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
 // tell the preload which rung this board will draw. See app/lib/bookstore/board.js.
 import { DETAIL_BOARD_WIDTH } from '../../lib/bookstore/board';
 import BuyButton from '../components/BuyButton';
+// W22 — the + after the readership line. See ../components/Desiderata.js.
+import { PageMark, DESIDERATA_CSS } from '../components/Desiderata';
 import { truncate, formatCatalogueNumber } from '../components/fields';
 import { useCurrency, useRegionCountry, priceLine, fallbackSentence } from '../../lib/currency';
 import { TERRITORY_SENTENCE } from '../../lib/bookstore/territory';
@@ -265,6 +267,7 @@ export default function BookDetailClient({ params, seed = null }) {
           body{background:#070707;color:#f0ead8;font-family:'Cormorant Garamond',Georgia,serif;overflow-x:hidden}
           ${BOUND_BOOK_CSS}
           ${AUTHOR_BLOCK_CSS}
+          ${DESIDERATA_CSS}
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.7}}
           .bd-skeleton{background:rgba(201,164,76,.08);border-radius:3px;animation:pulse 1.4s ease-in-out infinite}
           ${SHIPPED_BOOK_TRANSITION_CSS}
@@ -644,17 +647,20 @@ export default function BookDetailClient({ params, seed = null }) {
                     gold, uppercased by CSS — so it reads as a sixth line of the same block
                     rather than a new kind of thing. It sits below the grid rather than inside
                     it because it is a sentence, not a label over a value. */}
+                {/* W22 — ruling 77: the + follows the line, on the same line. The type moved from
+                    inline style to .bd-readership (DESIDERATA_CSS) unchanged — Cinzel .52rem,
+                    .24em, gold .55, 1.6rem under the strip — and the text is now an inline-block
+                    the ring hangs off, so the words sit exactly where they did. Measured before
+                    and after in the W22 report. */}
                 {readershipLine && (
-                  <div
-                    data-testid="readership-line"
-                    style={{
-                      fontFamily: "'Cinzel',serif", fontSize: '.52rem', letterSpacing: '.24em',
-                      textTransform: 'uppercase', color: 'rgba(201,164,76,.55)', marginTop: '1.6rem',
-                    }}
-                  >
-                    {readershipLine}
+                  <div className="bd-readership">
+                    <span className="bd-readership-text" data-testid="readership-line">
+                      {readershipLine}
+                      <PageMark title={title} />
+                    </span>
                   </div>
                 )}
+                {!readershipLine && <PageMark title={title} alone />}
 
                 {/* From the book */}
                 {title.excerpt && (

@@ -176,3 +176,24 @@ export function readershipFor(node, platform = 'web', register = READERSHIP_REGI
   if (!readershipAllowedOn(platform, register)) return null;
   return readershipLine(readershipCountOf(node));
 }
+
+/**
+ * W22 — THE SHELF'S SHORT FORM. Ruling 88, 27 Sept 2026: under every book on the shelf the
+ * line reads ONE READER or N READERS.
+ *
+ *   0    → null           (absent is absent — the + stands alone)
+ *   1    → "One reader"
+ *   2    → "2 readers"
+ *   1204 → "1,204 readers"
+ *
+ * The same shape as readershipLine: the singular spelt, the plurals a numeral, sentence case
+ * here and uppercased by CSS. It sits behind the SAME platform gate as readershipFor, so the
+ * day the register changes, the shelf and the page change together.
+ */
+export function readershipShort(count, platform = 'web', register = READERSHIP_REGISTER) {
+  if (!readershipAllowedOn(platform, register)) return null;
+  const n = readershipCountOf(count);
+  if (n < READERSHIP_MIN) return null;
+  if (n === 1) return 'One reader';
+  return `${groupThousands(n)} readers`;
+}

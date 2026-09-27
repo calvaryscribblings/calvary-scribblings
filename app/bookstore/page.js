@@ -45,6 +45,10 @@ import { SHOP_VERNACULAR_CSS, SHELF_COLUMNS } from './components/shopVernacular'
 // R22.1C — SHIPPED_BOOK_TRANSITION_CSS, not BOOK_TRANSITION_CSS. It is empty until
 // BOOK_TRANSITION_SHIPPED is flipped; the built transition is intact in that file.
 import { SHIPPED_BOOK_TRANSITION_CSS, installBookTransitions } from './components/bookTransition';
+// W22 — the shop's rooms: the bar's glyphs, the readers line and the + under every shelf book.
+import { Magnifier, Ribbon, ShelfReadersRow, ShelfReadersContext, DESIDERATA_CSS } from './components/Desiderata';
+import { DESIDERATA_COPY, DESIDERATA_ROUTE, SEARCH_ROUTE } from '../lib/bookstore/desiderata';
+import { getAllReadership } from '../lib/bookstore/loader';
 
 // R13 — WHAT USED TO BE HERE, AND WHERE IT WENT.
 //
@@ -104,6 +108,9 @@ export function ShelfEntry({ title, index, onOpen, genreLabelFor, suppressMark }
             on .shelf-book-wrap in shopVernacular.js and on .bb-persp in BoundBook.js. */}
         <BoundBook title={title} variant="shelf" width="100%" onOpen={onOpen} />
       </div>
+      {/* W22 — rulings 77 and 88: the count, then the +, under every book on every shelf and
+          curated table. The Window and Quick Look do not carry it. See ./components/Desiderata. */}
+      <ShelfReadersRow title={title} />
       <div className="entry-genre">{genreLabelFor(title.genre)}</div>
       <div className="entry-title">{title.title}</div>
       <div className="entry-author">{title.author}</div>
@@ -731,12 +738,57 @@ export const HERO_LOCKUP_AIR = {
 };
 
 // ── Hero: the title-page treatment ────────────────────────────────────────────
+// ── W22 — THE SHOP'S BAR (ruling 74) ─────────────────────────────────────────────────────
+//
+// The eyebrow "❦ Calvary Scribblings ❦" moves to the left end of a bar; the right end holds two
+// circles, Search then Desiderata. Its slot in the masthead STAYS in the flow, hidden, so the
+// title, the colophon, the catalogue line and the currency line do not move a hair — measured
+// to 0.1px at 390 and 1440 in the W22 report, and held by tests/bookstore/rooms.spec.mjs.
+//
+// ⚠ A SIBLING OF .hero-inner, NOT A CHILD. The bar is wider than the masthead's 720px column:
+// its edges are the Window's content edges (max-width 1000 less 2rem each side — 252 to 1188
+// at 1440), which are exactly .hero's own content edges capped at 936px. So it is positioned
+// against .hero, and it takes the masthead's fade by running the same animation from the same
+// mount. Its height is ONE LINE OF THE EYEBROW (1lh at the eyebrow's .62rem), which is what
+// centres it on the eyebrow's line without a measured constant.
+export const SHOP_BAR = {
+  ruledBy: 'Ikenna', on: '2026-09-27', ruling: 74, canvas: 'Book Store rooms',
+  // 641px and up. CHOSEN on the canvas to sit with the larger wordmark, not derived.
+  wide: { circlePx: 34, glyphPx: 19, stroke: 1.7, gapPx: 12 },
+  // 640px and below: the app's header, number for number.
+  phone: { circlePx: 32, glyphPx: 18, stroke: 1.75, gapPx: 12, markPx: 8.3, markTrackingPx: 3.25 },
+  // Below 360px only, the bar's edges move out to the app's 20px gutter.
+  narrowGutterPx: 20, narrowBelowPx: 360,
+  // The wordmark's last glyph and the first circle never closer than this.
+  minClearPx: 16,
+  fill: '#221C2E', gold: '#c9a44c', hitPx: 44,
+};
+
+function ShopBar() {
+  return (
+    <nav className="shop-bar" aria-label="Book Store">
+      <span className="shop-bar-mark" data-testid="shop-bar-mark">&#10086; Calvary Scribblings &#10086;</span>
+      <span className="shop-bar-rooms">
+        <a className="shop-bar-room" href={SEARCH_ROUTE} aria-label={DESIDERATA_COPY.searchLabel} data-testid="shop-bar-search">
+          <span className="shop-bar-face"><span className="sb-wide"><Magnifier size={SHOP_BAR.wide.glyphPx} width={SHOP_BAR.wide.stroke} /></span><span className="sb-phone"><Magnifier size={SHOP_BAR.phone.glyphPx} width={SHOP_BAR.phone.stroke} /></span></span>
+        </a>
+        <a className="shop-bar-room" href={DESIDERATA_ROUTE} aria-label={DESIDERATA_COPY.name} data-testid="shop-bar-desiderata">
+          <span className="shop-bar-face"><span className="sb-wide"><Ribbon size={SHOP_BAR.wide.glyphPx} width={SHOP_BAR.wide.stroke} /></span><span className="sb-phone"><Ribbon size={SHOP_BAR.phone.glyphPx} width={SHOP_BAR.phone.stroke} /></span></span>
+        </a>
+      </span>
+    </nav>
+  );
+}
+
 function Hero({ count, currency, onCurrency, chosen }) {
   return (
     <section className="hero">
       <div className="hero-lamp" />
+      <ShopBar />
       <div className="hero-inner">
-        <div className="hero-eyebrow">&#10086; Calvary Scribblings &#10086;</div>
+        {/* W22 — the eyebrow's SLOT. Its words moved to the bar; the slot keeps its line so that
+            nothing below it moves. Hidden from sight and from the accessibility tree. */}
+        <div className="hero-eyebrow" aria-hidden="true">&#10086; Calvary Scribblings &#10086;</div>
         <h1 className="hero-title"><span className="hero-the">The</span><em className="hero-store">Book Store</em></h1>
         <p className="hero-colophon">A shop, not a warehouse. Every title on these shelves was chosen by hand.</p>
         <div className="hero-edition">Catalogue &middot; {count === null ? '\u2014' : <>{count} {count === 1 ? 'Title' : 'Titles'}</>} &middot; Est. 2026</div>
@@ -854,6 +906,18 @@ export default function BookStorePage() {
     // The clock, taken once, beside the claims it dates. See THE CLOCK above.
     return { titles: list, genres: g, sectionRows: s, signals: sig, at: Date.now() };
   }, [unlocked]);
+  // W22 — EVERY TITLE'S READERS, IN ONE READ, for the line under each shelf book. Separate from
+  // the shop's load on purpose: a count that is slow or fails must never hold the shelf back. The
+  // row keeps its height until it lands, and a failure is {} — the + alone, and no count.
+  const [readers, setReaders] = useState({ counts: {}, countsReady: false });
+  useEffect(() => {
+    if (!unlocked) return undefined;
+    let live = true;
+    getAllReadership().then((counts) => { if (live) setReaders({ counts, countsReady: true }); });
+    return () => { live = false; };
+  }, [unlocked]);
+  const readersContext = useMemo(() => ({ preview: false, ...readers }), [readers]);
+
   const titles = shop.data?.titles ?? null;
   const genres = shop.data?.genres ?? null;
   const sectionRows = shop.data?.sectionRows ?? null;
@@ -991,6 +1055,7 @@ export default function BookStorePage() {
           ${BOUND_BOOK_CSS}
           ${CURRENCY_SELECTOR_CSS}
           ${SHOP_VERNACULAR_CSS}
+          ${DESIDERATA_CSS}
           ${CURATED_SECTION_CSS}
           @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
           @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.75}}
@@ -1023,6 +1088,31 @@ export default function BookStorePage() {
           .hero-lamp{position:absolute;inset:0;background:radial-gradient(ellipse 60% 44% at 50% 40%,rgba(201,164,76,.16) 0%,transparent 66%);animation:lampPulse 5.5s ease-in-out infinite}
           .hero-inner{position:relative;z-index:2;max-width:720px;animation:fadeUp .9s ease forwards}
           .hero-eyebrow{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;color:#c9a44c;margin-bottom:2rem}
+          /* ═══ W22 — THE SHOP'S BAR. See SHOP_BAR and ShopBar for the record and the reasoning. ═══ */
+          .hero-eyebrow{visibility:hidden}
+          .shop-bar{position:absolute;z-index:3;left:2rem;right:2rem;margin-inline:auto;max-width:calc(1000px - 4rem);
+            top:calc(var(--shop-nav-clear) + var(--shop-head-air));
+            font-size:.62rem;height:1lh;
+            display:flex;align-items:center;justify-content:space-between;animation:fadeUp .9s ease forwards}
+          .shop-bar-mark{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.34em;text-transform:uppercase;color:#c9a44c;white-space:nowrap}
+          .shop-bar-rooms{display:flex;align-items:center;gap:${SHOP_BAR.wide.gapPx}px;flex:none}
+          .shop-bar-room{position:relative;display:flex;color:#c9a44c;-webkit-tap-highlight-color:transparent}
+          .shop-bar-room::before{content:'';position:absolute;left:50%;top:50%;width:${SHOP_BAR.hitPx}px;height:${SHOP_BAR.hitPx}px;transform:translate(-50%,-50%)}
+          .shop-bar-face{display:flex;align-items:center;justify-content:center;width:${SHOP_BAR.wide.circlePx}px;height:${SHOP_BAR.wide.circlePx}px;border-radius:50%;background:${SHOP_BAR.fill};transition:background-color .2s}
+          .shop-bar-room:hover .shop-bar-face{background:#2c2440}
+          .shop-bar-room:focus-visible{outline:none}
+          .shop-bar-room:focus-visible .shop-bar-face{outline:2px solid #c9a44c;outline-offset:3px}
+          .sb-wide,.sb-phone{display:flex}
+          .sb-phone{display:none}
+          @media(max-width:640px){
+            .shop-bar-mark{font-size:${SHOP_BAR.phone.markPx}px;letter-spacing:${SHOP_BAR.phone.markTrackingPx}px}
+            .shop-bar-face{width:${SHOP_BAR.phone.circlePx}px;height:${SHOP_BAR.phone.circlePx}px}
+            .sb-wide{display:none}
+            .sb-phone{display:flex}
+          }
+          @media(max-width:${SHOP_BAR.narrowBelowPx - 0.02}px){
+            .shop-bar{left:${SHOP_BAR.narrowGutterPx}px;right:${SHOP_BAR.narrowGutterPx}px}
+          }
           .hero-title{line-height:.9;margin-bottom:1.8rem}
           .hero-the{display:block;font-family:'Cinzel',serif;font-weight:400;font-size:clamp(1.6rem,4vw,2.6rem);letter-spacing:.06em;color:rgba(240,234,216,.72)}
           /* ── THE MASTHEAD MIRROR ────────────────────────────────────────────────────
@@ -1173,6 +1263,7 @@ export default function BookStorePage() {
           }
         `}</style>
 
+        <ShelfReadersContext.Provider value={readersContext}>
         <main style={{ background: '#070707', color: '#f0ead8', position: 'relative' }}>
           {/* ⛔ R22.1 — THE GRAIN OVERLAY STOOD HERE AND IS GONE. The ground is #070707 on
               <main> and nothing is drawn over it. <main> stays position:relative — the
@@ -1233,6 +1324,7 @@ export default function BookStorePage() {
             </>
           )}
         </main>
+        </ShelfReadersContext.Provider>
 
         {modal && <QuickLookModal title={modal.title} originRect={modal.rect} onClose={closeModal} />}
         </>

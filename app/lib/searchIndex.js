@@ -163,7 +163,15 @@ export function markCollisions(rows) {
 //
 // One normaliser for every corpus, so "op-ed", "Op–Ed" and "OPED" all find the same shelf and
 // no surface can drift into a slightly different idea of what matching means.
-export const norm = (s) => String(s == null ? '' : s).toLowerCase().trim();
+//
+// W22 — IT FOLDS ACCENTS TOO, so "ozdemir" finds "Özdemir" and "chloe" finds "Chloé", on the
+// Book Store's search and the site's alike. Canonical decomposition, then every combining mark
+// dropped: the base letter is what a reader types on a keyboard that has no Ö. Letters that do
+// not decompose (ß, ø, ł, æ) are left alone — folding them is transliteration, which is a
+// language decision and not this function's to make.
+const COMBINING = /[\u0300-\u036f]/g;
+export const fold = (s) => String(s == null ? '' : s).normalize('NFD').replace(COMBINING, '').toLowerCase();
+export const norm = (s) => fold(s).trim();
 
 /** The query as the corpora see it: a leading @ is a handle sigil, not a character to match. */
 export function normalizeQuery(raw) {
@@ -223,21 +231,46 @@ export function matchBooks(books, q) {
 // author name — and the reader's own query — through an innerHTML sink for a purely visual
 // effect. This renders as <span>s instead: same look, no sink, and the function is testable
 // without a DOM.
+//
+// W22 — THE MATCH IS FOUND IN THE FOLDED TEXT AND LIT IN THE ORIGINAL. Searching "ozdemir"
+// must light "Özdemir", Ö and all, so the hay is folded one code point at a time and every
+// folded character remembers which original span it came from. A combining mark that
+// follows a lit letter (a decomposed "é") is lit with it, so a glyph is never split in two.
+function foldWithMap(src) {
+  let hay = '';
+  const from = [];   // folded index → original start
+  const to = [];     // folded index → original end (exclusive)
+  let i = 0;
+  for (const ch of src) {
+    const start = i;
+    i += ch.length;
+    const f = fold(ch);
+    for (const c of f) { hay += c; from.push(start); to.push(i); }
+    // A mark that folded to nothing belongs to the character before it.
+    if (!f && to.length) to[to.length - 1] = i;
+  }
+  return { hay, from, to };
+}
+
 export function highlightParts(text, rawQuery) {
   const src = String(text == null ? '' : text);
   const q = normalizeQuery(rawQuery);
   if (!q || !src) return [{ text: src, hit: false }];
   const parts = [];
-  const hay = src.toLowerCase();
-  let i = 0;
+  const { hay, from, to } = foldWithMap(src);
+  let i = 0;      // position in the folded hay
+  let o = 0;      // position in the original
   for (;;) {
     const at = hay.indexOf(q, i);
     if (at === -1) break;
-    if (at > i) parts.push({ text: src.slice(i, at), hit: false });
-    parts.push({ text: src.slice(at, at + q.length), hit: true });
+    const start = from[at];
+    const end = to[at + q.length - 1];
+    if (start > o) parts.push({ text: src.slice(o, start), hit: false });
+    parts.push({ text: src.slice(start, end), hit: true });
+    o = end;
     i = at + q.length;
   }
-  if (i < src.length) parts.push({ text: src.slice(i), hit: false });
+  if (o < src.length) parts.push({ text: src.slice(o), hit: false });
   return parts.length ? parts : [{ text: src, hit: false }];
 }
 

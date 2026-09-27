@@ -169,6 +169,9 @@ export function isEmailShaped(value) {
 //   · the four lines in app/bookstore/page.js and app/bookstore/[slug]/page-detail.js that
 //     import it, hold `curtain` state and render <LaunchGate /> — grep LaunchGate, it is a
 //     short list by construction
+//   · W22 — the same lines in app/bookstore/components/RoomFrame.js, the one frame both rooms
+//     (/bookstore/search, /bookstore/desiderata) stand in. Its noindex stays: the rooms keep
+//     their own robots metadata after launch.
 //   · tests/bookstore/** and the test:gate script and CI step
 //
 // What R9 does NOT delete: the bookstore_waitlist node, its rules, or the addresses in it.

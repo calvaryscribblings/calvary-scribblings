@@ -71,6 +71,9 @@ import {
 import CuratedSection, { CURATED_SECTION_CSS } from '../../bookstore/components/CuratedSection';
 import { SHOP_VERNACULAR_CSS } from '../../bookstore/components/shopVernacular';
 import { BOUND_BOOK_CSS } from '../../bookstore/components/BoundBook';
+// W22 — the readers row draws in the preview too (the + inert), so the placed-context frame keeps
+// the shelf's true geometry. No provider here: that is what makes the + inert.
+import { DESIDERATA_CSS } from '../../bookstore/components/Desiderata';
 import { ShelfEntry, TheWindow, CatalogueSection } from '../../bookstore/page';
 
 const blankFor = (type) => ({
@@ -349,7 +352,7 @@ export default function SectionsPanel({ s, sections, titles, genres, now, onChan
       {/* THE SHOP'S OWN STYLESHEET, not a copy of it. SHOP_VERNACULAR_CSS is the very string
           app/bookstore/page.js interpolates, so the preview cannot look like a shelf the shop
           would draw differently. Only the frame around it is local. */}
-      <style>{`${BOUND_BOOK_CSS}${SHOP_VERNACULAR_CSS}${CURATED_SECTION_CSS}
+      <style>{`${BOUND_BOOK_CSS}${SHOP_VERNACULAR_CSS}${DESIDERATA_CSS}${CURATED_SECTION_CSS}
         .cms-preview{background:#070707;color:#f0ead8;border:1px solid #242424;border-radius:10px;overflow:hidden;
           font-family:'Cormorant Garamond',Georgia,serif}
         /* The shop sizes its window title against the viewport with clamp(); inside a panel

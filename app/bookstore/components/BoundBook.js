@@ -626,6 +626,9 @@ export const BOOK_SURFACES = {
     // a way in, so the book turns back instead — the gesture is the same, its destination is
     // the only honest difference.
     { key: 'detail',       file: 'app/bookstore/[slug]/page-detail.js',      component: 'BookDetailClient', opens: 'turns-back' },
+    // W22 — the rooms' rows (Desiderata, and Search's TITLES). The title beside the book is the
+    // link to its page; the book itself keeps the shop's one grammar and turns back.
+    { key: 'room',         file: 'app/bookstore/components/RoomRow.js',       component: 'RoomRow',  opens: 'turns-back' },
   ],
   // The props that USED to let a caller own the gesture. Their absence is the guarantee, so
   // they are named here and asserted absent rather than simply deleted and forgotten.

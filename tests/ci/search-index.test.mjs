@@ -397,3 +397,26 @@ test('a group is capped, and the cap never hides the true count', async () => {
   }
   assert.match(page, /<More n=\{capGroup\(storyHits\)\.hidden\} \/>/, 'the remainder is not stated');
 });
+
+// ── W22 — accents fold, on every corpus, and the gold lands on the original letters ─────────
+test('W22: norm folds accents, so a keyboard without Ö still finds Özdemir', () => {
+  assert.equal(normalizeQuery('Özdemir'), 'ozdemir');
+  assert.equal(normalizeQuery('@Ébène'), 'ebene');
+  const shelf = [{ title: 'After the Fact', author: 'Ayşe Özdemir' }];
+  assert.equal(matchStories(shelf, normalizeQuery('ozdemir')).length, 1);
+  assert.equal(matchStories(shelf, normalizeQuery('AYSE')).length, 1);
+});
+
+test('W22: highlightParts maps a folded match back onto the original letters', () => {
+  assert.deepEqual(highlightParts('Özdemir wrote', 'ozdemir'), [
+    { text: 'Özdemir', hit: true }, { text: ' wrote', hit: false },
+  ]);
+  // A DECOMPOSED é (e + U+0301) is lit whole — the mark is never stranded outside the gold.
+  assert.deepEqual(highlightParts('Chloé reads', 'chloe'), [
+    { text: 'Chloé', hit: true }, { text: ' reads', hit: false },
+  ]);
+  // The parts always rejoin to the exact original string.
+  for (const [t, q] of [['Özdemir Özdemir', 'dem'], ['İstanbul', 'istanbul'], ['naïve café', 'e'], ['plain', 'zz']]) {
+    assert.equal(highlightParts(t, q).map((p) => p.text).join(''), t);
+  }
+});

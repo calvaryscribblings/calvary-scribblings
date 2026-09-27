@@ -343,3 +343,35 @@ Notes:
 - **Ruling 49.** The account-deletion screen keeps its wording: the modal, its two conditional
   lines, the settings danger zone and the page after deletion. Nothing changed. Every word is
   pinned verbatim in `tests/ci/w19-deletion-screen.test.mjs`, so a later copy sweep turns it red.
+
+## 27 Sep 2026 (Ikenna): the Book Store's rooms — the canvas "Book Store rooms" (W22)
+
+Rulings 74–81 and 88. Every line lives in `app/lib/bookstore/desiderata.js` (`DESIDERATA_COPY`,
+`markLabel`, `titlesLabel`) or `app/lib/bookstore/readership.js` (`readershipShort`), and is
+pinned in `tests/bookstore/desiderata.test.mjs` and `tests/bookstore/readership.test.mjs`.
+
+### Ruled with the canvas, 27 Sept
+
+- **The list's name (75):** "Desiderata".
+- **The room's subline:** "Books you’ve marked to come back to."
+- **The room's foot line:** "When a book comes into your library, it leaves this list."
+- **The room's count:** "1 TITLE" / "N TITLES" — the hero's rule, uppercased by CSS.
+- **The toast after an add:** "Added to Desiderata. You’ll find it under the ribbon at the top of the shop."
+- **The search hint:** "Titles, authors and genres on these shelves."
+- **The search field's hidden label, and the bar's Search circle:** "Search the shelves".
+- **The shelf's readers line (88):** "ONE READER" / "N READERS" (`readershipShort`: "One reader",
+  "2 readers", "1,204 readers", uppercased by CSS; nothing below one).
+- **The +, as a screen reader hears it:** "Add {title} to Desiderata" / "Take {title} out of
+  Desiderata". The bar's second circle: "Desiderata".
+- **Breadcrumbs:** "BOOK STORE · DESIDERATA" and "BOOK STORE · SEARCH". Search's groups:
+  "AUTHOR", "GENRE", "TITLES", and "ALL TITLES ›".
+
+### DRAFT — awaiting Ikenna's word
+
+These five ship as drafts, written in rule 13's house style. Each one changes here first.
+
+- **The toast after a remove (with Undo):** "Removed from Desiderata"
+- **A write that was refused (the + changes back):** "Couldn’t save that change. Try again."
+- **The room, empty:** "Nothing marked yet. The + under any book on the shelves adds it here."
+- **The room, signed out (with a SIGN IN button):** "Sign in to see your Desiderata."
+- **Search, no results:** "Nothing on these shelves matches “{q}”."

@@ -421,6 +421,32 @@ export async function getReadership(titleId) {
 }
 
 /**
+ * W22 — EVERY TITLE'S COUNT, IN ONE READ, for the shelf's readers line.
+ *
+ * The readership node is `.read: true` at the parent, so the whole node is one get — a few
+ * dozen small objects, far cheaper than a read per book. Returns { titleId: count } for the
+ * titles with a usable count, and {} on ANY failure: absent is absent, and a shelf that cannot
+ * verify how many libraries a book is in says nothing (see getReadership).
+ *
+ * The book's page keeps its own single-key read and its W21 listener; this is the shelf's.
+ */
+export async function getAllReadership() {
+  try {
+    const snap = await get(ref(db, READERSHIP_PATH));
+    const out = {};
+    if (!snap.exists()) return out;
+    for (const [titleId, node] of Object.entries(snap.val() || {})) {
+      const n = readershipCountOf(node);
+      if (n > 0) out[titleId] = n;
+    }
+    return out;
+  } catch (err) {
+    console.error('[bookstore.loader] getAllReadership failed', err);
+    return {};
+  }
+}
+
+/**
  * W21 — the same count, LIVE, for the one page load that needs it: the return from checkout.
  *
  * Both rails send the buyer back to /bookstore/{slug}?purchase=success, and the count moves

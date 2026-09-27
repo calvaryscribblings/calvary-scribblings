@@ -21,6 +21,7 @@ import {
   readershipLine,
   readershipAllowedOn,
   readershipFor,
+  readershipShort,
 } from '../../app/lib/bookstore/readership.js';
 import {
   readershipDelta,
@@ -500,4 +501,25 @@ describe('IT IS PUBLIC DATA — a signed-out guest reads the same number', () =>
     assert.equal(/user|uid|purchased|signedIn/.test(block), false,
       'the readership line is gated on something other than the count');
   });
+});
+
+// ── W22 — the shelf's short form (ruling 88) ────────────────────────────────────────────────
+
+test('W22 readershipShort: absent below one, the singular spelt, plurals a grouped numeral', () => {
+  assert.equal(readershipShort(0), null);
+  assert.equal(readershipShort(1), 'One reader');
+  assert.equal(readershipShort(2), '2 readers');
+  assert.equal(readershipShort(1204), '1,204 readers');
+  // Sentence case: the shelf's CSS uppercases it, exactly as the page's line.
+  assert.equal(readershipShort(1204), readershipShort(1204).replace(/^./, (c) => c.toUpperCase()));
+  // The same node shapes readershipFor accepts.
+  assert.equal(readershipShort({ count: 1 }), 'One reader');
+  assert.equal(readershipShort({ count: -3 }), null);
+  assert.equal(readershipShort(undefined), null);
+});
+
+test('W22 readershipShort sits behind the same platform gate as readershipFor', () => {
+  assert.equal(readershipShort(3, 'ios'), '3 readers');
+  assert.equal(readershipShort(3, 'ios', REGISTER_SALES), null);
+  assert.equal(readershipShort(3, 'web', REGISTER_SALES), '3 readers');
 });

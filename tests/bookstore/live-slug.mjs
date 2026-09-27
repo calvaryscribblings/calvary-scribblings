@@ -19,18 +19,28 @@
 // quietly skipped because it could not find a book would be a suite that stopped running the
 // day it was most needed.
 
+import { RESERVED_TITLE_SLUGS } from '../../app/lib/bookstore/schema.js';
+
 /**
  * The slug of a title the storefront is currently offering a detail page for.
  * Call after the shelf has rendered.
  */
 export async function liveDetailSlug(page) {
-  const href = await page.evaluate(() => {
+  // W22 — the bar's room links are attached before the shelf, so "a /bookstore/ link exists" no
+  // longer means the shelf has rendered. Wait for a BOOK's link.
+  await page.waitForFunction((rooms) => [...document.querySelectorAll('a[href^="/bookstore/"]')]
+    .some((a) => /^\/bookstore\/[a-z0-9][a-z0-9-]*$/.test(a.getAttribute('href') || '')
+      && !rooms.includes((a.getAttribute('href') || '').replace('/bookstore/', ''))), [...RESERVED_TITLE_SLUGS], { timeout: 30000 });
+  const href = await page.evaluate((rooms) => {
     const links = [...document.querySelectorAll('a[href^="/bookstore/"]')]
       .map((a) => a.getAttribute('href'))
       // /bookstore itself, and any query or hash form, are not detail pages.
-      .filter((h) => /^\/bookstore\/[a-z0-9][a-z0-9-]*$/.test(h));
+      .filter((h) => /^\/bookstore\/[a-z0-9][a-z0-9-]*$/.test(h))
+      // W22 — nor are the shop's rooms. The bar at the top of the shop links /bookstore/search
+      // and /bookstore/desiderata BEFORE any book, and a slug-shaped link to a room is not a book.
+      .filter((h) => !rooms.includes(h.replace('/bookstore/', '')));
     return links[0] || null;
-  });
+  }, [...RESERVED_TITLE_SLUGS]);
   if (!href) {
     throw new Error(
       'The storefront rendered no link to a detail page, so this suite has no book to drive. '

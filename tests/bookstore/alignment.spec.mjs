@@ -36,6 +36,7 @@
 // alignment it must have at each width. A block that stops rendering fails loudly rather than
 // silently passing: `required` rows must be on the page.
 import { test, expect } from '@playwright/test';
+import { RESERVED_TITLE_SLUGS } from '../../app/lib/bookstore/schema.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -84,11 +85,14 @@ const FLATTEN_THE_HEAD = '@media(max-width:720px){.bd-cat,.bd-kicker,.bd-header 
  */
 async function detailSlugWithAuthor(page) {
   await page.goto('/bookstore');
-  await expect(page.locator('a[href^="/bookstore/"]').first()).toBeAttached({ timeout: 30000 });
-  const slugs = await page.evaluate(() => [...new Set([...document.querySelectorAll('a[href^="/bookstore/"]')]
+  // W22 — a BOOK's link: the bar's two room links are attached before the shelf renders.
+  await expect(page.locator('a[href^="/bookstore/"]:not([href="/bookstore/search"]):not([href="/bookstore/desiderata"])').first()).toBeAttached({ timeout: 30000 });
+  // W22 — the bar's two rooms are slug-shaped links that are not books; see tests/bookstore/live-slug.mjs.
+  const slugs = await page.evaluate((rooms) => [...new Set([...document.querySelectorAll('a[href^="/bookstore/"]')]
     .map((a) => a.getAttribute('href'))
     .filter((h) => /^\/bookstore\/[a-z0-9][a-z0-9-]*$/.test(h))
-    .map((h) => h.replace('/bookstore/', '')))]);
+    .map((h) => h.replace('/bookstore/', ''))
+    .filter((slug) => !rooms.includes(slug)))], [...RESERVED_TITLE_SLUGS]);
   if (!slugs.length) throw new Error('The storefront rendered no link to a detail page, so this suite has no book to drive.');
   for (const slug of slugs.slice(0, 8)) {
     await page.goto(`/bookstore/${slug}`);

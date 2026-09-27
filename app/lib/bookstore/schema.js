@@ -99,6 +99,11 @@ export const PUBLISHER_SCHEMA = {
 };
 
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+// W22 — the Book Store's two rooms sit at /bookstore/search and /bookstore/desiderata, beside
+// /bookstore/{slug}. A title that took either slug would be shadowed by the room (a static route
+// outranks the dynamic one), so no title may. Exported for tests/bookstore/reserved-slugs.test.mjs.
+export const RESERVED_TITLE_SLUGS = Object.freeze(['search', 'desiderata']);
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -116,6 +121,7 @@ export function validateTitle(doc) {
   if (!isInt(doc.schemaVersion) || doc.schemaVersion < 1) errors.push('schemaVersion must be a positive integer');
   if (!isStr(doc.slug)) errors.push('slug is required');
   else if (!SLUG_RE.test(doc.slug)) errors.push('slug must be kebab-case (lowercase, digits, hyphens)');
+  else if (RESERVED_TITLE_SLUGS.includes(doc.slug)) errors.push(`slug "${doc.slug}" is reserved for a Book Store room`);
   if (!isStr(doc.title)) errors.push('title is required');
   if (!isStr(doc.author)) errors.push('author is required');
   if (!isStr(doc.publisherId)) errors.push('publisherId is required');

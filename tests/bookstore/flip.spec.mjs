@@ -46,6 +46,9 @@ const ON_SCREEN = [
   { key: 'window',       path: '/bookstore', sel: '.window-book .bb-persp' },
   { key: 'curated-case', path: '/bookstore', sel: '.curated-case-book .bb-persp' },
   { key: 'detail',       path: '/bookstore/after-the-fact', sel: '.bd-cover-wrap .bb-persp' },
+  // W22 — the rooms' row, reached through Search (it draws rows for a guest; Desiderata needs a
+  // signed-in reader and a list).
+  { key: 'room',         path: '/bookstore/search?q=the', sel: '.rr-book .bb-persp' },
 ];
 
 async function enterShop(page, path) {
@@ -60,7 +63,7 @@ async function enterShop(page, path) {
 
 test.describe('every book on the shop turns over', () => {
 
-  test('the four registered surfaces are the four this suite drives', () => {
+  test('the registered surfaces are the ones this suite drives', () => {
     // A fifth surface added to the register with no on-screen assertion here would otherwise
     // be "covered" by the source suite alone, which cannot tell whether a book actually moves.
     expect(ON_SCREEN.map((s) => s.key).sort()).toEqual(SURFACES.surfaces.map((s) => s.key).sort());
