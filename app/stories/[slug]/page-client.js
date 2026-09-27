@@ -68,7 +68,6 @@ const PAYWALL_SLUG = 'dead-end-a-halfway-around-the-moon-story';
 const PROSE_ENTER_MS = 650;
 // ...but a slow font CDN never holds the prose hostage. Measured from storyReady.
 const PROSE_FONT_CAP_MS = 800;
-const PAYWALL_STRIPE_URL = 'https://buy.stripe.com/7sYfZ9alE2KSdsSfvTenS07';
 
 function extractFirstParagraph(html) {
   if (!html) return '';
@@ -76,19 +75,9 @@ function extractFirstParagraph(html) {
   return match ? match[0] : '';
 }
 
+// W20 (27 Sep 2026, Ikenna): Dead End is no longer sold. The price and the button are gone and
+// its Payment Link is deactivated. Anyone who bought it keeps it: purchases/{uid}/{slug} below.
 function PaywallGate({ user, onSignIn }) {
-  const handleUnlock = () => {
-    if (!user) {
-      try {
-        sessionStorage.setItem('postLoginRedirect', `/stories/${PAYWALL_SLUG}`);
-      } catch (e) {}
-      onSignIn();
-      return;
-    }
-    const paymentUrl = `${PAYWALL_STRIPE_URL}?client_reference_id=${user.uid}`;
-    window.open(paymentUrl, '_blank');
-  };
-
   return (
     <div style={{ position: 'relative', marginTop: '0.5rem' }}>
       <div style={{
@@ -114,25 +103,6 @@ function PaywallGate({ user, onSignIn }) {
         <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 20, color: '#f5f0e8', lineHeight: 1.3 }}>
           Dead End is a collector's read.
         </div>
-        <p style={{
-          fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 15, fontWeight: 500,
-          color: 'rgba(245,240,232,0.6)', maxWidth: 320,
-          lineHeight: 1.55, margin: 0,
-        }}>
-          Unlock Dead End for a one-time payment of £1.50. Once purchased, it's yours to keep.
-        </p>
-        <button
-          onClick={handleUnlock}
-          style={{
-            background: '#c9a84c', color: '#06040e',
-            fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 16,
-            border: 'none', borderRadius: 999,
-            height: 48, width: 240, cursor: 'pointer',
-            marginTop: '0.4rem', fontWeight: 500, letterSpacing: '0.01em',
-          }}
-        >
-          Unlock for £1.50
-        </button>
         <div style={{
           fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 13, fontWeight: 500,
           color: 'rgba(245,240,232,0.45)', marginTop: '0.4rem',
