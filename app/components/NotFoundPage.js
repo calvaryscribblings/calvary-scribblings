@@ -4,7 +4,20 @@
 // and no way back. This is the page instead — house faces on ink, what happened, two ways on, and
 // the tab bar. Words RULED (Ikenna, 26 Sep 2026, 01:53): approved as W2 wrote them, in house style (docs/COPY-RULINGS.md).
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import TabBar, { TabLinks } from './TabBar';
+import { DELETED_PIECE, PIECE_PATH_RE, pieceIdFromPath } from '../lib/deletedContent';
+import { pieceGone } from '../lib/pieceGone';
+
+// W19 / ruling 47 — THE ADDRESS OF A DELETED OPEN PAGES PIECE. Each piece's page is static, so the
+// first rebuild after a piece is deleted takes its page away and its address lands HERE, on the
+// site 404. For a piece-shaped address the page asks the database, and if no piece lives there it
+// shows exactly the ruled line instead. Until the answer, the ordinary words are held back by the
+// attribute this script sets before first paint, so a reader never sees "nothing at this address"
+// flash up first. A piece that does exist (published since the last build), or a read that fails,
+// gets the ordinary page: nothing is called deleted that has not been seen to be.
+const PIECE_PATH_SCRIPT = `try{if(${PIECE_PATH_RE}.test(location.pathname))document.documentElement.setAttribute('data-piece-path','')}catch(e){}`;
+const PIECE_PATH_STYLE = 'html[data-piece-path] [data-nf-general]{visibility:hidden}';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
@@ -26,14 +39,34 @@ const btn = (primary) => ({
 });
 
 export default function NotFoundPage({ copy = NOT_FOUND_COPY }) {
+  const [deletedPiece, setDeletedPiece] = useState(false);
+  useEffect(() => {
+    const id = pieceIdFromPath(window.location.pathname);
+    if (!id) return undefined;
+    let live = true;
+    pieceGone(id).then((gone) => {
+      if (!live) return;
+      setDeletedPiece(gone);
+      if (!gone) document.documentElement.removeAttribute('data-piece-path');
+    });
+    return () => { live = false; };
+  }, []);
+
   return (
     <div style={{ minHeight: '100vh', background: '#080610', color: '#f5f0e8', fontFamily: DISPLAY, display: 'flex', flexDirection: 'column' }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4%', height: 64, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <Link href="/public-library" style={{ fontSize: '1rem', fontWeight: 700, color: '#c4b5fd', textDecoration: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>Calvary Scribblings</Link>
         <TabLinks />
       </header>
+      <script dangerouslySetInnerHTML={{ __html: PIECE_PATH_SCRIPT }} />
+      <style dangerouslySetInnerHTML={{ __html: PIECE_PATH_STYLE }} />
       <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 24px' }}>
-        <div style={{ maxWidth: 440, textAlign: 'center' }}>
+        {deletedPiece ? (
+          <p data-piece-deleted style={{ margin: 0, maxWidth: 440, textAlign: 'center', color: 'rgba(245,240,232,0.35)', fontStyle: 'italic', fontFamily: DISPLAY, fontSize: '1.2rem' }}>
+            {DELETED_PIECE}
+          </p>
+        ) : (
+        <div data-nf-general style={{ maxWidth: 440, textAlign: 'center' }}>
           <div style={{ fontFamily: LABEL, fontSize: 10, letterSpacing: '0.3em', color: '#c9a84c' }}>{copy.eyebrow}</div>
           <div aria-hidden="true" style={{ width: 56, height: 1, background: 'rgba(201,168,76,0.45)', margin: '8px auto 0' }} />
           <div aria-hidden="true" style={{ fontSize: 22, color: 'rgba(201,168,76,0.7)', marginTop: 24 }}>&#10022;</div>
@@ -44,6 +77,7 @@ export default function NotFoundPage({ copy = NOT_FOUND_COPY }) {
             <Link href="/search" style={btn(false)}>{copy.search}</Link>
           </div>
         </div>
+        )}
       </main>
       <TabBar />
     </div>

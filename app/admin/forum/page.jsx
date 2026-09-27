@@ -214,7 +214,11 @@ export default function AdminForumPage() {
       if (authorUid) updates[`user_open_pages/${authorUid}/${id}`] = null;
       await update(ref(db), updates);
       drop(id);
-      setMsg('Post removed.');
+      // W19 / ruling 47 — the piece's page is static, and was built with its title and a 160-character
+      // excerpt in the <head>. A rebuild takes that page away, so its address lands on the 404,
+      // which says "This piece was deleted." (app/components/NotFoundPage.js).
+      const verdict = await fireRebuild({ hook: HOOKS.OPEN_PAGES, getIdToken: () => user?.getIdToken(), settleMs: 0 });
+      setMsg(verdict.ok ? 'Post removed. A rebuild has started to take its page down.' : `Post removed, but no rebuild started. ${verdict.message}`);
     } catch (e) {
       console.error('[admin/forum] remove failed:', e);
       setMsg('Remove failed: ' + e.message);

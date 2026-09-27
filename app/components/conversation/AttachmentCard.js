@@ -17,11 +17,15 @@
 
 import { createElement as h } from 'react';
 import { BODY_FONT } from '../../lib/squarePostBody.js';
+import { usePieceGone } from '../../lib/pieceGone.js';
 
 const EXTERNAL_ARROW = 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6';
 
 export default function AttachmentCard({ attachment, compact = false }) {
-  if (!attachment) return null;
+  // W19 / ruling 47 — a card for a deleted piece is a link to nothing. The post body above it
+  // (PostBody's `piece`) already says "This piece was deleted.", so the card simply goes.
+  const pieceIsGone = usePieceGone(attachment?.kind === 'open-page' ? attachment.pieceId : null);
+  if (!attachment || pieceIsGone) return null;
   const { kind, href, eyebrow, title, byline, cover } = attachment;
 
   return h(

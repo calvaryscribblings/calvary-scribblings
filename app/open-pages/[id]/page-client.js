@@ -27,7 +27,7 @@ import { pruneBlocked, countNodes } from '../../lib/openPagesThread';
 import { renderMarkdown } from '../../lib/openPagesMarkdown';
 import { indexedCommentWrite } from '../../lib/userComments';
 import { Reaction, useReactionNote, useKeyedReactionNote } from '../../components/conversation/Reaction';
-import { DELETED_RESPONSE, isTombstone } from '../../lib/deletedContent';
+import { DELETED_RESPONSE, DELETED_PIECE, PIECE_ID_RE, isTombstone } from '../../lib/deletedContent';
 
 const REPORT_REASONS = ['Harmful content', 'Spam', 'Plagiarism', 'Other'];
 
@@ -188,6 +188,10 @@ export default function OpenPageDetailClient({ params }) {
   const { user, loading: authLoading } = useAuth();
 
   const [post, setPost] = useState(undefined); // undefined = loading, null = not found
+  // W19 / ruling 47 — true only when the database ANSWERED that no piece lives at this id. A read
+  // that failed is not a deletion, and neither is an address that was never a piece id.
+  const [pieceGone, setPieceGone] = useState(false);
+  useEffect(() => { if (pieceGone) document.title = 'Open Pages · Calvary Scribblings'; }, [pieceGone]);
   // Live author profile resolved from users/{authorUid} — richer/fresher than the
   // denormalized snapshot stored on the post (real displayName, avatar, bio).
   const [author, setAuthor] = useState(null);
@@ -318,6 +322,7 @@ export default function OpenPageDetailClient({ params }) {
         const snap = await get(ref(db, `${OPEN_PAGES_NODE}/${id}`));
         if (cancelled) return;
         const val = snap.exists() ? snap.val() : null;
+        if (!snap.exists() && PIECE_ID_RE.test(id)) setPieceGone(true);
         // Only ever show live posts (the public node should only hold these).
         const live = val && val.status === 'live' ? { id, ...val } : null;
         setPost(live);
@@ -830,6 +835,22 @@ export default function OpenPageDetailClient({ params }) {
           <div style={{ width: '70%', height: 38, borderRadius: 8, background: 'rgba(245,240,232,0.06)', marginBottom: 18 }} />
           <div style={{ width: '100%', height: 14, borderRadius: 6, background: 'rgba(245,240,232,0.04)', marginBottom: 10 }} />
           <div style={{ width: '90%', height: 14, borderRadius: 6, background: 'rgba(245,240,232,0.04)' }} />
+        </div>
+      </Shell>
+    );
+  }
+
+  // ---- Deleted (ruling 47) ----
+  // Exactly the ruled line, drawn like this page's own empty-state note ("No comments yet — be the
+  // first."): no heading, no link, no byline. The tab title stops naming the piece too (the effect by
+  // pieceGone), since the static page's <title> was baked while it lived.
+  if (post === null && pieceGone) {
+    return (
+      <Shell>
+        <div style={{ maxWidth: 560, margin: '0 auto', padding: '6rem 1.5rem', textAlign: 'center' }}>
+          <p data-piece-deleted style={{ margin: 0, color: CREAM_MUTE, fontStyle: 'italic', fontFamily: SERIF, fontSize: '1.2rem' }}>
+            {DELETED_PIECE}
+          </p>
         </div>
       </Shell>
     );

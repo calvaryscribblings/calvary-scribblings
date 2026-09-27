@@ -267,6 +267,7 @@ export function attachmentOf(post) {
     const a = p.attachedOpenPage;
     return {
       kind: 'open-page',
+      pieceId: a.id,
       href: `/open-pages/${a.id}`,
       eyebrow: 'Open Pages',
       title: a.title || 'Untitled',

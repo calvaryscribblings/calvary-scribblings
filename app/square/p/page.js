@@ -26,7 +26,7 @@ import { resolveIdentities, identityOf } from '../../lib/squareIdentity';
 import PostBody from '../../components/conversation/PostBody';
 import AttachmentCard from '../../components/conversation/AttachmentCard';
 import { attachmentOf } from '../../lib/squarePostBody';
-import { isTombstone } from '../../lib/deletedContent';
+import { isTombstone, announcedPieceOf } from '../../lib/deletedContent';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -75,7 +75,7 @@ function Row({ post, who, small }) {
             @mentions. Both now come from the shared renderer, so the feed and the
             permalink stopped being wrong in opposite directions. Its tombstone, which
             was the only one that existed, moved into that renderer with it. */}
-        <PostBody text={post.text} surface="permalink" withdrawn={post.withdrawn === true} deleted={isTombstone(post)} style={small ? { fontSize: '0.9rem' } : null} />
+        <PostBody text={post.text} surface="permalink" withdrawn={post.withdrawn === true} deleted={isTombstone(post)} style={small ? { fontSize: '0.9rem' } : null} piece={announcedPieceOf(post)} />
         {!post.withdrawn && !isTombstone(post) && <AttachmentCard attachment={attachmentOf(post)} />}
       </div>
     </div>

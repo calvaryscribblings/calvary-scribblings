@@ -12,7 +12,7 @@ import { resolveIdentities, identityOf } from '../lib/squareIdentity';
 import { READ_DEADLINE_MS, classifyFailure } from '../lib/reliableRead';
 import { useOnline, reconnectDatabase } from '../lib/useReliable';
 import Unavailable from '../components/Unavailable';
-import { isTombstone } from '../lib/deletedContent';
+import { isTombstone, announcedPieceOf } from '../lib/deletedContent';
 
 
 const FB = {
@@ -167,7 +167,7 @@ function QuotedCard({ quotedPost, who, onClear }) {
             quote was written. */}
         <UserBadge uid={quotedPost.authorUid} readCount={reads} isAuthor={isWriter} />
       </div>}
-      <PostBody text={quotedPost.text} surface="quoted-card" deleted={isTombstone(quotedPost)} />
+      <PostBody text={quotedPost.text} surface="quoted-card" deleted={isTombstone(quotedPost)} piece={announcedPieceOf(quotedPost)} />
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
         <a href={`#${quotedPost.id}`} onClick={handleViewPost}
           style={{ fontSize: '0.74rem', color: '#6b2fad', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none', fontWeight: 500 }}>
@@ -1518,7 +1518,7 @@ export default function SquarePage() {
                       {who(p).handle && <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.28)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{who(p).handle}</span>}
                       <UserBadge uid={p.authorUid} readCount={who(p).readCount} isAuthor={who(p).isAuthor} />
                     </div>}
-                    <PostBody text={p.text} surface="closed-preview" deleted={isTombstone(p)} />
+                    <PostBody text={p.text} surface="closed-preview" deleted={isTombstone(p)} piece={announcedPieceOf(p)} />
                   </div>
                 </div>
               ))}
@@ -1663,7 +1663,7 @@ export default function SquarePage() {
                                 WRITTEN here and read zero times, so a withdrawn post drew
                                 an avatar above an empty div. The branch now lives inside
                                 PostBody, so all eight surfaces have it or none does. */}
-                            <PostBody text={p.text} surface="feed-post" withdrawn={p.withdrawn === true} deleted={isTombstone(p)} style={{ marginBottom: 6 }} />
+                            <PostBody text={p.text} surface="feed-post" withdrawn={p.withdrawn === true} deleted={isTombstone(p)} style={{ marginBottom: 6 }} piece={announcedPieceOf(p)} />
                             {!p.withdrawn && !isTombstone(p) && <AttachmentCard attachment={attachmentOf(p)} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
                             {p.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === p.quotedPostId)} who={who} />}
@@ -1726,7 +1726,7 @@ export default function SquarePage() {
                                       </div>
                                     ) : (
                                       <>
-                                        <PostBody text={r.text} surface="feed-reply" withdrawn={r.withdrawn === true} deleted={isTombstone(r)} />
+                                        <PostBody text={r.text} surface="feed-reply" withdrawn={r.withdrawn === true} deleted={isTombstone(r)} piece={announcedPieceOf(r)} />
                                         {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} who={who} />}
                                       </>
                                     )}

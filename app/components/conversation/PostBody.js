@@ -19,7 +19,8 @@
 
 import { createElement as h } from 'react';
 import { BODY_FONT, SURFACES, bodyOf, mentionHref } from '../../lib/squarePostBody.js';
-import { DELETED_POST } from '../../lib/deletedContent.js';
+import { DELETED_POST, DELETED_PIECE } from '../../lib/deletedContent.js';
+import { usePieceGone } from '../../lib/pieceGone.js';
 
 const MENTION_COLOR = '#9b6dff';
 
@@ -28,8 +29,11 @@ const MENTION_COLOR = '#9b6dff';
  * @param {string}  surface  a key of SURFACES — the draw site names itself
  * @param {object}  style    per-site overrides (size only; never the paragraph rule)
  * @param {boolean} deleted  W17 / ruling 30: a deleted reader's post kept as a tombstone
+ * @param {string}  piece    W19 / ruling 47: the Open Pages piece this post announces
+ *                           (announcedPieceOf(post)), or null
  */
-export default function PostBody({ text, surface, withdrawn = false, deleted = false, style }) {
+export default function PostBody({ text, surface, withdrawn = false, deleted = false, piece = null, style }) {
+  const pieceIsGone = usePieceGone(piece);
   const spec = SURFACES[surface];
   // ⚠ AN UNKNOWN KEY IS A HARD FAILURE, NOT A FALLBACK. A ninth surface that
   // forgets to register itself in SURFACES must not be able to quietly render
@@ -60,6 +64,16 @@ export default function PostBody({ text, surface, withdrawn = false, deleted = f
       'div',
       { style: { ...base, fontStyle: 'italic', color: 'rgba(245,240,232,0.35)' }, 'data-postbody': surface, 'data-deleted': 'true' },
       DELETED_POST
+    );
+  }
+
+  // W19 / ruling 47 — an announcement of a piece that has since been deleted. Its words quote the
+  // piece's title, so they give way to the ruled line, drawn like the deleted post above.
+  if (pieceIsGone && !withdrawn) {
+    return h(
+      'div',
+      { style: { ...base, fontStyle: 'italic', color: 'rgba(245,240,232,0.35)' }, 'data-postbody': surface, 'data-piece-deleted': 'true' },
+      DELETED_PIECE
     );
   }
 

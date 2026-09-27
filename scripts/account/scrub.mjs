@@ -157,6 +157,12 @@ export async function runScrub(db, { apply = false, now = Date.now, log = consol
       const v = await voicesDown(plan, { removeStoragePrefix, rebuild });
       log(`[scrub] ${await tag()}: ${plan.voices.length} reader voice(s) down — ${v.images} image(s) removed, rebuild ${v.rebuild}`);
     }
+    // W19 / ruling 47 — their Open Pages pieces went with the plan. Each one's static page still
+    // carries its title and excerpt until a build takes it away; after that its address shows
+    // "This piece was deleted." A voice above has already summoned one build.
+    else if (plan.counts.openPages && rebuild) {
+      log(`[scrub] ${await tag()}: ${plan.counts.openPages} Open Pages piece(s) removed — rebuild ${await rebuild()}`);
+    }
     const t = now();
     await db.ref(`deletions/${uid}`).update({ 'steps/scrub': t, updatedAt: t, completedAt: t });
     summary.scrubbed++;
@@ -221,7 +227,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const s = await runScrub(db, {
       apply: args.includes('--apply'),
       removeStoragePrefix: async (prefix) => { const [files] = await bucket.getFiles({ prefix }); await Promise.all(files.map((f) => f.delete())); return files.length; },
-      rebuild: () => fireDeployHook(process.env.CMS_DEPLOY_HOOK_URL, { envName: 'CMS_DEPLOY_HOOK_URL', what: 'a deleted reader\'s voice came down' }),
+      rebuild: () => fireDeployHook(process.env.CMS_DEPLOY_HOOK_URL, { envName: 'CMS_DEPLOY_HOOK_URL', what: 'a deleted reader\'s voice or Open Pages piece came down' }),
     });
     console.log(`[scrub] ${args.includes('--apply') ? 'APPLIED' : 'report only'}: ${JSON.stringify(s)}`);
     const p = await runPrivateSweep(db, { apply: args.includes('--apply') });
