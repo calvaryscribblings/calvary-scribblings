@@ -1,4 +1,7 @@
-# Going live with money, 30 September 2026: Ikenna's walk
+# Going live with money: Ikenna's walk
+
+Books went live on 27 Sep 2026 (W20, steps 6a and 7a). Memberships go live on 30 Sep 2026
+(steps 6b and 7b).
 
 Rewritten in W3 (25 Sep 2026). **This is everything a person has to do by hand, in order.**
 Anything a Claude session can do from the codespace is not in the steps. It is listed once, in
@@ -100,26 +103,123 @@ Don't paste either key anywhere else: not into Cloudflare, not into a chat, not 
 
 ### 6. Tell a session: "go live"
 
-That is the whole instruction. What the session then does, with no dashboard involved:
+**Books went live early, on 27 Sep (W20).** Rulings 52–54: both book rails go live on the
+27th, because three influencers publish the store access key on the 28th and test the
+purchase flow with real money. Memberships stay closed until launch morning. So step 6 is now
+two halves.
 
-> Checks both keys really are live, and which account each belongs to. Creates the 8 live
-> founding Stripe Prices and the live portal configuration, and the 4 live Paystack Plans.
-> Pastes their ids into `prices.js` / `paystack-plans.js`. Flips `MEMBERSHIPS_ON_SALE` and
-> `MEMBERSHIP_LAUNCHED` in the same commit, which the interlock test enforces. Deletes the
-> one "ships no live ids" test. Creates both live Stripe webhook endpoints (books and
-> memberships) with `scripts/money/stripe-webhooks.mjs --i-mean-live`. Sets the four
-> **Production** Pages secrets: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
-> `STRIPE_MEMBERSHIP_WEBHOOK_SECRET`, `PAYSTACK_SECRET_KEY`. **Preview keeps its test
-> keys.** Then it deploys, and proves the deployment is the one serving: both webhooks
-> answer 400 to a bad signature, and a signed-out checkout answers 401. It clears
-> `ops/test_buyers` (inert on live keys, and removed anyway).
->
-> It stops and tells you if anything doesn't match. It reports the commit and the deployment
-> id when it is done.
+#### 6a. Books: done 27 Sep 2026 (W20)
 
-Wait for that report before step 7.
+Steps 1, 2, 4 and 5 were done by Ikenna before the round, and so were 3.1–3.4 and 3.6. Step
+3.5 (subscription settings) waits for the 30th.
+
+- **Keys.** Both are live keys. Stripe's belongs to `acct_…nEB3LO`, the live *Calvary Media UK
+  Ltd.* account (charges and payouts enabled). Paystack's belongs to integration `1950328`,
+  the same business as the test key the site has always used.
+- **Found first: a third live Stripe webhook** that this doc didn't know about. It went to
+  the old Dead End paywall worker (`calvary-stripe-webhook`, set up 21 May). It heard every
+  `checkout.session.completed` on the account, with no check for what was bought, so every
+  card book buyer would also have been given Dead End. Ikenna's ruling: Dead End's paywall
+  goes. The endpoint is deleted, the Dead End Payment Link deactivated, the worker deleted
+  (nothing else called it), and the price and button taken off the story page. Its one buyer
+  keeps it: their record under `purchases/` is untouched, and the page still reads it. Dead
+  End itself is unpublished (`published: false`), so its page is currently a 404 for
+  everyone. That predates W20 and is Ikenna's call.
+- **Webhooks.** `scripts/money/stripe-webhooks.mjs --i-mean-live` created **both** live
+  endpoints, books and memberships, at `2026-03-25.dahlia`. The memberships endpoint is safe
+  before the 30th, because the site can't open a live membership checkout (they all answer
+  409), and it ignores book sessions and one-off invoices.
+- **Production Pages secrets** set: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+  `STRIPE_MEMBERSHIP_WEBHOOK_SECRET`, `PAYSTACK_SECRET_KEY`. **Preview has no money secrets
+  at all,** not test keys as this doc used to say. A preview deployment can't open a
+  checkout on either rail, which is safe.
+- **Deployed and proven.** Commit `5c9e7add` is deployment `0005c3ec`. On both the domain and
+  the deployment's own address:
+  - all three webhooks answer 400 to a bad signature;
+  - an event signed with the new Stripe secrets is accepted, and so is one signed with the
+    live Paystack key, while the test key's is refused (so production is on live keys);
+  - both signed-out book checkouts answer 401;
+  - all four membership checkouts answer 409 `not_configured`.
+- **`ops/test_buyers`** was already empty.
+- **Test-mode records cleared.** No test book purchases were left (W3 cleared them), and
+  readership shows no drift and no stored counts. What was left: 10 membership records from
+  W3's deleted throwaway accounts (8 cancelled subscriptions, 2 expired passes) and their 12
+  `paystack_membership_index` entries. Each was proven test-mode by the providers' test APIs,
+  none granted anything, and all were removed. The backup is in
+  `~/calvary-backups/w20/` in the codespace, outside the repo. One record was left alone: a live
+  account's plain "free" record with no provider reference, which is not a test purchase.
+
+#### 6b. Memberships: 30 Sep, still to do
+
+Ikenna first does step 3.5 (subscription settings: Smart Retries, *Cancel the subscription*,
+the three customer emails). Then a session:
+
+> Creates the 8 live founding Stripe Prices and the live portal configuration, and the 4 live
+> Paystack Plans. Pastes their ids into `prices.js` / `paystack-plans.js`. Flips
+> `MEMBERSHIPS_ON_SALE` and `MEMBERSHIP_LAUNCHED` in the same commit, which the interlock test
+> enforces. Deletes the one "ships no live ids" test. Checks both live webhook endpoints with
+> `scripts/money/stripe-webhooks.mjs` (report only; they already exist, so nothing is created
+> and no secret changes). Deploys, and proves that the four membership checkouts now answer
+> 401 signed out, not 409.
 
 ### 7. One real purchase and one refund, per rail
+
+#### 7a. Books: Ikenna's proof, 27 Sep (ruling 54)
+
+Use **your own account**, signed in, in a normal browser (not the codespace). Buy one real
+book on each rail, then refund it in full. Do both before the influencers buy.
+
+**Which title.** The rule is the cheapest published title with a price in that currency. Nine
+titles tie at **£1.99 / ₦1,800**. Use a different one on each rail, so each rail has its own
+record:
+
+| Rail | Title | Price |
+|---|---|---|
+| Card (Stripe) | *Beyond Good and Evil* | £1.99 |
+| Naira (Paystack) | *Mrs Dalloway* | ₦1,800 |
+
+⚠ **You already hold all nine as founder comps (W3b).** Buying one turns its comp into a sale.
+The refund then withdraws it, so it stays on your shelf marked **ACCESS WITHDRAWN**, and the
+comp script won't re-grant a title that has a record. My Library won't change visibly when you
+buy, either, because the book is already there. **The alternative** is the only two published
+titles you don't hold: *Iri and the Old Witch* and *The Tortoise Food Hunt* at **£2.50 /
+₦2,500**. They appear on the shelf when bought, and cost you no comp. Your choice. Tell the
+session which you used.
+
+**Card (Stripe):**
+
+1. Open the title in the Book Store, choose **£**, and buy it with your own card.
+2. Stripe sends you back to the title's page, which reads *Thank you. This title is now in your
+   Library.* The purchase record is written by Stripe's webhook, usually within a few
+   seconds. Open **My Library** (refresh it if it was already open), and the book is there.
+3. Tell the session **"bought"**. It checks the record, the readership count and the webhook
+   delivery.
+4. **Refund it:** Stripe (live) → *Payments* → the £ payment → **Refund** → the full amount.
+   Stripe keeps its processing fee, so the proof costs a few pence.
+5. Within about a minute, My Library shows the book **ACCESS WITHDRAWN** (a full book refund
+   revokes it), and the public count goes back down. A *partial* refund would keep the book.
+
+**Naira (Paystack):**
+
+1. Open the title, choose **₦**, and pay with your own card on Paystack's page.
+2. Paystack sends you back to the title's page, and the book is in My Library within a few
+   seconds, as above.
+3. Tell the session **"bought"**.
+4. **Refund it the same day:** Paystack (live) → *Transactions* → the payment → **Refund** →
+   the full amount. On a Starter business, Paystack takes the refund out of the **pending
+   payout**, and refuses it if that payout can't cover it. Paystack settles the next working
+   day, so refund before then.
+5. ⚠ **A live Paystack refund takes 3 to 10 working days to settle.** The book is withdrawn only
+   when Paystack says the refund is *processed*. Until then My Library still shows it, and
+   that is correct, because the money hasn't gone back yet. **Don't change anything by hand.**
+
+Tell the session **"refunded"** after each one. It checks the records and the webhook
+deliveries again. The card rail is signed off when Stripe's refund has withdrawn the book. The
+naira rail is signed off when Paystack's refund is processed and the book reads ACCESS WITHDRAWN.
+
+#### 7b. Memberships: 30 Sep
+
+After 6b, the membership proofs, as originally written:
 
 Use **your own account** in a normal browser (not the codespace), signed in, at
 `https://calvaryscribblings.co.uk/membership`.
