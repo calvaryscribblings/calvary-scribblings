@@ -4,15 +4,25 @@
 // precedent from R7.3): the rule that decides what a reader SEES when they long-press a word
 // should not be reachable only through a rendered page. Everything here runs in-process.
 //
+// W23: step 2 is now the HOUSE DICTIONARY — static shards under /dict/en/<DICT_VERSION>/, read
+// here through a stubbed fetch: a tiny in-memory dictionary for the pipeline's own rules, and the
+// real built shards (public/dict/en/…) for morphy's golden cases, so "went finds go" is proven
+// against the data a reader actually gets.
+//
 // THE ASSERTION THAT MATTERS MOST is that a glossary hit makes NO network call. It is not
 // checked by inspecting a flag — the injected fetch THROWS. If the house glossary ever stops
 // short-circuiting, these tests fail loudly rather than quietly getting slower.
 import { test, expect } from '@playwright/test';
+import { readFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   lookupWord, glossaryLookup, normaliseWord, wordForms, isSingleWord,
-  parseGlossary, serialiseGlossary, validateGlossary,
-  HOUSE_SOURCE, API_SOURCE, GLOSSARY_MAX_DEF,
+  parseGlossary, serialiseGlossary, validateGlossary, dictionaryLookup,
+  morphyCandidates, shardFor, sanitiseKey, shardFileName, clearDictionaryCache,
+  HOUSE_SOURCE, DICT_SOURCE, DICT_VERSION, DICT_BASE, GLOSSARY_MAX_DEF,
 } from '../../app/lib/dictionary.js';
+
+const PUBLIC = fileURLToPath(new URL('../../public', import.meta.url));
 
 const GLOSSARY = {
   harmattan: 'The dry, dust-laden wind that blows south from the Sahara between November and March.',
@@ -24,25 +34,41 @@ const GLOSSARY = {
 /** A fetch that must never be called. */
 const forbiddenFetch = () => { throw new Error('the network was reached on a glossary hit'); };
 
-/** A fetch that answers like api.dictionaryapi.dev. */
-function apiFetch(payload, { ok = true } = {}) {
-  return async () => ({ ok, json: async () => payload });
+// A small house dictionary, in the published shape: a manifest of prefixes, and shards of
+// { headword: { s: [[pos, definition]…], x: { pos: [base…] } } }.
+const MINI = {
+  'manifest.json': { version: 'test', prefixes: ['c', 'g', 'r', 'w'] },
+  [shardFileName('r')]: {
+    raven: { s: [['n', 'large black bird with a straight bill'], ['v', 'obtain or seize by violence']] },
+    run: { s: [['n', 'a score in baseball'], ['v', 'move fast by using one\'s feet'], ['v', 'flee'], ['v', 'stretch out']] },
+    ran: { x: { v: ['run'] } },
+  },
+  [shardFileName('c')]: { city: { s: [['n', 'a large and densely populated urban area']] } },
+  [shardFileName('g')]: { go: { s: [['n', 'a board game for two players'], ['v', 'change location; move']] } },
+  [shardFileName('w')]: { went: { x: { v: ['go'] } } },
+};
+
+/** A fetch over a dictionary held in memory. Counts what it was asked for. */
+function dictFetch(files = MINI, log = []) {
+  return async (url) => {
+    log.push(url);
+    const name = url.slice(url.lastIndexOf('/') + 1);
+    if (!(name in files)) return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(files[name])) };
+  };
 }
 
-const API_BODY = [{
-  word: 'raven',
-  phonetic: '/ˈreɪv(ə)n/',
-  phonetics: [{ text: '/ˈreɪv(ə)n/' }],
-  meanings: [{
-    partOfSpeech: 'noun',
-    definitions: [
-      { definition: 'A large heavily built crow with mainly black plumage.' },
-      { definition: 'A deep glossy black colour.' },
-      { definition: 'A third sense, kept.' },
-      { definition: 'A fourth sense, which must be dropped.' },
-    ],
-  }],
-}];
+/** A fetch over the REAL built dictionary in public/, as the site serves it. */
+function builtFetch(log = []) {
+  return async (url) => {
+    log.push(url);
+    const path = `${PUBLIC}${url}`;
+    if (!existsSync(path)) return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => JSON.parse(readFileSync(path, 'utf8')) };
+  };
+}
+
+test.beforeEach(() => clearDictionaryCache());
 
 // ── normalisation ────────────────────────────────────────────────────────────
 test('normaliseWord strips the punctuation a selection drags along, and keeps what is part of the word', () => {
@@ -102,7 +128,7 @@ test('punctuation carried in from the selection does not defeat the glossary', a
   expect(entry?.source).toBe(HOUSE_SOURCE);
 });
 
-test('the glossary BEATS the API even when the API would have answered', async () => {
+test('the glossary BEATS the house dictionary even when the dictionary would have answered', async () => {
   const entry = await lookupWord('raven', {
     glossary: { raven: 'In this book: the bird that carries the second message.' },
     fetchImpl: forbiddenFetch,     // reaching it at all is the failure
@@ -111,29 +137,90 @@ test('the glossary BEATS the API even when the API would have answered', async (
   expect(entry.source).toBe(HOUSE_SOURCE);
 });
 
-// ── the Free Dictionary ──────────────────────────────────────────────────────
-test('a word outside the glossary falls through to the API and is shaped for the modal', async () => {
-  const entry = await lookupWord('raven', { glossary: GLOSSARY, fetchImpl: apiFetch(API_BODY) });
-  expect(entry.source).toBe(API_SOURCE);
-  expect(entry.phonetic).toBe('/ˈreɪv(ə)n/');
-  expect(entry.senses[0].partOfSpeech).toBe('noun');
-  expect(entry.senses[0].definition).toContain('crow');
-  // AT MOST THREE. The contract's cap is editorial: a reader mid-sentence wants what it
-  // means HERE, not eleven senses of 'set'.
-  expect(entry.senses).toHaveLength(3);
+// ── the house dictionary ─────────────────────────────────────────────────────
+test('a word outside the glossary falls through to the house dictionary and is shaped for the modal', async () => {
+  const log = [];
+  const entry = await lookupWord('raven', { glossary: GLOSSARY, fetchImpl: dictFetch(MINI, log) });
+  expect(entry.source).toBe(DICT_SOURCE);
+  expect(entry.house).toBe(false);
+  expect(entry.phonetic).toBeNull();
+  expect(entry.senses[0]).toEqual({ partOfSpeech: 'noun', definition: 'large black bird with a straight bill' });
+  expect(entry.senses[1].partOfSpeech).toBe('verb');
+  // The site's own path, and nothing else: the manifest, then the one shard.
+  expect(log).toEqual([`${DICT_BASE}/manifest.json`, `${DICT_BASE}/${shardFileName('r')}`]);
+  expect(log.every((u) => u.startsWith('/dict/en/'))).toBe(true);
 });
 
-test('a 404 is a MISS, not an error — the graceful-miss rule', async () => {
-  const entry = await lookupWord('zzzznotaword', {
-    glossary: GLOSSARY,
-    fetchImpl: apiFetch({ title: 'No Definitions Found' }, { ok: false }),
-  });
-  expect(entry).toBeNull();
+test('the ORDER: glossary, then the house dictionary, then the calm miss', async () => {
+  // 1. A glossary word never reaches the dictionary, even when the dictionary holds it.
+  const g = await lookupWord('raven', { glossary: { raven: 'In this book: the messenger.' }, fetchImpl: forbiddenFetch });
+  expect(g.source).toBe(HOUSE_SOURCE);
+  // 2. A word only the dictionary holds.
+  const d = await lookupWord('city', { glossary: GLOSSARY, fetchImpl: dictFetch() });
+  expect(d.source).toBe(DICT_SOURCE);
+  // 3. A word neither holds: null, which the register renders as the calm miss.
+  expect(await lookupWord('corvid', { glossary: GLOSSARY, fetchImpl: dictFetch() })).toBeNull();
+  // …including one whose shard does not exist at all.
+  expect(await lookupWord('zzyzx', { glossary: GLOSSARY, fetchImpl: dictFetch() })).toBeNull();
 });
 
-test('a malformed body is a miss rather than a throw', async () => {
-  expect(await lookupWord('raven', { fetchImpl: apiFetch({ not: 'an array' }) })).toBeNull();
-  expect(await lookupWord('raven', { fetchImpl: apiFetch([{ meanings: [] }]) })).toBeNull();
+test('AT MOST THREE senses, in the source\'s order', async () => {
+  const entry = await lookupWord('run', { fetchImpl: dictFetch() });
+  expect(entry.senses.map((s) => s.definition)).toEqual(['a score in baseball', 'move fast by using one\'s feet', 'flee']);
+});
+
+test('the literal form is tried FIRST, and morphy only when it is not a headword', async () => {
+  const lit = await lookupWord('run', { fetchImpl: dictFetch() });
+  expect(lit.word).toBe('run');
+  const ran = await lookupWord('ran', { fetchImpl: dictFetch() });
+  expect(ran.word).toBe('run');
+  expect(ran.form).toBe('ran');
+  // Through the verb exception, so ONLY the verb's senses — never "a score in baseball".
+  expect(ran.senses.every((s) => s.partOfSpeech === 'verb')).toBe(true);
+});
+
+test('an exception can send the lookup to another shard, and keeps to its part of speech', async () => {
+  const log = [];
+  const went = await lookupWord('went', { fetchImpl: dictFetch(MINI, log) });
+  expect(went.word).toBe('go');
+  // "went" is the verb go — the board game must not appear.
+  expect(went.senses.map((s) => s.definition)).toEqual(['change location; move']);
+  expect(log).toContain(`${DICT_BASE}/${shardFileName('g')}`);
+});
+
+test('a rule candidate is accepted only when the dictionary holds it in that part of speech', async () => {
+  const cities = await lookupWord('cities', { fetchImpl: dictFetch() });
+  expect(cities.word).toBe('city');
+  // "ravens" → raven by the noun rule; "ravened" → raven by the verb rule, verb senses only.
+  const ravened = await lookupWord('ravened', { fetchImpl: dictFetch() });
+  expect(ravened.senses.map((s) => s.partOfSpeech)).toEqual(['verb']);
+});
+
+test('each shard is read ONCE a session', async () => {
+  const log = [];
+  const f = dictFetch(MINI, log);
+  await lookupWord('raven', { fetchImpl: f });
+  await lookupWord('run', { fetchImpl: f });
+  await lookupWord('ravens', { fetchImpl: f });
+  expect(log.filter((u) => u.endsWith(shardFileName('r')))).toHaveLength(1);
+  expect(log.filter((u) => u.endsWith('manifest.json'))).toHaveLength(1);
+});
+
+test('a FAILED read is not kept: offline once is not offline for the session', async () => {
+  let online = false;
+  const good = dictFetch();
+  const f = async (url) => { if (!online) throw new Error('net::ERR_INTERNET_DISCONNECTED'); return good(url); };
+  expect(await lookupWord('raven', { fetchImpl: f })).toBeNull();
+  online = true;
+  expect((await lookupWord('raven', { fetchImpl: f }))?.source).toBe(DICT_SOURCE);
+});
+
+test('a 5xx or a malformed body is a miss rather than a throw', async () => {
+  expect(await lookupWord('raven', { fetchImpl: async () => ({ ok: false, status: 522, json: async () => ({}) }) })).toBeNull();
+  clearDictionaryCache();
+  expect(await lookupWord('raven', { fetchImpl: async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('bad'); } }) })).toBeNull();
+  clearDictionaryCache();
+  expect(await lookupWord('raven', { fetchImpl: dictFetch({ 'manifest.json': { nope: true } }) })).toBeNull();
 });
 
 test('a network failure is a miss rather than a throw', async () => {
@@ -143,13 +230,12 @@ test('a network failure is a miss rather than a throw', async () => {
   expect(entry).toBeNull();
 });
 
-test('a server that never answers is a miss at the timeout, and the wait is bounded', async () => {
-  // The contract's 4 s, exercised at 120 ms so CI does not spend four seconds proving it.
-  // The stub deliberately IGNORES the abort signal, which is why the pipeline races a clock
-  // as well as aborting: an injected fetch that hangs must not hang the reader.
+test('a shard that never arrives is a miss at the timeout, and the wait is bounded', async () => {
+  // The contract's 4 s, exercised at 120 ms so CI does not spend four seconds proving it. The
+  // stub never settles, which is why the pipeline races a clock.
   const started = Date.now();
   const entry = await lookupWord('raven', {
-    fetchImpl: () => new Promise(() => {}),      // never settles, never aborts
+    fetchImpl: () => new Promise(() => {}),      // never settles
     timeoutMs: 120,
   });
   const elapsed = Date.now() - started;
@@ -167,6 +253,89 @@ test('a glossary hit is not subject to the timeout at all', async () => {
   });
   expect(entry.source).toBe(HOUSE_SOURCE);
   expect(Date.now() - started, 'the house answer is instant').toBeLessThan(200);
+});
+
+// ── morphy, as morph.c has it ────────────────────────────────────────────────
+test('morphy\'s detachment rules, in morph.c\'s order', () => {
+  const bases = (w, pos) => morphyCandidates(w, pos).map((c) => c.base);
+  expect(bases('cities', 'n')).toEqual(['citie', 'city']);
+  expect(bases('boxes', 'n')).toEqual(['boxe', 'box']);
+  expect(bases('churches', 'n')).toEqual(['churche', 'church']);
+  expect(bases('firemen', 'n')).toEqual(['fireman']);
+  expect(bases('hoped', 'v')).toEqual(['hope', 'hop']);
+  expect(bases('making', 'v')).toEqual(['make', 'mak']);
+  expect(bases('tries', 'v')).toEqual(['trie', 'try', 'tri']);
+  expect(bases('larger', 'a')).toEqual(['larg', 'large']);
+  expect(bases('slowly', 'r')).toEqual([]);                // adverbs: the exception list only
+});
+
+test('morph.c\'s noun guards: -ss and short words are not detached; -ful keeps its ful', () => {
+  expect(morphyCandidates('glass', 'n')).toEqual([]);
+  expect(morphyCandidates('is', 'n')).toEqual([]);
+  expect(morphyCandidates('boxesful', 'n')).toEqual([{ base: 'boxe', then: 'ful' }, { base: 'box', then: 'ful' }]);
+  // The verb has no such guard: "passes" can be the verb pass.
+  expect(morphyCandidates('passes', 'v').map((c) => c.base)).toContain('pass');
+});
+
+test('shards: the key and the longest listed prefix', () => {
+  expect(sanitiseKey("O'clock")).toBe('o_clock');
+  expect(sanitiseKey('éclair')).toBe('_clair');
+  expect(shardFor('unhappy', ['u', 'un', 'unh'])).toBe('unh');
+  expect(shardFor('under', ['u', 'un', 'unh'])).toBe('un');
+  expect(shardFor('u', ['u', 'un'])).toBe('u');
+  expect(shardFor('zebra', ['u', 'un'])).toBeNull();
+  expect(shardFileName('con')).toBe('p_con.json');           // never a bare reserved name
+});
+
+// ── the BUILT dictionary: the golden cases the brief names, against the real shards ─────
+test.describe('the built dictionary', () => {
+  test.skip(!existsSync(`${PUBLIC}${DICT_BASE}/manifest.json`), `public${DICT_BASE} is not built`);
+
+  for (const [tapped, headword, pos] of [
+    ['ran', 'run', 'verb'], ['cities', 'city', 'noun'], ['mice', 'mouse', 'noun'], ['went', 'go', 'verb'],
+    ['serendipity', 'serendipity', 'noun'], ['Leaves,', 'leaf', 'noun'], ['happier', 'happy', 'adjective'],
+    ["o'clock", "o'clock", 'adverb'], ['well-worn', 'well-worn', 'adjective'],
+  ]) {
+    test(`"${tapped}" finds ${headword}`, async () => {
+      const e = await lookupWord(tapped, { fetchImpl: builtFetch() });
+      expect(e?.word).toBe(headword);
+      expect(e.senses[0].partOfSpeech).toBe(pos);
+      expect(e.senses.length).toBeGreaterThan(0);
+      expect(e.senses.length).toBeLessThanOrEqual(3);
+      expect(e.source).toBe(DICT_SOURCE);
+    });
+  }
+
+  test('"went" is only ever the verb', async () => {
+    const e = await lookupWord('went', { fetchImpl: builtFetch() });
+    expect(e.senses.every((s) => s.partOfSpeech === 'verb')).toBe(true);
+  });
+
+  test('"leaves" shows both readings morphy found before either gets a second sense', async () => {
+    const e = await lookupWord('leaves', { fetchImpl: builtFetch() });
+    expect(e.senses.map((s) => s.partOfSpeech)).toEqual(['noun', 'noun', 'verb']);
+  });
+
+  test('"raven" is never read as "rave"', async () => {
+    const e = await lookupWord('raven', { fetchImpl: builtFetch() });
+    expect(e.word).toBe('raven');
+    expect(e.senses[0].definition).toMatch(/bird/);
+  });
+
+  test('a word the dictionary lacks is a miss', async () => {
+    expect(await lookupWord('zzqxv', { fetchImpl: builtFetch() })).toBeNull();
+  });
+
+  test('the folder is the version the bundle asks for, and carries its licence', () => {
+    const m = JSON.parse(readFileSync(`${PUBLIC}${DICT_BASE}/manifest.json`, 'utf8'));
+    expect(m.version).toBe(DICT_VERSION);
+    expect(readFileSync(`${PUBLIC}${DICT_BASE}/LICENSE`, 'utf8')).toMatch(/Creative Commons Attribution 4\.0/);
+  });
+
+  test('dictionaryLookup and lookupWord agree', async () => {
+    const f = builtFetch();
+    expect(await dictionaryLookup('cities', { fetchImpl: f })).toEqual(await lookupWord('cities', { fetchImpl: f }));
+  });
 });
 
 // ── the field: parse, serialise, validate ────────────────────────────────────

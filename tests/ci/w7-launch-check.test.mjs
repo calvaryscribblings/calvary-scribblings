@@ -11,7 +11,9 @@ import { generateKeyPairSync } from 'node:crypto';
 import {
   GREEN, RED, NYD, judgeFreeWeek, judgeRebuilt, judgeArchiveHtml, judgeSeries, judgeBookStore,
   judgeMemberships, judgeHeartbeat, judgeSignals, summarise, lastLondonMidnight, opsToken, renderText, pushScheduleArmed,
+  judgeDictionary, DICTIONARY_PROBE,
 } from '../../scripts/launch-check.mjs';
+import { DICT_SOURCE } from '../../app/lib/dictionary.js';
 import { shouldRun, SCHEDULES } from '../../scripts/launch-check-gate.mjs';
 import { claimsOk, verifyServiceJwt, OPS_AUDIENCE } from '../../functions/api/ops/_opsAuth.js';
 import { launchStatus } from '../../functions/api/ops/launch-status.js';
@@ -100,6 +102,32 @@ describe('W7 · JOBS and SIGNALS', () => {
   test('every row prints its evidence', () => {
     const text = renderText([{ name: 'Free week', status: NYD, evidence: 'gating_off everywhere' }], now);
     assert.match(text, /not yet due\s+Free week\s+gating_off everywhere/);
+  });
+});
+
+describe('W23 · DICTIONARY', () => {
+  const found = { word: 'serendipity', senses: [{ partOfSpeech: 'noun', definition: 'good luck in making unexpected and fortunate discoveries' }], source: DICT_SOURCE };
+  test('the probe is serendipity', () => assert.equal(DICTIONARY_PROBE, 'serendipity'));
+  test('green when the live shard answers with a sense', () => {
+    const r = judgeDictionary({ entry: found, ms: 180 });
+    assert.equal(r.status, GREEN);
+    assert.match(r.evidence, /serendipity" → noun, "good luck/);
+    assert.match(r.evidence, /180 ms/);
+  });
+  test('red when the word is not found — the silent failure this row exists for', () => {
+    assert.equal(judgeDictionary({ entry: null, ms: 90 }).status, RED);
+  });
+  test('red when the read failed or timed out', () => {
+    assert.equal(judgeDictionary({ error: 'dictionary read 404', ms: 40 }).status, RED);
+    assert.equal(judgeDictionary({ error: 'no answer in 10 s', ms: 10000 }).status, RED);
+  });
+  test('red for an empty sense, or an answer from anywhere but the house dictionary', () => {
+    assert.equal(judgeDictionary({ entry: { ...found, senses: [] } }).status, RED);
+    assert.equal(judgeDictionary({ entry: { ...found, senses: [{ partOfSpeech: 'noun', definition: '' }] } }).status, RED);
+    assert.equal(judgeDictionary({ entry: { ...found, source: 'Free Dictionary' } }).status, RED);
+  });
+  test('it is never "not yet due": the dictionary has no switch date', () => {
+    for (const g of [{ entry: found }, { entry: null }, { error: 'x' }]) assert.notEqual(judgeDictionary(g).status, NYD);
   });
 });
 

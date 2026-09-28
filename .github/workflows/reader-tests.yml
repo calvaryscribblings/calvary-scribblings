@@ -37,6 +37,10 @@ on:
       - 'app/reader/**'
       - 'app/lib/ribbonGeometry.js'
       - 'app/lib/readerCollection.js'
+      # W23 — the Define lookup and the dictionary it reads. dictionary.spec.mjs runs its golden
+      # morphy cases against the built shards, so a rebuilt dictionary is a reader change too.
+      - 'app/lib/dictionary.js'
+      - 'public/dict/**'
       # R9.3 — the drop-cap tagger and the stylesheet it hooks. Both are shared by the
       # story page AND the offline shelf reader, so a change to either is a reader change.
       - 'app/lib/dropcap.js'

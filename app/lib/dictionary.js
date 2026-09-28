@@ -7,9 +7,15 @@
 // definition is the correct one and the world's is at best a distraction. So:
 //
 //   1. THE HOUSE GLOSSARY for this title. Case-insensitive, singular/plural tolerant.
-//   2. api.dictionaryapi.dev — the Free Dictionary, no key, no attribution requirement.
+//   2. THE HOUSE DICTIONARY (W23) — Open English WordNet, built into static shards under
+//      /dict/en/<DICT_VERSION>/ by scripts/dictionary/build.mjs, served from our own origin.
 //   3. A graceful miss, in the register's own voice. Never an error tone: not finding a
 //      word is a normal thing for a dictionary to do, and it is not the reader's fault.
+//
+// W23 — WHY THERE IS NO OUTSIDE SERVICE ANY MORE. Until W23 step 2 was api.dictionaryapi.dev.
+// By September 2026 it answered in ~19.5 s (20 of 20 timed from the codespace, half of them
+// HTTP 522), so behind our 4 s timeout EVERY lookup became the calm miss — correctly calm, which
+// is why weeks passed before anyone noticed. A reader's words no longer leave the site at all.
 //
 // A GLOSSARY HIT MAKES NO NETWORK CALL AT ALL. That is asserted rather than assumed
 // (tests/reader/dictionary.spec.mjs passes a fetch that throws if it is called): it is what
@@ -23,7 +29,15 @@
 
 /** Where an answer came from. Rendered verbatim at the foot of the modal. */
 export const HOUSE_SOURCE = 'House glossary · Calvary Scribblings';
-export const API_SOURCE = 'Free Dictionary';
+// DRAFT — Ikenna rules the wording. The licence (CC BY 4.0, with the Princeton WordNet notice)
+// requires a credit; the full text is served at /dict/en/<DICT_VERSION>/LICENSE.
+export const DICT_SOURCE = 'Open English WordNet';
+
+// The published dictionary this bundle reads. A folder, not a file: every shard in it is
+// immutable (cached for a year), so a rebuild that changes anything must bump this, and the
+// build refuses to overwrite a version with different bytes. Format and source edition both.
+export const DICT_VERSION = 'oewn-2025-1';
+export const DICT_BASE = `/dict/en/${DICT_VERSION}`;
 
 export const DEFINE_TIMEOUT_MS = 4000;
 export const GLOSSARY_MAX_DEF = 500;
@@ -105,93 +119,202 @@ export function glossaryLookup(glossary, raw) {
   return null;
 }
 
-// api.dictionaryapi.dev returns an ARRAY of entries, each with meanings[] →
-// definitions[]. A 404 carries a JSON body with a `title` of "No Definitions Found",
-// which is a miss and not an error — the distinction the whole graceful-miss rule rests on.
-export function shapeApiResponse(payload, raw) {
-  if (!Array.isArray(payload) || payload.length === 0) return null;
-  const senses = [];
-  let phonetic = null;
-  for (const entry of payload) {
-    if (!entry || typeof entry !== 'object') continue;
-    if (!phonetic) {
-      if (typeof entry.phonetic === 'string' && entry.phonetic.trim()) phonetic = entry.phonetic.trim();
-      else if (Array.isArray(entry.phonetics)) {
-        const p = entry.phonetics.find((x) => x && typeof x.text === 'string' && x.text.trim());
-        if (p) phonetic = p.text.trim();
-      }
-    }
-    for (const meaning of entry.meanings || []) {
-      for (const def of (meaning && meaning.definitions) || []) {
-        const text = def && typeof def.definition === 'string' ? def.definition.trim() : '';
-        if (!text) continue;
-        senses.push({ partOfSpeech: meaning.partOfSpeech || null, definition: text });
-        // THREE, and the cap is editorial rather than technical. The Free Dictionary will
-        // happily return eleven senses of "set"; a reader who long-pressed a word mid
-        // sentence wants to know what it means HERE, and a wall of senses is a worse answer
-        // than the first three. The rest are a tap away in a real dictionary.
-        if (senses.length >= 3) break;
-      }
-      if (senses.length >= 3) break;
-    }
-    if (senses.length >= 3) break;
+// ─────────────────────────────────────────────────────────────────────────────
+// THE HOUSE DICTIONARY — shards, morphy, and the lookup.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const POS_NAME = { n: 'noun', v: 'verb', a: 'adjective', r: 'adverb' };
+const POS_ORDER = ['n', 'v', 'a', 'r'];
+const MAX_SENSES = 3;
+
+/** A headword's shard key: lowercased, and every character outside a–z/0–9 read as '_'. */
+export function sanitiseKey(word) {
+  return Array.from(String(word || '').toLowerCase()).map((c) => (/[a-z0-9]/.test(c) ? c : '_')).join('');
+}
+
+/** A shard's file name. Prefixed, so no prefix ever becomes a reserved name like con.json. */
+export const shardFileName = (prefix) => `p_${prefix}.json`;
+
+/**
+ * Which shard holds this word: the LONGEST prefix in the manifest that begins its key. The build
+ * splits a prefix only when its shard is too large, and keeps any word whose key IS that prefix in
+ * the prefix's own shard — so the longest match is the one place the word can be.
+ */
+export function shardFor(word, prefixes) {
+  const key = sanitiseKey(word);
+  const set = prefixes instanceof Set ? prefixes : new Set(prefixes || []);
+  for (let n = key.length; n > 0; n--) if (set.has(key.slice(0, n))) return key.slice(0, n);
+  return null;
+}
+
+// MORPHY — WordNet's own, ported from morph.c (WordNet 3.x), so "ran" finds run and "cities"
+// finds city. It is NOT a stemmer: a candidate is only ever accepted if the dictionary holds it
+// in that part of speech, which is what keeps "raven" from being read as "rave".
+//
+// The EXCEPTION LISTS (noun.exc, verb.exc, adj.exc, adv.exc: "went go", "mice mouse") are
+// morphy's too, but they travel in the shards as each inflected form's `x`, not in this file:
+// they are data from the same release, versioned with it, and 5,000 lines of them have no
+// business in the reader's JavaScript. So "went" is found by reading the shard "went" lives in.
+//
+// The detachment rules, morph.c's sufx[]/addr[] tables, in its order:
+export const MORPHY_RULES = {
+  n: [['s', ''], ['ses', 's'], ['xes', 'x'], ['zes', 'z'], ['ches', 'ch'], ['shes', 'sh'], ['men', 'man'], ['ies', 'y']],
+  v: [['s', ''], ['ies', 'y'], ['es', 'e'], ['es', ''], ['ed', 'e'], ['ed', ''], ['ing', 'e'], ['ing', '']],
+  a: [['er', ''], ['est', ''], ['er', 'e'], ['est', 'e']],
+  r: [],     // adverbs: the exception list only
+};
+
+/**
+ * The rule candidates for a word in one part of speech, in morph.c's order. Pure: whether each is
+ * a real headword is the caller's question. morph.c's two noun guards are kept — a noun ending in
+ * "ss" or of two letters or fewer is not detached ("glass" is not "glas") — and so is its "-ful"
+ * rule ("boxesful" is tried as "box" + "ful").
+ * @returns {{base:string, then:string}[]}  `then` is re-appended after a match ("ful" or "")
+ */
+export function morphyCandidates(word, pos) {
+  const w = String(word || '');
+  const rules = MORPHY_RULES[pos] || [];
+  if (!rules.length) return [];
+  let stem = w, end = '';
+  if (pos === 'n') {
+    if (w.endsWith('ful')) { stem = w.slice(0, w.lastIndexOf('f')); end = 'ful'; }
+    else if (w.endsWith('ss') || w.length <= 2) return [];
   }
-  if (!senses.length) return null;
-  return {
-    word: (payload[0] && typeof payload[0].word === 'string' && payload[0].word) || normaliseWord(raw),
-    phonetic,
-    senses,
-    source: API_SOURCE,
-    house: false,
-  };
+  const out = [];
+  for (const [suffix, ending] of rules) {
+    if (!stem.endsWith(suffix)) continue;
+    const base = stem.slice(0, stem.length - suffix.length) + ending;
+    if (base && base !== stem && !out.some((c) => c.base === base)) out.push({ base, then: end });
+  }
+  return out;
+}
+
+const sensesOf = (entry, pos) => ((entry && Array.isArray(entry.s)) ? entry.s.filter((x) => !pos || x[0] === pos) : []);
+
+// The shards a session has read, by URL. A shard is read once and kept: a reader who looks up
+// three words on one page reads one file. A FAILED read is not kept, so a reader who was offline
+// for one lookup is not stuck missing for the rest of the session.
+const sessionCache = new Map();
+export function clearDictionaryCache() { sessionCache.clear(); }
+
+function readJson(url, doFetch, cache) {
+  if (cache.has(url)) return cache.get(url);
+  const p = Promise.resolve()
+    .then(() => doFetch(url))
+    .then((res) => {
+      if (res && res.status === 404) return null;                  // a shard that does not exist is a miss
+      if (!res || !res.ok) throw new Error(`dictionary read ${res && res.status}`);
+      return res.json();
+    })
+    .catch((e) => { cache.delete(url); throw e; });
+  cache.set(url, p);
+  return p;
 }
 
 /**
- * The whole pipeline. Never throws and never rejects: every failure — offline, 404, a
- * malformed body, a server that answers in eight seconds — returns null, which the register
- * renders as the same calm miss. A dictionary that throws at a reader has misunderstood
- * its job.
+ * The house dictionary alone. Rejects on a network failure (the caller turns that into the miss);
+ * resolves null for a word it does not hold.
+ */
+export async function dictionaryLookup(raw, { fetchImpl, base = DICT_BASE, cache = sessionCache } = {}) {
+  const word = normaliseWord(raw);
+  if (!word) return null;
+  const doFetch = fetchImpl || (typeof fetch === 'function' ? fetch : null);
+  if (!doFetch) return null;
+
+  const manifest = await readJson(`${base}/manifest.json`, doFetch, cache);
+  if (!manifest || !Array.isArray(manifest.prefixes)) return null;
+  const prefixes = new Set(manifest.prefixes);
+  const entryFor = async (w) => {
+    const p = shardFor(w, prefixes);
+    if (p === null) return null;
+    const shard = await readJson(`${base}/${shardFileName(p)}`, doFetch, cache);
+    return (shard && Object.prototype.hasOwnProperty.call(shard, w)) ? shard[w] : null;
+  };
+
+  // Every rule candidate is known before anything is read, so the literal and the candidates are
+  // read together; nearly always they share a shard, and that shard is read once.
+  const candidates = POS_ORDER.flatMap((pos) => morphyCandidates(word, pos).map((c) => ({ pos, ...c })));
+  const [literal, ...found] = await Promise.all([entryFor(word), ...candidates.map((c) => entryFor(c.base))]);
+
+  // 1. THE LITERAL FORM FIRST. If the dictionary holds the word as tapped, that is the answer.
+  const lit = sensesOf(literal);
+  if (lit.length) return shape(word, [lit], word);
+
+  // 2. MORPHY, per part of speech, in WordNet's order. As in morph.c: the exception list wins for
+  //    that part of speech, and only when it has nothing do the rules run, first match taken.
+  const groups = [];
+  for (const pos of POS_ORDER) {
+    const exc = (literal && literal.x && literal.x[pos]) || [];
+    if (exc.length) {
+      const entries = await Promise.all(exc.map((b) => entryFor(b)));
+      exc.forEach((b, i) => { const s = sensesOf(entries[i], pos); if (s.length) groups.push({ base: b, senses: s }); });
+      continue;
+    }
+    const i = candidates.findIndex((c, k) => c.pos === pos && sensesOf(found[k], pos).length);
+    if (i < 0) continue;
+    const c = candidates[i];
+    if (c.then) {
+      // The "-ful" rule: "boxesful" → box → the headword is "boxful", which must exist too.
+      const full = await entryFor(c.base + c.then);
+      const s = sensesOf(full, pos);
+      if (s.length) groups.push({ base: c.base + c.then, senses: s });
+    } else {
+      groups.push({ base: c.base, senses: sensesOf(found[i], pos) });
+    }
+  }
+  if (!groups.length) return null;
+  return shape(groups[0].base, groups.map((g) => g.senses), word);
+}
+
+// Three senses in all. One group (the usual case) gives its first three in the source's order.
+// Several ("leaves": leaf the noun, leave the verb) are dealt one at a time, so each reading the
+// morphology found is shown before any of them gets a second sense.
+function shape(headword, groups, form) {
+  const senses = [];
+  for (let round = 0; senses.length < MAX_SENSES; round++) {
+    let any = false;
+    for (const g of groups) {
+      if (round < g.length && senses.length < MAX_SENSES) {
+        senses.push({ partOfSpeech: POS_NAME[g[round][0]] || null, definition: g[round][1] });
+        any = true;
+      }
+    }
+    if (!any) break;
+  }
+  if (!senses.length) return null;
+  return { word: headword, form, phonetic: null, senses, source: DICT_SOURCE, house: false };
+}
+
+/**
+ * The whole pipeline. Never throws and never rejects: every failure — offline, a missing shard,
+ * a malformed body, a server that answers in eight seconds — returns null, which the register
+ * renders as the same calm miss. A dictionary that throws at a reader has misunderstood its job.
  *
  * @param {string} raw               the tapped word, as selected
  * @param {object} opts
  * @param {object|null} opts.glossary   the title's house glossary
  * @param {Function} [opts.fetchImpl]   injected for the harness; defaults to global fetch
  * @param {number} [opts.timeoutMs]     4 s in the wild; the specs pass something small
+ * @param {string} [opts.base]          where the dictionary lives; the site's own path by default
  * @returns {Promise<object|null>}
  */
-export async function lookupWord(raw, { glossary = null, fetchImpl = null, timeoutMs = DEFINE_TIMEOUT_MS } = {}) {
+export async function lookupWord(raw, { glossary = null, fetchImpl = null, timeoutMs = DEFINE_TIMEOUT_MS, base = DICT_BASE, cache } = {}) {
   const word = normaliseWord(raw);
   if (!word) return null;
 
   const house = glossaryLookup(glossary, word);
   if (house) return house;                     // ← the network is never touched
 
-  const doFetch = fetchImpl || (typeof fetch === 'function' ? fetch : null);
-  if (!doFetch) return null;
-
-  // The timeout is a RACE as well as an abort. Aborting is the right way to stop a real
-  // request, but a stub that ignores the signal would otherwise hang the pipeline for as
-  // long as it liked and the timeout would be untestable — so the clock is authoritative
-  // and the abort is the courtesy that stops the socket.
-  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  // The timeout is a RACE. A stub that ignores everything would otherwise hang the pipeline for
+  // as long as it liked, so the clock is authoritative. It bounds the whole lookup — manifest,
+  // shard, and any shard morphy sends it to — not each read.
   let timer = null;
-  const timeout = new Promise((resolve) => {
-    timer = setTimeout(() => { try { controller && controller.abort(); } catch (e) {} resolve('__timeout__'); }, timeoutMs);
-  });
-
+  const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve('__timeout__'), timeoutMs); });
   try {
-    const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
-    const res = await Promise.race([
-      doFetch(url, controller ? { signal: controller.signal } : undefined),
-      timeout,
-    ]);
-    if (res === '__timeout__') return null;
-    if (!res || !res.ok) return null;          // 404 "No Definitions Found" lands here
-    const body = await Promise.race([res.json(), timeout]);
-    if (body === '__timeout__') return null;
-    return shapeApiResponse(body, word);
+    const found = await Promise.race([dictionaryLookup(word, { fetchImpl, base, cache }), timeout]);
+    return found === '__timeout__' ? null : found;
   } catch (e) {
-    return null;                               // offline, DNS, abort, malformed JSON — all a miss
+    return null;                               // offline, DNS, a 5xx, malformed JSON — all a miss
   } finally {
     if (timer) clearTimeout(timer);
   }

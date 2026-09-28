@@ -27,6 +27,19 @@
 /_next/static/*
   Cache-Control: public, max-age=31536000, immutable
 
+# W23 — THE HOUSE DICTIONARY. /dict/en/<version>/ is a VERSIONED folder: scripts/dictionary/
+# build.mjs refuses to change a byte of a version that exists, and a new build is a new folder
+# (DICT_VERSION in app/lib/dictionary.js). So a shard's URL names exactly one set of bytes, and it
+# can be frozen for a year like the hashed build output. Safe from the concatenation hazard above
+# for the same reason: /* declares no Cache-Control.
+/dict/en/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The licence the dictionary's source requires to travel with every copy. Extensionless, so say
+# what it is rather than leave it to be sniffed as a download.
+/dict/en/:version/LICENSE
+  Content-Type: text/plain; charset=utf-8
+
 # Gateway wall tiles are stable but NOT content-hashed (wall-0.webp … wall-11.webp),
 # so they are rewritten in place by the build. One hour of edge caching plus a forced
 # revalidation after that bounds how long a replaced tile can be served stale.

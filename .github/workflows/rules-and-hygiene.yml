@@ -82,6 +82,9 @@ on:
       - 'functions/**'
       - 'scripts/**'
       - 'public/sw.js'
+      # W23 — tests/ci/w23-dictionary.test.mjs checks the published dictionary and its caching rule.
+      - 'public/dict/**'
+      - 'public/_headers'
       # R11.18 — THE FOLIATE PIN. The vendored engine and the lock that pins it must BOTH be
       # able to start this job: a vendor edit with no lock update is the drift being caught,
       # and a lock edit with no vendor change is someone re-blessing a number by hand. A path

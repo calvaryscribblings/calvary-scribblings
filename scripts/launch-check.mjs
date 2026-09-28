@@ -27,6 +27,7 @@ import { execSync } from 'node:child_process';
 import { GATE_ON_MS, gatingOn, freeUntilFor, servesAsReader } from '../app/lib/storyAccess.js';
 import { endingOf } from './check-built-gate.mjs';
 import { LAUNCH_DATE_SHORT } from '../app/lib/launch.js';
+import { dictionaryLookup, DICT_BASE, DICT_SOURCE } from '../app/lib/dictionary.js';
 
 export const SITE = process.env.LAUNCH_SITE || 'https://calvaryscribblings.co.uk';
 export const GREEN = 'green';
@@ -159,6 +160,20 @@ export function judgeSignals({ moneyFailures, publishSkips, since }) {
 }
 
 // ── the table ─────────────────────────────────────────────────────────────────────────────
+// W23 — the Reading Room's dictionary. For weeks every Define was the calm miss and nobody saw an
+// error, because the miss IS calm by design. So the house dictionary answers to this row instead:
+// the live shard, read as a reader's browser reads it, must answer "serendipity" with a sense.
+export const DICTIONARY_PROBE = 'serendipity';
+export function judgeDictionary({ entry, error, ms }) {
+  const t = Number.isFinite(ms) ? ` in ${ms} ms` : '';
+  if (error) return row('Dictionary', RED, `${DICT_BASE}: "${DICTIONARY_PROBE}" could not be read${t} (${error})`);
+  const sense = entry && Array.isArray(entry.senses) && entry.senses[0];
+  if (!sense || !sense.definition || entry.source !== DICT_SOURCE) {
+    return row('Dictionary', RED, `${DICT_BASE}: "${DICTIONARY_PROBE}" found no sense${t} — every Define is a miss`);
+  }
+  return row('Dictionary', GREEN, `${DICT_BASE}: "${DICTIONARY_PROBE}" → ${sense.partOfSpeech || '?'}, "${sense.definition.slice(0, 48)}…"${t}`);
+}
+
 export function summarise(rows) {
   const red = rows.filter((r) => r.status === RED).length;
   return { red, subject: red ? `[launch] ${red} red` : '[launch] all green' };
@@ -283,6 +298,19 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
   let pushArmed = false;
   try { pushArmed = pushScheduleArmed(readFileSync('.github/workflows/push-announce.yml', 'utf8')); } catch { /* treated as not armed */ }
 
+  // The dictionary, from the live site, with a fresh cache and a bound on the wait.
+  let dictionary;
+  {
+    const t0 = Date.now();
+    try {
+      const entry = await Promise.race([
+        dictionaryLookup(DICTIONARY_PROBE, { base: `${SITE}${DICT_BASE}`, fetchImpl: (u) => fetch(u, { cache: 'no-store' }), cache: new Map() }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('no answer in 10 s')), 10_000)),
+      ]);
+      dictionary = { entry, ms: Date.now() - t0 };
+    } catch (e) { dictionary = { error: String(e.message || e).slice(0, 80), ms: Date.now() - t0 }; }
+  }
+
   const since = Number.isFinite(sinceArg) ? sinceArg : ((await previousRunStart()) ?? now - 24 * 3600_000);
   const signals = { moneyFailures: await val('ops/money_failures'), publishSkips: await val('ops/publish_skips'), since };
 
@@ -295,6 +323,7 @@ export async function gather(now = Date.now(), { since: sinceArg } = {}) {
       push: { lastAt: Number(pushHb?.lastRunAt) || NaN, armed: pushArmed },
     },
     signals,
+    dictionary,
     sa,
   };
 }
@@ -311,6 +340,7 @@ export function judgeAll(g, now) {
     judgeHeartbeat('Job: account scrub', { lastAt: g.jobs.scrub.lastAt, staleMs: STALE.scrub }, now),
     judgeHeartbeat('Job: push announcer', { lastAt: g.jobs.push.lastAt, staleMs: STALE.push, armed: g.jobs.push.armed }, now),
     judgeSignals(g.signals),
+    judgeDictionary(g.dictionary),
   ];
 }
 
