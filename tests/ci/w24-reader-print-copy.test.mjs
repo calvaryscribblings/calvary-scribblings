@@ -48,11 +48,13 @@ test('copyText: short passes whole, long is cut after the fiftieth word, credit 
   assert.equal(copyText(null, 'C'), '');
 });
 
-// Ruling 89: the five W22 drafts are ruled, so the Desiderata copy carries no DRAFT mark any more —
-// and the two lines W24 adds are marked DRAFT until Ikenna rules them.
-test('the Desiderata copy is ruled; the Reading Room\'s two new lines are drafts', () => {
+// Ruling 89: the five W22 drafts are ruled, so the Desiderata copy carries no DRAFT mark any more.
+// Rulings 114 and 115 (W27): the Reading Room's two lines are ruled as written — no DRAFT left.
+test('the Desiderata copy is ruled; the Reading Room\'s two lines are ruled (114, 115)', () => {
   const des = readFileSync(new URL('../../app/lib/bookstore/desiderata.js', import.meta.url), 'utf8');
   assert.doesNotMatch(des, /DRAFT/);
   const rc = readFileSync(new URL('../../app/lib/readerCopy.js', import.meta.url), 'utf8');
-  assert.equal((rc.match(/DRAFT/g) || []).length, 2);
+  assert.doesNotMatch(rc, /DRAFT/);
+  assert.match(rc, /RULED \(114, 28 Sep 2026\)/);
+  assert.match(rc, /RULED \(115, 28 Sep 2026\)/);
 });

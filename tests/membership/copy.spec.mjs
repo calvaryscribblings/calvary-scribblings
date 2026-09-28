@@ -108,7 +108,10 @@ test('short answers ship as three pairs, and the writers-pay question is absent'
 test('both boxes lost their headings and kept their sentences', async ({ page }) => {
   await expect(page.locator('.mb-notice-p')).toContainText(LAUNCH_NOTICE);
   await expect(page.locator('.mb-notice-p')).toContainText('Everything on this page is the real price');
-  await expect(page.locator('.mb-founding-p')).toContainText('Join before we open and your price never goes up');
+  // RULING 108 (W27): the founding box is retired with every reader-facing mention of a
+  // founding price. Not hidden — gone, and no rendered text on the page says "founding".
+  await expect(page.locator('.mb-founding, .mb-founding-p')).toHaveCount(0);
+  expect(await page.locator('body').innerText()).not.toMatch(/founding/i);
   await expect(page.locator('body')).not.toContainText('NOT YET ON SALE');
   await expect(page.locator('body')).not.toContainText('FOUNDING MEMBERS');
   await expect(page.locator('body')).not.toContainText('NOT READY TO SUBSCRIBE?');

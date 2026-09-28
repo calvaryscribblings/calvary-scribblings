@@ -16,7 +16,7 @@
 // Plain ESM, no imports, so the harness can run it under Node.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// DRAFT — Ikenna rules the wording.
+// RULED (114, 28 Sep 2026), as written.
 export const PRINT_LINE = 'Books in the Reading Room can’t be printed.';
 
 // RULED as a number (93): 50 words.
@@ -29,7 +29,7 @@ export const isHouseAuthor = (author) =>
   typeof author === 'string' && author.toLowerCase().replace(/[^a-z]+/g, ' ').trim() === HOUSE_NAME.toLowerCase();
 
 /**
- * DRAFT — "— from {Title} by {Author} · Calvary Scribblings". Ikenna rules the wording.
+ * RULED (115, 28 Sep 2026), as written: "— from {Title} by {Author} · Calvary Scribblings".
  * RULED (104, 28 Sep): when the author IS the house, "by …" is dropped — "— from {Title} ·
  * Calvary Scribblings" — so a house title never reads "by Calvary Scribblings · Calvary Scribblings".
  */

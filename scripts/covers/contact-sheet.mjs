@@ -61,7 +61,7 @@ export const CASES = [
       category: 'poetry', subcategory: 'Spoken Word', descriptor: 'return. rumour. recognition.' },
     edge: 'SYNTHETIC — non-ASCII throughout: Yorùbá diacritics in the title AND the author' },
   { synthetic: true, slug: 'series-instalment-synthetic',
-    record: { slug: 'series-instalment-synthetic', title: 'Halfway Around the Moon',
+    record: { slug: 'series-instalment-synthetic', title: 'Diary of a Lagos 9-5er',
       author: 'Ikenna Okpara', liveryKey: 'series', instalmentOrdinal: 1,
       descriptor: 'orbit. distance. return.' },
     edge: 'SYNTHETIC — SERIES LIVERY, instalment ordinal in the footer instead of a subcategory' },

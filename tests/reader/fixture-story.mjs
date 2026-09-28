@@ -25,8 +25,8 @@
 // ⚠ MEASURED 26 Aug 2026: TIER 1 IS EMPTY, AND NOT BY ACCIDENT. Live cms_stories holds
 // exactly ten records with readerMode true and a non-empty epubUrl — afterglow,
 // almost-together, an-appetite-for-love, beta-princess, beta-princess-part-two,
-// diary-of-a-lagos-9-5er-1, filtered-reality, halfway-around-the-moon-part-i-dawn,
-// halfway-around-the-moon-prologue, the-man-who-was-two-men — and every one of them is
+// diary-of-a-lagos-9-5er-1, filtered-reality, the-man-who-was-two-men, and two records since
+// removed from the island — and every one of them is
 // `published: false` with no `publishAt`. scripts/pull-book-reader-collection.mjs unpublished
 // the whole Book Reader Collection deliberately (read its header: un-ticking readerMode would
 // hand two live quizzes back and put five records into a shape R11.10 ruled a data error), and

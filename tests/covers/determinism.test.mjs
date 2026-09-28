@@ -245,7 +245,7 @@ test('THE EDGE CASES THE GATE REQUIRES', async (t) => {
 
   await t.test('an explicit livery names the eyebrow when the record has no category', () => {
     // The contact-sheet regression: a series instalment read CALVARY SCRIBBLINGS.
-    assert.equal(plan({ slug: 's', title: 'Halfway Around the Moon', author: 'I O', liveryKey: 'series', instalmentOrdinal: 1 }).eyebrow, 'SERIES');
+    assert.equal(plan({ slug: 's', title: 'Diary of a Lagos 9-5er', author: 'I O', liveryKey: 'series', instalmentOrdinal: 1 }).eyebrow, 'SERIES');
     // …but a real category still wins over the livery override.
     assert.equal(plan({ slug: 's2', title: 'X', author: 'Y', category: 'poetry', liveryKey: 'series' }).eyebrow, 'POETRY');
   });

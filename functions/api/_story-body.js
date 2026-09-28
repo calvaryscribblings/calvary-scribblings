@@ -32,6 +32,16 @@ import { dbBase, mintAccessToken, SCOPES, FIREBASE_TIMEOUT_MS } from './bookstor
 const BODIES_PATH = 'story_bodies';
 
 /**
+ * W27 — HIDDEN IS 404, for every READER of a story's body. The rule functions/api/story.js
+ * has always held, now written once: a record that is missing, not an object, or published
+ * === false answers 404 with this body — a 403 would confirm unpublished work exists. Used by
+ * story.js and evaluate-quiz.js. (generate-quiz.js is an EDITOR endpoint, founder uids only,
+ * and must read a story before it publishes; it does not apply this.)
+ */
+export const STORY_NOT_FOUND = Object.freeze({ error: 'That story could not be found.', code: 'not_found' });
+export const isReadableStory = (story) => !!story && typeof story === 'object' && story.published !== false;
+
+/**
  * `{ content, extractedText }` for a slug, read with an admin token.
  *
  * THROWS on a missing credential, a mint failure or a failed read. Callers turn that

@@ -171,8 +171,7 @@ Two boxes, in this order. Both keep the shape of the current copy, which was the
 **Pre-launch box**
 > Memberships open on 30 September. Everything on this page is the real price — nothing here changes on the day. We wanted you to be able to read it first.
 
-**Founding box**
-> Join before we open and your price never goes up — not at renewal, and not if you move to a higher tier later. You keep the founding rate for as long as you stay a member.
+**Founding box: retired.** *(Ruling 108, 28 Sep 2026: every reader-facing mention of a founding price comes off the page, so this box and its sentence are gone. Billing is unchanged.)*
 
 *(Heading note: neither box needs a heading. The first sentence of each does the work.)*
 

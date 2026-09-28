@@ -30,3 +30,11 @@ export const BUY_CSS = `
              R19.8 — border-color, not border. See the height note above .bd-cta in page-detail.js. */
           .bd-buy[data-unavailable]{cursor:not-allowed;opacity:.55;background:none;border-color:rgba(201,164,76,.28);color:rgba(240,234,216,.55)}
 `;
+
+// W27 — THE GHOST FACE, beside the filled one. The book page's Read sample livery (.bd-sample),
+// moved here verbatim so /membership's ghost buttons (CHOOSE PLATINUM, SWITCH TO, MANAGE, the
+// pass BUYs) wear it without restating it. page-detail.js interpolates it where the rules stood.
+export const GHOST_CSS = `
+          .bd-sample{background:rgba(201,164,76,.04);border-color:rgba(201,164,76,.4);color:#c9a44c;transition:all .25s}
+          .bd-sample:hover{background:rgba(201,164,76,.1);border-color:rgba(201,164,76,.7)}
+`;

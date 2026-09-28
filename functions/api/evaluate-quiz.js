@@ -1,4 +1,4 @@
-import { readStoryBody } from './_story-body.js';
+import { readStoryBody, STORY_NOT_FOUND, isReadableStory } from './_story-body.js';
 import { consume, limitResponse, capFromEnv } from './_ratelimit.js';
 
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
@@ -217,7 +217,9 @@ export async function onRequestPost(context) {
     console.error('[evaluate-quiz] Firebase error:', e.message);
     return evalJson({ error: `Failed to fetch story: ${e.message}` }, 500);
   }
-  if (!story) return evalJson({ error: 'Story not found.' }, 404);
+  // W27: HIDDEN IS 404, the rule story.js holds — before the body is read, so a hidden
+  // story's text can never reach a prompt or an answer. Same rule, same body (_story-body.js).
+  if (!isReadableStory(story)) return evalJson(STORY_NOT_FOUND, 404);
 
   // Phase T1: the body moved to story_bodies/<slug> (`.read: false`). The fetch above
   // still reads cms_stories for TITLE and AUTHOR, which are public metadata and stay

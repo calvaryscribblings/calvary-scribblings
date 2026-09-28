@@ -395,3 +395,26 @@ changes here first.
   `tests/ci/w24-reader-print-copy.test.mjs`.)
 - **The credit on a copy from the Reading Room (93):** "— from {Title} by {Author} · Calvary
   Scribblings" (`creditLine`; "— from {Title} · Calvary Scribblings" when a title has no author).
+
+## 28 Sep 2026 (Ikenna): the membership page, founding copy retired, and the Reading Room's lines (W27)
+
+- **108:** every reader-facing mention of a founding price is retired: the founding box on
+  `/membership`, the clause in YOU’RE IN, and the Founding badge in Settings. YOU’RE IN now reads
+  "Your {Tier} membership is active. Thank you for keeping this place going." Billing is
+  unchanged (the founding generation, the portal pinned to it, the founding/foundingSince fields,
+  every price). The deck's Founding box line is retired with a note.
+- **109:** `/membership` is redrawn to the approved drawing. No words change apart from 108's
+  removals; spaced dashes are bound to the word before them (U+00A0) so no line begins with one.
+- **110:** the page takes the site's Navbar and TabBar, as `/bookstore` mounts them.
+- **111:** Paystack's four plans are named "Calvary Gold — Monthly", "Calvary Gold — Annual",
+  "Calvary Platinum — Monthly", "Calvary Platinum — Annual", with descriptions "Calvary
+  Scribblings membership — {tier}, {interval}." (test and live).
+- **112 and 116:** Halfway Around the Moon comes off the island, both parts, with every trace of
+  Dead End that W26 left.
+- **113:** `workers/stripe-webhook/` comes out of the repo.
+- **114:** the print line "Books in the Reading Room can’t be printed." is ruled as written.
+- **115:** the copy credit "— from {Title} by {Author} · Calvary Scribblings" is ruled as written
+  (house-authored titles drop "by …", 104).
+
+The W24 drafts section above is closed by 114 and 115; `app/lib/readerCopy.js` carries no DRAFT
+mark, pinned by `tests/ci/w24-reader-print-copy.test.mjs`.

@@ -48,7 +48,7 @@ const dateTime = (ms) => new Date(ms).toLocaleString(undefined, {
 
 export default function MembershipSection({ authUser }) {
   const {
-    tier, subscriptionTier, pass, source, status, founding,
+    tier, subscriptionTier, pass, source, status,
     currentPeriodEnd, interval, currency, rail, cancelAtPeriodEnd, loading,
   } = useMembership();
 
@@ -129,7 +129,6 @@ export default function MembershipSection({ authUser }) {
         .ms-note { font-size: 0.78rem; font-weight: 500; color: rgba(232,224,212,0.58); font-family: 'Cormorant Garamond', Georgia, serif; line-height: 1.6; margin: 0.5rem 0 0 0.25rem; }
         .ms-note a { color: #c4b5fd; }
         .ms-warn { font-size: 0.78rem; font-weight: 500; color: #f0b7a4; font-family: 'Cormorant Garamond', Georgia, serif; line-height: 1.6; margin: 0.5rem 0 0 0.25rem; }
-        .ms-badge { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #241a06; background: #c9a84c; border-radius: 999px; padding: 3px 8px; margin-left: 0.5rem; white-space: nowrap; }
         .ms-join { display: inline-block; margin-top: 0.9rem; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #a78bfa; text-decoration: none; border: 1px solid rgba(167,139,250,0.32); border-radius: 9px; padding: 0.7rem 1.05rem; font-family: 'Cormorant Garamond', Georgia, serif; }
         .ms-join:hover { background: rgba(107,47,173,0.12); }
       `}</style>
@@ -144,7 +143,6 @@ export default function MembershipSection({ authUser }) {
         <div className="st-row-main">
           <div className="ms-tier">
             {TIER_NAME[tier]}
-            {founding && <span className="ms-badge">Founding</span>}
           </div>
           <div className="st-row-hint">
             {hasSubscription

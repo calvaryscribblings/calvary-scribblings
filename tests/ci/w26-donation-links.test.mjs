@@ -11,7 +11,7 @@ import { donationLinks, DONATION_NAME } from '../../scripts/money/donation-links
 const link = (description, active = true) => ({ active, lineItems: [{ description, price: { unit_amount: 500, currency: 'gbp' } }] });
 
 test('only the donation links are chosen — never another Payment Link', () => {
-  const all = [link(DONATION_NAME), link(DONATION_NAME, false), link('Dead End (a Halfway Around the Moon story)', false),
+  const all = [link(DONATION_NAME), link(DONATION_NAME, false), link('A retired paywalled story', false),
     { active: true, lineItems: [{ description: DONATION_NAME }, { description: 'x' }] }];
   assert.equal(donationLinks(all).length, 2);
   assert.ok(donationLinks(all).every((l) => l.lineItems[0].description === DONATION_NAME));

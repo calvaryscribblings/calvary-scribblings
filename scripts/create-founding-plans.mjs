@@ -68,8 +68,11 @@ const api = async (path, params, method = 'GET') => {
   return json;
 };
 
+// W27 (ruling 111): the plans were renamed in both modes, "(Founding)" dropped — so this matches
+// what exists, and a re-run finds the plans rather than creating a second set. The description
+// below changed with it. See scripts/money/rename-plans.mjs.
 const planName = (tier, interval) =>
-  `Calvary ${tier[0].toUpperCase()}${tier.slice(1)} — ${interval === 'monthly' ? 'Monthly' : 'Annual'} (Founding)`;
+  `Calvary ${tier[0].toUpperCase()}${tier.slice(1)} — ${interval === 'monthly' ? 'Monthly' : 'Annual'}`;
 
 const plan = [];
 for (const tier of TIERS) {
@@ -110,7 +113,7 @@ for (const p of plan) {
       amount: p.amount,
       interval: PAYSTACK_INTERVAL[p.interval],
       currency: 'NGN',
-      description: `Calvary Scribblings founding membership — ${p.tier}, ${p.interval}.`,
+      description: `Calvary Scribblings membership — ${p.tier}, ${p.interval}.`,
     }, 'POST');
     found = res.data;
     console.log(`  ${p.name.padEnd(46)} CREATED ${found.plan_code}`);

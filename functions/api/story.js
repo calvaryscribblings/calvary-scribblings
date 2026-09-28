@@ -56,6 +56,7 @@ import { indexReadTime } from '../../app/lib/storyIndex.js';
 import { cutPreview } from '../../app/lib/previewCut.js';
 import { MalformedHtmlError } from '../../app/lib/htmlBlocks.js';
 import { readTelemetry, recordClient } from './_telemetry.js';
+import { STORY_NOT_FOUND, isReadableStory } from './_story-body.js';
 
 const STORIES_PATH = 'cms_stories';
 const BODIES_PATH = 'story_bodies';
@@ -170,8 +171,8 @@ async function handlePost(context) {
   // Hidden is 404, not 403 — a 403 would confirm that unpublished editorial work
   // exists. There is no reader-facing difference between "never existed" and "not
   // for you to know about yet", and the one that leaks less wins.
-  if (!story || typeof story !== 'object' || story.published === false) {
-    return respond({ error: 'That story could not be found.', code: 'not_found' }, 404);
+  if (!isReadableStory(story)) {
+    return respond(STORY_NOT_FOUND, 404);
   }
 
   // ── entitlement ────────────────────────────────────────────────────────────

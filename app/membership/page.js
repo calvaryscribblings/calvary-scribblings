@@ -50,13 +50,37 @@ import { passesFor } from '../lib/membershipPasses';
 import { capFor, isUnlimitedCap } from '../lib/shelf';
 import { startMembershipCheckout, idTokenFor, MembershipCheckoutError, checkReturnStatus } from '../lib/membershipCheckout';
 import { returnBanner, RETURN_DEADLINE_MS, HELP_EMAIL } from '../lib/membershipReturn';
-import Link from 'next/link';
 import AuthModal from '../components/AuthModal';
+import Navbar from '../components/Navbar';
+import TabBar from '../components/TabBar';
+import { CURRENCY_SELECTOR_CSS } from '../bookstore/components/CurrencySelector';
+import { BUY_CSS, GHOST_CSS } from '../bookstore/components/buyButtonCSS';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 
 const TIER_NAME = { free: 'Free', gold: 'Gold', platinum: 'Platinum' };
+
+// W27 — NO LINE BEGINS WITH A DASH. Every spaced dash is bound to the word before it with a
+// no-break space, so a wrap can only ever fall AFTER the dash. The words do not change; only the
+// space before each dash does. tests/membership/page-layout.spec.mjs reads every rendered line.
+const nb = (s) => s.replace(/ (—|–)/g, '\u00a0$1');
+
+// W27 — THE DRAWING'S NUMBERS. Every size on this page is a [desktop, phone] pair from the
+// approved drawing: the desktop figure holds at 1000px and wider, the phone figure at 600px and
+// narrower, and between the two the value runs in a straight line (a clamp() whose ends are
+// exactly the two figures). L(desktop, phone) writes that clamp.
+function L(d, p) {
+  if (d === p) return `${d}px`;
+  const b = (d - p) / 4;                 // vw: (d − p) over the 400px between 600 and 1000
+  const a = p - 1.5 * (d - p);           // px: so that 600px lands exactly on p
+  const r = (n) => Math.round(n * 1000) / 1000;
+  return `clamp(${Math.min(d, p)}px, calc(${r(a)}px + ${r(b)}vw), ${Math.max(d, p)}px)`;
+}
+const C = (a) => `rgba(240,234,216,${a})`;   // cream
+const G = (a) => `rgba(201,164,76,${a})`;    // gold
+const GOLD = '#c9a44c';
+const HAIR = G(0.14);
 
 // ── THE SHELF LINE STAYS COMPUTED ────────────────────────────────────────────────────────
 //
@@ -139,8 +163,8 @@ const CARD_LINE = {
 // containment relationship as a bullet and made the first item of every paid card an
 // administrative note rather than a thing you get.
 const BRIDGE = {
-  gold: 'Everything on the free island, and —',
-  platinum: 'Everything in Gold, and —',
+  gold: nb('Everything on the free island, and —'),
+  platinum: nb('Everything in Gold, and —'),
 };
 
 // ── THE PASS, IN WORDS ───────────────────────────────────────────────────────────────────
@@ -174,13 +198,12 @@ function readReturnRef() {
 }
 
 function Perk({ children }) {
-  return (
-    <li className="mb-perk">
-      <span className="mb-perk-m" aria-hidden="true">✦</span>
-      <span>{children}</span>
-    </li>
-  );
+  return <li className="mb-perk">{children}</li>;
 }
+
+// The ornament. Always aria-hidden, and always its own element, so it never sits inside a text
+// node a reader (or a test) reads as part of a sentence.
+const Orn = ({ className }) => <span className={className} aria-hidden="true">❦</span>;
 
 export default function MembershipPage() {
   const { user, loading: authLoading } = useAuth();
@@ -188,13 +211,16 @@ export default function MembershipPage() {
   // `loading` and `signedIn` are read by plansAreKnown() off the whole object, not destructured
   // here — the gate is one call, and pulling its inputs out separately is how a later edit ends
   // up reconstructing the rule by hand.
-  const { tier, subscriptionTier, pass, source, founding, rail } = membership;
+  const { tier, subscriptionTier, pass, source, rail } = membership;
 
   const [currency, chooseCurrency] = useCurrency();
   const [interval, setInterval] = useState('monthly');
   const [showAuth, setShowAuth] = useState(false);
   const [busy, setBusy] = useState(null);   // the key of the button that is working
   const [error, setError] = useState('');
+  // Which block's button raised the error: the plans frame or the pass rows. The message sits
+  // under THAT block, not at the foot of the page.
+  const [errorAt, setErrorAt] = useState(null);
 
   // ── THE RETURN FROM CHECKOUT ───────────────────────────────────────────────────────────
   //
@@ -268,6 +294,7 @@ export default function MembershipPage() {
 
   const buy = async (key, args) => {
     setError('');
+    setErrorAt(args.product === 'pass' ? 'passes' : 'plans');
     if (!user) { setShowAuth(true); return; }
     setBusy(key);
     try {
@@ -294,359 +321,341 @@ export default function MembershipPage() {
   const known = plansAreKnown(membership, authLoading);
   const member = known && subscriptionTier !== 'free';
 
+  // A return banner is the first thing on the page when one shows; the page's top padding
+  // gives up 24px to make room for it (the drawing's 148 becomes 124).
+  const bannerKind = banner && !settled ? 'status'
+    : returned === 'join' && settled ? 'join'
+    : switchTo && settled ? 'switch'
+    : returned === 'pass' && settled ? 'pass'
+    : returned === 'cancelled' ? 'cancelled'
+    : null;
+
+  const errLine = (where) => (error && errorAt === where ? <div className="mb-err" role="alert">{error}</div> : null);
+
   return (
-    <div className="mb-page">
+    <div className={`mb-page${bannerKind ? ' has-banner' : ''}`}>
       <style>{`
-        .mb-page { min-height: 100vh; background: radial-gradient(130% 60% at 50% -10%, #241347 0%, #0b0716 58%, #080610 100%); background-attachment: fixed; color: #f5f0e8; font-family: ${DISPLAY}; }
-        .mb-topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 18px 12px; }
-        @media (min-width: 768px) { .mb-topbar { padding: 16px 40px 12px; } }
-        .mb-wordmark { font-family: ${LABEL}; font-size: 11px; letter-spacing: .28em; color: #f5f0e8; text-decoration: none; white-space: nowrap; }
-        .mb-back { font-family: ${LABEL}; font-size: 9px; letter-spacing: .2em; color: #e2c876; text-decoration: none; }
-        .mb-hairline { height: 1px; background: linear-gradient(90deg, transparent, rgba(201,168,76,.5), transparent); }
-        .mb-body { padding: 26px 18px 60px; max-width: 1100px; margin: 0 auto; }
-        @media (min-width: 768px) { .mb-body { padding: 34px 40px 72px; } }
+        ${CURRENCY_SELECTOR_CSS}
+        ${BUY_CSS}
+        ${GHOST_CSS}
+        .mb-page { position: relative; min-height: 100vh; background: #0a0a0a; color: ${C(0.95)}; font-family: ${DISPLAY}; font-variant-numeric: lining-nums; padding: ${L(148, 120)} 0 ${L(128, 48)}; overflow-x: clip; }
+        .mb-page.has-banner { padding-top: ${L(124, 120)}; }
+        .mb-page::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: ${L(640, 560)}; pointer-events: none; background: radial-gradient(ellipse 60% 44% at 50% 40%, ${G(0.16)} 0%, transparent 66%); }
+        .mb-body { position: relative; max-width: 936px; margin: 0 auto; padding: 0 ${L(32, 24)}; }
+        .mb-orn { display: inline-block; }
 
-        .mb-eyebrow { font-family: ${LABEL}; font-size: 9.5px; letter-spacing: .3em; color: #c9a84c; text-align: center; }
-        .mb-rule { width: 60px; height: 1px; background: #c9a84c; opacity: .55; margin: 9px auto 18px; }
-        .mb-h1 { font-size: clamp(27px, 6.5vw, 40px); line-height: 1.1; text-align: center; color: #fbf7f0; margin: 0 0 12px; font-weight: 400; }
-        .mb-subhead { max-width: 620px; margin: 0 auto 14px; text-align: center; font-size: clamp(17px, 3.2vw, 21px); line-height: 1.3; color: #e2c876; font-style: italic; }
-        .mb-lede { max-width: 620px; margin: 0 auto; text-align: center; font-size: 15.5px; line-height: 1.62; color: #ded5c6; }
+        .mb-eyebrow { font-family: ${LABEL}; font-size: 9.92px; letter-spacing: 3.37px; color: ${GOLD}; text-align: center; }
+        .mb-h1 { margin: ${L(32, 24)} auto 0; text-align: center; font-weight: 300; font-size: ${L(60, 34)}; line-height: ${L(64, 38.08)}; letter-spacing: -0.3px; color: ${C(0.95)}; }
+        .mb-h1-l { display: block; }
+        .mb-subhead { margin: ${L(22, 16)} auto 0; text-align: center; font-style: italic; font-size: ${L(25, 20)}; line-height: ${L(32, 26)}; color: ${GOLD}; }
+        .mb-lede { max-width: 600px; margin: ${L(26, 20)} auto 0; text-align: center; font-size: ${L(18, 16.5)}; line-height: ${L(30, 27)}; color: ${C(0.6)}; text-wrap: pretty; }
+        .mb-div { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: ${L(48, 40)}; }
+        .mb-div i { display: block; width: ${L(64, 56)}; height: 1px; background: ${G(0.3)}; }
+        .mb-div .mb-orn { font-size: 13px; line-height: 1; color: ${G(0.6)}; }
 
-        /* WHAT STAYS FREE — the argument, before any price. Deliberately not a card: a border
-           would make it look like one more thing being sold. It is the page talking. */
-        .mb-free { max-width: 640px; margin: 34px auto 0; text-align: center; }
-        .mb-free-h { font-family: ${LABEL}; font-size: 10px; letter-spacing: .26em; color: #c9a84c; margin: 0 0 4px; font-weight: 400; text-transform: uppercase; }
-        .mb-free-body { display: flex; flex-direction: column; gap: 9px; margin: 16px 0 0; }
-        .mb-free-body p { margin: 0; font-size: 15px; line-height: 1.6; color: #ded5c6; }
-        .mb-free-close { margin: 18px 0 0; font-size: 14.5px; line-height: 1.6; color: #e2c876; font-style: italic; }
+        .mb-plate, .mb-sec-h { margin: 0; font-family: ${LABEL}; font-weight: 400; font-size: 9.92px; letter-spacing: 2.98px; color: ${GOLD}; text-align: center; text-transform: uppercase; }
+        .mb-free { margin-top: ${L(56, 44)}; text-align: center; }
+        .mb-free-body { width: 720px; max-width: 100%; margin: ${L(24, 20)} auto 0; }
+        .mb-free-body p { margin: 0; padding: ${L(15, 13)} 0; border-top: 1px solid ${HAIR}; font-size: ${L(18, 16.5)}; line-height: ${L(27, 25)}; color: ${C(0.82)}; text-wrap: pretty; }
+        .mb-free-body p:last-child { border-bottom: 1px solid ${HAIR}; }
+        .mb-free-close { margin: ${L(22, 18)} 0 0; font-style: italic; font-size: ${L(18, 16.5)}; line-height: ${L(26, 24)}; color: ${G(0.85)}; }
 
-        /* THE FOUNDING PROMISE. A sentence, not a badge — it is the strongest thing we can say
-           before 30 September and it should read as a plain commitment. */
-        /* Both boxes now sit low on the page rather than under the hero, and both lost their
-           headings — so the padding carries the whole shape and the top margin is a section
-           gap rather than a hero gap. */
-        .mb-founding { max-width: 640px; margin: 18px auto 0; padding: 16px 18px; border: 1px solid rgba(201,168,76,.34); border-radius: 12px; background: linear-gradient(160deg, rgba(245,240,232,.055), rgba(91,43,160,.10)); text-align: center; }
-        .mb-founding-p { font-size: 15px; line-height: 1.6; color: #ece3d4; margin: 0; }
+        .mb-controls { margin-top: ${L(72, 56)}; display: flex; align-items: center; justify-content: center; gap: 28px; }
+        .mb-controls .cur-line { margin: 0; }
+        .mb-crule { width: 1px; height: 14px; background: ${G(0.25)}; flex: none; }
+        .mb-annual-note { height: 24px; margin: 12px 0 0; text-align: center; font-style: italic; font-size: ${L(17, 16.5)}; line-height: 24px; color: ${G(0.85)}; }
 
-        .mb-notice { max-width: 640px; margin: 46px auto 0; padding: 16px 18px; border: 1px solid rgba(201,168,76,.3); border-radius: 12px; background: rgba(201,168,76,.06); text-align: center; }
-        .mb-notice-p { font-size: 14.5px; line-height: 1.6; color: #e4dbcc; margin: 0; }
+        .mb-grid { position: relative; margin: ${L(20, 18)} auto 0; max-width: 520px; border: 1px solid ${G(0.18)}; background: radial-gradient(ellipse 50% 40% at 50% 0%, ${G(0.07)}, transparent); }
+        .mb-corner { position: absolute; top: ${L(10, 8)}; font-size: 12px; line-height: 1; color: ${G(0.5)}; }
+        .mb-corner.is-l { left: ${L(14, 12)}; }
+        .mb-corner.is-r { right: ${L(14, 12)}; }
+        .mb-card { position: relative; text-align: center; }
+        .mb-grid .mb-card { padding: 44px 24px 40px; }
+        .mb-grid .mb-card + .mb-card { border-top: 1px solid ${G(0.12)}; }
+        .mb-card.is-feature { background: radial-gradient(ellipse 80% 30% at 50% 0%, ${G(0.09)}, transparent); }
+        .mb-card-n { font-family: ${LABEL}; font-size: 10.88px; line-height: 14px; letter-spacing: 3.26px; color: ${GOLD}; }
+        .mb-price { margin-top: ${L(22, 18)}; font-weight: 300; font-size: ${L(60, 52)}; line-height: ${L(60, 52)}; color: ${C(0.95)}; }
+        .mb-price.is-word { font-style: italic; }
+        .mb-per { margin-top: ${L(12, 10)}; font-style: italic; font-size: 16px; line-height: 22px; color: ${C(0.5)}; }
+        .mb-cardline { margin: ${L(24, 20)} 0 0; font-style: italic; font-size: 19px; line-height: 26px; color: ${GOLD}; }
+        .mb-card-rule { width: 36px; height: 1px; background: ${G(0.3)}; margin: ${L(24, 22)} auto; }
+        .mb-bridge { margin: 0 0 ${L(14, 12)}; font-style: italic; font-size: 16px; line-height: 22px; color: ${C(0.45)}; }
+        .mb-perks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: ${L(12, 11)}; }
+        .mb-perk { font-size: 16.5px; line-height: 23px; color: ${C(0.82)}; text-wrap: balance; }
+        .mb-when { font-style: italic; color: ${G(0.7)}; white-space: nowrap; }
+        .mb-cta { padding-top: ${L(40, 32)}; }
+        .mb-btn { min-width: 240px; width: 100%; }
+        .mb-btn:disabled { cursor: progress; opacity: .6; }
+        .mb-btn:focus-visible { outline: 1px solid ${GOLD}; outline-offset: 3px; }
+        .mb-flat { display: flex; align-items: center; justify-content: center; min-height: 48px; font-style: italic; font-size: 17px; line-height: 24px; color: ${G(0.85)}; text-align: center; }
+        .mb-switch-note { width: 244px; max-width: 100%; margin: 14px auto 0; font-style: italic; font-size: 15px; line-height: 22px; color: ${C(0.5)}; }
+        .mb-yours { position: absolute; left: 50%; top: -0.5px; transform: translate(-50%, -50%); padding: 0 14px; background: #0a0a0a; font-family: ${LABEL}; font-size: 8.64px; line-height: 1.6; letter-spacing: 2.42px; color: ${GOLD}; white-space: nowrap; }
 
-        .mb-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; margin: 30px 0 8px; }
-        .mb-seg { display: inline-flex; border: 1px solid rgba(201,168,76,.32); border-radius: 999px; padding: 3px; gap: 2px; }
-        .mb-seg button { font-family: ${LABEL}; font-size: 9px; letter-spacing: .16em; padding: 8px 14px; border-radius: 999px; border: none; background: transparent; color: #cbbfa8; cursor: pointer; }
-        .mb-seg button.is-on { background: rgba(201,168,76,.9); color: #241a06; }
-        .mb-seg button:focus-visible { outline: 2px solid #f0dda0; outline-offset: 2px; }
-        .mb-annual-note { text-align: center; font-size: 13.5px; color: #d3c9b8; margin: 10px 0 0; font-style: italic; }
+        .mb-sec { margin-top: ${L(104, 80)}; text-align: center; }
+        .mb-pass-h { margin: 0; font-style: italic; font-weight: 400; font-size: ${L(30, 25)}; line-height: ${L(36, 31)}; color: ${C(0.92)}; text-wrap: balance; }
+        .mb-sec-p { max-width: 600px; margin: ${L(16, 14)} auto 0; font-size: ${L(18, 16.5)}; line-height: ${L(30, 27)}; color: ${C(0.6)}; text-wrap: pretty; }
+        .mb-sec-close { margin: ${L(20, 18)} auto 0; font-style: italic; font-size: 16.5px; line-height: 24px; color: ${C(0.45)}; }
+        .mb-passes { width: 760px; max-width: 100%; margin: ${L(34, 28)} auto 0; display: grid; grid-template-columns: 1fr auto; column-gap: 16px; text-align: left; }
+        .mb-passes .mb-card { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; padding: 22px 0 24px; border-top: 1px solid ${HAIR}; }
+        .mb-passes .mb-card:last-child { border-bottom: 1px solid ${HAIR}; }
+        .mb-pass-l { grid-column: 1 / -1; }
+        .mb-pass-top { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 16px; }
+        .mb-passes .mb-card-n { font-size: 10.24px; letter-spacing: 2.8px; line-height: 22px; }
+        .mb-passes .mb-per { margin: 0; }
+        .mb-passes .mb-yours { position: static; transform: none; padding: 0; background: none; }
+        .mb-passes .mb-perks { margin-top: 12px; gap: 4px; }
+        .mb-passes .mb-perk { color: ${C(0.78)}; text-wrap: pretty; }
+        .mb-passes .mb-price { grid-column: 1; margin: 18px 0 0; font-size: 34px; line-height: 34px; }
+        .mb-pass-act { grid-column: 2; margin-top: 18px; }
+        .mb-pass-btn { min-width: 176px; width: 100%; padding: 12px 20px; font-size: 10.24px; letter-spacing: 1.64px; }
+        .mb-passes .mb-flat { width: 176px; min-height: 0; font-size: 16.5px; line-height: 23px; }
 
-        .mb-grid { display: grid; gap: 14px; margin-top: 26px; grid-template-columns: 1fr; }
-        @media (min-width: 760px) { .mb-grid { grid-template-columns: repeat(3, 1fr); } }
-        .mb-card { display: flex; flex-direction: column; border: 1px solid rgba(245,240,232,.13); border-radius: 14px; padding: 20px 18px 18px; background: linear-gradient(160deg, rgba(245,240,232,.05), rgba(91,43,160,.09)); }
-        .mb-card.is-feature { border-color: rgba(201,168,76,.5); }
-        .mb-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-        .mb-card-n { font-family: ${LABEL}; font-size: 11px; letter-spacing: .22em; color: #e2c876; }
-        .mb-yours { font-family: ${LABEL}; font-size: 8px; letter-spacing: .16em; color: #241a06; background: #c9a84c; border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
-        .mb-price { font-size: 33px; line-height: 1.1; color: #fbf7f0; margin: 14px 0 2px; }
-        .mb-per { font-size: 13.5px; color: #cfc4b1; }
-        /* The one-line promise under each price. */
-        .mb-cardline { margin: 12px 0 0; font-size: 15px; line-height: 1.45; color: #f0e7d8; }
-        /* The bridge into each paid card's list. Italic and dimmer than a perk because it is a
-           hinge between two lists, not a thing you get.
-           ⚠ THIS BLOCK IS A TEMPLATE LITERAL AND SHIPS VERBATIM — CSS comments here reach the
-           browser and land in out/membership.html. Do not quote retired copy in them: an
-           earlier version of this comment named the two strings this bridge replaced, and they
-           duly turned up in a grep of the built output that was meant to prove them gone. */
-        .mb-bridge { margin: 14px 0 -4px; font-size: 14px; line-height: 1.5; color: #b9ad99; font-style: italic; }
-        /* The dated clause. Quiet — same size as the perk, italic, dimmer. It must read as a
-           month attached to a promise, never as a badge stuck on a feature. */
-        .mb-when { font-style: italic; color: #b0a48f; }
-        .mb-perks { list-style: none; padding: 0; margin: 16px 0 18px; display: flex; flex-direction: column; gap: 9px; }
-        .mb-perk { display: flex; gap: 9px; font-size: 14.5px; line-height: 1.5; color: #e0d7c8; }
-        .mb-perk-m { color: #c9a84c; font-size: 10px; line-height: 1.9; flex-shrink: 0; }
-        .mb-cta { margin-top: auto; }
-        .mb-btn { width: 100%; font-family: ${LABEL}; font-size: 9.5px; letter-spacing: .18em; padding: 13px; border-radius: 10px; border: 1px solid #c9a84c; background: #c9a84c; color: #241a06; cursor: pointer; }
-        .mb-btn:hover:not(:disabled) { background: #d8b962; }
-        .mb-btn.is-ghost { background: transparent; color: #f0dda0; }
-        .mb-btn.is-ghost:hover:not(:disabled) { background: rgba(201,168,76,.12); }
-        .mb-btn:disabled { opacity: .5; cursor: default; }
-        .mb-btn:focus-visible { outline: 2px solid #f0dda0; outline-offset: 2px; }
-        .mb-flat { font-size: 13px; color: #cfc4b1; text-align: center; padding: 13px 0 0; }
+        .mb-keep { margin-top: ${L(104, 80)}; text-align: center; }
+        .mb-keep .mb-sec-p { margin-top: ${L(22, 20)}; }
+        .mb-keep-line { margin: ${L(18, 16)} auto 0; font-style: italic; font-size: ${L(27, 23)}; line-height: ${L(34, 30)}; color: ${GOLD}; }
 
-        .mb-sec { margin-top: 46px; }
-        /* Used by the passes heading (a div) and by the two new section headings (h2), so it
-           resets the heading defaults rather than assuming a div. */
-        .mb-sec-h { font-family: ${LABEL}; font-size: 9.5px; letter-spacing: .26em; color: #c9a84c; text-align: center; margin: 0; font-weight: 400; text-transform: uppercase; }
-        .mb-sec-p { max-width: 600px; margin: 10px auto 0; text-align: center; font-size: 14.5px; line-height: 1.6; color: #d8cfc0; }
-        .mb-sec-close { max-width: 600px; margin: 16px auto 0; text-align: center; font-size: 14px; line-height: 1.6; color: #b9ad99; font-style: italic; }
+        .mb-notice { position: relative; box-sizing: border-box; width: 640px; max-width: 100%; margin: ${L(88, 64)} auto 0; padding: ${L(34, 28)} ${L(56, 24)} ${L(36, 28)}; border: 1px solid ${G(0.22)}; background: radial-gradient(ellipse 60% 70% at 50% 0%, ${G(0.07)}, transparent); text-align: center; }
+        .mb-notice-p { margin: 0; font-size: ${L(18.5, 16.5)}; line-height: ${L(30, 27)}; color: ${C(0.78)}; text-wrap: pretty; }
 
-        /* WHAT YOU KEEP. The last line is set larger and in gold: it is the sentence the
-           section exists to deliver, and the paragraph above it is the setup. */
-        .mb-keep { margin-top: 46px; text-align: center; }
-        .mb-keep-line { max-width: 600px; margin: 14px auto 0; font-size: 16.5px; line-height: 1.5; color: #f0dda0; }
+        .mb-qa { margin-top: ${L(104, 80)}; text-align: center; }
+        .mb-qa-list { width: 760px; max-width: 100%; margin: ${L(26, 22)} auto 0; text-align: left; }
+        .mb-qa-row { padding: ${L(24, 20)} 0; border-top: 1px solid ${HAIR}; }
+        .mb-qa-row:last-child { border-bottom: 1px solid ${HAIR}; }
+        .mb-qa-list dt { margin: 0; font-weight: 500; font-size: ${L(19, 18)}; line-height: ${L(27, 25)}; color: ${C(0.92)}; text-wrap: balance; }
+        .mb-qa-list dd { margin: 8px 0 0; font-size: ${L(17, 16)}; line-height: ${L(27, 26)}; color: ${C(0.62)}; text-wrap: pretty; }
 
-        /* SHORT ANSWERS. A definition list, because that is what it is. */
-        .mb-qa { margin-top: 46px; }
-        .mb-qa-list { max-width: 640px; margin: 18px auto 0; }
-        .mb-qa-list dt { font-size: 15.5px; line-height: 1.45; color: #f0e7d8; margin: 0 0 6px; }
-        .mb-qa-list dd { margin: 0 0 20px; font-size: 14.5px; line-height: 1.62; color: #cabfae; }
-        .mb-qa-list dd:last-child { margin-bottom: 0; }
-        /* One pass or two, depending on currency. A single day-pass card stretched across the
-           full 720px read as a banner rather than a card, so the width follows the count. */
-        .mb-passes { display: grid; gap: 14px; margin: 20px auto 0; grid-template-columns: 1fr; max-width: 360px; }
-        .mb-passes.is-two { max-width: 720px; }
-        @media (min-width: 620px) { .mb-passes.is-two { grid-template-columns: repeat(2, 1fr); } }
+        .mb-foot { text-align: center; }
+        .mb-foot-orn { display: block; margin-top: ${L(96, 72)}; font-size: 14px; line-height: 1; color: ${G(0.55)}; }
+        .mb-foot-line { margin: ${L(18, 16)} auto 0; font-style: italic; font-size: ${L(20, 18)}; line-height: ${L(28, 26)}; color: ${C(0.62)}; }
+        .mb-foot-line a { color: ${GOLD}; }
 
-        .mb-banner { max-width: 640px; margin: 0 auto 24px; padding: 16px 18px; border-radius: 12px; border: 1px solid rgba(201,168,76,.4); background: rgba(201,168,76,.08); }
-        .mb-banner.is-done { border-color: rgba(126,196,146,.45); background: rgba(126,196,146,.09); }
-        .mb-banner-t { font-family: ${LABEL}; font-size: 9.5px; letter-spacing: .2em; color: #e2c876; }
-        .mb-banner.is-done .mb-banner-t { color: #9fd9b0; }
-        .mb-banner-p { font-size: 14.5px; line-height: 1.6; color: #e6ddce; margin: 8px 0 0; }
-        .mb-banner-p a { color: #f0dda0; }
-        .mb-banner.is-bad { border-color: rgba(243,176,162,.45); background: rgba(243,176,162,.08); }
-        .mb-banner.is-bad .mb-banner-t { color: #f3b0a2; }
-        .mb-switch-note { font-size: 13px; line-height: 1.5; color: #cfc4b1; margin: 8px 0 0; text-align: center; font-style: italic; }
+        .mb-banner { position: relative; box-sizing: border-box; width: 640px; max-width: 100%; margin: 0 auto ${L(72, 48)}; padding: ${L(28, 24)} ${L(48, 22)} ${L(30, 24)}; border: 1px solid ${G(0.32)}; background: radial-gradient(ellipse 70% 90% at 50% 0%, ${G(0.09)}, transparent); text-align: center; }
+        .mb-banner-t { font-family: ${LABEL}; font-size: 9.92px; letter-spacing: 2.98px; color: ${GOLD}; }
+        .mb-banner-p { margin: 14px 0 0; font-size: ${L(19, 17)}; line-height: ${L(29, 27)}; color: ${C(0.85)}; text-wrap: pretty; }
+        .mb-banner-p a { color: ${GOLD}; }
+        .mb-banner.is-bad { border-color: rgba(214,138,110,.45); }
+        .mb-banner.is-bad .mb-banner-t { color: rgba(214,138,110,.92); }
+        .mb-banner-btn { width: auto; margin-top: 16px; }
+        .mb-err { max-width: 640px; margin: 20px auto 0; text-align: center; font-style: italic; font-size: 16.5px; line-height: 24px; color: rgba(214,138,110,.92); }
 
-        .mb-err { max-width: 640px; margin: 18px auto 0; text-align: center; font-size: 14px; color: #f3b0a2; }
-        .mb-foot { margin-top: 44px; text-align: center; font-size: 13.5px; line-height: 1.65; color: #cabfae; }
-        .mb-foot a { color: #f0dda0; }
+        @media (min-width: 800px) {
+          .mb-passes { grid-template-columns: 1fr auto auto; column-gap: 24px; }
+          .mb-pass-l { grid-column: 1; padding-right: 16px; }
+          .mb-passes .mb-card { padding: 28px 0; }
+          .mb-passes .mb-price { grid-column: 2; margin: 0; font-size: 40px; line-height: 40px; }
+          .mb-pass-act { grid-column: 3; margin-top: 0; }
+          .mb-pass-btn { min-width: 184px; padding: 12px 22px; }
+          .mb-passes .mb-flat { width: 184px; }
+          .mb-qa-row { display: grid; grid-template-columns: 250px 1fr; column-gap: 36px; }
+          .mb-qa-list dd { margin: 0; }
+        }
+        @media (min-width: 1000px) {
+          .mb-grid { width: 936px; max-width: none; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(9, auto); }
+          .mb-grid .mb-card { grid-row: span 9; display: grid; grid-template-rows: subgrid; padding: 56px 28px 48px; }
+          .mb-grid .mb-card + .mb-card { border-top: 0; border-left: 1px solid ${G(0.12)}; }
+          .mb-grid .mb-card + .mb-card .mb-yours { left: calc(50% - 0.5px); }
+          .mb-cardline { white-space: nowrap; }
+        }
+        @media (max-width: 600px) {
+          .mb-page::before { background: radial-gradient(ellipse 84% 40% at 50% 36%, ${G(0.16)} 0%, transparent 66%); }
+          .mb-h1 { font-size: min(34px, calc(10.3vw - 5px)); line-height: 1.12; letter-spacing: -0.2px; }
+          .mb-controls { flex-direction: column; gap: 14px; }
+          .mb-crule { display: none; }
+          .mb-grid { max-width: none; }
+          .mb-foot-line { max-width: 300px; text-wrap: balance; }
+        }
       `}</style>
 
-      <div className="mb-topbar">
-        <Link className="mb-wordmark" href="/">CALVARY SCRIBBLINGS</Link>
-        <a className="mb-back" href="/my-library">MY LIBRARY →</a>
-      </div>
-      <div className="mb-hairline" />
+      <Navbar />
 
       <div className="mb-body">
-        {/* ── THE RETURN BANNER ───────────────────────────────────────────────────────────
-            Idempotent on refresh and harmless when visited directly, because it never claims
-            a payment happened — it says what will appear IF one did, and then reports what
-            actually landed. A reader who types the URL sees a sentence that is true for them
-            too, and it resolves the moment the provider answers. */}
-        {banner && !settled && (
-          <div className={`mb-banner${banner.tone === 'bad' ? ' is-bad' : ''}`} role="status">
-            <div className="mb-banner-t">{banner.title}</div>
+        {/* The return banner: idempotent on refresh and harmless when visited directly — it never
+            claims a payment happened; it says what will appear if one did, then reports what
+            landed. */}
+        {bannerKind && (
+          <div className={`mb-banner${bannerKind === 'status' && banner.tone === 'bad' ? ' is-bad' : ''}`} role="status">
+            <div className="mb-banner-t">
+              <Orn className="mb-orn" />{' '}
+              {bannerKind === 'status' ? nb(banner.title)
+                : bannerKind === 'join' ? 'YOU’RE IN'
+                : bannerKind === 'switch' ? 'YOUR PLAN HAS CHANGED'
+                : bannerKind === 'pass' ? 'YOUR PASS IS LIVE'
+                : 'NOTHING WAS CHARGED'}
+              {' '}<Orn className="mb-orn" />
+            </div>
             <p className="mb-banner-p">
-              {banner.body}
-              {banner.contact && <> Write to <a href={`mailto:${HELP_EMAIL}`}>{HELP_EMAIL}</a>.</>}
+              {bannerKind === 'status' && <>
+                {nb(banner.body)}
+                {banner.contact && <> Write to <a href={`mailto:${HELP_EMAIL}`}>{HELP_EMAIL}</a>.</>}
+              </>}
+              {bannerKind === 'join' && `Your ${TIER_NAME[subscriptionTier]} membership is active. Thank you for keeping this place going.`}
+              {bannerKind === 'switch' && `You’ve moved to ${TIER_NAME[subscriptionTier]}. Nothing else about your membership has changed.`}
+              {bannerKind === 'pass' && `Your pass is active until ${new Date(pass.expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}. Anything you save while it lasts stays on your shelf afterwards.`}
+              {bannerKind === 'cancelled' && 'You closed the checkout before it finished. Nothing has been taken and you can pick up again whenever you like.'}
             </p>
-            {banner.signIn && (
-              <button type="button" className="mb-btn is-ghost" style={{ marginTop: 12 }} onClick={() => setShowAuth(true)}>SIGN IN</button>
+            {bannerKind === 'status' && banner.signIn && (
+              <button type="button" className="bd-cta bd-sample mb-btn mb-banner-btn" onClick={() => setShowAuth(true)}>SIGN IN</button>
             )}
           </div>
         )}
-        {returned === 'join' && settled && (
-          <div className="mb-banner is-done" role="status">
-            <div className="mb-banner-t">YOU’RE IN</div>
-            <p className="mb-banner-p">
-              {`Your ${TIER_NAME[subscriptionTier]} membership is active${founding ? ', and you joined at the founding price — it stays yours' : ''}. Thank you for keeping this place going.`}
-            </p>
-          </div>
-        )}
-        {switchTo && settled && (
-          <div className="mb-banner is-done" role="status">
-            <div className="mb-banner-t">YOUR PLAN HAS CHANGED</div>
-            <p className="mb-banner-p">{`You’ve moved to ${TIER_NAME[subscriptionTier]}. Nothing else about your membership has changed.`}</p>
-          </div>
-        )}
-        {returned === 'pass' && settled && (
-          <div className="mb-banner is-done" role="status">
-            <div className="mb-banner-t">YOUR PASS IS LIVE</div>
-            <p className="mb-banner-p">
-              {`Your pass is active until ${new Date(pass.expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}. Anything you save while it lasts stays on your shelf afterwards.`}
-            </p>
-          </div>
-        )}
-        {returned === 'cancelled' && (
-          <div className="mb-banner" role="status">
-            <div className="mb-banner-t">NOTHING WAS CHARGED</div>
-            <p className="mb-banner-p">You closed the checkout before it finished. Nothing has been taken and you can pick up again whenever you like.</p>
-          </div>
-        )}
 
-        <div className="mb-eyebrow">MEMBERSHIP</div>
-        <div className="mb-rule" />
-        <h1 className="mb-h1">Every story is free the week it is published.</h1>
+        <div className="mb-eyebrow"><Orn className="mb-orn" />{' MEMBERSHIP '}<Orn className="mb-orn" /></div>
+        <h1 className="mb-h1">
+          <span className="mb-h1-l">Every story is free</span>{' '}
+          <span className="mb-h1-l">the week it is published.</span>
+        </h1>
         <p className="mb-subhead">Membership opens everything before that.</p>
         <p className="mb-lede">
-          The island publishes new stories several times a week, and every story published this
-          week is free to everyone — no account, no card, no membership. On Monday the week’s
-          stories join the archive together,
-          where more than a hundred and sixty stories are waiting. That is what a membership
-          opens.
+          {nb('The island publishes new stories several times a week, and every story published this week is free to everyone — no account, no card, no membership.')}
+          {' On Monday the week’s stories join the archive together, where more than a hundred and sixty stories are waiting. That is what a membership opens.'}
         </p>
+        <div className="mb-div" aria-hidden="true"><i /><span className="mb-orn">❦</span><i /></div>
 
-        {/* ── WHAT STAYS FREE ─────────────────────────────────────────────────────────────
-            BEFORE ANY PRICE, and that placement is the whole point rather than a layout
-            preference. This section is the page's argument: a reader has to believe the week
-            is genuinely free before a number further down means anything. A pricing page that
-            leads with the price is asking to be trusted before it has said anything true.
-
-            Every line here is a policy this codebase actually enforces, and each one is
-            checkable: the free week is freeUntilFor() (the London calendar week, W4; the floor is gone),
-            poetry is exempt in grantFor(), the Square carries no tier gate, and the quiz
-            endpoints take no tier and no window at all. Nothing in this block is aspirational. */}
+        {/* WHAT STAYS FREE — before any price. Every line is a policy the code enforces. */}
         <section className="mb-free" aria-labelledby="mb-free-h">
-          <h2 className="mb-free-h" id="mb-free-h">What stays free</h2>
+          <h2 className="mb-free-h mb-plate" id="mb-free-h"><Orn className="mb-orn" />{' What stays free '}<Orn className="mb-orn" /></h2>
           <div className="mb-free-body">
             <p>Every story published this week, Monday to Sunday, is free to read, in full, to anyone who finds it.</p>
             <p>On Monday the week’s stories join the archive together, and a new free week begins.</p>
             <p>All poetry is free. Always, and to everyone.</p>
-            <p>The Square is free — every conversation and every competition in it.</p>
+            <p>{nb('The Square is free — every conversation and every competition in it.')}</p>
             <p>Every quiz on every free story is free to take.</p>
           </div>
           <p className="mb-free-close">None of that is a trial, and none of it expires.</p>
         </section>
 
-        {/* Currency: the SHARED selector. A reader who is ₦ in the shop is ₦ here, and there is
-            no second control — choosing here changes the shop too, which is the point. */}
+        {/* The currency line is the shop's own: choosing here changes the shop too. */}
         <div className="mb-controls">
-          <div className="mb-seg" role="group" aria-label="Currency">
-            {CURRENCIES.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className={c === currency ? 'is-on' : ''}
-                aria-pressed={c === currency}
-                onClick={() => chooseCurrency(c)}
-              >{CURRENCY_LABELS[c]}</button>
-            ))}
+          <div className="cur-line">
+            <span className="cur-eyebrow" aria-hidden="true">Prices in</span>
+            <div className="cur-opts" role="group" aria-label="Currency">
+              {CURRENCIES.map((c, i) => (
+                <span key={c} style={{ display: 'contents' }}>
+                  {i > 0 && <span className="cur-sep" aria-hidden="true">·</span>}
+                  <button type="button" className="cur-btn" aria-pressed={c === currency} onClick={() => chooseCurrency(c)}>{CURRENCY_LABELS[c]}</button>
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="mb-seg" role="group" aria-label="Billing period">
-            {INTERVALS.map((iv) => (
-              <button
-                key={iv}
-                type="button"
-                className={iv === interval ? 'is-on' : ''}
-                aria-pressed={iv === interval}
-                onClick={() => setInterval(iv)}
-              >{iv === 'monthly' ? 'MONTHLY' : 'YEARLY'}</button>
-            ))}
+          <span className="mb-crule" aria-hidden="true" />
+          <div className="cur-line">
+            <div className="cur-opts" role="group" aria-label="Billing period">
+              {INTERVALS.map((iv, i) => (
+                <span key={iv} style={{ display: 'contents' }}>
+                  {i > 0 && <span className="cur-sep" aria-hidden="true">·</span>}
+                  <button type="button" className="cur-btn" aria-pressed={iv === interval} onClick={() => setInterval(iv)}>{iv === 'monthly' ? 'MONTHLY' : 'YEARLY'}</button>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
-        {interval === 'annual' && (
-          <p className="mb-annual-note">A year for the price of ten months.</p>
-        )}
+        {/* Reserved in both states, so switching the period never moves the frame. */}
+        <p className="mb-annual-note">{interval === 'annual' ? 'A year for the price of ten months.' : ''}</p>
 
         <div className="mb-grid">
-          {/* FREE IS A REAL ROW, not an absence. It is what most readers will stay on, and a
-              pricing page that lists it as a gap reads as a page that resents it. */}
+          <Orn className="mb-corner is-l" />
+          <Orn className="mb-corner is-r" />
+
+          {/* FREE IS A REAL COLUMN, not an absence. Nine rows like the others — its bridge,
+              action and note rows are empty tracks, never a disabled button. */}
           <div className="mb-card">
-            <div className="mb-card-top">
-              <div className="mb-card-n">FREE</div>
-              {known && tier === 'free' && <span className="mb-yours">YOUR PLAN</span>}
-            </div>
-            {/* "Free", NOT formatPrice(currency, 0).
-                Two reasons, and the second is the one that made this a bug rather than a
-                preference. A zero is not a price — every other card on this page answers "what
-                does it cost", and the Free card's honest answer is a word, not an amount. And
-                in naira formatPrice returned "₦0", which in Cormorant Garamond reads as the
-                word "No" — the ₦ sits as a struck N and the 0 as an o. The single card most
-                readers will stay on was headed with a refusal.
-                It is a literal in every currency because the free tier does not HAVE a price in
-                any of them, so there is nothing here for the currency selector to change. */}
-            <div className="mb-price">Free</div>
+            {known && tier === 'free' && <span className="mb-yours">YOUR PLAN</span>}
+            <div className="mb-card-n">FREE</div>
+            {/* The word, never a zero: formatPrice(ngn, 0) set in Cormorant reads as a word. */}
+            <div className="mb-price is-word">Free</div>
             <div className="mb-per">Always. No card, no trial.</div>
             <p className="mb-cardline">{CARD_LINE.free}</p>
+            <div className="mb-card-rule" aria-hidden="true" />
+            <div />
             <ul className="mb-perks">
-              {PERKS.free.map((p, i) => (
-                <Perk key={`free-${i}`}>{p === SHELF ? shelfLine('free') : p}</Perk>
-              ))}
+              {PERKS.free.map((p, i) => <Perk key={`free-${i}`}>{p === SHELF ? shelfLine('free') : p}</Perk>)}
             </ul>
-            {/* NO CTA, deliberately. 'You already have this.' is cut — it reads as
-                condescension to the reader on the tier most readers will stay on. The card
-                simply ends, and the grid's `align-items: stretch` keeps the three tops level
-                without a filler element. Never a disabled button here. */}
+            <div />
+            <div />
           </div>
 
           {TIERS.map((t) => {
             const amount = subscriptionAmount(t, interval, currency);
             const isYours = known && subscriptionTier === t;
             const key = `sub:${t}:${interval}`;
+            const face = t === 'gold' ? 'bd-buy' : 'bd-sample';
             return (
               <div key={t} className={`mb-card${t === 'gold' ? ' is-feature' : ''}`}>
-                <div className="mb-card-top">
-                  <div className="mb-card-n">{TIER_NAME[t].toUpperCase()}</div>
-                  {isYours && <span className="mb-yours">YOUR PLAN</span>}
-                </div>
+                {isYours && <span className="mb-yours">YOUR PLAN</span>}
+                <div className="mb-card-n">{TIER_NAME[t].toUpperCase()}</div>
                 <div className="mb-price">{formatPrice(currency, amount)}</div>
                 <div className="mb-per">{interval === 'monthly' ? 'a month' : 'a year'}</div>
                 <p className="mb-cardline">{CARD_LINE[t]}</p>
+                <div className="mb-card-rule" aria-hidden="true" />
                 <p className="mb-bridge">{BRIDGE[t]}</p>
                 <ul className="mb-perks">
-                  {PERKS[t].map((p, i) => (
-                    <Perk key={`${t}-${i}`}>{p === SHELF ? shelfLine(t) : p}</Perk>
-                  ))}
+                  {PERKS[t].map((p, i) => <Perk key={`${t}-${i}`}>{p === SHELF ? shelfLine(t) : p}</Perk>)}
                 </ul>
                 <div className="mb-cta">
                   {!MEMBERSHIPS_ON_SALE ? (
                     <div className="mb-flat">{LAUNCH_NOTICE}</div>
                   ) : isYours ? (
-                    <a className="mb-btn is-ghost" href="/settings" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>MANAGE</a>
+                    <a className="bd-cta bd-sample mb-btn" href="/settings">MANAGE</a>
                   ) : (
-                    <>
-                      <button
-                        type="button"
-                        className={`mb-btn${t === 'platinum' ? ' is-ghost' : ''}`}
-                        disabled={busy !== null}
-                        onClick={() => buy(key, { product: 'subscription', tier: t, interval })}
-                      >
-                        {busy === key ? 'OPENING…' : `${member ? 'SWITCH TO' : 'CHOOSE'} ${TIER_NAME[t].toUpperCase()}`}
-                      </button>
-                      {/* W3 / MON-02: a member SWITCHES — one subscription, never two. What that
-                          costs is said before they press, per rail. */}
-                      {member && (
-                        <p className="mb-switch-note">
-                          {rail === 'paystack'
-                            ? `Your ${TIER_NAME[subscriptionTier]} plan stops renewing when ${TIER_NAME[t]} starts. Paystack doesn’t carry over the ${TIER_NAME[subscriptionTier]} time you’ve already paid for.`
-                            : 'One membership, switched — you’ll see the price difference before you confirm.'}
-                        </p>
-                      )}
-                    </>
+                    <button
+                      type="button"
+                      className={`bd-cta ${member ? 'bd-sample' : face} mb-btn`}
+                      disabled={busy !== null}
+                      onClick={() => buy(key, { product: 'subscription', tier: t, interval })}
+                    >
+                      {busy === key ? 'OPENING…' : `${member ? 'SWITCH TO' : 'CHOOSE'} ${TIER_NAME[t].toUpperCase()}`}
+                    </button>
+                  )}
+                </div>
+                <div>
+                  {/* W3 / MON-02: a member SWITCHES — one subscription, never two — and what that
+                      costs is said before they press, per rail. */}
+                  {MEMBERSHIPS_ON_SALE && member && !isYours && (
+                    <p className="mb-switch-note">
+                      {rail === 'paystack'
+                        ? `Your ${TIER_NAME[subscriptionTier]} plan stops renewing when ${TIER_NAME[t]} starts. Paystack doesn’t carry over the ${TIER_NAME[subscriptionTier]} time you’ve already paid for.`
+                        : nb('One membership, switched — you’ll see the price difference before you confirm.')}
+                    </p>
                   )}
                 </div>
               </div>
             );
           })}
         </div>
+        {errLine('plans')}
 
-        {/* ── PASSES ──────────────────────────────────────────────────────────────────────
-            passesFor(currency) IS the week-pass rule. The week pass appears only in naira
-            because ₦500 is the only price it has — there is no currency check here and no
-            country check anywhere. Add a GBP week price to AMOUNTS one day and this section
-            starts offering it with no change to this file. */}
+        {/* PASSES. passesFor(currency) IS the week-pass rule: the week pass has only a naira
+            price, so it appears only in naira. No currency check, no country check. */}
         {passes.length > 0 && (
           <div className="mb-sec">
-            {/* The heading is no longer a negative. 'NOT READY TO SUBSCRIBE?' framed the pass
-                as a failure to commit; a pass is a product, and a good one for the reader who
-                wants the archive for one journey. */}
-            <div className="mb-sec-h">A pass, if a subscription is not what you want</div>
+            <div className="mb-pass-h">A pass, if a subscription is not what you want</div>
             <p className="mb-sec-p">
-              Some readers want the archive for an afternoon, or for one long journey with no
-              signal at the end of it. A pass opens the Gold shelf for a day — or, in naira,
-              for a week — once. There is nothing to cancel and nothing to remember.
+              {nb('Some readers want the archive for an afternoon, or for one long journey with no signal at the end of it. A pass opens the Gold shelf for a day — or, in naira, for a week — once. There is nothing to cancel and nothing to remember.')}
             </p>
-            <div className={`mb-passes${passes.length > 1 ? ' is-two' : ''}`}>
+            <div className="mb-passes">
               {passes.map((p) => {
                 const key = `pass:${p.kind}`;
                 return (
                   <div key={p.kind} className="mb-card">
-                    <div className="mb-card-top">
-                      <div className="mb-card-n">{PASS_NAME[p.kind].toUpperCase()}</div>
-                      {known && pass && pass.kind === p.kind && <span className="mb-yours">ACTIVE</span>}
+                    <div className="mb-pass-l">
+                      <div className="mb-pass-top">
+                        <div className="mb-card-n">{PASS_NAME[p.kind].toUpperCase()}</div>
+                        <div className="mb-per">{PASS_WINDOW[p.kind]} of Gold, once</div>
+                        {known && pass && pass.kind === p.kind && <span className="mb-yours">ACTIVE</span>}
+                      </div>
+                      <ul className="mb-perks">
+                        <Perk>{shelfLine('gold')}</Perk>
+                        <Perk>What you save is yours to keep afterwards</Perk>
+                      </ul>
                     </div>
                     <div className="mb-price">{formatPrice(p.currency, p.amount)}</div>
-                    <div className="mb-per">{PASS_WINDOW[p.kind]} of Gold, once</div>
-                    <ul className="mb-perks">
-                      <Perk>{shelfLine('gold')}</Perk>
-                      <Perk>What you save is yours to keep afterwards</Perk>
-                    </ul>
-                    <div className="mb-cta">
+                    <div className="mb-cta mb-pass-act">
                       {!MEMBERSHIPS_ON_SALE ? (
                         <div className="mb-flat">{LAUNCH_NOTICE}</div>
                       ) : (
                         <button
                           type="button"
-                          className="mb-btn is-ghost"
+                          className="bd-cta bd-sample mb-btn mb-pass-btn"
                           disabled={busy !== null}
                           onClick={() => buy(key, { product: 'pass', kind: p.kind })}
                         >
@@ -658,102 +667,74 @@ export default function MembershipPage() {
                 );
               })}
             </div>
+            {errLine('passes')}
             <p className="mb-sec-close">A pass is a one-off. It ends on its own.</p>
           </div>
         )}
 
-        {/* ── WHAT YOU KEEP ───────────────────────────────────────────────────────────────
-            The confiscation ruling, stated to the customer. It costs nothing to promise
-            because it is already exactly how the code behaves — see the ruling above CAPS in
-            app/lib/shelf.js, which refuses to write an eviction sweep and explains why: the
-            shelf is on the reader's hardware, in their IndexedDB, and culling it for a debt
-            already settled would be reaching into a device to take back what someone chose
-            to keep.
-
-            It sits AFTER the passes block on purpose. A pass is the product where the
-            question actually occurs to a reader — they are buying a thing that expires — so
-            the answer belongs where the doubt is, not in a policy page nobody opens. */}
+        {/* WHAT YOU KEEP — the confiscation ruling, stated where a reader buying a thing that
+            expires meets the question (see the ruling above CAPS in app/lib/shelf.js). */}
         <section className="mb-keep" aria-labelledby="mb-keep-h">
-          <h2 className="mb-sec-h" id="mb-keep-h">What you keep</h2>
+          <h2 className="mb-sec-h" id="mb-keep-h"><Orn className="mb-orn" />{' What you keep '}<Orn className="mb-orn" /></h2>
           <p className="mb-sec-p">
-            Anything you have saved is yours. If a pass runs out, or a membership ends, or you
-            simply stop — the stories already on your device stay there, and stay readable.
+            {nb('Anything you have saved is yours. If a pass runs out, or a membership ends, or you simply stop — the stories already on your device stay there, and stay readable.')}
           </p>
           <p className="mb-keep-line">We do not take saved stories back.</p>
         </section>
 
-        {/* ── PRE-LAUNCH, THEN FOUNDING ───────────────────────────────────────────────────
-            Both boxes lose their headings. 'NOT YET ON SALE' and 'FOUNDING MEMBERS' were a
-            negative and a label, and the first sentence of each box already does the work
-            the heading was doing badly.
-
-            Position follows the deck, which is ordered ("Every string on the page, in
-            order") and puts these after What you keep rather than under the hero where they
-            used to sit. Nothing is hidden by the move: with MEMBERSHIPS_ON_SALE false, every
-            card's CTA slot already carries the launch notice, so a reader meets the date at
-            the same moment they meet the first price. */}
+        {/* PRE-LAUNCH. Only while memberships are not on sale; every action slot carries the
+            date too, so a reader meets it with the first price. */}
         {!MEMBERSHIPS_ON_SALE && (
           <div className="mb-notice" role="status">
+            <Orn className="mb-corner is-l" />
+            <Orn className="mb-corner is-r" />
             <p className="mb-notice-p">
-              {LAUNCH_NOTICE} Everything on this page is the real price — nothing here changes
-              on the day. We wanted you to be able to read it first.
+              {nb(`${LAUNCH_NOTICE} Everything on this page is the real price — nothing here changes on the day. We wanted you to be able to read it first.`)}
             </p>
           </div>
         )}
 
-        {/* THE FOUNDING PROMISE. Engineered rather than aspirational: founding Prices exist
-            for BOTH tiers and the Stripe portal is pinned to that generation, so an upgrade
-            lands on a founding price too. That is why the second clause can be said at all —
-            see the founding-lock note in prices.js. */}
-        <div className="mb-founding">
-          <p className="mb-founding-p">
-            Join before we open and your price never goes up — not at renewal, and not if you
-            move to a higher tier later. You keep the founding rate for as long as you stay a
-            member.
-          </p>
-        </div>
-
-        {/* ── SHORT ANSWERS ───────────────────────────────────────────────────────────────
-            THREE pairs, not four. The fourth question the deck drafts — "Does this change
-            what writers are paid?" — is held back deliberately: its answer has not been
-            written, and shipping a placeholder answer to that particular question would be
-            worse than not asking it. The question returns when the line does. */}
+        {/* SHORT ANSWERS. Three pairs; the fourth question returns when its answer is written. */}
         <section className="mb-qa" aria-labelledby="mb-qa-h">
-          <h2 className="mb-sec-h" id="mb-qa-h">Short answers</h2>
+          <h2 className="mb-sec-h" id="mb-qa-h"><Orn className="mb-orn" />{' Short answers '}<Orn className="mb-orn" /></h2>
           <dl className="mb-qa-list">
-            <dt>Can I cancel?</dt>
-            <dd>
-              Any time, and you keep everything until the period you have paid for runs out.
-              Card and naira memberships both cancel from your settings; naira members can also
-              use the “Manage subscription” link in Paystack’s emails.
-            </dd>
-            <dt>What happens to the archive if I stop?</dt>
-            <dd>
-              New stories stay free to you, as they are to everyone. The archive closes.
-              Anything you had saved stays saved.
-            </dd>
-            <dt>Why is poetry free?</dt>
-            <dd>
-              Poetry is always free on the island. It is short, it is better stumbled upon
-              than sought out, and putting it behind anything felt wrong.
-            </dd>
+            <div className="mb-qa-row">
+              <dt>Can I cancel?</dt>
+              <dd>
+                Any time, and you keep everything until the period you have paid for runs out.
+                Card and naira memberships both cancel from your settings; naira members can also
+                use the “Manage subscription” link in Paystack’s emails.
+              </dd>
+            </div>
+            <div className="mb-qa-row">
+              <dt>What happens to the archive if I stop?</dt>
+              <dd>
+                New stories stay free to you, as they are to everyone. The archive closes.
+                Anything you had saved stays saved.
+              </dd>
+            </div>
+            <div className="mb-qa-row">
+              <dt>Why is poetry free?</dt>
+              <dd>
+                Poetry is always free on the island. It is short, it is better stumbled upon
+                than sought out, and putting it behind anything felt wrong.
+              </dd>
+            </div>
           </dl>
         </section>
 
-        {error && <div className="mb-err" role="alert">{error}</div>}
-
         <div className="mb-foot">
-          {/* The closing promise, and it carries NO NUMBER on purpose. An earlier draft read
-              "Three new stories a week" — measured over the eight weeks to 8 Aug 2026 the
-              island published 6 to 13 a week, so the number was wrong by about 3×, and a
-              number beside "that does not change" is a commitment that breaks the first quiet
-              month. "Every week" is true at ten and still true at four. */}
-          New stories every week, free to everyone. That does not change.
-          {known && source !== 'none' && <> You can manage your membership in <a href="/settings">settings</a>.</>}
+          <Orn className="mb-orn mb-foot-orn" />
+          {/* No number, on purpose: "every week" is true at ten and still true at four. */}
+          <p className="mb-foot-line">
+            New stories every week, free to everyone. That does not change.
+            {known && source !== 'none' && <> You can manage your membership in <a href="/settings">settings</a>.</>}
+          </p>
         </div>
       </div>
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      <TabBar active={null} />
     </div>
   );
 }

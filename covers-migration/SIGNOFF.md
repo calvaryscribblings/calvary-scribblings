@@ -26,7 +26,7 @@ sheet itself labels SYNTHETIC:
 |---|---|---|
 | `akudaaya-synthetic` | Àkúdáàya | Yorùbá diacritics in both title and author |
 | `unknown-category-synthetic` | The Unfiled Story | missing category → imprint eyebrow, footer omitted |
-| `series-instalment-synthetic` | Halfway Around the Moon | the Series livery and its instalment ordinal |
+| `series-instalment-synthetic` | Diary of a Lagos 9-5er | the Series livery and its instalment ordinal |
 
 **They are not stories.** They have no `cms_stories` record and no slug anyone can visit.
 They exist to prove the renderer against cases the live library does not currently contain,

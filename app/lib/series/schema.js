@@ -73,10 +73,10 @@ export const SERIES_SCHEMA = {
   title: 'string',
   synopsis: 'string',
   // The POSTER. Distinct from any instalment's own art by design — a series card is the
-  // Netflix-style tile for the whole run, and the three live multi-part works on the site
-  // show why one cannot be borrowed from an instalment: the two Halfway Around the Moon
-  // records share a byte-identical cover (same coverHash), the two Beta Princess parts do
-  // not, and neither pair has anything that reads as a poster for the series.
+  // Netflix-style tile for the whole run, and the multi-part works on the site show why one
+  // cannot be borrowed from an instalment: parts of one work have shipped with byte-identical
+  // covers (same coverHash) or with unrelated ones (the two Beta Princess parts), and neither
+  // reads as a poster for the series.
   coverUrl: 'string|null',
   status: 'enum:SERIES_STATUSES',
   addedAt: 'integer',

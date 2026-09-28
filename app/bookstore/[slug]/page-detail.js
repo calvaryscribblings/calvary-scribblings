@@ -18,7 +18,7 @@ import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
 // tell the preload which rung this board will draw. See app/lib/bookstore/board.js.
 import { DETAIL_BOARD_WIDTH } from '../../lib/bookstore/board';
 import BuyButton from '../components/BuyButton';
-import { BUY_CSS } from '../components/buyButtonCSS';
+import { BUY_CSS, GHOST_CSS } from '../components/buyButtonCSS';
 // W22 — the + after the readership line. See ../components/Desiderata.js.
 import { PageMark, DESIDERATA_CSS } from '../components/Desiderata';
 import { truncate, formatCatalogueNumber } from '../components/fields';
@@ -314,8 +314,7 @@ export default function BookDetailClient({ params, seed = null }) {
              buyButtonCSS.js's BUY_CSS, shared with the Desiderata room so the button's styles live
              in one place. Byte for byte the rules that stood here. */
           ${BUY_CSS}
-          .bd-sample{background:rgba(201,164,76,.04);border-color:rgba(201,164,76,.4);color:#c9a44c;transition:all .25s}
-          .bd-sample:hover{background:rgba(201,164,76,.1);border-color:rgba(201,164,76,.7)}
+          ${GHOST_CSS}
 
           /* THE ROW HOLDS THE PAIR AND NOTHING ELSE.
              align-items:flex-start, not center: the two controls are now the same height,

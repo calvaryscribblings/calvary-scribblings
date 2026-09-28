@@ -478,6 +478,12 @@ jobs:
       # Its own port (4327). It claimed 4325 until R11.17 and the territory suite above has held
       # 4325 since R8.4 — a clash that could not bite while these suites never shared a job, and
       # this step is what would have made it bite. See the header of the copy config.
+      # W27 — the redrawn /membership: level rows, equal actions, no dash-first line and no
+      # sideways scroll at seven widths, the h1 on two lines, naira set in Cormorant.
+      - name: Membership page layout (the drawing, measured)
+        run: npx playwright test -c tests/membership/playwright.layout.config.mjs
+        if: ${{ !cancelled() }}
+
       - name: Membership copy matrix (3 currencies × 2 intervals × 3 cards)
         run: npx playwright test -c tests/membership/playwright.copy.config.mjs
         if: ${{ !cancelled() }}

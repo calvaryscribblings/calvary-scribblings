@@ -2,13 +2,12 @@
 //
 // POST /api/bookstore/stripe-webhook
 //
-// Ported in R5 from workers/stripe-webhook/src/index.js, which was itself rescued in
-// 8752e04 from a stash where it had sat unversioned since May. That worker was written
-// for the retired Dead End paywall and wrote purchases/{uid}/{slug}. Everything it got
-// right about Stripe and Google is preserved here verbatim — the signature verification,
-// the PEM normalisation, the RS256 service-account token minting, and the response
-// policy. What changed is the target node, the identity fields, and the event set.
-// workers/stripe-webhook/ stays in the tree as the archival source; it is not deployed.
+// Ported in R5 from an earlier standalone worker (rescued in 8752e04; removed from the tree in
+// W27 by ruling 113 — its source is in git history). That worker wrote purchases/{uid}/{slug}
+// for a retired paywall. Everything it got right about Stripe and Google is preserved here
+// verbatim — the signature verification, the PEM normalisation, the RS256 service-account
+// token minting, and the response policy. What changed is the target node, the identity
+// fields, and the event set.
 //
 // Architecture:
 //   1. Verify the Stripe-Signature header against STRIPE_WEBHOOK_SECRET using HMAC-SHA256

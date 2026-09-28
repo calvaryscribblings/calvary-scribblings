@@ -69,12 +69,12 @@ const CENTRE = buildColumn(
 );
 const RIGHT = buildColumn(
   [
-    'Halfway Around the Moon',
+    'Beyond the Metered Grid',
     'The Space Between Words',
     'Till Morning Comes',
     'The Mind Reader',
     'Asleep with the Sun',
-    'Halfway Around the Moon',
+    'What the Light Remembers',
   ],
   4
 );

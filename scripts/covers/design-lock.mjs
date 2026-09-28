@@ -52,7 +52,7 @@ export const PROBES = Object.freeze([
   { slug: 'probe-flash',     title: 'Odeluwa', author: 'Chimamanda Adichie', category: 'flash',     subcategory: 'Horror' },
   { slug: 'probe-inspiring', title: 'Odeluwa', author: 'Chimamanda Adichie', category: 'inspiring', subcategory: 'Faith' },
   { slug: 'probe-news',      title: 'Odeluwa', author: 'Chimamanda Adichie', category: 'news',      subcategory: 'Updates' },
-  { slug: 'probe-series',    title: 'Halfway Around the Moon', author: 'Ikenna Okpara', liveryKey: 'series', instalmentOrdinal: 1 },
+  { slug: 'probe-series',    title: 'Diary of a Lagos 9-5er', author: 'Ikenna Okpara', liveryKey: 'series', instalmentOrdinal: 1 },
 
   // ── every rung of the ladder, so a change to any of the six sizes moves a hash ────────
   { slug: 'probe-rung-186', title: 'Beyond Saving', author: 'A. N. Other', category: 'short', subcategory: 'Drama' },
