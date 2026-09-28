@@ -120,8 +120,8 @@ Don't paste either key anywhere else: not into Cloudflare, not into a chat, not 
 
 ### 6. Tell a session: "go live"
 
-> **Wednesday's branch, as re-cut in W27 (28 Sep):** `memberships-6b` = `cf5f6450` (prep) +
-> `be85cc82` (the switch), on main's `3d397964`. Wednesday's line is unchanged:
+> **Wednesday's branch, as re-cut in W27 (28 Sep):** `memberships-6b` = `3434d82b` (prep) +
+> `ff03a0ca` (the switch), on main's `3d397964`. Wednesday's line is unchanged:
 > `git merge --no-ff origin/memberships-6b`, followed by step 3.7 (see 6b below).
 
 **Books went live early, on 27 Sep (W20).** Rulings 52–54: both book rails go live on the
