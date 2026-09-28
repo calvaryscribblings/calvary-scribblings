@@ -22,6 +22,10 @@
 
 import { test, expect } from '@playwright/test';
 import { LAUNCH_NOTICE } from '../../app/lib/launch.js';
+// W25: the page renders one of two states, chosen at build time by this flag. The assertions
+// below follow it, so the suite holds on both sides of the switch (go-live 6b) rather than
+// pinning the pre-launch answer.
+import { MEMBERSHIPS_ON_SALE } from '../../app/lib/membershipPrices.js';
 
 // The selector's own labels, from CURRENCY_LABELS in app/lib/currency.js — '£ GBP', not 'GBP'.
 // The symbol is part of the button text, and a test that matched on the code alone found
@@ -106,8 +110,14 @@ test('short answers ship as three pairs, and the writers-pay question is absent'
 });
 
 test('both boxes lost their headings and kept their sentences', async ({ page }) => {
-  await expect(page.locator('.mb-notice-p')).toContainText(LAUNCH_NOTICE);
-  await expect(page.locator('.mb-notice-p')).toContainText('Everything on this page is the real price');
+  if (!MEMBERSHIPS_ON_SALE) {
+    await expect(page.locator('.mb-notice-p')).toContainText(LAUNCH_NOTICE);
+    await expect(page.locator('.mb-notice-p')).toContainText('Everything on this page is the real price');
+  } else {
+    // On sale, the pre-launch box is gone — and so is its sentence, anywhere on the page.
+    await expect(page.locator('.mb-notice')).toHaveCount(0);
+    await expect(page.locator('body')).not.toContainText(LAUNCH_NOTICE);
+  }
   // RULING 108 (W27): the founding box is retired with every reader-facing mention of a
   // founding price. Not hidden — gone, and no rendered text on the page says "founding".
   await expect(page.locator('.mb-founding, .mb-founding-p')).toHaveCount(0);
@@ -190,11 +200,21 @@ for (const { code: currency, button } of CURRENCIES) {
       await expect(weekPass).toHaveCount(currency === 'NGN' ? 1 : 0);
       await expect(page.locator('.mb-card-n', { hasText: 'DAY PASS' })).toHaveCount(1);
 
-      // NO BUY AFFORDANCE, in any state. MEMBERSHIPS_ON_SALE is false.
-      await expect(page.locator('button', { hasText: /CHOOSE|BUY THE/ })).toHaveCount(0);
-      await expect(page.locator('.mb-btn')).toHaveCount(0);
-      // Every card's CTA slot carries the launch notice instead.
-      await expect(page.locator('.mb-flat').first()).toHaveText(LAUNCH_NOTICE);
+      if (!MEMBERSHIPS_ON_SALE) {
+        // NO BUY AFFORDANCE, in any state, while the store is shut.
+        await expect(page.locator('button', { hasText: /CHOOSE|BUY THE/ })).toHaveCount(0);
+        await expect(page.locator('.mb-btn')).toHaveCount(0);
+        // Every card's CTA slot carries the launch notice instead.
+        await expect(page.locator('.mb-flat').first()).toHaveText(LAUNCH_NOTICE);
+      } else {
+        // ON SALE (a signed-out reader): one CHOOSE per paid tier, one BUY per pass this
+        // currency offers, and no launch notice in any CTA slot.
+        await expect(page.locator('button', { hasText: /^CHOOSE GOLD$/ })).toHaveCount(1);
+        await expect(page.locator('button', { hasText: /^CHOOSE PLATINUM$/ })).toHaveCount(1);
+        await expect(page.locator('button', { hasText: /^BUY THE DAY PASS$/ })).toHaveCount(1);
+        await expect(page.locator('button', { hasText: /^BUY THE WEEK PASS$/ })).toHaveCount(currency === 'NGN' ? 1 : 0);
+        await expect(page.locator('.mb-flat')).toHaveCount(0);
+      }
     });
   }
 }

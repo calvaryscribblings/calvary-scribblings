@@ -13,9 +13,17 @@
 // being checked.
 
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { LAUNCH_DATE_LABEL, OPENS_SHORT } from '../../app/lib/launch.js';
 
-const STATE = process.env.MEMBERSHIP_STATE || 'pre';
+// W25: with no MEMBERSHIP_STATE, the state is the one the SOURCE carries — the constant in
+// app/links/page.js that built out/. It used to default to 'pre', which pinned the pre-launch
+// answer: the launch commit (6b) would have reddened this for the right reason with a message
+// that reads like a bug. The env override stays for running one state against the other build.
+const LAUNCHED = /const MEMBERSHIP_LAUNCHED = (true|false);/
+  .exec(readFileSync(new URL('../../app/links/page.js', import.meta.url), 'utf8'))?.[1];
+if (!LAUNCHED) throw new Error('app/links/page.js no longer declares MEMBERSHIP_LAUNCHED as a boolean');
+const STATE = process.env.MEMBERSHIP_STATE || (LAUNCHED === 'true' ? 'post' : 'pre');
 
 // The deck's two entries (§10), verbatim. The em dash and the arrow are part of the string.
 const ENTRY = {

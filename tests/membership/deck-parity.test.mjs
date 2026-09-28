@@ -39,6 +39,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { MEMBERSHIPS_ON_SALE } from '../../app/lib/membershipPrices.js';
 
 const ROOT = new URL('../../', import.meta.url);
 const DECK_PATH = fileURLToPath(new URL('audit/membership-copy-deck.md', ROOT));
@@ -51,11 +52,18 @@ const PAGE_PATH = fileURLToPath(new URL('out/membership.html', ROOT));
 // copy should not have to touch this file, but losing copy should have to.
 // The deck holds 46 blockquote lines today: 38 asserted, 8 exempt. The floor sits a couple
 // below 38 so ordinary copy edits do not have to touch this file, while a gutted deck does.
-const MIN_ASSERTED = 36;
+// W27: 35. Ruling 108 retired one asserted line (the founding box), and the {{pre-launch}} marker
+// moves the pre-launch line out of this count into its own both-states check. Two lines left the
+// asserted set deliberately; neither is copy lost by accident.
+const MIN_ASSERTED = 35;
 const MAX_EXEMPT = 8;
 
 // ── the deck ─────────────────────────────────────────────────────────────────────────────
 const EXEMPT_RE = /\{\{not-asserted:\s*([^}]*)\}\}/;
+// W25: a line the page carries ONLY while memberships are not on sale (the pre-launch box). It is
+// not an exemption — it is asserted in both states: present while shut, ABSENT once open, so the
+// pre-launch sentence can neither vanish early nor outlive the switch. See the deck's §0.
+const PRELAUNCH_RE = /\{\{pre-launch\}\}/;
 
 // Markdown emphasis is presentation, and the page sets it with real tags: the deck's
 // `The *Calvary Scribblings Series*, from October` ships as `The <em>…</em>, from October`,
@@ -73,6 +81,7 @@ function readDeck() {
   const src = readFileSync(DECK_PATH, 'utf8');
   const asserted = [];
   const exempt = [];
+  const prelaunch = [];
   let section = '(preamble)';
 
   for (const [i, line] of src.split('\n').entries()) {
@@ -85,6 +94,10 @@ function readDeck() {
     if (!body) continue;                       // `>` on its own is a paragraph break
 
     const where = `${section} (deck line ${i + 1})`;
+    if (PRELAUNCH_RE.test(body)) {
+      prelaunch.push({ where, text: collapse(stripMarkdown(body.replace(PRELAUNCH_RE, ''))) });
+      continue;
+    }
     const marker = EXEMPT_RE.exec(body);
     if (marker) {
       exempt.push({ where, reason: marker[1].trim(), text: collapse(stripMarkdown(body.replace(EXEMPT_RE, ''))) });
@@ -92,7 +105,7 @@ function readDeck() {
     }
     asserted.push({ where, text: collapse(stripMarkdown(body)) });
   }
-  return { asserted, exempt };
+  return { asserted, exempt, prelaunch };
 }
 
 // ── the built page ───────────────────────────────────────────────────────────────────────
@@ -131,7 +144,7 @@ function readPage() {
 }
 
 describe('/membership — the deck and the page say the same thing', () => {
-  const { asserted, exempt } = readDeck();
+  const { asserted, exempt, prelaunch } = readDeck();
   const page = readPage();
 
   test('the deck still holds a page worth of copy', () => {
@@ -154,6 +167,21 @@ describe('/membership — the deck and the page say the same thing', () => {
       assert.ok(e.reason.length > 0, `${e.where}: {{not-asserted:}} with no reason — §0 requires one.`);
     }
   });
+
+  // The pre-launch lines follow the switch: present while shut, absent once open.
+  test('the deck marks its pre-launch lines, and there are some', () => {
+    assert.ok(prelaunch.length >= 1, 'no {{pre-launch}} line in the deck — the pre-launch box went unmarked');
+  });
+  for (const { where, text } of prelaunch) {
+    test(`${where} — pre-launch, ${MEMBERSHIPS_ON_SALE ? 'ABSENT now that memberships are on sale' : 'present while memberships are shut'}`, () => {
+      assert.equal(
+        page.includes(text), !MEMBERSHIPS_ON_SALE,
+        MEMBERSHIPS_ON_SALE
+          ? `memberships are on sale and out/membership.html still says:\n\n  ${text}\n`
+          : `memberships are shut and out/membership.html does not say:\n\n  ${text}\n`,
+      );
+    });
+  }
 
   // One test per string, so a failure names the line rather than the file.
   for (const { where, text } of asserted) {
