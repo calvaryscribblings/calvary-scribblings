@@ -65,6 +65,8 @@ const TIER_NAME = { free: 'Free', gold: 'Gold', platinum: 'Platinum' };
 // no-break space, so a wrap can only ever fall AFTER the dash. The words do not change; only the
 // space before each dash does. tests/membership/page-layout.spec.mjs reads every rendered line.
 const nb = (s) => s.replace(/ (—|–)/g, '\u00a0$1');
+// …and the day stays with its month: "30 September" never breaks across the narrow action slot.
+const NOTICE = LAUNCH_NOTICE.replace(/(\d{1,2}) (?=[A-Z])/g, '$1\u00a0');
 
 // W27 — THE DRAWING'S NUMBERS. Every size on this page is a [desktop, phone] pair from the
 // approved drawing: the desktop figure holds at 1000px and wider, the phone figure at 600px and
@@ -396,7 +398,7 @@ export default function MembershipPage() {
         .mb-sec-p { max-width: 600px; margin: ${L(16, 14)} auto 0; font-size: ${L(18, 16.5)}; line-height: ${L(30, 27)}; color: ${C(0.6)}; text-wrap: pretty; }
         .mb-sec-close { margin: ${L(20, 18)} auto 0; font-style: italic; font-size: 16.5px; line-height: 24px; color: ${C(0.45)}; }
         .mb-passes { width: 760px; max-width: 100%; margin: ${L(34, 28)} auto 0; display: grid; grid-template-columns: 1fr auto; column-gap: 16px; text-align: left; }
-        .mb-passes .mb-card { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; padding: 22px 0 24px; border-top: 1px solid ${HAIR}; }
+        .mb-passes .mb-card { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; padding: 22px 0 24px; border-top: 1px solid ${HAIR}; text-align: left; }
         .mb-passes .mb-card:last-child { border-bottom: 1px solid ${HAIR}; }
         .mb-pass-l { grid-column: 1 / -1; }
         .mb-pass-top { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 16px; }
@@ -593,7 +595,7 @@ export default function MembershipPage() {
                 </ul>
                 <div className="mb-cta">
                   {!MEMBERSHIPS_ON_SALE ? (
-                    <div className="mb-flat">{LAUNCH_NOTICE}</div>
+                    <div className="mb-flat">{NOTICE}</div>
                   ) : isYours ? (
                     <a className="bd-cta bd-sample mb-btn" href="/settings">MANAGE</a>
                   ) : (
@@ -651,7 +653,7 @@ export default function MembershipPage() {
                     <div className="mb-price">{formatPrice(p.currency, p.amount)}</div>
                     <div className="mb-cta mb-pass-act">
                       {!MEMBERSHIPS_ON_SALE ? (
-                        <div className="mb-flat">{LAUNCH_NOTICE}</div>
+                        <div className="mb-flat">{NOTICE}</div>
                       ) : (
                         <button
                           type="button"
