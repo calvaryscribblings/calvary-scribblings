@@ -72,8 +72,15 @@ async function run(bt) {
       await page.emulateMedia({ media: 'screen' });
       // ── 4. copy ──────────────────────────────────────────────────────────────────────────
       const title = await page.locator('.rr-frame').getAttribute('title');
+      // The first section may be the cover (no text): turn until a section with prose is loaded.
+      const proseWords = () => frame.evaluate(() => Math.max(0, ...document.querySelector('foliate-view').renderer.getContents()
+        .map((c) => (c.doc.body.textContent || '').trim().split(/\s+/).length)));
+      for (let i = 0; i < 12 && (await proseWords()) < 120; i++) {
+        await frame.evaluate(() => document.querySelector('foliate-view').next()); await page.waitForTimeout(700);
+      }
       const cp = await frame.evaluate(() => {
-        const doc = document.querySelector('foliate-view').renderer.getContents()[0].doc;
+        const doc = document.querySelector('foliate-view').renderer.getContents()
+          .map((c) => c.doc).sort((a, b) => b.body.textContent.length - a.body.textContent.length)[0];
         const r = doc.createRange(); r.selectNodeContents(doc.body);
         const sel = doc.getSelection(); sel.removeAllRanges(); sel.addRange(r);
         const dt = new DataTransfer();
