@@ -81,7 +81,7 @@ test('a free reader, signed in: YOUR PLAN on Free, centred', async ({ page }) =>
   await expect(yours).toHaveCount(1, { timeout: 30000 });
   const dx = await yours.evaluate((y) => { const c = y.closest('.mb-card').getBoundingClientRect(); const b = y.getBoundingClientRect(); return (b.left + b.width / 2) - (c.left + c.width / 2); });
   expect(Math.abs(dx)).toBeLessThanOrEqual(0.5);
-  await expect(yours.locator('xpath=ancestor::*[contains(@class,"mb-card")][1]').locator('.mb-card-n')).toHaveText('FREE');
+  await expect.poll(() => yours.evaluate((y) => y.closest('.mb-card').querySelector('.mb-card-n').textContent)).toBe('FREE');
 });
 
 test('YOU’RE IN reads as ruled (108), with no founding clause, even for a founding member', async ({ page }) => {
