@@ -24,6 +24,14 @@ test('the frame\'s copyText is readerCopy.js\'s copyText, line for line', () => 
   assert.equal(body(hostFn), body(libFn));
 });
 
+test('ruling 104: a house-authored title drops "by …"; every other title keeps it', () => {
+  assert.equal(creditLine({ title: 'After the Fact', author: 'Calvary Scribblings' }), '— from After the Fact · Calvary Scribblings');
+  assert.equal(creditLine({ title: 'After the Fact', author: '  calvary  scribblings. ' }), '— from After the Fact · Calvary Scribblings');
+  assert.equal(creditLine({ title: 'Mrs Dalloway', author: 'Virginia Woolf' }), '— from Mrs Dalloway by Virginia Woolf · Calvary Scribblings');
+  // A name that merely CONTAINS the house's is an author, not the house.
+  assert.equal(creditLine({ title: 'X', author: 'Calvary Scribblings Press Ltd' }), '— from X by Calvary Scribblings Press Ltd · Calvary Scribblings');
+});
+
 test('the credit line', () => {
   assert.equal(creditLine({ title: 'The Awakening', author: 'Kate Chopin' }), '— from The Awakening by Kate Chopin · Calvary Scribblings');
   assert.equal(creditLine({ title: 'After the Fact' }), '— from After the Fact · Calvary Scribblings');

@@ -86,7 +86,8 @@ const CHANGED = [
   ["2", "app/user/page.js", ">There’s no reader by that name</h1>", ">There’s no reader by that name.</h1>", 1],
   ["2", "app/open-pages/edit/[id]/page-client.js", "'Couldn’t save these changes'", "'Couldn’t save these changes.'", 1],
   ["2", "app/open-pages/edit/[id]/page-client.js", "'Hmm — that didn’t work'", "'Hmm — that didn’t work.'", 1],
-  ["2", "app/stories/[slug]/page-client.js", "Dead End is a collector's read\n", "Dead End is a collector's read.\n", 1],
+  // W26: the paywall heading "Dead End is a collector's read." left with Dead End itself (the
+  // story is deleted from the platform, and its paywall with it). Its row and heading went too.
   ["3", "app/components/AuthModal.js", "setSuccess('Verification email resent.')", "setSuccess('Verification email resent')", 1],
   ["3", "app/age-verified/page.js", "                Just a moment.\n", "                Just a moment\n", 1],
   ["3", "app/open-pages/new/page.js", "return 'No file selected.';", "return 'No file selected';", 1],
@@ -253,7 +254,7 @@ const HEADINGS = [
   'Something went wrong.', 'This book isn’t on the shelf.', 'This story isn&rsquo;t on your shelf.',
   'Your shelf is full.', 'More saved than your plan holds.', 'This post is gone.', 'There’s no reader by that name.',
   'It’s live.', 'We can’t publish this one.', 'That didn’t go through.', 'Couldn’t save these changes.',
-  'Hmm — that didn’t work.', 'Dead End is a collector\'s read.', 'Couldn’t open this instalment.',
+  'Hmm — that didn’t work.', 'Couldn’t open this instalment.',
 ];
 const FRAGMENTS = [
   'Verification email resent', 'Just a moment', 'No file selected', 'Nothing to preview yet', 'No stories published yet',

@@ -56,6 +56,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, rmSync, copyFileS
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startRig } from './fixtures/fault-rig.mjs';
+import { RESERVED_TITLE_SLUGS } from '../../app/lib/bookstore/schema.js';
 
 const run = promisify(execFile);
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -253,10 +254,16 @@ describe('§6 — the shop whose books do not open', () => {
   const BACKUP = join(ROOT, 'app/bookstore/[slug]/.page.js.pl12-backup');
   const OUT = join(ROOT, 'out');
 
+  // TITLE pages only. Since W22 out/bookstore/ also holds the two ROOMS — search.html and
+  // desiderata.html — which are static and build whatever the catalogue holds, so counting them
+  // read 3 where the sentinel alone was meant (red on main from W22 to W26). The rooms are named
+  // by the schema's own reserved list, so a room added later is excluded the same way.
   const countBookstorePages = () => {
     const dir = join(OUT, 'bookstore');
     if (!existsSync(dir)) return 0;
-    return readdirSync(dir).filter((f) => f.endsWith('.html')).length;
+    return readdirSync(dir)
+      .filter((f) => f.endsWith('.html') && !RESERVED_TITLE_SLUGS.includes(f.slice(0, -'.html'.length)))
+      .length;
   };
 
   // ⚠ RESTORE-FIRST. These two cases edit a real source file and put it back in after(). An

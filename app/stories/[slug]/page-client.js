@@ -61,67 +61,12 @@ async function getFirebaseAuth() { const { getAuth } = await import('firebase/au
 
 const FOUNDER_UID = 'XaG6bTGqdDXh7VkBTw4y1H2d2s82';
 
-const PAYWALL_SLUG = 'dead-end-a-halfway-around-the-moon-story';
-
 // Prose entrance. The body waits for the story data AND the webfonts before it moves:
 // a Cormorant swap landing mid-entrance is what made the old reveal read as dumped.
 const PROSE_ENTER_MS = 650;
 // ...but a slow font CDN never holds the prose hostage. Measured from storyReady.
 const PROSE_FONT_CAP_MS = 800;
 
-function extractFirstParagraph(html) {
-  if (!html) return '';
-  const match = html.match(/<p\b[\s\S]*?<\/p>/i);
-  return match ? match[0] : '';
-}
-
-// W20 (27 Sep 2026, Ikenna): Dead End is no longer sold. The price and the button are gone and
-// its Payment Link is deactivated. Anyone who bought it keeps it: purchases/{uid}/{slug} below.
-function PaywallGate({ user, onSignIn }) {
-  return (
-    <div style={{ position: 'relative', marginTop: '0.5rem' }}>
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 80,
-        background: 'linear-gradient(to bottom, rgba(240,234,216,1) 0%, rgba(240,234,216,0) 100%)',
-        pointerEvents: 'none', zIndex: 2,
-      }} aria-hidden="true" />
-      <div style={{
-        position: 'relative', zIndex: 1,
-        background: '#06040e',
-        borderRadius: 16,
-        padding: '4.5rem 1.5rem 2.5rem',
-        margin: '0 auto',
-        maxWidth: 520,
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        textAlign: 'center', gap: '0.9rem',
-        boxShadow: '0 20px 60px -20px rgba(6,4,14,0.35)',
-      }}>
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <rect x="3" y="11" width="18" height="11" rx="2" />
-          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-        </svg>
-        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 20, color: '#f5f0e8', lineHeight: 1.3 }}>
-          Dead End is a collector's read.
-        </div>
-        <div style={{
-          fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 13, fontWeight: 500,
-          color: 'rgba(245,240,232,0.45)', marginTop: '0.4rem',
-          maxWidth: 320, lineHeight: 1.55,
-        }}>
-          {user ? (
-            <>Already purchased? It may take a moment to appear. Refresh the page.</>
-          ) : (
-            <>Already purchased? <a
-              href="#"
-              onClick={(e) => { e.preventDefault(); onSignIn(); }}
-              style={{ color: '#c9a84c', textDecoration: 'none', borderBottom: '1px solid rgba(201,168,76,0.4)' }}
-            >Sign in</a></>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function CommentUsername({ uid }) {
   const [username, setUsername] = useState(null);
@@ -946,8 +891,6 @@ export default function StoryPageClient({ params, initialStory = null }) {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [storyUser, setStoryUser] = useState(null);
-  const [hasPurchased, setHasPurchased] = useState(false);
-  const [purchaseChecked, setPurchaseChecked] = useState(false);
   const articleRef = useRef(null);
   const threadRef = useRef(null);
   const articleMetrics = useRef({ top: 0, height: 0 });
@@ -998,37 +941,6 @@ export default function StoryPageClient({ params, initialStory = null }) {
     return () => { cancelled = true; };
   }, [slug, storyUser, gatePreview]);
 
-  useEffect(() => {
-    if (slug !== PAYWALL_SLUG) {
-      setHasPurchased(false);
-      setPurchaseChecked(true);
-      return;
-    }
-    if (!storyUser) {
-      setHasPurchased(false);
-      setPurchaseChecked(true);
-      return;
-    }
-    let cancelled = false;
-    setPurchaseChecked(false);
-    (async () => {
-      try {
-        const db = await getDB();
-        const { ref, get } = await import('firebase/database');
-        const snap = await get(ref(db, `purchases/${storyUser.uid}/${PAYWALL_SLUG}`));
-        if (!cancelled) {
-          setHasPurchased(snap.exists());
-          setPurchaseChecked(true);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setHasPurchased(false);
-          setPurchaseChecked(true);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [slug, storyUser]);
 
   // W9: the bar's show/hide lives in <StoryBar> (app/lib/storyBar.js). This listener used to
   // set React state on EVERY scroll event — re-rendering this whole page and re-binding itself —
@@ -1554,20 +1466,7 @@ useEffect(() => {
     onSignIn={() => setShowAuthModal(true)}
   />
 </div>
-              {slug === PAYWALL_SLUG && !hasPurchased ? (
-                <>
-                  <div
-                    className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`}
-                    id="story-content"
-                    dangerouslySetInnerHTML={{ __html: extractFirstParagraph(story.content || '') }}
-                  />
-                  {purchaseChecked && (
-                    <PaywallGate user={storyUser} onSignIn={() => setShowAuthModal(true)} />
-                  )}
-                </>
-              ) : (
-                <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: tagParagraphs(tagSubheads(story.content || '<p>Content coming soon.</p>')) }} />
-              )}
+              <div className={`prose${isPoetry ? '' : ' has-dropcap'}${isVerse ? ' is-verse' : ''}`} id="story-content" dangerouslySetInnerHTML={{ __html: tagParagraphs(tagSubheads(story.content || '<p>Content coming soon.</p>')) }} />
               {/* W4 — THE PAGE'S OWN REFUSAL, before paint. Emitted only on a page whose build
                   inlined a full body that will lock (lockAtMs); it swaps #story-content for the
                   preview the moment the clock is past that instant, before the reader sees a
@@ -1614,16 +1513,9 @@ useEffect(() => {
             <main> on cream, three sections above. Story pages only — the
             immersive reader at /reader/[slug] renders ReaderGate, not this
             tree, so it cannot appear there. */}
-        {/* ⚠ NOT WHILE THE PAYWALL IS UP. One story on the shelf sells for money on this very
-            page (PAYWALL_SLUG, above), and when it is locked the reader is looking at a buy
-            button with AboutTheAuthor, this section and the comments all still rendered below
-            it. Offering an iPhone reader the app in that breath is exactly the 3.1.1
-            adjacency the round was told to avoid — the app shows no prices and no buy button,
-            so it cannot finish what the button in front of them starts.
-            A reader who HAS purchased, or who is on any of the other 171 stories, sees it:
-            they are at the end of something they just read, which is the moment the offer is
-            about. */}
-        {!(slug === PAYWALL_SLUG && !hasPurchased) && <AppInvite variant="panel" />}
+        {/* W26: the one paywalled story (Dead End) is deleted from the platform, and with it the
+            only page that ever sold on the story shelf — so the invitation shows on every story. */}
+        <AppInvite variant="panel" />
         <NewsletterInvite user={storyUser} />
         <CommentsSection slug={slug} onSignIn={() => setShowAuthModal(true)} />
         {showAuthModal && (

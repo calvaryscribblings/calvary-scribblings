@@ -58,12 +58,11 @@ account is a separate place, so nothing below has been done in it yet.
    - Website: `https://calvaryscribblings.co.uk`
    - Privacy policy and terms URLs, if you have them.
 3. **Settings → Business → Branding:** add the icon and the brand colour.
-4. **DUE NOW — books have been live since 27 Sep.** **Settings → Business → Customer emails**,
-   then under **Payments** turn **ON** *Successful payments* and *Refunds*. Stripe's receipt
-   is the buyer's only receipt at launch. *(W24, 28 Sep: Stripe's dashboard has moved; this
-   path was checked against Stripe's own docs that day. The path this step used to give no
-   longer exists.)*
-5. **Subscriptions — before memberships open on the 30th.** Three places now, not one
+4. ✅ **DONE** (Ikenna confirmed, 28 Sep). **Settings → Business → Customer emails**, then
+   under **Payments** turn **ON** *Successful payments* and *Refunds*. Stripe's receipt is the
+   buyer's only receipt at launch. *(W24, 28 Sep: Stripe's dashboard has moved; this path was
+   checked against Stripe's own docs that day.)*
+5. ✅ **DONE** (Ikenna confirmed, 28 Sep). **Subscriptions.** Three places now, not one
    *(paths checked against Stripe's own docs, 28 Sep)*:
    - **Billing → Revenue recovery → Retries:** Smart Retries **ON**; and when all retries
      for a payment fail, choose **Cancel the subscription**. ⚠ This one matters. Our code
@@ -79,6 +78,18 @@ account is a separate place, so nothing below has been done in it yet.
    - Don't create the webhook endpoints or the portal by hand. The session creates both from
      code, at the pinned API version (`2026-03-25.dahlia`, which is the account's own
      version).
+
+7. **Wednesday, once memberships are open (ruling 107): take down the six donation links.**
+   The six "Support Calvary Scribblings" links (£1, £2, £5, £10, £20, £50) are Stripe **Payment
+   Links**, not pages on the site: the web stopped showing them on 29 Apr 2026, so there is
+   nothing to hide in a deploy. After the 6b switch is live and the gate probe says OPEN:
+   ```
+   node scripts/money/donation-links.mjs                          # report: 6 ACTIVE
+   node scripts/money/donation-links.mjs --apply --i-mean-live    # deactivates the six
+   node scripts/money/donation-links.mjs                          # report: none active
+   ```
+   Deactivating is reversible, deletes nothing and moves no money; anyone holding an old link
+   (in the app, a bio, an email) is told it is no longer available.
 
 ### 4. Paystack, in **Live** mode (the Test/Live switch, top of the dashboard)
 
@@ -116,10 +127,9 @@ two halves.
 
 #### 6a. Books: done 27 Sep 2026 (W20)
 
-Steps 1, 2, 4 and 5 were done by Ikenna before the round, and so were 3.1–3.3 and 3.6. Step
-3.4 (the buyer's receipt emails) is **due now**: this doc sent Ikenna to a path Stripe has since
-moved, and W24 (28 Sep) gives the new one. Step 3.5 (subscription settings) waits for the 30th,
-and now lives in three places.
+Steps 1, 2, 4 and 5 were done by Ikenna before the round, and so were 3.1–3.4 and 3.6. *(W24
+had marked 3.4 as not done, on a wrong assumption; W26 restores this line. Ikenna confirmed on 28
+Sep that 3.4 and 3.5 are both done.)*
 
 - **Keys.** Both are live keys. Stripe's belongs to `acct_…nEB3LO`, the live *Calvary Media UK
   Ltd.* account (charges and payouts enabled). Paystack's belongs to integration `1950328`,
@@ -130,9 +140,9 @@ and now lives in three places.
   card book buyer would also have been given Dead End. Ikenna's ruling: Dead End's paywall
   goes. The endpoint is deleted, the Dead End Payment Link deactivated, the worker deleted
   (nothing else called it), and the price and button taken off the story page. Its one buyer
-  keeps it: their record under `purchases/` is untouched, and the page still reads it. Dead
-  End itself is unpublished (`published: false`), so its page is currently a 404 for
-  everyone. That predates W20 and is Ikenna's call.
+  kept it then. **W26 (28 Sep): Dead End is deleted from the platform by Ikenna's ruling.** The
+  one purchase was his own, so its record went with it, and the story page's paywall code is
+  gone. Backup in `~/calvary-backups/w26/`.
 - **Webhooks.** `scripts/money/stripe-webhooks.mjs --i-mean-live` created **both** live
   endpoints, books and memberships, at `2026-03-25.dahlia`. The memberships endpoint is safe
   before the 30th, because the site can't open a live membership checkout (they all answer

@@ -22,12 +22,22 @@ export const PRINT_LINE = 'Books in the Reading Room can’t be printed.';
 // RULED as a number (93): 50 words.
 export const COPY_MAX_WORDS = 50;
 
-/** DRAFT — "— from {Title} by {Author} · Calvary Scribblings". Ikenna rules the wording. */
+export const HOUSE_NAME = 'Calvary Scribblings';
+
+/** Is this author the house itself? Case, spacing and stray punctuation aside. */
+export const isHouseAuthor = (author) =>
+  typeof author === 'string' && author.toLowerCase().replace(/[^a-z]+/g, ' ').trim() === HOUSE_NAME.toLowerCase();
+
+/**
+ * DRAFT — "— from {Title} by {Author} · Calvary Scribblings". Ikenna rules the wording.
+ * RULED (104, 28 Sep): when the author IS the house, "by …" is dropped — "— from {Title} ·
+ * Calvary Scribblings" — so a house title never reads "by Calvary Scribblings · Calvary Scribblings".
+ */
 export function creditLine({ title, author } = {}) {
   const t = typeof title === 'string' ? title.trim() : '';
   const a = typeof author === 'string' ? author.trim() : '';
-  if (!t) return '— from Calvary Scribblings';
-  return a ? `— from ${t} by ${a} · Calvary Scribblings` : `— from ${t} · Calvary Scribblings`;
+  if (!t) return `— from ${HOUSE_NAME}`;
+  return a && !isHouseAuthor(a) ? `— from ${t} by ${a} · ${HOUSE_NAME}` : `— from ${t} · ${HOUSE_NAME}`;
 }
 
 /**
