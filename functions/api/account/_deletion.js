@@ -63,7 +63,7 @@ export const STEPS = ['membership', 'owned', 'storage', 'auth'];
 
 // Every top-level node keyed directly by the reader's uid that the ENDPOINT deletes whole.
 // memberships, bookstore_purchases, purchases are KEPT (accounting); rate_limits is keyed by
-// window, not uid. Asserted against the rules file by tests/account/plan.test.mjs, so a new
+// window, not uid. Asserted against the rules file by tests/account/deletion.test.mjs, so a new
 // uid-keyed node cannot be added to the rules without a decision here.
 export const OWNED_NODES = [
   'users', 'users_private', 'user_search', 'push_tokens', 'leaderboard', 'blocked_users',

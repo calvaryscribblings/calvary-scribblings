@@ -381,7 +381,7 @@ const CommentNode = React.memo(function CommentNode({
   replyTo, replyText, editingId, editText, menuId, posting,
   setReplyTo, setReplyText, setEditingId, setEditText, setMenuId,
   toggleCommentReaction, postComment, editComment, deleteComment,
-  setExpandedComment,
+  setExpandedComment, onSignIn,
 }) {
   const isOwn = user?.uid === comment.authorUid;
   const children = comments.filter(c => c.parentId === comment.id).sort((a, b) => a.createdAt - b.createdAt);
@@ -397,7 +397,7 @@ const CommentNode = React.memo(function CommentNode({
             replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
             setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
             toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
-            setExpandedComment={setExpandedComment}
+            setExpandedComment={setExpandedComment} onSignIn={onSignIn}
           />
         ))}
       </div>
@@ -478,7 +478,11 @@ const CommentNode = React.memo(function CommentNode({
             activeMap={commentReactions[comment.id]}
             onToggle={(key) => toggleCommentReaction(comment.id, key, comment.authorUid)}
             canReact={!!user}
-            trailing={user && <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>}
+            // Ikenna's 27 Sep parity ruling: a signed-out reader sees Reply too, as the app shows
+            // it, and the tap opens the sign-in prompt in place rather than doing nothing.
+            trailing={user
+              ? <button className="cs-reply-btn" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>{replyTo === comment.id ? 'Cancel' : 'Reply'}</button>
+              : <button className="cs-reply-btn" onClick={() => onSignIn?.()}>Reply</button>}
           />
           {replyTo === comment.id && (
             <div className="cs-reply-compose">
@@ -498,6 +502,11 @@ const CommentNode = React.memo(function CommentNode({
 });
 
 function CommentsSection({ slug, onSignIn }) {
+  // Stable across renders, so the memoised CommentNode and the reaction callback do not churn when
+  // the page hands down a fresh arrow.
+  const signInRef = useRef(onSignIn);
+  useEffect(() => { signInRef.current = onSignIn; }, [onSignIn]);
+  const requireSignIn = useCallback(() => { signInRef.current?.(); }, []);
   const [user, setUser] = useState(null);
   const [userAvatarUrl, setUserAvatarUrl] = useState(null);
   const [comments, setComments] = useState([]);
@@ -567,7 +576,8 @@ function CommentsSection({ slug, onSignIn }) {
   }, [slug, user]);
 
   const toggleCommentReaction = useCallback(async (commentId, type, commentAuthorUid) => {
-    if (!user) return;
+    // Signed out, a heart or a fire opens the sign-in prompt (27 Sep parity ruling). Nothing is written.
+    if (!user) { requireSignIn(); return; }
     const key = `${commentId}:${type}`;
     if (reactingRef.current.has(key)) return;
     reactingRef.current.add(key);
@@ -631,7 +641,7 @@ function CommentsSection({ slug, onSignIn }) {
         });
       } catch (e) { console.error('Reaction notification error:', e); }
     }
-  }, [user, slug, commentReactions, comments]);
+  }, [user, slug, commentReactions, comments, requireSignIn]);
 
   const postComment = useCallback(async (commentText, parentId = null) => {
     if (!commentText.trim() || !user) return;
@@ -817,7 +827,7 @@ function CommentsSection({ slug, onSignIn }) {
                 replyTo={replyTo} replyText={replyText} editingId={editingId} editText={editText} menuId={menuId} posting={posting}
                 setReplyTo={setReplyTo} setReplyText={setReplyText} setEditingId={setEditingId} setEditText={setEditText} setMenuId={setMenuId}
                 toggleCommentReaction={toggleCommentReaction} postComment={postComment} editComment={editComment} deleteComment={deleteComment}
-                setExpandedComment={setExpandedComment}
+                setExpandedComment={setExpandedComment} onSignIn={requireSignIn}
               />
             </React.Fragment>
           ))}

@@ -25,6 +25,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolveFixture } from './fixture-story.mjs';
 import { DICT_SOURCE } from '../../app/lib/dictionary.js';
+import { PRINT_LINE, COPY_MAX_WORDS } from '../../app/lib/readerCopy.js';
 
 // Top-level await: Playwright awaits a spec module while collecting it, so this runs once,
 // before any test body, and its log lands at the head of the run output. A throw here fails
@@ -577,6 +578,38 @@ test('a defined word opens the Reading Room modal, sourced and anchored', async 
   console.log(`\n=== definition modal ===\nword "${word}"\n${(await modal.innerText()).replace(/\n+/g, ' / ')}\n`);
 });
 
+// RULING 102 — a headword that is also a form of another word shows BOTH, each under its own
+// heading in the modal's existing type. Staged: every shard answers with a tapped word that has
+// an entry of its own AND an exception pointing elsewhere, so the grouping is what is on test.
+test('a word that is also a form of another shows both groups, each with its heading', async ({ page }) => {
+  await openStory(page);
+  let tapped = null;
+  await stubShards(page, (route) => {
+    const body = {};
+    if (tapped) {
+      body[tapped] = { s: [['n', 'the tapped word\'s own sense']], x: { v: ['zzbase'] } };
+      body.zzbase = { s: [['n', 'a noun sense that must not show'], ['v', 'the base, as a verb']] };
+    }
+    return route.fulfill({ status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  });
+  // The word is only known once selected; find it first, then tap.
+  const frame = page.frames().find((fr) => fr.url().includes('/reading-room.html'));
+  tapped = (await frame.evaluate(() => {
+    const doc = document.querySelector('foliate-view').renderer.getContents()[0].doc;
+    const p = doc.querySelector('p') || doc.body;
+    return /\b[A-Za-z]{4,}\b/.exec(p.textContent)[0];
+  })).toLowerCase();
+  await defineAWord(page);
+
+  const heads = page.locator('.rr-define-word');
+  await expect(heads).toHaveCount(2, { timeout: 15000 });
+  await expect(heads.nth(0)).toHaveText(tapped);
+  await expect(heads.nth(1)).toHaveText('zzbase');
+  await expect(page.locator('.rr-define-group').nth(1)).toContainText('the base, as a verb');
+  await expect(page.locator('.rr-define')).not.toContainText('must not show');
+  await expect(page.locator('.rr-define-src')).toHaveText(DICT_SOURCE);
+});
+
 test('the modal pins the chrome and closes on Escape, like any panel', async ({ page }) => {
   await openStory(page);
   const word = await defineAWord(page);
@@ -625,4 +658,50 @@ test('a dictionary that never answers ends as a miss, not a spinner', async ({ p
     .toBeVisible({ timeout: 15000 });
   await expect(page.locator('.rr-define-wait'), 'and the "Looking it up…" line must go').toHaveCount(0);
   console.log(`\n=== dictionary timeout ===\nword "${word}" resolved to the miss state\n`);
+});
+
+// ── W24 — PRINTING AND COPYING on the reader PAGE (ruling 93) ─────────────────
+// Also run in WebKit by playwright.print-copy.config.mjs (grep /W24/). The frame's half is
+// print-copy.spec.mjs; this is the page a reader actually prints, over the real book register.
+test('W24 print: the reader page prints one line instead of the book', async ({ page }) => {
+  await openStory(page);
+  await page.emulateMedia({ media: 'print' });
+  const printed = await page.evaluate(() => {
+    const frame = document.querySelector('.rr-frame');
+    const r = frame ? frame.getBoundingClientRect() : null;
+    return {
+      line: getComputedStyle(document.body, '::before').content,
+      frameLaidOut: !!(r && r.width && r.height),
+      visibleText: document.body.innerText.trim(),
+    };
+  });
+  console.log(`\n=== reader page, print media ===\n${JSON.stringify(printed)}\n`);
+  expect(printed.line).toBe(JSON.stringify(PRINT_LINE));
+  expect(printed.frameLaidOut, 'the book frame is not printed').toBe(false);
+  expect(printed.visibleText, 'nothing else on the page prints').toBe('');
+  await page.emulateMedia({ media: 'screen' });
+  await expect(page.locator('.rr-frame')).toBeVisible();
+});
+
+test('W24 copy: a long copy from the book is trimmed to fifty words and credited to this title', async ({ page }) => {
+  await openStory(page);
+  const title = await page.locator('.rr-frame').getAttribute('title');
+  const frame = page.frames().find((fr) => fr.url().includes('/reading-room.html'));
+  const out = await frame.evaluate(() => {
+    const doc = document.querySelector('foliate-view').renderer.getContents()[0].doc;
+    const range = doc.createRange();
+    range.selectNodeContents(doc.body);
+    const sel = doc.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    const dt = new DataTransfer();
+    const ev = new ClipboardEvent('copy', { clipboardData: dt, bubbles: true, cancelable: true });
+    doc.body.dispatchEvent(ev);
+    return { text: dt.getData('text/plain'), selectedWords: String(sel).trim().split(/\s+/).length };
+  });
+  const lines = out.text.split('\n');
+  const credit = lines.pop();
+  console.log(`\n=== reader page, copy ===\n${out.selectedWords} words selected → ${lines.join(' ').split(/\s+/).length} copied\n${credit}\n`);
+  expect(out.selectedWords).toBeGreaterThan(COPY_MAX_WORDS);
+  expect(lines.join('\n').trim().split(/\s+/)).toHaveLength(COPY_MAX_WORDS);
+  expect(credit.startsWith(`— from ${title}`), `the credit names the title: ${credit}`).toBe(true);
+  expect(credit.endsWith(' · Calvary Scribblings')).toBe(true);
 });

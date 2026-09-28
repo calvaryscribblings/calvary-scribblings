@@ -18,8 +18,8 @@ import { fileURLToPath } from 'node:url';
 import {
   lookupWord, glossaryLookup, normaliseWord, wordForms, isSingleWord,
   parseGlossary, serialiseGlossary, validateGlossary, dictionaryLookup,
-  morphyCandidates, shardFor, sanitiseKey, shardFileName, clearDictionaryCache,
-  HOUSE_SOURCE, DICT_SOURCE, DICT_VERSION, DICT_BASE, GLOSSARY_MAX_DEF,
+  morphyCandidates, shardFor, sanitiseKey, shardFileName, clearDictionaryCache, glossaryPhrases,
+  HOUSE_SOURCE, DICT_SOURCE, DICT_VERSION, DICT_BASE, GLOSSARY_MAX_DEF, MAX_SENSES,
 } from '../../app/lib/dictionary.js';
 
 const PUBLIC = fileURLToPath(new URL('../../public', import.meta.url));
@@ -164,15 +164,36 @@ test('the ORDER: glossary, then the house dictionary, then the calm miss', async
   expect(await lookupWord('zzyzx', { glossary: GLOSSARY, fetchImpl: dictFetch() })).toBeNull();
 });
 
-test('AT MOST THREE senses, in the source\'s order', async () => {
+test('every sense the shard carries for one headword, in the source\'s order — up to six', async () => {
+  // MINI's run: one noun, three verbs — all four shown (the shards already hold ≤3 per part of speech).
   const entry = await lookupWord('run', { fetchImpl: dictFetch() });
-  expect(entry.senses.map((s) => s.definition)).toEqual(['a score in baseball', 'move fast by using one\'s feet', 'flee']);
+  expect(entry.senses.map((s) => s.definition)).toEqual(['a score in baseball', 'move fast by using one\'s feet', 'flee', 'stretch out']);
+  expect(entry.groups).toHaveLength(1);
 });
 
-test('the literal form is tried FIRST, and morphy only when it is not a headword', async () => {
+test('SIX in all (ruling 102): dealt one group at a time, each part of speech kept', async () => {
+  const files = {
+    'manifest.json': { prefixes: ['s'] },
+    [shardFileName('s')]: {
+      saw: { s: [['n', 'n1'], ['n', 'n2'], ['n', 'n3'], ['v', 'v1']], x: { v: ['see'] } },
+      see: { s: [['n', 'the seat of a bishop'], ['v', 'sv1'], ['v', 'sv2'], ['v', 'sv3']] },
+    },
+  };
+  const e = await lookupWord('saw', { fetchImpl: dictFetch(files) });
+  expect(MAX_SENSES).toBe(6);
+  expect(e.senses).toHaveLength(6);
+  expect(e.groups.map((g) => g.word)).toEqual(['saw', 'see']);
+  // saw keeps its verb sense among its three; see is reached as a VERB only — never the bishop.
+  expect(e.groups[0].senses.map((x) => x.definition)).toEqual(['n1', 'n2', 'v1']);
+  expect(e.groups[1].senses.map((x) => x.definition)).toEqual(['sv1', 'sv2', 'sv3']);
+});
+
+test('the literal form is tried FIRST; a word with no entry of its own shows only what morphy finds', async () => {
   const lit = await lookupWord('run', { fetchImpl: dictFetch() });
   expect(lit.word).toBe('run');
+  expect(lit.groups.map((g) => g.word)).toEqual(['run']);
   const ran = await lookupWord('ran', { fetchImpl: dictFetch() });
+  expect(ran.groups.map((g) => g.word)).toEqual(['run']);
   expect(ran.word).toBe('run');
   expect(ran.form).toBe('ran');
   // Through the verb exception, so ONLY the verb's senses — never "a score in baseball".
@@ -301,7 +322,7 @@ test.describe('the built dictionary', () => {
       expect(e?.word).toBe(headword);
       expect(e.senses[0].partOfSpeech).toBe(pos);
       expect(e.senses.length).toBeGreaterThan(0);
-      expect(e.senses.length).toBeLessThanOrEqual(3);
+      expect(e.senses.length).toBeLessThanOrEqual(6);
       expect(e.source).toBe(DICT_SOURCE);
     });
   }
@@ -311,9 +332,34 @@ test.describe('the built dictionary', () => {
     expect(e.senses.every((s) => s.partOfSpeech === 'verb')).toBe(true);
   });
 
-  test('"leaves" shows both readings morphy found before either gets a second sense', async () => {
-    const e = await lookupWord('leaves', { fetchImpl: builtFetch() });
-    expect(e.senses.map((s) => s.partOfSpeech)).toEqual(['noun', 'noun', 'verb']);
+  // RULING 102 — a headword that is also a form of another word shows BOTH, its own entry first.
+  for (const [tapped, groups] of [
+    ['saw', ['saw', 'see']], ['left', ['left', 'leave']], ['felt', ['felt', 'feel']], ['rose', ['rose', 'rise']],
+    ['found', ['found', 'find']], ['stalls', ['stalls', 'stall']], ['leaves', ['leaf', 'leave']],
+  ]) {
+    test(`"${tapped}" shows ${groups.join(', then ')}`, async () => {
+      const e = await lookupWord(tapped, { fetchImpl: builtFetch() });
+      expect(e.groups.map((g) => g.word)).toEqual(groups);
+      expect(e.senses.length).toBeLessThanOrEqual(6);
+      for (const g of e.groups) {
+        const per = {};
+        for (const x of g.senses) per[x.partOfSpeech] = (per[x.partOfSpeech] || 0) + 1;
+        expect(Math.max(...Object.values(per))).toBeLessThanOrEqual(3);
+      }
+    });
+  }
+
+  test('"went" is not a headword, so it is go alone — and only the verb', async () => {
+    const e = await lookupWord('went', { fetchImpl: builtFetch() });
+    expect(e.groups.map((g) => g.word)).toEqual(['go']);
+    expect(e.senses.every((x) => x.partOfSpeech === 'verb')).toBe(true);
+  });
+
+  test('"saw" as see is the verb only; "leaves" keeps leave the verb', async () => {
+    const saw = await lookupWord('saw', { fetchImpl: builtFetch() });
+    expect(saw.groups[1].senses.every((x) => x.partOfSpeech === 'verb')).toBe(true);
+    const leaves = await lookupWord('leaves', { fetchImpl: builtFetch() });
+    expect(leaves.groups[1].senses.map((x) => x.partOfSpeech)).toContain('verb');
   });
 
   test('"raven" is never read as "rave"', async () => {
@@ -336,6 +382,36 @@ test.describe('the built dictionary', () => {
     const f = builtFetch();
     expect(await dictionaryLookup('cities', { fetchImpl: f })).toEqual(await lookupWord('cities', { fetchImpl: f }));
   });
+});
+
+// ── ruling 101: the credit line ─────────────────────────────────────────────
+test('the credit under a house-dictionary answer names both sources', async () => {
+  expect(DICT_SOURCE).toBe('Open English WordNet · Princeton WordNet');
+  expect((await lookupWord('raven', { fetchImpl: dictFetch() })).source).toBe(DICT_SOURCE);
+  expect((await lookupWord('harmattan', { glossary: GLOSSARY, fetchImpl: forbiddenFetch })).source).toBe(HOUSE_SOURCE);
+});
+
+// ── ruling 103: glossary phrases ─────────────────────────────────────────────
+const PHRASED = { ...GLOSSARY, 'grand isle': 'The resort island where the summer is spent.', 'middle passage': 'The crossing of the Atlantic in the hold of a slave ship.' };
+
+test('the frame is told the glossary\'s PHRASES and nothing else', () => {
+  expect(glossaryPhrases(PHRASED)).toEqual(['grand isle', 'middle passage']);
+  expect(glossaryPhrases(GLOSSARY)).toEqual([]);          // single words are not phrases
+  expect(glossaryPhrases(null)).toEqual([]);
+  expect(JSON.stringify(glossaryPhrases(PHRASED))).not.toContain('Atlantic');
+});
+
+test('both glossary phrases answer from the glossary, whatever the selection dragged along', async () => {
+  const a = await lookupWord('Grand Isle,', { glossary: PHRASED, fetchImpl: forbiddenFetch });
+  expect(a.source).toBe(HOUSE_SOURCE);
+  expect(a.senses[0].definition).toContain('resort island');
+  // A selection across a line break arrives with a newline between the words.
+  const b = await lookupWord('“Middle\npassage”', { glossary: PHRASED, fetchImpl: forbiddenFetch });
+  expect(b.senses[0].definition).toContain('Atlantic');
+});
+
+test('a two-word selection that is not in the glossary is never looked up', async () => {
+  expect(await lookupWord('grand house', { glossary: PHRASED, fetchImpl: forbiddenFetch })).toBeNull();
 });
 
 // ── the field: parse, serialise, validate ────────────────────────────────────

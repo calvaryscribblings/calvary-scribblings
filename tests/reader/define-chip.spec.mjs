@@ -204,6 +204,60 @@ test('a multi-word selection is declined — the chip is single-word only', asyn
   expect(await msgs(page, 'wordSelected'), 'and must not be reported as a word').toHaveLength(0);
 });
 
+// ── RULING 103: a glossary PHRASE gets the chip; no other multi-word selection does ──────────
+/** Select the first two words of the first paragraph's prose (after "Chapter N paragraph M. "). */
+async function selectTwoWords(page) {
+  return roomFrame(page).evaluate(() => {
+    const view = document.querySelector('foliate-view');
+    const doc = view.renderer.getContents()[0].doc;
+    const p = doc.querySelector('p');
+    const node = [...p.childNodes].find((n) => n.nodeType === 3 && n.nodeValue.trim().length > 40);
+    const m = /\. ([a-z]+ [a-z]+)/.exec(node.nodeValue);
+    const range = doc.createRange();
+    range.setStart(node, m.index + 2);
+    range.setEnd(node, m.index + 2 + m[1].length);
+    const sel = doc.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return m[1];
+  });
+}
+
+test('a two-word selection that IS a glossary phrase gets the chip, and Define carries the phrase', async ({ page }) => {
+  await openReader(page);
+  // What the parent sends: the phrase keys, lowercased, and never a definition.
+  const phrase = await roomFrame(page).evaluate(() => {
+    const p = document.querySelector('foliate-view').renderer.getContents()[0].doc.querySelector('p');
+    return /\. ([a-z]+ [a-z]+)/.exec(p.textContent)[1];
+  });
+  await post(page, { type: 'setPhrases', phrases: [phrase.toUpperCase().replace(' ', '  ')] });
+  await clearMsgs(page);
+
+  const picked = await selectTwoWords(page);
+  expect(picked).toBe(phrase);
+  await page.waitForTimeout(SETTLED);
+  const state = await chipState(page);
+  console.log(`\n=== glossary phrase ===\nselected "${picked}" → chip ${state.shown ? 'shown' : 'NOT shown'}\n`);
+  expect(state.shown, 'a glossary phrase must summon the chip').toBe(true);
+  const [sel] = await msgs(page, 'wordSelected');
+  expect(sel.word).toBe(phrase);
+
+  await roomFrame(page).locator('#define-chip').click();
+  await page.waitForTimeout(200);
+  const [def] = await msgs(page, 'defineWord');
+  expect(def?.word, 'Define must carry the whole phrase').toBe(phrase);
+});
+
+test('a two-word selection that is NOT a glossary phrase gets no chip', async ({ page }) => {
+  await openReader(page);
+  await post(page, { type: 'setPhrases', phrases: ['grand isle', 'middle passage'] });
+  await clearMsgs(page);
+  await selectTwoWords(page);
+  await page.waitForTimeout(SETTLED);
+  expect((await chipState(page)).shown, 'only the glossary\'s phrases are offered').toBe(false);
+  expect(await msgs(page, 'wordSelected')).toHaveLength(0);
+});
+
 test('collapsing the selection removes the chip', async ({ page }) => {
   await openReader(page);
   await selectWord(page);

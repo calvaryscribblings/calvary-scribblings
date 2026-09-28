@@ -58,16 +58,22 @@ account is a separate place, so nothing below has been done in it yet.
    - Website: `https://calvaryscribblings.co.uk`
    - Privacy policy and terms URLs, if you have them.
 3. **Settings → Business → Branding:** add the icon and the brand colour.
-4. **Settings → Customer emails:** turn **ON** *Successful payments* and *Refunds*. Stripe's
-   receipt is the buyer's only receipt at launch.
-5. **Settings → Billing → Subscriptions and emails**:
-   - **Manage failed payments:** Smart Retries **ON**.
-   - **If all retries for a payment fail:** choose **Cancel the subscription**. ⚠ This one
-     matters. Our code keeps a member's tier while Stripe is retrying a card. Only a
-     *cancellation* takes the tier away. If Stripe is set to "mark as unpaid" instead, a
-     member whose card is dead keeps their tier for ever.
-   - **Customer emails:** turn **ON** *Send emails about upcoming renewals*, *Send emails
-     when card payments fail* and *Send emails about expiring cards*.
+4. **DUE NOW — books have been live since 27 Sep.** **Settings → Business → Customer emails**,
+   then under **Payments** turn **ON** *Successful payments* and *Refunds*. Stripe's receipt
+   is the buyer's only receipt at launch. *(W24, 28 Sep: Stripe's dashboard has moved; this
+   path was checked against Stripe's own docs that day. The path this step used to give no
+   longer exists.)*
+5. **Subscriptions — before memberships open on the 30th.** Three places now, not one
+   *(paths checked against Stripe's own docs, 28 Sep)*:
+   - **Billing → Revenue recovery → Retries:** Smart Retries **ON**; and when all retries
+     for a payment fail, choose **Cancel the subscription**. ⚠ This one matters. Our code
+     keeps a member's tier while Stripe is retrying a card. Only a *cancellation* takes the
+     tier away. If Stripe is set to "mark as unpaid" instead, a member whose card is dead
+     keeps their tier for ever.
+   - **Billing → Revenue recovery → Emails:** turn **ON** *Send emails when card payments
+     fail* and *Send emails about expiring cards*.
+   - **Settings → Billing → Subscriptions and emails**, under **Email notifications and
+     customer management:** turn **ON** *Send emails about upcoming renewals*.
 6. **Developers → API keys:** click *Reveal live key*, copy the **Secret key** (`sk_live_…`),
    and go straight to step 5 below.
    - Don't create the webhook endpoints or the portal by hand. The session creates both from
@@ -110,8 +116,10 @@ two halves.
 
 #### 6a. Books: done 27 Sep 2026 (W20)
 
-Steps 1, 2, 4 and 5 were done by Ikenna before the round, and so were 3.1–3.4 and 3.6. Step
-3.5 (subscription settings) waits for the 30th.
+Steps 1, 2, 4 and 5 were done by Ikenna before the round, and so were 3.1–3.3 and 3.6. Step
+3.4 (the buyer's receipt emails) is **due now**: this doc sent Ikenna to a path Stripe has since
+moved, and W24 (28 Sep) gives the new one. Step 3.5 (subscription settings) waits for the 30th,
+and now lives in three places.
 
 - **Keys.** Both are live keys. Stripe's belongs to `acct_…nEB3LO`, the live *Calvary Media UK
   Ltd.* account (charges and payouts enabled). Paystack's belongs to integration `1950328`,
@@ -151,8 +159,8 @@ Steps 1, 2, 4 and 5 were done by Ikenna before the round, and so were 3.1–3.4 
 
 #### 6b. Memberships: 30 Sep, still to do
 
-Ikenna first does step 3.5 (subscription settings: Smart Retries, *Cancel the subscription*,
-the three customer emails). Then a session:
+Ikenna first does step 3.5 (subscription settings, in the three places it now lives: Smart
+Retries and *Cancel the subscription*, the two revenue-recovery emails, and the renewal email). Then a session:
 
 > Creates the 8 live founding Stripe Prices and the live portal configuration, and the 4 live
 > Paystack Plans. Pastes their ids into `prices.js` / `paystack-plans.js`. Flips

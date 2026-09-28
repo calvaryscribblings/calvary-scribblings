@@ -41,6 +41,11 @@ on:
       # morphy cases against the built shards, so a rebuilt dictionary is a reader change too.
       - 'app/lib/dictionary.js'
       - 'public/dict/**'
+      # W24 — printing and copying in the Reading Room (Chromium + WebKit), and the story page's
+      # signed-out responses (Reply, heart and fire open the sign-in prompt).
+      - 'app/lib/readerCopy.js'
+      - 'app/stories/**'
+      - 'tests/stories/**'
       # R9.3 — the drop-cap tagger and the stylesheet it hooks. Both are shared by the
       # story page AND the offline shelf reader, so a change to either is a reader change.
       - 'app/lib/dropcap.js'
@@ -250,6 +255,21 @@ jobs:
 
       - name: App harness (the React boundary)
         run: npx playwright test -c tests/reader/playwright.app.config.mjs
+        if: ${{ !cancelled() }}
+
+      # W24 (ruling 93) — the reader frame and the reader page print one line and credit a copy,
+      # proven in WebKit as well as Chromium. The only suite here that needs a second engine.
+      - name: Install WebKit
+        run: npx playwright install --with-deps webkit
+        if: ${{ !cancelled() }}
+      - name: Print and copy (Chromium + WebKit)
+        run: npx playwright test -c tests/reader/playwright.print-copy.config.mjs
+        if: ${{ !cancelled() }}
+
+      # W24 — signed out, Reply / heart / fire on a story's responses open AuthModal. Reads the
+      # live, public-read responses; the W17 firewall asserts nothing even tries to write.
+      - name: Story responses, signed out
+        run: npx playwright test -c tests/stories/playwright.config.mjs
         if: ${{ !cancelled() }}
 
       # R8.1 — the pre-launch gate, against the same out/ the step above built. Its own port

@@ -66,7 +66,7 @@ function DesiderataList() {
       {signedOut && (
         <div className="dr-note" data-testid="desiderata-signed-out">
           <p>{COPY.signedOut}</p>
-          <button type="button" className="rr-buy dr-signin" onClick={() => setShowAuth(true)}>{COPY.signIn}</button>
+          <button type="button" className="bd-cta bd-buy rr-buy dr-signin" onClick={() => setShowAuth(true)}>{COPY.signIn}</button>
         </div>
       )}
 

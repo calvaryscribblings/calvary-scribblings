@@ -19,8 +19,8 @@ export const DESIDERATA_ROUTE = '/bookstore/desiderata';
 export const SEARCH_ROUTE = '/bookstore/search';
 
 // ── THE WORDS ─────────────────────────────────────────────────────────────────────────────
-// RULED lines were ruled with the canvas "Book Store rooms", 27 Sept 2026. DRAFT lines await
-// Ikenna's word — docs/COPY-RULINGS.md carries both, and a draft changes there first.
+// Every line is RULED: the canvas "Book Store rooms", 27 Sept 2026, and the last five by ruling 89,
+// 28 Sept. docs/COPY-RULINGS.md carries them; a ruled line changes only with a new ruling.
 export const DESIDERATA_COPY = {
   // RULED (canvas, 27 Sept)
   name: 'Desiderata',
@@ -29,7 +29,7 @@ export const DESIDERATA_COPY = {
   added: 'Added to Desiderata. You’ll find it under the ribbon at the top of the shop.',
   searchHint: 'Titles, authors and genres on these shelves.',
   searchLabel: 'Search the shelves',
-  // DRAFT — awaiting Ikenna
+  // RULED (89, 28 Sept) — shipped as W22's drafts, ruled as written
   removed: 'Removed from Desiderata',
   failed: 'Couldn’t save that change. Try again.',
   empty: 'Nothing marked yet. The + under any book on the shelves adds it here.',

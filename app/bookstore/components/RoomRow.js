@@ -12,6 +12,7 @@
 import Link from 'next/link';
 import BoundBook, { BOUND_BOOK_CSS } from './BoundBook';
 import BuyButton from './BuyButton';
+import { BUY_CSS } from './buyButtonCSS';
 import { DesiderataMark } from './Desiderata';
 import { formatCatalogueNumber } from './fields';
 import { highlightParts } from '../../lib/searchIndex';
@@ -36,7 +37,7 @@ export function RoomRow({ title, genre, query = '', shop = false }) {
       </div>
       {shop && (
         <div className="rr-actions">
-          <span className="rr-buy-slot"><BuyButton title={title} className="rr-buy" /></span>
+          <span className="rr-buy-slot"><BuyButton title={title} className="bd-cta bd-buy rr-buy" /></span>
           <DesiderataMark title={title} size="room" marked />
         </div>
       )}
@@ -59,16 +60,11 @@ export const ROOM_ROW_CSS = `
   .rr-author{font-style:italic;font-size:16px;line-height:20px;color:rgba(240,234,216,.5)}
   .rr-actions{grid-area:actions;display:flex;align-items:center;gap:16px}
   .rr-buy-slot{display:flex;flex-direction:column;align-items:flex-end}
-  /* BUY: the existing BuyButton in the room's class — the book page's .bd-cta face at .64rem and
-     .16em, padded 12px 20px, at least 128px wide so every row's button is the same width. The
-     livery is .bd-buy's, stated again because the book page's stylesheet is not on this page. */
-  .rr-buy{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;min-width:128px;
-    font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;font-weight:600;line-height:1.5;
-    padding:12px 20px;border:1px solid transparent;border-radius:3px;cursor:pointer;font-style:normal;
-    background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;transition:filter .25s,opacity .25s}
-  .rr-buy:hover{filter:brightness(1.08)}
-  .rr-buy:disabled{cursor:progress;opacity:.6;filter:none}
-  .rr-buy[data-unavailable]{cursor:not-allowed;opacity:.55;background:none;border-color:rgba(201,164,76,.28);color:rgba(240,234,216,.55)}
+  /* BUY: the existing BuyButton, wearing the book page's own face and livery (.bd-cta .bd-buy,
+     from BUY_CSS — one place for the button's styles, W24). The room states only its SIZE: the
+     face at .64rem, padded 12px 20px, at least 128px wide so every row's button is the same. */
+  ${BUY_CSS}
+  .rr-buy{min-width:128px;font-size:.64rem;padding:12px 20px;font-style:normal}
   /* The disc, 16px after BUY. On the canvas the disc's button is a 44px box with the 28px disc
      centred in it and a -8px right margin, "so the disc's edge meets the column's edge" — the
      same box here, so the canvas's 16px and -8px mean what they meant there. */
@@ -82,10 +78,14 @@ export const ROOM_ROW_CSS = `
     .rr-title{font-size:20px;line-height:23px}
     .rr-author{font-size:15px;line-height:18px}
     /* CHOSEN: the app shows no BUY, so the canvas has no phone row. BUY and the disc move under
-       the author line, left-aligned with the text, 16px apart as DRAWN — so here the disc is its
-       28px face, with the 44px target around it as a pseudo-element. The 12px above the pair
-       and the 14px of row padding are chosen too. */
-    .rr-actions{justify-content:flex-start;margin-top:12px}
+       the author line, left-aligned with the text — so here the disc is its 28px face, with the
+       44px target around it as a pseudo-element. The 12px above the pair and the 14px of row
+       padding are chosen too.
+       RULED (95, 28 Sep): 24px of VISIBLE gap from BUY to the disc's face, as on wide screens
+       (there it is the 16px gap plus the 8px inset of the 28px face in its 44px box; here the
+       button is the face, so the gap is the whole 24). Measured at 360, 390 and 430 in
+       tests/bookstore/desiderata.spec.mjs. */
+    .rr-actions{justify-content:flex-start;margin-top:12px;gap:24px}
     .rr-buy-slot{align-items:flex-start}
     .rr-actions .ds-room{width:auto;height:auto;margin:0}
   }

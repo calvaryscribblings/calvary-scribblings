@@ -27,6 +27,14 @@
      document showing below the page on iOS. */
   html,body{height:100%;margin:0;overflow:hidden}
   foliate-view{display:block;width:100%;height:100%}
+  /* W24 (ruling 93): the frame prints ONE line instead of the book. The line is
+     app/lib/readerCopy.js's PRINT_LINE; tests/ci/w24-reader-print-copy.test.mjs holds them equal. */
+  @media print{
+    body>*{display:none !important}
+    html,body{height:auto;overflow:visible;background:#fff !important}
+    body::before{content:"Books in the Reading Room can’t be printed.";display:block;padding:2rem;
+      font-family:Georgia,serif;font-size:14pt;color:#000}
+  }
   #loading{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:100;transition:opacity .4s ease}
   #loading.hidden{opacity:0;pointer-events:none}
   #spinner{width:32px;height:32px;border:2px solid rgba(201,164,76,.2);border-top-color:#c9a44c;border-radius:50%;animation:spin .9s linear infinite}
@@ -115,6 +123,8 @@ function buildCSS(st) {
     /* html AND body: foliate samples the section document's background (body, falling back to
        documentElement) once per section load and paints its grid margins with it. Tinting both
        guarantees the margin gutters are paper, never the EPUB's own white. */
+    /* W24 (ruling 93): a section document printed on its own prints nothing. */
+    @media print{ body{ display:none !important; } }
     html{ background:${st.bg} !important; }
     body{ font-family:${face} !important; color:${st.fg} !important; background:${st.bg} !important; font-size:${px}px !important; }
     p, li, blockquote, dd { font-family:${face} !important; font-size:${px}px !important; line-height:${st.leading} !important;
@@ -730,11 +740,33 @@ function toHostRect(rect, doc) {
 // (app/lib/dictionary.js) because that is where the lookup happens and there must be one
 // authority for what a headword is. The host only decides whether to offer the chip, so
 // punctuation rides along untouched and the parent strips it.
+// RULED (103): a multi-word selection is offered Define ONLY when it is one of the title's glossary
+// PHRASES. The parent sends those phrases (setPhrases) and never the definitions, so this document
+// knows which phrases have an answer and nothing about what the answer is. The normalisation is
+// app/lib/dictionary.js's normaliseWord, repeated here because this page cannot import it; the
+// parent re-normalises with the real one before it looks anything up.
+let glossaryPhrases = new Set()
+function phraseKey(raw) {
+  return String(raw == null ? '' : raw)
+    .normalize('NFKC')
+    .replace(/[\u2018\u2019\u201B]/g, "'")
+    .replace(/[\u2010-\u2015]/g, '-')
+    .toLowerCase()
+    .replace(/^[^\p{L}\p{N}]+/u, '')
+    .replace(/[^\p{L}\p{N}]+$/u, '')
+    .replace(/'s$/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function selectionWord(raw) {
   const w = String(raw == null ? '' : raw).trim()
   if (!w || w.length > 60) return ''
-  if (/\s/.test(w)) return ''            // more than one word — the chip is single-word only
   if (!/\p{L}/u.test(w)) return ''       // a lone comma or numeral is not a word
+  if (/\s/.test(w)) {
+    // More than one word: the chip is single-word only, unless the phrase is the glossary's.
+    return glossaryPhrases.has(phraseKey(w)) ? w.replace(/\s+/g, ' ') : ''
+  }
   return w
 }
 
@@ -890,7 +922,34 @@ function settleSelection(doc) {
   } })
 }
 
+// ── W24: COPYING (ruling 93) ─────────────────────────────────────────────────
+// A copy of the book is at most COPY_MAX_WORDS words, credited on its own line. The rule and the
+// credit are app/lib/readerCopy.js's; the parent sends them (setCopyRule) and this applies them
+// with copyText's arithmetic. Selecting is untouched — only what reaches the clipboard changes.
+let copyRule = { credit: '— from Calvary Scribblings', maxWords: 50 }
+function copyText(selected, credit, maxWords) {
+  const text = String(selected == null ? '' : selected).trim()
+  if (!text) return ''
+  const re = /\S+/g
+  let m, n = 0, end = text.length
+  while ((m = re.exec(text))) {
+    n++
+    if (n === maxWords) { end = m.index + m[0].length; break }
+  }
+  return text.slice(0, end) + '\n' + credit
+}
+function onCopy(e, doc) {
+  let sel = null
+  try { sel = doc.getSelection() } catch (err) { sel = null }
+  const out = copyText(sel ? String(sel) : '', copyRule.credit, copyRule.maxWords)
+  if (!out || !e.clipboardData) return
+  e.clipboardData.setData('text/plain', out)
+  e.preventDefault()
+}
+
 function watchSelection(doc) {
+  try { doc.addEventListener('copy', (e) => onCopy(e, doc)) } catch (e) { /* noop */ }
+  try { doc.addEventListener('cut', (e) => onCopy(e, doc)) } catch (e) { /* noop */ }
   const onChange = () => {
     if (settleTimer) clearTimeout(settleTimer)
     settleTimer = setTimeout(() => settleSelection(doc), SELECT_SETTLE_MS)
@@ -1271,6 +1330,13 @@ window.addEventListener('message', async (e) => {
     // R7.4: the parent opened the definition modal, so the chip has done its job. Also the
     // register's way to retract it on any panel opening, since the chip must never sit on
     // top of a sheet.
+    case 'setCopyRule':
+      if (typeof d.credit === 'string' && d.credit) copyRule.credit = d.credit
+      if (Number.isFinite(d.maxWords) && d.maxWords > 0) copyRule.maxWords = d.maxWords
+      break
+    case 'setPhrases':
+      glossaryPhrases = new Set((Array.isArray(d.phrases) ? d.phrases : []).map(phraseKey).filter((p) => p.includes(' ')))
+      break
     case 'dismissChip':
       chipHold = false
       pendingWord = null

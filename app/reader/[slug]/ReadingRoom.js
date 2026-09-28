@@ -33,7 +33,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { findRibbonOnPage, ribbonEpsilonFor, RIBBON_MIN_SPAN } from '../../lib/ribbonGeometry';
-import { lookupWord } from '../../lib/dictionary';
+import { lookupWord, glossaryPhrases } from '../../lib/dictionary';
+import { PRINT_LINE, COPY_MAX_WORDS, creditLine } from '../../lib/readerCopy';
 // R11.22 — the two halves of a stored position: the shape written, and whether a stored CFI
 // belongs to the copy this session has open. Pure, and asserted in tests/bookstore/reading-pin.test.mjs.
 import { positionRecord, cfiIsOurs } from '../../lib/bookstore/reading-position';
@@ -218,16 +219,25 @@ function DefinePanel({ state, onClose }) {
           <div className="rr-define-miss">No definition found for &ldquo;{word}&rdquo;.</div>
         )}
 
-        {status === 'found' && (
-          <ol className="rr-define-senses">
-            {entry.senses.map((s, i) => (
-              <li key={i} className="rr-define-sense">
-                {s.partOfSpeech && <span className="rr-define-pos">{s.partOfSpeech}</span>}
-                <span className="rr-define-def">{s.definition}</span>
-              </li>
-            ))}
-          </ol>
-        )}
+        {/* RULED (102): one group per headword — "saw" is saw, then see. The first group's
+            heading is the one above; each later group carries its own, in the same type. */}
+        {status === 'found' && (entry.groups || [{ word: entry.word, senses: entry.senses }]).map((g, gi) => (
+          <div key={gi} className="rr-define-group">
+            {gi > 0 && (
+              <div className="rr-define-head rr-define-group-head">
+                <span className="rr-define-word">{g.word}</span>
+              </div>
+            )}
+            <ol className="rr-define-senses">
+              {g.senses.map((s, i) => (
+                <li key={i} className="rr-define-sense">
+                  {s.partOfSpeech && <span className="rr-define-pos">{s.partOfSpeech}</span>}
+                  <span className="rr-define-def">{s.definition}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ))}
 
         {sentence && <AnchoredQuote sentence={sentence} word={word} />}
 
@@ -353,6 +363,14 @@ function SearchPanel({ query, setQuery, results, truncated, searching, onPick, o
 const ROOM_CSS = `
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
+  /* W24 (ruling 93): the reader page prints ONE line instead of the book (Save as PDF included).
+     Everything on the page is hidden — the room, the site's chrome, the cookie notice. */
+  @media print{
+    body>*{display:none !important}
+    html,body{height:auto;background:#fff !important}
+    body::before{content:${JSON.stringify(PRINT_LINE)};display:block;padding:2rem;
+      font-family:Georgia,serif;font-size:14pt;color:#000}
+  }
   @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
   @keyframes fadeOpacity{from{opacity:0}to{opacity:1}}
   @keyframes blink{0%,100%{opacity:0.35}50%{opacity:0.9}}
@@ -474,6 +492,7 @@ const ROOM_CSS = `
   .rr-define-miss{font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:1.02rem;
     color:var(--rr-soft);opacity:.85;line-height:1.6;padding:.1rem 0 .5rem}
   .rr-define-senses{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.85rem}
+  .rr-define-group-head{margin:1.4rem 0 .8rem}
   .rr-define-sense{display:block;font-family:'Cormorant Garamond',Georgia,serif;font-size:1.04rem;line-height:1.62}
   .rr-define-pos{display:inline-block;font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.18em;text-transform:uppercase;
     color:var(--rr-accent);opacity:.85;margin-inline-end:.55rem;vertical-align:.16em}
@@ -810,6 +829,13 @@ export default function ReadingRoom({
   const postToFrame = useCallback((msg) => {
     try { iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin); } catch {}
   }, []);
+  // A glossary that arrives or changes after the frame said ready still reaches it (103).
+  useEffect(() => { postToFrame({ type: 'setPhrases', phrases: glossaryPhrases(glossary) }); }, [glossary, postToFrame]);
+  const metaRef = useRef(meta);
+  useEffect(() => {
+    metaRef.current = meta;
+    postToFrame({ type: 'setCopyRule', credit: creditLine(meta || {}), maxWords: COPY_MAX_WORDS });
+  }, [meta?.title, meta?.author, postToFrame]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Restore lookup (progress registers only) ─────────────────────────────────
   // Reads the CFI progress once and queues the restore target for the ready event.
@@ -1014,6 +1040,11 @@ export default function ReadingRoom({
       const d = e.data || {};
       if (d.type === 'ready') {
         setToc(Array.isArray(d.toc) ? d.toc : []);
+        // RULED (103): the frame learns the title's glossary PHRASES and nothing else, so the chip
+        // can offer Define on "grand isle" without the host ever holding a definition.
+        postToFrame({ type: 'setPhrases', phrases: glossaryPhrases(glossaryRef.current) });
+        // W24 (ruling 93): what a copy of this book carries — at most COPY_MAX_WORDS, and the credit.
+        postToFrame({ type: 'setCopyRule', credit: creditLine(metaRef.current || {}), maxWords: COPY_MAX_WORDS });
         postToFrame(stylesMsg(prefsRef.current));
         postToFrame({ type: 'setFlow', flow: prefsRef.current.flow });
         // WALL §7.14 — the host queues these when it is not ready yet; we never gate here.

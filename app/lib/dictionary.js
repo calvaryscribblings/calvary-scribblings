@@ -29,9 +29,9 @@
 
 /** Where an answer came from. Rendered verbatim at the foot of the modal. */
 export const HOUSE_SOURCE = 'House glossary · Calvary Scribblings';
-// DRAFT — Ikenna rules the wording. The licence (CC BY 4.0, with the Princeton WordNet notice)
-// requires a credit; the full text is served at /dict/en/<DICT_VERSION>/LICENSE.
-export const DICT_SOURCE = 'Open English WordNet';
+// RULED (101, 28 Sep 2026). The licence (CC BY 4.0, with the Princeton WordNet notice) asks for
+// credit to BOTH, so both are named. The full text is served at /dict/en/<DICT_VERSION>/LICENSE.
+export const DICT_SOURCE = 'Open English WordNet · Princeton WordNet';
 
 // The published dictionary this bundle reads. A folder, not a file: every shard in it is
 // immutable (cached for a year), so a rebuild that changes anything must bump this, and the
@@ -56,7 +56,23 @@ export function normaliseWord(raw) {
     .replace(/^[^\p{L}\p{N}]+/u, '')           // leading punctuation
     .replace(/[^\p{L}\p{N}]+$/u, '')           // trailing punctuation
     .replace(/'s$/, '')                        // the possessive is not a headword
+    .replace(/\s+/g, ' ')                      // W24: a glossary PHRASE may be selected across a line break
     .trim();
+}
+
+/**
+ * RULED (103): the multi-word keys of a title's glossary ("grand isle", "middle passage"). This is
+ * ALL the reading-room frame is told — the phrases, never the definitions — so the chip can offer
+ * Define for a selection that is one of them, and for no other multi-word selection.
+ */
+export function glossaryPhrases(glossary) {
+  if (!glossary || typeof glossary !== 'object') return [];
+  const out = [];
+  for (const k of Object.keys(glossary)) {
+    const w = normaliseWord(k);
+    if (w.includes(' ') && typeof glossary[k] === 'string' && !out.includes(w)) out.push(w);
+  }
+  return out.sort();
 }
 
 /** Is this one word? The chip is single-word only, so this is the gate the host uses too. */
@@ -111,6 +127,7 @@ export function glossaryLookup(glossary, raw) {
         word: normaliseWord(raw),
         phonetic: null,
         senses: [{ partOfSpeech: null, definition: hit }],
+        groups: [{ word: normaliseWord(raw), senses: [{ partOfSpeech: null, definition: hit }] }],
         source: HOUSE_SOURCE,
         house: true,
       };
@@ -125,7 +142,9 @@ export function glossaryLookup(glossary, raw) {
 
 export const POS_NAME = { n: 'noun', v: 'verb', a: 'adjective', r: 'adverb' };
 const POS_ORDER = ['n', 'v', 'a', 'r'];
-const MAX_SENSES = 3;
+// RULED (102): three senses per part of speech (the shards carry no more), and SIX in all, so a
+// word that is a headword and also a form of others never turns into a wall mid-sentence.
+export const MAX_SENSES = 6;
 
 /** A headword's shard key: lowercased, and every character outside a–z/0–9 read as '_'. */
 export function sanitiseKey(word) {
@@ -236,53 +255,84 @@ export async function dictionaryLookup(raw, { fetchImpl, base = DICT_BASE, cache
   const candidates = POS_ORDER.flatMap((pos) => morphyCandidates(word, pos).map((c) => ({ pos, ...c })));
   const [literal, ...found] = await Promise.all([entryFor(word), ...candidates.map((c) => entryFor(c.base))]);
 
-  // 1. THE LITERAL FORM FIRST. If the dictionary holds the word as tapped, that is the answer.
-  const lit = sensesOf(literal);
-  if (lit.length) return shape(word, [lit], word);
-
-  // 2. MORPHY, per part of speech, in WordNet's order. As in morph.c: the exception list wins for
-  //    that part of speech, and only when it has nothing do the rules run, first match taken.
+  // RULED (102): the tapped word's OWN entry comes first, when it has one — and then every word
+  // morphy says it may come from, in morphy's order. "saw" is saw, then see; "went" has no entry
+  // of its own, so it is go alone. One group per headword; a base reached in two parts of speech
+  // ("stalls" → stall the noun and stall the verb) is one group carrying both.
   const groups = [];
+  const add = (headword, senses) => {
+    if (!senses.length) return;
+    const g = groups.find((x) => x.word === headword);
+    if (!g) { groups.push({ word: headword, senses: senses.slice() }); return; }
+    for (const s of senses) if (!g.senses.includes(s)) g.senses.push(s);
+  };
+  add(word, sensesOf(literal));
+
+  // MORPHY, per part of speech, in WordNet's order. As in morph.c: the exception list wins for
+  // that part of speech, and only when it has nothing do the rules run, first match taken.
   for (const pos of POS_ORDER) {
-    const exc = (literal && literal.x && literal.x[pos]) || [];
+    const exc = ((literal && literal.x && literal.x[pos]) || []).filter((b) => b !== word);
     if (exc.length) {
       const entries = await Promise.all(exc.map((b) => entryFor(b)));
-      exc.forEach((b, i) => { const s = sensesOf(entries[i], pos); if (s.length) groups.push({ base: b, senses: s }); });
+      exc.forEach((b, i) => add(b, sensesOf(entries[i], pos)));
       continue;
     }
-    const i = candidates.findIndex((c, k) => c.pos === pos && sensesOf(found[k], pos).length);
+    const i = candidates.findIndex((c, k) => c.pos === pos && c.base !== word && sensesOf(found[k], pos).length);
     if (i < 0) continue;
     const c = candidates[i];
     if (c.then) {
       // The "-ful" rule: "boxesful" → box → the headword is "boxful", which must exist too.
-      const full = await entryFor(c.base + c.then);
-      const s = sensesOf(full, pos);
-      if (s.length) groups.push({ base: c.base + c.then, senses: s });
+      add(c.base + c.then, sensesOf(await entryFor(c.base + c.then), pos));
     } else {
-      groups.push({ base: c.base, senses: sensesOf(found[i], pos) });
+      add(c.base, sensesOf(found[i], pos));
     }
   }
   if (!groups.length) return null;
-  return shape(groups[0].base, groups.map((g) => g.senses), word);
+  return shape(groups, word);
 }
 
-// Three senses in all. One group (the usual case) gives its first three in the source's order.
-// Several ("leaves": leaf the noun, leave the verb) are dealt one at a time, so each reading the
-// morphology found is shown before any of them gets a second sense.
-function shape(headword, groups, form) {
-  const senses = [];
-  for (let round = 0; senses.length < MAX_SENSES; round++) {
+// A group's share, spread across its parts of speech ("leaves": leave the noun AND leave the verb,
+// not three nouns), then shown in the source's order. A group within its share is shown whole.
+function pick(senses, n) {
+  if (senses.length <= n) return senses;
+  const byPos = POS_ORDER.map((pos) => senses.map((x, i) => [x, i]).filter(([x]) => x[0] === pos)).filter((b) => b.length);
+  const chosen = [];
+  for (let round = 0; chosen.length < n; round++) {
     let any = false;
-    for (const g of groups) {
-      if (round < g.length && senses.length < MAX_SENSES) {
-        senses.push({ partOfSpeech: POS_NAME[g[round][0]] || null, definition: g[round][1] });
-        any = true;
-      }
-    }
+    for (const b of byPos) if (round < b.length && chosen.length < n) { chosen.push(b[round]); any = true; }
     if (!any) break;
   }
-  if (!senses.length) return null;
-  return { word: headword, form, phonetic: null, senses, source: DICT_SOURCE, house: false };
+  return chosen.sort((a, b) => a[1] - b[1]).map(([x]) => x);
+}
+
+// SIX senses in all, dealt one group at a time, so each headword the lookup found is shown before
+// any of them gets a further sense. Within a group the source's order is kept, and each part of
+// speech already carries at most three (the shards hold no more). A group dealt nothing is dropped.
+function shape(rawGroups, form) {
+  const take = rawGroups.map(() => 0);
+  let total = 0;
+  for (let progressed = true; progressed && total < MAX_SENSES;) {
+    progressed = false;
+    rawGroups.forEach((g, i) => {
+      if (total < MAX_SENSES && take[i] < g.senses.length) { take[i]++; total++; progressed = true; }
+    });
+  }
+  const groups = rawGroups
+    .map((g, i) => ({
+      word: g.word,
+      senses: pick(g.senses, take[i]).map(([pos, definition]) => ({ partOfSpeech: POS_NAME[pos] || null, definition })),
+    }))
+    .filter((g) => g.senses.length);
+  if (!groups.length) return null;
+  return {
+    word: groups[0].word,
+    form,
+    phonetic: null,
+    groups,
+    senses: groups.flatMap((g) => g.senses),      // flat, for any reader of the old shape
+    source: DICT_SOURCE,
+    house: false,
+  };
 }
 
 /**
@@ -304,6 +354,8 @@ export async function lookupWord(raw, { glossary = null, fetchImpl = null, timeo
 
   const house = glossaryLookup(glossary, word);
   if (house) return house;                     // ← the network is never touched
+  // A phrase is the glossary's alone (103): the house dictionary holds single words only.
+  if (word.includes(' ')) return null;
 
   // The timeout is a RACE. A stub that ignores everything would otherwise hang the pipeline for
   // as long as it liked, so the clock is authoritative. It bounds the whole lookup — manifest,

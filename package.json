@@ -37,6 +37,8 @@
     "test:payload": "next build && playwright test -c tests/bookstore/playwright.payload.config.mjs",
     "test:desiderata": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/bookstore/playwright.desiderata.config.mjs\"",
     "test:rooms": "next build && playwright test -c tests/bookstore/playwright.rooms.config.mjs",
+    "test:print-copy": "node tests/fixtures/make-epub.mjs && playwright test -c tests/reader/playwright.print-copy.config.mjs",
+    "test:responses": "playwright test -c tests/stories/playwright.config.mjs",
     "covers:backfill": "node scripts/backfill-bookstore-cover-derivatives.mjs",
     "covers:backfill:lqip": "node scripts/backfill-bookstore-cover-lqip.mjs",
     "covers:backfill:colour": "node scripts/backfill-bookstore-cover-colour.mjs",

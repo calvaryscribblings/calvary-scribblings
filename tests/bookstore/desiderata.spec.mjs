@@ -249,6 +249,27 @@ test.describe('the Desiderata room', () => {
     await expect(list.locator('[data-testid="room-row"]')).toHaveCount(1);
   });
 
+  // W24 (ruling 95): on phones the visible gap from BUY to the disc is 24px, as it is on wide
+  // screens — measured from BUY's right edge to the disc FACE's left edge, not to its 44px target.
+  test('BUY to the disc: 24px of visible gap at 360, 390 and 430, as at 1440', async ({ page }) => {
+    await enter(page, '/bookstore/desiderata');
+    const list = page.getByTestId('desiderata-list');
+    await expect(list).toBeVisible({ timeout: 60000 });
+    const row = list.locator('[data-testid="room-row"]').first();
+    const gaps = {};
+    for (const w of [360, 390, 430, 1440]) {
+      await page.setViewportSize({ width: w, height: 900 });
+      await page.waitForTimeout(300);
+      gaps[w] = await row.evaluate((r) => {
+        const buy = r.querySelector('.rr-buy').getBoundingClientRect();
+        const face = r.querySelector('[data-testid="desiderata-mark"] .ds-mark-face').getBoundingClientRect();
+        return Math.round((face.left - buy.right) * 100) / 100;
+      });
+    }
+    console.log(`\n=== BUY → disc, visible gap ===\n${JSON.stringify(gaps)}\n`);
+    for (const w of [360, 390, 430, 1440]) expect(gaps[w], `at ${w}px`).toBeCloseTo(24, 0);
+  });
+
   test('empty, and signed out', async ({ page }) => {
     await db.ref(`desiderata/${READER}`).remove();
     await enter(page, '/bookstore/desiderata');

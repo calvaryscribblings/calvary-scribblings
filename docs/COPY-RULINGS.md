@@ -366,12 +366,32 @@ pinned in `tests/bookstore/desiderata.test.mjs` and `tests/bookstore/readership.
 - **Breadcrumbs:** "BOOK STORE · DESIDERATA" and "BOOK STORE · SEARCH". Search's groups:
   "AUTHOR", "GENRE", "TITLES", and "ALL TITLES ›".
 
-### DRAFT — awaiting Ikenna's word
+### Ruled 28 Sept (89), as written
 
-These five ship as drafts, written in rule 13's house style. Each one changes here first.
+These five shipped in W22 as drafts. Ruling 89 took all five as written.
 
 - **The toast after a remove (with Undo):** "Removed from Desiderata"
 - **A write that was refused (the + changes back):** "Couldn’t save that change. Try again."
 - **The room, empty:** "Nothing marked yet. The + under any book on the shelves adds it here."
 - **The room, signed out (with a SIGN IN button):** "Sign in to see your Desiderata."
 - **Search, no results:** "Nothing on these shelves matches “{q}”."
+
+## 28 Sep 2026 (Ikenna): the dictionary, printing and copying (W24)
+
+Rulings 89–103, all yes. The words this round touched:
+
+- **The credit under a house-dictionary answer (101):** "Open English WordNet · Princeton WordNet".
+  In `app/lib/dictionary.js` (`DICT_SOURCE`); pinned in `tests/reader/dictionary.spec.mjs`. The
+  glossary's "House glossary · Calvary Scribblings" and the miss's "No definition found for
+  “{word}”." are unchanged.
+
+### DRAFT — awaiting Ikenna's word
+
+Two new lines, written in rule 13's house style. Both live in `app/lib/readerCopy.js`, and each
+changes here first.
+
+- **What the Reading Room prints instead of a book (93):** "Books in the Reading Room can’t be
+  printed." (`PRINT_LINE`; repeated in `public/reading-room.html`'s print CSS, held equal by
+  `tests/ci/w24-reader-print-copy.test.mjs`.)
+- **The credit on a copy from the Reading Room (93):** "— from {Title} by {Author} · Calvary
+  Scribblings" (`creditLine`; "— from {Title} · Calvary Scribblings" when a title has no author).

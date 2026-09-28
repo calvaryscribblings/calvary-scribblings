@@ -1,4 +1,9 @@
-# Hand-off to the app repo: the house dictionary (W23, 28 Sep 2026) — for the app's next round
+# Hand-off to the app repo: the house dictionary (W23 + W24, 28 Sep 2026) — for the app's next round
+
+> **W24 update — Ikenna's rulings 101, 102, 103 (28 Sep) are FINAL and folded in below.** Port
+> this version, not W23's: the credit line names both sources (101), a headword that is also a
+> form of another word shows both (102, up to six senses), and a glossary PHRASE gets the Define
+> chip (103). The data is unchanged — still `oewn-2025-1`.
 
 The web's Reading Room no longer asks `api.dictionaryapi.dev` anything. By September 2026 that
 service answered in ~19.5 s (20 of 20 lookups timed from the codespace on 28 Sep, 10 of them HTTP
@@ -14,6 +19,8 @@ the app as-is or run beside yours to compare answers.
 ## The lookup order (unchanged in shape)
 
 1. **The title's house glossary** (`bookstore_titles/{id}/glossary`) — no network call at all.
+   Keys may be phrases ("grand isle"); see *Glossary phrases* below. A multi-word selection that
+   misses the glossary goes no further — the house dictionary holds single words only.
 2. **The house dictionary** — below.
 3. **The calm miss** — `No definition found for “<word>”.` Never an error tone.
 
@@ -97,26 +104,60 @@ cases in `tests/reader/dictionary.spec.mjs` (the "built dictionary" block) are t
    - Noun guards, from `morph.c`: a noun ending in `ss` or of two letters or fewer isn't detached.
      A noun ending in `ful` is detached on the part before the last `f`, and `ful` is re-appended
      (`boxesful` → `box` + `ful` → `boxful`, which must itself be a headword).
-4. **Three senses in all.** With one group (the usual case), it's that group's first three. With
-   several groups (`leaves` → leaf n, leave n, leave v), deal one sense per group per round, so
-   each reading is shown before any gets a second. The headword shown is the first group's base
-   (`went` shows **go**). The anchored quote still marks the word as tapped.
+4. **Headword groups (ruling 102).** The tapped word's own entry (step 2), when it has one, is the
+   FIRST group — and step 3 still runs, so every base morphy finds follows it as a group of its
+   own, in morphy's order (parts of speech n, v, a, r; bases in exception-list or rule order). A
+   base that equals the tapped word is skipped; a base reached in two parts of speech is ONE group
+   carrying both. A word with no entry of its own (`went`) is just its bases.
+5. **Six senses in all, three per part of speech.** Deal one sense per group per round, in group
+   order, until six are dealt or every group is exhausted — that is each group's share. Within a
+   group whose share is smaller than its senses, spread the share across its parts of speech the
+   same way (one per part of speech per round, n, v, a, r), then show the chosen senses in the
+   source's order. A group within its share is shown whole.
+6. **The modal.** One heading per group, in the modal's existing headword type — the first above
+   the senses as before, each later one above its own list. The anchored quote still marks the word
+   as tapped.
 
-Expected: `ran` → run (verb only), `cities` → city, `mice` → mouse, `went` → go (verb only, never
-the board game), `happier` → happy, `leaves` → leaf / leave / leave, `raven` → raven (never
-"rave").
+Expected (groups, against `oewn-2025-1`):
+
+| tapped | groups | parts of speech shown |
+|---|---|---|
+| `saw` | saw, see | saw n n v · see v v v |
+| `left` | left, leave | left n a a · leave v v v |
+| `felt` | felt, feel | felt n v v · feel v v v |
+| `rose` | rose, rise | rose n n a · rise v v v |
+| `found` | found, find | found n v a · find v v v |
+| `stalls` | stalls, stall | stalls n · stall n n n v v |
+| `leaves` | leaf, leave | leaf n n n · leave n n v |
+| `went` | go | go v v v (never the board game) |
+| `ran` | run | run v v v |
+| `run` | run | n n n v v v |
+
+Also `cities` → city, `mice` → mouse, `happier` → happy, `raven` → raven (never "rave").
 
 ## The source line
 
 The foot of the modal:
 
 - a glossary hit: **`House glossary · Calvary Scribblings`** (unchanged)
-- a house-dictionary hit: **`Open English WordNet`**, which is a **DRAFT; Ikenna rules the wording.**
-  The licence (CC BY 4.0, and the Princeton WordNet notice) requires a credit, so there must be a
-  line. The full text is at `/dict/en/<version>/LICENSE`.
+- a house-dictionary hit: **`Open English WordNet · Princeton WordNet`** — **RULED (101, 28 Sep).**
+  The licence asks for credit to both. It replaces W23's one-name draft. The full text is at
+  `/dict/en/<version>/LICENSE`.
 - a miss: `Calvary Scribblings` (unchanged)
 
-Use the web's constant (`DICT_SOURCE`) verbatim once it's ruled.
+Use the web's constant (`DICT_SOURCE`) verbatim.
+
+## Glossary phrases (ruling 103)
+
+The Define chip is single-word only, **except** for a selection that is one of the title's glossary
+phrases (a key with a space in it: "grand isle", "middle passage" today). Every other multi-word
+selection still gets no chip.
+
+- Normalise the selection as `normaliseWord` does — which now also **collapses internal whitespace
+  to one space**, so a phrase selected across a line break matches.
+- Where the chip logic lives apart from the glossary (the web's reader frame), give it the PHRASES
+  only — `glossaryPhrases(glossary)` in `app/lib/dictionary.js` — never the definitions.
+- A phrase answers from the glossary only. It is never sent to the house dictionary.
 
 ## What the app stops doing
 

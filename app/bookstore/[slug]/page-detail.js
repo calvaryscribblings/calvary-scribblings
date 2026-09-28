@@ -18,6 +18,7 @@ import BoundBook, { BOUND_BOOK_CSS } from '../components/BoundBook';
 // tell the preload which rung this board will draw. See app/lib/bookstore/board.js.
 import { DETAIL_BOARD_WIDTH } from '../../lib/bookstore/board';
 import BuyButton from '../components/BuyButton';
+import { BUY_CSS } from '../components/buyButtonCSS';
 // W22 — the + after the readership line. See ../components/Desiderata.js.
 import { PageMark, DESIDERATA_CSS } from '../components/Desiderata';
 import { truncate, formatCatalogueNumber } from '../components/fields';
@@ -309,22 +310,10 @@ export default function BookDetailClient({ params, seed = null }) {
              16.32px both controls already had; it is here so that a future change to the
              column's leading cannot desynchronise a <button> (which resets it in some UA
              stylesheets) from an <a> (which does not).                                       */
-          .bd-cta{
-            box-sizing:border-box;
-            display:inline-flex;align-items:center;justify-content:center;
-            font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;font-weight:600;
-            line-height:1.5;
-            padding:.95rem 2.2rem;
-            border:1px solid transparent;
-            border-radius:3px;
-            cursor:pointer;text-decoration:none}
-          /* Livery only below — no padding, no border-width, no font metric. */
-          .bd-buy{background:linear-gradient(135deg,#c9a44c,#a8842f);color:#0a0a0a;transition:filter .25s,opacity .25s}
-          .bd-buy:hover{filter:brightness(1.08)}
-          .bd-buy:disabled{cursor:progress;opacity:.6;filter:none}
-          /* R8.4 — see the twin rule in app/bookstore/page.js. Unavailable is not pending.
-             R19.8 — border-color, not border. See the block above. */
-          .bd-buy[data-unavailable]{cursor:not-allowed;opacity:.55;background:none;border-color:rgba(201,164,76,.28);color:rgba(240,234,216,.55)}
+          /* W24 — the face (.bd-cta) and the BUY livery (.bd-buy) are app/bookstore/components/
+             buyButtonCSS.js's BUY_CSS, shared with the Desiderata room so the button's styles live
+             in one place. Byte for byte the rules that stood here. */
+          ${BUY_CSS}
           .bd-sample{background:rgba(201,164,76,.04);border-color:rgba(201,164,76,.4);color:#c9a44c;transition:all .25s}
           .bd-sample:hover{background:rgba(201,164,76,.1);border-color:rgba(201,164,76,.7)}
 

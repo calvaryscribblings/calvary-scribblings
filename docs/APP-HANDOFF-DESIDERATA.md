@@ -71,8 +71,9 @@ ruling 49 and don't list every kind of data; nothing there changed.)
 
 ## The words
 
-From `app/lib/bookstore/readership.js` and `app/lib/bookstore/desiderata.js`. "Ruled" lines were
-ruled with the canvas on 27 Sept; "draft" lines await Ikenna (see `docs/COPY-RULINGS.md`).
+From `app/lib/bookstore/readership.js` and `app/lib/bookstore/desiderata.js`. Every line is ruled:
+with the canvas on 27 Sept, and the five W22 drafts by ruling 89 on 28 Sept, as written (see
+`docs/COPY-RULINGS.md`).
 
 | where | words | status |
 |---|---|---|
@@ -81,14 +82,14 @@ ruled with the canvas on 27 Sept; "draft" lines await Ikenna (see `docs/COPY-RUL
 | shelf line, count n ≥ 2 | `{n} readers`, thousands grouped with commas: `1,204 readers` | ruled (88) |
 | + aria-label | `Add {title} to Desiderata` / `Take {title} out of Desiderata` | ruled |
 | toast after add | `Added to Desiderata. You’ll find it under the ribbon at the top of the shop.` | ruled |
-| toast after remove, with **Undo** | `Removed from Desiderata` | draft |
-| toast when a write is refused | `Couldn’t save that change. Try again.` | draft |
+| toast after remove, with **Undo** | `Removed from Desiderata` | ruled (89) |
+| toast when a write is refused | `Couldn’t save that change. Try again.` | ruled (89) |
 | room title / subline | `Desiderata` / `Books you’ve marked to come back to.` | ruled |
 | room count | `1 TITLE` / `N TITLES` | ruled |
 | room foot | `When a book comes into your library, it leaves this list.` | ruled |
-| room empty | `Nothing marked yet. The + under any book on the shelves adds it here.` | draft |
-| room signed out | `Sign in to see your Desiderata.` + SIGN IN | draft |
-| search hint / no results | `Titles, authors and genres on these shelves.` / `Nothing on these shelves matches “{q}”.` | ruled / draft |
+| room empty | `Nothing marked yet. The + under any book on the shelves adds it here.` | ruled (89) |
+| room signed out | `Sign in to see your Desiderata.` + SIGN IN | ruled (89) |
+| search hint / no results | `Titles, authors and genres on these shelves.` / `Nothing on these shelves matches “{q}”.` | ruled / ruled (89) |
 
 `readershipShort` sits behind the same platform gate as `readershipFor` (`READERSHIP_REGISTER`),
 which is open on web, iOS and Android today.
