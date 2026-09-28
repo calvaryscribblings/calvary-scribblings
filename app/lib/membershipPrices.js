@@ -163,7 +163,7 @@ export function paystackAmounts() {
 // prices existed and Paystack's did not, this stays false and nobody is offered anything. The
 // alternative — on sale in GBP and USD, "opens 30 September" in NGN, on the same page, on the
 // same day — is a worse thing to ship than waiting for the second rail.
-export const MEMBERSHIPS_ON_SALE = false;
+export const MEMBERSHIPS_ON_SALE = true;
 
 // The launch sentence, in ONE place. Both rails answer 409 with it and the pricing page prints
 // it; before R11.7 it was typed out separately in checkout.js and paystack-checkout.js, which

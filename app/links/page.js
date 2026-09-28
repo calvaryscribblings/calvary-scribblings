@@ -135,7 +135,7 @@ const BOOKSTORE_LABEL = doorsOpen() ? 'Book Store' : `Book Store · ${OPENS_SHOR
 //
 // So this stays a hand-flipped boolean, on purpose, because the thing it describes is a
 // CONFIGURATION and not a date. Flip it beside MEMBERSHIPS_ON_SALE.
-const MEMBERSHIP_LAUNCHED = false;
+const MEMBERSHIP_LAUNCHED = true;
 const MEMBERSHIP_LABEL = MEMBERSHIP_LAUNCHED
   ? <><strong>Membership</strong> — open the archive →</>
   : <><strong>Membership</strong> — opens {LAUNCH_DATE_LABEL}. Read the tiers →</>;
