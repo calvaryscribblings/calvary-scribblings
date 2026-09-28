@@ -120,6 +120,10 @@ Don't paste either key anywhere else: not into Cloudflare, not into a chat, not 
 
 ### 6. Tell a session: "go live"
 
+> **Wednesday's branch, as re-cut in W27 (28 Sep):** `memberships-6b` = `cf5f6450` (prep) +
+> `be85cc82` (the switch), on main's `3d397964`. Wednesday's line is unchanged:
+> `git merge --no-ff origin/memberships-6b`, followed by step 3.7 (see 6b below).
+
 **Books went live early, on 27 Sep (W20).** Rulings 52–54: both book rails go live on the
 27th, because three influencers publish the store access key on the 28th and test the
 purchase flow with real money. Memberships stay closed until launch morning. So step 6 is now
