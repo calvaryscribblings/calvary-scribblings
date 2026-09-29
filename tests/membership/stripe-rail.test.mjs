@@ -175,7 +175,12 @@ describe('checkout — what the client may choose, and what it may not', () => {
     assert.equal(priceIdFor({ tier: 'gold', interval: 'monthly', currency: 'gbp', mode: 'test' }),
       ID('gold', 'monthly', 'gbp'));
     assert.equal(priceIdFor({ tier: 'gold', interval: 'monthly', currency: 'ngn', mode: 'test' }), null);
-    assert.equal(priceIdFor({ tier: 'gold', interval: 'monthly', currency: 'gbp', mode: 'live' }), null);
+    // W25: the invariant, not today's answer — this line used to assert live === null, the same
+    // pre-launch pin R9.1 removed from the test above, and it would have reddened on the launch
+    // commit. A live id exists iff memberships are on sale, and when it does it is a real Price.
+    const live = priceIdFor({ tier: 'gold', interval: 'monthly', currency: 'gbp', mode: 'live' });
+    assert.equal(live !== null, MEMBERSHIPS_ON_SALE, `live=${live} MEMBERSHIPS_ON_SALE=${MEMBERSHIPS_ON_SALE}`);
+    if (live !== null) assert.match(live, /^price_/);
   });
 });
 

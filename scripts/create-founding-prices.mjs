@@ -28,7 +28,8 @@
 // ── IDEMPOTENT BY LOOKUP KEY ─────────────────────────────────────────────────────────────
 //
 // Every Price is created with a deterministic `lookup_key`
-// (`founding_<tier>_<interval>_<currency>`), and the script searches for it before creating
+// (`founding_<tier>_<interval>_<currency>`), and the script LISTS by it (never searches — see the
+// products block) before creating
 // anything. Run it twice and the second run reports "exists" for all eight rather than
 // creating a parallel set — which matters, because a duplicate Price is indistinguishable
 // from the real one in the dashboard and would break the reverse lookup in prices.js.
@@ -38,6 +39,10 @@
 // a new block in prices.js — never an edit to this one.
 
 import { AMOUNTS, TIERS, INTERVALS, STRIPE_CURRENCIES, modeOf } from '../functions/api/membership/prices.js';
+// W25: every request at the PINNED API version, as the site's own calls are (functions/api/_stripe.js).
+// Until W25 this script sent no Stripe-Version and so took the account's default — true of the test
+// account (dahlia), but the live objects must not depend on what the live account's default happens to be.
+import { STRIPE_VERSION } from '../functions/api/_stripe.js';
 
 const KEY = process.env.STRIPE_SECRET_KEY;
 const APPLY = process.argv.includes('--apply');
@@ -62,6 +67,7 @@ const api = async (path, params, method = 'POST') => {
     method,
     headers: {
       Authorization: `Bearer ${KEY}`,
+      'Stripe-Version': STRIPE_VERSION,
       ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
     },
     ...(body ? { body } : {}),
@@ -75,7 +81,7 @@ const INTERVAL_ARGS = { monthly: { interval: 'month', count: 1 }, annual: { inte
 const PRODUCT_NAMES = { gold: 'Calvary Gold', platinum: 'Calvary Platinum' };
 const lookupKey = (tier, interval, currency) => `founding_${tier}_${interval}_${currency}`;
 
-console.log(`\nStripe mode: ${MODE}   ${APPLY ? 'APPLYING' : 'DRY RUN (pass --apply to create)'}\n`);
+console.log(`\nStripe mode: ${MODE} · API ${STRIPE_VERSION}   ${APPLY ? 'APPLYING' : 'DRY RUN (pass --apply to create)'}\n`);
 
 // ── the plan ────────────────────────────────────────────────────────────────
 const plan = [];
@@ -99,11 +105,30 @@ if (!APPLY) {
 }
 
 // ── products ────────────────────────────────────────────────────────────────
+// W25: LIST, never search. Stripe's search index is eventually consistent — an object created a
+// few seconds ago can be absent from it — so a re-run straight after an --apply found nothing and
+// created a SECOND pair of products (live, 28 Sep; both deleted, they held no prices). The list
+// endpoints read what exists now. Every page is read, and two founding products for one tier is
+// refused rather than guessed between.
+const listAll = async (path) => {
+  const out = [];
+  for (let after = null; ;) {
+    const page = await api(`${path}${path.includes('?') ? '&' : '?'}limit=100${after ? `&starting_after=${after}` : ''}`, null, 'GET');
+    out.push(...(page.data || []));
+    if (!page.has_more || !page.data?.length) return out;
+    after = page.data[page.data.length - 1].id;
+  }
+};
+const allProducts = await listAll('products?active=true');
 const products = {};
 for (const tier of TIERS) {
-  const existing = await api(`products/search?query=${encodeURIComponent(`metadata['calvary_tier']:'${tier}'`)}`, null, 'GET');
-  if (existing.data?.length) {
-    products[tier] = existing.data[0].id;
+  const mine = allProducts.filter((p) => p.metadata?.calvary_tier === tier && p.metadata?.calvary_generation === 'founding');
+  if (mine.length > 1) {
+    console.error(`\n  ✗ ${mine.length} active founding ${tier} products exist. REFUSING — resolve by hand.\n`);
+    process.exit(1);
+  }
+  if (mine.length) {
+    products[tier] = mine[0].id;
     console.log(`\n  product ${tier}: exists ${products[tier]}`);
   } else {
     const p = await api('products', {
@@ -119,7 +144,8 @@ for (const tier of TIERS) {
 // ── prices ──────────────────────────────────────────────────────────────────
 const created = {};
 for (const p of plan) {
-  const found = await api(`prices/search?query=${encodeURIComponent(`lookup_key:'${p.key}'`)}`, null, 'GET');
+  // The LIST endpoint filtered by lookup key — consistent, unlike search (see products above).
+  const found = await api(`prices?lookup_keys[0]=${encodeURIComponent(p.key)}&limit=10`, null, 'GET');
   let price = found.data?.[0];
   if (price) {
     // Verify rather than trust. A price whose amount has drifted from the settled table is a

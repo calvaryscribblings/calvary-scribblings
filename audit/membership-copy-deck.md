@@ -28,6 +28,8 @@ The reason is required and is read by a human, not the machine — write one. Th
 
 **If the test fails, the page and the deck disagree. Decide which one is right and change the other — never reach for an exemption marker to make it green.**
 
+**A `>` line the page carries only until memberships go on sale** carries `{{pre-launch}}` (W25). It is not an exemption: the test asserts it is **on** the page while `MEMBERSHIPS_ON_SALE` is false and **gone** from the page once it is true, so the pre-launch sentence can neither disappear early nor outlive the switch. One line carries it today: the pre-launch box (§6).
+
 ---
 
 ## 1 · Hero
@@ -169,7 +171,7 @@ New section. States the confiscation ruling to the customer, which is a real dif
 Two boxes, in this order. Both keep the shape of the current copy, which was the strongest writing on the old page.
 
 **Pre-launch box**
-> Memberships open on 30 September. Everything on this page is the real price — nothing here changes on the day. We wanted you to be able to read it first.
+> Memberships open on 30 September. Everything on this page is the real price — nothing here changes on the day. We wanted you to be able to read it first. {{pre-launch}}
 
 **Founding box: retired.** *(Ruling 108, 28 Sep 2026: every reader-facing mention of a founding price comes off the page, so this box and its sentence are gone. Billing is unchanged.)*
 

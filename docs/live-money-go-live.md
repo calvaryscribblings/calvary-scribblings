@@ -171,18 +171,98 @@ Sep that 3.4 and 3.5 are both done.)*
   `~/calvary-backups/w20/` in the codespace, outside the repo. One record was left alone: a live
   account's plain "free" record with no provider reference, which is not a test purchase.
 
-#### 6b. Memberships: 30 Sep, still to do
+#### 6b. Memberships: prepared 28 Sep (W25), the switch on Wednesday 30 Sep
 
-Ikenna first does step 3.5 (subscription settings, in the three places it now lives: Smart
-Retries and *Cancel the subscription*, the two revenue-recovery emails, and the renewal email). Then a session:
+Ruling 98: the live prices and plans are made ahead, and only the switch is left for the
+morning. Ikenna did step 3.4 and step 3.5 before W25.
 
-> Creates the 8 live founding Stripe Prices and the live portal configuration, and the 4 live
-> Paystack Plans. Pastes their ids into `prices.js` / `paystack-plans.js`. Flips
-> `MEMBERSHIPS_ON_SALE` and `MEMBERSHIP_LAUNCHED` in the same commit, which the interlock test
-> enforces. Deletes the one "ships no live ids" test. Checks both live webhook endpoints with
-> `scripts/money/stripe-webhooks.mjs` (report only; they already exist, so nothing is created
-> and no secret changes). Deploys, and proves that the four membership checkouts now answer
-> 401 signed out, not 409.
+**Done on 28 Sep (W25), in the live accounts.** Nothing can be bought yet: all four membership
+checkouts answer 409.
+
+- **Stripe** (live account, `acct_…nEB3LO`, at `2026-03-25.dahlia`): the gold and platinum
+  products, the 8 founding prices (gold/platinum × monthly/annual × gbp/usd, e.g.
+  `gold-monthly-gbp`), and the founding billing-portal configuration, restricted to exactly those
+  8 prices (verified with `expand[]`).
+- **Paystack** (live): the 4 founding plans, `gold-monthly-ngn` … `platinum-annual-ngn`.
+- **Test against live:** `node scripts/money/membership-parity.mjs` compares all 15 objects with
+  their test twins field by field. On 28 Sep: **15 of 15 match**.
+- ⚠ **Found and fixed on the way:** `create-founding-prices.mjs` looked objects up with Stripe's
+  *search*, which lags new objects. A re-run a minute after the first created a second pair of
+  products. They had no prices, and both were deleted. The script (and the parity tool) now use
+  the *list* endpoints, and two re-runs created nothing.
+- **Webhooks** (report mode, nothing changed): both live Stripe endpoints are enabled at the
+  pinned version. The membership endpoint subscribes to all 9 events its handler handles.
+  Paystack has no per-event subscription.
+
+**THE BRANCH: `memberships-6b`.** It holds two commits, both marked `[CF-Pages-Skip]` so Cloudflare
+builds no preview of it:
+
+1. the prep: the idempotence fix, the parity tool, the gate probe, and this section;
+2. **the switch**, the one commit this step always described: the live ids in `prices.js` and
+   `paystack-plans.js`, `MEMBERSHIPS_ON_SALE` and `MEMBERSHIP_LAUNCHED` flipped together, and the
+   "ships no live ids" test deleted.
+
+The branch's whole suite and the build passed on 28 Sep. It is **not merged and not deployed**.
+
+**Wednesday's prompt is "merge the 6b branch". It means exactly this:**
+
+1. **Check (read-only, about a minute).**
+   ```
+   node scripts/money/membership-parity.mjs                  # must say 15 of 15 match
+   node scripts/money/membership-gate-probe.mjs --expect closed
+   ```
+2. **Merge, with a merge commit.**
+   ```
+   git fetch origin
+   git checkout main && git pull --ff-only origin main
+   git merge --no-ff origin/memberships-6b -m "6b: memberships open (merge memberships-6b)"
+   npm run test:membership && npm run test:ci
+   git push origin main
+   ```
+   ⚠ **`--no-ff` and that `-m` are required.** The branch's commits carry `[CF-Pages-Skip]`. A
+   fast-forward would leave that token on main's head commit, and Cloudflare would skip the
+   **production** build: the push would look done, and nothing would open. The merge commit's own
+   message has no token, so production builds.
+   If the merge conflicts in `prices.js`, `paystack-plans.js`, `membershipPrices.js`,
+   `app/links/page.js` or `on-sale.test.mjs`, **stop**. Something changed those since W25, and
+   the ids need a fresh look, not a hand-resolve.
+3. **Wait for the deploy, then check.**
+   ```
+   until node scripts/money/membership-gate-probe.mjs --expect open; do sleep 20; done
+   ```
+   The probe prints the live build's commit. It must be the merge commit.
+   Then **step 3.7**: take down the six donation links (`scripts/money/donation-links.mjs`).
+4. **The check (the four checkouts).** Every checkout checks for a token *before* the sale gate.
+   So **"401 signed out" is the answer in BOTH states**: it was measured with the store shut on
+   28 Sep. It's what a signed-out reader gets, but it proves nothing about the switch. The probe
+   asks each checkout twice:
+   - **no token → 401 `signed_out`**, before and after (the signed-out reader's answer);
+   - **a placeholder token → 409 `not_configured` before, 401 `signed_out` after.** After the
+     switch the request is past the gate and stops at identity, because the placeholder is not a
+     credential. Nothing reaches Stripe, Paystack or the database.
+
+   Then the 08:05 launch check's **Memberships** row should read GREEN (every switch on).
+
+**How long it takes.** Across 25 production deploys (26–28 Sep), a push was live in a **median of
+104 s** (range 63–232 s). The trigger itself is immediate. With the tests in step 2, allow about
+**6 minutes** from the start of step 1 to an open store. **Start by 07:45 London** to land well
+before the 08:05 launch check. 07:30 leaves room for a failed build: start another with the
+`deploy-hook-probe` workflow (tick *fire*), or push an empty commit without the skip token. The midnight rebuild (00:00 London) builds main as it is, still
+shut, so it doesn't matter when the merge happens relative to it.
+
+**Rollback: "close memberships".** Revert the switch commit alone. The branch tip is that commit,
+so **keep the branch** until the week is out.
+```
+git checkout main && git pull --ff-only origin main
+git revert --no-edit origin/memberships-6b      # the switch commit; message "Revert …", no skip token
+npm run test:membership
+git push origin main
+until node scripts/money/membership-gate-probe.mjs --expect closed; do sleep 20; done
+```
+This puts back the null ids, both flags `false`, and the deleted test, so the interlock holds.
+**Never delete the live prices or plans to close the store.** A Paystack plan can't be recreated,
+and every founding member's renewals would fail. A checkout a reader opened before the rollback
+still completes and is honoured: the grant sites never consult the gate.
 
 ### 7. One real purchase and one refund, per rail
 

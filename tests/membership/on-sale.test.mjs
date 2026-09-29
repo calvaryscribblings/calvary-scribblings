@@ -144,16 +144,6 @@ describe('⭑ THE ON-SALE INTERLOCK — the flag and the live ids cannot drift a
     assert.ok(PRICE_BOOK[STRIPE_GENERATION], `PRICE_BOOK has no ${STRIPE_GENERATION} generation`);
     assert.ok(PLAN_BOOK[PAYSTACK_GENERATION], `PLAN_BOOK has no ${PAYSTACK_GENERATION} generation`);
   });
-
-  test('R9.1 SHIPS NO LIVE IDS — this build is pre-launch, and says so out loud', () => {
-    // The one assertion here that IS about today rather than about the invariant. It is
-    // separate from the interlock above on purpose: on launch day this test is DELETED and the
-    // four above are untouched, so the interlock survives the commit that opens the store.
-    assert.equal(RAILS_LIVE, false,
-      'a live rail is configured. If that is deliberate, this is launch day: delete THIS test '
-      + '(and only this one) in the same commit, and leave the interlock standing.');
-    assert.equal(MEMBERSHIPS_ON_SALE, false);
-  });
 });
 
 // ── LIVE-MONEY PREFLIGHT (23 Sep 2026) — THE GATE COVERS ALL FOUR CHECKOUTS ──────────────

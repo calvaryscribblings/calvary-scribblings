@@ -59,7 +59,10 @@ export const PLAN_BOOK = {
       gold:     { monthly: 'PLN_8cew7gwzmk85xu5', annual: 'PLN_ay0fmybtffpkyu5' },
       platinum: { monthly: 'PLN_20apb1ehzib9fl6', annual: 'PLN_bclwjduphwzna67' },
     },
-    live: { gold: { monthly: null, annual: null }, platinum: { monthly: null, annual: null } },
+    live: {
+      gold:     { monthly: 'PLN_yc6bw7dcres7e66', annual: 'PLN_vecuv5hv3xj567j' },
+      platinum: { monthly: 'PLN_xkaivhljuchh43h', annual: 'PLN_yzo8yzkx0le2ljo' },
+    },
   },
 };
 
