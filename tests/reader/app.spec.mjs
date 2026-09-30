@@ -637,7 +637,8 @@ test('a word the dictionary does not know is a calm miss, not an error', async (
 
   const miss = page.locator('.rr-define-miss');
   await expect(miss, 'a miss must still open the modal').toBeVisible({ timeout: 15000 });
-  await expect(miss).toContainText(`No definition found for “${word}”`);
+  // Ruling 51: exactly this, with no full stop — as the app draws it.
+  await expect(miss).toHaveText(`No definition found for “${word}”`);
   // In the register's own voice: the modal is there, the word is there, nothing is red.
   await expect(page.locator('.rr-define-word')).toHaveText(new RegExp(word, 'i'));
   await expect(page.locator('.rr-define-quote'), 'the anchored quote survives a miss').toBeVisible();

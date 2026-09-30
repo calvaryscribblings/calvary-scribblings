@@ -418,3 +418,18 @@ changes here first.
 
 The W24 drafts section above is closed by 114 and 115; `app/lib/readerCopy.js` carries no DRAFT
 mark, pinned by `tests/ci/w24-reader-print-copy.test.mjs`.
+
+## 30 Sep 2026 (Ikenna): launch night (W30/W31)
+
+- **51:** the Reading Room's dictionary miss reads `No definition found for “{word}”` with **no
+  full stop**, as the app draws it (`app/reader/[slug]/ReadingRoom.js`; the reader frame draws no
+  such line). Pinned by `tests/reader/app.spec.mjs` (exact text) and
+  `tests/ci/w30-rulings.test.mjs`.
+- **123:** the 49 `users/*/readStories` markers and 18 `user_comments` mirrors W27 held back for
+  the three removed works **stay**. They carry live reader scores (badgeEngine); nothing deletes
+  them.
+- **124:** **no limit** on day or week passes at launch. Revisit with October's numbers.
+- **130 (standing, W31):** the Book Store's head air is one value at every width; laptops
+  confirmed. If Ikenna rules otherwise, wide screens go back to 80px (`SHOP_RHYTHM.headAir`).
+- **131 (open):** the Book Store's `noindex` and its absence from the sitemap wait on this ruling.
+  W31 left both alone.

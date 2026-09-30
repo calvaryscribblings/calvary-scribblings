@@ -31,7 +31,7 @@ const CHOICE_KEY = 'cs_gateway_choice';
 const ARRIVING_KEY = 'cs_arriving';
 const LIBRARY = '/public-library';
 const STORE = '/bookstore';
-import { LAUNCH_TEXT, LAUNCH_DATE_LABEL, BOOKSTORE_OPENS, daysUntilLaunch, doorsOpen } from '../lib/launch';
+import { LAUNCH_TEXT, LAUNCH_DATE_LABEL, bookstoreSentence, daysUntilLaunch, doorsOpen } from '../lib/launch';
 
 // ⚠ R9.1 — `const LAUNCH = { y: 2026, m: 9, d: 30 }` AND A BYTE-IDENTICAL daysUntilLaunch()
 // STOOD HERE, hand-copied into app/my-library/page.js under a comment saying so. Both fed a
@@ -853,7 +853,7 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
                   pre-launch sentence in the HTML, which is what a crawler that does not run JS
                   reads. A deploy on the morning is what fixes the crawled copy; see
                   docs/LAUNCH-RUNBOOK.md. The reader sees the right thing either way. */}
-              {doorsOpen() ? 'The Book Store is open.' : BOOKSTORE_OPENS}
+              {bookstoreSentence()}
             </p>
           </div>
         </div>

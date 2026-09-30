@@ -44,9 +44,19 @@ a server component are evaluated at BUILD TIME and frozen into the HTML.** A pag
 > The gateway paragraph is the subtle one: Gateway is a client component, so **a reader** sees
 > the correct sentence immediately. Only the **crawled** copy is stale.
 
+> ⚠ **CORRECTED W30 (30 Sep 2026).** This section said any rebuild re-derives every row above.
+> Two rows did not: `app/page.js` and `app/bookstore/layout.js` appended `BOOKSTORE_OPENS`, a
+> plain constant with no `doorsOpen()` in it, so the launch-night rebuild (built 00:00–00:02
+> London) still served "The Book Store opens 30 September." in the home and Book Store meta and
+> og descriptions. Both now call `bookstoreSentence()` (`app/lib/launch.js`) — the same
+> `doorsOpen() ? 'The Book Store is open.' : BOOKSTORE_OPENS` the gateway prose uses — and
+> `tests/build/doors-open.test.mjs` fails if a description built after the date says "opens".
+> A rebuild fixes a baked sentence **only if the sentence asks the calendar**; check that before
+> trusting this section again.
+
 ### ⭑ So: **deploy on the morning of launch.**
 
-Any rebuild does it — there is nothing to edit. Trigger a Cloudflare Pages deploy after London
+Any rebuild does it — there is nothing to edit (true of every row above only since W30). Trigger a Cloudflare Pages deploy after London
 midnight and every baked sentence re-derives. Until then the site is correct for readers and
 stale for crawlers and for the link-in-bio label.
 

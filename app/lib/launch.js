@@ -100,6 +100,16 @@ export const LAUNCH_NOTICE = `Memberships open on ${LAUNCH_DATE_LABEL}.`;
 export const BOOKSTORE_OPENS = `The Book Store opens ${LAUNCH_DATE_LABEL}.`;
 
 /**
+ * The Book Store sentence for descriptions and crawlable prose: 'The Book Store is open.' from
+ * opening day, BOOKSTORE_OPENS before it. W30: app/page.js and app/bookstore/layout.js appended
+ * BOOKSTORE_OPENS bare, so no rebuild could ever re-derive them — the launch-night build still
+ * said "opens 30 September". Called in a `metadata` export it is baked at build time, which is
+ * correct: any build made on or after the day says open.
+ */
+export const BOOKSTORE_IS_OPEN = 'The Book Store is open.';
+export const bookstoreSentence = () => (doorsOpen() ? BOOKSTORE_IS_OPEN : BOOKSTORE_OPENS);
+
+/**
  * Whole days from today to launch, both read in London.
  *
  * Date-only on both sides, so it ticks over at London midnight rather than on a rolling 24h

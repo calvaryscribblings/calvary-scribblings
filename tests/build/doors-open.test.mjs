@@ -217,3 +217,43 @@ describe('⭑ THE DOORS — the coupling, across a fortnight built from LAUNCH',
       'MEMBERSHIP_LAUNCHED should stay a hand-flipped boolean — it is a configuration question');
   });
 });
+
+// ── W30: THE DESCRIPTIONS ASK THE CALENDAR ───────────────────────────────────────────────
+// The launch-night rebuild (30 Sep, 00:00–00:02 London) still served "The Book Store opens 30
+// September." in the home and Book Store meta/og descriptions: both appended BOOKSTORE_OPENS
+// bare, so no rebuild could re-derive them. They call bookstoreSentence() now.
+describe('W30 · a description built after the launch date never says "opens"', () => {
+  for (const day of fortnight()) {
+    test(`${day.label}: bookstoreSentence() ${day.shouldBeOpen ? 'says open' : 'names the day'}`, async () => {
+      const s = await atLondonNoon(day.y, day.m, day.d, (m) => m.bookstoreSentence());
+      if (day.shouldBeOpen) {
+        assert.equal(s, 'The Book Store is open.');
+        assert.doesNotMatch(s, /opens/);
+      } else assert.match(s, /^The Book Store opens /);
+    });
+  }
+
+  test('home and the Book Store build their descriptions from bookstoreSentence(), never BOOKSTORE_OPENS bare', () => {
+    for (const f of ['app/page.js', 'app/bookstore/layout.js', 'app/components/Gateway.js']) {
+      const src = read(f);
+      assert.ok(!/\bBOOKSTORE_OPENS\b/.test(src), `${f} uses BOOKSTORE_OPENS directly — it will never re-derive`);
+      assert.match(src, /bookstoreSentence\(\)/, f);
+    }
+    assert.equal((read('app/page.js').match(/bookstoreSentence\(\)/g) || []).length, 2, 'home: meta + og');
+  });
+
+  test('the BUILT pages, when the build is on or after the day, carry no "opens" in any description', async (t) => {
+    let info;
+    try { info = JSON.parse(readFileSync(new URL('out/build.json', ROOT), 'utf8')); } catch { return t.skip('no out/build.json — build first'); }
+    const built = new Date(info.builtAt);
+    const launchUtc = Date.UTC(LAUNCH.y, LAUNCH.m - 1, LAUNCH.d) - 3600e3;   // London midnight (BST)
+    if (built.getTime() < launchUtc) return t.skip('this out/ was built before the launch date');
+    for (const f of ['out/index.html', 'out/bookstore.html', 'out/bookstore/index.html']) {
+      let html;
+      try { html = readFileSync(new URL(f, ROOT), 'utf8'); } catch { continue; }
+      const descs = [...html.matchAll(/<meta (?:name|property)="(?:description|og:description|twitter:description)" content="([^"]*)"/g)].map((m) => m[1]);
+      assert.ok(descs.length > 0, `${f}: no descriptions found`);
+      for (const d of descs) assert.doesNotMatch(d, /opens/, `${f}: "${d.slice(-60)}"`);
+    }
+  });
+});

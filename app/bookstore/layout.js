@@ -52,7 +52,7 @@
 // So: this is a real improvement over nothing and a placeholder against a drawn card. If
 // Ikenna commissions one, change OG_IMAGE and its dimensions here — nothing else moves.
 
-import { BOOKSTORE_OPENS } from '../lib/launch';
+import { bookstoreSentence } from '../lib/launch';
 
 const BASE_URL = 'https://calvaryscribblings.co.uk';
 
@@ -63,14 +63,15 @@ const OG_IMAGE_H = 1168;
 
 const TITLE = 'The Book Store — Calvary Scribblings';
 
-// ⚠ THE LAUNCH SENTENCE IS APPENDED, NOT TYPED. BOOKSTORE_OPENS comes from app/lib/launch.js,
+// ⚠ THE LAUNCH SENTENCE IS APPENDED, NOT TYPED. bookstoreSentence() comes from app/lib/launch.js,
 // which is the only file permitted to write a launch date (tests/build/launch-literals.test.mjs
 // enforces it). On launch day the date stops being true here as it does everywhere else, and
 // this description is one of the eleven sites that changes — it must not be the one that was
-// missed because somebody typed the sentence out by hand.
+// missed because somebody typed the sentence out by hand. W30: it appended BOOKSTORE_OPENS bare
+// until launch night, so the rebuild after midnight still said "opens" — it follows doorsOpen() now.
 const DESCRIPTION =
   'Books from the writers we publish and the ones we love — bought once, yours to keep, and '
-  + `readable on every device you sign in on. ${BOOKSTORE_OPENS}`;
+  + `readable on every device you sign in on. ${bookstoreSentence()}`;
 
 export const metadata = {
   title: TITLE,

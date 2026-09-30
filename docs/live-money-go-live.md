@@ -79,7 +79,9 @@ account is a separate place, so nothing below has been done in it yet.
      code, at the pinned API version (`2026-03-25.dahlia`, which is the account's own
      version).
 
-7. **Wednesday, once memberships are open (ruling 107): take down the six donation links.**
+7. ✅ **DONE 30 Sep, 00:03 London (W29).** All six were deactivated after the gate probe said OPEN;
+   the report then read 0 of 7 active (a seventh £5 link was already inactive).
+   **Wednesday, once memberships are open (ruling 107): take down the six donation links.**
    The six "Support Calvary Scribblings" links (£1, £2, £5, £10, £20, £50) are Stripe **Payment
    Links**, not pages on the site: the web stopped showing them on 29 Apr 2026, so there is
    nothing to hide in a deploy. After the 6b switch is live and the gate probe says OPEN:
@@ -172,6 +174,12 @@ Sep that 3.4 and 3.5 are both done.)*
   account's plain "free" record with no provider reference, which is not a test purchase.
 
 #### 6b. Memberships: prepared 28 Sep (W25), the switch on Wednesday 30 Sep
+
+✅ **DONE (W29).** The merge `1414dd72` "Launch: memberships open (6b)" (`--no-ff`, no skip token)
+was **pushed at 00:00:00 London on 30 Sept** and **live at 00:02:15**, Cloudflare deployment
+**ba159b52** (github:push, created 00:00:04). The midnight deploy hook's own build (ff0c657f)
+built the same commit. Gate probe: CLOSED at 22:56 on the 29th (build da2d6df1), OPEN at 00:02:36
+(build 1414dd72); parity 15 of 15 before the merge. Rollback, if ever: `git revert -m 1 1414dd72`.
 
 Ruling 98: the live prices and plans are made ahead, and only the switch is left for the
 morning. Ikenna did step 3.4 and step 3.5 before W25.
@@ -320,6 +328,8 @@ deliveries again. The card rail is signed off when Stripe's refund has withdrawn
 naira rail is signed off when Paystack's refund is processed and the book reads ACCESS WITHDRAWN.
 
 #### 7b. Memberships: 30 Sep
+
+⏳ **WAITING ON IKENNA** (as of 30 Sep, W30). The store is open; no session makes a purchase.
 
 After 6b, the membership proofs, as originally written:
 

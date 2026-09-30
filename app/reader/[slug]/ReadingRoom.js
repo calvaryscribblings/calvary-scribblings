@@ -215,8 +215,9 @@ function DefinePanel({ state, onClose }) {
 
         {status === 'looking' && <div className="rr-define-wait">Looking it up…</div>}
 
+        {/* Ruling 51: the miss line has no full stop, as the app draws it. */}
         {status === 'miss' && (
-          <div className="rr-define-miss">No definition found for &ldquo;{word}&rdquo;.</div>
+          <div className="rr-define-miss">No definition found for &ldquo;{word}&rdquo;</div>
         )}
 
         {/* RULED (102): one group per headword — "saw" is saw, then see. The first group's
