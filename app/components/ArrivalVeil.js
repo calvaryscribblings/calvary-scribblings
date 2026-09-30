@@ -1,10 +1,24 @@
 'use client';
-// Arrival half of the gateway's door transition. The gateway sets sessionStorage 'cs_arriving'
-// just before pushing here; if it's set, the library holds at full black and then fades up
-// from the same veil the door closed with, so the two halves read as one move.
+// Arrival half of the gateway's door transition, for BOTH doors (W32): the Public Library
+// (app/public-library/layout.js) and the Book Store (app/bookstore/page.js). The gateway sets
+// sessionStorage 'cs_arriving' to the DESTINATION PATH just before pushing; the page holds at
+// full black and then fades up from the same veil the door closed with, so the two halves read
+// as one move.
 //
-// Without the flag — direct visits, refresh, back-button, every other route — this renders
+// W32 — THE FLAG NAMES ITS ROUTE. It was '1', read by whichever ArrivalVeil mounted, which is why
+// W31 kept the Book Store door from setting it (a stray flag would have played the veil on the
+// next Home visit) — and so the storefront drew in pieces in full view: Ikenna's "flash". Now it
+// is '/public-library' or '/bookstore', a veil plays ONLY when the flag names its own `route` AND
+// the page is on that route, and ANY flag this reads is cleared. A stray flag cannot play a veil
+// anywhere by construction.
+//
+// Without a matching flag — direct visits, refresh, back-button, every other route — this renders
 // its children with no veil, no transform and no animation.
+//
+// ARRIVED, AND STAYS ARRIVED. The wrapper carries data-arrival="" from the moment a veil starts
+// until the page unmounts, so a page can switch off its OWN entrance animations while the lift is
+// the entrance (the storefront's masthead and shop bar). A class that came off at 'idle' would
+// start those animations the instant the lift ended.
 //
 // It never gates data fetching: the page mounts and its Firebase listeners attach underneath
 // the veil as normal. The veil waits for them, rather than the other way round.
@@ -21,9 +35,24 @@ import {
   ARRIVE_HOLD, ARRIVE_FADE, ARRIVE_MAX_WAIT, ARRIVE_RISE_PX, ARRIVE_EASE,
 } from '../lib/gatewayTransition';
 
-const ARRIVING_KEY = 'cs_arriving';
+export const ARRIVING_KEY = 'cs_arriving';
+
+// '/bookstore/' and '/bookstore' are the same route (a static host may add the slash).
+const samePath = (a, b) => a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
 
 const ReadyContext = createContext(null);
+const RiseContext = createContext('');
+
+// W32 — WHERE THE RISE GOES. By default (the Library) the wrapper itself rises. But a transform
+// on an ancestor becomes the containing block of every position:fixed descendant: a page that
+// renders its own fixed chrome inside the wrapper (the storefront's Navbar and TabBar) would have
+// its tab bar pinned to the bottom of the WHOLE PAGE for the length of the lift, then snap back
+// into the viewport at full strength when the lift ends. With rise="page" the wrapper stays
+// untransformed and the page puts this class on its own content box (the storefront's <main>);
+// the fixed chrome stays where it lives, under the veil, and is uncovered by the fade.
+export function useArrivalRise() {
+  return useContext(RiseContext);
+}
 
 // Called by the page inside the veil to report that it has real content to show — pass its
 // existing first-data condition. Inert on every route that doesn't call it (the cap lifts
@@ -40,13 +69,15 @@ export function useArrivalReady(ready) {
 // server — fall back to useEffect there (it never runs: the server pass is always idle).
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
-export default function ArrivalVeil({ children }) {
+export default function ArrivalVeil({ route, rise = 'wrapper', children }) {
   // 'idle'    — no transition: no veil, no transform, nothing animating.
   // 'holding' — veil at full black, waiting for content (at least ARRIVE_HOLD).
   // 'lifting' — veil fading out, content settling.
-  // Ends back at 'idle' so the transform is REMOVED rather than left at translateY(0) —
+  // Ends at 'done' (no veil, no class) so the transform is REMOVED rather than left at translateY(0) —
   // a lingering transform would make this element the containing block for the library's
   // position:fixed navbar and break it on scroll.
+  // 'done'    — (W32) the veil has lifted: like 'idle' (no veil, no transform), but the page
+  //             arrived through a door, so data-arrival stays on the wrapper.
   const [phase, setPhase] = useState('idle');
   const startedAt = useRef(0);
   const lifted = useRef(false);
@@ -67,16 +98,18 @@ export default function ArrivalVeil({ children }) {
     const wait = Math.max(0, ARRIVE_HOLD - elapsed);
     timers.current.push(setTimeout(() => {
       setPhase('lifting');
-      timers.current.push(setTimeout(() => setPhase('idle'), ARRIVE_FADE));
+      timers.current.push(setTimeout(() => setPhase('done'), ARRIVE_FADE));
     }, wait));
   }, []);
 
   useIsomorphicLayoutEffect(() => {
     let flagged = false;
     try {
-      flagged = sessionStorage.getItem(ARRIVING_KEY) === '1';
-      // Consume it immediately: a refresh after arriving must load plainly.
-      if (flagged) sessionStorage.removeItem(ARRIVING_KEY);
+      const flag = sessionStorage.getItem(ARRIVING_KEY);
+      // Consume ANY flag, matching or not: a refresh after arriving must load plainly, and a flag
+      // naming another route must not outlive this page.
+      if (flag !== null) sessionStorage.removeItem(ARRIVING_KEY);
+      flagged = !!route && flag === route && samePath(window.location.pathname, route);
     } catch {}
     if (!flagged) return;
     try {
@@ -86,7 +119,7 @@ export default function ArrivalVeil({ children }) {
     setPhase('holding');
     // Never trap anyone in the dark on a slow connection.
     timers.current.push(setTimeout(beginLift, ARRIVE_MAX_WAIT));
-  }, [beginLift]);
+  }, [beginLift, route]);
 
   // Stable identity: a changing signal would re-fire the consumer's effect.
   const signalReady = useCallback(() => {
@@ -94,11 +127,14 @@ export default function ArrivalVeil({ children }) {
     beginLift();
   }, [beginLift]);
 
-  const arriving = phase !== 'idle';
-  const wrapperClass = arriving ? `cs-arrive-rise${phase === 'lifting' ? ' is-lifting' : ''}` : '';
+  const arriving = phase === 'holding' || phase === 'lifting';
+  const arrived = phase !== 'idle';
+  const riseClass = arriving ? `cs-arrive-rise${phase === 'lifting' ? ' is-lifting' : ''}` : '';
+  const wrapperClass = rise === 'page' ? '' : riseClass;
 
   return (
     <ReadyContext.Provider value={signalReady}>
+    <RiseContext.Provider value={rise === 'page' ? riseClass : ''}>
       {arriving && (
         <style>{`
           @keyframes cs-arrive-veil-out { from { opacity:1; } to { opacity:0; } }
@@ -126,7 +162,8 @@ export default function ArrivalVeil({ children }) {
       )}
       {arriving && <div className={`cs-arrive-veil${phase === 'lifting' ? ' is-lifting' : ''}`} aria-hidden="true" />}
       {/* Always rendered, always the same element — see STRUCTURAL RULE above. */}
-      <div className={wrapperClass}>{children}</div>
+      <div className={wrapperClass} data-arrival={arrived ? '' : undefined}>{children}</div>
+    </RiseContext.Provider>
     </ReadyContext.Provider>
   );
 }

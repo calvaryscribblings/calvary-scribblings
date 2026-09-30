@@ -329,7 +329,10 @@ naira rail is signed off when Paystack's refund is processed and the book reads 
 
 #### 7b. Memberships: 30 Sep
 
-⏳ **WAITING ON IKENNA** (as of 30 Sep, W30). The store is open; no session makes a purchase.
+- ✅ **Card (Stripe): PASSED, 30 Sept** (Ikenna's report, 01:51 London). YOU'RE IN; Gold showed on
+  the app and on the web; a full refund in Stripe returned both to Free at once.
+- ⏳ **Naira (Paystack): PENDING.** Ikenna runs it later, with the refund on the same day. No
+  session makes a purchase.
 
 After 6b, the membership proofs, as originally written:
 

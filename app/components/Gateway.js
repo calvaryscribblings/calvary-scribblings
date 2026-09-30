@@ -26,8 +26,9 @@ import { VEIL_AT, PUSH_AT, VEIL_FADE } from '../lib/gatewayTransition';
 const AUTO_ROUTE = false;
 
 const CHOICE_KEY = 'cs_gateway_choice';
-// Handed to /public-library so it knows to fade up from the veil rather than just appear.
-// sessionStorage, not local: it must not survive the tab, and a refresh must load plainly.
+// Handed to the destination (its path is the value, W32) so it knows to fade up from the veil
+// rather than just appear. sessionStorage, not local: it must not survive the tab, and a refresh
+// must load plainly.
 const ARRIVING_KEY = 'cs_arriving';
 const LIBRARY = '/public-library';
 const STORE = '/bookstore';
@@ -312,11 +313,11 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
   // (chosen, 1.02) while everything else — the other door included — falls away, a veil
   // closes over the room, and a hairline of light appears under it. Both doors call this.
   //
-  // TWO THINGS BELONG TO THE LIBRARY ALONE, and the Book Store door does neither:
-  //   · the stored choice (cs_gateway_choice) — AUTO_ROUTE's dial is about the Library;
-  //   · the arrival flag (cs_arriving) — it is read by /public-library's ArrivalVeil, and a
-  //     flag set on the way to /bookstore would sit unread in the tab and play the veil on
-  //     the reader's next visit to Home.
+  // The stored choice (cs_gateway_choice) belongs to the Library alone — AUTO_ROUTE's dial is
+  // about the Library. The arrival flag belongs to BOTH doors (W32): it holds the destination
+  // path, and only that route's ArrivalVeil plays it (see app/components/ArrivalVeil.js). W31
+  // kept the Book Store door from setting it, and the storefront then drew in pieces in full
+  // view as the veil dropped — the "flash" Ikenna saw on 30 Sep.
   const walkThrough = useCallback((e, href, door) => {
     const isLibrary = door === 'library';
     if (isLibrary) rememberLibrary();
@@ -331,10 +332,7 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
       setChosen(door);
       setExiting(true);
       pushTimer.current = setTimeout(() => {
-        try {
-          if (isLibrary) sessionStorage.setItem(ARRIVING_KEY, '1');
-          else sessionStorage.removeItem(ARRIVING_KEY);
-        } catch {}
+        try { sessionStorage.setItem(ARRIVING_KEY, href); } catch {}
         router.push(href);
       }, PUSH_AT);
     }, PRESS_MS);

@@ -15,6 +15,7 @@ import { resolveOpeningLine, formatCatalogueNumber } from './components/fields';
 import { useCurrency, useRegionCountry, priceLine } from '../lib/currency';
 import CurrencySelector, { CURRENCY_SELECTOR_CSS } from './components/CurrencySelector';
 import LaunchGate from './components/LaunchGate';
+import ArrivalVeil, { useArrivalReady, useArrivalRise } from '../components/ArrivalVeil';
 import { isStoreUnlocked } from '../lib/bookstore/gate';
 // R13 — the curation system and the taxonomy. Both are DATA now; neither is a table in this
 // file any more. See app/lib/bookstore/sections.js and genres.js for the two rules, which are
@@ -837,7 +838,65 @@ function Colophon({ count }) {
   );
 }
 
+// ── W32 — THE GATEWAY'S BOOK STORE DOOR ARRIVES LIKE THE LIBRARY DOOR ────────────────────────
+//
+// Ikenna, 30 Sep 02:06: the door works, "but it has a flash when it opens." Filmed on the live
+// site (Chromium, 402x874): the gateway's veil dropped at ~0.99s and the storefront drew in pieces
+// in full view — a frame with only the tab bar (the curtain still 'checking'), then the site bar
+// and the skeleton shelf at full strength while the masthead faded up, then the shelf swapping
+// skeleton → books (~0.75s later). The Library door never showed this because /public-library
+// holds the veil (ArrivalVeil) until its content is ready. W31 left the far half off this door.
+//
+// So the storefront renders inside the SAME ArrivalVeil, with route '/bookstore'. It plays only
+// when the gateway's flag names '/bookstore' AND this is /bookstore — a direct visit gets the
+// idle wrapper (no class, no attribute, no veil, no transform), and the detail pages and the
+// rooms are separate routes that never mount it. The veil holds until the shop's first real
+// state (see useShopArrivalReady); ARRIVE_MAX_WAIT is still the ceiling.
 export default function BookStorePage() {
+  return (
+    // rise="page": the storefront's Navbar and TabBar are position:fixed INSIDE this tree, so the
+    // rise goes on <main>, not the wrapper (see useArrivalRise in ArrivalVeil.js).
+    <ArrivalVeil route="/bookstore" rise="page">
+      <Storefront />
+    </ArrivalVeil>
+  );
+}
+
+// The families the storefront's @import declares and draws above the fold. `load()` answers with
+// the faces it loaded; an EMPTY answer means the face is not declared yet — the @import'ed
+// stylesheet has not arrived — so the wait retries rather than calling the page ready.
+const SHOP_FACES = ["400 1em 'Cinzel'", "400 1em 'Cormorant Garamond'", "italic 400 1em 'Cormorant Garamond'"];
+
+async function shopFontsReady() {
+  const fonts = typeof document !== 'undefined' ? document.fonts : null;
+  if (!fonts?.load) return;
+  for (let tries = 0; tries < 40; tries++) {
+    try {
+      const got = await Promise.all(SHOP_FACES.map((f) => fonts.load(f)));
+      if (got.every((faces) => faces.length > 0)) { await fonts.ready; return; }
+    } catch { return; }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+// W32: the shop's first REAL state, for the arrival veil. All of:
+//   · the curtain resolved ('checking' is the frame with only the tab bar);
+//   · the stylesheet in and its fonts ready (shopFontsReady);
+//   · the four reads landed (`loading` false) — OR the load FAILED: a failure must be seen, so it
+//     lifts the veil too. The gate itself ('up') is a real state and lifts it as well.
+// Inert without a veil in play: the signal is a no-op on a direct visit.
+function useShopArrivalReady({ curtain, loading, shopFailed }) {
+  const [fontsReady, setFontsReady] = useState(false);
+  useEffect(() => {
+    let live = true;
+    shopFontsReady().then(() => { if (live) setFontsReady(true); });
+    return () => { live = false; };
+  }, []);
+  const settled = curtain === 'up' || (curtain === 'gone' && (!loading || shopFailed));
+  useArrivalReady(settled && fontsReady);
+}
+
+function Storefront() {
   // THE CLOCK, HELD IN STATE AND NOT READ DURING RENDER.
   //
   // React refuses Date.now() in a render body (react-hooks/purity) and it is right to: this
@@ -977,6 +1036,9 @@ export default function BookStorePage() {
   // the catalogue. A shop that painted its shelves and then grew a curated section a beat
   // later would be two different pages in the same scroll position.
   const loading = titles === null || genres === null || sectionRows === null || signals === null || now === 0;
+  useShopArrivalReady({ curtain, loading, shopFailed });
+  // W32: while arriving through the door, the rise lands on <main> ('' on every other visit).
+  const arrivalRise = useArrivalRise();
 
   const genreLabelFor = (slug) => labelOf(genres || [], slug);
 
@@ -1102,6 +1164,14 @@ export default function BookStorePage() {
           .shop-bar-room:hover .shop-bar-face{background:#2c2440}
           .shop-bar-room:focus-visible{outline:none}
           .shop-bar-room:focus-visible .shop-bar-face{outline:2px solid #c9a44c;outline-offset:3px}
+          /* W32: arriving through the gateway door, the veil's lift IS the entrance — the
+             masthead and the shop bar do not also fade up, under the veil or on top of it.
+             data-arrival is set by ArrivalVeil only on that path; a direct visit is unchanged.
+             A ZERO DURATION, not animation:none: the fadeUp still completes — instantly, under
+             the veil — into the same filled end state a direct visit rests in (opacity 1,
+             translateY(0)). animation:none drew one glyph edge on the shop bar differently
+             (3 channels, measured by tests/gateway/settled-match.mjs). */
+          [data-arrival] .hero-inner,[data-arrival] .shop-bar{animation-duration:0s}
           .sb-wide,.sb-phone{display:flex}
           .sb-phone{display:none}
           @media(max-width:640px){
@@ -1264,7 +1334,7 @@ export default function BookStorePage() {
         `}</style>
 
         <ShelfReadersContext.Provider value={readersContext}>
-        <main style={{ background: '#070707', color: '#f0ead8', position: 'relative' }}>
+        <main className={arrivalRise || undefined} style={{ background: '#070707', color: '#f0ead8', position: 'relative' }}>
           {/* ⛔ R22.1 — THE GRAIN OVERLAY STOOD HERE AND IS GONE. The ground is #070707 on
               <main> and nothing is drawn over it. <main> stays position:relative — the
               curated sections and the colophon lift themselves above it with z-index:2, so
