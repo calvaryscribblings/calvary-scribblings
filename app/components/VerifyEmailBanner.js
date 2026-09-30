@@ -32,7 +32,7 @@
 // top 68px) above the banner, so opening the menu covers this rather than fighting it.
 // Where :has() is unsupported the rule never matches and the banner sits at top 0 — one
 // page's chrome overlapped for one dismissible strip, which is the safe direction.
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../lib/AuthContext';
 import { useVerificationResend } from '../lib/verifyEmail';
@@ -40,6 +40,8 @@ import { useVerificationResend } from '../lib/verifyEmail';
 // codebase's usual opt-in-per-page arrangement. Kept in its own module so a plain node test
 // can import the predicate without booting React and firebase.
 import { isImmersive } from '../lib/immersiveRoutes';
+import { useViewportGuard } from './useBarGuard';
+import { apartCss } from '../lib/storyBar';
 // The cohort gate. Before it existed this banner asked only "unverified?", and told readers who
 // had signed up seconds ago — verification mail already in hand — that we had failed to send it.
 import { showsVerifyApology, createdAtMsOf } from '../lib/verifyCohort';
@@ -105,6 +107,7 @@ const CSS = `
     font-family: Cormorant Garamond, Georgia, serif;
   }
   body:has(.cs-nav) .cs-verify { top: 68px; }
+  ${apartCss('.cs-verify')}
   .cs-verify-inner {
     max-width: 860px; margin: 0 auto;
     display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
@@ -173,9 +176,16 @@ export default function VerifyEmailBanner() {
     if (state === 'sent') persistDismissal();
   }, [state]);
 
-  if (loading || !user || dismissed) return null;
-  if (!showsVerifyApology({ createdAtMs: createdAtMsOf(user), verified })) return null;
-  if (isImmersive(pathname)) return null;
+  // W31: a fixed top bar like the site bar under it, so the same viewport guard — unpainted
+  // while the visual and layout viewports disagree. Held (no listeners) while nothing renders,
+  // so the guard attaches the moment the banner appears.
+  const bannerRef = useRef(null);
+  const visible = !(loading || !user || dismissed)
+    && showsVerifyApology({ createdAtMs: createdAtMsOf(user), verified })
+    && !isImmersive(pathname);
+  useViewportGuard(bannerRef, { hold: !visible });
+
+  if (!visible) return null;
 
   const sending = state === 'sending';
   const sent = state === 'sent';
@@ -183,7 +193,7 @@ export default function VerifyEmailBanner() {
   return (
     <>
       <style>{CSS}</style>
-      <div className="cs-verify" role="status">
+      <div ref={bannerRef} data-state="shown" className="cs-verify" role="status">
         <div className="cs-verify-inner">
           <div className="cs-verify-text">
             {/* Two lines, and no more. MEASURED at 320×568 on /public-library: the first

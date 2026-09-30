@@ -1,7 +1,10 @@
 'use client';
 // The gateway — the front door at /. Two doors: the Public Library (the reading platform,
-// which is where the content and the link equity live) and the Book Store (a modal only —
-// the /bookstore route stays unlinked until launch, per the bookstore workstream's protocol).
+// which is where the content and the link equity live) and the Book Store. From doorsOpen()
+// (30 September 2026) the Book Store door is a real Link to /bookstore and walks through
+// exactly as the Library door does; before it, the door opened a pre-launch modal instead.
+// ⚠ W31: the door stayed a modal button past midnight on launch day — the note under it went,
+// the door itself never became navigation. It is derived from the calendar now, like the rest.
 //
 // The gateway is contractually ZERO-FIREBASE at runtime. The story count and the door's
 // rotating whispers are read from cms_stories at BUILD TIME (app/lib/gateway-build.js) and
@@ -27,6 +30,7 @@ const CHOICE_KEY = 'cs_gateway_choice';
 // sessionStorage, not local: it must not survive the tab, and a refresh must load plainly.
 const ARRIVING_KEY = 'cs_arriving';
 const LIBRARY = '/public-library';
+const STORE = '/bookstore';
 import { LAUNCH_TEXT, LAUNCH_DATE_LABEL, BOOKSTORE_OPENS, daysUntilLaunch, doorsOpen } from '../lib/launch';
 
 // ⚠ R9.1 — `const LAUNCH = { y: 2026, m: 9, d: 30 }` AND A BYTE-IDENTICAL daysUntilLaunch()
@@ -192,7 +196,14 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
   const router = useRouter();
   const [modal, setModal] = useState(null); // 'store' | 'universe' | null
   const [exiting, setExiting] = useState(false);
-  const [pressed, setPressed] = useState(false); // the Library door yielding under the tap
+  // Which door is yielding under the tap, and which one the reader walked through:
+  // 'library' | 'store' | null. The chosen door swells; the other falls away with the room.
+  const [pressed, setPressed] = useState(null);
+  const [chosen, setChosen] = useState(null);
+  // The Book Store door's shape follows the calendar. Server and first client render agree
+  // (both read the same clock at build/load), and the minute tick below re-reads it, so a
+  // gateway left open across London midnight on opening day becomes a door without a reload.
+  const [storeOpen, setStoreOpen] = useState(() => doorsOpen());
   const timer = useRef(null);
   const pushTimer = useRef(null);
 
@@ -264,6 +275,7 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
       // told every reader the shop opened on a date that had already passed. Returning null
       // closes the space instead: the label is not rendered, the row shortens, and only that
       // note moves — nothing takes its place, because there is nothing left to announce.
+      setStoreOpen(doorsOpen());
       if (doorsOpen()) setOpensLabel(null);
       else if (n === null) setOpensLabel(LAUNCH_TEXT);
       else if (n === 1) setOpensLabel('Opens tomorrow');
@@ -296,27 +308,47 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
     try { localStorage.setItem(CHOICE_KEY, 'library'); } catch {}
   }, []);
 
-  // Walking into the door: the tapped door yields (press, 0.985), then swells and brightens
-  // (chosen, 1.02) while everything else falls away, a veil closes over the room, and a
-  // hairline of light appears under it. The Book Store door should call this too once it
-  // becomes real navigation at launch — pass its own href and it inherits the whole exit.
-  const walkThrough = useCallback((e, href) => {
-    rememberLibrary();
+  // Walking into a door: the tapped door yields (press, 0.985), then swells and brightens
+  // (chosen, 1.02) while everything else — the other door included — falls away, a veil
+  // closes over the room, and a hairline of light appears under it. Both doors call this.
+  //
+  // TWO THINGS BELONG TO THE LIBRARY ALONE, and the Book Store door does neither:
+  //   · the stored choice (cs_gateway_choice) — AUTO_ROUTE's dial is about the Library;
+  //   · the arrival flag (cs_arriving) — it is read by /public-library's ArrivalVeil, and a
+  //     flag set on the way to /bookstore would sit unread in the tab and play the veil on
+  //     the reader's next visit to Home.
+  const walkThrough = useCallback((e, href, door) => {
+    const isLibrary = door === 'library';
+    if (isLibrary) rememberLibrary();
     // Reduced motion: no choreography, and no arrival flag, so the far side loads plainly.
     if (prefersReducedMotion()) return;
     e.preventDefault();
     if (exiting || pressed) return;
     // Press first (0.985), then hand off to the exit (which takes the door to 1.02).
-    setPressed(true);
+    setPressed(door);
     timer.current = setTimeout(() => {
-      setPressed(false);
+      setPressed(null);
+      setChosen(door);
       setExiting(true);
       pushTimer.current = setTimeout(() => {
-        try { sessionStorage.setItem(ARRIVING_KEY, '1'); } catch {}
+        try {
+          if (isLibrary) sessionStorage.setItem(ARRIVING_KEY, '1');
+          else sessionStorage.removeItem(ARRIVING_KEY);
+        } catch {}
         router.push(href);
       }, PUSH_AT);
     }, PRESS_MS);
   }, [exiting, pressed, rememberLibrary, router]);
+
+  // A door's classes: the pressed/chosen door yields then swells; the door NOT chosen joins
+  // the fade (cs-gw-fade) so it falls away with the room.
+  const doorClass = (door, base) => {
+    let c = `cs-gw-door cs-gw-glass${base ? ` ${base}` : ''}`;
+    if (pressed === door) c += ' is-pressed';
+    if (chosen === door) c += ' is-entering';
+    else if (chosen) c += ' cs-gw-fade';
+    return c;
+  };
 
   const closeModal = useCallback(() => setModal(null), []);
 
@@ -756,9 +788,9 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
 
           <div className="cs-gw-doors">
             <Link
-              className={`cs-gw-door cs-gw-glass${pressed ? ' is-pressed' : ''}${exiting ? ' is-entering' : ''}`}
+              className={doorClass('library')}
               href={LIBRARY}
-              onClick={(e) => walkThrough(e, LIBRARY)}
+              onClick={(e) => walkThrough(e, LIBRARY, 'library')}
             >
               {/* ⁂ renders as stacked asterisks on iOS — retired from the gateway for ✦; it stays
                   in the Voices works list where it renders in context. */}
@@ -774,13 +806,27 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
               </span>
             </Link>
 
-            <button className="cs-gw-door cs-gw-glass cs-gw-fade" type="button" onClick={() => setModal('store')}>
-              <span className="cs-gw-door-glyph" aria-hidden="true">❦</span>
-              <span className="cs-gw-door-text">
-                <span className="cs-gw-door-title">THE BOOK STORE</span>
-                {opensLabel && <span className="cs-gw-door-meta cs-gw-opens">{opensLabel}</span>}
-              </span>
-            </button>
+            {storeOpen ? (
+              <Link
+                className={doorClass('store')}
+                href={STORE}
+                onClick={(e) => walkThrough(e, STORE, 'store')}
+              >
+                <span className="cs-gw-door-glyph" aria-hidden="true">❦</span>
+                <span className="cs-gw-door-text">
+                  <span className="cs-gw-door-title">THE BOOK STORE</span>
+                </span>
+              </Link>
+            ) : (
+              // PRE-LAUNCH ONLY: the door opens the modal below. Never reached from 30 Sept.
+              <button className="cs-gw-door cs-gw-glass cs-gw-fade" type="button" onClick={() => setModal('store')}>
+                <span className="cs-gw-door-glyph" aria-hidden="true">❦</span>
+                <span className="cs-gw-door-text">
+                  <span className="cs-gw-door-title">THE BOOK STORE</span>
+                  {opensLabel && <span className="cs-gw-door-meta cs-gw-opens">{opensLabel}</span>}
+                </span>
+              </button>
+            )}
           </div>
 
           <Link className="cs-gw-pill cs-gw-glass cs-gw-fade" href="/ai-policy">
@@ -819,7 +865,8 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
         </div>
       )}
 
-      {modal === 'store' && (
+      {/* The pre-launch box. Only the pre-launch branch of the door can open it. */}
+      {modal === 'store' && !storeOpen && (
         <Modal id="cs-gw-store" titleId="cs-gw-store-title" title="THE BOOK STORE" onClose={closeModal}>
           <p>
             The shelves are being built and the ink is drying.<br />

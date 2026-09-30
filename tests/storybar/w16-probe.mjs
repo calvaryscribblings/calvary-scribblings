@@ -16,28 +16,37 @@
 // If the check ever stops catching an ancestor transform, the canary fails the run.
 //
 //   node tests/storybar/w16-probe.mjs [--site URL] [--pages /stories/a,/series/…] [--json out.json]
+//                                     [--bar '.cs-nav'] [--sizes 402x874,390x844]
+//
+// W31: --bar points it at any fixed top bar (the site bar is '.cs-nav', on /public-library), and
+// APART IS JUDGED BY PAINT: while the viewports disagree the bar must be visibility:hidden — a
+// bar merely slid up by its own height is still on the glass when the layout top is mid-screen.
 import { writeFileSync, readFileSync } from 'node:fs';
 import { launchWebKit } from './webkit.mjs';
 
 const arg = (f, d) => { const i = process.argv.indexOf(f); return i > 0 ? process.argv[i + 1] : d; };
 const SITE = arg('--site', 'https://calvaryscribblings.co.uk');
 const PAGES = arg('--pages', '/stories/the-number-thirteen').split(',');
-const SIZES = [{ w: 390, h: 844, name: 'iPhone' }, { w: 820, h: 1180, name: 'iPad portrait' }];
+const BAR = arg('--bar', '[data-story-bar]');
+const SIZES = arg('--sizes', null)
+  ? arg('--sizes').split(',').map((x) => { const [w, h] = x.split('x').map(Number); return { w, h, name: `${w}x${h}` }; })
+  : [{ w: 390, h: 844, name: 'iPhone' }, { w: 820, h: 1180, name: 'iPad portrait' }];
 
 // app/lib/storyBar.js, verbatim, as a page script: `export` dropped, everything hung on window.__sb.
 const LIB = readFileSync(new URL('../../app/lib/storyBar.js', import.meta.url), 'utf8').replace(/^export /gm, '');
 const INJECT = `(() => { ${LIB}\n window.__sb = { containingBlockAncestor, viewportsAgree, nextBar }; })();`;
 
-const SAMPLER = () => {
+const SAMPLER = (BAR) => {
   window.__samples = []; window.__sampling = false;
   const sample = (t) => {
-    const b = document.querySelector('[data-story-bar]');
+    const b = document.querySelector(BAR);
     if (!window.__sampling || !b || !window.__sb) return;
     const r = b.getBoundingClientRect();
     const vv = window.visualViewport || { offsetTop: 0, scale: 1 };
     const anc = window.__sb.containingBlockAncestor(b, (el) => getComputedStyle(el));
     window.__samples.push({ t, top: r.top, bottom: r.bottom, screenTop: (r.top - vv.offsetTop) * vv.scale,
       screenBottom: (r.bottom - vv.offsetTop) * vv.scale, state: b.getAttribute('data-state'),
+      painted: getComputedStyle(b).visibility !== 'hidden',
       apart: !window.__sb.viewportsAgree({ offsetTop: vv.offsetTop, scale: vv.scale }), anc: anc ? `${anc.tag} → ${anc.reason}` : null });
   };
   const tick = (t) => { sample(t); requestAnimationFrame(tick); };
@@ -127,19 +136,24 @@ const SCENARIOS = [
 ];
 
 function judge(samples) {
-  let lastChange = -Infinity, prev = null;
+  let lastChange = -Infinity, prev = null, apartSince = null;
   const r = { frames: samples.length, restShown: 0, offScreenTop: 0, worstScreenTopPx: 0, partialRests: 0, ancestorHits: 0, firstAncestor: null, apartFrames: 0, apartShown: 0 };
   for (const s of samples) {
     if (s.anc) { r.ancestorHits++; r.firstAncestor ??= s.anc; }
     if (s.state !== prev) { lastChange = s.t; prev = s.state; }
-    if (s.apart) { r.apartFrames++; if (s.t - lastChange >= 350 && s.state !== 'hidden') r.apartShown++; continue; }
+    // W31: apart must be UNPAINTED, not merely slid (a slid bar is still on the glass when the
+    // layout top sits mid-screen). Timed from when the viewports CAME apart, not from the bar's
+    // last state change: the sampler's own resize/scroll listener reads in the same instant the
+    // viewport moves, a frame before the guard's rAF answers. 100ms is ~6 frames of grace.
+    if (s.apart) { apartSince ??= s.t; r.apartFrames++; if (s.t - apartSince >= 100 && s.painted) r.apartShown++; continue; }
+    apartSince = null;
     if (s.t - lastChange < 350) continue;           // mid-transition: the 280ms slide
     if (s.state === 'shown') {
       r.restShown++;
       const off = Math.abs(s.screenTop);
       r.worstScreenTopPx = Math.max(r.worstScreenTopPx, +off.toFixed(2));
       if (off > 0.5) r.offScreenTop++;
-    } else if (!(s.screenBottom <= 0.5)) r.partialRests++;
+    } else if (s.painted && !(s.screenBottom <= 0.5)) r.partialRests++;   // an unpainted bar rests nowhere
   }
   return r;
 }
@@ -153,26 +167,31 @@ for (const path of PAGES) {
     const page = await ctx.newPage();
     await page.addInitScript(() => { try { localStorage.setItem('cs_cookie_consent', 'accepted'); } catch { /* private mode */ } });
     await page.addInitScript(INJECT);
-    await page.addInitScript(SAMPLER);
+    await page.addInitScript(SAMPLER, BAR);
     await page.goto(SITE + path, { waitUntil: 'load' });
-    await page.waitForSelector('[data-story-bar]');
+    await page.waitForSelector(BAR);
     await page.waitForTimeout(3000);
     for (const [name, run] of SCENARIOS) {
       await page.evaluate(() => window.scrollTo(0, 900)); await page.waitForTimeout(500);
       await page.evaluate(() => { window.__samples = []; window.__sampling = true; });
       await run(page, size);
-      const j = judge(await page.evaluate(() => { window.__sampling = false; return window.__samples; }));
+      const raw = await page.evaluate(() => { window.__sampling = false; return window.__samples; });
+      if (process.env.PROBE_DUMP && name.startsWith('viewports')) {
+        let prevApart = false;
+        raw.forEach((x, i) => { if (x.apart !== prevApart || (x.apart && x.painted)) console.log('   ', i, x.t.toFixed(1), 'apart', x.apart, 'state', x.state, 'painted', x.painted, 'screenTop', x.screenTop.toFixed(1)); prevApart = x.apart; });
+      }
+      const j = judge(raw);
       out.push({ path, size: size.name, scenario: name, ...j });
       console.log(`${path}  ${size.name.padEnd(13)} ${name.padEnd(33)} frames ${String(j.frames).padStart(4)}  rest-shown ${String(j.restShown).padStart(4)}  off-glass ${j.offScreenTop}  worst ${j.worstScreenTopPx}px  partial ${j.partialRests}  apart ${j.apartFrames}/${j.apartShown} shown  ancestor ${j.ancestorHits ? j.firstAncestor : 'none'}`);
     }
     // THE CANARY: the check must catch a containing block when there is one.
-    const caught = await page.evaluate(async () => {
+    const caught = await page.evaluate(async (BAR) => {
       document.body.style.transform = 'translateZ(0)';
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const hit = window.__sb.containingBlockAncestor(document.querySelector('[data-story-bar]'), (el) => getComputedStyle(el));
+      const hit = window.__sb.containingBlockAncestor(document.querySelector(BAR), (el) => getComputedStyle(el));
       document.body.style.transform = '';
       return hit ? `${hit.tag} → ${hit.reason}` : null;
-    });
+    }, BAR);
     if (!caught) canaryMissed++;
     console.log(`${path}  ${size.name.padEnd(13)} canary (body transform)            ${caught ? `caught: ${caught}` : 'MISSED'}`);
     await ctx.close();

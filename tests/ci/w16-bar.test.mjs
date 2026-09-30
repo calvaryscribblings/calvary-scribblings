@@ -108,12 +108,18 @@ describe('W16 · the bar has no ancestor but <body>', () => {
 });
 
 describe('W16 · the founder readout', () => {
-  test('StoryBar loads it only for a founder AND ?debug=bar, and only by dynamic import', () => {
-    const b = code('app/components/StoryBar.js');
+  test('the shared hook loads it only for a founder AND ?debug=bar, and only by dynamic import', () => {
+    // W31: the loader moved from StoryBar into app/components/useBarGuard.js (useBarReadout),
+    // and Navbar mounts it too, so every site-bar page has the readout.
+    const b = code('app/components/useBarGuard.js');
     assert.match(b, /isFounder\(uid\)/);
     assert.match(b, /get\('debug'\) !== 'bar'/);
     assert.match(b, /import\('\.\/BarReadout'\)/);
-    assert.doesNotMatch(b, /^import .*BarReadout/m, 'never a static import');
+    for (const f of ['app/components/useBarGuard.js', 'app/components/StoryBar.js', 'app/components/Navbar.js']) {
+      assert.doesNotMatch(code(f), /^import .*from '\.\/BarReadout'/m, `${f}: never a static import`);
+    }
+    assert.match(code('app/components/StoryBar.js'), /useBarReadout\(ref\)/);
+    assert.match(code('app/components/Navbar.js'), /useBarReadout\(navRef\)/);
   });
   test('it shows the build, live build, scrollY, visualViewport top/height, the bar on screen, its state and the ancestor check', () => {
     const r = code('app/components/BarReadout.js');

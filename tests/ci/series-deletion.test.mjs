@@ -321,14 +321,17 @@ describe('R31 · the rules that make the delete possible', () => {
   });
 });
 
-describe('R31 · the tier gate is still off, and the copy still follows it', () => {
-  test('SERIES_TIER_GATE_ENABLED is false, and adding a tier control did not flip it', async () => {
-    const { SERIES_TIER_GATE_ENABLED } = await import('../../app/lib/series/access.js');
+describe('R31 · the tier gate follows the clock, and the copy still follows it', () => {
+  test('SERIES_TIER_GATE_ENABLED is the date (seriesGateOn), not a hand-flipped value', async () => {
+    const { SERIES_TIER_GATE_ENABLED, seriesGateOn } = await import('../../app/lib/series/access.js');
     // Deliberately duplicated from series-access.test.mjs. That file guards the FLAG; this one
     // guards it against the round that added an editor-facing control over the value it gates,
     // which is exactly the round most likely to turn it on to see the control work.
-    assert.equal(SERIES_TIER_GATE_ENABLED, false,
-      'memberships are not on sale — a tier gate against a tier nobody can buy refuses every reader');
+    // W31: this pinned `false` ("memberships are not on sale") and went red at 00:00 London on
+    // 30 Sep 2026, when W4's date switched the gate on as designed and memberships opened with it.
+    // The guard that still means something: the flag is the clock's answer, nothing else.
+    assert.equal(SERIES_TIER_GATE_ENABLED, seriesGateOn(),
+      'the tier gate no longer follows the launch date — someone hand-set it');
   });
 
   test('the /series meta description no longer contradicts the flag', () => {

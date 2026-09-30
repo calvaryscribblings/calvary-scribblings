@@ -14,7 +14,7 @@
 
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { LAUNCH_DATE_LABEL, OPENS_SHORT } from '../../app/lib/launch.js';
+import { LAUNCH_DATE_LABEL, OPENS_SHORT, doorsOpen } from '../../app/lib/launch.js';
 
 // W25: with no MEMBERSHIP_STATE, the state is the one the SOURCE carries — the constant in
 // app/links/page.js that built out/. It used to default to 'pre', which pinned the pre-launch
@@ -136,16 +136,22 @@ test('the group line sits with the socials, below the flagged stack', async ({ p
 
 test('the group takes no flag — it is live today, unlike the Book Store and Membership', async ({ page }) => {
   await page.goto('/links');
-  // The two flagged rows still carry their dates; the group carries none and is a live anchor.
-  await expect(page.locator('.cs-lk-stack .cs-lk-btn').filter({ hasText: 'Book Store' }))
-    .toHaveText(new RegExp(OPENS_SHORT));
+  // Before opening day the Book Store row carries its date; the group carries none and is a live
+  // anchor. W31: from 30 Sep the Book Store's date is gone too (BOOKSTORE_LABEL follows
+  // doorsOpen()) — this pinned the pre-launch label and went red at midnight on launch day.
+  const bookstoreRow = page.locator('.cs-lk-stack .cs-lk-btn').filter({ hasText: 'Book Store' });
+  if (doorsOpen()) await expect(bookstoreRow).not.toHaveText(/opens/i);
+  else await expect(bookstoreRow).toHaveText(new RegExp(OPENS_SHORT));
   await expect(page.locator('.cs-lk-group')).not.toHaveText(/soon|opens/i);
   await expect(page.locator('.cs-lk-socials .is-soon a[href*="whatsapp"]')).toHaveCount(0);
 });
 
 test('the Book Store entry is untouched by this round', async ({ page }) => {
   await page.goto('/links');
-  // BOOKSTORE_LAUNCHED is false and this round must not have moved it.
-  await expect(page.locator('.cs-lk-stack .cs-lk-btn').filter({ hasText: 'Book Store' }))
-    .toHaveText(new RegExp(`Book Store · ${OPENS_SHORT}`));
+  // The label follows the calendar (doorsOpen(), R50): dated before 30 Sep, bare from it.
+  const row = page.locator('.cs-lk-stack .cs-lk-btn').filter({ hasText: 'Book Store' });
+  if (doorsOpen()) {
+    await expect(row).toHaveText(/Book Store$/);
+    await expect(row).toHaveAttribute('href', '/bookstore');
+  } else await expect(row).toHaveText(new RegExp(`Book Store · ${OPENS_SHORT}`));
 });

@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (381 of 2000 permitted) ───────────────
+# ── Static rules (385 of 2000 permitted) ───────────────
 /voices/arthor-eze                                           /voices/arthur-eze                                           301
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
@@ -99,6 +99,8 @@
 /cybercrime-has-a-calendar.html                              /stories/cybercrime-has-a-calendar                           301
 /death-by-a-thousand-apps                                    /stories/death-by-a-thousand-apps                            301
 /death-by-a-thousand-apps.html                               /stories/death-by-a-thousand-apps                            301
+/did-you-enjoy-it                                            /stories/did-you-enjoy-it                                    301
+/did-you-enjoy-it.html                                       /stories/did-you-enjoy-it                                    301
 /die-empty                                                   /stories/die-empty                                           301
 /die-empty.html                                              /stories/die-empty                                           301
 /dinner-at-my-family-table                                   /stories/dinner-at-my-family-table                           301
@@ -215,6 +217,8 @@
 /peekaboo.html                                               /stories/peekaboo                                            301
 /peer-pressure-from-the-dead                                 /stories/peer-pressure-from-the-dead                         301
 /peer-pressure-from-the-dead.html                            /stories/peer-pressure-from-the-dead                         301
+/phantom                                                     /stories/phantom                                             301
+/phantom.html                                                /stories/phantom                                             301
 /pigment                                                     /stories/pigment                                             301
 /pigment.html                                                /stories/pigment                                             301
 /proof-of-life                                               /stories/proof-of-life                                       301

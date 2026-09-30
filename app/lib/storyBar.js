@@ -138,3 +138,33 @@ export function containingBlockAncestor(el, getStyle) {
   }
   return null;
 }
+
+// ── W31: THE GUARD, FOR EVERY TOP BAR ───────────────────────────────────────────────────────
+// Ikenna, 30 Sep 00:07, iPhone, live: the SITE bar (.cs-nav) drawn ~444px down an 874px screen on
+// /public-library — W16's picture exactly, on the one fixed top bar W16 never reached. The guard
+// is now shared (app/components/useBarGuard.js) and its answer has THREE values, not two:
+//
+//   shown   at the top of the glass
+//   hidden  the ordinary scroll-hide (StoryBar with hideOnScroll): slid up by its own height,
+//           still painted, progress line still on the edge — W9's resting value
+//   apart   the viewports disagree: NOT PAINTED (visibility hidden, pointer events off).
+//           A slide is not enough here: when the layout top sits mid-screen, a bar lifted by its
+//           own height is still on the glass, just 68px higher.
+
+/**
+ * One sample → the next guard state. `s` is initialBar() or this function's last answer; the
+ * returned `view` is what the component writes to data-state.
+ *   hideOnScroll  false: shown / apart only (the site bar, the Series bar, the verify banner)
+ *                 true:  W9's scroll-hide (nextBar) under the same guard (the story bar)
+ */
+export function barView(s, { y, maxY, h, vv = null }, hideOnScroll = false) {
+  if (hideOnScroll) {
+    const n = nextBar(s, { y, maxY, h, vv });
+    return { ...n, view: n.apart ? 'apart' : n.state };
+  }
+  const agree = viewportsAgree(vv);
+  return { ...s, apart: !agree, view: agree ? 'shown' : 'apart' };
+}
+
+/** The CSS for the apart state: unpainted and untouchable. `sel` is the bar's selector. */
+export const apartCss = (sel) => `${sel}[data-state="apart"] { visibility: hidden; pointer-events: none; }`;

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 // next/link for the two Series entries only. The rest of this menu is plain <a> and stays
 // that way — converting the whole nav is a separate change with its own review, and mixing
 // one file's worth of half-migration is cheaper than an unrelated sweep inside this round.
@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { useAuth } from '../lib/AuthContext';
 import AuthModal from './AuthModal';
 import { TabLinks, isSquareOpenLondon } from './TabBar';
+import { useViewportGuard, useBarReadout } from './useBarGuard';
+import { apartCss } from '../lib/storyBar';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -39,6 +41,13 @@ export default function Navbar() {
   const [showAuth, setShowAuth] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [squareOpen, setSquareOpen] = useState(false);
+  // W31: W16's viewport guard, which this bar never had. While the visual and layout viewports
+  // disagree (a pinch, a double-tap, the keyboard's pan) a `fixed; top: 0` bar is drawn wherever
+  // the layout top falls — 444px down Ikenna's screen on 30 Sep — so it is unpainted until they
+  // agree. An open menu drawer holds it exactly as it is. ?debug=bar mounts the founder readout.
+  const navRef = useRef(null);
+  useViewportGuard(navRef, { hold: menuOpen });
+  useBarReadout(navRef);
 
   useEffect(() => {
     setSquareOpen(isSquareOpen());
@@ -70,6 +79,7 @@ export default function Navbar() {
     <>
       <style>{`
         .cs-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 0 4%; height: 68px; display: flex; align-items: center; justify-content: space-between; transition: background 0.3s, backdrop-filter 0.3s; }
+        ${apartCss('.cs-nav')}
         .cs-nav.scrolled { background: rgba(10,10,10,0.96); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .cs-nav.top { background: linear-gradient(to bottom, rgba(0,0,0,0.85), transparent); }
         .cs-logo { text-decoration: none; display: flex; align-items: center; gap: 0.6rem; flex: none; }
@@ -167,7 +177,7 @@ export default function Navbar() {
         @media (max-width: 767.98px) { .cs-desktop-links { display: none !important; } .cs-hamburger { display: flex !important; } }
       `}</style>
 
-      <nav className={`cs-nav ${scrolled ? 'scrolled' : 'top'}`}>
+      <nav ref={navRef} data-state="shown" className={`cs-nav ${scrolled ? 'scrolled' : 'top'}`}>
         <a href="/public-library" className="cs-logo">
           {/* Transparent artwork with its own rounded corners — no border-radius needed. */}
           <img src="/cs-logo-512-v3.png" alt="Calvary Scribblings" style={{ width: 36, height: 36, objectFit: 'contain' }} />

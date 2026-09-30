@@ -243,8 +243,10 @@ describe('W9 · the bar — pinned, and the line on its edge', () => {
     assert.match(b, /\[data-story-bar\]\[data-state="hidden"\] \{ transform: translate3d\(0, -100%, 0\); \}/);
     assert.match(b, /\[data-story-bar-progress\] \{ position: absolute; left: 0; right: 0; top: 100%;/);
     // No scroll-derived offset: the only transforms are the two resting values.
-    assert.deepEqual((code('app/components/StoryBar.js').match(/translate3d\([^)]*\)/g) || []).sort(), ['translate3d(0, -100%, 0)', 'translate3d(0, 0, 0)']);
+    // (W31 adds a third STATE, "apart", which rests at the same -100% — still only two values.)
+    assert.deepEqual([...new Set(code('app/components/StoryBar.js').match(/translate3d\([^)]*\)/g) || [])].sort(), ['translate3d(0, -100%, 0)', 'translate3d(0, 0, 0)']);
     assert.doesNotMatch(code('app/components/StoryBar.js'), /useState/, 'no React state per scroll');
+    assert.doesNotMatch(code('app/components/useBarGuard.js'), /useState/, 'no React state per scroll (the shared guard, W31)');
   });
   test('the story page (story, news, poetry) uses it, and the old 3px bar and its per-scroll state are gone', () => {
     const p = code('app/stories/[slug]/page-client.js');

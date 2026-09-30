@@ -64,8 +64,11 @@ describe('the banner actually asks the cohort question', () => {
 
   test('it renders nothing unless showsVerifyApology says so, fed the user\'s creation time', () => {
     assert.match(src, /import \{[^}]*showsVerifyApology[^}]*\} from '\.\.\/lib\/verifyCohort'/);
+    // W31: the three early returns became one `visible` (so the viewport guard's hook can run
+    // before any return); the cohort question is still one of its conjuncts.
     assert.match(src,
-      /if \(!showsVerifyApology\(\{ createdAtMs: createdAtMsOf\(user\), verified \}\)\) return null;/);
+      /const visible = [^;]*&& showsVerifyApology\(\{ createdAtMs: createdAtMsOf\(user\), verified \}\)[^;]*;/);
+    assert.match(src, /if \(!visible\) return null;/);
   });
 
   test('the old unverified-only gate is gone — it is what showed the apology to new readers', () => {

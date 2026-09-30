@@ -23,6 +23,7 @@
 import { useReliableLoad } from '../lib/useReliable';
 import Unavailable from '../components/Unavailable';
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '../lib/AuthContext';
 import { db } from '../lib/firebaseCore';
 import AuthModal from '../components/AuthModal';
@@ -560,6 +561,7 @@ export default function MyLibraryPage() {
         .ml-soon-g { font-size: 20px; color: rgba(201,168,76,.5); }
         .ml-soon-d { font-style: italic; font-size: 26px; color: #e2c876; margin-top: 12px; }
         .ml-soon-p { font-size: 14.5px; line-height: 1.55; color: rgba(245,240,232,.62); max-width: 300px; margin: 8px auto 0; }
+        .ml-soon-a { color: inherit; text-decoration: none; border-bottom: 1px solid rgba(201,168,76,.5); }
         .ml-soon-note { font-family: ${LABEL}; font-size: 8px; letter-spacing: .16em; color: rgba(245,240,232,.6); margin-top: 22px; }
 
         /* ═══ THE SHELF ═══════════════════════════════════════════════════════════════════
@@ -1025,7 +1027,8 @@ export default function MyLibraryPage() {
               <div className="ml-soon">
                 <div className="ml-soon-g" aria-hidden="true">❦</div>
                 {opensLabel && <div className="ml-soon-d">{opensLabel}</div>}
-                <p className="ml-soon-p">Books you buy from the Book Store live here — yours to keep, on every device you read on.</p>
+                {/* W31: from opening day "the Book Store" is the door to it, not an unlinked name. */}
+                <p className="ml-soon-p">Books you buy from {doorsOpen() ? <Link className="ml-soon-a" href="/bookstore">the Book Store</Link> : 'the Book Store'} live here — yours to keep, on every device you read on.</p>
                 {/* ⭑ CALENDAR COPY: gone the moment the doors are open. The paragraph above it
                     is not — "books you buy live here" is true on both sides of opening day. */}
                 {!doorsOpen() && (

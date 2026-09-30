@@ -89,13 +89,38 @@ export const SHOP_RHYTHM = {
   // Remove the slack without stating this and the shop's title slides under the navigation.
   navClearPx: 68,
 
-  // ⚠ A WEB JUDGEMENT CALL, FLAGGED. The app witnesses phone and tablet and gives no figure
-  // for the air ABOVE the masthead; the web's own was never a chosen number either — it was
-  // half of whatever the viewport had left over (219 at 874, 127 at 664). This makes it a
-  // stated constant, the same at every width, which is itself the fix for a masthead that sat
-  // differently on every device. 148px total (68 + 80) is close to what a 1280x800 laptop
-  // already showed (164.78) and 71px tighter than a tall phone.
-  headAir: '5rem',        // 80px
+  // ⭑ W31 (30 Sep 2026): THE AIR ABOVE THE SHOP'S BAR, NOW FROM THE APP'S FIGURE.
+  // R25 made this a web judgement call (5rem, 148px to the bar) because the app gave no figure.
+  // Ikenna's two iPhone screenshots on launch night gave one (402x874, 3px per pt; MEASURED FROM
+  // SCREENSHOTS, not read from the app's source — if the app lane reports a different constant,
+  // the app's wins):
+  //   app  the bar's centre 90.0pt from the screen top, under a 62pt status bar; with 32pt
+  //        circles, the circles' top edge sits 12.0pt under the status bar
+  //   web  (before) the bar's centre 216.8pt down = 62 status + 68 Navbar + 86.8; the circles'
+  //        top 71.4px under the Navbar (measured on the live build, 30 Sep)
+  // THE RULE: on the web the Navbar stands where the app's status bar does. So the circles' top
+  // sits 12px under the Navbar, the bar's centre 12 + 32/2 = 28px under it, and
+  //   headAir = 28 − half the bar's line box.
+  // The line box is 1lh at .62rem on .shop-bar: MEASURED 14.859px in Chromium at 390, 402 and
+  // 1280 (Cormorant's normal line-height at 9.92px) — so half is 7.43, and headAir = 20.57px — ROUNDED TO 21px, below.
+  // (The brief estimated the line box at ~13.6 and headAir at ~21.2; the measurement wins, and
+  // tests/bookstore/rhythm.spec.mjs checks the RESULT on the glass: circles' top = Navbar + 12.)
+  // ⚠ A PX VALUE, never `calc(28px - .5lh)`: this lands in a :root variable read by BOTH .hero
+  // and .shop-bar, and `lh` would resolve against each element's own line box — two different
+  // numbers from one token.
+  // One value at every width, as R25 set it (ruling 130 confirms laptops; if Ikenna says no,
+  // wide screens go back to 80px). At 1280 the wide 34px circles sit 11px under the Navbar.
+  // The masthead rises with the bar as one piece: W22's hidden eyebrow slot holds them aligned.
+  appCircleTopPx: 12,     // the app's circles' top under its status bar (pt → px, 1:1)
+  appCirclePx: 32,        // the app's (and the web phone's) circle diameter
+  barLinePx: 14.86,       // .shop-bar's 1lh at .62rem, measured
+  // ROUNDED TO A WHOLE PIXEL, measured both ways: 20.57 left the head 0.01px off its own padding
+  // (rhythm.spec's zero-slack check), and snapped to 1/64 (20.5625) it put everything below the
+  // head on a fractional pixel — the shelf's readers row then missed its ring by 0.78px at 1440
+  // (rooms.spec). 21 keeps the page on whole pixels, and the circles' top lands 12.43px under the
+  // Navbar: inside the ±0.5px the figure is checked to.
+  get headAirPx() { return Math.round(this.appCircleTopPx + this.appCirclePx / 2 - this.barLinePx / 2); },
+  get headAir() { return `${this.headAirPx}px`; },   // 21px (was '5rem', 80px — R25)
 
   // The masthead sits DOWN ONTO the first case. The app's measured figure, exactly: the
   // currency line and the Window's plate are one head, not two sections.

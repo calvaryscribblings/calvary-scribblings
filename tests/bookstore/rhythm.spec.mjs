@@ -62,11 +62,15 @@ const RULED = {
   // own reserved slot is set aside; 72 is the nearest value on the shop's 0.25rem scale, and
   // it is used at EVERY join above the shelf so there is one interval and not four.
   sectionJoinPx: 72,
-  // The masthead's air above, over the 68px fixed navigation bar. ⚠ A WEB JUDGEMENT CALL —
-  // the app witnesses phone and tablet and gives no figure for it, and the web never had a
-  // chosen number either (it was half of whatever the viewport had spare). Flagged in
-  // SHOP_RHYTHM and in the round's commit; pinned here so it cannot drift unnoticed.
-  headTopPx: 148,
+  // The masthead's air above, over the 68px fixed navigation bar. W31 (30 Sep 2026): no longer a
+  // web judgement call. From Ikenna's app screenshot the circles' top edge sits 12pt under the
+  // status bar; on the web the Navbar stands where the status bar does, so the circles' top is
+  // 12px under the Navbar → the bar's centre 28px under it → headAir 28 − 14.86/2 = 20.57px, and
+  // the head's top padding 68 + 21 (20.57 rounded to a whole pixel). (R25 had 80 → 148.)
+  headTopPx: 89,           // 68 + 21
+  headAirPx: 21,           // 20.57, rounded to a whole pixel — see SHOP_RHYTHM for why
+  // The figure itself, as the glass shows it: the shop bar's circles, 12px under the Navbar.
+  circlesUnderNavPx: 12,
   // ⛔ NOT THIS ROUND'S. R22.1B's stage: the gap between the quote zone and the controls zone.
   // Asserted so that a rhythm token cannot be let into the stage by a later hand.
   stageGapPx: 28.8,
@@ -161,6 +165,26 @@ async function openShop(page, { inject } = {}) {
   return page.evaluate(MEASURE);
 }
 
+// ── W31: THE SHOP BAR'S CIRCLES, 12px UNDER THE NAVBAR (the app's figure) ────────────────────
+for (const w of [390, 402]) {
+  test.describe(`circles at ${w}`, () => {
+    test.use({ viewport: { width: w, height: 874 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+    test(`the circles' top edge = the Navbar's bottom + ${RULED.circlesUnderNavPx}, ±0.5px`, async ({ page }) => {
+      await openShop(page);
+      const m = await page.evaluate(() => ({
+        nav: document.querySelector('.cs-nav').getBoundingClientRect().bottom,
+        faces: [...document.querySelectorAll('.shop-bar-face')].map((f) => f.getBoundingClientRect().top),
+        bar: document.querySelector('.shop-bar').getBoundingClientRect(),
+        eyebrow: document.querySelector('.hero-eyebrow').getBoundingClientRect(),
+      }));
+      expect(m.faces.length).toBe(2);
+      for (const t of m.faces) expect(Math.abs(t - (m.nav + RULED.circlesUnderNavPx)), `circle top ${t} vs nav ${m.nav}`).toBeLessThanOrEqual(0.5);
+      // W22: the masthead rises with the bar as one piece — the hidden eyebrow slot stays on the bar's line.
+      expect(Math.abs(m.eyebrow.top - m.bar.top), `eyebrow ${m.eyebrow.top} vs bar ${m.bar.top}`).toBeLessThanOrEqual(0.5);
+    });
+  });
+}
+
 // ── THE RECORD ─────────────────────────────────────────────────────────────────────────────
 // Node-only, no browser: the constants must say what the ruling says. This is the half that
 // goes red when somebody edits SHOP_RHYTHM and edits nothing else.
@@ -169,8 +193,13 @@ test.describe('the record', () => {
     expect(rem(SHOP_RHYTHM.headClose), 'the masthead\'s close to the first case moved').toBe(RULED.headClosePx);
     expect(rem(SHOP_RHYTHM.sectionAir) * 2, 'the section join moved — sectionAir is HALF a join, paid by each side')
       .toBe(RULED.sectionJoinPx);
-    expect(SHOP_RHYTHM.navClearPx + rem(SHOP_RHYTHM.headAir), 'the masthead\'s air above the navigation moved')
+    expect(SHOP_RHYTHM.headAir, 'headAir is a px value — never lh in the :root variable (W31)').toMatch(/^[\d.]+px$/);
+    expect(parseFloat(SHOP_RHYTHM.headAir), 'the air above the shop\'s bar moved').toBe(RULED.headAirPx);
+    expect(Math.round((SHOP_RHYTHM.navClearPx + parseFloat(SHOP_RHYTHM.headAir)) * 100) / 100, 'the masthead\'s air above the navigation moved')
       .toBe(RULED.headTopPx);
+    // The derivation, not a bare number: the app's circle top + half its circle − half the bar's line box.
+    expect(SHOP_RHYTHM.appCircleTopPx).toBe(12);
+    expect(SHOP_RHYTHM.appCirclePx).toBe(32);
     // The record's own convenience getters must not drift from the parts they summarise.
     expect(SHOP_RHYTHM.headClosePx).toBe(RULED.headClosePx);
     expect(SHOP_RHYTHM.sectionJoinPx).toBe(RULED.sectionJoinPx);

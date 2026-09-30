@@ -1,6 +1,7 @@
 'use client';
 // W16 — THE BAR READOUT. Founders only, and only with ?debug=bar in the address. Mounted by
-// <StoryBar> (app/components/StoryBar.js), which does both checks before this file is loaded.
+// useBarReadout (app/components/useBarGuard.js) from <StoryBar> AND, since W31, from <Navbar> —
+// so every page with the site bar has it. The hook does both checks before this file is loaded.
 //
 // Why it exists: the story bar misplaced itself on Ikenna's iPhone on 26 Sep, and no engine this
 // repo can run has an iPhone's toolbar, momentum or zoom. If the bar ever strays again, ONE
@@ -12,6 +13,8 @@
 //             the layout viewport's top (where a fixed bar lives) isn't the screen's top
 //   bar       its top edge in the layout viewport AND on screen, its data-state, and whether the
 //             two viewports agree (when they don't, the bar is meant to be hidden)
+//   tabbar    (W31) the bottom tab bar's bottom edge in the layout viewport and on screen, and
+//             the screen height — on the glass it should equal the screen height
 //   ancestor  the first ancestor with a transform / filter / contain / will-change … or "none";
 //             any one of them makes a fixed bar scroll with the page
 //
@@ -48,6 +51,9 @@ export function mountBarReadout(bar) {
     const screenTop = (r.top - vvTop) * scale;
     const agree = viewportsAgree(vv ? { offsetTop: vv.offsetTop, scale: vv.scale } : null);
     const anc = containingBlockAncestor(bar, (el) => getComputedStyle(el));
+    const tab = document.querySelector('.cs-tabbar');
+    const tr = tab ? tab.getBoundingClientRect() : null;
+    const glassH = vv ? vv.height * scale : window.innerHeight;
     const stale = live && live !== 'unreadable' ? (isStaleBuild(BUILD_COMMIT, live) ? '  STALE' : '  (live)') : '';
     box.textContent = [
       `build    ${BUILD_COMMIT}${stale}`,
@@ -56,6 +62,7 @@ export function mountBarReadout(bar) {
       `vv       top ${fx(vvTop)}  h ${fx(vv ? vv.height : NaN)}  scale ${fx(scale, 2)}`,
       `bar      top ${fx(r.top)}  on screen ${fx(screenTop)}  ${bar.getAttribute('data-state') || '?'}`,
       `views    ${agree ? 'agree' : 'APART (bar should be hidden)'}`,
+      `tabbar   ${tr ? `bottom ${fx(tr.bottom)}  on screen ${fx((tr.bottom - vvTop) * scale)} of ${fx(glassH)}` : 'none'}`,
       `ancestor ${anc ? `${anc.tag} → ${anc.reason}` : 'none'}`,
     ].join('\n');
     // Sit near the bottom of the VISUAL viewport, clear of the founder pill (bottom 12, ~40 tall),
