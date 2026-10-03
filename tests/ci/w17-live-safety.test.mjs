@@ -61,7 +61,7 @@ describe('W17 · the firewall refuses every write path', () => {
 
 // Every file that drives a browser against production signed in.
 const LIVE_HARNESSES = ['tests/reactions/live.mjs', 'tests/offline/offline-shelf-probe.mjs', 'tests/storybar/lock-shots.mjs',
-  'tests/storybar/readout-shot.mjs', 'scripts/audit/states-shots.mjs', 'tests/live/firewall-proof.mjs'];
+  'tests/storybar/readout-shot.mjs', 'scripts/audit/states-shots.mjs', 'tests/live/firewall-proof.mjs', 'tests/live/w33-live-check.mjs'];
 
 describe('W17 · every live harness uses the firewall and the test reader', () => {
   for (const p of LIVE_HARNESSES) {

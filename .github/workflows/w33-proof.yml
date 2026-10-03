@@ -1,0 +1,71 @@
+# W33 — THE PRIVATE-COPY PROOF: rules parity, the stream's refusals, unsigned object GETs, site
+# search, and the held-book door — against the LIVE site, after the deploy it is checking.
+#
+# WHY A WORKFLOW. The service account lives in Actions secrets. The round's working box holds no
+# key that can read the database's rules or sign in the W17 test reader, so the proof runs here.
+#
+# WHEN. BY HAND ONLY (workflow_dispatch) — it signs in to production and must not run on every
+# push. Dispatch it after a deploy: it first waits until the live site's build.json names the
+# dispatched commit, so it never checks the previous deploy and calls it this one. W33 ran it on
+# "W33 (1/2)" (the BEFORE: no site code changed yet) and on the commit that ships the held page (the
+# AFTER, where the held-page checks are mandatory).
+#
+# ⚠ ONLY INVENTED IDS. tests/live/w33-live-check.mjs invents its ids at run time. A real private
+# title's id must never reach this log (W12: Actions logs are public) — that check runs at grant
+# time, on a private machine, through scripts/bookstore/author-copy.mjs and the sweep.
+
+name: w33 proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: w33-proof
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    name: rules parity · stream · objects · search · held page
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Write the service account
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: printf '%s' "$KEY" > serviceAccountKey.json
+
+      - name: rules:check — repo must match what Firebase is serving
+        shell: bash
+        run: npm run -s rules:check 2>&1 | node scripts/ops/log-guard.mjs
+
+      - name: Wait for the live site to serve this commit
+        shell: bash
+        run: |
+          want="${GITHUB_SHA:0:12}"
+          for i in $(seq 1 90); do
+            got=$(curl -fsS "https://calvaryscribblings.co.uk/build.json?nocache=$RANDOM" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).commit||"")}catch{console.log("")}})')
+            if [ "$got" = "$want" ]; then echo "live site is at $want"; exit 0; fi
+            echo "live site at ${got:-?}, waiting for $want ($i/90)"; sleep 20
+          done
+          echo "::error::the deploy of $want never went live"; exit 1
+
+      - name: Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: The live check (invented ids only)
+        shell: bash
+        run: node tests/live/w33-live-check.mjs 2>&1 | node scripts/ops/log-guard.mjs
+
+      - name: Remove the key
+        if: always()
+        run: rm -f serviceAccountKey.json
