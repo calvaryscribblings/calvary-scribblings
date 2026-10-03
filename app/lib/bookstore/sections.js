@@ -377,8 +377,18 @@ export const DATA_CONTRACTS = {
     //                A complimentary copy is on a shelf but is nobody's choice (W3b ruling).
     // Both are counts of PEOPLE, deduplicated by uid at aggregation time. A single reader
     // opening a book forty times is one reader.
+    //
+    // ⚠ W33 — COMPS NEVER COUNT, IN EITHER COLUMN. This used to exclude comps from libraryAdds
+    // only: a completion was counted from bookstore_reading_progress, which says nothing about
+    // where the copy came from, so a reader finishing a complimentary copy would have counted.
+    // Now a completion counts only for a reader whose purchase record for that title passes
+    // countsForReadership() — the same test as a library add. And an entry only ever names a
+    // PUBLISHED title: a withdrawn title, or a book held with no catalogue record, is never a
+    // signal, whatever its counts.
     counts: ['completions', 'libraryAdds'],
     excludesSources: ['comp'],
+    excludesSourcesFrom: ['completions', 'libraryAdds'],
+    namesOnly: 'published',
     minEntries: 2,
     // A book nobody has finished is not a Readers' Choice, however many people bought it.
     // Stated as a floor on the aggregate rather than as a filter here, so the shop cannot be
@@ -395,6 +405,12 @@ export const DATA_CONTRACTS = {
     //
     // R13 BUILDS THE SLOT AND THIS CONTRACT. It builds no part of Notes itself.
     counts: ['capsuleNotes', 'fullReviews', 'dnfNotes', 'replies'],
+    // ⚠ W33 — the same two rules as Readers' Choice. A note counts only from a reader whose
+    // purchase record for the title passes countsForReadership() (comps never count), and an
+    // entry only ever names a PUBLISHED title.
+    excludesSources: ['comp'],
+    excludesSourcesFrom: ['capsuleNotes', 'fullReviews', 'dnfNotes', 'replies'],
+    namesOnly: 'published',
     minEntries: 2,
     // ⚠ THE SECTION PRINTS NO NUMBER. The counts exist so the job can order the entries;
     // the shelf shows the books in that order and says nothing about how many notes any of

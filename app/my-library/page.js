@@ -34,7 +34,7 @@ import {
   isIOSSafariBrowser, getMeta, setMeta,
 } from '../lib/shelf';
 import { useMembership } from '../lib/MembershipContext';
-import { formatCatalogueNumber } from '../bookstore/components/fields';
+import { heldBookView, heldBookHref } from '../lib/bookstore/heldBook';
 import { registerShelfWorker, sealShelf } from '../lib/shelfWorker';
 import { useOffline } from '../lib/useOffline';
 import { toastRemoved } from '../lib/saveToast';
@@ -89,69 +89,83 @@ function gradientFor(seed) {
 // brief, is a fore-edge, a spine shadow and one sheen, not a rotating object.
 function BookCard({ book, index, progress }) {
   const withdrawn = !book.active;
-  const cat = formatCatalogueNumber(book.catalogueNumber);
-  // Fraction only. No CFI maths, no page estimates: the record carries a 0–1 number and the
-  // shelf reports it. A book with no record has not been opened, which is a "Begin", not 0%.
-  const pct = progress != null ? Math.max(1, Math.min(100, Math.round(progress * 100))) : null;
-  const started = pct != null && !withdrawn;
+  const bar = barFor(progress);
+  // W33 — the door. A held book opens where it can be opened: its reader page when the catalogue
+  // says published, the held page otherwise (app/lib/bookstore/heldBook.js). A withdrawn copy
+  // keeps the quiet route to the book's page — but only where there is a page to go to.
+  const door = withdrawn ? (book.published ? `/bookstore/${book.slug}` : null) : heldBookHref(book);
+  const boards = (
+    <span className="ml-boards" style={{ background: gradientFor(book.slug || book.title) }}>
+      {book.coverUrl
+        ? <img src={book.coverUrl} alt="" className="ml-art" loading="lazy" decoding="async" />
+        : <span className="ml-art-t">{book.title}</span>}
+      {/* Lamplight from above-left: one sheen, one spine shadow, one fore-edge. */}
+      <span className="ml-sheen" aria-hidden="true" />
+      <span className="ml-spine" aria-hidden="true" />
+      <span className="ml-foreedge" aria-hidden="true" />
+      {/* THE RIBBON IS THE PROGRESS. Its length down the boards is the fraction read,
+          so the marker sits where the reader stopped. Hidden from AT: the bar below says it
+          in words. */}
+      {bar.kind === 'reading' && !withdrawn && (
+        <span className="ml-ribbon" style={{ height: `calc(6% + ${bar.percent * 0.82}%)` }} aria-hidden="true" />
+      )}
+    </span>
+  );
 
   return (
-    <article className={`ml-vol${withdrawn ? ' is-withdrawn' : ''}`} style={{ '--i': index }}>
+    <article className={`ml-vol ml-held${withdrawn ? ' is-withdrawn' : ''}`} style={{ '--i': index }}>
       <div className="ml-stage">
-        <a
-          className="ml-book"
-          href={withdrawn ? `/bookstore/${book.slug}` : `/reader/${book.slug}`}
-          aria-label={withdrawn ? `${book.title} — access withdrawn` : book.title}
-        >
-          <span className="ml-boards" style={{ background: gradientFor(book.slug || book.title) }}>
-            {book.coverUrl
-              ? <img src={book.coverUrl} alt="" className="ml-art" loading="lazy" decoding="async" />
-              : <span className="ml-art-t">{book.title}</span>}
-            {/* Lamplight from above-left: one sheen, one spine shadow, one fore-edge. */}
-            <span className="ml-sheen" aria-hidden="true" />
-            <span className="ml-spine" aria-hidden="true" />
-            <span className="ml-foreedge" aria-hidden="true" />
-            {/* THE RIBBON IS THE PROGRESS. Its length down the boards is the fraction read,
-                so the marker sits where the reader stopped — the same information the text
-                gives, in the object's own language. Hidden from AT: the line below says it
-                in words, and a decorative ribbon announcing "43 percent" twice is noise. */}
-            {started && (
-              <span className="ml-ribbon" style={{ height: `calc(6% + ${pct * 0.82}%)` }} aria-hidden="true" />
-            )}
-          </span>
-        </a>
+        {door ? (
+          <a className="ml-book" href={door} aria-label={withdrawn ? `${book.title} — access withdrawn` : book.title}>
+            {boards}
+          </a>
+        ) : (
+          <span className="ml-book" aria-label={`${book.title} — access withdrawn`}>{boards}</span>
+        )}
         <span className="ml-ledge" aria-hidden="true" />
       </div>
 
-      {/* The bookplate — printed matter, cream stock and brown ink, the same register as
-          BoundBook's back face. It is pasted inside the cover of a book you own, which is
-          exactly what it is being used to say here. */}
-      <div className="ml-plate">
-        <span className="ml-plate-cat">{cat || 'CS —'}</span>
-        <span className="ml-plate-state">{withdrawn ? 'WITHDRAWN' : 'PURCHASED'}</span>
-      </div>
-
+      {/* RULING 134 — A TILE CARRIES FOUR THINGS: the board, the title, the author, the bar.
+          The bookplate (the CS accession mark and PURCHASED/WITHDRAWN) is the shop describing
+          its stock, and a personal shelf is not stock. The title block is a fixed two lines
+          and the author one, so every bar in a row sits level whatever its title's length. */}
       <h3 className="ml-vol-t">{book.title}</h3>
-      {book.author && <p className="ml-vol-a">{book.author}</p>}
+      <p className="ml-vol-a">{book.author}</p>
 
       {withdrawn ? (
         <>
-          {/* R9.1 LB-8, unchanged in substance: same wording, same quiet route onward. */}
+          {/* R9.1 LB-8, ruled again 24 Sept: same wording, same quiet route onward. */}
           <div className="ml-withdrawn">ACCESS WITHDRAWN</div>
-          <a className="ml-quiet" href={`/bookstore/${book.slug}`}>VIEW IN THE BOOK STORE</a>
+          {door && <a className="ml-quiet" href={door}>VIEW IN THE BOOK STORE</a>}
         </>
-      ) : started ? (
-        <div className="ml-vol-foot">
-          <span className="ml-pct">{pct}% in</span>
-          <a className="ml-gild" href={`/reader/${book.slug}`}>CONTINUE READING</a>
-        </div>
       ) : (
-        <div className="ml-vol-foot">
-          <a className="ml-gild" href={`/reader/${book.slug}`}>BEGIN</a>
+        <div className="ml-bar" data-bar={bar.kind}>
+          <span className="ml-bar-track" aria-hidden="true">
+            {bar.kind !== 'unstarted' && (
+              <span className="ml-bar-fill" style={{ width: bar.kind === 'finished' ? '100%' : `${bar.percent}%` }} />
+            )}
+          </span>
+          {/* The label keeps its line even when empty, so an untouched book's hairline sits
+              where its neighbours' do (the app's A-round finding: an empty label collapses). */}
+          <span className="ml-bar-l">{barLabel(bar) || '\u00a0'}</span>
         </div>
       )}
     </article>
   );
+}
+
+// THE BAR — one component in three states, as the app draws it (lib/libraryShelves.ts:
+// barState/barLabel). The percent is FLOORED, never rounded: 99.6% is not finished, and the one
+// state that may print a hundred prints a word instead.
+function barFor(progress) {
+  if (typeof progress !== 'number' || !(progress > 0)) return { kind: 'unstarted' };
+  if (progress >= 1) return { kind: 'finished' };
+  return { kind: 'reading', percent: Math.max(1, Math.floor(progress * 100)) };
+}
+function barLabel(bar) {
+  if (bar.kind === 'finished') return 'FINISHED';
+  if (bar.kind === 'reading') return `${bar.percent}%`;
+  return '';
 }
 
 // A saved story on the shelf.
@@ -418,26 +432,11 @@ export default function MyLibraryPage() {
         const tsnap = await get(ref(db, `bookstore_titles/${p.id}`));
         if (tsnap.exists()) titleDoc = tsnap.val();
       } catch { /* fall back to denormalised purchase fields */ }
-      return {
-        // R9.7: the titleId is carried through now. bookstore_reading_progress is keyed
-        // by titleId while this shelf is keyed by slug, so without it the progress
-        // record cannot be matched to the row it belongs to. Nothing else about this
-        // read changed — same node, same fields, same fallbacks.
-        id: p.id,
-        slug: titleDoc?.slug || p.slug || p.id,
-        title: titleDoc?.title || p.title || 'Untitled',
-        author: titleDoc?.author || p.author || '',
-        coverUrl: titleDoc?.coverUrl || p.coverUrl || null,
-        // Presentation field for the bookplate. Absent ⇒ the plate prints no mark, the
-        // same rule book-reader.js applies: an id is not a catalogue number.
-        catalogueNumber: titleDoc?.catalogueNumber ?? null,
-        purchasedAt: typeof p.purchasedAt === 'number' ? p.purchasedAt : 0,
-        // R9.1 LB-8. `status === 'active'` verbatim, because that is the exact test the
-        // server gate applies before it will hand over the file
-        // (functions/api/bookstore/stream.js). Any looser reading here — treating a
-        // missing status as owned, say — would show a READ NOW that 403s on tap.
-        active: p.status === 'active',
-      };
+      // W33 — one row, through the same function the held page uses: the catalogue record where
+      // one exists, the purchase's own fields after, and whether the catalogue says PUBLISHED,
+      // which decides the door. R9.7's titleId (the progress key) and R9.1 LB-8's
+      // `status === 'active'` (the exact test stream.js applies) both live there now.
+      return heldBookView(p.id, p, titleDoc);
     }));
 
     // ── ONE ROW PER SLUG, ACTIVE WINS ─────────────────────────────────────────
@@ -581,6 +580,10 @@ export default function MyLibraryPage() {
            only honest lever for "smaller cards" is more columns, and the only question worth
            asking is how narrow a column may get before something on the card breaks.
 
+           (W33: the bookplate below has GONE — ruling 134 — and the breakpoints are kept
+           as they were; the bar that replaced it shrinks with its column. The reasoning is
+           left as the record of why the grid is where it is.)
+
            THE BOOKPLATE IS THE FLOOR, at 103px. It is a flex row of two Cinzel runs that
            cannot wrap — 'CS 001' against 'PURCHASED'/'WITHDRAWN', the longest pair the
            catalogue can produce (formatCatalogueNumber pads to three digits) — plus 14px of
@@ -680,23 +683,31 @@ export default function MyLibraryPage() {
           box-shadow: 0 10px 18px -6px rgba(0,0,0,.9), 0 1px 0 rgba(255,246,222,.18);
         }
 
-        /* THE BOOKPLATE — printed matter. Cream stock, brown ink, the register BoundBook's
-           back face already established. Contrast is plate-relative (#2a2318 on #ece4cf,
-           ~13:1), which is why this is the one light surface on a dark shelf. */
-        .ml-plate {
-          display: flex; align-items: center; justify-content: space-between; gap: 6px;
-          margin-top: 11px; padding: 3px 7px; border-radius: 2px;
-          background: linear-gradient(180deg, #ece4cf, #dcd2b6);
-          box-shadow: 0 1px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.5);
-        }
-        .ml-plate-cat { font-family: ${LABEL}; font-size: 8px; letter-spacing: .12em; color: #2a2318; }
-        .ml-plate-state { font-family: ${LABEL}; font-size: 6.5px; letter-spacing: .18em; color: #5a4a2a; }
-
         .ml-vol-t { font-weight: 600; font-size: 13.5px; line-height: 1.25; color: #f5f0e8; margin: 9px 0 0; }
         .ml-vol-a { font-style: italic; font-size: 12px; color: rgba(245,240,232,.62); margin: 2px 0 0; }
 
+        /* RULING 134 (W33) — a held book's tile carries four things: board, title, author, bar.
+           The bookplate that stood here is gone. The title block is pinned to TWO LINES and the
+           author to ONE, so a one-line title leaves its empty line below it and every bar in a
+           row sits level. Scoped to .ml-held: saved stories keep their own card. */
+        .ml-held .ml-vol-t {
+          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+          overflow: hidden; height: 2.5em;
+        }
+        .ml-held .ml-vol-a {
+          line-height: 1.3; height: 1.3em;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        /* THE BAR — a hairline on the ground, the fill in gold, the label in Cinzel beside it.
+           The row is a fixed 12px whether or not the label has text, so an untouched book's
+           hairline sits exactly where a started one's does. */
+        .ml-bar { display: flex; align-items: center; gap: 7px; height: 12px; margin-top: 8px; }
+        .ml-bar-track { position: relative; flex: 1; height: 2px; border-radius: 1px; overflow: hidden; background: rgba(245,240,232,.16); }
+        .ml-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px; background: linear-gradient(90deg, #a8842f, #e2c876); }
+        .ml-bar-l { font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .12em; line-height: 12px; color: rgba(245,240,232,.72); white-space: nowrap; }
+
+
         .ml-vol-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
-        .ml-pct { font-family: ${LABEL}; font-size: 7.5px; letter-spacing: .12em; color: rgba(245,240,232,.72); }
 
         /* THE GILDED LABEL — what READ NOW became. Struck metal, not a button: a hairline
            of gold, a warm fill, and text bright enough to clear AA on it (~10:1). */
@@ -732,7 +743,6 @@ export default function MyLibraryPage() {
            off the ledge — light stops reaching a book you no longer own. */
         .ml-vol.is-withdrawn .ml-boards { filter: grayscale(1); opacity: .38; box-shadow: 0 1px 0 rgba(0,0,0,.5), 2px 4px 10px rgba(0,0,0,.4); }
         .ml-vol.is-withdrawn .ml-ledge { opacity: .35; }
-        .ml-vol.is-withdrawn .ml-plate { background: linear-gradient(180deg, #b9b2a2, #a79f8c); }
         .ml-vol.is-withdrawn .ml-vol-t { color: rgba(245,240,232,.6); }
         .ml-vol.is-withdrawn .ml-vol-a { color: rgba(245,240,232,.55); }
         .ml-withdrawn {

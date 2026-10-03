@@ -41,6 +41,7 @@
     "test:responses": "playwright test -c tests/stories/playwright.config.mjs",
     "test:membership-layout": "playwright test -c tests/membership/playwright.layout.config.mjs",
     "test:membership-member": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/membership/playwright.member.config.mjs\"",
+    "test:held": "node tests/fixtures/make-epub.mjs && firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/bookstore/playwright.held.config.mjs\"",
     "covers:backfill": "node scripts/backfill-bookstore-cover-derivatives.mjs",
     "covers:backfill:lqip": "node scripts/backfill-bookstore-cover-lqip.mjs",
     "covers:backfill:colour": "node scripts/backfill-bookstore-cover-colour.mjs",

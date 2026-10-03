@@ -40,14 +40,25 @@ import BuyButton from '../../bookstore/components/BuyButton';
 import { requestStreamUrl } from '../../lib/bookstore/stream';
 import { formatCatalogueNumber } from '../../bookstore/components/fields';
 import ReadingRoom from './ReadingRoom';
+import { HeldSignIn, HeldNotOnShelf } from '../../components/HeldBookStates';
 
 function readSampleFlag() {
   if (typeof window === 'undefined') return false;
   return new URLSearchParams(window.location.search).get('sample') === '1';
 }
 
-export default function BookstoreReaderClient({ slug, title }) {
-  const isSample = readSampleFlag() && !!title.samplePath;
+// W33 — `held`: the same purchased path, opened from /my-library/book for a book the reader holds
+// whatever the catalogue says about it (withdrawn, or never listed). Three differences, all of
+// them refusals to say more than the reader already knows:
+//   · never a sample, whatever the query string says;
+//   · signed out → the generic sign-in prompt (app/components/HeldBookStates.js), naming nothing;
+//   · not_purchased / revoked → the generic "not on your shelf" page — NEVER the buy interstitial,
+//     which would name the title and offer a sale at an address that must not differ by whether
+//     the title exists.
+// Everything else — the Reading Room, print blocked, the copy cap and its credit, ribbons, the
+// private progress node, the re-mint — is the purchased path unchanged.
+export default function BookstoreReaderClient({ slug, title, held = false }) {
+  const isSample = !held && readSampleFlag() && !!title.samplePath;
   const { user, loading: authLoading } = useAuth();
 
   const [epubUrl, setEpubUrl] = useState(null);
@@ -373,6 +384,9 @@ export default function BookstoreReaderClient({ slug, title }) {
       </div>
     );
   }
+
+  if (held && gate === 'signedout') return <HeldSignIn />;
+  if (held && (gate === 'not_purchased' || gate === 'revoked')) return <HeldNotOnShelf />;
 
   if (gate === 'signedout') {
     return gateShell(

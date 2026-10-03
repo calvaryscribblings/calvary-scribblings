@@ -66,7 +66,7 @@ import Link from 'next/link';
 import Navbar from '../components/Navbar';
 import TabBar from '../components/TabBar';
 import { db } from '../lib/firebaseCore';
-import { ref, get } from 'firebase/database';
+import { ref, get, query as rtdbQuery, orderByChild, equalTo } from 'firebase/database';
 import { resolveIdentities } from '../lib/resolveAuthorNames';
 import { useReliableLoad } from '../lib/useReliable';
 import Unavailable from '../components/Unavailable';
@@ -389,12 +389,19 @@ export default function SearchPage() {
     booksAsked.current = true;
     (async () => {
       try {
-        const snap = await get(ref(db, 'bookstore_titles'));
+        // W33 — POSITIVELY, ON PUBLISHED. This read the WHOLE node and dropped only drafts, so a
+        // withdrawn or unpublished title (or any status added later) reached the results. The
+        // indexed query asks the server for published titles only — the storefront's own read —
+        // and the filter below holds the line again on the client. Measured on 3 Oct 2026: 26
+        // records, 25 published and 1 draft, so the old filter let nothing through that day;
+        // the first withdrawal would have.
+        // (`rtdbQuery`: this component's own `query` is the reader's search text.)
+        const snap = await get(rtdbQuery(ref(db, 'bookstore_titles'), orderByChild('status'), equalTo('published')));
         if (snap.exists()) {
           setBooks(
             Object.entries(snap.val() || {})
               .map(([slug, b]) => ({ ...b, slug }))
-              .filter((b) => b.status !== 'draft' && b.published !== false)
+              .filter((b) => b?.status === 'published')
           );
         }
       } catch (e) { /* books simply do not appear in results */ }

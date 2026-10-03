@@ -103,6 +103,10 @@ const PASS_THROUGH_PATHS = [
   // (shouldCache is isShelfPath, which this is not), so no reader has been served the wrong
   // book; this closes the door rather than relying on that staying true.
   '/reading-room.html',
+  // W33: the held-book door is the purchased reader by another address (/my-library/book?t=),
+  // so it takes /reader's fence. Without this it is a shelf path, and navigateNetworkFirst's
+  // ignoreSearch lookup would answer every ?t= with one cached shell.
+  '/my-library/book',
   '/api/',           // Pages Functions: hits, quiz attempts, moderation. Never replay.
   '/square',         // live surface
   '/admin',          // never

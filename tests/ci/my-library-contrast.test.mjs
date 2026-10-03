@@ -37,7 +37,6 @@ const contrast = (a, b) => {
 const composite = (fg, alpha, bg) => fg.map((c, i) => alpha * c + (1 - alpha) * bg[i]);
 
 const GROUND = [8, 6, 16];      // #080610 — .ml-page's darkest stop
-const PLATE = [236, 228, 207];  // #ece4cf — the bookplate's cream stock
 
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 
@@ -79,7 +78,7 @@ const ratioOn = ({ rgb, alpha }, bg) => contrast(composite(rgb, alpha, bg), bg);
 // deliberately absent: it carries no information a reader has to read.
 const TEXT = [
   ['.ml-vol-a (author)', rgbaFrom('.ml-vol-a'), GROUND],
-  ['.ml-pct (43% in)', rgbaFrom('.ml-pct'), GROUND],
+  ['.ml-bar-l (the bar\'s 43% / FINISHED)', rgbaFrom('.ml-bar-l'), GROUND],
   ['.ml-kept (kept-since line)', rgbaFrom('.ml-kept'), GROUND],
   ['.ml-quiet (REMOVE)', rgbaFrom('.ml-quiet'), GROUND],
   ['.ml-withdrawn', rgbaFrom('.ml-withdrawn'), GROUND],
@@ -112,17 +111,6 @@ describe('My Library — WCAG AA', () => {
     const bg = composite([Number(p[1]), Number(p[2]), Number(p[3])], Number(p[4]), GROUND);
     const r = contrast(ink.rgb, bg);
     assert.ok(r >= 4.5, `.ml-gild measures ${r.toFixed(2)}:1 on its own fill`);
-  });
-
-  test('the bookplate is legible against its cream stock, not the page', () => {
-    // The one light surface on a dark shelf. Its ink must be measured against the plate —
-    // reading it against the page would report a comfortable number for unreadable text.
-    const cat = hexFrom('.ml-plate-cat');
-    const state = hexFrom('.ml-plate-state');
-    for (const [label, c] of [['catalogue mark', cat], ['PURCHASED', state]]) {
-      const r = contrast(c.rgb, PLATE);
-      assert.ok(r >= 4.5, `bookplate ${label} measures ${r.toFixed(2)}:1 on #ece4cf`);
-    }
   });
 
   test('the withdrawn treatment stays readable while reading as withdrawn', () => {

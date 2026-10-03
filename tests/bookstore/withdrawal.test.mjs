@@ -56,6 +56,7 @@ import {
 import { TITLE_STATUSES } from '../../app/lib/bookstore/schema.js';
 import { resolveSections } from '../../app/lib/bookstore/sections.js';
 import { onRequestPost } from '../../functions/api/bookstore/stream.js';
+import { heldBookView } from '../../app/lib/bookstore/heldBook.js';
 
 const src = (rel) => readFileSync(fileURLToPath(new URL(`../../${rel}`, import.meta.url)), 'utf8');
 
@@ -179,6 +180,8 @@ describe('a withdrawn or deleted title is absent from every public surface', () 
     'app/bookstore/page.js',
     'app/bookstore/[slug]/page.js',
     'app/reader/[slug]/page.js',
+    // W33 — the site search. It read the whole node and dropped only drafts.
+    'app/search/page.js',
   ];
 
   test('every public reader selects titles POSITIVELY, on published', () => {
@@ -721,11 +724,14 @@ describe('⭑ AN OWNER OF A DELETED TITLE CAN STILL STREAM IT', () => {
     for (const f of ['slug', 'title', 'author', 'coverUrl']) {
       assert.ok(fn.includes(`${f}:`), `${f} must be denormalised onto the purchase`);
     }
+    // W33 — the fallbacks moved into app/lib/bookstore/heldBook.js (the held page draws through
+    // the same function), so they are asserted as VALUES there, not as text in the page. The one
+    // textual link left is that the page draws its rows through that function at all.
     const page = src('app/my-library/page.js');
-    assert.match(page, /titleDoc\?\.title \|\| p\.title/);
-    assert.match(page, /titleDoc\?\.author \|\| p\.author/);
-    assert.match(page, /titleDoc\?\.coverUrl \|\| p\.coverUrl/);
-    assert.match(page, /titleDoc\?\.slug \|\| p\.slug/);
+    assert.match(page, /heldBookView\(p\.id, p, titleDoc\)/);
+    const purchase = { status: 'active', slug: 'gone-title', title: 'T', author: 'A', coverUrl: 'https://example.invalid/c.jpg' };
+    const row = heldBookView('gone-title', purchase, null);
+    assert.deepEqual([row.slug, row.title, row.author, row.coverUrl, row.active], ['gone-title', 'T', 'A', 'https://example.invalid/c.jpg', true]);
   });
 });
 
