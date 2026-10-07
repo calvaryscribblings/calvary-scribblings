@@ -48,6 +48,7 @@ import { useAuth } from '../../../lib/AuthContext';
 import { useMembership } from '../../../lib/MembershipContext';
 import { getInstalmentPage } from '../../../lib/series/loader';
 import { useReliableLoad } from '../../../lib/useReliable';
+import { useReleaseRecheck } from '../../../lib/series/releaseRecheck';
 import Unavailable from '../../../components/Unavailable';
 import { grantForInstalment, refusalCopy } from '../../../lib/series/access';
 import { useGatePreview } from '../../../lib/gatePreview';
@@ -76,6 +77,14 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
   const page = useReliableLoad(
     () => (instalmentId === sentinel ? null : getInstalmentPage(instalmentId, Date.now(), { throwOnError: true })),
     [instalmentId, sentinel],
+  );
+  // W35 — the page asks again at the release minute and when the tab comes back, so a reader
+  // waiting on "not arrived yet" sees it open without reloading. Also while released but the
+  // detail came back empty: the device clock ran ahead of the server's, and the rule said no.
+  const loaded = page.data;
+  useReleaseRecheck(
+    loaded && (!loaded.released || !loaded.detail) ? [loaded.row.releaseAtMs] : [],
+    page.reload,
   );
   if (page.phase === 'loading') {
     return <Shell><p style={{ padding: '3rem 6%', color: 'rgba(245,240,232,0.62)', fontSize: 14 }}>Loading…</p></Shell>;

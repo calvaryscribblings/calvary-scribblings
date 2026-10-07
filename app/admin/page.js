@@ -21,6 +21,7 @@ import { storyStatus, statusLine, scheduleRefusal, unscheduleDecision, hidePaths
 import { readWithDeadline, classifyFailure } from '../lib/reliableRead';
 import Unavailable from '../components/Unavailable';
 import { slugify, newStorySlug } from '../lib/storySlug';
+import { RETIRED_PATH, isRetired, retiredNotice } from '../lib/retiredStories';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -231,7 +232,7 @@ function ImageModal({ onInsert, onClose }) {
   );
 }
 
-function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, roster, guestList, hidden, onUnhide }) {
+function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, roster, guestList, hidden, onUnhide, retired }) {
   const [showImageModal, setShowImageModal] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [epubUploading, setEpubUploading] = useState(false);
@@ -363,7 +364,14 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
         <button style={s.btnGhost} onClick={onCancel}>← Back</button>
       </div>
       {msg && <div style={s.msg}>{msg}</div>}
-      {hidden && (
+      {/* W35 — a RETIRED record opens read-only: no Unhide, no save, so no cover hold either.
+          The rules refuse the write regardless; this says so before anyone tries. */}
+      {retired && (
+        <div style={s.hiddenNotice} data-retired-notice>
+          <span style={{ fontSize: '0.82rem', color: '#e0c068' }}>{retired}</span>
+        </div>
+      )}
+      {hidden && !retired && (
         <div style={s.hiddenNotice}>
           <span style={{ fontSize: '0.82rem', color: '#e0c068' }}>This story is hidden from the platform.</span>
           <button style={s.btnUnhide} onClick={onUnhide}>Unhide</button>
@@ -636,9 +644,11 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
 
         <div style={s.formActions}>
           <button style={s.btnGhost} onClick={onCancel}>Cancel</button>
-          <button style={{ ...s.btn, opacity: saving ? 0.6 : 1 }} onClick={onSave} disabled={saving}>
-            {saving ? 'Saving…' : saveLabel}
-          </button>
+          {!retired && (
+            <button style={{ ...s.btn, opacity: saving ? 0.6 : 1 }} onClick={onSave} disabled={saving}>
+              {saving ? 'Saving…' : saveLabel}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -656,6 +666,8 @@ export default function AdminPage() {
   const [loadFail, setLoadFail] = useState(null);
   // W6 (ADM-05): stories the scheduled-publish Worker refused to publish coverless.
   const [skips, setSkips] = useState([]);
+  // W35: cms_stories_retired — slugs no control here may publish. See app/lib/retiredStories.js.
+  const [retired, setRetired] = useState(null);
   // W6 (ADM-10): the site's side of the last action — { stage, done, verdict }.
   const [rebuild, setRebuild] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -757,6 +769,12 @@ export default function AdminPage() {
         const sk = await readWithDeadline(() => get(ref(db, 'ops/publish_skips')));
         setSkips(sk.exists() ? Object.values(sk.val() || {}) : []);
       } catch (e) { console.warn('[admin] publish-skip alerts could not be read', e); }
+      // W35 — the retired list. A failed read leaves the controls drawn, and the database
+      // rules still refuse any write that would publish a retired record.
+      try {
+        const rt = await readWithDeadline(() => get(ref(db, RETIRED_PATH)));
+        setRetired(rt.exists() ? rt.val() : null);
+      } catch (e) { console.warn('[admin] retired list could not be read', e); }
     } catch (e) {
       console.warn('[admin] stories load failed', e);
       setLoadFail(e?.kind || classifyFailure(e));
@@ -786,6 +804,7 @@ export default function AdminPage() {
   }
 
   const saveStory = async () => {
+    if (editingId && isRetired(retired, editingId)) { setMsg(retiredNotice(retired[editingId])); return; }
     if (!form.title.trim()) { setMsg('Title is required.'); return; }
     const isEpubCategory = form.category === 'poetry' || form.category === 'novel' || form.category === 'short';
     if (!form.content.trim() && !(isEpubCategory && form.epubUrl)) { setMsg('Content is required (or upload an EPUB for Poetry/Novel/Short Story).'); return; }
@@ -1206,6 +1225,7 @@ export default function AdminPage() {
   };
 
   async function deleteStory(id) {
+    if (isRetired(retired, id)) { setMsg(retiredNotice(retired[id])); return; }
     if (!confirm('Delete this story? This cannot be undone.')) return;
     try {
       const { ref, update } = await import('firebase/database');
@@ -1241,6 +1261,7 @@ export default function AdminPage() {
   }
 
   async function unhideStory(id) {
+    if (isRetired(retired, id)) { setMsg(retiredNotice(retired[id])); return false; }
     let live = false;
     try {
       const { ref, update, get } = await import('firebase/database');
@@ -1384,7 +1405,8 @@ export default function AdminPage() {
             saving={saving} msg={msg} onSave={saveStory} onCancel={handleCancel}
             roster={roster} guestList={guestList}
             hidden={!!editingId && form.recordStatus === 'hidden'}
-            onUnhide={unhideFromEditor} />
+            onUnhide={unhideFromEditor}
+            retired={editingId && isRetired(retired, editingId) ? retiredNotice(retired[editingId]) : null} />
         )}
         {view === 'list' && (
           <div>
@@ -1445,6 +1467,8 @@ export default function AdminPage() {
                     // seeing "Hidden" on a story they just published would go looking
                     // for a bug that is not there.
                     const heldForCover = story.coverHold === true && st !== 'live';
+                    // W35 — retired: Edit opens it read-only; no Hide, Unhide or Delete.
+                    const isRetiredStory = isRetired(retired, story.id);
                     return (
                       <div key={story.id} style={{ ...s.card, opacity: hidden ? 0.5 : scheduled ? 0.75 : 1 }}>
                         <img src={story.cover} alt={story.title} style={s.coverThumb} onError={e => { e.target.style.opacity = 0.2; }} />
@@ -1455,9 +1479,11 @@ export default function AdminPage() {
                             {story.subcategory && <span style={s.badgeSub}>{story.subcategory}</span>}
                             {story.readerMode && <span style={s.badgeReader}>Book Reader</span>}
                             {scheduled && <span style={s.badgeScheduled}>Scheduled</span>}
-                            {heldForCover
-                              ? <span style={s.badgeHeld}>Cover pending</span>
-                              : hidden && <span style={s.badgeHidden}>Hidden</span>}
+                            {isRetiredStory
+                              ? <span style={s.badgeHidden}>Retired</span>
+                              : heldForCover
+                                ? <span style={s.badgeHeld}>Cover pending</span>
+                                : hidden && <span style={s.badgeHidden}>Hidden</span>}
                             {story.descriptorPending != null && !heldForCover
                               && <span style={s.badgeHeld}>Descriptor pending</span>}
                           </div>
@@ -1469,14 +1495,14 @@ export default function AdminPage() {
                           </div>
                         </div>
                         <div style={s.cardActions}>
-                          <button style={s.btnGhost} onClick={() => openEdit(story)}>Edit</button>
+                          <button style={s.btnGhost} onClick={() => openEdit(story)}>{isRetiredStory ? 'View' : 'Edit'}</button>
                           {/* No Hide/Unhide while held: Unhide would publish the story
                               coverless, which is the one thing the hold exists to prevent,
                               and Hide would race the reconciler for the same flag. */}
-                          {heldForCover ? null : hidden
+                          {isRetiredStory || heldForCover ? null : hidden
                             ? <button style={s.btnUnhide} onClick={() => unhideStory(story.id)}>Unhide</button>
                             : <button style={s.btnGhost} onClick={() => hideStory(story.id)}>Hide</button>}
-                          <button style={s.btnDanger} onClick={() => deleteStory(story.id)}>Delete</button>
+                          {!isRetiredStory && <button style={s.btnDanger} onClick={() => deleteStory(story.id)}>Delete</button>}
                         </div>
                       </div>
                     );

@@ -7,7 +7,14 @@
         "authorUid",
         "author",
         "publishedAtMs"
-      ]
+      ],
+      "$slug": {
+        ".validate": "!root.child('cms_stories_retired').child($slug).exists()"
+      }
+    },
+    "cms_stories_retired": {
+      ".read": true,
+      ".write": false
     },
     "stories": {
       ".read": true,
@@ -43,6 +50,7 @@
         "author"
       ],
       "$slug": {
+        ".validate": "!root.child('cms_stories_retired').child($slug).exists() || (newData.child('published').val() === false && newData.child('coverHold').val() !== true && newData.child('hiddenAt').exists())",
         "reads": {
           ".write": "auth != null && newData.isNumber() && newData.val() >= 0",
           ".validate": "newData.isNumber() && newData.val() >= 0"

@@ -87,9 +87,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderCover } from './render.mjs';
 import { toRecord, parseArgs } from './generate.mjs';
-import { isIndexed } from '../../app/lib/storyIndex.js';
 import { checkLock, lockFailureMessage } from './design-lock.mjs';
 import {
+  RETIRED_NODE, storiesInScope,
   BUCKET, DB_URL, SOURCE_NODE, WIDTHS,
   assertStoryScope, coverDir, coverFlipPaths, deriveFrom, rtdbPatch, accessToken,
   sha12, uploadCoverSet, urlPointsAt,
@@ -110,9 +110,14 @@ async function fetchStories() {
   const res = await fetch(`${DB_URL}/${SOURCE_NODE}.json`);
   if (!res.ok) throw new Error(`${SOURCE_NODE} read failed: HTTP ${res.status}`);
   const all = await res.json();
-  return Object.entries(all ?? {})
-    .filter(([, s]) => isIndexed(s) || s?.coverHold === true)
-    .map(([slug, s]) => ({ slug, story: s, held: s.coverHold === true }));
+  // W35 — the retired list. FAIL CLOSED: a run that cannot read it does not run, because a
+  // run without it is exactly the 30 Sep 2026 run that republished beta-princess-part-two.
+  const rr = await fetch(`${DB_URL}/${RETIRED_NODE}.json`);
+  if (!rr.ok) throw new Error(`${RETIRED_NODE} read failed: HTTP ${rr.status}`);
+  const { stories, skippedRetired } = storiesInScope(all, await rr.json());
+  // By slug only — slugs are public; nothing else about the record is printed (W12).
+  for (const slug of skippedRetired) console.log(`skipped (retired): ${slug}`);
+  return stories;
 }
 
 /**

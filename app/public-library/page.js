@@ -29,6 +29,7 @@ import { normalizeGenre } from '../lib/openPages';
 // must not wait on a chunk they never use.
 import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
 import { shelfLine } from '../lib/series/format';
+import { useReleaseRecheck } from '../lib/series/releaseRecheck';
 import { useArrivalReady } from '../components/ArrivalVeil';
 import {
   SUMMER_2026, prizePool, programStatusLabel, programBoardCta,
@@ -593,6 +594,12 @@ function JustAddedCard({ story, ...rest }) {
  */
 function SeriesRow() {
   const [rows, setRows] = useState(null);
+  // W35 — bumped when an instalment's release minute arrives, so the "next …" line re-reads.
+  const [recheck, setRecheck] = useState(0);
+  useReleaseRecheck(
+    (rows || []).flatMap((s) => (s.rows || []).filter((r) => !r.released).map((r) => r.releaseAtMs)),
+    () => setRecheck((n) => n + 1),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -607,12 +614,13 @@ function SeriesRow() {
         if (!cancelled) setRows(withRows);
       } catch {
         // Silent, and it stays silent: the loader already logs, and this row failing is a
-        // missing section rather than a broken page.
-        if (!cancelled) setRows([]);
+        // missing section rather than a broken page. A failed RE-read (W35) keeps the row it
+        // already drew rather than taking it away.
+        if (!cancelled) setRows((prev) => (prev && prev.length ? prev : []));
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [recheck]);
 
   if (!rows || rows.length === 0) return null;
 

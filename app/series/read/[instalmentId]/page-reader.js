@@ -38,6 +38,7 @@ import { requestInstalmentUrl } from '../../../lib/series/stream';
 import { getInstalmentDetail } from '../../../lib/series/loader';
 import { positionPath } from '../../../lib/series/reading-position';
 import { formatRelease } from '../../../lib/series/format';
+import { useReleaseRecheck } from '../../../lib/series/releaseRecheck';
 import ReadingRoom from '../../../reader/[slug]/ReadingRoom';
 import ArchiveLock from '../../../components/ArchiveLock';
 import { SERIES_LOCK_COPY } from '../../../lib/archiveLock';
@@ -115,6 +116,10 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
     })();
     return () => { cancelled = true; };
   }, [authLoading, fetchUrl, instalmentId, sentinel]);
+
+  // W35 — "arrives on …" asks the endpoint again at that minute and when the tab comes back.
+  // The endpoint decides on the server's clock; this only knocks.
+  useReleaseRecheck(gate === 'notyet' && releaseAtMs ? [releaseAtMs] : [], fetchUrl);
 
   const handleHostError = useCallback(() => {
     if (retriedRef.current) { setGate('failed'); setGateMessage(null); return; }

@@ -33,6 +33,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { useMembership } from '../../lib/MembershipContext';
 import { getSeriesPage } from '../../lib/series/loader';
 import { useReliableLoad } from '../../lib/useReliable';
+import { useReleaseRecheck } from '../../lib/series/releaseRecheck';
 import Unavailable from '../../components/Unavailable';
 import { grantForInstalment, refusalCopy, seriesGateOn } from '../../lib/series/access';
 import { useGatePreview } from '../../lib/gatePreview';
@@ -53,6 +54,12 @@ export default function SeriesDetailClient({ slug, sentinel }) {
   const page = useReliableLoad(
     () => (slug === sentinel ? null : getSeriesPage(slug, Date.now(), { throwOnError: true })),
     [slug, sentinel],
+  );
+  // W35 — every row drawn as "Arrives …" (or released with no detail yet) is re-read at its
+  // release minute and when the tab comes back. See app/lib/series/releaseRecheck.js.
+  useReleaseRecheck(
+    (page.data?.instalments || []).filter((i) => !i.released || !i.detail).map((i) => i.releaseAtMs),
+    page.reload,
   );
   if (page.phase === 'loading') {
     return <Shell><p style={{ padding: '3rem 4%', color: 'rgba(245,240,232,0.62)', fontSize: 14 }}>Loading…</p></Shell>;

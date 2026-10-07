@@ -194,3 +194,23 @@ briefly undid everyone's edits mid-test-run. Another overwrote a shared scratch 
 mutation run silently executed the wrong harness. Nothing shipped wrong, but only because the
 results were implausible enough to re-check. For a before/after comparison of one file, copy that
 file aside and back.
+
+## Retired stories: `cms_stories_retired/{slug}` means never published again
+
+**W35 (7 Oct 2026).** The ten Book Reader records pulled on 16 Aug (eight still exist) are
+RETIRED. Being unpublished was not enough. On 30 Sep a CMS save held `beta-princess-part-two`
+for a cover, and the covers reconciler published it.
+
+- No client can write the marker, founders included (`.write: false`). While a slug has one,
+  the rules refuse any client write that would publish it, hold it for a cover, clear its
+  `hiddenAt`, or give it an index entry.
+- The CMS opens a retired record read-only. The reconciler skips it, and fails closed if it
+  cannot read the list. The scheduled-publish Worker skips it because of `hiddenAt`.
+- **Bringing one back is one deliberate step:**
+  `node scripts/stories/retire.mjs --unretire <slug> --apply`. It backs up, then removes the
+  marker and nothing else. An editor then unhides the story in `/admin`. There is no button
+  for the first half.
+- `readerMode` is not the guard. It is a checkbox, and un-ticking it revives two quizzes. See
+  `scripts/pull-book-reader-collection.mjs`.
+
+Details: `app/lib/retiredStories.js`.

@@ -41,7 +41,8 @@
 // the caller's business. It only knows how to put one somewhere without lying about it.
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { indexUpdatePaths } from '../../app/lib/storyIndex.js';
+import { indexUpdatePaths, isIndexed } from '../../app/lib/storyIndex.js';
+import { RETIRED_PATH, isRetired } from '../../app/lib/retiredStories.js';
 
 export const DB_URL = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 export const BUCKET = 'calvary-scribblings.firebasestorage.app';
@@ -57,6 +58,34 @@ export const SOURCE_NODE = 'cms_stories';
 
 export const sha = (b) => createHash('sha256').update(b).digest('hex');
 export const sha12 = (b) => sha(b).slice(0, 12);
+
+/** W35 — the node the reconciler reads beside SOURCE_NODE. See app/lib/retiredStories.js. */
+export const RETIRED_NODE = RETIRED_PATH;
+
+/**
+ * EVERY RECORD THE RECONCILER IS ALLOWED TO TOUCH — pure, so the 30 Sep 2026 replay can run it
+ * without a network.
+ *
+ * A PUBLISHED story, or one HELD for its cover — minus every RETIRED slug, and the retired
+ * check comes FIRST. That order is the W35 fix: on 30 Sep beta-princess-part-two, pulled with
+ * the Book Reader collection on 16 Aug, was held for a cover by a CMS save, and this queue
+ * published it with the cover it generated. A retired record is out of scope whatever its
+ * flags say, held or not, published or not.
+ *
+ * @param {object} all      the cms_stories snapshot value
+ * @param {object} retired  the cms_stories_retired snapshot value (or null)
+ * @returns {{ stories: Array<{slug, story, held}>, skippedRetired: string[] }}
+ */
+export function storiesInScope(all, retired) {
+  const stories = [];
+  const skippedRetired = [];
+  for (const [slug, s] of Object.entries(all ?? {})) {
+    if (!(isIndexed(s) || s?.coverHold === true)) continue;
+    if (isRetired(retired, slug)) { skippedRetired.push(slug); continue; }
+    stories.push({ slug, story: s, held: s.coverHold === true });
+  }
+  return { stories, skippedRetired };
+}
 
 /** The directory a render belongs in. A pure function of the slug and the bytes — see (3). */
 export const coverDir = (slug, png) => `${NEW_PREFIX}/${slug}/${sha12(png)}`;

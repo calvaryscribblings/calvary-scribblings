@@ -16,6 +16,7 @@ import Link from 'next/link';
 import TabBar from '../components/TabBar';
 import { getPublishedSeries, getInstalments } from '../lib/series/loader';
 import { useReliableLoad } from '../lib/useReliable';
+import { useReleaseRecheck } from '../lib/series/releaseRecheck';
 import Unavailable from '../components/Unavailable';
 import { shelfLine } from '../lib/series/format';
 import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
@@ -45,6 +46,11 @@ export default function SeriesLandingPage() {
   }, []);
   const loading = shelf.phase === 'loading';
   const rows = shelf.data || [];
+  // W35 — each card's "next …" line and count are re-read when an instalment arrives.
+  useReleaseRecheck(
+    rows.flatMap((s) => (s.rows || []).filter((r) => !r.released).map((r) => r.releaseAtMs)),
+    shelf.reload,
+  );
 
   return (
     <div style={{ background: '#080610', minHeight: '100vh', fontFamily: BODY }}>
