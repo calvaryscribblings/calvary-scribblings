@@ -17,23 +17,15 @@ import { execFileSync } from 'node:child_process';
 
 // ── THE EXCEPTIONS ──────────────────────────────────────────────────────────────────────────
 //
-// next < 16.3.3 — DECIDED by Ikenna, W1 (24 Sep 2026): allowed until 7 Oct, bump after launch.
+// NONE. W36 (7 Oct 2026) bumped next 16.2.1 → 16.3.8, the update Ikenna allowed the two next
+// criticals to wait for (W1, 24 Sep: "allowed until 7 Oct, bump after launch"). Both advisories
+// (GHSA-p293-qw3h-jr36, GHSA-2xp9-vwfh-vxw4) and the third that reddened CI from 3 Oct
+// (GHSA-vcvr-r3jv-pc5j, next/og ImageResponse) are fixed in 16.3.8, so the list is empty and
+// the gate blocks on any critical again.
 //
-// WHY NOTHING IS EXPOSED LIVE. next.config.mjs sets `output: 'export'`: Cloudflare Pages serves
-// the files in out/ and NO Next.js server runs anywhere in this architecture (every live
-// endpoint is a Pages Function on workerd). Both criticals need a Next server to exist:
-//   · GHSA-p293-qw3h-jr36 — RCE on WINDOWS-HOSTED Next servers. There is no Next server, and
-//     Pages is not Windows.
-//   · GHSA-2xp9-vwfh-vxw4 — RCE in the IMAGE OPTIMIZATION API with AVIF. There is no such API
-//     in a static export, and next.config.mjs sets `images.unoptimized: true` besides.
-// The build runs next on Cloudflare's builder over our own sources, which no reader controls.
-//
-// WHY NOT BUMP NOW. A framework minor six days before launch changes the bytes of every page;
-// the bump gets its own round with an out/ diff after 30 Sep. The date below is that promise.
-export const EXCEPTIONS = [
-  { advisory: 'GHSA-p293-qw3h-jr36', pkg: 'next', until: '2026-10-07', reason: 'Windows-hosted Next server RCE; output:export runs no Next server' },
-  { advisory: 'GHSA-2xp9-vwfh-vxw4', pkg: 'next', until: '2026-10-07', reason: 'Image Optimization API RCE; no such API in a static export, images.unoptimized' },
-];
+// An exception is { advisory, pkg, until, reason }: by ADVISORY id on one package, and DATED, so
+// it lapses on its own. Add one only on a ruling, with the reason nothing is exposed.
+export const EXCEPTIONS = [];
 
 const ghsa = (url) => (String(url || '').match(/GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}/) || [null])[0];
 
