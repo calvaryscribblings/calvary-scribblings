@@ -17,7 +17,14 @@ const CHROMIUM_ARGS = [
   '--disable-features=IsolateOrigins,site-per-process,TranslateUI',
   '--renderer-process-limit=2', '--js-flags=--max-old-space-size=256',
 ];
-const shape = { viewport: { width: 400, height: 800 }, hasTouch: true, isMobile: false, deviceScaleFactor: 1 };
+// W36 — serviceWorkers: 'block'. The site's worker (public/sw.js) registers on every page of
+// out/. It passes Storage requests through untouched, so real readers are unaffected, but once
+// WebKit treats the page as controlled, Playwright's page.route() stops catching the reading
+// room's EPUB fetch. The stub was bypassed and the harness token reached real Storage (404), so
+// "the EPUB never opened". Intermittent on CI from the day this step was added (98293fde,
+// 28 Sep): it depended on whether the worker had taken control before the fetch. Locally it
+// failed every time. Same remedy as every other harness that stubs the network (W2).
+const shape = { serviceWorkers: 'block', viewport: { width: 400, height: 800 }, hasTouch: true, isMobile: false, deviceScaleFactor: 1 };
 const chromium = { ...devices['Desktop Chrome'], ...shape, launchOptions: { args: CHROMIUM_ARGS } };
 const webkit = { ...devices['Desktop Safari'], ...shape };
 

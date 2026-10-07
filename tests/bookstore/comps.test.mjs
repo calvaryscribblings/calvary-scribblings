@@ -136,16 +136,21 @@ describe('comps never count as sales', () => {
   // file that reads the WHOLE node — the only way to aggregate it — must go through the
   // predicate, or be a backup that copies bytes and reports nothing.
   test('every aggregation of bookstore_purchases in the tree goes through the comp predicate', () => {
+    // W36: dotfiles are skipped, and a file that vanishes between the listing and the read is
+    // not an error. test:purchases runs files concurrently, and author-render.test.mjs writes
+    // and deletes app/bookstore/components/.author-block.test-build.mjs while this walk runs —
+    // that race reddened CI on b210824c with ENOENT. No source file in the tree is a dotfile.
     const walk = (d) => readdirSync(d).flatMap((f) => {
       const p = join(d, f);
-      if (/node_modules|\.next|^out$/.test(f)) return [];
-      return statSync(p).isDirectory() ? walk(p) : [p];
+      if (/node_modules|\.next|^out$/.test(f) || f.startsWith('.')) return [];
+      try { return statSync(p).isDirectory() ? walk(p) : [p]; } catch (e) { if (e.code === 'ENOENT') return []; throw e; }
     });
+    const readIfThere = (f) => { try { return readFileSync(f, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return ''; throw e; } };
     const BACKUPS = new Set(['scripts/backup/export.mjs', 'scripts/backup/restore-drill.mjs', 'scripts/backup/assess.mjs']);
     const offenders = [];
     for (const f of [...walk('app'), ...walk('functions'), ...walk('scripts')].filter((p) => /\.(m?js)$/.test(p))) {
       if (BACKUPS.has(f)) continue;
-      const code = readFileSync(f, 'utf8').split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n');
+      const code = readIfThere(f).split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n');
       const wholeNode = /ref\(\s*(db\s*,\s*)?['"`]bookstore_purchases['"`]\s*\)|['"`]bookstore_purchases\.json|PURCHASES_PATH\}\.json/.test(code);
       if (!wholeNode) continue;
       if (!/purchaseSource|readership-source/.test(code)) offenders.push(f);

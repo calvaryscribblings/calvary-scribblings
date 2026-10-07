@@ -488,14 +488,13 @@ jobs:
         run: npx playwright test -c tests/membership/playwright.copy.config.mjs
         if: ${{ !cancelled() }}
 
-      # MEMBERSHIP_STATE=pre, matching MEMBERSHIP_LAUNCHED=false in the build above. The flag is
-      # a build-time constant, so the post-launch wording cannot be exercised in the same run —
-      # on launch day the flag and this line move together, in one change.
+      # No MEMBERSHIP_STATE: the spec reads the state from MEMBERSHIP_LAUNCHED in
+      # app/links/page.js, the constant that built out/ (W25). This step pinned 'pre' until W36,
+      # and the launch (1414dd72, 29 Sep) flipped the flag without moving the pin, so the step
+      # had asserted the pre-launch wording against a post-launch build ever since.
       - name: /links harness (membership entry, readers' group)
         run: npx playwright test -c tests/membership/playwright.links.config.mjs
         if: ${{ !cancelled() }}
-        env:
-          MEMBERSHIP_STATE: pre
 
       # R19.6 — THE DEPLOY HOOK, PROVEN ABSENT FROM WHAT WE SERVE.
       #
