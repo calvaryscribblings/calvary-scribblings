@@ -5,7 +5,7 @@
 // trigger cannot live in the browser and what the endpoint refuses.
 //
 // Moved out of app/lib/bookstore/ alongside the endpoint: four surfaces use it and only one of
-// them is the bookstore.
+// them is the bookstore. W34 made it five: /admin/series, which had never asked for a build.
 //
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // ⚠ A HOOK IS NAMED HERE. A HOOK IS NEVER HELD HERE.
@@ -46,6 +46,8 @@ export const HOOKS = Object.freeze({
   BOOKSTORE: 'bookstore',   // bookstore titles          → /bookstore/{slug}, /reader/{slug}
   CMS: 'cms',               // stories and voices        → /stories/{slug}, /voices/{slug}
   OPEN_PAGES: 'openPages',  // Open Pages posts          → /open-pages/{id}
+  SERIES: 'series',         // series and instalments    → /series/{slug}, /series/instalment/{id},
+                            //                             /series/read/{id}
 });
 
 /**

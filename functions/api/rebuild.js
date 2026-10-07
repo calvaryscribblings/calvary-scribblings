@@ -2,7 +2,7 @@
 //
 //   POST /api/rebuild
 //   Authorization: Bearer <firebase id token>
-//   { "hook": "bookstore" | "cms" | "openPages" }      → 202 { building: true, hook }
+//   { "hook": "bookstore" | "cms" | "openPages" | "series" } → 202 { building: true, hook }
 //
 // ═══════════════════════════════════════════════════════════════════════════════════════
 // WHY THIS MOVED OUT OF functions/api/bookstore/ (it was /api/bookstore/rebuild in R19.6)
@@ -39,7 +39,7 @@
 // ⚠ THE CLIENT NAMES A HOOK. IT NEVER HOLDS ONE.
 // ═══════════════════════════════════════════════════════════════════════════════════════
 //
-// The request body carries an IDENTIFIER — 'bookstore', 'cms', 'openPages' — and this endpoint
+// The request body carries an IDENTIFIER — 'bookstore', 'cms', 'openPages', 'series' — and this endpoint
 // maps it to an environment variable through functions/api/_deploy-hooks.js. A URL never
 // crosses the boundary in either direction: not accepted from a caller (which would make this
 // an open proxy for POSTing anywhere, authenticated by a founder token), and not echoed in a

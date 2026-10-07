@@ -100,9 +100,18 @@ describe('R38 · ⭐ THE ROW SITS BELOW THE CATALOGUE AND ABOVE THE FURNITURE', 
     }
   });
 
-  test('⭐ BELOW The Series and the Book Reader collection — also house-published', () => {
+  test('⭐ BELOW The Series — also house-published', () => {
     assert.ok(row() > at('<SeriesRow />'), 'The Series is commissioned work');
-    assert.ok(row() > at('title="Book Reader"'), 'the Collection is house-published');
+  });
+
+  // W34 — the retired Collection's row was rendered whenever ANY visible story carried
+  // readerMode, so a single republished record (beta-princess-part-two, 30 Sep) put it back on
+  // Home with a free route into a members-only series. The row is removed from the source; no
+  // record can draw it again.
+  test('⛔ the retired Book Reader row is not on Home, in any form', () => {
+    assert.equal(src.indexOf('title="Book Reader"'), -1, 'the Book Reader row is back on Home');
+    assert.equal(src.indexOf('seeAll="/book-reader"'), -1, 'Home links to the retired /book-reader');
+    assert.doesNotMatch(src, /stories=\{allStories\.filter\(\s*s\s*=>\s*s\.readerMode/, 'Home builds a row from readerMode again');
   });
 
   test('⭐ ABOVE THE SUBSCRIBE BLOCK — this is the defect that started the round', () => {

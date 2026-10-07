@@ -57,6 +57,15 @@
 //    has accepted coverUrl since R12.0 — but no form control was ever bound to it, so the only
 //    art any instalment carried was whatever scripts/migrate-beta-princess.mjs copied across.
 //    The instalment page's hero band is that cover, so the gap had to close.
+//
+// 10. W34 — A PUBLISH HERE ASKS FOR A BUILD, EXACTLY AS THE BOOK STORE ADMIN DOES. Every
+//    /series page is a static file enumerated at build time from rows with status
+//    'published'. Until W34 nothing on this screen requested a deploy, so a freshly published
+//    instalment had no page — /series/instalment/{id} and /series/read/{id} answered 404 —
+//    until something unrelated rebuilt the site. Diary of a Lagos 9-5er i2 sat that way on
+//    7 Oct 2026. summonSeriesDeploy() below runs after a status change or a delete has
+//    ALREADY SUCCEEDED, only when publishedness changed (rebuildNeeded), once per flip, and a
+//    failed trigger never rolls the write back.
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import { useReliableLoad } from '../../lib/useReliable';
@@ -74,6 +83,7 @@ import { isReleased, releasedCount, SERIES_TIER_GATE_ENABLED } from '../../lib/s
 import { nextFreeOrdinal } from '../../lib/series/deletion';
 import { formatRelease, readingTimeLabel } from '../../lib/series/format';
 import { SERIES_STATUSES, INSTALMENT_STATUSES } from '../../lib/series/schema';
+import { rebuildNeeded, requestRebuild, HOOKS } from '../../lib/rebuild';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 
@@ -110,6 +120,26 @@ const s = {
  * Seconds are normalised in rather than pattern-patched: browsers emit either "…T09:00" or
  * "…T09:00:00" depending on the step attribute, and both must land on the same instant.
  */
+/**
+ * W34 — summon the deploy, once per flip. The Book Store admin's summonDeploy(), for the Series.
+ *
+ * Returns null when no build is owed (rebuildNeeded said no), otherwise requestRebuild's
+ * verdict, whose message is the shared wording — "will exist in about two minutes" on success,
+ * the Cloudflare fallback on failure. requestRebuild cannot throw, so the write that has
+ * already landed can never be reported as failed because its build did not start.
+ */
+async function summonSeriesDeploy(user, was, now) {
+  if (!rebuildNeeded(was, now)) return null;
+  const verdict = await requestRebuild({ hook: HOOKS.SERIES, getIdToken: () => user?.getIdToken() });
+  if (!verdict.ok) console.error('[admin/series] rebuild not started:', verdict.status, verdict.message);
+  return verdict;
+}
+
+/** A save's message with the build's verdict after it, when a build was asked for. */
+const withVerdict = (m, verdict) => (verdict
+  ? { ok: m.ok && verdict.ok, text: `${m.text} ${verdict.message}` }
+  : m);
+
 export function localInputToMs(value) {
   if (!value) return null;
   const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2}))?$/.exec(String(value));
@@ -191,7 +221,12 @@ export default function SeriesAdminPage() {
               <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {SERIES_STATUSES.filter((st) => st !== series.status).map((st) => (
                   <button key={st} type="button" style={s.btnSm}
-                    onClick={async () => { setMsg(toMsg(await setSeriesStatus(series.id, st))); refresh(); }}>
+                    onClick={async () => {
+                      const r = await setSeriesStatus(series.id, st);
+                      const verdict = r.ok ? await summonSeriesDeploy(user, series.status, st) : null;
+                      setMsg(withVerdict(toMsg(r), verdict));
+                      refresh();
+                    }}>
                     Set {st}
                   </button>
                 ))}
@@ -279,6 +314,7 @@ function PosterUpload({ seriesId, onDone }) {
 }
 
 function InstalmentRow({ row, onDone }) {
+  const { user } = useAuth() || {};
   const [detail, setDetail] = useState(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -375,8 +411,9 @@ function InstalmentRow({ row, onDone }) {
           <button key={st} type="button" style={s.btnSm}
             onClick={async () => {
               const r = await setInstalmentStatus(row.id, st);
+              const verdict = r.ok ? await summonSeriesDeploy(user, row.status, st) : null;
               report(r.ok
-                ? { ok: true, text: `Instalment ${row.ordinal} is now ${st}.` }
+                ? withVerdict({ ok: true, text: `Instalment ${row.ordinal} is now ${st}.` }, verdict)
                 : { ok: false, text: `Could not set ${st}: ${(r.errors || []).join(' ')}` });
             }}>
             {st}
@@ -666,6 +703,7 @@ function InstalmentTier({ row, onSaved }) {
  * person.
  */
 function DeleteInstalment({ row, detail, onDone }) {
+  const { user } = useAuth() || {};
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
@@ -723,6 +761,8 @@ function DeleteInstalment({ row, detail, onDone }) {
           onClick={async () => {
             setBusy(true);
             const r = await deleteInstalment(row.id);
+            // A published instalment's pages must stop existing; a draft never had any.
+            const verdict = r.ok ? await summonSeriesDeploy(user, row.status, null) : null;
             setBusy(false);
             // The row unmounts on the refresh onDone triggers, so this message HAS to go to the
             // page-level line — there is no row left to print it in. The opposite of the
@@ -732,7 +772,8 @@ function DeleteInstalment({ row, detail, onDone }) {
               ? {
                 ok: true,
                 text: `Instalment ${row.ordinal} deleted. Ordinal ${row.ordinal} is retired and cannot be reused.`
-                  + (r.warnings?.length ? ` ⚠ ${r.warnings.join(' ')}` : ''),
+                  + (r.warnings?.length ? ` ⚠ ${r.warnings.join(' ')}` : '')
+                  + (verdict ? ` ${verdict.message}` : ''),
               }
               : toMsg(r));
           }}>

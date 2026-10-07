@@ -1947,9 +1947,13 @@ export default function Home() {
           and the first field StoryCard gained would have broken it silently. */}
       <SeriesRow />
 
-      {allStories.filter(s => s.readerMode === true).length > 0 && (
-        <Row title="Book Reader" kicker="THE COLLECTION" stories={allStories.filter(s => s.readerMode === true)} seeAll="/book-reader" />
-      )}
+      {/* ⛔ W34 — THE BOOK READER ROW IS GONE FROM THE SOURCE, NOT MERELY EMPTY. It used to
+          stay here behind `readerMode === true`, "self-hiding at zero" — which made the
+          retirement a fact about the DATA rather than the page. On 30 Sep the covers
+          reconciler republished beta-princess-part-two (a record the 16 Aug migration had
+          pulled into the Series) and the row came back on Home with a link into a
+          members-only run. The Collection was retired on 16 Aug; nothing a record does can
+          bring the row back now. tests/openpages/distribution.test.mjs asserts its absence. */}
 
       {/* ═══════════════════════════════════════════════════════════════════════
           OPEN PAGES — BELOW EVERYTHING THE HOUSE PUBLISHED, ABOVE THE FURNITURE.
@@ -1982,8 +1986,8 @@ export default function Home() {
           to write for it. Below the signup it is furniture; above the catalogue it is
           a claim the house does not make.
 
-          So: below every genre row, below The Series and the Book Reader collection,
-          ABOVE the subscribe block. ⚠ ASSERTED IN BOTH DIRECTIONS in
+          So: below every genre row, below The Series (the Book Reader collection's row
+          was removed in W34), ABOVE the subscribe block. ⚠ ASSERTED IN BOTH DIRECTIONS in
           tests/openpages/distribution.test.mjs — a later round cannot quietly raise it
           above the catalogue or drop it back beneath the furniture. */}
       <OpenPagesRow />

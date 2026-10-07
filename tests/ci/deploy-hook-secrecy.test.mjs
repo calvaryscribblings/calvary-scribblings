@@ -43,7 +43,7 @@
 //     OPEN_PAGES_DEPLOY_HOOK_URL.
 //
 //   ✔ R19.7 — all four call sites moved onto /api/rebuild, which takes an IDENTIFIER
-//     ('bookstore' | 'cms' | 'openPages') and maps it to an environment variable server-side.
+//     ('bookstore' | 'cms' | 'openPages' | 'series') and maps it to an environment variable server-side.
 //     No URL crosses the boundary in either direction.
 //
 // So KNOWN_LEAKED_HOOK_IDS is EMPTY, and it is empty because the leak was closed — not because

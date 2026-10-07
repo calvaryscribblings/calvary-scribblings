@@ -210,6 +210,9 @@ describe('2b · a hook is NAMED by the caller and RESOLVED by the server', () =>
       ['bookstore', ENV.DEPLOY_HOOK_URL],
       ['cms', ENV.CMS_DEPLOY_HOOK_URL],
       ['openPages', ENV.OPEN_PAGES_DEPLOY_HOOK_URL],
+      // W34 — the Series shares the CMS's hook by design (same Pages project, no new
+      // dashboard step). Its own identifier, the CMS's URL.
+      ['series', ENV.CMS_DEPLOY_HOOK_URL],
     ];
     for (const [hook, expected] of cases) {
       const { res, body, fetchImpl } = await drive({ body: { hook } });
@@ -226,7 +229,7 @@ describe('2b · a hook is NAMED by the caller and RESOLVED by the server', () =>
       const { res, body, fetchImpl } = await drive({ body: { hook } });
       assert.equal(res.status, 400, `${JSON.stringify(hook)} must be refused`);
       assert.equal(body.code, 'unknown_hook');
-      assert.deepEqual(body.allowed, ['bookstore', 'cms', 'openPages'],
+      assert.deepEqual(body.allowed, ['bookstore', 'cms', 'openPages', 'series'],
         'the refusal must say what WOULD have been accepted');
       assert.deepEqual(fetchImpl.hookCalls(), [], 'nothing may fire on an unknown identifier');
     }
@@ -273,6 +276,7 @@ describe('2b · a hook is NAMED by the caller and RESOLVED by the server', () =>
       bookstore: 'DEPLOY_HOOK_URL',
       cms: 'CMS_DEPLOY_HOOK_URL',
       openPages: 'OPEN_PAGES_DEPLOY_HOOK_URL',
+      series: 'CMS_DEPLOY_HOOK_URL',
     });
     assert.equal(resolveHook(ENV, 'cms').url, ENV.CMS_DEPLOY_HOOK_URL);
     assert.equal(resolveHook(ENV, 'nope').reason, 'unknown');
@@ -449,6 +453,9 @@ describe('5 · every publish path asks for its own deploy', () => {
     ['admin/page.js', 'HOOKS.CMS', 'a story is saved in the CMS'],
     ['admin/voices/page.js', 'HOOKS.CMS', 'a voice is added, edited or reordered'],
     ['admin/forum/page.jsx', 'HOOKS.OPEN_PAGES', 'an Open Pages post is approved'],
+    // W34 — the Series admin never asked for a build, so a published instalment had no pages
+    // until something unrelated deployed. Diary of a Lagos 9-5er i2, 7 Oct 2026.
+    ['admin/series/page.js', 'HOOKS.SERIES', 'a series or an instalment is published, unpublished or deleted'],
   ];
 
   for (const [file, hook, when] of SITES) {

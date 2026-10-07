@@ -31,6 +31,11 @@ export const HOOK_ENV = Object.freeze({
   bookstore: 'DEPLOY_HOOK_URL',            // Bookstore Publish — titles, /bookstore/{slug}
   cms: 'CMS_DEPLOY_HOOK_URL',              // stories and voices — /stories/{slug}, /voices/{slug}
   openPages: 'OPEN_PAGES_DEPLOY_HOOK_URL', // Open Pages — /open-pages/{id}
+  // W34 — the Series. ITS OWN IDENTIFIER, THE CMS'S HOOK. Both build the same Pages project,
+  // so a second variable would only be a second dashboard step for Ikenna and a second thing
+  // to forget to set. The identifier is separate so the call site says what it publishes, and
+  // so the Series can have its own hook later by changing this one line.
+  series: 'CMS_DEPLOY_HOOK_URL',           // the Series — /series/{slug}, /series/instalment/{id}, /series/read/{id}
 });
 
 /** The allowed identifiers, in a stable order, for the 400 that names the set. */
