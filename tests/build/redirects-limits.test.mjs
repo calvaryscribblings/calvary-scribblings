@@ -209,11 +209,12 @@ describe('the generator STOPS THE BUILD rather than emitting a file that cannot 
       // that adding or losing a hand-maintained legacy rule cannot pass unnoticed — the list is
       // the one part of this file a human edits. R46.2 took it from 9 to 10 by adding
       // /voices/arthor-eze → /voices/arthur-eze; APP-DL1 took it to 12 by adding the two
-      // association-file REWRITES (the file's first and only 200s). 12 legacy + 3 CMS slugs ×
-      // 2 forms = 18, of which one is dynamic. If this fails, check the list changed on
+      // association-file REWRITES (the file's first and only 200s); W38 took it to 14 with
+      // /book-reader and /book-reader.html → /series (ruling 143). 14 legacy + 3 CMS slugs ×
+      // 2 forms = 20, of which one is dynamic. If this fails, check the list changed on
       // purpose, then move it.
-      assert.match(r.stdout, /\(3 slugs from CMS, 12 static\)/);
-      assert.match(r.stdout, /18\/18 rules servable — 17 static, 1 dynamic/);
+      assert.match(r.stdout, /\(3 slugs from CMS, 14 static\)/);
+      assert.match(r.stdout, /20\/20 rules servable — 19 static, 1 dynamic/);
       const written = readFileSync(REDIRECTS, 'utf8');
       assert.deepEqual(analyseRedirects(written).violations, []);
       assert.doesNotMatch(written, /\/hidden\s/, 'an unpublished story gets no redirect');

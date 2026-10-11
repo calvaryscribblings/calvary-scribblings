@@ -42,7 +42,7 @@ const SURFACES = [
   'app/poetry/page.js',
   'app/news/page.js',
   'app/inspiring/page.js',
-  'app/book-reader/page.js',
+  // app/book-reader/page.js was removed in W38 (ruling 143: /book-reader → /series).
   'scripts/classify-subcategories.mjs',
   'scripts/reclassify-short-stories.mjs',
 ];
@@ -53,7 +53,7 @@ const CATEGORY_PAGES = {
   poetry: 'app/poetry/page.js',
   news: 'app/news/page.js',
   inspiring: 'app/inspiring/page.js',
-  novel: 'app/book-reader/page.js',
+  // novel had /book-reader, removed in W38 (ruling 143); no published story uses it.
 };
 
 const ALL_LABELS = [...new Set(Object.values(SUBCATEGORIES).flat())];

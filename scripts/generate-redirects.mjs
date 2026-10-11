@@ -64,6 +64,13 @@ const STATIC_LEGACY_REDIRECTS = [
   // removed in the same change, so this rule has no static asset competing with it.
   ['/serial',         '/series'],
   ['/serial.html',    '/series'],
+  // W38, ruling 143 — /book-reader → /series. The Book Reader collection was pulled on 16 Aug and
+  // its records retired in W35, so the page had been an empty shelf since; the long-form work the
+  // site publishes now is the Series. A 301 for the same reason /serial got one: the route was
+  // linked from the Home row (removed in W34) and may be bookmarked. app/book-reader/page.js was
+  // removed in the same change, so no static asset competes with this rule.
+  ['/book-reader',      '/series'],
+  ['/book-reader.html', '/series'],
   // Summer Reading Program — the shareable short form for the seasonal board.
   // The canonical route is /leaderboard/summer-2026 (a literal segment, so it
   // static-exports without generateStaticParams). Verified nothing shadows this

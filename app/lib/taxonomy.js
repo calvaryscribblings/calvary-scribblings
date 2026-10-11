@@ -11,7 +11,7 @@
 //   app/poetry/page.js          SUBCATEGORIES
 //   app/news/page.js            SUBCATEGORIES
 //   app/inspiring/page.js       SUBCATEGORIES
-//   app/book-reader/page.js     SUBCATEGORIES
+//   app/book-reader/page.js     SUBCATEGORIES  (removed in W38, ruling 143)
 //   scripts/classify-subcategories.mjs    SUBCATEGORY_MAP — the classifier's vocabulary
 //   scripts/reclassify-short-stories.mjs  SUBCATEGORIES  — short's, again
 //

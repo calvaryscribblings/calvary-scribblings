@@ -1,4 +1,4 @@
-// THE BOOK STORE'S ROUTE METADATA — the storefront's own card, and the noindex both routes inherit.
+// THE BOOK STORE'S ROUTE METADATA — the storefront's own card. Indexable since W38 (ruling 131).
 //
 // ── ⚠ R9.1 — THIS FILE WAS FOUR LINES, AND THE SHOP'S FRONT DOOR UNFURLED BARE ───────────
 //
@@ -24,10 +24,10 @@
 // exactly the people who will paste this URL to each other before opening day. They should get
 // the shop, not a bare domain.
 //
-// ⚠ NOT THIS ROUND: the noindex does NOT come off here. That is launch day, it is Ikenna's
-// word on the day, and it is TWO changes not one — removing `robots` below AND adding
-// /bookstore and /bookstore/[slug] to app/sitemap.js, which lists neither today. Removing only
-// the first opens a shop that nothing points a crawler at.
+// ⭑ W38, RULING 131 — THE NOINDEX IS OFF. It was always two changes, and both landed together:
+// `robots` came out of the metadata below, and app/sitemap.js now lists /bookstore and every
+// published catalogue title. The two rooms (Desiderata, Search) set their own noindex in their
+// page.js and stay private.
 //
 // ── ⭑ THE IMAGE IS IKENNA'S RULING, AND THIS IS THE PLACEHOLDER, NOT THE ANSWER ──────────
 //
@@ -76,9 +76,6 @@ const DESCRIPTION =
 export const metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  // Inherited by /bookstore/[slug], whose generateMetadata deliberately sets no robots key.
-  // ⚠ Removing this is launch-day work and pairs with app/sitemap.js. See the note above.
-  robots: { index: false, follow: false },
   alternates: { canonical: `${BASE_URL}/bookstore` },
   openGraph: {
     title: TITLE,

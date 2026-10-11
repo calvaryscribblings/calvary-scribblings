@@ -16,7 +16,6 @@
 // rotting is a test failure rather than a banner over somebody's book.
 export const IMMERSIVE_ROUTES = [
   /^\/reader(\/|$)/,           // ReadingRoom + the EPUB readers
-  /^\/book-reader(\/|$)/,
   /^\/series\/read(\/|$)/,     // the instalment reader — same Reading Room, third register
   /^\/my-library\/read(\/|$)/, // the offline shelf reader
   /^\/$/,                      // the gateway — a door, not a page

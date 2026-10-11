@@ -136,7 +136,8 @@ const CATEGORY_HREF = {
   poetry: '/poetry',
   news: '/news',
   inspiring: '/inspiring',
-  novel: '/book-reader',
+  // novel → /book-reader came out in W38 (ruling 143): the route redirects to /series, and no
+  // published story is in the category. An unmapped category falls back to /public-library.
 };
 
 // ── THE GLYPHS ARE SVG OR THEY ARE TYPOGRAPHIC MARKS. NO EMOJI. ─────────────────────────

@@ -2,8 +2,8 @@
 // (app/reader/[slug]/page.js): a server page owns generateStaticParams + generateMetadata and
 // renders the client component. We keep both in page.js (no sibling [slug]/layout.js) — under
 // Next 16 a dynamic-segment layout that also exports generateStaticParams stops the page's own
-// copy from registering. noindex is still inherited from the parent app/bookstore/layout.js
-// (robots.index === false), since we never set robots here.
+// copy from registering. No robots key here: since W38 (ruling 131) the shop is indexable, and a
+// title page is listed in app/sitemap.js.
 //
 // SENTINEL: under output:'export', Next 16 rejects a dynamic route whose generateStaticParams
 // returns an EMPTY array ("missing generateStaticParams()"). At launch there are zero published
@@ -178,7 +178,7 @@ export async function generateMetadata({ params }) {
   const desc = (title.synopsis || `${title.title} by ${title.author}`).replace(/<[^>]+>/g, '').slice(0, 200);
   const url = `https://calvaryscribblings.co.uk/bookstore/${slug}`;
   const images = title.coverUrl ? [{ url: title.coverUrl, alt: title.title }] : undefined;
-  // No robots here — noindex inherits from app/bookstore/layout.js.
+  // No robots here — the shop is indexable (W38, ruling 131).
   return {
     title: `${title.title} — Calvary Scribblings Book Store`,
     description: desc,

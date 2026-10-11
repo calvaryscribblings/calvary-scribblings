@@ -1,6 +1,7 @@
 export const dynamic = 'force-static';
 import { stories } from './lib/stories';
 import { buildRead } from './lib/build-read.mjs';
+import { sitemapTitleSlugs, BOOKSTORE_PATH } from './lib/bookstore/sitemapTitles';
 
 const BASE_URL = 'https://calvaryscribblings.co.uk';
 
@@ -81,5 +82,41 @@ export default async function sitemap() {
       priority: 0.6,
     }));
 
-  return [...staticRoutes, ...hardcodedStories, ...cmsStories];
+  // THE BOOK STORE — W38, ruling 131: indexable, and listed. The storefront and every published
+  // catalogue title (app/lib/bookstore/sitemapTitles.js decides which). Guarded like the CMS read
+  // above, and for the same reason: a sitemap that quietly drops the shop is invisible damage.
+  const { titles, publishers } = await buildRead(
+    'bookstore_titles + bookstore_publishers',
+    'sitemap.xml — the Book Store and every published title',
+    async () => {
+      const { initializeApp, getApps } = await import('firebase/app');
+      const { getDatabase, ref, query, orderByChild, equalTo, get } = await import('firebase/database');
+      const app = getApps().length ? getApps()[0] : initializeApp({
+        apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
+        authDomain: 'calvary-scribblings.firebaseapp.com',
+        databaseURL: 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app',
+        projectId: 'calvary-scribblings',
+        storageBucket: 'calvary-scribblings.firebasestorage.app',
+        messagingSenderId: '1052137412283',
+        appId: '1:1052137412283:web:509400c5a2bcc1ca63fb9e',
+      });
+      const database = getDatabase(app);
+      const [t, p] = await Promise.all([
+        get(query(ref(database, 'bookstore_titles'), orderByChild('status'), equalTo('published'))),
+        get(ref(database, 'bookstore_publishers')),
+      ]);
+      return { titles: t.exists() ? t.val() || {} : {}, publishers: p.exists() ? p.val() || {} : {} };
+    },
+  );
+  const bookstore = [
+    { url: `${BASE_URL}${BOOKSTORE_PATH}`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.7 },
+    ...sitemapTitleSlugs(titles, publishers).map((slug) => ({
+      url: `${BASE_URL}${BOOKSTORE_PATH}/${slug}`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    })),
+  ];
+
+  return [...staticRoutes, ...hardcodedStories, ...cmsStories, ...bookstore];
 }

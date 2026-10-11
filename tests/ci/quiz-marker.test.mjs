@@ -49,7 +49,8 @@ const CARD_SURFACES = [
 /** The pages that mount the shared card. None may still thread tier props into it. */
 const CARD_PAGES = [
   'app/poetry/page.js', 'app/flash/page.js', 'app/short/page.js',
-  'app/inspiring/page.js', 'app/news/page.js', 'app/book-reader/page.js',
+  'app/inspiring/page.js', 'app/news/page.js',
+  // app/book-reader/page.js was removed in W38 (ruling 143).
 ];
 
 /** Deliberately NOT cards. The ruling did not touch these. */

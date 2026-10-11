@@ -35,7 +35,6 @@ const APP = join(ROOT, 'app');
 // itself, which is why it is a file rather than a directory.
 const PATTERN_ROUTES = [
   ['/^\\/reader(\\/|$)/', 'app/reader'],
-  ['/^\\/book-reader(\\/|$)/', 'app/book-reader'],
   ['/^\\/series\\/read(\\/|$)/', 'app/series/read'],
   ['/^\\/my-library\\/read(\\/|$)/', 'app/my-library/read'],
   ['/^\\/$/', 'app/page.js'],
@@ -106,7 +105,7 @@ describe('the verification banner stays off the reading surfaces', () => {
   });
 
   test('the three readers and the gateway match', () => {
-    for (const p of ['/reader/basil', '/reader/basil/', '/book-reader', '/my-library/read', '/']) {
+    for (const p of ['/reader/basil', '/reader/basil/', '/my-library/read', '/']) {
       assert.ok(isImmersive(p), `${p} should be immersive`);
     }
   });
