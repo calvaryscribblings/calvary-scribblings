@@ -185,16 +185,20 @@ describe('every admin page: a failed read draws the panel, never the empty list'
     for (const fn of ['getAllSeries(opts)', 'getAllInstalments(seriesId, opts)', 'getDeletedInstalments(seriesId, opts)']) {
       assert.match(fnBody(loader, `export async function ${fn} {`), /catch \(err\) \{[\s\S]*?rethrowIf\(opts, err\);[\s\S]*?return \[\];/, `${fn} swallows even when asked to throw`);
     }
+    // W38: the screens read everything in one loader, loadEverything(), run by useReliableLoad.
     const s = code('app/admin/series/page.js');
-    const body = loadBody(s, 'seriesLoad');
+    assert.match(s, /const load = useReliableLoad\(async \(\) => \(isAdmin \? loadEverything\(\) : null\), \[isAdmin\]\);/);
+    const body = fnBody(s, 'async function loadEverything() {');
     assert.match(body, /const opts = \{ throwOnError: true \};/);
     assert.match(body, /getAllSeries\(opts\)/);
-    assert.match(body, /getAllInstalments\(x\.id, opts\)/);
-    assert.match(body, /getDeletedInstalments\(x\.id, opts\)/);
+    assert.match(body, /getAllInstalments\(series\.id, opts\)/);
+    assert.match(body, /getDeletedInstalments\(series\.id, opts\)/);
     assert.doesNotMatch(body, /catch/);
     assert.doesNotMatch(s, /setList\(/);
-    assert.match(s, /const refresh = seriesLoad\.reload;/);
-    onlyInsideAdminLoad(s, 'seriesLoad', 'No series yet.');
+    // Every screen that draws the data — the empty state included — is reached only through
+    // <AdminLoad load={load}>, i.e. only from a read that came back.
+    onlyInsideAdminLoad(s, 'load', '<SeriesList ');
+    assert.match(fnBody(s, 'function SeriesList({ list, go }) {'), /No series yet\./);
   });
 
   test('square — three sections, each with its own compact panel; nothing is .catch(() => {})', () => {

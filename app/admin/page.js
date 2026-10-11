@@ -22,6 +22,7 @@ import { readWithDeadline, classifyFailure } from '../lib/reliableRead';
 import Unavailable from '../components/Unavailable';
 import { slugify, newStorySlug } from '../lib/storySlug';
 import { RETIRED_PATH, isRetired, retiredNotice } from '../lib/retiredStories';
+import { loadWriterRoster, findWriterByHandle, normaliseHandle } from '../lib/writerRoster';
 
 const ADMIN_EMAIL = 'ikennaworksfromhome@gmail.com';
 
@@ -254,18 +255,16 @@ function StoryForm({ form, setForm, editingId, saving, msg, onSave, onCancel, ro
   // Live-resolve a typed @handle → uid when "Attribute by @handle" is chosen.
   useEffect(() => {
     if (form.selectedAuthor !== 'newhandle') return;
-    const raw = (form.handleInput || '').trim().toLowerCase().replace(/^@+/, '');
+    const raw = normaliseHandle(form.handleInput);
     if (!raw) { setForm(f => ({ ...f, resolvedHandle: null, handleError: '' })); return; }
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
         const { ref, get } = await import('firebase/database');
-        const hSnap = await get(ref(db, `usernames/${raw}`));
-        const uid = hSnap.exists() ? String(hSnap.val() || '').trim() : '';
-        if (!uid) { if (!cancelled) setForm(f => ({ ...f, resolvedHandle: null, handleError: `No user found for @${raw}.` })); return; }
-        const uSnap = await get(ref(db, `users/${uid}`));
-        const u = uSnap.exists() ? (uSnap.val() || {}) : {};
-        if (!cancelled) setForm(f => ({ ...f, resolvedHandle: { uid, displayName: u.displayName || '', username: u.username || raw }, handleError: '', authorHandle: f.authorHandle || u.username || raw }));
+        // W38 — the lookup is app/lib/writerRoster.js's, shared with the Series admin.
+        const found = await findWriterByHandle({ db, ref, get }, raw);
+        if (found.error) { if (!cancelled) setForm(f => ({ ...f, resolvedHandle: null, handleError: found.error })); return; }
+        if (!cancelled) setForm(f => ({ ...f, resolvedHandle: { uid: found.uid, displayName: found.displayName, username: found.username }, handleError: '', authorHandle: f.authorHandle || found.username }));
       } catch (e) {
         if (!cancelled) setForm(f => ({ ...f, resolvedHandle: null, handleError: 'Lookup failed: ' + e.message }));
       }
@@ -720,23 +719,8 @@ export default function AdminPage() {
           get(ref(db, 'cms_stories')),
           get(ref(db, 'cms_authors')),
         ]);
-        const uidSet = new Set();
-        if (storiesSnap.exists()) {
-          Object.values(storiesSnap.val()).forEach(st => {
-            const u = (st && st.authorUid ? String(st.authorUid) : '').trim();
-            if (u) uidSet.add(u);
-          });
-        }
-        const rosterArr = (await Promise.all([...uidSet].map(async uid => {
-          try {
-            const snap = await get(ref(db, `users/${uid}`));
-            if (!snap.exists()) return null;
-            const u = snap.val() || {};
-            return { uid, displayName: u.displayName || '(unknown user)', username: u.username || '' };
-          } catch (e) { return null; }
-        }))).filter(Boolean);
-        rosterArr.sort((a, b) => a.displayName.localeCompare(b.displayName));
-        setRoster(rosterArr);
+        // W38 — the roster is app/lib/writerRoster.js's, shared with the Series admin.
+        setRoster(await loadWriterRoster({ db, ref, get, stories: storiesSnap.exists() ? storiesSnap.val() : {} }));
 
         const gv = guestsSnap.exists() ? guestsSnap.val() : {};
         const guestArr = Object.entries(gv)

@@ -433,3 +433,24 @@ mark, pinned by `tests/ci/w24-reader-print-copy.test.mjs`.
   confirmed. If Ikenna rules otherwise, wide screens go back to 80px (`SHOP_RHYTHM.headAir`).
 - **131 (open):** the Book Store's `noindex` and its absence from the sitemap wait on this ruling.
   W31 left both alone.
+
+## 11 Oct 2026 (Ikenna): the Series admin, the Book Store's indexing, /book-reader (W38)
+
+- **130 (ruled):** the Book Store's head air stays **one value at every width**, laptops included.
+  No change; the standing note above is now a ruling.
+- **131 (ruled):** the Book Store **is visible to search engines**. The `noindex` is off
+  `app/bookstore/layout.js`, and `app/sitemap.js` lists `/bookstore` and every published catalogue
+  title (`app/lib/bookstore/sitemapTitles.js`). The rooms (Desiderata, Search) keep their own
+  `noindex`.
+- **137:** web library tiles stay **without BEGIN/CONTINUE**. No change.
+- **140:** `/admin/series` is rebuilt to the approved seven-screen design, copy included, as
+  carried by the W38 brief: the list, one series, the instalment editor, the publish progress,
+  the writer picker, a new series, and a live instalment's panel. The words are in
+  `app/admin/series/page.js` and `app/lib/series/publishing.js`.
+- **141:** a **cover is required to publish** an instalment, like the EPUB
+  (`validateInstalmentDetail`).
+- **142:** "Who can read it" has **no default**. A new draft records it as not chosen
+  (`choicesPending`, admin-only), and it cannot be published or scheduled until the editor chooses.
+  Instalments from before W38 count as chosen.
+- **143:** old `/book-reader` links go to **the Series page** (a 301 through
+  `scripts/generate-redirects.mjs`); the empty page is removed.

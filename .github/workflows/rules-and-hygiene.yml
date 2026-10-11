@@ -35,6 +35,8 @@ on:
       # R12.4 — the Series admin browser suite runs in the same job as the rules assertions.
       # Without this line, editing the spec alone would not start the job that runs it.
       - 'tests/series/**'
+      # W38 — the series writer backfill; its agreement check is held by tests/ci.
+      - 'scripts/series/**'
       - 'tests/newsletter/**'
       - 'tests/bookstore/**'
       - 'tests/ci/**'
@@ -183,6 +185,12 @@ jobs:
         run: npm run test:square:room
       - name: Series admin — the sponsor logo upload, end to end
         run: npm run test:sponsor
+      # W38 — the rebuilt Series admin, driven through its screens against the same emulators:
+      # draft, schedule, publish now, the series going live with its first instalment, take
+      # down, delete, the writer picker, and the layout at phone, iPad and laptop widths. The
+      # rebuild endpoint and the page check are stubbed; nothing reaches production.
+      - name: Series admin — the W38 screens, end to end
+        run: npm run test:series-admin
       # W5 — the report queue page, the under-18 check and the save toast, against the same
       # emulators. This job's path list names suites one by one, so tests/safety/** is in it too.
       - name: W5 safety — /admin/reports, the under-18 check, the save toast

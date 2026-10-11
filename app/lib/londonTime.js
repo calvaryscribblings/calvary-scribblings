@@ -69,3 +69,57 @@ export function formatLondon(value) {
   }).format(new Date(ms));
   return `${s} (London)`;
 }
+
+// ── W38 — THE SERIES ADMIN'S WORDS FOR AN INSTANT ─────────────────────────────────────────
+// Built from formatToParts rather than from a formatted string, so the punctuation is ours and
+// not whatever a browser's en-GB data happens to put between the parts.
+const LONG = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London', hourCycle: 'h23', weekday: 'long', day: 'numeric', month: 'long',
+  hour: '2-digit', minute: '2-digit',
+});
+const SHORT = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London', hourCycle: 'h23', weekday: 'short', day: 'numeric', month: 'short',
+  hour: '2-digit', minute: '2-digit',
+});
+const partsOf = (fmt, ms) => Object.fromEntries(fmt.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+
+/** "08:00" — the London clock at `ms`. */
+export function londonClock(ms) {
+  const p = londonParts(ms);
+  return `${p.hour}:${p.minute}`;
+}
+
+/** "Wed 14 Oct, 08:00" */
+export function londonShort(ms) {
+  const p = partsOf(SHORT, ms);
+  return `${p.weekday} ${p.day} ${p.month}, ${p.hour}:${p.minute}`;
+}
+
+/** "Wednesday 14 October" */
+export function londonLongDate(ms) {
+  const p = partsOf(LONG, ms);
+  return `${p.weekday} ${p.day} ${p.month}`;
+}
+
+/** "Wednesday 14 October, 08:00" */
+export function londonLongDateTime(ms) {
+  return `${londonLongDate(ms)}, ${londonClock(ms)}`;
+}
+
+/** The two halves of a London wall time, for a date field and a time field: ["2026-10-14", "08:00"]. */
+export function londonFields(ms) {
+  const wall = utcToLondonWall(ms);
+  return wall ? [wall.slice(0, 10), wall.slice(11, 16)] : ['', ''];
+}
+
+/** A date field and a time field, read as London wall time → epoch ms (NaN if incomplete). */
+export function londonFieldsToMs(date, time) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) || !/^\d{2}:\d{2}$/.test(String(time || ''))) return NaN;
+  return londonWallToUtcMs(`${date}T${time}`);
+}
+
+/** Whole London calendar days from `now` to `ms` (0 = the same London date). */
+export function londonDaysUntil(ms, now = Date.now()) {
+  const day = (t) => { const p = londonParts(t); return Date.UTC(+p.year, +p.month - 1, +p.day); };
+  return Math.round((day(ms) - day(now)) / 86400000);
+}

@@ -16,7 +16,7 @@
 //
 // The pure-function half is testable at all because deletionPlan() reads nothing and writes
 // nothing — see its header on why the decision was lifted out of the writer. The half that
-// talks to Firebase is covered by tests/series/instalment-admin.spec.mjs against the
+// talks to Firebase is covered by tests/series/w38-editor.spec.mjs (W38; it replaced R31's instalment-admin.spec.mjs) against the
 // emulators, and by tests/rules/*.test.mjs against the real rules.
 
 import { test, describe } from 'node:test';
@@ -342,9 +342,10 @@ describe('R31 · the tier gate follows the clock, and the copy still follows it'
 
   test('the admin tier control repeats the day-pass exclusion where an editor will read it', () => {
     const admin = readFileSync(new URL('../../app/admin/series/page.js', import.meta.url), 'utf8');
-    const tier = admin.slice(admin.indexOf('function InstalmentTier'));
-    const body = tier.slice(0, tier.indexOf('\nfunction '));
-    assert.ok(/Day and week passes never qualify/.test(body),
+    // W38 (ruling 140): the line sits under the two choices, in the design's words.
+    const tier = admin.slice(admin.indexOf('{/* d. Who can read it */}'));
+    const body = tier.slice(0, tier.indexOf('{/* e. When it goes live'));
+    assert.ok(/Day and week passes never count, whichever you choose\./.test(body),
       'the tier control does not say passes are excluded — the one distinction a second control makes easy to lose');
   });
 

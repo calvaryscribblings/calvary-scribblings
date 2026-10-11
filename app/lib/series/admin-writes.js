@@ -32,7 +32,7 @@
 // series_reading_progress/{uid}/{instalmentId} into a series they were not reading. A
 // reparent is a delete and a create, done deliberately, by a person.
 
-import { ref, get, update } from 'firebase/database';
+import { ref, get, update, serverTimestamp } from 'firebase/database';
 import { db, auth, storage } from '../firebase';
 import {
   SCHEMA_VERSION,
@@ -42,6 +42,7 @@ import {
   INSTALMENTS_DELETED_PATH,
   SERIES_STATUSES,
   INSTALMENT_STATUSES,
+  PROVISIONAL_RELEASE_MS,
   epubObjectPath,
   instalmentImageKey,
   validateSeries,
@@ -49,6 +50,7 @@ import {
   validateInstalmentDetail,
 } from './schema';
 import { deletionPlan } from './deletion';
+import { needsFor } from './publishing';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 
@@ -96,6 +98,8 @@ export async function createSeries(input) {
     title: input.title || '',
     synopsis: input.synopsis || '',
     coverUrl: input.coverUrl || null,
+    // W38 — the series' writer, all three or none (validateSeries says which).
+    ...writerOf(input),
     status: input.status || 'draft',
     addedAt: now,
     updatedAt: now,
@@ -129,6 +133,7 @@ export async function updateSeries(seriesId, partial) {
     const merged = {
       ...existing,
       ...partial,
+      ...(partial.authorUid !== undefined ? writerOf(partial) : {}),
       slug: existing.slug,
       schemaVersion: existing.schemaVersion ?? SCHEMA_VERSION,
       addedAt: existing.addedAt,
@@ -144,6 +149,19 @@ export async function updateSeries(seriesId, partial) {
     console.error('[series.admin-writes] updateSeries failed', err);
     return { ok: false, errors: [`Write failed: ${err.message || 'unknown error'}`] };
   }
+}
+
+/**
+ * W38 — the writer trio from a picker result or a payload. The handle is stored without its @,
+ * because two instalments were saved by hand as "@name" and no usernames/ entry answers to that.
+ */
+function writerOf(input) {
+  if (!input || input.authorUid === undefined) return {};
+  return {
+    author: input.author || '',
+    authorUid: input.authorUid || '',
+    authorHandle: String(input.authorHandle || '').replace(/^@+/, ''),
+  };
 }
 
 export async function setSeriesStatus(seriesId, status) {
@@ -206,6 +224,8 @@ export async function createInstalment(input) {
     // function returns. A new instalment is created uncounted and gains its count with its
     // file — which is the correct order, since the count describes the file.
     wordCount: null,
+    // W38 — a new draft's open choices. See PROVISIONAL_RELEASE_MS in schema.js.
+    ...(input.choicesPending ? { choicesPending: input.choicesPending } : {}),
     updatedAt: now,
   };
 
@@ -264,7 +284,7 @@ export async function createInstalment(input) {
  * ordinal would leave the record sitting at a key that no longer describes it, and the next
  * create for that number would collide with it.
  */
-export async function updateInstalment(id, partial) {
+export async function updateInstalment(id, partial, { releaseNow = false } = {}) {
   if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
   if (!id) return { ok: false, errors: ['instalmentId is required'] };
   if (!partial || typeof partial !== 'object') return { ok: false, errors: ['Update payload is required'] };
@@ -298,6 +318,8 @@ export async function updateInstalment(id, partial) {
         // wordCount IS updatable, but only ever by uploadInstalmentEpub()'s caller passing
         // what that function returned. No admin input is bound to it — see the schema note.
         'wordCount',
+        // W38 — a draft's open choices, and its answer to "When it goes live".
+        'choicesPending', 'releaseWhen',
       ]),
       schemaVersion: existingDetail.schemaVersion ?? SCHEMA_VERSION,
       updatedAt: now,
@@ -308,9 +330,12 @@ export async function updateInstalment(id, partial) {
     const detailCheck = validateInstalmentDetail(detail, { publishing: row.status === 'published' });
     if (!detailCheck.valid) return { ok: false, errors: detailCheck.errors };
 
+    // W38 — "as soon as I publish" on an instalment that is already scheduled: the server's own
+    // clock, never the device's, so a fast clock cannot hold a release back.
+    const rowOut = releaseNow ? { ...row, releaseAtMs: serverTimestamp() } : row;
     await update(ref(db), {
-      [`${INSTALMENTS_PATH}/${id}`]: row,
-      [`${INSTALMENTS_DETAIL_PATH}/${id}`]: detail,
+      [`${INSTALMENTS_PATH}/${id}`]: rowOut,
+      [`${INSTALMENTS_DETAIL_PATH}/${id}`]: dropEmptyPending(detail),
     });
     return { ok: true, instalmentId: id };
   } catch (err) {
@@ -422,10 +447,119 @@ export async function deleteInstalment(id) {
   return { ok: true, instalmentId: id, plan, warnings };
 }
 
+// An emptied choicesPending is removed rather than stored as {} — RTDB drops an empty object
+// anyway, and a record that says "nothing pending" should look like one that never had any.
+function dropEmptyPending(detail) {
+  const p = detail.choicesPending;
+  if (p && typeof p === 'object' && !Object.keys(p).length) return { ...detail, choicesPending: null };
+  return detail;
+}
+
 function pick(obj, keys) {
   const out = {};
   for (const k of keys) if (obj[k] !== undefined) out[k] = obj[k];
   return out;
+}
+
+// ── W38: DRAFT, PUBLISH, TAKE DOWN ───────────────────────────────────────────────────────
+
+/**
+ * A new draft, the moment its title is typed (ruling 140: "uploads are enabled once the draft
+ * exists, which is as soon as a title is typed"). The writer is COPIED from the series; the row
+ * holds the provisional values and the detail record marks both choices as not made. See the
+ * W38 note in schema.js.
+ */
+export async function createDraftInstalment({ seriesId, ordinal, title }) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  let series;
+  try {
+    const snap = await get(ref(db, `${SERIES_PATH}/${seriesId}`));
+    if (!snap.exists()) return { ok: false, errors: [`Series '${seriesId}' not found`] };
+    series = snap.val();
+  } catch (err) {
+    return { ok: false, errors: [`Read failed: ${err.message || 'unknown error'}`] };
+  }
+  if (!series.authorUid) return { ok: false, errors: ['Choose the series’ writer first.'] };
+  return createInstalment({
+    seriesId, ordinal, title,
+    status: 'draft',
+    freeForGold: false,
+    releaseAtMs: PROVISIONAL_RELEASE_MS,
+    author: series.author, authorUid: series.authorUid, authorHandle: series.authorHandle,
+    choicesPending: { freeForGold: true, releaseAtMs: true },
+  });
+}
+
+/**
+ * ⭑ PUBLISH OR SCHEDULE — ONE ATOMIC WRITE (ruling 140, §1.4).
+ *
+ * The instalment's row (status and release), its detail record (the open-choice marks cleared),
+ * and — when the series is still a draft — the series' own status go in ONE multi-path update.
+ * A series that went live without its first instalment, or an instalment published under a
+ * series nobody can see, is not a state this function can leave behind.
+ *
+ * The checklist is needsFor(), the same function the panel draws, so nothing can be pressed that
+ * this refuses and nothing this accepts was shown as missing. The series' own needs (poster,
+ * synopsis) are on that list when it is a draft, and validateSeries() checks them again.
+ *
+ * "As soon as I publish" is serverTimestamp(): the release is the RTDB server's clock at the
+ * moment of the write, which is the same clock the release rule compares against.
+ *
+ * `republish` is "Publish it again" on a taken-down instalment: its release time was chosen
+ * the first time and is kept, so a past one goes live at once.
+ */
+export async function publishInstalment(id, { republish = false } = {}) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  try {
+    const [rowSnap, detailSnap] = await Promise.all([
+      get(ref(db, `${INSTALMENTS_PATH}/${id}`)),
+      get(ref(db, `${INSTALMENTS_DETAIL_PATH}/${id}`)),
+    ]);
+    if (!rowSnap.exists() || !detailSnap.exists()) return { ok: false, errors: ['That instalment couldn’t be found.'] };
+    const row = rowSnap.val();
+    const detail = detailSnap.val();
+    const seriesSnap = await get(ref(db, `${SERIES_PATH}/${row.seriesId}`));
+    if (!seriesSnap.exists()) return { ok: false, errors: ['Its series couldn’t be found.'] };
+    const series = seriesSnap.val();
+
+    const now = Date.now();
+    const needs = needsFor({ series, row, detail, now });
+    const missing = needs.needed.filter((n) => !n.done && !(republish && n.key === 'when'));
+    if (missing.length) return { ok: false, errors: [`Still needed: ${missing.map((n) => n.label.toLowerCase()).join(', ')}.`] };
+
+    const releaseNow = !republish && needs.mode === 'publish';
+    const nextRow = { ...row, status: 'published', updatedAt: now };
+    const nextDetail = { ...detail, choicesPending: null, releaseWhen: null, updatedAt: now };
+    // Validated with a stand-in for the server's timestamp: it is a positive integer either way.
+    const rowCheck = validateInstalment(releaseNow ? { ...nextRow, releaseAtMs: now } : nextRow);
+    if (!rowCheck.valid) return { ok: false, errors: rowCheck.errors };
+    const detailCheck = validateInstalmentDetail(nextDetail, { publishing: true });
+    if (!detailCheck.valid) return { ok: false, errors: detailCheck.errors };
+
+    const patch = {
+      [`${INSTALMENTS_PATH}/${id}`]: releaseNow ? { ...nextRow, releaseAtMs: serverTimestamp() } : nextRow,
+      [`${INSTALMENTS_DETAIL_PATH}/${id}`]: nextDetail,
+    };
+    const seriesWentLive = series.status === 'draft';
+    if (seriesWentLive) {
+      const nextSeries = { ...series, status: 'published', updatedAt: now };
+      const seriesCheck = validateSeries(nextSeries);
+      if (!seriesCheck.valid) return { ok: false, errors: seriesCheck.errors };
+      patch[`${SERIES_PATH}/${row.seriesId}`] = nextSeries;
+    } else {
+      patch[`${SERIES_PATH}/${row.seriesId}/updatedAt`] = now;
+    }
+    await update(ref(db), patch);
+    return { ok: true, instalmentId: id, seriesWentLive, scheduled: !releaseNow && row.releaseAtMs > now };
+  } catch (err) {
+    console.error('[series.admin-writes] publishInstalment failed', err);
+    return { ok: false, errors: [`Write failed: ${err.message || 'unknown error'}`] };
+  }
+}
+
+/** Take a scheduled or live instalment off the site. Nothing is deleted; the reader's place is kept. */
+export async function takeDownInstalment(id) {
+  return setInstalmentStatus(id, 'unpublished');
 }
 
 // ── THE EPUB ─────────────────────────────────────────────────────────────────────────────

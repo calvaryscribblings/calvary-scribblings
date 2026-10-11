@@ -802,7 +802,9 @@ describe('R12.4 · the instalment page — logline, sponsor, and a reading time 
 
     test('the page derives the word rather than hardcoding it', () => {
       const src = readFileSync(fileURLToPath(new URL('app/series/instalment/[instalmentId]/page-instalment.js', ROOT)), 'utf8');
-      assert.ok(/label=\{releaseCreditLabel\(row\.releaseAtMs\)\}/.test(src));
+      // W38: `now` is passed through so the admin preview can draw the released tense; the page
+      // passes none, which is Date.now() — the same word as before.
+      assert.ok(/label=\{releaseCreditLabel\(row\.releaseAtMs, now\)\}/.test(src));
       assert.equal(/label="releases"|label="released"/.test(src), false,
         'the tense is hardcoded — it would be the wrong word on the other side of the date');
     });
@@ -854,14 +856,15 @@ describe('R12.4 · the instalment page — logline, sponsor, and a reading time 
       //
       // Driven end to end by tests/series/sponsor-logo.spec.mjs against the emulators. This is
       // the cheap structural half, so a refactor that split the write cannot pass `test:ci`.
+      // W38: the same three claims, on the rebuilt editor.
       const src = readFileSync(fileURLToPath(new URL('app/admin/series/page.js', ROOT)), 'utf8');
-      assert.ok(/\(url\) => \(\{ sponsorName, sponsorLogoUrl: url \}\)/.test(src),
+      assert.ok(/updateInstalment\(id, \{ sponsorName: form\.sponsorName\.trim\(\), sponsorLogoUrl: up\.url \}\)/.test(src),
         'the sponsor upload no longer writes sponsorName alongside the URL');
-      assert.ok(/disabled=\{!sponsorName\}/.test(src),
+      assert.ok(/disabled=\{!id \|\| !form\.sponsorName\.trim\(\)\}/.test(src),
         'the sponsor upload is gated on something other than the typed name');
-      assert.equal(/disabled=\{!detail\.sponsorName\}/.test(src), false,
+      assert.equal(/disabled=\{[^}]*detail\.sponsorName/.test(src), false,
         'the gate is back on the SAVED name — this is the bug, exactly as it shipped');
-      assert.ok(/'Add a sponsor name first'/.test(src),
+      assert.ok(/Type the sponsor’s name first\. A logo needs a name\./.test(src),
         'the disabled button no longer says what to do about itself');
     });
 

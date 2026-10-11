@@ -110,10 +110,50 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
   });
   const open = grant.access === 'granted';
 
-  const reading = readingTimeLabel(detail?.wordCount);
-
   return (
     <Shell>
+      <InstalmentBody row={row} series={series} detail={detail}
+        action={(
+          <>
+            {/* THE ONE ACTION. Gold, full width, and the only button on the page — when the reader is
+                covered. When the tier gate is up and they are not, it is THE LOCK instead (W9: the same
+                component as the story archive, dark): showing "Read Instalment 2" over a file the
+                endpoint will refuse advertises something and then takes it away at the tap. */}
+            {open ? (
+              <div style={{ padding: '1.75rem 6% 0' }}>
+                <ReadAction ordinal={row.ordinal} onClick={() => router.push(`/series/read/${row.id}`)} />
+              </div>
+            ) : (
+              <div style={{ padding: '3rem 6% 0' }}>
+                <ArchiveLock theme="dark" eyebrow={SERIES_LOCK_COPY.eyebrow} headline={SERIES_LOCK_COPY.headline}
+                  body={grant.reason === 'signed_out' ? SERIES_LOCK_COPY.signedOutBody : refusalCopy(grant)}
+                  cta={{ label: SERIES_LOCK_COPY.cta, href: '/membership' }}
+                  signIn={user ? null : { label: SERIES_LOCK_COPY.signIn, onClick: () => setShowAuth(true) }} />
+              </div>
+            )}
+          </>
+        )}
+      >
+        {showAuth && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setShowAuth(false); }}>
+            <AuthModal onClose={() => setShowAuth(false)} />
+          </div>
+        )}
+      </InstalmentBody>
+    </Shell>
+  );
+}
+
+/**
+ * W38 — THE RELEASED PAGE'S BODY, as a component the Series admin's preview also renders: the band,
+ * the three credits, the one action, and the sponsor line. The reader page passes its action (the
+ * read button, or the lock) and its sign-in prompt; the preview passes the read button a Platinum
+ * reader sees. Same components, same order, so the preview cannot drift from the page.
+ */
+export function InstalmentBody({ row, series, detail, action, children, now }) {
+  const reading = readingTimeLabel(detail?.wordCount);
+  return (
+    <>
       <Hero
         coverUrl={detail?.coverUrl}
         eyebrow={instalmentEyebrow(series.title, row.ordinal)}
@@ -127,45 +167,33 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
           missing credit is honest where "0 min" would be a confident lie. */}
       <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', padding: '1.5rem 6% 0' }}>
         <Credit label="written by" value={detail?.author} />
-        <Credit label={releaseCreditLabel(row.releaseAtMs)} value={formatRelease(row.releaseAtMs)} />
+        <Credit label={releaseCreditLabel(row.releaseAtMs, now)} value={formatRelease(row.releaseAtMs, now)} />
         <Credit label="reading time" value={reading} />
       </div>
 
-      {/* THE ONE ACTION. Gold, full width, and the only button on the page — when the reader is
-          covered. When the tier gate is up and they are not, it is THE LOCK instead (W9: the same
-          component as the story archive, dark): showing "Read Instalment 2" over a file the
-          endpoint will refuse advertises something and then takes it away at the tap. */}
-      {open ? (
-        <div style={{ padding: '1.75rem 6% 0' }}>
-          <button
-            type="button"
-            onClick={() => router.push(`/series/read/${row.id}`)}
-            style={{
-              display: 'block', width: '100%', border: 'none', cursor: 'pointer',
-              borderRadius: 5, padding: '0.95rem 1rem',
-              fontFamily: DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '0.01em',
-              background: GOLD, color: PAGE,
-            }}
-          >
-            {readActionLabel(row.ordinal)}
-          </button>
-        </div>
-      ) : (
-        <div style={{ padding: '3rem 6% 0' }}>
-          <ArchiveLock theme="dark" eyebrow={SERIES_LOCK_COPY.eyebrow} headline={SERIES_LOCK_COPY.headline}
-            body={grant.reason === 'signed_out' ? SERIES_LOCK_COPY.signedOutBody : refusalCopy(grant)}
-            cta={{ label: SERIES_LOCK_COPY.cta, href: '/membership' }}
-            signIn={user ? null : { label: SERIES_LOCK_COPY.signIn, onClick: () => setShowAuth(true) }} />
-        </div>
-      )}
-      {showAuth && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setShowAuth(false); }}>
-          <AuthModal onClose={() => setShowAuth(false)} />
-        </div>
-      )}
+      {action}
+      {children}
 
       <Sponsor name={detail?.sponsorName} logoUrl={detail?.sponsorLogoUrl} />
-    </Shell>
+    </>
+  );
+}
+
+/** The one gold action — "Read Instalment 2". */
+export function ReadAction({ ordinal, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'block', width: '100%', border: 'none', cursor: 'pointer',
+        borderRadius: 5, padding: '0.95rem 1rem',
+        fontFamily: DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '0.01em',
+        background: GOLD, color: PAGE,
+      }}
+    >
+      {readActionLabel(ordinal)}
+    </button>
   );
 }
 

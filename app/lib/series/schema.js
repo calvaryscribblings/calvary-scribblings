@@ -78,6 +78,14 @@ export const SERIES_SCHEMA = {
   // covers (same coverHash) or with unrelated ones (the two Beta Princess parts), and neither
   // reads as a poster for the series.
   coverUrl: 'string|null',
+  // W38 (ruling 140) — THE WRITER BELONGS TO THE SERIES. All three or none, the same trio the
+  // detail record carries. A new instalment COPIES them into its own detail record; Voices,
+  // search and myStories still key off the instalment's own authorUid, never this one. Optional
+  // only because a record from before W38 had none: scripts/series/backfill-writers.mjs gave
+  // the two existing series theirs, and the admin will not create a series without one.
+  author: 'string|undefined',
+  authorUid: 'string|undefined',
+  authorHandle: 'string|undefined',
   status: 'enum:SERIES_STATUSES',
   addedAt: 'integer',
   updatedAt: 'integer',
@@ -153,8 +161,33 @@ export const INSTALMENT_DETAIL_SCHEMA = {
   sponsorName: 'string|null',
   sponsorLogoUrl: 'string|null',
   wordCount: 'integer|null',
+  // W38 — THE TWO CHOICES A NEW DRAFT HAS NOT MADE YET (rulings 140, 142). See below.
+  choicesPending: 'object|undefined',   // { freeForGold?: true, releaseAtMs?: true }
+  releaseWhen: "'publish'|'date'|undefined",
   updatedAt: 'integer',
 };
+
+// ── W38: A NEW DRAFT, AND THE TWO CHOICES IT HAS NOT MADE ─────────────────────────────────
+//
+// Every series_instalments row keeps releaseAtMs and freeForGold. The app reads these rows and
+// its code is not in this repository, so a row with either field missing is a shape nobody here
+// can prove the app survives. A new draft therefore holds SAFE PROVISIONAL VALUES on its row from
+// its first write: freeForGold false (the narrower audience) and a release a lifetime away.
+//
+// "Not chosen yet" lives on the DETAIL record, as choicesPending. That node is refused to
+// everyone but the two admins until the instalment is published AND released (database.rules.json),
+// and a draft is neither, so the marker is admin-only for exactly as long as it exists. The
+// publish write clears it in the same multi-path update that flips the status, and the validator
+// refuses a published detail record that still carries it. No rules change was needed.
+//
+// An instalment from before W38 has no choicesPending, so it counts as chosen: its row's values
+// were picked by a person on the old screen, and that is what ruling 142 asks for.
+//
+// releaseWhen records the editor's answer to "When it goes live" on a draft — 'publish' (as soon
+// as I publish) or 'date' — so the choice survives a reload. It is cleared at publish too.
+export const PROVISIONAL_RELEASE_MS = Date.UTC(2100, 0, 1);
+export const PENDING_CHOICES = ['freeForGold', 'releaseAtMs'];
+export const RELEASE_WHEN = ['publish', 'date'];
 
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 // Deliberately the SAME expression as TITLE_ID_RE in functions/api/bookstore/stream.js. It is
@@ -203,11 +236,26 @@ export function validateSeries(doc) {
   if (!isStr(doc.slug)) errors.push('slug is required');
   else if (!SLUG_RE.test(doc.slug)) errors.push('slug must be kebab-case (lowercase, digits, hyphens)');
   if (!isStr(doc.title)) errors.push('title is required');
-  if (!isStr(doc.synopsis)) errors.push('synopsis is required');
+
+  // W38 — required to PUBLISH, not to exist. A series is created from a title and a writer, and
+  // the editor adds the synopsis on its own page; the rules still insist the child is present,
+  // so a draft carries '' until then (a string, so the shape the rules check is unchanged).
+  const publishing = doc.status === 'published';
+  if (publishing) {
+    if (!isStr(doc.synopsis)) errors.push("synopsis is required when status is 'published'");
+  } else if (typeof doc.synopsis !== 'string') {
+    errors.push("synopsis must be a string ('' until it is written)");
+  }
+
+  // W38 — the series' writer: all three, or none.
+  const writer = ['author', 'authorUid', 'authorHandle'];
+  const present = writer.filter((k) => doc[k] !== undefined && doc[k] !== null);
+  if (present.length && present.length !== 3) errors.push('author, authorUid and authorHandle go together: all three or none');
+  for (const k of present) if (!isStr(doc[k])) errors.push(`${k} must be a non-empty string`);
+  if (isStr(doc.authorHandle) && doc.authorHandle.startsWith('@')) errors.push('authorHandle is stored without the @');
 
   // Same rule as bookstore v2 assets: required when published, null (never '') otherwise, so
   // a misconfigured record fails at the writer rather than rendering a broken poster.
-  const publishing = doc.status === 'published';
   if (publishing) {
     if (!isStr(doc.coverUrl)) errors.push("coverUrl is required when status is 'published'");
   } else if (doc.coverUrl === '') {
@@ -276,6 +324,9 @@ export function validateInstalmentDetail(doc, { publishing = false } = {}) {
     const v = doc[field];
     if (publishing && field === 'epubPath') {
       if (!isStr(v)) errors.push("epubPath is required when the instalment is 'published'");
+    } else if (publishing && field === 'coverUrl') {
+      // W38, ruling 141 — a cover is required to publish, like the EPUB.
+      if (!isStr(v)) errors.push("coverUrl is required when the instalment is 'published'");
     } else if (v === '') {
       errors.push(`${field} must be null (not empty string)`);
     } else if (v !== null && v !== undefined && !isStr(v)) {
@@ -299,6 +350,24 @@ export function validateInstalmentDetail(doc, { publishing = false } = {}) {
   if (doc.wordCount !== null && doc.wordCount !== undefined
       && (!isInt(doc.wordCount) || doc.wordCount <= 0)) {
     errors.push('wordCount must be a positive integer or null (it is derived from the EPUB, never entered)');
+  }
+
+  // W38 — the draft's two open choices (ruling 142). Only `true` flags for the two known
+  // choices; a published record carries neither the flags nor releaseWhen.
+  const pending = doc.choicesPending;
+  if (pending !== undefined && pending !== null) {
+    if (!isPlainObj(pending)) errors.push('choicesPending must be an object or absent');
+    else {
+      for (const [k, v] of Object.entries(pending)) {
+        if (!PENDING_CHOICES.includes(k) || v !== true) errors.push(`choicesPending may only hold ${PENDING_CHOICES.join(', ')} as true`);
+      }
+      if (publishing && pending.freeForGold) errors.push('who can read it must be chosen before the instalment is published');
+      if (publishing && pending.releaseAtMs) errors.push('when it goes live must be chosen before the instalment is published');
+    }
+  }
+  if (doc.releaseWhen !== undefined && doc.releaseWhen !== null) {
+    if (!RELEASE_WHEN.includes(doc.releaseWhen)) errors.push(`releaseWhen must be one of: ${RELEASE_WHEN.join(', ')}`);
+    else if (publishing) errors.push('releaseWhen belongs to a draft and is cleared when the instalment is published');
   }
 
   if (!isInt(doc.updatedAt) || doc.updatedAt <= 0) errors.push('updatedAt must be a positive integer (millisecond timestamp)');

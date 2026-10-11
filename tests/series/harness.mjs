@@ -82,6 +82,10 @@ export async function seedFixture(app) {
       title: 'Harness Series',
       synopsis: 'A fixture, not a book.',
       coverUrl: null,
+      // W38 — a series carries its writer, and a new instalment copies it.
+      author: 'Fixture Author',
+      authorUid: 'fixture-uid',
+      authorHandle: 'fixture',
       status: 'draft',
       addedAt: now,
       updatedAt: now,

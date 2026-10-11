@@ -1,13 +1,7 @@
+// W38 — the Series admin driven through its screens (tests/series/w38-editor.spec.mjs). Same shape as
+// the sponsor config below it was copied from; run by `npm run test:series-admin`.
 import { defineConfig, devices } from '@playwright/test';
 
-// R31 — THE TIER CONTROL AND THE DELETE, driven against the emulators.
-//
-// The config is playwright.sponsor.config.mjs's, verbatim except for the spec it matches and
-// the port, and the reasoning below is that file's and still applies unchanged. It is a copy
-// rather than a shared base because the two suites must be startable independently — this one
-// DELETES records and objects, and a shared runner that ran them together would have the
-// sponsor suite asserting against a bucket this one had just emptied.
-//
 // THE SERIES ADMIN HARNESS.
 //
 // ── WHY next dev AND NOT out/, WHICH EVERY OTHER SUITE HERE USES ─────────────────────────
@@ -30,14 +24,14 @@ import { defineConfig, devices } from '@playwright/test';
 //
 // ── THE EMULATORS ARE STARTED BY THE npm SCRIPT, NOT BY webServer ────────────────────────
 //
-// `npm run test:r31` wraps the whole run in `firebase emulators:exec`, the same way
+// `npm run test:sponsor` wraps the whole run in `firebase emulators:exec`, the same way
 // test:rules does. They must already be up when the dev server serves its first page, and a
 // Playwright webServer entry gives no way to order two processes.
-const PORT = process.env.R31_PORT || 4326;
+const PORT = process.env.W38_PORT || 4327;
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'instalment-admin.spec.mjs',
+  testMatch: 'w38-editor.spec.mjs',
   // SERIAL, and load-bearing. Every test in the file reseeds the same fixture records in
   // beforeEach; two workers would be clearing each other's rows mid-assertion.
   workers: 1,
