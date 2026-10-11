@@ -268,7 +268,8 @@ jobs:
 
       # W24 — signed out, Reply / heart / fire on a story's responses open AuthModal. Reads the
       # live, public-read responses; the W17 firewall asserts nothing even tries to write.
-      - name: Story responses, signed out
+      # W37 — and six public pages, signed out: no uncaught error, no read the rules refuse.
+      - name: Story responses and public pages, signed out
         run: npx playwright test -c tests/stories/playwright.config.mjs
         if: ${{ !cancelled() }}
 

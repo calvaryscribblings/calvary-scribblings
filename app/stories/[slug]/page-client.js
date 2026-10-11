@@ -142,8 +142,12 @@ function ExerciseSection({ slug }) {
     })();
   }, []);
 
+  // Signed in only: the rules allow story_exercises to signed-in readers, so for anyone else this
+  // read is refused (and was thrown, uncaught, on every story page until W37). A signed-out reader
+  // sees no exercise either way.
+  const uid = user?.uid;
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || !uid) return;
     (async () => {
       const db = await getDB();
       const { ref, get } = await import('firebase/database');
@@ -154,7 +158,7 @@ function ExerciseSection({ slug }) {
         setAnswers(qs.map(q => q.type === 'mcq' ? null : ''));
       }
     })();
-  }, [slug]);
+  }, [slug, uid]);
 
   useEffect(() => {
     if (!slug || !user) return;

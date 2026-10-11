@@ -222,6 +222,7 @@ function SquarePostCard({ post, profileData, isAuthor, badge }) {
   const initials = (post.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   return (
     <div
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the #id anchor exists only after the Square page loads its posts
       onClick={() => window.location.href = `/square#${post.id}`}
       style={{ padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}
       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.015)'}

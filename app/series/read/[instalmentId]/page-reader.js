@@ -41,6 +41,7 @@ import { formatRelease } from '../../../lib/series/format';
 import { useReleaseRecheck } from '../../../lib/series/releaseRecheck';
 import ReadingRoom from '../../../reader/[slug]/ReadingRoom';
 import ArchiveLock from '../../../components/ArchiveLock';
+import AuthModal from '../../../components/AuthModal';
 import { SERIES_LOCK_COPY } from '../../../lib/archiveLock';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
@@ -67,6 +68,17 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
   const [detail, setDetail] = useState(null);
 
   const retriedRef = useRef(false);
+
+  // W37 — Sign in on the lock opens the same sign-in prompt as the instalment page, in place.
+  // fetchUrl depends on `user`, so a sign-in asks the endpoint again and the lock gives way to
+  // the instalment. The prompt is drawn beside whichever branch renders, so a new reader's
+  // completion step is not unmounted when the lock does.
+  const [showAuth, setShowAuth] = useState(false);
+  const authPrompt = showAuth && (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setShowAuth(false); }}>
+      <AuthModal onClose={() => setShowAuth(false)} />
+    </div>
+  );
 
   const fetchUrl = useCallback(async () => {
     setGate('checking');
@@ -131,6 +143,7 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
 
   if (gate === 'reading' && epubUrl) {
     return (
+      <>
       <ReadingRoom
         // 'book', not 'story': an instalment is a complete EPUB served from a gated bucket
         // behind a signed URL, which is the book register's shape in every respect that
@@ -153,10 +166,17 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
         // a silent re-mint and only surface it if that fails too.
         onError={handleHostError}
       />
+      {authPrompt}
+      </>
     );
   }
 
-  return <Interstitial gate={gate} message={gateMessage} releaseAtMs={releaseAtMs} instalmentId={instalmentId} />;
+  return (
+    <>
+      <Interstitial gate={gate} message={gateMessage} releaseAtMs={releaseAtMs} instalmentId={instalmentId} onSignIn={() => setShowAuth(true)} />
+      {authPrompt}
+    </>
+  );
 }
 
 /**
@@ -166,7 +186,7 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
  * date, and putting an upgrade button under it would be selling a membership against
  * something the membership does not accelerate.
  */
-function Interstitial({ gate, message, releaseAtMs, instalmentId }) {
+function Interstitial({ gate, message, releaseAtMs, instalmentId, onSignIn }) {
   const copy = {
     checking: { head: 'One moment…', body: null, cta: null },
     notyet: {
@@ -200,7 +220,7 @@ function Interstitial({ gate, message, releaseAtMs, instalmentId }) {
         <div style={{ width: '100%' }}>
           <ArchiveLock theme="dark" eyebrow={SERIES_LOCK_COPY.eyebrow} headline={SERIES_LOCK_COPY.headline}
             body={copy.body} cta={{ label: SERIES_LOCK_COPY.cta, href: '/membership' }}
-            signIn={gate === 'signedout' ? { label: SERIES_LOCK_COPY.signIn, onClick: () => { window.location.href = '/account'; } } : null} />
+            signIn={gate === 'signedout' ? { label: SERIES_LOCK_COPY.signIn, onClick: onSignIn } : null} />
         </div>
       </div>
     );

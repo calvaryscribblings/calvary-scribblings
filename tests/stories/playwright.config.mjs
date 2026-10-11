@@ -6,7 +6,7 @@ const PORT = process.env.APP_PORT || 4322;
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'w24-responses.spec.mjs',
+  testMatch: ['w24-responses.spec.mjs', 'w37-signed-out.spec.mjs'],
   workers: 1,
   fullyParallel: false,
   retries: process.env.CI ? 0 : 1,

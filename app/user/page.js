@@ -138,7 +138,9 @@ function SquarePostsModal({ uid, profileData, isAuthor, badge, onClose }) {
             : posts.map(p => {
               const ini = (p.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
               return (
-                <div key={p.id} onClick={() => window.location.href = `/square#${p.id}`}
+                <div key={p.id}
+                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the #id anchor exists only after the Square page loads its posts
+                  onClick={() => window.location.href = `/square#${p.id}`}
                   style={{ padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.015)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -359,7 +361,8 @@ export default function UserPage() {
 
       onAuthStateChanged(auth, async u => {
         setCurrentUser(u);
-        if (u && u.uid === uid) { window.location.href = '/profile'; return; }
+        // Replace, not assign: Back from /profile must not land on the page that redirected.
+        if (u && u.uid === uid) { window.location.replace('/profile'); return; }
         try {
           const fetches = [
             get(ref(db, `users/${uid}`)),

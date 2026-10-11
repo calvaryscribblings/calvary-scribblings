@@ -23,6 +23,10 @@
 //   4. /api/hit is aborted whatever its method: a GET that increments.
 // Every refusal is counted in `stats`; a harness prints the counts and never a URL's query (tokens).
 //
+// W37 — it also WATCHES the replies. A read the database rules refuse comes back on the socket as
+// `permission_denied`; each one is recorded in `stats.readsRefused` by the path it asked for, so a
+// harness can assert that a page makes no read the rules will refuse.
+//
 // Use liveContext() — it also blocks service workers, because a context route cannot see a
 // worker's own fetches.
 
@@ -40,7 +44,7 @@ export const ALLOW_POST = [
   { site: true, path: /^\/api\/membership\/return-status$/ },                           // a read of the tier
 ];
 
-export const newStats = () => ({ requestsSeen: 0, wsWritesStopped: 0, lpAborted: 0, restAborted: 0, apiAborted: 0, hitAborted: 0, otherAborted: 0, refused: [] });
+export const newStats = () => ({ requestsSeen: 0, wsWritesStopped: 0, lpAborted: 0, restAborted: 0, apiAborted: 0, hitAborted: 0, otherAborted: 0, refused: [], readsRefused: [] });
 
 /**
  * Is this request allowed out? Pure, so the CI suite can pin it.
@@ -85,8 +89,10 @@ export async function installFirewall(ctx, { site, mode = 'drop', deny = () => f
     if (socket === 'refuse') { ws.close(); return; }
     const server = ws.connectToServer();
     let pending = 0, parts = [];
+    const asked = new Map(); // request id → the path a read (listen or get) asked for
     const handle = (text, raw) => {
       let f; try { f = JSON.parse(text); } catch { f = null; }
+      if (f?.t === 'd' && (f.d?.a === 'q' || f.d?.a === 'g') && f.d.r != null) asked.set(f.d.r, f.d.b?.p);
       if (isWriteFrame(f)) {
         stats.wsWritesStopped++;
         if (mode === 'answer') {
@@ -107,7 +113,14 @@ export async function installFirewall(ctx, { site, mode = 'drop', deny = () => f
       if (pending > 0) { parts.push(text); pending--; if (pending === 0) handle(parts.join('')); return; }
       handle(text, m);
     });
-    server.onMessage((m) => ws.send(m));
+    server.onMessage((m) => {
+      const text = typeof m === 'string' ? m : m.toString();
+      if (text.includes('permission_denied')) {
+        let f; try { f = JSON.parse(text); } catch { f = null; }
+        if (f?.t === 'd' && f.d?.b?.s === 'permission_denied' && asked.has(f.d.r)) stats.readsRefused.push(asked.get(f.d.r));
+      }
+      ws.send(m);
+    });
   });
   return stats;
 }
