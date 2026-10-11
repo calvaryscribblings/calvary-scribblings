@@ -282,22 +282,23 @@ export function highlightParts(text, rawQuery) {
 // Square mounts at once and which this round was told not to repeat.
 //
 // A list would be the other answer, and it is the wrong one here. The result groups are
-// short in every real query (42 for "drama", the largest subject on the shelf), so a
+// short in every real query (51 for "drama", the largest subject on the shelf, in Oct 2026), so a
 // virtualised list would carry its machinery on every search to save nothing on almost all
 // of them, and it would break the one thing this screen is for — a page you can read down.
 //
 // So the groups are CAPPED and the cap is stated. The kicker already prints the true total,
-// so nothing is hidden: a reader sees "STORIES 191", the first 50, and a line saying how many
+// so nothing is hidden: a reader sees "STORIES 191", the first 60, and a line saying how many
 // more there are. That is how an index behaves — it tells you the extent and shows you the
 // beginning.
 //
-// ⭑ 50 IS NOT A ROUND NUMBER, IT IS A MEASURED ONE. The largest genuine group any query can
-// return is the biggest subject on the shelf — Drama, at 42 — so the cap sits just above it
-// and NO REAL SEARCH IS EVER TRUNCATED. A cap of 40 was tried first and it clipped "drama"
-// with a "2 more" line, which is the worst of both: it interrupts the one query most likely
-// to be typed and saves nothing worth saving. If Drama passes 50, raise this — the number
-// exists to sit above the shelf's largest shelf, not to be preserved.
-export const GROUP_CAP = 50;
+// ⭑ THE CAP IS NOT A ROUND NUMBER, IT IS A MEASURED ONE. The largest genuine group any query
+// can return is the biggest subject on the shelf, so the cap sits just above it and NO REAL
+// SEARCH IS EVER TRUNCATED. It was 50 when Drama stood at 42. A cap of 40 was tried first and
+// it clipped "drama" with a "2 more" line, which is the worst of both: it interrupts the one
+// query most likely to be typed and saves nothing worth saving. W37 (11 Oct 2026): Drama
+// reached 51, so the cap moved to 60, the same headroom again. If the largest subject passes
+// it, raise it — tests/ci/search-index.test.mjs measures the live shelf and fails first.
+export const GROUP_CAP = 60;
 
 /** The rows a group paints, and how many it is holding back. Never hides the true count. */
 export function capGroup(rows) {
