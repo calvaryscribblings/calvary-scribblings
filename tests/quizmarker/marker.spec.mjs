@@ -4,6 +4,12 @@
 // this exists alongside tests/ci/quiz-marker.test.mjs.
 
 import { test, expect } from '@playwright/test';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { advertisesQuiz } from '../../app/lib/readerCollection.js';
+
+const DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
+const OUT = fileURLToPath(new URL('../../out', import.meta.url));
 
 /** Every word the pill can print. It is one component with three states, and all three go. */
 const MARKER_WORDS = ['✦ Quiz', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Locked'];
@@ -82,27 +88,30 @@ test.describe('R45 — what is NOT a card keeps its marker', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
   test('the story page keeps its jump link and its quiz card', async ({ page }) => {
-    // Resolve a live story that advertises a quiz from the shop's own data rather than
-    // hardcoding a slug — a hardcoded slug broke five suites in this repo once already.
-    await loadCards(page, '/public-library');
-    const hrefs = await page.locator('a[href^="/stories/"]').evaluateAll((as) =>
-      [...new Set(as.map((a) => a.getAttribute('href')))],
-    );
-    expect(hrefs.length).toBeGreaterThan(0);
+    // Resolve a live story that advertises a quiz rather than hardcoding a slug — a hardcoded
+    // slug broke five suites in this repo once already. W38: it used to take the first twelve
+    // story links on /public-library, but the shelf is newest-first and by 11 Oct 2026 the
+    // newest 37 published stories carried no quiz, so the window held none and the step went
+    // red on data alone. It now asks the record the page itself decides from (cms_stories is
+    // public-read; advertisesQuiz is the page's own predicate), among stories with a built page.
+    const all = await (await fetch(`${DB}/cms_stories.json`)).json();
+    const slug = Object.entries(all || {})
+      .filter(([, st]) => st && st.published !== false && !st.hiddenAt && advertisesQuiz(st))
+      .map(([k]) => k)
+      .sort()
+      .find((k) => existsSync(`${OUT}/stories/${k}.html`) || existsSync(`${OUT}/stories/${k}/index.html`));
+    expect(slug, 'no built story advertises a quiz').toBeTruthy();
 
     let checked = 0;
-    for (const href of hrefs.slice(0, 12)) {
-      await page.goto(href, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(2000);
-      const link = page.getByText('This story has a quiz', { exact: false });
-      if (await link.count()) {
-        await expect(link.first()).toBeVisible();
-        await expect(page.locator('#quiz-card')).toHaveCount(1);
-        checked++;
-        break;
-      }
+    await page.goto(`/stories/${slug}`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
+    const link = page.getByText('This story has a quiz', { exact: false });
+    if (await link.count()) {
+      await expect(link.first()).toBeVisible();
+      await expect(page.locator('#quiz-card')).toHaveCount(1);
+      checked++;
     }
-    expect(checked, 'no story on the shelf advertised a quiz — cannot prove the entry point survived')
+    expect(checked, `/stories/${slug} advertises a quiz in its record but the page shows no jump link`)
       .toBe(1);
   });
 
