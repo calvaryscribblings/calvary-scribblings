@@ -15,6 +15,7 @@ import { resolve } from 'node:path';
 import { initializeApp, getApps } from 'firebase/app';
 import { getDatabase, ref, get } from 'firebase/database';
 import { buildReadOptional } from './build-read.mjs';
+import { sitemapTitleSlugs } from './bookstore/sitemapTitles.js';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -59,8 +60,9 @@ async function readWallManifest() {
   }
 }
 
-// Returns { storyCount, whispers, wall } baked for the gateway:
+// Returns { storyCount, titleCount, whispers, wall } baked for the gateway:
 //   storyCount — count of published cms_stories (item 7, "the honest number").
+//   titleCount — published Book Store titles (W39, ruling 132); 0 hides the door's line.
 //   whispers   — up to 12 published stories that carry a trailerQuote, preferring the
 //                shortest (under ~140 chars) so the epigraph stays to three lines.
 //                Shape: { quote, title }. No author, no cover — the gateway needs nothing
@@ -84,6 +86,7 @@ async function readWallManifest() {
 // argument that WHAT THIS READ FEEDS IS DECORATION:
 //
 //   · storyCount — a number under the hero. Renders as 0.
+//   · titleCount — the Book Store door's line (W39). Hidden at 0.
 //   · whispers   — the rotating quotes. The rotator simply has nothing to rotate.
 //   · wall       — the cover mosaic behind the hero, already darkened to brightness(0.35)
 //                  behind a scrim. The radial-gradient background shows through instead.
@@ -98,8 +101,31 @@ async function readWallManifest() {
 // about the waiting: firebase/database's get() never settles on an unreachable database
 // (measured — see app/lib/build-read.mjs), so without the deadline this "harmless" read would
 // hang the whole build just as completely as a required one. A hang is not a degraded build.
+// W39, ruling 132 — the Book Store door's "{n} titles". The published catalogue only, by the
+// rule the sitemap and the storefront share (sitemapTitles.js): a title, never a copy, so no
+// held, private or comp copy can count. The same decoration argument as the story count: an
+// unreadable catalogue hides the line, and nothing 404s.
+async function fetchTitleCount() {
+  const data = await buildReadOptional(
+    'bookstore_titles + bookstore_publishers',
+    null,
+    'the Book Store door\'s title count is decoration — the door stands without it and nothing 404s',
+    async () => {
+      const { query, orderByChild, equalTo } = await import('firebase/database');
+      const db = buildDB();
+      const [t, p] = await Promise.all([
+        get(query(ref(db, 'bookstore_titles'), orderByChild('status'), equalTo('published'))),
+        get(ref(db, 'bookstore_publishers')),
+      ]);
+      return { titles: t.exists() ? t.val() || {} : {}, publishers: p.exists() ? p.val() || {} : {} };
+    },
+  );
+  return data ? sitemapTitleSlugs(data.titles, data.publishers).length : 0;
+}
+
 export async function fetchGatewayData() {
   const wall = await readWallManifest();
+  const titleCount = await fetchTitleCount();
   const data = await buildReadOptional(
     'cms_stories_index',
     null,
@@ -110,7 +136,7 @@ export async function fetchGatewayData() {
       return snap.exists() ? snap.val() || {} : {};
     },
   );
-  if (!data) return { storyCount: 0, whispers: [], wall };
+  if (!data) return { storyCount: 0, titleCount, whispers: [], wall };
 
   const now = new Date();
   const published = Object.values(data).filter((s) => isPublished(s, now));
@@ -130,5 +156,5 @@ export async function fetchGatewayData() {
     return a.quote.length - b.quote.length;
   });
 
-  return { storyCount: published.length, whispers: withQuote.slice(0, MAX_WHISPERS), wall };
+  return { storyCount: published.length, titleCount, whispers: withQuote.slice(0, MAX_WHISPERS), wall };
 }

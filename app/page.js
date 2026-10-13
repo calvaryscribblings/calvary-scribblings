@@ -73,7 +73,7 @@ const JSON_LD = {
 // TIME and baked into the client Gateway as props. The gateway itself stays zero-Firebase
 // at runtime — see app/lib/gateway-build.js. The deploy-on-publish hook keeps them fresh.
 export default async function GatewayPage() {
-  const { storyCount, whispers, wall } = await fetchGatewayData();
+  const { storyCount, titleCount, whispers, wall } = await fetchGatewayData();
   // Build-time random pick (item 3): the index a reduced-motion visitor sees, and where
   // the rotation opens. Frozen into the static export, so it's stable per deploy and the
   // first painted frame (crawlable) matches hydration.
@@ -84,7 +84,7 @@ export default async function GatewayPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
-      <Gateway storyCount={storyCount} whispers={whispers} whisperSeed={whisperSeed} wall={wall} />
+      <Gateway storyCount={storyCount} titleCount={titleCount} whispers={whispers} whisperSeed={whisperSeed} wall={wall} />
     </>
   );
 }

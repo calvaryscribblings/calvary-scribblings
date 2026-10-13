@@ -7,7 +7,7 @@
 #    everything below the first dynamic rule against the 100-rule dynamic limit and then
 #    abandons the file. The generator partitions to guarantee this; do not resort by hand.
 
-# ── Static rules (403 of 2000 permitted) ───────────────
+# ── Static rules (405 of 2000 permitted) ───────────────
 /voices/arthor-eze                                           /voices/arthur-eze                                           301
 /creative                                                    /inspiring                                                   301
 /creative.html                                               /inspiring                                                   301
@@ -135,6 +135,8 @@
 /him-vs-her.html                                             /stories/him-vs-her                                          301
 /hold-your-breath-and-count-to-ten                           /stories/hold-your-breath-and-count-to-ten                   301
 /hold-your-breath-and-count-to-ten.html                      /stories/hold-your-breath-and-count-to-ten                   301
+/how-are-you-my-friend                                       /stories/how-are-you-my-friend                               301
+/how-are-you-my-friend.html                                  /stories/how-are-you-my-friend                               301
 /how-to-make-peppersoup                                      /stories/how-to-make-peppersoup                              301
 /how-to-make-peppersoup.html                                 /stories/how-to-make-peppersoup                              301
 /i-dey-your-back                                             /stories/i-dey-your-back                                     301

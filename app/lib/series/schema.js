@@ -228,6 +228,12 @@ export function instalmentImageKey(instalmentId, kind) {
   return `${instalmentId}/${kind}`;
 }
 
+/** W39 — a writer's handle is stored without its @, for series and instalments alike. The write
+ *  path strips it with this; the validators refuse what still carries one. */
+export function bareHandle(handle) {
+  return String(handle || '').trim().replace(/^@+/, '');
+}
+
 export function validateSeries(doc) {
   const errors = [];
   if (!isPlainObj(doc)) return { valid: false, errors: ['doc is not an object'] };
@@ -314,6 +320,9 @@ export function validateInstalmentDetail(doc, { publishing = false } = {}) {
   if (!isStr(doc.author)) errors.push('author is required');
   if (!isStr(doc.authorUid)) errors.push('authorUid is required (Voices, search and myStories key off it)');
   if (!isStr(doc.authorHandle)) errors.push('authorHandle is required (rendered by the app on three surfaces)');
+  // W39 — stored bare. Two instalments were saved by hand as "@name"; no usernames/ entry
+  // answers to that, so the credit's link went nowhere.
+  if (isStr(doc.authorHandle) && doc.authorHandle.startsWith('@')) errors.push('authorHandle is stored without the @');
 
   // The nullable strings, all under the SAME rule the bookstore's v1→v2 migration was needed
   // to establish: absent is null, never ''. An empty string is truthy in none of the render

@@ -823,7 +823,8 @@ export default function AdminPage() {
     } else {
       setMsg('Select an author before saving.'); return;
     }
-    const authorHandle = (form.authorHandle || '').trim() || defaultHandle || '';
+    // W39 — the typing strip below takes one @; this takes any, so a loaded "@name" saves bare.
+    const authorHandle = ((form.authorHandle || '').trim() || defaultHandle || '').replace(/^@+/, '');
 
     // ── W6: WHAT THIS SAVE IS, DECIDED BEFORE ANYTHING IS WRITTEN ─────────────────────
     // The story's status as it stands (app/lib/storyState.js), and the two refusals.

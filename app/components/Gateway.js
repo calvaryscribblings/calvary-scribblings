@@ -193,7 +193,7 @@ function Modal({ id, titleId, title, onClose, closeLabel = 'RETURN TO THE ISLAND
   );
 }
 
-export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0, wall = [] }) {
+export default function Gateway({ storyCount = 0, titleCount = 0, whispers = [], whisperSeed = 0, wall = [] }) {
   const router = useRouter();
   const [modal, setModal] = useState(null); // 'store' | 'universe' | null
   const [exiting, setExiting] = useState(false);
@@ -813,6 +813,8 @@ export default function Gateway({ storyCount = 0, whispers = [], whisperSeed = 0
                 <span className="cs-gw-door-glyph" aria-hidden="true">❦</span>
                 <span className="cs-gw-door-text">
                   <span className="cs-gw-door-title">THE BOOK STORE</span>
+                  {/* W39, ruling 132 — the Library door's line, same class, so the two match. */}
+                  {titleCount > 0 && <span className="cs-gw-door-meta">{`${titleCount} ${titleCount === 1 ? 'title' : 'titles'}`}</span>}
                 </span>
               </Link>
             ) : (

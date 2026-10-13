@@ -48,6 +48,7 @@ import {
   validateSeries,
   validateInstalment,
   validateInstalmentDetail,
+  bareHandle,
 } from './schema';
 import { deletionPlan } from './deletion';
 import { needsFor } from './publishing';
@@ -160,9 +161,10 @@ function writerOf(input) {
   return {
     author: input.author || '',
     authorUid: input.authorUid || '',
-    authorHandle: String(input.authorHandle || '').replace(/^@+/, ''),
+    authorHandle: bareHandle(input.authorHandle),
   };
 }
+
 
 export async function setSeriesStatus(seriesId, status) {
   if (!SERIES_STATUSES.includes(status)) return { ok: false, errors: [`status must be one of: ${SERIES_STATUSES.join(', ')}`] };
@@ -212,7 +214,7 @@ export async function createInstalment(input) {
     logline: input.logline ?? null,
     author: input.author || '',
     authorUid: input.authorUid || '',
-    authorHandle: input.authorHandle || '',
+    authorHandle: bareHandle(input.authorHandle),
     coverUrl: input.coverUrl ?? null,
     // Recorded, never read at serve time — the endpoint derives it. Written through the same
     // one definition the uploader uses so the two cannot disagree.
@@ -324,6 +326,8 @@ export async function updateInstalment(id, partial, { releaseNow = false } = {})
       schemaVersion: existingDetail.schemaVersion ?? SCHEMA_VERSION,
       updatedAt: now,
     };
+    // W39 — strip on every save, so a record stored as "@name" is mended by its next edit.
+    if (typeof detail.authorHandle === 'string') detail.authorHandle = bareHandle(detail.authorHandle);
 
     const rowCheck = validateInstalment(row);
     if (!rowCheck.valid) return { ok: false, errors: rowCheck.errors };
@@ -530,6 +534,7 @@ export async function publishInstalment(id, { republish = false } = {}) {
     const releaseNow = !republish && needs.mode === 'publish';
     const nextRow = { ...row, status: 'published', updatedAt: now };
     const nextDetail = { ...detail, choicesPending: null, releaseWhen: null, updatedAt: now };
+    if (typeof nextDetail.authorHandle === 'string') nextDetail.authorHandle = bareHandle(nextDetail.authorHandle);
     // Validated with a stand-in for the server's timestamp: it is a positive integer either way.
     const rowCheck = validateInstalment(releaseNow ? { ...nextRow, releaseAtMs: now } : nextRow);
     if (!rowCheck.valid) return { ok: false, errors: rowCheck.errors };

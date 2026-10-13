@@ -454,3 +454,14 @@ mark, pinned by `tests/ci/w24-reader-print-copy.test.mjs`.
   Instalments from before W38 count as chosen.
 - **143:** old `/book-reader` links go to **the Series page** (a 301 through
   `scripts/generate-redirects.mjs`); the empty page is removed.
+
+## 13 Oct 2026 (Ikenna): the Book Store door's line, the removed works (W39)
+
+- **132:** the Book Store door on the welcome page carries **"{n} titles"** under its title, in the
+  Library door's own class (`cs-gw-door-meta`), so the two lines match in face, size, colour and
+  distance below the title. {n} is the published catalogue only, counted at build time by the
+  sitemap's rule (`app/lib/bookstore/sitemapTitles.js`, read in `app/lib/gateway-build.js`); it
+  counts titles, never copies. An unreadable count hides the line. One title reads "1 title".
+- **145:** the works W27 removed keep **one lasting copy outside the Codespace**, in the private
+  backups bucket under `w27-removed-works/`, with every reader comment and reader identifier taken
+  out. See `scripts/backup/RESTORE.md`.

@@ -252,6 +252,12 @@ established that no backup has ever been configured.
   30-day soft delete, no lifecycle rule (nothing expires). Not a Firebase bucket, so no
   `storage.rules` reach it: only IAM does. Holds `gate-01/<stamp>/` — the 18 EPUBs and
   `removed-fields.json` GATE-01 deleted, 19 files, each MD5-verified on upload.
+  Since W39 (13 Oct 2026) it also holds `w27-removed-works/<stamp>/`: a lasting copy of the works
+  W27 removed (records, bodies, six cover files), with every reader comment and reader identifier
+  taken out. Nine objects, MD5-verified, each under a **temporary hold**, so even an admin's
+  delete is refused until the hold is released. No rotation reaches this bucket: the only
+  lifecycle rule in the project is the `age: 30` Delete on `calvary-scribblings-default-rtdb-backups`,
+  and a lifecycle rule acts on its own bucket only. This bucket's lifecycle is `null`.
 
 ### Put a copy somewhere that is not Google
 
