@@ -25,6 +25,8 @@ export class SeriesStreamError extends Error {
     this.releaseAtMs = typeof extra.releaseAtMs === 'number' ? extra.releaseAtMs : null;
     this.requiredTier = typeof extra.requiredTier === 'string' ? extra.requiredTier : null;
     this.reason = typeof extra.reason === 'string' ? extra.reason : null;
+    // W40 — a signed-out refusal of a FREE instalment, so the lock can say "Free to read".
+    this.openToFree = extra.openToFree === true;
   }
 }
 

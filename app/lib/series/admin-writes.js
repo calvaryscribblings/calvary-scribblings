@@ -304,7 +304,7 @@ export async function updateInstalment(id, partial, { releaseNow = false } = {})
 
     const row = {
       ...existingRow,
-      ...pick(partial, ['releaseAtMs', 'freeForGold', 'status']),
+      ...pick(partial, ['releaseAtMs', 'freeForGold', 'openToFree', 'status']),
       seriesId: existingRow.seriesId,
       ordinal: existingRow.ordinal,
       schemaVersion: existingRow.schemaVersion ?? SCHEMA_VERSION,

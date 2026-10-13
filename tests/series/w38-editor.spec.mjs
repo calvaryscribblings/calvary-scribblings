@@ -397,3 +397,64 @@ test('phone, iPad portrait and landscape, laptop: no sideways scroll, 44px targe
     }
   }
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════
+// W40 — "FREE TO READ" (rulings 146–147). Three choices, none preselected (142 stands); the free
+// one stores openToFree and freeForGold TOGETHER; the passes line is for the paid choices only;
+// and a level change on a live instalment says plainly who gains it or loses it.
+test('W40: three choices, none chosen; "Free to read" publishes openToFree and freeForGold together', async ({ page }) => {
+  await liveSeries(); await liveInstalment(); await newDraftReady();
+  const calls = await stubSite(page);
+  await open(page, `s=${SERIES_ID}&i=${I2}`);
+  const choices = page.getByRole('radiogroup', { name: 'Who can read it' }).getByRole('radio');
+  await expect(choices).toHaveCount(3);
+  await expect(choices).toHaveText([/Platinum only\s*Platinum members/, /Gold and Platinum\s*Gold members can read this one too/, /Free to read\s*Anyone signed in can read this one/]);
+  for (const c of await choices.all()) await expect(c).toHaveAttribute('aria-checked', 'false');
+  const passes = page.getByText('Day and week passes never count, whichever you choose.');
+  await expect(passes).toBeVisible();
+
+  await page.getByRole('radio', { name: /Free to read/ }).click();
+  await expect(passes).toHaveCount(0);
+  await expect.poll(async () => (await detail()).choicesPending).toEqual({ releaseAtMs: true });
+  expect(await row()).toMatchObject({ freeForGold: true, openToFree: true });
+  await expect(panel(page).getByText('Free to read', { exact: true })).toBeVisible();
+  await page.getByRole('radio', { name: /Gold and Platinum/ }).click();
+  await expect(passes).toBeVisible();
+  await expect.poll(async () => (await row()).openToFree).toBe(false);
+  await page.getByRole('radio', { name: /Free to read/ }).click();
+  await expect.poll(async () => (await row()).openToFree).toBe(true);
+
+  await page.getByRole('radio', { name: 'As soon as I publish' }).click();
+  await panel(page).getByRole('button', { name: 'Publish now' }).click();
+  await expect(panel(page).getByText('Instalment 2 is live on the site.')).toBeVisible({ timeout: 30000 });
+  const r = await row();
+  expect(r).toMatchObject({ status: 'published', freeForGold: true, openToFree: true });
+  expect(calls.rebuild).toBe(1);
+  const free = { subscriptionTier: 'free', effectiveTier: 'free', signedIn: true, forceGate: true };
+  expect(grantForInstalment({ id: I2, ...r }, free).reason).toBe('free_to_read');
+  expect(grantForInstalment({ id: I2, ...r }, { ...free, signedIn: false }).access).not.toBe('granted');
+
+  await page.goto(`/admin/series?s=${SERIES_ID}`);
+  await expect(page.locator(`[data-instalment="${I2}"]`)).toContainText('Free to read');
+});
+
+test('W40: a live instalment moving between levels says who gains it or loses it', async ({ page }) => {
+  await liveSeries(); await liveInstalment(INSTALMENT_ID, { freeForGold: true });
+  await stubSite(page);
+  await open(page, `s=${SERIES_ID}&i=${INSTALMENT_ID}`);
+  await expect(panel(page).getByText('Gold and Platinum members can read it.')).toBeVisible();
+
+  await page.getByRole('radio', { name: /Free to read/ }).click();
+  await expect(page.getByText('Everyone signed in gains it when you save, free accounts included.')).toBeVisible();
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect.poll(async () => (await row(INSTALMENT_ID)).openToFree, { timeout: 15000 }).toBe(true);
+  expect((await row(INSTALMENT_ID)).freeForGold).toBe(true);
+  await expect(panel(page).getByText('Free to read. Anyone signed in can read it.')).toBeVisible();
+
+  await page.getByRole('radio', { name: /Platinum only/ }).click();
+  await expect(page.getByText('Free accounts and Gold members who can read it now lose it when you save. Their saved place is kept.')).toBeVisible();
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect.poll(async () => (await row(INSTALMENT_ID)).openToFree, { timeout: 15000 }).toBe(false);
+  expect((await row(INSTALMENT_ID)).freeForGold).toBe(false);
+  await expect(panel(page).getByText('Platinum members can read it.')).toBeVisible();
+});

@@ -103,6 +103,10 @@ export const INSTALMENT_SCHEMA = {
   ordinal: 'integer',           // 1-based, unique within a series
   releaseAtMs: 'integer',       // epoch ms, UTC. See the header.
   freeForGold: 'boolean',       // explicit. NEVER inferred from ordinal === 1.
+  // W40, ruling 146 — open to every signed-in reader, free accounts included. Absent on every
+  // row from before W40, which reads as false. When true, freeForGold is true as well, so an
+  // app that doesn't know this field still opens it to Gold rather than locking it from all.
+  openToFree: 'boolean|undefined',
   status: 'enum:INSTALMENT_STATUSES',
   addedAt: 'integer',
   updatedAt: 'integer',
@@ -297,6 +301,9 @@ export function validateInstalment(doc) {
   // forgot to set must fail here rather than default quietly to false — a Gold taste that
   // silently never opens is indistinguishable from a working gate until someone complains.
   if (!isBool(doc.freeForGold)) errors.push('freeForGold must be a boolean (explicit — never inferred from ordinal)');
+  // W40 — the third level, and the pair that keeps older apps safe (the rules hold it too).
+  if (doc.openToFree !== undefined && !isBool(doc.openToFree)) errors.push('openToFree must be a boolean or absent');
+  if (doc.openToFree === true && doc.freeForGold !== true) errors.push('openToFree requires freeForGold: true (so an app that doesn’t know openToFree still opens it to Gold)');
 
   if (!INSTALMENT_STATUSES.includes(doc.status)) errors.push(`status must be one of: ${INSTALMENT_STATUSES.join(', ')}`);
   if (!isInt(doc.addedAt) || doc.addedAt <= 0) errors.push('addedAt must be a positive integer (millisecond timestamp)');

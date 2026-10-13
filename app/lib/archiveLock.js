@@ -72,6 +72,16 @@ export const STORY_LOCK_COPY = {
   signIn: ['Already a member?', 'Sign in'],
 };
 
+// W40, rulings 146–148 — a FREE instalment, signed out. It is not closed and no membership opens
+// it: the one thing between the reader and it is a sign-in, so that is the button, and the
+// membership link and "Already a member?" are not offered. The second line is ruling 147's.
+export const SERIES_FREE_LOCK_COPY = {
+  eyebrow: 'Free to read',
+  headline: 'Sign in to read this instalment.',
+  body: 'Anyone signed in can read this one.',
+  cta: 'Sign in',
+};
+
 // Degraded: the membership read failed. NO UPSELL (see StoryGate.js) — a retry and nothing else.
 export const DEGRADED_LOCK_COPY = {
   eyebrow: 'From the archive',

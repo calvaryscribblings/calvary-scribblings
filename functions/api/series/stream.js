@@ -271,12 +271,15 @@ export async function onRequestPost(context) {
     console.log(`[series/stream] tier gate OFF — granting instalmentId=${instalmentId} to an unauthenticated caller`);
   } else {
     // ── identity ─────────────────────────────────────────────────────────────
+    // W40 — a free instalment says so when it asks for a sign-in, so the lock can read "Free to
+    // read" rather than naming a membership. The row is public; this tells the caller nothing new.
+    const free = row.openToFree === true ? { openToFree: true } : {};
     if (!idToken) {
-      return json({ error: 'Sign in to read this instalment.', code: 'signed_out' }, REFUSAL_STATUS.signed_out);
+      return json({ error: 'Sign in to read this instalment.', code: 'signed_out', ...free }, REFUSAL_STATUS.signed_out);
     }
     uid = await verifyIdToken(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY);
     if (!uid) {
-      return json({ error: 'Your session has expired. Please sign in again.', code: 'signed_out' }, REFUSAL_STATUS.signed_out);
+      return json({ error: 'Your session has expired. Please sign in again.', code: 'signed_out', ...free }, REFUSAL_STATUS.signed_out);
     }
 
     // Two reads, subscription decides — except under the founder preview, which is the

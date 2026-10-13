@@ -165,7 +165,8 @@ function toRows(rows) {
  *   grantForInstalment(row, { subscriptionTier, effectiveTier, signedIn, now })
  *     → { access: 'granted' | 'locked', reason, code, status }
  *
- * `row` is the PUBLIC row (series_instalments/{id}) — releaseAtMs, status, freeForGold. The
+ * `row` is the PUBLIC row (series_instalments/{id}) — releaseAtMs, status, freeForGold and
+ * (W40) openToFree. The
  * detail record is not consulted and must not be: whether you may read a thing cannot depend
  * on a node you are only allowed to read once you may.
  *
@@ -244,6 +245,13 @@ export function policyGrantForInstalment(row, {
   // would not have helped.
   if (!signedIn) {
     return { access: 'locked', reason: 'signed_out', code: 'signed_out', status: REFUSAL_STATUS.signed_out };
+  }
+
+  // W40, ruling 146 — FREE TO READ. Any signed-in reader, whatever their tier or pass: the
+  // release gate and the sign-in above have both run, and nothing below them can refuse it.
+  // `=== true` and nothing looser: an absent field is every row from before W40.
+  if (r.openToFree === true) {
+    return { access: 'granted', reason: 'free_to_read', code: null, status: 200 };
   }
 
   // GATE 2 — tier. Subscription only.

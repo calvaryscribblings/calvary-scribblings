@@ -44,7 +44,7 @@ import { readingMinutes } from '../../lib/series/format';
 import {
   instalmentState, seriesState, STATE_LABEL, SERIES_CHIP, SERIES_LIST_CHIP, tierLabel, tierChosen,
   releaseChoice, needsFor, publishButtonLabel, pressingIt, goesLiveLine, seriesSummary, rowSubline,
-  initials, audienceLine,
+  initials, audienceLine, levelOf, levelFields, levelChangeLine,
 } from '../../lib/series/publishing';
 import { PROVISIONAL_RELEASE_MS } from '../../lib/series/schema';
 import { requestRebuild, HOOKS } from '../../lib/rebuild';
@@ -115,7 +115,7 @@ textarea.sa-input{min-height:112px;resize:vertical;line-height:1.45}
 .sa-irow:first-child{border-top:none}
 .sa-ord{grid-area:ord;font-size:28px;font-weight:600;color:#c9a84c;text-align:center}
 .sa-who{flex:0 0 auto;font-size:16px;width:150px}
-.sa-who-gold{color:#e0c068}.sa-who-plat{color:#d8d4f0}.sa-who-none{color:#fcd34d}
+.sa-who-gold{color:#e0c068}.sa-who-plat{color:#d8d4f0}.sa-who-free{color:#fda4af}.sa-who-none{color:#fcd34d}
 .sa-chev{grid-area:chev;color:rgba(255,255,255,.4)}
 .sa-cols{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
 .sa-form{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:24px}
@@ -127,6 +127,7 @@ textarea.sa-input{min-height:112px;resize:vertical;line-height:1.45}
 .sa-tile-img{width:96px;aspect-ratio:2/3;border-radius:4px;background:#1a1a1a center/cover no-repeat;border:1px solid #2e2e2e}
 .sa-logo-img{width:64px;height:64px;border-radius:6px;background:#1a1a1a center/contain no-repeat;border:1px solid #2e2e2e}
 .sa-choices{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.sa-choices-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .sa-choice{position:relative;min-height:96px;text-align:left;padding:18px 48px 18px 18px;border-radius:10px;border:1px solid #2e2e2e;background:#1a1a1a;color:#e8e8e8;font:inherit;cursor:pointer;display:flex;flex-direction:column;gap:4px}
 .sa-choice[aria-checked="true"]{border:2px solid #a78bfa;background:rgba(167,139,250,.10);padding:17px 47px 17px 17px}
 .sa-choice-t{font-size:21px;font-weight:600}
@@ -156,7 +157,7 @@ textarea.sa-input{min-height:112px;resize:vertical;line-height:1.45}
   .sa-body{padding:20px 16px 80px;gap:20px}
   .sa-card{padding:20px 16px}
   .sa-h1{font-size:30px}
-  .sa-tiles,.sa-choices{grid-template-columns:1fr}
+  .sa-tiles,.sa-choices,.sa-choices-3{grid-template-columns:1fr}
   .sa-scard{align-items:flex-start}
   .sa-who{width:auto}
   .sa-irow{grid-template-columns:28px 44px minmax(0,1fr) 20px;grid-template-areas:"ord thumb text chev" "ord thumb meta chev";column-gap:12px}
@@ -178,7 +179,7 @@ const Chip = ({ state, children }) => <span className={`sa-chip sa-chip-${state}
 const Msg = ({ m }) => (m ? <div role="status" className={m.ok ? 'sa-ok' : 'sa-err'}>{m.text}</div> : null);
 const errText = (r) => (r?.errors || ['Something went wrong.']).join('\n');
 const has = (v) => typeof v === 'string' && v.trim().length > 0;
-const whoClass = (label) => (label === 'Gold and Platinum' ? 'sa-who-gold' : label === 'Platinum only' ? 'sa-who-plat' : 'sa-who-none');
+const whoClass = (label) => ({ 'Gold and Platinum': 'sa-who-gold', 'Platinum only': 'sa-who-plat', 'Free to read': 'sa-who-free' }[label] || 'sa-who-none');
 
 /** A drop zone that is also a file picker. Disabled until it can upload. */
 function DropZone({ accept, disabled, onFile, className = '', children }) {
@@ -702,7 +703,7 @@ function formFrom(rec) {
     synopsis: detail.synopsis || '',
     sponsorName: detail.sponsorName || '',
     writer: has(detail.author) ? { author: detail.author, authorUid: detail.authorUid, authorHandle: detail.authorHandle } : null,
-    tier: rec?.row && tierChosen(detail) ? (row.freeForGold === true ? 'gold' : 'platinum') : null,
+    tier: rec?.row && tierChosen(detail) ? levelOf(row) : null,
     when: choice.mode,
     date, time,
   };
@@ -710,7 +711,7 @@ function formFrom(rec) {
 
 /** What the form says, as a row and a detail record — for the checklist and the preview. */
 function virtualRecord(rec, form) {
-  const row = { ...(rec?.row || {}), freeForGold: form.tier === 'gold' };
+  const row = { ...(rec?.row || {}), ...(form.tier ? levelFields(form.tier) : { freeForGold: false }) };
   const detail = { ...(rec?.detail || {}) };
   detail.title = form.title.trim();
   detail.logline = form.logline.trim() || null;
@@ -748,7 +749,8 @@ function partialFrom(rec, form, { draft }) {
   const pending = { ...(rec?.detail?.choicesPending || {}) };
   let pendingChanged = false;
   if (form.tier && form.tier !== before.tier) {
-    p.freeForGold = form.tier === 'gold';
+    // W40 — the pair, always together (the validator and the rules refuse one without the other).
+    Object.assign(p, levelFields(form.tier));
     if (pending.freeForGold) { delete pending.freeForGold; pendingChanged = true; }
   }
   const ms = londonFieldsToMs(form.date, form.time);
@@ -1043,20 +1045,22 @@ function InstalmentEditor({ entry, instalmentId, user, go, reload, onCreated }) 
           {/* d. Who can read it */}
           <section className="sa-card sa-stack">
             <h2 className="sa-h2">Who can read it</h2>
-            <div className="sa-choices" role="radiogroup" aria-label="Who can read it">
-              {[['platinum', 'Platinum only', 'Platinum members'], ['gold', 'Gold and Platinum', 'Gold members can read this one too']].map(([v, t, sub]) => (
+            <div className="sa-choices sa-choices-3" role="radiogroup" aria-label="Who can read it">
+              {[['platinum', 'Platinum only', 'Platinum members'], ['gold', 'Gold and Platinum', 'Gold members can read this one too'], ['free', 'Free to read', 'Anyone signed in can read this one']].map(([v, t, sub]) => (
                 <button key={v} type="button" role="radio" aria-checked={form.tier === v} className="sa-choice"
                   onClick={() => change({ tier: v }, { now: true })}>
-                  <span className="sa-choice-t" style={{ color: v === 'gold' ? '#e0c068' : '#d8d4f0' }}>{t}</span>
+                  <span className={`sa-choice-t sa-who-${v === 'platinum' ? 'plat' : v}`}>{t}</span>
                   <span className="sa-dim sa-small">{sub}</span>
                   {form.tier === v && <span className="sa-tick"><Tick size={20} /></span>}
                 </button>
               ))}
             </div>
-            <div className="sa-small sa-dim">Day and week passes never count, whichever you choose.</div>
-            {state === 'live' && form.tier === 'platinum' && rec?.row?.freeForGold === true && (
-              <div className="sa-small sa-amber">Gold members who can read it now lose it when you save. Their saved place is kept.</div>
-            )}
+            {/* W40 — passes are about paid levels; "Free to read" needs none. */}
+            {form.tier !== 'free' && <div className="sa-small sa-dim">Day and week passes never count, whichever you choose.</div>}
+            {state === 'live' && rec?.row && (() => {
+              const change = levelChangeLine(levelOf(rec.row), form.tier);
+              return change && <div className={`sa-small ${change.loses ? 'sa-amber' : 'sa-dim'}`}>{change.text}</div>;
+            })()}
           </section>
 
           {/* e. When it goes live — not for a live or taken-down instalment, which has gone live already */}

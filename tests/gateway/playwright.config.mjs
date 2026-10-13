@@ -6,7 +6,7 @@ const PORT = process.env.GATEWAY_PORT || 4347;
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'doors.spec.mjs',
+  testMatch: /doors(-level)?\.spec\.mjs$/,
   workers: 1,
   fullyParallel: false,
   retries: process.env.CI ? 0 : 1,

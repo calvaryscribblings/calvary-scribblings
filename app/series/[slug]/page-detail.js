@@ -37,7 +37,7 @@ import { useReleaseRecheck } from '../../lib/series/releaseRecheck';
 import Unavailable from '../../components/Unavailable';
 import { grantForInstalment, refusalCopy, seriesGateOn } from '../../lib/series/access';
 import { useGatePreview } from '../../lib/gatePreview';
-import { formatRelease, shelfLine, instalmentLabel } from '../../lib/series/format';
+import { formatRelease, shelfLine, instalmentLabel, FREE_TO_READ } from '../../lib/series/format';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
@@ -141,6 +141,10 @@ function InstalmentRow({ inst, subscriptionTier, effectiveTier, signedIn, onOpen
   const grant = grantForInstalment(inst, { subscriptionTier, effectiveTier, signedIn, forceGate });
   const open = grant.access === 'granted';
   const detail = inst.detail;
+  // W40, ruling 148 — a released free instalment says "Free to read" whether or not the reader
+  // is signed in, and a signed-out reader may tap through to its page, where the sign-in is.
+  const free = inst.released && inst.openToFree === true && (seriesGateOn() || forceGate);
+  const tappable = open || (free && grant.reason === 'signed_out');
 
   // An unreleased instalment has NO detail record to read from, by rule. The row shows what
   // the public row knows — its number and its date — and nothing more.
@@ -151,12 +155,12 @@ function InstalmentRow({ inst, subscriptionTier, effectiveTier, signedIn, onOpen
     <li style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
       <button
         type="button"
-        onClick={open ? onOpen : undefined}
-        disabled={!open}
+        onClick={tappable ? onOpen : undefined}
+        disabled={!tappable}
         style={{
           display: 'flex', width: '100%', gap: 14, alignItems: 'center', textAlign: 'left',
           background: 'none', border: 'none', padding: '16px 0',
-          cursor: open ? 'pointer' : 'default', fontFamily: BODY,
+          cursor: tappable ? 'pointer' : 'default', fontFamily: BODY,
         }}
       >
         <span style={{
@@ -182,15 +186,20 @@ function InstalmentRow({ inst, subscriptionTier, effectiveTier, signedIn, onOpen
               while that gate is up. With the flag off every instalment is open to everyone
               and badging one of them "Open to Gold" would read as a restriction on the
               others — the opposite of what is true. */}
-          {open && (seriesGateOn() || forceGate) && inst.freeForGold && (
+          {free && (
+            <span data-free-to-read="" style={{ display: 'block', fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: LABEL, color: '#c9a84c', marginTop: 4 }}>
+              {FREE_TO_READ}
+            </span>
+          )}
+          {!free && open && (seriesGateOn() || forceGate) && inst.freeForGold && (
             <span style={{ display: 'block', fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontFamily: LABEL, color: '#c9a84c', marginTop: 4 }}>
               Open to Gold
             </span>
           )}
         </span>
 
-        <span aria-hidden style={{ fontSize: 15, color: open ? '#c9a84c' : 'rgba(245,240,232,0.28)' }}>
-          {open ? '›' : '🔒'}
+        <span aria-hidden style={{ fontSize: 15, color: tappable ? '#c9a84c' : 'rgba(245,240,232,0.28)' }}>
+          {tappable ? '›' : '🔒'}
         </span>
       </button>
     </li>

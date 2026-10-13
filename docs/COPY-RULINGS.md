@@ -465,3 +465,23 @@ mark, pinned by `tests/ci/w24-reader-print-copy.test.mjs`.
 - **145:** the works W27 removed keep **one lasting copy outside the Codespace**, in the private
   backups bucket under `w27-removed-works/`, with every reader comment and reader identifier taken
   out. See `scripts/backup/RESTORE.md`.
+
+## 13 Oct 2026 (Ikenna): free instalments on the web, the welcome-page doors (W40)
+
+- **146:** "Free" means **anyone signed in**, free accounts included. Signed-out visitors are asked
+  to sign in first. The public row carries `openToFree: true`, always with `freeForGold: true`, so
+  an app that doesn't know the field still opens it to Gold. The rule is in
+  `app/lib/series/access.js` (after the release check and the sign-in), and
+  `functions/api/series/stream.js` runs it.
+- **147:** the admin's "Who can read it" has a third choice: **"Free to read"**, with "Anyone signed
+  in can read this one" beneath it. None is preselected (142 stands). The passes line shows only
+  when nothing or a paid level is chosen. The live panel reads "Free to read. Anyone signed in can
+  read it." A level change on a live instalment says who gains or loses it ("Everyone signed in
+  gains it when you save, free accounts included." / "… who can read it now lose it when you
+  save. Their saved place is kept.").
+- **148:** readers see **"Free to read"** on that instalment's row on the series page and on its
+  page. Signed out, the page's lock reads "Free to read" / "Sign in to read this instalment." /
+  "Anyone signed in can read this one." with one button, "Sign in"; the reader route says the same.
+- **149:** on iPad and laptop the two welcome-page doors are **one height**, their glyphs and
+  count lines **level**, and each title sits **directly above its own count line**, with or
+  without "The Square is open tonight ✦". Phone unchanged.

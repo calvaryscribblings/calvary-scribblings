@@ -33,6 +33,14 @@ name: reader tests
 on:
   push:
     paths: &reader_paths
+      # W40 — the welcome page's doors (ruling 149) and the Series reader surfaces ("Free to read").
+      # Both suites below run over out/, so they live here with the build.
+      - 'app/components/Gateway.js'
+      - 'app/lib/gateway-build.js'
+      - 'tests/gateway/**'
+      - 'app/series/**'
+      - 'app/lib/series/**'
+      - 'tests/series/**'
       - 'public/reading-room.html'
       - 'app/reader/**'
       - 'app/lib/ribbonGeometry.js'
@@ -255,6 +263,12 @@ jobs:
 
       - name: App harness (the React boundary)
         run: npx playwright test -c tests/reader/playwright.app.config.mjs
+        if: ${{ !cancelled() }}
+
+      # W40 (ruling 149) — the welcome page's two doors: one height, glyphs and count lines level
+      # at 820, 1180 and 1280, with and without the Square line; plus the W31/W32 door behaviour.
+      - name: Gateway doors
+        run: npx playwright test -c tests/gateway/playwright.config.mjs
         if: ${{ !cancelled() }}
 
       # W24 (ruling 93) — the reader frame and the reader page print one line and credit a copy,

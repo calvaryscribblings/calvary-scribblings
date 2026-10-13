@@ -413,16 +413,20 @@ describe('THE TIER GATE FLAG — and the release gate that does not move with it
 
   test('after the switch the wrapper IS the policy, for every input — a date, not a one-way door', () => {
     let differingBefore = 0;
+    let combinations = 0;
     for (const tier of ['free', 'gold', 'platinum']) {
       for (const eff of ['free', 'gold', 'platinum', null]) {
         for (const freeForGold of [true, false]) {
           for (const releaseAtMs of [PAST, FUTURE, NOW]) {
             for (const status of ['published', 'draft', 'unpublished']) {
               for (const signedIn of [true, false]) {
-                const r = row({ freeForGold, releaseAtMs, status });
+               // W40 — the third level: absent (every row before W40), false, true.
+               for (const openToFree of [undefined, false, true]) {
+                combinations++;
+                const r = row({ freeForGold, releaseAtMs, status, ...(openToFree === undefined ? {} : { openToFree }) });
                 const after = { subscriptionTier: tier, effectiveTier: eff, signedIn, now: NOW };
                 assert.deepEqual(grantForInstalment(r, after), policyGrantForInstalment(r, after));
-                const r0 = row({ freeForGold, releaseAtMs: releaseAtMs - (NOW - BEFORE), status });
+                const r0 = row({ freeForGold, releaseAtMs: releaseAtMs - (NOW - BEFORE), status, ...(openToFree === undefined ? {} : { openToFree }) });
                 const before = { ...after, now: BEFORE };
                 const policy = policyGrantForInstalment(r0, before);
                 const wrapped = grantForInstalment(r0, before);
@@ -431,12 +435,24 @@ describe('THE TIER GATE FLAG — and the release gate that does not move with it
                   assert.ok(['tier_too_low', 'signed_out'].includes(policy.code),
                     `divergence on a ${policy.code} grant — the switch reaches further than its two codes`);
                 }
+                // W40 — free is granted to EVERY signed-in reader of a released instalment, and
+                // to nobody else; and openToFree changes no answer on a row that isn't free.
+                const released = status === 'published' && releaseAtMs <= NOW;
+                const p = policyGrantForInstalment(r, after);
+                if (openToFree === true && released && signedIn) assert.equal(p.reason, 'free_to_read');
+                else assert.notEqual(p.reason, 'free_to_read');
+                if (openToFree !== true) {
+                  assert.deepEqual(p, policyGrantForInstalment(row({ freeForGold, releaseAtMs, status }), after));
+                }
+               }
               }
             }
           }
         }
       }
     }
+    // 432 before W40, × 3 for openToFree. A loop that shrinks stops proving "every input".
+    assert.equal(combinations, 1296);
     assert.ok(differingBefore > 0, 'before the switch the wrapper must be opening tier refusals');
   });
 
@@ -639,7 +655,9 @@ describe('R12.4 · the instalment page — logline, sponsor, and a reading time 
     test('and the row schema still carries only what a locked card may print', () => {
       assert.deepEqual(
         Object.keys(INSTALMENT_SCHEMA).sort(),
-        ['addedAt', 'freeForGold', 'ordinal', 'releaseAtMs', 'schemaVersion', 'seriesId', 'status', 'updatedAt'],
+        // W40: openToFree joins freeForGold. It is a tier fact, which a locked card prints
+        // ("Free to read", ruling 148) — never content.
+        ['addedAt', 'freeForGold', 'openToFree', 'ordinal', 'releaseAtMs', 'schemaVersion', 'seriesId', 'status', 'updatedAt'],
       );
     });
 

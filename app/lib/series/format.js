@@ -52,6 +52,9 @@ export function shelfLine(rows, now = Date.now()) {
   return when ? `${have} · next ${when}` : have;
 }
 
+/** W40, ruling 148 — the words a free instalment shows where a locked one shows its tier. */
+export const FREE_TO_READ = 'Free to read';
+
 /** "Instalment 3" — the row label. One place, so the word cannot drift. */
 export function instalmentLabel(ordinal) {
   return `Instalment ${ordinal}`;

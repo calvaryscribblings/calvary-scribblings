@@ -191,6 +191,11 @@ jobs:
       # rebuild endpoint and the page check are stubbed; nothing reaches production.
       - name: Series admin — the W38 screens, end to end
         run: npm run test:series-admin
+      # W40 — "Free to read" on the reader's Series surfaces: the series page row, the instalment
+      # page and the reader route, signed out and signed in on a Free account, against the same
+      # emulators. One read-only GET of the public instalment rows borrows an id; nothing writes.
+      - name: Series — "Free to read" on the reader surfaces
+        run: npm run test:series-free
       # W5 — the report queue page, the under-18 check and the save toast, against the same
       # emulators. This job's path list names suites one by one, so tests/safety/** is in it too.
       - name: W5 safety — /admin/reports, the under-18 check, the save toast

@@ -1358,7 +1358,10 @@
           ".validate": "newData.isNumber() && newData.val() >= 1"
         },
         "freeForGold": {
-          ".validate": "newData.isBoolean()"
+          ".validate": "newData.isBoolean() && (newData.val() === true || newData.parent().child('openToFree').val() !== true)"
+        },
+        "openToFree": {
+          ".validate": "newData.isBoolean() && (newData.val() === false || newData.parent().child('freeForGold').val() === true)"
         }
       }
     },

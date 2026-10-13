@@ -39,10 +39,36 @@ export const SERIES_LIST_CHIP = { draft: 'Draft', live: 'Live', 'taken-down': 'T
 const pendingOf = (detail) => (detail && detail.choicesPending) || {};
 export const tierChosen = (detail) => !pendingOf(detail).freeForGold;
 
-/** "Gold and Platinum", "Platinum only" or "Not chosen". */
+/**
+ * W40 — the three levels, by the editor's names. 'free' is openToFree (ruling 147), which always
+ * travels with freeForGold: true; 'gold' is freeForGold alone; 'platinum' is neither.
+ */
+export const LEVELS = ['platinum', 'gold', 'free'];
+export const LEVEL_LABEL = { platinum: 'Platinum only', gold: 'Gold and Platinum', free: 'Free to read' };
+export const levelOf = (row) => (row?.openToFree === true ? 'free' : row?.freeForGold === true ? 'gold' : 'platinum');
+/** The public row's two fields for a level. Never one without the other. */
+export const levelFields = (level) => ({ freeForGold: level === 'gold' || level === 'free', openToFree: level === 'free' });
+
+/** "Free to read", "Gold and Platinum", "Platinum only" or "Not chosen". */
 export function tierLabel(row, detail) {
   if (!tierChosen(detail)) return 'Not chosen';
-  return row?.freeForGold === true ? 'Gold and Platinum' : 'Platinum only';
+  return LEVEL_LABEL[levelOf(row)];
+}
+
+/**
+ * W40 — who gains or loses a LIVE instalment when its level changes, said plainly (W38's
+ * warning, widened to three levels). null when nothing changes.
+ */
+export function levelChangeLine(from, to) {
+  if (!from || !to || from === to) return null;
+  const rank = { platinum: 0, gold: 1, free: 2 };
+  if (rank[to] > rank[from]) {
+    return { loses: false, text: to === 'free'
+      ? `Everyone signed in gains it when you save, free accounts included${from === 'platinum' ? ', and Gold members' : ''}.`
+      : 'Gold members gain it when you save.' };
+  }
+  const who = from === 'free' && to === 'platinum' ? 'Free accounts and Gold members' : from === 'free' ? 'Readers on a free account' : 'Gold members';
+  return { loses: true, text: `${who} who can read it now lose it when you save. Their saved place is kept.` };
 }
 
 /**
@@ -190,6 +216,8 @@ export function rowSubline({ series, row, detail, now = Date.now() }) {
 }
 
 /** The live panel's audience line. */
-export const audienceLine = (row) => (row?.freeForGold === true
-  ? 'Gold and Platinum members can read it.'
-  : 'Platinum members can read it.');
+export const audienceLine = (row) => ({
+  free: 'Free to read. Anyone signed in can read it.',
+  gold: 'Gold and Platinum members can read it.',
+  platinum: 'Platinum members can read it.',
+}[levelOf(row)]);

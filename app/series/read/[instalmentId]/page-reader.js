@@ -42,7 +42,7 @@ import { useReleaseRecheck } from '../../../lib/series/releaseRecheck';
 import ReadingRoom from '../../../reader/[slug]/ReadingRoom';
 import ArchiveLock from '../../../components/ArchiveLock';
 import AuthModal from '../../../components/AuthModal';
-import { SERIES_LOCK_COPY } from '../../../lib/archiveLock';
+import { SERIES_LOCK_COPY, SERIES_FREE_LOCK_COPY } from '../../../lib/archiveLock';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
@@ -61,6 +61,8 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
     instalmentId === sentinel ? 'That instalment couldn’t be found.' : null,
   );
   const [releaseAtMs, setReleaseAtMs] = useState(null);
+  // W40 — the endpoint says when a signed-out refusal is of a FREE instalment.
+  const [openToFree, setOpenToFree] = useState(false);
   // Title and author for the reader's top bar. Read from series_instalments_detail, which the
   // rule opens only once the instalment has released — so this can only ever succeed for a
   // reader who is about to be shown the file anyway. A null here costs a fallback label, not
@@ -95,6 +97,7 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
         setReleaseAtMs(e.releaseAtMs || null);
         setGate('notyet');
       } else if (code === 'signed_out') {
+        setOpenToFree(e?.openToFree === true);
         setGate('signedout');
       } else if (code === 'tier_too_low') {
         setGate('locked');
@@ -173,7 +176,7 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
 
   return (
     <>
-      <Interstitial gate={gate} message={gateMessage} releaseAtMs={releaseAtMs} instalmentId={instalmentId} onSignIn={() => setShowAuth(true)} />
+      <Interstitial gate={gate} message={gateMessage} releaseAtMs={releaseAtMs} instalmentId={instalmentId} openToFree={openToFree} onSignIn={() => setShowAuth(true)} />
       {authPrompt}
     </>
   );
@@ -186,7 +189,7 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
  * date, and putting an upgrade button under it would be selling a membership against
  * something the membership does not accelerate.
  */
-function Interstitial({ gate, message, releaseAtMs, instalmentId, onSignIn }) {
+function Interstitial({ gate, message, releaseAtMs, instalmentId, onSignIn, openToFree = false }) {
   const copy = {
     checking: { head: 'One moment…', body: null, cta: null },
     notyet: {
@@ -212,6 +215,18 @@ function Interstitial({ gate, message, releaseAtMs, instalmentId, onSignIn }) {
       cta: ['Back to The Series', '/series'],
     },
   }[gate] || { head: 'One moment…', body: null, cta: null };
+
+  // W40 — free, signed out: the free lock, whose one button is the sign-in.
+  if (gate === 'signedout' && openToFree) {
+    return (
+      <div style={{ background: '#080610', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 4%' }}>
+        <div style={{ width: '100%' }} data-free-lock="">
+          <ArchiveLock theme="dark" eyebrow={SERIES_FREE_LOCK_COPY.eyebrow} headline={SERIES_FREE_LOCK_COPY.headline}
+            body={SERIES_FREE_LOCK_COPY.body} cta={{ label: SERIES_FREE_LOCK_COPY.cta, onClick: onSignIn }} />
+        </div>
+      </div>
+    );
+  }
 
   // W9: the two refusals are THE LOCK — the same component as the story archive, dark.
   if (gate === 'locked' || gate === 'signedout') {

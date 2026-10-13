@@ -43,18 +43,18 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import ArchiveLock from '../../../components/ArchiveLock';
 import AuthModal from '../../../components/AuthModal';
-import { SERIES_LOCK_COPY } from '../../../lib/archiveLock';
+import { SERIES_LOCK_COPY, SERIES_FREE_LOCK_COPY } from '../../../lib/archiveLock';
 import { useAuth } from '../../../lib/AuthContext';
 import { useMembership } from '../../../lib/MembershipContext';
 import { getInstalmentPage } from '../../../lib/series/loader';
 import { useReliableLoad } from '../../../lib/useReliable';
 import { useReleaseRecheck } from '../../../lib/series/releaseRecheck';
 import Unavailable from '../../../components/Unavailable';
-import { grantForInstalment, refusalCopy } from '../../../lib/series/access';
+import { grantForInstalment, refusalCopy, seriesGateOn } from '../../../lib/series/access';
 import { useGatePreview } from '../../../lib/gatePreview';
 import {
   formatRelease, instalmentLabel, instalmentEyebrow, readActionLabel,
-  releaseCreditLabel, readingTimeLabel, SPONSOR_PREAMBLE,
+  releaseCreditLabel, readingTimeLabel, SPONSOR_PREAMBLE, FREE_TO_READ,
 } from '../../../lib/series/format';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
@@ -109,6 +109,9 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
     forceGate: gatePreview,
   });
   const open = grant.access === 'granted';
+  // W40, ruling 148 — a free instalment says so, where a locked one shows its tier. Only while
+  // the tier gate is up: with it down, every instalment is open and the words would mean nothing.
+  const free = row.openToFree === true && (seriesGateOn() || gatePreview);
 
   return (
     <Shell>
@@ -122,6 +125,14 @@ export default function InstalmentDetailClient({ instalmentId, sentinel }) {
             {open ? (
               <div style={{ padding: '1.75rem 6% 0' }}>
                 <ReadAction ordinal={row.ordinal} onClick={() => router.push(`/series/read/${row.id}`)} />
+                {free && <FreeLine />}
+              </div>
+            ) : free && grant.reason === 'signed_out' ? (
+              // W40 — free, signed out: one sign-in stands between the reader and it.
+              <div style={{ padding: '3rem 6% 0' }} data-free-lock="">
+                <ArchiveLock theme="dark" eyebrow={SERIES_FREE_LOCK_COPY.eyebrow} headline={SERIES_FREE_LOCK_COPY.headline}
+                  body={SERIES_FREE_LOCK_COPY.body}
+                  cta={{ label: SERIES_FREE_LOCK_COPY.cta, onClick: () => setShowAuth(true) }} />
               </div>
             ) : (
               <div style={{ padding: '3rem 6% 0' }}>
@@ -176,6 +187,15 @@ export function InstalmentBody({ row, series, detail, action, children, now }) {
 
       <Sponsor name={detail?.sponsorName} logoUrl={detail?.sponsorLogoUrl} />
     </>
+  );
+}
+
+/** W40 — "Free to read", under the read button. Sentence case: the eyebrow keeps the page's one set of caps. */
+function FreeLine() {
+  return (
+    <p data-free-to-read="" style={{ margin: '0.7rem 0 0', textAlign: 'center', fontFamily: DISPLAY, fontStyle: 'italic', fontSize: 15, color: 'rgba(245,240,232,0.62)' }}>
+      {FREE_TO_READ}
+    </p>
   );
 }
 

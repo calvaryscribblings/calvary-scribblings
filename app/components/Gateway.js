@@ -663,13 +663,27 @@ export default function Gateway({ storyCount = 0, titleCount = 0, whispers = [],
           .cs-gw-epigraph { min-height:100px; max-width:460px; margin-bottom:32px; }
           .cs-gw-epigraph-quote { font-size:18px; }
           .cs-gw-epigraph-attr { font-size:14px; }
-          /* Doors turn from stacked bands into side-by-side cards, height-capped, centred. */
-          .cs-gw-doors { flex-direction:row; gap:16px; margin-bottom:18px; }
-          .cs-gw-door {
-            flex:1; flex-direction:column; text-align:center; align-items:center; justify-content:center;
-            gap:10px; min-height:0; max-height:200px; padding:30px 20px; border-radius:17px;
+          /* Doors turn from stacked bands into side-by-side cards, centred.
+             W40, ruling 149 — ONE GRID, SHARED ROWS. The two doors are columns of one grid whose
+             rows are glyph / title / count line (/ the Square line, when it shows), and each door
+             takes those rows as a subgrid. A row is as tall as its taller cell, so the glyphs sit
+             level, the count lines sit level and the doors are one height, whichever title wraps;
+             each title sits at the foot of its row, directly over its own count line. The door's
+             own spacing is unchanged: 6px title to count line, 10px (12px wide) glyph to title.
+             The 200px cap went with it: it clipped the Square line at 1180 and 1280. */
+          .cs-gw-doors {
+            display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
+            grid-template-rows:repeat(3, auto); column-gap:16px; row-gap:0; margin-bottom:18px;
           }
-          .cs-gw-door-text { align-items:center; gap:6px; }
+          .cs-gw-doors.has-square { grid-template-rows:repeat(4, auto); }
+          .cs-gw-door {
+            grid-row:span 3; display:grid; grid-template-rows:subgrid; row-gap:6px;
+            justify-items:center; text-align:center; min-height:0; padding:30px 20px; border-radius:17px;
+          }
+          .cs-gw-doors.has-square .cs-gw-door { grid-row:span 4; }
+          .cs-gw-door-text { display:contents; }
+          .cs-gw-door-glyph { margin-bottom:4px; }
+          .cs-gw-door-title { align-self:end; }
           .cs-gw-door-glyph { font-size:34px; }
           .cs-gw-door-title { font-size:14px; }
           .cs-gw-door-meta { font-size:15.5px; }
@@ -687,7 +701,9 @@ export default function Gateway({ storyCount = 0, titleCount = 0, whispers = [],
           .cs-gw-epigraph { min-height:104px; max-width:520px; margin-bottom:36px; }
           .cs-gw-epigraph-quote { font-size:19px; }
           .cs-gw-doors { gap:20px; margin-bottom:20px; }
-          .cs-gw-door { max-height:200px; padding:34px 24px; border-radius:18px; gap:12px; }
+          .cs-gw-doors { column-gap:20px; }
+          .cs-gw-door { padding:34px 24px; border-radius:18px; }
+          .cs-gw-door-glyph { margin-bottom:6px; }
           .cs-gw-door-glyph { font-size:38px; }
           .cs-gw-door-title { font-size:15px; }
           .cs-gw-door-meta { font-size:16.5px; }
@@ -784,7 +800,7 @@ export default function Gateway({ storyCount = 0, titleCount = 0, whispers = [],
             </div>
           )}
 
-          <div className="cs-gw-doors">
+          <div className={`cs-gw-doors${squareOpen ? ' has-square' : ''}`}>
             <Link
               className={doorClass('library')}
               href={LIBRARY}
