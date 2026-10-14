@@ -35,6 +35,8 @@ on:
       # R12.4 — the Series admin browser suite runs in the same job as the rules assertions.
       # Without this line, editing the spec alone would not start the job that runs it.
       - 'tests/series/**'
+      # W46 — Readers' Notes: the contract, the endpoint (model stubbed), screening, the EPUB reader.
+      - 'tests/series-notes/**'
       # W38 — the series writer backfill; its agreement check is held by tests/ci.
       - 'scripts/series/**'
       - 'tests/newsletter/**'
@@ -149,6 +151,12 @@ jobs:
       # question: does the Square do what it was ruled to do?
       - name: The Square's horizon
         run: npm run test:square
+
+      # W46 — READERS' NOTES. The pure contract (app/lib/series/notes.js) and the endpoint
+      # (functions/api/series/notes.js) with every outbound call stubbed, the model included.
+      # The rules half is tests/rules/w46-series-notes.test.mjs, already in test:rules above.
+      - name: Readers' Notes — contract + endpoint
+        run: npm run test:series-notes
 
       # R12.4 — THE SERIES ADMIN, DRIVEN IN A BROWSER AGAINST THE SAME EMULATORS.
       #
