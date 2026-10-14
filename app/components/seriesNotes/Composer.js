@@ -69,7 +69,7 @@ function useWide() {
 /** One of the question choices (and the dashed fourth card). */
 function Choice({ label, question, dashed = false, onClick }) {
   return (
-    <button type="button" className="sn-card-btn" onClick={onClick} data-choice={label}
+    <button type="button" className="sn-card-btn" onClick={onClick} data-choice={label || "ELSE"}
       style={{ padding: '14px 16px', borderRadius: 14, minHeight: 44, background: dashed ? 'transparent' : C.card,
         border: dashed ? '1px dashed rgba(201,168,76,0.45)' : `1px solid ${C.border}` }}>
       {label && <span style={{ ...labelStyle(C.gold, 9.5), display: 'block', marginBottom: 6 }}>{label}</span>}

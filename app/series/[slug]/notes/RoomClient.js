@@ -40,7 +40,20 @@ import { ArrowIcon, BackIcon, LockIcon, ProgressRule, QuoteMark } from '../../..
 import NoteCard, { NoteSkeleton } from '../../../components/seriesNotes/NoteCard';
 import { SealedCard, SitCard, SideCard, LineCard, ElseCard } from '../../../components/seriesNotes/QuestionCard';
 import SideBars from '../../../components/seriesNotes/Bars';
-import Composer, { postNote } from '../../../components/seriesNotes/Composer';
+import Composer from '../../../components/seriesNotes/Composer';
+import EndSheet from '../../../components/seriesNotes/EndSheet';
+
+// THE TEST HARNESS'S WAY TO THE LAST-PAGE SHEET. The Series reader mounts <EndSheet> in
+// production (app/series/read/*, not this file). The UI suite (tests/series-notes/ui) has no
+// reader to drive, so a TEST build may mount it here with ?endsheet=1. Two conditions, the same
+// fence as app/lib/firebase.js's emulator switch: the preview variable, which Cloudflare's build
+// never sets (so this reads undefined and is false), AND a page on localhost.
+function harnessEndSheet(params) {
+  if (process.env.NEXT_PUBLIC_SERIES_NOTES_PREVIEW !== '1') return false;
+  if (typeof window === 'undefined') return false;
+  const h = window.location.hostname;
+  return (h === 'localhost' || h === '127.0.0.1') && params.get('endsheet') === '1';
+}
 
 const ROOM_CSS = `
 .sn-room { background: ${C.ground}; min-height: 100vh; color: ${C.cream}; font-family: ${DISPLAY}; overflow-x: clip; }
@@ -208,6 +221,7 @@ export default function RoomClient({ slug, sentinel }) {
   const focusId = params.get('n');
   const { user, loading: authLoading } = useAuth() || {};
   const uid = user?.uid || null;
+  const [endSheet, setEndSheet] = useState(() => harnessEndSheet(params));
 
   const pub = useReliableLoad(
     () => (!enabled || slug === sentinel ? null : loadPublic(slug)),
@@ -566,13 +580,16 @@ export default function RoomClient({ slug, sentinel }) {
           <button type="button" className="sn-bar-btn" onClick={() => setComposer({ kind: null })} data-composer-bar>{NOTES_COPY.composerBar(N)}</button>
         </Bar>
       )}
-      <p className="sn-sr" aria-live="polite" role="status">{announce}</p>
+      <p className="sn-sr" aria-live="polite" role="status" data-notes-announce>{announce}</p>
       {inst && (
         <Composer open={!!composer} inst={instId} ordinal={inst.ordinal} slug={slug} questions={q} initialKind={composer?.kind || null}
           mySide={priv.mySide || null} user={user} onPosted={onPosted} onClose={() => setComposer(null)}
           onSide={(res) => { if (priv.phase === 'open') setPriv((p) => ({ ...p, mySide: res.side, tallies: res.tally || p.tallies })); else reload(); }} />
       )}
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      {endSheet && inst && user && (
+        <EndSheet inst={instId} ordinal={inst.ordinal} slug={slug} seriesId={series.id} user={user} onClose={() => setEndSheet(false)} />
+      )}
     </div>
   );
 }
