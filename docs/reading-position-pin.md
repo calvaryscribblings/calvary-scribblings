@@ -92,6 +92,13 @@ was trusted against bytes it was never taken in.
   A contents-list href carries no pin and always goes by its CFI.
 - The app adopts the identical shape and rule in A32.
 
+**After a replacement no unpinned cfi survives (W44).** Because the absent case is trusted, the
+carry-over (`scripts/epub-repair/carry-over.mjs`, see `docs/epub-replacement.md`) pins every
+unpinned record it touches: to the new generation if it was read in the new file, otherwise to
+the old one, with its cfi and fraction unchanged when it can't be placed exactly. A pinned-old
+record is then read by fraction on both surfaces. `tests/bookstore/ribbon-pin.test.mjs` feeds
+the carry-over's own output to `cfiIsOurs()` and `ribbonJump()` to prove it.
+
 ## What the app needs to do
 
 1. **When writing a position:** write `epubVersion` = the `version` you received from

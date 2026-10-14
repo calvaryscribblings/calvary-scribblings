@@ -17,10 +17,21 @@
 //   pinned to the old generation   → kept, mapped or landed by W42's rules (map-positions.mjs);
 //                                    written with epubVersion = new
 //   unpinned                       → whichFile(): the file its CFI resolves in AND its own stored
-//                                    fraction agrees with. Old → as pinned-old. New → leave.
-//                                    Neither → leave and report.
+//                                    fraction agrees with. Old → as pinned-old. New → pinned new
+//                                    (W44). Neither → pinned old, unplaced (W44).
 //   pinned to anything else        → leave and report
 //   no cfi                         → leave (a fraction-only record already reads by fraction)
+//
+// W44: NO UNPINNED CFI IS LEFT BEHIND. Both surfaces trust an unpinned cfi (cfiIsOurs), so an
+// old-file cfi left unpinned would be read precisely, and wrongly, against the new file.
+//   - an unpinned record that cannot be placed exactly (no file agrees, unmappable, or mapped
+//     with text that differs) is pinned to the OLD generation, cfi and fraction unchanged: both
+//     surfaces then read it by fraction, and a later run tries it again as pinned-old.
+//   - an unpinned record read as the new file is pinned to the NEW generation, cfi unchanged, so
+//     a later replacement cannot trust it blindly.
+//   - a pinned-old record that cannot be placed stays as it is: it already reads by fraction.
+// Both are written like every other write (backup, if-match, re-read); only epubVersion changes,
+// so a position keeps positionRecord's shape and its updatedAt, a ribbon ribbonRecord's.
 //
 // The written fraction is the stored one shifted by the mapping's own delta (new estimate − old
 // estimate), clamped to 0–1: the reader's pagination is kept, only the structure is corrected.
@@ -69,6 +80,10 @@ export function whichFile(storedFraction, probe) {
   return { file, dOld, dNew };
 }
 
+/** W44's two decisions, as the dry run reports them. */
+export const UNPLACED = 'pinned old (unplaced)';
+export const PINNED_NEW = 'pinned new (was unpinned)';
+
 /**
  * The decision for one record. Pure.
  *   rec:    { kind, value }            the stored record as read
@@ -79,21 +94,30 @@ export function decide(rec, mapped, { oldGen, newGen }) {
   const v = rec.value || {};
   if (typeof v.cfi !== 'string' || !v.cfi) return { action: 'leave', why: 'no cfi' };
   const pin = typeof v.epubVersion === 'string' && v.epubVersion ? v.epubVersion : null;
-  let from = null;
   if (pin === newGen) return { action: 'leave', why: 'pinned new' };
+  let from = null;
+  let which;
   if (pin === oldGen) from = 'pinned old';
   else if (pin) return { action: 'leave', why: 'pinned other' };
   else {
-    const w = whichFile(v.fraction, mapped?.probe);
-    if (w.file === 'new') return { action: 'leave', why: 'unpinned, read in the new file', which: w };
-    if (w.file !== 'old') return { action: 'leave', why: 'unpinned, no file agrees', which: w };
+    which = whichFile(v.fraction, mapped?.probe);
+    if (which.file === 'new') return { action: 'write', why: PINNED_NEW, from: 'unpinned, read in the new file', which, next: pinOnly(rec, newGen) };
+    if (which.file !== 'old') return { action: 'write', why: UNPLACED, from: 'unpinned, no file agrees', which, next: pinOnly(rec, oldGen) };
     from = 'unpinned, read in the old file';
   }
-  if (!mapped || !['kept', 'mapped', 'landed'].includes(mapped.result) || !mapped.roundTrip) {
-    return { action: 'leave', why: `unmappable (${mapped?.result ?? 'no result'})`, from };
+  let cannot = null;
+  if (!mapped || !['kept', 'mapped', 'landed'].includes(mapped.result) || !mapped.roundTrip) cannot = `unmappable (${mapped?.result ?? 'no result'})`;
+  else if (mapped.result === 'mapped' && !mapped.textMatches) cannot = 'mapped text differs';
+  if (cannot) {
+    if (pin) return { action: 'leave', why: cannot, from };
+    return { action: 'write', why: UNPLACED, from: `${from}, ${cannot}`, which, next: pinOnly(rec, oldGen) };
   }
-  if (mapped.result === 'mapped' && !mapped.textMatches) return { action: 'leave', why: 'mapped text differs', from };
-  return { action: 'write', why: mapped.result, from, next: nextValue(rec, mapped, newGen) };
+  return { action: 'write', why: mapped.result, from, ...(which ? { which } : {}), next: nextValue(rec, mapped, newGen) };
+}
+
+/** The same record with only its pin set: cfi, fraction, label, updatedAt all as stored. */
+export function pinOnly(rec, gen) {
+  return { ...rec.value, epubVersion: gen };
 }
 
 /** The record to write: same record, new CFI + pin, fraction shifted, label if the file changed. */

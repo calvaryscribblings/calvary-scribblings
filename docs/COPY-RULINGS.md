@@ -485,3 +485,11 @@ mark, pinned by `tests/ci/w24-reader-print-copy.test.mjs`.
 - **149:** on iPad and laptop the two welcome-page doors are **one height**, their glyphs and
   count lines **level**, and each title sits **directly above its own count line**, with or
   without "The Square is open tonight ✦". Phone unchanged.
+
+## 14 Oct 2026 (Ikenna): the Series in the membership copy, a corrected edition (W44)
+
+- **151:** `/membership` and the Series page description **stay as they are**. The full Series
+  is still a Platinum benefit, so the copy that says so is right. No change.
+- **154:** when the app picks up a **corrected edition** of a book (a replaced master), the
+  reader is **shown nothing**. The switch is silent: no notice, no banner, no "this book was
+  updated" line. Their place is carried across by the carry-over (`docs/epub-replacement.md`).

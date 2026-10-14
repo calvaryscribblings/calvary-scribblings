@@ -18,6 +18,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import * as real from '../../app/lib/bookstore/reading-position.js';
+import { decide, UNPLACED, PINNED_NEW } from '../../scripts/epub-repair/carry-over.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SRC = readFileSync(resolve(ROOT, 'app/lib/bookstore/reading-position.js'), 'utf8');
@@ -75,6 +76,45 @@ describe('the Reading Room uses them', () => {
     const series = readFileSync(resolve(ROOT, 'app/series/read/[instalmentId]/page-reader.js'), 'utf8');
     assert.match(series, /ribbons=\{!!user\}/);
     assert.match(series, /progress=\{\{ path: \(uid\) => positionPath\(uid, instalmentId\), pin: epubVersion \}\}/);
+  });
+});
+
+// W44 — what the carry-over writes for a place it cannot put exactly, read back by the web.
+// decide() is the carry-over's own pure decision; its output goes straight into the web's
+// cfiIsOurs (positions, ReadingRoom.js) and ribbonJump (ribbons) with the NEW file open.
+describe('the carry-over\'s unplaced and re-pinned records, as the web reads them (W44)', () => {
+  const OLD = V1;
+  const NEW = V2;
+  const gens = { oldGen: OLD, newGen: NEW };
+  const disagrees = { probe: { old: { resolves: true, fraction: 0.2 }, new: { resolves: true, fraction: 0.25 } } };
+  const textDiffers = { result: 'mapped', roundTrip: true, textMatches: false, probe: { old: { resolves: true, fraction: 0.5 }, new: { resolves: false } } };
+  const newFile = { probe: { old: { resolves: false }, new: { resolves: true, fraction: 0.5 } } };
+  const position = (o) => ({ kind: 'position', value: { fraction: 0.5, updatedAt: 1000, cfi: CFI, ...o } });
+  const ribbon = (o) => ({ kind: 'ribbon', value: { cfi: CFI, fraction: 0.5, label: 'Seven', excerpt: 'x', createdAt: 5, ...o } });
+
+  for (const [name, mapped] of [['no file agrees', disagrees], ['mapped text differs', textDiffers]]) {
+    test(`unpinned, ${name} → pinned old, and the web goes to the fraction`, () => {
+      const p = decide(position(), mapped, gens);
+      assert.equal(p.why, UNPLACED);
+      assert.deepEqual(p.next, { fraction: 0.5, updatedAt: 1000, cfi: CFI, epubVersion: OLD }, 'a position keeps its shape and its updatedAt');
+      assert.equal(real.cfiIsOurs(p.next, NEW), false, 'the Reading Room will not seek a pinned-old cfi in the new file');
+      const r = decide(ribbon(), mapped, gens);
+      assert.equal(r.why, UNPLACED);
+      assert.deepEqual(r.next, { cfi: CFI, fraction: 0.5, label: 'Seven', excerpt: 'x', createdAt: 5, epubVersion: OLD });
+      assert.deepEqual(real.ribbonJump(r.next, NEW), { via: 'fraction', fraction: 0.5 });
+    });
+  }
+  test('unpinned, read in the new file → pinned new: trusted now, not after a later replacement', () => {
+    const r = decide(ribbon(), newFile, gens);
+    assert.equal(r.why, PINNED_NEW);
+    assert.deepEqual(r.next, { ...ribbon().value, epubVersion: NEW });
+    assert.equal(real.ribbonJump(r.next, NEW).via, 'cfi');
+    assert.equal(real.ribbonJump(r.next, '1785243569624432').via, 'fraction');
+  });
+  test('pinned old and unplaceable → left as it is (it already reads by fraction)', () => {
+    const d = decide(position({ epubVersion: OLD }), textDiffers, gens);
+    assert.equal(d.action, 'leave');
+    assert.equal(real.cfiIsOurs(position({ epubVersion: OLD }).value, NEW), false);
   });
 });
 

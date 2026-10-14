@@ -9,6 +9,10 @@
 // live generation; a reader's save between the read and the write wins; a second run changes
 // nothing, and a third picks up a record a session still on the old file wrote since.
 //
+// W44: no unpinned cfi is left behind. Unpinned and unplaceable → pinned OLD, cfi and fraction
+// as stored (both surfaces then read it by fraction); unpinned and read in the new file → pinned
+// NEW. A position and a ribbon on each.
+//
 // REST against the emulator with a demo- namespace: nothing here can reach production. Needs
 // Chromium (the mapping resolves CFIs with the vendored foliate) and a JDK (the emulator).
 
@@ -17,7 +21,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { carryOver, restDb } from '../../scripts/epub-repair/carry-over.mjs';
+import { carryOver, restDb, describe as line, UNPLACED, PINNED_NEW } from '../../scripts/epub-repair/carry-over.mjs';
 import { mapPositions } from '../../scripts/epub-repair/map-positions.mjs';
 import { readEntries, writeEntries, applyPlan } from '../../scripts/epub-repair/lib.mjs';
 import { foldedBook, SPLIT_PLAN } from '../fixtures/epub-repair-fixtures.mjs';
@@ -62,6 +66,8 @@ async function seed() {
       'reader-a': { [TITLE]: pos(place(CFI.kept, est.kept.old, OLD)), 'other-book': pos(place(CFI.kept, 0.5, OLD)) },
       'reader-b': { [TITLE]: pos(place(CFI.inCut, est.inCut.old, OLD)) },
       'reader-c': { [TITLE]: { fraction: 0.4, updatedAt: 1000 } },
+      'reader-f': { [TITLE]: pos(place(CFI.inCut2, 0.99, null)) },
+      'reader-g': { [TITLE]: pos(place(CFI.newOnly, est.newOnly.new, null)) },
     },
     readerBookmarks: {
       'reader-a': { [SLUG]: {
@@ -105,9 +111,15 @@ describe('carry-over · every branch (dry run)', () => {
     assert.equal(r.r3.decision.why, 'pinned other');
     assert.equal(r.r4.decision.from, 'unpinned, read in the old file');
     assert.equal(r.r4.decision.action, 'write');
-    assert.equal(r.r5.decision.why, 'unpinned, read in the new file');
-    assert.equal(r.r6.decision.why, 'unpinned, no file agrees');
-    assert.equal(out.rows.length, 9, 'other titles are never gathered');
+    for (const k of ['r5', 'reader-g']) {
+      assert.deepEqual([r[k].decision.action, r[k].decision.why, r[k].decision.from], ['write', PINNED_NEW, 'unpinned, read in the new file'], k);
+      assert.match(line(r[k]), /WRITE \(pinned new \(was unpinned\)/);
+    }
+    for (const k of ['r6', 'reader-f']) {
+      assert.deepEqual([r[k].decision.action, r[k].decision.why, r[k].decision.from], ['write', UNPLACED, 'unpinned, no file agrees'], k);
+      assert.match(line(r[k]), /WRITE \(pinned old \(unplaced\)/);
+    }
+    assert.equal(out.rows.length, 11, 'other titles are never gathered');
     assert.deepEqual(await raw('GET', ''), before, 'a dry run writes nothing');
   });
 });
@@ -118,10 +130,10 @@ describe('carry-over · --apply', () => {
     await assert.rejects(run({ apply: true, backupDir: await mkdtemp(join(tmpdir(), 'carry-')), newGen: null }), /needs the new generation/);
   });
 
-  test('writes kept / mapped / landed / unpinned-old with the new pin; leaves the rest; backs up first', async () => {
+  test('writes kept / mapped / landed / unpinned-old with the new pin, pins the unpinned rest; leaves the rest; backs up first', async () => {
     const before = await raw('GET', '');
     const out = await run({ apply: true, backupDir: await mkdtemp(join(tmpdir(), 'carry-')) });
-    assert.deepEqual({ w: out.summary.written, v: out.summary.verified, c: out.summary.conflicts, m: out.summary.mismatched }, { w: 4, v: 4, c: 0, m: 0 });
+    assert.deepEqual({ w: out.summary.written, v: out.summary.verified, c: out.summary.conflicts, m: out.summary.mismatched }, { w: 8, v: 8, c: 0, m: 0 });
     const after = await raw('GET', '');
     const pa = after.bookstore_reading_progress['reader-a'][TITLE];
     assert.equal(pa.cfi, CFI.kept, 'kept: the cfi is unchanged');
@@ -136,13 +148,20 @@ describe('carry-over · --apply', () => {
     assert.equal(r1.label, 'Four', 'a ribbon that changes chapter takes the new contents label');
     assert.equal(r1.epubVersion, NEW);
     assert.equal(after.readerBookmarks['reader-d'][SLUG].r4.epubVersion, NEW, 'unpinned, read in the old file → carried');
+    // W44: only the pin changes. Unplaced → old; read in the new file → new.
+    const only = (p, gen) => assert.deepEqual(p.reduce((o, k) => o[k], after), { ...p.reduce((o, k) => o[k], before), epubVersion: gen }, p.join('/'));
+    only(['bookstore_reading_progress', 'reader-f', TITLE], OLD);
+    only(['readerBookmarks', 'reader-d', SLUG, 'r6'], OLD);
+    only(['bookstore_reading_progress', 'reader-g', TITLE], NEW);
+    only(['readerBookmarks', 'reader-d', SLUG, 'r5'], NEW);
+    assert.equal(after.bookstore_reading_progress['reader-f'][TITLE].updatedAt, 1000);
     // Left exactly as they were.
-    for (const p of [['readerBookmarks', 'reader-a', SLUG, 'r2'], ['readerBookmarks', 'reader-a', SLUG, 'r3'], ['readerBookmarks', 'reader-d', SLUG, 'r5'], ['readerBookmarks', 'reader-d', SLUG, 'r6'],
+    for (const p of [['readerBookmarks', 'reader-a', SLUG, 'r2'], ['readerBookmarks', 'reader-a', SLUG, 'r3'],
       ['bookstore_reading_progress', 'reader-c', TITLE], ['bookstore_reading_progress', 'reader-a', 'other-book'], ['readerBookmarks', 'reader-d', 'other-book']]) {
       assert.deepEqual(p.reduce((o, k) => o[k], after), p.reduce((o, k) => o[k], before), p.join('/'));
     }
     const backup = JSON.parse(await readFile(out.summary.backup, 'utf8'));
-    assert.equal(backup.records.length, 4);
+    assert.equal(backup.records.length, 8);
     for (const b of backup.records) assert.deepEqual(b.before, b.path.split('/').reduce((o, k) => o[k], before), 'the backup holds the pre-write value');
   });
 
@@ -155,15 +174,22 @@ describe('carry-over · --apply', () => {
     assert.equal(out.summary.conflicts, 1);
     assert.equal(byPath(out)['reader-b'].outcome, 'reader save won');
     assert.deepEqual(await raw('GET', `bookstore_reading_progress/reader-b/${TITLE}`), theirs);
-    // The next run carries their new save.
+    // The next run carries their new save (and retries the two the first run pinned old, unplaced).
     const again = await run({ apply: true, backupDir: await mkdtemp(join(tmpdir(), 'carry-')) });
-    assert.equal(again.summary.written, 1);
+    assert.equal(again.summary.written, 3);
+    assert.equal(byPath(again)['reader-b'].outcome, 'written, re-read equal');
     assert.equal((await raw('GET', `bookstore_reading_progress/reader-b/${TITLE}`)).epubVersion, NEW);
   });
 
-  test('idempotent; a later run picks up a session still on the old file', async () => {
+  test('idempotent; a later run tries the unplaced again, and picks up a session still on the old file', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'carry-'));
     await run({ apply: true, backupDir: dir });
+    // The unplaced two are pinned old now, so the next run tries them as pinned-old records. Their
+    // cfis resolve in the old file, so this time they are carried.
+    const retry = await run({ apply: true, backupDir: dir });
+    assert.deepEqual(retry.rows.filter((x) => x.decision.action === 'write').map((x) => [x.path.split('/')[1], x.decision.from]).sort(),
+      [['reader-d', 'pinned old'], ['reader-f', 'pinned old']]);
+    assert.equal(retry.summary.verified, 2);
     const settled = await raw('GET', '');
     const second = await run({ apply: true, backupDir: dir });
     assert.equal(second.summary.write, 0);

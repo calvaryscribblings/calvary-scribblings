@@ -71,14 +71,27 @@ Fractions come from foliate's own `SectionProgress` over uncompressed section si
    - **pinned new** → leave;
    - **pinned old** → kept, mapped or landed, written with the new pin;
    - **unpinned** → the file its CFI resolves in *and* its own fraction agrees with (within
-     0.02; the closer one if both). Old → as pinned old. New → leave. Neither → leave and report;
+     0.02; the closer one if both). Old → as pinned old. New → **pinned new** ("pinned new (was
+     unpinned)"), cfi unchanged, so a later replacement can't trust it blindly. Neither →
+     **pinned old** ("pinned old (unplaced)");
+   - **unpinned, read in the old file, but unmappable or mapped with text that differs** →
+     **pinned old** ("pinned old (unplaced)");
+   - **pinned old and can't be placed** → leave: it already reads by fraction;
    - **pinned to anything else** → leave and report.
+   **No unpinned cfi is ever left behind (W44).** Both surfaces trust an unpinned cfi, so an
+   old-file cfi left unpinned would be read precisely, and wrongly, against the new file. A
+   record pinned old (unplaced) keeps its cfi and stored fraction; both surfaces read it by
+   fraction, since the pins differ. Only `epubVersion` changes, so a position keeps
+   `positionRecord`'s shape and its `updatedAt`, a ribbon `ribbonRecord`'s. These writes get the
+   same backup, `if-match` and re-read as the rest.
    The fraction is shifted by the mapping's own delta, clamped to 0–1. A ribbon that changes
    chapter takes the new contents label. Every record is backed up before writing. Each write is
    a PUT with `if-match` on the record's ETag, so a reader's save in between wins and is
    reported. Every written record is re-read and compared.
 4. Run `carry-over.mjs --apply` again later. It leaves what it carried and picks up anything a
-   session still holding the old file saved since. Delete the private copies once the swap is
+   session still holding the old file saved since. It also tries again every record the last
+   run pinned old (unplaced), now as a pinned-old record: one whose cfi maps is carried, one
+   that still can't be placed stays as it is. Delete the private copies once the swap is
    verified.
 
 `/admin/bookstore` can also replace a master, but it does none of this. It overwrites the
