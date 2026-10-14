@@ -55,7 +55,7 @@
      that placement is what keeps it out of the tap bands.
      44px of touch target with only ~26px of visible chip: the visible size is
      typographic restraint, the hit area is not negotiable on a phone. */
-  #define-chip{position:fixed;z-index:90;display:none;align-items:center;gap:6px;
+  #define-chip,#line-chip{position:fixed;z-index:90;display:none;align-items:center;gap:6px;
     height:44px;padding:0 14px;margin:0;border:0;border-radius:22px;cursor:pointer;
     background:linear-gradient(180deg,#2a2018 0%,#1b1410 100%);
     box-shadow:0 4px 14px rgba(0,0,0,.34),0 0 0 1px rgba(201,164,76,.42) inset;
@@ -63,14 +63,16 @@
     letter-spacing:.2em;text-transform:uppercase;color:#e6c977;
     -webkit-tap-highlight-color:transparent;white-space:nowrap;
     animation:chipIn .16s ease-out}
-  #define-chip.show{display:inline-flex}
-  #define-chip .chip-orn{font-size:.7rem;line-height:1;opacity:.8}
+  #define-chip.show,#line-chip.show{display:inline-flex}
+  #define-chip .chip-orn,#line-chip .chip-orn{font-size:.7rem;line-height:1;opacity:.8}
   @keyframes chipIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
-  @media (prefers-reduced-motion:reduce){#define-chip{animation:none}}
+  @media (prefers-reduced-motion:reduce){#define-chip,#line-chip{animation:none}}
 </style>
 <div id="loading"><div id="spinner"></div><div id="loading-text">Opening book…</div></div>
 <div id="error"><div id="error-orn">&#10022;</div><div id="error-text">This book wouldn’t open.</div></div>
 <button id="define-chip" type="button" aria-label="Define the selected word"><span class="chip-orn">&#10022;</span>Define</button>
+<!-- W46 §5: "This is my line". Inert until the parent sends setLineChip {enabled:true}; see THE LINE CHIP below. -->
+<button id="line-chip" type="button" aria-label="This is my line"><span class="chip-orn">&#10022;</span><span class="chip-label">This is my line</span></button>
 
 <script type="module">
 import '/vendor/foliate-js-main/view.js'
@@ -720,6 +722,27 @@ let pendingWord = null           // { word, sentence } captured AT SELECTION TIM
 let chipHold = false             // a finger is down on the chip: do not let go of it
 let lastChipFireAt = 0
 
+// ── W46 §5 — THE LINE CHIP ("This is my line") ───────────────────────────────
+// OPT-IN, and off until the parent says otherwise: {type:'setLineChip', enabled, maxChars,
+// label?}. The Series register sends it only while Readers' Notes is on and a reader is signed
+// in, so every other register — and the Series one with the flag off — never sees this chip and
+// takes exactly the code path it took before W46.
+//
+// It is offered for a selection of REAL TEXT: at least two words, at most maxChars characters
+// once whitespace is collapsed (app/lib/series/notes.js LINE_MAX). A single word is Define's,
+// never the line's. When both apply (a glossary phrase) the two sit side by side, placed as ONE
+// group by the same chipPlace() the Define chip uses, so the iOS callout/grab-dot rules hold for
+// the pair exactly as for Define alone.
+//
+// Tapping it posts {type:'lineChosen', text, cfi} — cfi is the CFI of the selected RANGE in
+// this file, view.getCFI(sectionIndex, range), the same function search results and the
+// relocate CFIs come from. The parent saves it; nothing here writes anything.
+const lineChipEl = document.getElementById('line-chip')
+const LINE_CHIP_GAP = 8          // px between Define and the line chip when both are offered
+let lineChip = { enabled: false, maxChars: 400 }
+let pendingLine = null           // { text, cfi } captured AT SELECTION TIME
+let lastLineFireAt = 0
+
 function toHostRect(rect, doc) {
   if (!doc || doc === document) return rect
   try {
@@ -836,12 +859,23 @@ function sentenceAround(range) {
 
 function hideChip() {
   chipEl.classList.remove('show')
+  lineChipEl.classList.remove('show')
+  pendingLine = null
 }
 
 function showChipAt(hostRect, doc) {
   chipEl.classList.add('show')
   const cw = chipEl.offsetWidth || 96
   const ch = chipEl.offsetHeight || 44
+  const { top, left } = chipPlace(cw, ch, hostRect, doc)
+  chipEl.style.left = Math.round(left) + 'px'
+  chipEl.style.top = Math.round(top) + 'px'
+}
+
+// W46 — the placement policy, lifted out of showChipAt VERBATIM so a group of chips (Define and
+// the line chip) is placed by the same rules as Define alone. `cw` is the width of whatever is
+// being placed: one chip, or the pair with its gap.
+function chipPlace(cw, ch, hostRect, doc) {
   const vw = window.innerWidth
   const vh = window.innerHeight
   let top
@@ -896,8 +930,44 @@ function showChipAt(hostRect, doc) {
   // the chip may not cross any edge of the viewport.
   top = Math.min(Math.max(CHIP_MARGIN, top), Math.max(CHIP_MARGIN, vh - ch - CHIP_MARGIN))
   left = Math.min(Math.max(CHIP_MARGIN, left), Math.max(CHIP_MARGIN, vw - cw - CHIP_MARGIN))
-  chipEl.style.left = Math.round(left) + 'px'
-  chipEl.style.top = Math.round(top) + 'px'
+  return { top, left }
+}
+
+// W46 — the line chip, alone or beside Define, placed as one group.
+function showLineChipAt(hostRect, doc, withDefine) {
+  if (withDefine) chipEl.classList.add('show')
+  else chipEl.classList.remove('show')
+  lineChipEl.classList.add('show')
+  const dw = withDefine ? (chipEl.offsetWidth || 96) : 0
+  const gap = withDefine ? LINE_CHIP_GAP : 0
+  const lw = lineChipEl.offsetWidth || 160
+  const ch = Math.max(withDefine ? (chipEl.offsetHeight || 44) : 0, lineChipEl.offsetHeight || 44)
+  const { top, left } = chipPlace(dw + gap + lw, ch, hostRect, doc)
+  if (withDefine) {
+    chipEl.style.left = Math.round(left) + 'px'
+    chipEl.style.top = Math.round(top) + 'px'
+  }
+  lineChipEl.style.left = Math.round(left + dw + gap) + 'px'
+  lineChipEl.style.top = Math.round(top) + 'px'
+}
+
+// W46 — is this selection a line? Whitespace collapsed, at least two words, at most maxChars.
+function selectionLine(raw) {
+  const t = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim()
+  if (!t || !/\p{L}/u.test(t)) return ''
+  if (Array.from(t).length > lineChip.maxChars) return ''
+  const words = t.split(' ').filter((w) => /[\p{L}\p{N}]/u.test(w)).length
+  return words >= 2 ? t : ''
+}
+
+// W46 — the CFI of a selected range, in the section document it lives in.
+function rangeCFI(doc, range) {
+  try {
+    const c = ((view && view.renderer && view.renderer.getContents && view.renderer.getContents()) || [])
+      .find((x) => x && x.doc === doc)
+    if (!c || typeof c.index !== 'number') return ''
+    return view.getCFI(c.index, range) || ''
+  } catch (e) { return '' }
 }
 
 function settleSelection(doc) {
@@ -906,14 +976,29 @@ function settleSelection(doc) {
   try { sel = (doc || document).getSelection() } catch (e) { sel = null }
   if (!sel || sel.isCollapsed || sel.rangeCount === 0) { pendingWord = null; hideChip(); return }
   const word = selectionWord(String(sel))
-  if (!word) { pendingWord = null; hideChip(); return }
+  // W46: '' unless the parent switched the line chip on, so with it off this is the old gate.
+  const lineText = lineChip.enabled ? selectionLine(String(sel)) : ''
+  if (!word && !lineText) { pendingWord = null; hideChip(); return }
   const range = sel.getRangeAt(0)
   const rect = range.getBoundingClientRect()
   if (!rect || (!rect.width && !rect.height)) { pendingWord = null; hideChip(); return }
+  const hostRect = toHostRect(rect, doc)
+  pendingLine = null
+  if (lineText) {
+    const cfi = rangeCFI(doc, range)
+    if (cfi) pendingLine = { text: lineText, cfi }
+  }
+  if (!word) {
+    // A line and not a word: the line chip alone. No wordSelected, since nothing was offered Define.
+    pendingWord = null
+    if (!pendingLine) { hideChip(); return }
+    showLineChipAt(hostRect, doc, false)
+    return
+  }
   const sentence = sentenceAround(range)
   pendingWord = { word, sentence }
-  const hostRect = toHostRect(rect, doc)
-  showChipAt(hostRect, doc)
+  if (pendingLine) showLineChipAt(hostRect, doc, true)
+  else { lineChipEl.classList.remove('show'); showChipAt(hostRect, doc) }
   // The parent gets the fact even though the chip is ours: it is what lets a register log,
   // debug or (later) act on a selection without reaching into this document.
   post({ type: 'wordSelected', word, sentence, rect: {
@@ -987,6 +1072,24 @@ chipEl.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropag
 chipEl.addEventListener('pointerup', (e) => { e.preventDefault(); e.stopPropagation(); chipHold = false; fireDefine() })
 chipEl.addEventListener('pointercancel', () => { chipHold = false })
 chipEl.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fireDefine() })
+
+// W46 — the line chip's tap, built exactly like fireDefine: one intent per tap (pointerup and
+// its click), the click-echo latch, and the selection let go after the message has left.
+function fireLine() {
+  if (Date.now() - lastLineFireAt < 500) return
+  if (!pendingLine || !lineChip.enabled) return
+  lastLineFireAt = Date.now()
+  lastTouchEndAt = Date.now()
+  const { text, cfi } = pendingLine
+  post({ type: 'lineChosen', text, cfi })
+  pendingWord = null
+  hideChip()
+  clearAllSelections()
+}
+lineChipEl.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); chipHold = true })
+lineChipEl.addEventListener('pointerup', (e) => { e.preventDefault(); e.stopPropagation(); chipHold = false; fireLine() })
+lineChipEl.addEventListener('pointercancel', () => { chipHold = false })
+lineChipEl.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); fireLine() })
 
 // ── THE LOAD FENCE (R7.3, recon §8.19) ────────────────────────────────────────
 //
@@ -1341,6 +1444,18 @@ window.addEventListener('message', async (e) => {
       chipHold = false
       pendingWord = null
       hideChip()
+      break
+    // W46 §5 — the opt-in line chip. Off by default; see THE LINE CHIP above.
+    case 'setLineChip':
+      lineChip = {
+        enabled: d.enabled === true,
+        maxChars: Number.isFinite(d.maxChars) && d.maxChars > 0 ? d.maxChars : 400,
+      }
+      if (typeof d.label === 'string' && d.label) {
+        lineChipEl.querySelector('.chip-label').textContent = d.label
+        lineChipEl.setAttribute('aria-label', d.label)
+      }
+      if (!lineChip.enabled) { lineChipEl.classList.remove('show'); pendingLine = null }
       break
     // ══ DO NOT REPLACE Overlayer.highlight WITH A <mark>-WRAPPING HIGHLIGHTER ══
     //

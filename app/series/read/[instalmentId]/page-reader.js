@@ -43,10 +43,37 @@ import ReadingRoom from '../../../reader/[slug]/ReadingRoom';
 import ArchiveLock from '../../../components/ArchiveLock';
 import AuthModal from '../../../components/AuthModal';
 import { SERIES_LOCK_COPY, SERIES_FREE_LOCK_COPY } from '../../../lib/archiveLock';
+import { getInstalmentRow, getSeriesBySlug } from '../../../lib/series/loader';
+import { notesEnabled, LINE_MAX, NOTES_COPY, checkLine } from '../../../lib/series/notes';
+import { markFinished, saveMargin } from '../../../lib/series/notesClient';
+import EndSheet from '../../../components/seriesNotes/EndSheet';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
 const BODY = "Cormorant Garamond, Georgia, serif";
+
+// ── W46 §5 — THE LAST PAGE (Readers' Notes) ──────────────────────────────────────────────
+//
+// Everything below is behind notesEnabled(). With it false this register mounts the Reading
+// Room with exactly the props it had before W46: no line chip, no sheet, no finished write, no
+// extra read, and ?at= is ignored. See docs/series-notes.md.
+//
+//   · THE END. Reaching the last page (the frame's fraction >= 0.999, the same threshold as its
+//     `ended`) writes series_finished/{uid}/{inst} with the server clock and only THEN mounts
+//     the EndSheet: the room's gated reads depend on that record. A failed write is retried
+//     once, then logged, and no sheet rises; reading is never blocked. The sheet rises again on
+//     a later return to the last page, never twice without the reader leaving it.
+//   · THE LINE. The frame's opt-in "This is my line" chip (setLineChip) posts lineChosen; the
+//     line is saved to series_margin with the file's version, and one quiet notice says so.
+//   · IN ITS PLACE. /series/read/{inst}?at={cfi}&v={version} opens at that CFI only when v is
+//     the version on screen. A CFI is only trusted in the bytes it was taken in
+//     (docs/reading-position-pin.md); otherwise the reader opens at their own place.
+const NOTES_ON = notesEnabled();
+const END_AT = 0.999;
+const LINE_CHIP = Object.freeze({ maxChars: LINE_MAX, label: NOTES_COPY.thisIsMyLine });
+const LINE_SAVED = 'Saved as your line.';
+const LINE_NOT_SAVED = 'Your line wasn’t saved. Please try again.';
+const NOTICE_MS = 3200;
 
 export default function SeriesReaderClient({ instalmentId, sentinel }) {
   const { user, loading: authLoading } = useAuth() || {};
@@ -144,6 +171,111 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
     fetchUrl();
   }, [fetchUrl]);
 
+  // ── W46 §5 — the last page, the line, the place. All inert unless NOTES_ON. ──────────────
+  // { seriesId, ordinal, slug } for the sheet: the public row has the first two, the series
+  // record the slug. Read alongside the detail, and only when the feature is on.
+  const [notesCtx, setNotesCtx] = useState(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [lineNotice, setLineNotice] = useState(null);
+  // ?at=&v= — read once on the client (a static export has no request to read it from). An
+  // initialiser rather than an effect: it only ever feeds the Reading Room's props, which are
+  // never part of the server render, so there is nothing for hydration to disagree with.
+  const [placeParam] = useState(() => {
+    if (!NOTES_ON || typeof window === 'undefined') return null;
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const at = q.get('at');
+      return at ? { at, v: q.get('v') || null } : null;
+    } catch { return null; }
+  });
+  const endArmedRef = useRef(true);      // false from raising the sheet until the reader leaves the last page
+  const atEndRef = useRef(false);
+  const finishedRef = useRef(false);     // series_finished written by this mount
+  const noticeTimer = useRef(null);
+  // Read by raiseEnd, which is called from the frame's relocates and from the context load.
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
+  const ctxRef = useRef(null);
+
+  useEffect(() => () => { if (noticeTimer.current) clearTimeout(noticeTimer.current); }, []);
+
+  const raiseEnd = useCallback(async () => {
+    const u = userRef.current;
+    if (!NOTES_ON || !u || !ctxRef.current || !endArmedRef.current) return;
+    endArmedRef.current = false;
+    if (!finishedRef.current) {
+      // Before the sheet, always: the sheet's reads are gated on this record (§5).
+      for (let attempt = 0; attempt < 2 && !finishedRef.current; attempt++) {
+        try {
+          await markFinished(u.uid, instalmentId);
+          finishedRef.current = true;
+        } catch (e) {
+          if (attempt === 1) console.warn('[series-reader] series_finished not written; no sheet', e);
+        }
+      }
+      if (!finishedRef.current) return;
+    }
+    // The reader may have turned back while the write was in flight.
+    if (!atEndRef.current) return;
+    setSheetOpen(true);
+  }, [instalmentId]);
+
+  useEffect(() => {
+    if (!NOTES_ON || instalmentId === sentinel) return undefined;
+    let cancelled = false;
+    (async () => {
+      const row = await getInstalmentRow(instalmentId);
+      if (!row?.seriesId) return;
+      const series = await getSeriesBySlug(row.seriesId);
+      if (cancelled || !series) return;
+      const ctx = { seriesId: row.seriesId, ordinal: row.ordinal ?? null, slug: series.slug || series.id };
+      ctxRef.current = ctx;
+      setNotesCtx(ctx);
+      // The context can arrive after the reader is already on the last page (opened there).
+      if (atEndRef.current) raiseEnd();
+    })();
+    return () => { cancelled = true; };
+  }, [instalmentId, sentinel, raiseEnd]);
+
+  const handleRelocate = useCallback(({ fraction }) => {
+    const atEnd = typeof fraction === 'number' && fraction >= END_AT;
+    atEndRef.current = atEnd;
+    if (!atEnd) { endArmedRef.current = true; return; }
+    raiseEnd();
+  }, [raiseEnd]);
+  const handleEnded = useCallback(() => { atEndRef.current = true; raiseEnd(); }, [raiseEnd]);
+
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
+
+  const notice = useCallback((text) => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setLineNotice(text);
+    noticeTimer.current = setTimeout(() => setLineNotice(null), NOTICE_MS);
+  }, []);
+
+  const handleLineChosen = useCallback(async ({ text, cfi }) => {
+    // No version, no line: a CFI without the bytes it was taken in cannot be trusted later.
+    if (!user || !epubVersion) return;
+    const checked = checkLine({ text, cfi, epubVersion });
+    if (!checked.ok) return;
+    try {
+      await saveMargin(user.uid, instalmentId, checked.line);
+      notice(LINE_SAVED);
+    } catch (e) {
+      console.warn('[series-reader] series_margin not written', e);
+      notice(LINE_NOT_SAVED);
+    }
+  }, [user, epubVersion, instalmentId, notice]);
+
+  const notesProps = NOTES_ON ? {
+    lineChip: user && epubVersion ? LINE_CHIP : null,
+    onLineChosen: handleLineChosen,
+    openAt: placeParam?.at && placeParam.v && epubVersion && placeParam.v === epubVersion ? placeParam.at : null,
+    keepChromeAtEnd: true,
+    onRelocate: handleRelocate,
+    onEnded: handleEnded,
+  } : null;
+
   if (gate === 'reading' && epubUrl) {
     return (
       <>
@@ -168,7 +300,22 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
         // would show the reader an error overlay; we would rather spend the first failure on
         // a silent re-mint and only surface it if that fails too.
         onError={handleHostError}
+        {...notesProps}
       />
+      {NOTES_ON && (
+        // The room's one quiet word in the book. The live region is always mounted so the
+        // notice is announced; the pill wears the Reading Room's own notice styling.
+        <div role="status" aria-live="polite" data-line-notice="">
+          {lineNotice && <div className="rr-resume-toast in rr-notice">{lineNotice}</div>}
+        </div>
+      )}
+      {NOTES_ON && sheetOpen && notesCtx && user && (
+        // series_finished is already written (raiseEnd) by the time this mounts.
+        <div data-series-endsheet="open" data-inst={instalmentId} style={{ position: 'relative', zIndex: 85 }}>
+          <EndSheet inst={instalmentId} ordinal={notesCtx.ordinal} slug={notesCtx.slug}
+            seriesId={notesCtx.seriesId} user={user} onClose={closeSheet} />
+        </div>
+      )}
       {authPrompt}
       </>
     );

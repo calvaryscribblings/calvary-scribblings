@@ -58,6 +58,7 @@
     "test:rules": "firebase emulators:exec --only database,storage --project demo-calvary-rules \"node --test --test-concurrency=1 tests/rules/*.test.mjs\"",
     "test:sponsor": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.sponsor.config.mjs\"",
     "test:safety": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/safety/playwright.w5.config.mjs\"",
+    "test:series-notes:reader": "node tests/fixtures/make-epub.mjs && playwright test -c tests/series-notes/reader/playwright.frame.config.mjs && firebase emulators:exec --only auth,database --project calvary-scribblings \"W46_NOTES=0 playwright test -c tests/series-notes/reader/playwright.reader.config.mjs && W46_NOTES=1 playwright test -c tests/series-notes/reader/playwright.reader.config.mjs\"",
     "test:series-free": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/series/playwright.w40.config.mjs\"",
     "test:series-notes:ui": "node --test tests/series-notes/ui/room-model.test.mjs && firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/series-notes/ui/playwright.config.mjs && playwright test -c tests/series-notes/ui/playwright.flagoff.config.mjs\"",
     "test:release-recheck": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/series/playwright.release.config.mjs\"",

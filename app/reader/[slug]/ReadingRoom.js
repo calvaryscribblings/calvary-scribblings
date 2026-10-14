@@ -102,6 +102,18 @@ const CHROME_IDLE_MS = 3500;
 // Long enough for a section load on a slow connection, short enough to feel like the tap
 // simply worked.
 const JUMP_WATCHDOG_MS = 1200;
+// W46 — the goTo id of a one-off openAt, so its ack is told apart from a ribbon jump's
+// (those are positive integers from jumpIdRef).
+const OPEN_AT_ID = 'openAt';
+// W46 — how many times openAt may be re-asserted. Measured (tests/series-notes/reader): a goTo
+// posted on the frame's `ready` can be overtaken by the frame's own opening page turn, which is
+// still in flight when `ready` is posted, and the reader lands on page 2 of the first section.
+// So the landing is CHECKED (the relocate's spine step must be openAt's) and the goTo re-posted
+// if the book was moved out from under it. Bounded, so a CFI that will not land cannot loop.
+const OPEN_AT_TRIES = 3;
+const OPEN_AT_CHECK_MS = 1500;
+// The spine step of a CFI — `/6/8` in `epubcfi(/6/8!/4/2,…)` — which section it is in.
+const cfiSpine = (cfi) => { const m = /^epubcfi\(([^!]*)!/.exec(String(cfi || '')); return m ? m[1] : null; };
 
 export function loadPrefs() {
   try {
@@ -667,6 +679,20 @@ const ROOM_CSS = `
  * @param {()=>void} p.onEnded
  * @param {(message:string)=>void} p.onError       Host could not open the file.
  * @param {()=>void} p.onRequireAuth               Ribbon tapped while signed out.
+ *
+ * W46 — four OPT-IN props for the Series register's Readers' Notes. Each defaults to the
+ * pre-W46 behaviour, and a register that passes none of them gets exactly the old room:
+ * @param {{maxChars:number,label?:string}|null} p.lineChip  Offer "This is my line" on a
+ *                                     selection of real text (the frame's setLineChip). Null ⇒
+ *                                     the frame is never told, and its line chip stays inert.
+ * @param {(line:{text:string,cfi:string})=>void} p.onLineChosen  The line chip was tapped.
+ * @param {string|null} p.openAt       A one-off CFI to open at INSTEAD of the saved position,
+ *                                     for this open only. The saved position is not written
+ *                                     until the reader moves off the page it lands on. The
+ *                                     register is responsible for trusting it (the pin).
+ * @param {boolean}  p.keepChromeAtEnd The frame's `ended` calls onEnded and nothing else: the
+ *                                     chrome and furniture stay, because the register raises
+ *                                     its own sheet over the book rather than an ending page.
  */
 export default function ReadingRoom({
   register = 'story',
@@ -688,6 +714,10 @@ export default function ReadingRoom({
   onError,
   onRequireAuth,
   indent = null,
+  lineChip = null,
+  onLineChosen,
+  openAt = null,
+  keepChromeAtEnd = false,
 }) {
   const slug = meta?.slug;
 
@@ -770,6 +800,17 @@ export default function ReadingRoom({
   const currentFraction = useRef(0);
   const restoreTargetRef = useRef(null);   // CFI to restore on ready
   const restoreFractionRef = useRef(null); // fraction fallback (old shape)
+  // W46 — the one-off open target (openAt) and the save hold that goes with it. The hold keeps
+  // the saved position untouched until the reader moves off the page openAt landed on.
+  const openAtRef = useRef(openAt);
+  const holdSaveRef = useRef(!!openAt);
+  const openAtLandedRef = useRef(null);     // { cfi } of the page openAt landed on
+  const openAtTriesRef = useRef(0);
+  const openAtTimerRef = useRef(null);
+  const keepChromeAtEndRef = useRef(keepChromeAtEnd);
+  useEffect(() => { keepChromeAtEndRef.current = keepChromeAtEnd; }, [keepChromeAtEnd]);
+  const lineChipRef = useRef(lineChip);
+  const lineChipSentRef = useRef(false);
   const idleTimer = useRef(null);
   const panelRef = useRef('none');
   useEffect(() => { panelRef.current = panel; }, [panel]);
@@ -821,8 +862,8 @@ export default function ReadingRoom({
   // the window message listener on every render.
   const cbRef = useRef({});
   useEffect(() => {
-    cbRef.current = { onRelocate, onEnded, onError, onRequireAuth };
-  }, [onRelocate, onEnded, onError, onRequireAuth]);
+    cbRef.current = { onRelocate, onEnded, onError, onRequireAuth, onLineChosen };
+  }, [onRelocate, onEnded, onError, onRequireAuth, onLineChosen]);
 
   useEffect(() => { setReduced(!!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)); }, []);
 
@@ -837,6 +878,21 @@ export default function ReadingRoom({
     metaRef.current = meta;
     postToFrame({ type: 'setCopyRule', credit: creditLine(meta || {}), maxWords: COPY_MAX_WORDS });
   }, [meta?.title, meta?.author, postToFrame]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // W46 — the line chip, opt-in. Nothing is posted until a register asks for it, and a register
+  // that stops asking (the reader signed out) switches it off again.
+  const lineChipMsg = useCallback(() => {
+    const lc = lineChipRef.current;
+    return lc
+      ? { type: 'setLineChip', enabled: true, maxChars: lc.maxChars, ...(lc.label ? { label: lc.label } : {}) }
+      : { type: 'setLineChip', enabled: false };
+  }, []);
+  useEffect(() => {
+    lineChipRef.current = lineChip;
+    if (!lineChip && !lineChipSentRef.current) return;
+    lineChipSentRef.current = !!lineChip;
+    postToFrame(lineChipMsg());
+  }, [lineChip?.maxChars, lineChip?.label, !!lineChip, postToFrame, lineChipMsg]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Restore lookup (progress registers only) ─────────────────────────────────
   // Reads the CFI progress once and queues the restore target for the ready event.
@@ -868,7 +924,7 @@ export default function ReadingRoom({
                 restoreTargetRef.current = v.cfi;
               }
               else if (v && typeof v.fraction === 'number') { restoreFractionRef.current = v.fraction; }
-              if (restoreTargetRef.current || restoreFractionRef.current) setResumeToast(true);
+              if ((restoreTargetRef.current || restoreFractionRef.current) && !openAtRef.current) setResumeToast(true);
             }
           } catch (e) {}
           setReaderReady(true);
@@ -917,6 +973,8 @@ export default function ReadingRoom({
   useEffect(() => {
     if (!progressEnabled || !user) return undefined;
     if (!pct || pct < 1) return undefined;
+    // W46 — opened at a one-off target: the saved place stands until the reader moves.
+    if (holdSaveRef.current) return undefined;
     if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
     progressSaveTimer.current = setTimeout(async () => {
       try {
@@ -1034,6 +1092,23 @@ export default function ReadingRoom({
     return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
   }, [coverPending, ended, bumpIdle]);
 
+  // W46 — post openAt, and check it landed: no relocate in its section within OPEN_AT_CHECK_MS
+  // means it was lost under the frame's opening turn, so it goes again (bounded). If it never
+  // lands the hold is released, so the reader's own moves are saved as usual.
+  const postOpenAt = useCallback(() => {
+    if (!openAtRef.current) return;
+    openAtTriesRef.current += 1;
+    openAtLandedRef.current = null;
+    postToFrame({ type: 'goTo', cfi: openAtRef.current, id: OPEN_AT_ID });
+    if (openAtTimerRef.current) clearTimeout(openAtTimerRef.current);
+    openAtTimerRef.current = setTimeout(() => {
+      if (openAtLandedRef.current || !holdSaveRef.current) return;
+      if (openAtTriesRef.current < OPEN_AT_TRIES) { dbg(`openAt not landed → re-post (${openAtTriesRef.current + 1})`); postOpenAt(); }
+      else { dbg('openAt never landed'); holdSaveRef.current = false; }
+    }, OPEN_AT_CHECK_MS);
+  }, [postToFrame, dbg]);
+  useEffect(() => () => { if (openAtTimerRef.current) clearTimeout(openAtTimerRef.current); }, []);
+
   // ── The postMessage bridge. WALL §7.5 — origin-locked inbound. ───────────────
   useEffect(() => {
     const handler = (e) => {
@@ -1048,11 +1123,32 @@ export default function ReadingRoom({
         postToFrame({ type: 'setCopyRule', credit: creditLine(metaRef.current || {}), maxWords: COPY_MAX_WORDS });
         postToFrame(stylesMsg(prefsRef.current));
         postToFrame({ type: 'setFlow', flow: prefsRef.current.flow });
+        if (lineChipRef.current) postToFrame(lineChipMsg());
         // WALL §7.14 — the host queues these when it is not ready yet; we never gate here.
-        if (restoreTargetRef.current) postToFrame({ type: 'goTo', cfi: restoreTargetRef.current });
+        // W46 — a one-off openAt wins over the saved place, for this open only.
+        if (openAtRef.current) postOpenAt();
+        else if (restoreTargetRef.current) postToFrame({ type: 'goTo', cfi: restoreTargetRef.current });
         else if (restoreFractionRef.current != null) postToFrame({ type: 'goToFraction', fraction: restoreFractionRef.current });
       } else if (d.type === 'relocate') {
         currentCFI.current = d.cfi || currentCFI.current;
+        // W46 — openAt: the first relocate in openAt's section is the landing. A relocate
+        // elsewhere before the reader has touched anything is the frame's own opening turn
+        // overtaking the goTo, so it is re-posted (OPEN_AT_TRIES). After the landing, the first
+        // relocate off that page is the reader moving: their place is theirs again.
+        if (holdSaveRef.current && d.cfi) {
+          const inTarget = cfiSpine(d.cfi) === cfiSpine(openAtRef.current);
+          if (!openAtLandedRef.current) {
+            if (inTarget) openAtLandedRef.current = { cfi: d.cfi };
+          } else if (d.cfi !== openAtLandedRef.current.cfi) {
+            if (!inTarget && openAtTriesRef.current < OPEN_AT_TRIES && Date.now() - openAtLandedRef.current.at < OPEN_AT_CHECK_MS) {
+              dbg(`openAt overtaken → re-post (${openAtTriesRef.current + 1})`);
+              postOpenAt();
+            } else {
+              holdSaveRef.current = false;
+            }
+          }
+          if (openAtLandedRef.current && !openAtLandedRef.current.at) openAtLandedRef.current.at = Date.now();
+        }
         currentFraction.current = typeof d.fraction === 'number' ? d.fraction : currentFraction.current;
         setFraction(currentFraction.current);
         setPct(currentFraction.current * 100);
@@ -1078,8 +1174,12 @@ export default function ReadingRoom({
           minLeft: d.minLeft, chapterLabel: d.chapterLabel || null,
         });
       } else if (d.type === 'ended') {
-        setEnded(true);
+        if (!keepChromeAtEndRef.current) setEnded(true);
         cbRef.current.onEnded?.();
+      } else if (d.type === 'lineChosen') {
+        // W46 — opt-in: the frame only offers the chip after setLineChip, so this arrives only
+        // for a register that asked. Plain strings only cross.
+        if (typeof d.text === 'string' && typeof d.cfi === 'string') cbRef.current.onLineChosen?.({ text: d.text, cfi: d.cfi });
       } else if (d.type === 'toggleChrome') {
         toggleChrome();
       } else if (d.type === 'wordSelected') {
@@ -1088,6 +1188,14 @@ export default function ReadingRoom({
         dbg(`selected "${d.word}"`);
       } else if (d.type === 'defineWord') {
         openDefine(d.word, d.sentence || '');
+      } else if (d.type === 'goToAck' && d.id === OPEN_AT_ID) {
+        // W46 — openAt failed to resolve: the reader goes to their own place, and the hold has
+        // nothing left to protect. (Success is judged by the relocate, above, not the ack.)
+        dbg(`openAt ${d.ok ? 'ok' : `FAILED (${d.reason || d.message || 'unknown'})`}`);
+        if (d.ok) return;
+        holdSaveRef.current = false;
+        if (restoreTargetRef.current) postToFrame({ type: 'goTo', cfi: restoreTargetRef.current });
+        else if (restoreFractionRef.current != null) postToFrame({ type: 'goToFraction', fraction: restoreFractionRef.current });
       } else if (d.type === 'goToAck') {
         const pending = pendingJumpRef.current;
         dbg(`ack #${d.id} ${d.ok ? 'ok' : `FAILED (${d.reason || d.message || 'unknown'})`}`);
@@ -1113,7 +1221,7 @@ export default function ReadingRoom({
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [postToFrame, toggleChrome, rearmIdle, dbg, openDefine]);
+  }, [postToFrame, toggleChrome, rearmIdle, dbg, openDefine, lineChipMsg, postOpenAt]);
 
   // ── Typesetter handlers ───────────────────────────────────────────────────────
   // WALL §7.10 — every change travels by message. Nothing here touches the src.
