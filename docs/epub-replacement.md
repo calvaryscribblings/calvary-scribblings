@@ -2,8 +2,10 @@
 
 A saved reading position is a CFI: coordinates into one file's bytes, pinned to the Storage
 generation of `master.epub` ([reading-position-pin.md](./reading-position-pin.md)). Upload any
-new file and the generation changes, so every saved position falls back to its `fraction`. Ribbons
-(`readerBookmarks`) carry no pin at all. Their CFI is used as-is against the new bytes.
+new file and the generation changes, so every saved position falls back to its `fraction`. Since
+W43 ribbons (`readerBookmarks`) carry the same pin and use the same table. Ribbons saved before
+W43 carry none, and their CFI is still used as-is against the new bytes, so the carry-over
+handles unpinned records too (below).
 
 So **repair, don't rebuild.** A rebuild re-serialises every document and moves every place in
 the book. A repair changes only the bytes that are wrong. Places outside the repair then resolve
@@ -17,6 +19,8 @@ to the same text, keep their CFI string, and need only re-pinning.
 | verify | `verify.mjs --original <a> --repair <b> --plan <p> --epubcheck <jar>` | the gate: byte identity, block equality, EPUBCheck, build-epub `--check`, the folded-headings audit |
 | open | `open-in-foliate.mjs --epub <b> --plan <p> --shots <dir>` | the vendored reader in Chromium: contents in order, each changed chapter opens at its heading |
 | map | `map-positions.mjs --old <a> --new <b> [--title <id>] [--sample]` | dry run of the carry-over: kept / mapped / landed for every saved place |
+| carry | `carry-over.mjs --title <id> --old <a> --new <b> [--old-generation <g>] [--new-generation <g> --apply]` | the carry-over's write mode; dry run by default |
+| swap | `swap.mjs --title <id> --dir <private folder> [--go]` | the whole swap in order; dry run by default |
 
 Plan formats are documented at the top of `lib.mjs`. **Plans, EPUBs, screenshots and reports
 live outside the repo** (`~/calvary-private/epub-repairs/<book>/`), and every tool refuses a path
@@ -54,15 +58,27 @@ Fractions come from foliate's own `SectionProgress` over uncompressed section si
 
 ## On the day
 
-1. `verify.mjs` and `open-in-foliate.mjs` both clean, and `map-positions.mjs --title` shows no
-   misses.
-2. Upload with `ifGenerationMatch` set to the generation recorded when the original was
-   downloaded, so a live file that changed since then refuses the upload.
-   `scripts/bookstore/author-copy.mjs` shows the firebase-admin form.
-3. Re-pin kept records and write mapped ones. Back up first, and make each write conditional
-   on the record being unchanged, so a reader's live save wins. Run it again later for any
-   session that had the book open during the swap.
-4. Re-read every record touched and compare. Delete the private copies once the swap is
+1. `verify.mjs` and `open-in-foliate.mjs` both clean, and a `swap.mjs` dry run shows the live
+   generation matching the recorded one and no record it cannot carry.
+2. `swap.mjs --go` does the rest, in this order, stopping at the first failure:
+   - it confirms the live generation is the one recorded at download;
+   - it copies that generation to `calvary-scribblings-storage-backups/epub-replacements/<timestamp>/<titleId>/`;
+   - it uploads with `ifGenerationMatch` on that generation, so a live file that changed since
+     the download refuses the upload, and carries the content type, disposition and custom metadata;
+   - it runs `carry-over.mjs --apply`, which refuses unless the live generation is the new one;
+   - it requires the live object's sha256 to equal the repair's.
+3. The carry-over, per record:
+   - **pinned new** → leave;
+   - **pinned old** → kept, mapped or landed, written with the new pin;
+   - **unpinned** → the file its CFI resolves in *and* its own fraction agrees with (within
+     0.02; the closer one if both). Old → as pinned old. New → leave. Neither → leave and report;
+   - **pinned to anything else** → leave and report.
+   The fraction is shifted by the mapping's own delta, clamped to 0–1. A ribbon that changes
+   chapter takes the new contents label. Every record is backed up before writing. Each write is
+   a PUT with `if-match` on the record's ETag, so a reader's save in between wins and is
+   reported. Every written record is re-read and compared.
+4. Run `carry-over.mjs --apply` again later. It leaves what it carried and picks up anything a
+   session still holding the old file saved since. Delete the private copies once the swap is
    verified.
 
 `/admin/bookstore` can also replace a master, but it does none of this. It overwrites the

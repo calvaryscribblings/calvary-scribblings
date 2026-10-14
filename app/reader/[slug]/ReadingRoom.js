@@ -37,7 +37,7 @@ import { lookupWord, glossaryPhrases } from '../../lib/dictionary';
 import { PRINT_LINE, COPY_MAX_WORDS, creditLine } from '../../lib/readerCopy';
 // R11.22 — the two halves of a stored position: the shape written, and whether a stored CFI
 // belongs to the copy this session has open. Pure, and asserted in tests/bookstore/reading-pin.test.mjs.
-import { positionRecord, cfiIsOurs } from '../../lib/bookstore/reading-position';
+import { positionRecord, cfiIsOurs, ribbonRecord, ribbonJump } from '../../lib/bookstore/reading-position';
 
 // R7.3: the ribbon-geometry rule moved to app/lib/ribbonGeometry.js — plain ESM, so the
 // harness can import it under Node and assert the decision against measured geometry. It is
@@ -1161,13 +1161,17 @@ export default function ReadingRoom({
     try {
       const db = await getDB();
       const { ref, push } = await import('firebase/database');
-      await push(ref(db, `readerBookmarks/${user.uid}/${slug}`), {
+      // W43 — the ribbon carries the same pin as the position (the register's file version),
+      // so a jump can tell a CFI taken in these bytes from one taken in a replaced copy.
+      // Stories pass no pin and write none.
+      await push(ref(db, `readerBookmarks/${user.uid}/${slug}`), ribbonRecord({
         cfi,
         fraction: f,
         label: payload?.chapterLabel || chapterLabel || null,
         excerpt: payload?.excerpt || '',
         createdAt: Date.now(),
-      });
+        pin: progressRef.current?.pin,
+      }));
     } catch (e) { console.warn('[reader] ribbon save failed', e); }
   }, [user, slug, chapterLabel, reduced, ribbons, pageSpan, removeRibbonById]);
   useEffect(() => { saveRibbonRef.current = saveRibbon; }, [saveRibbon]);
@@ -1204,8 +1208,11 @@ export default function ReadingRoom({
    */
   const jumpTo = useCallback((target) => {
     const rec = typeof target === 'string' ? { cfi: target } : (target || {});
-    const cfi = typeof rec.cfi === 'string' && rec.cfi ? rec.cfi : null;
-    const fraction = typeof rec.fraction === 'number' ? rec.fraction : null;
+    // W43 — the pin decides first. A ribbon taken in other bytes goes by its fraction straight
+    // away: its CFI would resolve somewhere plausible and wrong, so there is nothing to wait for.
+    const route = ribbonJump(rec, progressRef.current?.pin);
+    const cfi = route.via === 'cfi' ? route.cfi : null;
+    const fraction = route.via === 'none' ? null : route.fraction;
     const id = ++jumpIdRef.current;
 
     if (pendingJumpRef.current?.timer) clearTimeout(pendingJumpRef.current.timer);
@@ -1235,11 +1242,12 @@ export default function ReadingRoom({
       postToFrame({ type: 'goTo', cfi, id });
     } else if (fraction != null) {
       pendingJumpRef.current = null;
-      dbg(`jump #${id} → goToFraction ${fraction.toFixed(4)} (no cfi)`);
+      dbg(`jump #${id} → goToFraction ${fraction.toFixed(4)} (${rec.cfi ? 'cfi not ours' : 'no cfi'})`);
       postToFrame({ type: 'goToFraction', fraction, id });
     } else {
       pendingJumpRef.current = null;
       dbg(`jump #${id} → nothing to jump to`);
+      if (route.notOurs) setJumpNotice('We couldn’t find this ribbon’s page.');
     }
     closePanel();
   }, [postToFrame, closePanel, dbg]);

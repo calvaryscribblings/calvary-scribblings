@@ -125,6 +125,9 @@ on:
       - 'scripts/epub-repair/**'
       - 'tests/bookstore/epub-repair.test.mjs'
       - 'tests/fixtures/epub-repair-fixtures.mjs'
+      # W43 — the carry-over's emulator suite and the ribbon pin.
+      - 'tests/epub-repair/**'
+      - 'tests/bookstore/ribbon-pin.test.mjs'
       - 'app/lib/shelf.js'
       # R8.2 — the payment rails. tests/bookstore/paystack.test.mjs imports these modules
       # directly, so a change to either endpoint must re-run the suite that specifies them.
@@ -216,6 +219,17 @@ jobs:
       # a Chromium install and two builds to hear.
       - name: Payment rail specs (Stripe + Paystack)
         run: npm run test:purchases
+
+      # W43 — the carry-over's write mode against the RTDB emulator: every branch, a reader's
+      # save racing the write, idempotence. Needs Chromium (installed above) and a JDK for the
+      # emulator. Invented book and records under a demo- namespace; nothing reaches production.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: EPUB carry-over against the RTDB emulator
+        if: ${{ !cancelled() }}
+        run: npm run test:carry-over:emulator
 
       # ── R19.6 — EVERY SUITE REPORTS ITS OWN RESULT ────────────────────────────────────────
       #

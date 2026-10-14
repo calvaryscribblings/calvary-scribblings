@@ -66,6 +66,32 @@ visibly, to guard a hazard that only bites when the copies genuinely differ. Eac
 re-pins itself on its reader's next save, so the unpinned population drains on its own. The app
 is free to be stricter here — that choice is per-surface and the two do not have to agree.
 
+## Ribbons carry the pin too (W43)
+
+**Node:** `readerBookmarks/{uid}/{slug}/{id}` (books and Series instalments; the slug is the
+instalment id for Series). Until W43 a ribbon carried no pin, so after a replacement its CFI
+was trusted against bytes it was never taken in.
+
+```jsonc
+{
+  "cfi": "epubcfi(/6/14!/4/2/8/1:0)",
+  "fraction": 0.31,            // omitted only when the reader had none
+  "label": "Seven",            // the contents label of the ribbon's chapter
+  "excerpt": "…",              // the page's opening words
+  "createdAt": 1755300000000,
+  "epubVersion": "1785243569624430"   // optional — the same raw stream version, only beside a cfi
+}
+```
+
+- **Writing:** `ribbonRecord()` takes the same pin the position uses (`progress.pin`). A register
+  with no pin (stories) writes none. The node has no validator, so no rules change was needed.
+- **Jumping:** `ribbonJump()` applies **the same table** through `cfiIsOurs()`:
+  - ours → the CFI, then the fraction if it does not resolve (the watchdog, as before);
+  - not ours → the fraction straight away, with no watchdog wait;
+  - not ours and no fraction → the "couldn't find this ribbon's page" notice.
+  A contents-list href carries no pin and always goes by its CFI.
+- The app adopts the identical shape and rule in A32.
+
 ## What the app needs to do
 
 1. **When writing a position:** write `epubVersion` = the `version` you received from
@@ -132,10 +158,10 @@ so** — the pin's meaning changes and a content digest becomes the right answer
 | the served fact | `functions/api/bookstore/stream.js` → `readObjectVersion()` |
 | carried to the client | `app/lib/bookstore/stream.js` → `requestStreamUrl()` |
 | held for the session | `app/reader/[slug]/book-reader.js` → `epubVersion` state, passed as `progress.pin` |
-| written / checked | `app/lib/bookstore/reading-position.js` → `positionRecord()`, `cfiIsOurs()` |
-| used | `app/reader/[slug]/ReadingRoom.js` → the auto-save effect and the restore lookup |
+| written / checked | `app/lib/bookstore/reading-position.js` → `positionRecord()`, `cfiIsOurs()`, `ribbonRecord()`, `ribbonJump()` |
+| used | `app/reader/[slug]/ReadingRoom.js` → the auto-save effect, the restore lookup, `saveRibbon` and `jumpTo` |
 | the shape | `database.rules.json` → `bookstore_reading_progress/$uid/$titleId` |
-| the tests | `tests/bookstore/reading-pin.test.mjs`, `tests/rules/database.test.mjs` |
+| the tests | `tests/bookstore/reading-pin.test.mjs`, `tests/bookstore/ribbon-pin.test.mjs`, `tests/rules/database.test.mjs` |
 
 Related: [`docs/cfi-exchange-protocol.md`](./cfi-exchange-protocol.md) — §6h, which proves the two
 surfaces resolve the same CFI to the same place **when they hold the same bytes**. This document

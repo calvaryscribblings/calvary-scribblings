@@ -88,3 +88,46 @@ export function cfiIsOurs(record, ourPin) {
   if (typeof stored !== 'string' || !stored) return true;
   return typeof ourPin === 'string' && ourPin === stored;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// W43 — RIBBONS CARRY THE PIN TOO
+//
+// A ribbon (readerBookmarks/{uid}/{slug}/{id}) is a CFI with exactly the hazard described
+// above, and until W43 it carried no pin, so after a replacement its CFI was trusted against
+// bytes it was never taken in. Same contract as the position, same table: the pin is the raw
+// stream version, written only beside a cfi, and a jump goes through cfiIsOurs. The app
+// adopts the identical shape in A32. Contract: docs/reading-position-pin.md.
+
+/**
+ * The ribbon record to push. { cfi, fraction, label, excerpt, createdAt, epubVersion? }
+ *
+ * `fraction` is omitted rather than written undefined (push() throws on undefined). The pin
+ * rides only beside a cfi, as it does on a position.
+ */
+export function ribbonRecord({ cfi, fraction, label, excerpt, createdAt, pin }) {
+  const record = { cfi };
+  if (typeof fraction === 'number') record.fraction = fraction;
+  record.label = label || null;
+  record.excerpt = excerpt || '';
+  record.createdAt = createdAt;
+  if (typeof cfi === 'string' && cfi && typeof pin === 'string' && pin) record.epubVersion = pin;
+  return record;
+}
+
+/**
+ * How to jump to a ribbon (or to a bare TOC href, passed as { cfi }).
+ *
+ *   { via: 'cfi', cfi, fraction }  — the CFI is ours: go there, with the fraction as the
+ *                                    fallback if it does not resolve (the watchdog path)
+ *   { via: 'fraction', fraction }  — no CFI, or a CFI taken in other bytes: the fraction,
+ *                                    straight away, with no watchdog wait
+ *   { via: 'none', notOurs }       — nothing usable. notOurs: there WAS a cfi, from another
+ *                                    copy, and no fraction to fall back on
+ */
+export function ribbonJump(record, ourPin) {
+  const cfi = typeof record?.cfi === 'string' && record.cfi ? record.cfi : null;
+  const fraction = typeof record?.fraction === 'number' ? record.fraction : null;
+  if (cfi && cfiIsOurs(record, ourPin)) return { via: 'cfi', cfi, fraction };
+  if (fraction != null) return { via: 'fraction', fraction };
+  return { via: 'none', notOurs: !!cfi };
+}

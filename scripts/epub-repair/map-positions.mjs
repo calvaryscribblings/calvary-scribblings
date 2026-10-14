@@ -1,4 +1,5 @@
 // CARRY SAVED PLACES ACROSS A REPAIRED FILE — the mapping, dry run only. Nothing is written.
+// (W43: the write mode is carry-over.mjs, which calls mapPositions() below.)
 //
 //   node scripts/epub-repair/map-positions.mjs --old <original.epub> --new <repair.epub> \
 //        [--title <titleId>]   read that title's saved positions + ribbons, read-only, as A, B, …
@@ -192,9 +193,22 @@ function pageMapper({ oldBook, newBook, records, sample }) {
     };
   };
 
+  // Where the stored CFI lands in EACH file, and the fraction it estimates there. An unpinned
+  // record has no other evidence of which copy it was taken in (carry-over.mjs, whichFile).
+  const probe = (cfi) => {
+    const at = (B) => {
+      try {
+        const r = resolveIn(B, collapse(cfi));
+        return r.range ? { resolves: true, file: B.spine[r.di].file, fraction: fractionOf(B, r.di, r.range) } : { resolves: false };
+      } catch { return { resolves: false }; }
+    };
+    return { old: at(OLD), new: at(NEW) };
+  };
+
   const recs = records.map((r) => {
-    const m = map(r.cfi);
-    return { key: r.key, kind: r.kind, storedFraction: r.fraction ?? null, storedLabel: r.label ?? null, ...m };
+    let m;
+    try { m = map(r.cfi); } catch { m = { result: 'unresolved in old file' }; }
+    return { key: r.key, kind: r.kind, storedFraction: r.fraction ?? null, storedLabel: r.label ?? null, probe: probe(r.cfi), ...m };
   });
 
   let sampled = null;
