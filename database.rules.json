@@ -1418,6 +1418,178 @@
         }
       }
     },
+    "series_finished": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$inst": {
+          ".write": "auth != null && auth.uid === $uid && (!newData.exists() || (newData.isNumber() && newData.val() > 0 && newData.val() <= now && root.child('series_instalments').child($inst).child('status').val() === 'published' && root.child('series_instalments').child($inst).child('releaseAtMs').isNumber() && root.child('series_instalments').child($inst).child('releaseAtMs').val() <= now))"
+        }
+      }
+    },
+    "series_questions_public": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$inst": {
+        ".validate": "newData.hasChildren(['sit', 'publishedAt'])",
+        "sit": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 280"
+        },
+        "publishedAt": {
+          ".validate": "newData.isNumber() && newData.val() > 0"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "series_questions": {
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$inst": {
+        ".read": "(auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')) || (auth != null && root.child('series_finished').child(auth.uid).child($inst).exists())",
+        ".validate": "newData.hasChildren(['sit', 'side', 'line', 'publishedAt'])",
+        "sit": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 280"
+        },
+        "line": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 280"
+        },
+        "side": {
+          ".validate": "newData.hasChildren(['text', 'options'])",
+          "text": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 280"
+          },
+          "options": {
+            ".validate": "newData.hasChildren(['a', 'b'])",
+            "$opt": {
+              ".validate": "($opt === 'a' || $opt === 'b' || $opt === 'c' || $opt === 'd') && newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "publishedAt": {
+          ".validate": "newData.isNumber() && newData.val() > 0"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "series_question_drafts": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".write": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')"
+    },
+    "series_room_members": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      ".write": false,
+      "$inst": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid"
+        }
+      }
+    },
+    "series_sides": {
+      ".write": false,
+      "$inst": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid"
+        }
+      }
+    },
+    "series_side_tallies": {
+      ".write": false,
+      "$inst": {
+        ".read": "(auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')) || (auth != null && root.child('series_finished').child(auth.uid).child($inst).exists() && root.child('series_room_members').child($inst).child(auth.uid).exists())"
+      }
+    },
+    "series_notes": {
+      ".write": false,
+      "$inst": {
+        ".read": "(auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')) || (auth != null && root.child('series_finished').child(auth.uid).child($inst).exists() && root.child('series_room_members').child($inst).child(auth.uid).exists())",
+        ".indexOn": [
+          "createdAt",
+          "uid",
+          "kind"
+        ]
+      }
+    },
+    "series_notes_held": {
+      ".write": false,
+      "$inst": {
+        ".read": "(auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')) || (auth != null && query.orderByChild == 'uid' && query.equalTo == auth.uid)",
+        ".indexOn": [
+          "uid"
+        ],
+        "$noteId": {
+          ".read": "auth != null && data.child('uid').val() === auth.uid"
+        }
+      }
+    },
+    "series_note_replies": {
+      ".write": false,
+      "$inst": {
+        ".read": "(auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')) || (auth != null && root.child('series_finished').child(auth.uid).child($inst).exists() && root.child('series_room_members').child($inst).child(auth.uid).exists())"
+      }
+    },
+    "series_note_underlines": {
+      "$inst": {
+        ".read": "(auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')) || (auth != null && root.child('series_finished').child(auth.uid).child($inst).exists() && root.child('series_room_members').child($inst).child(auth.uid).exists())",
+        "$noteId": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('series_finished').child(auth.uid).child($inst).exists() && root.child('series_room_members').child($inst).child(auth.uid).exists() && root.child('series_notes').child($inst).child($noteId).exists() && (!newData.exists() || newData.val() === true)"
+          }
+        }
+      }
+    },
+    "series_note_reports": {
+      ".read": "auth != null && (auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+      "$inst": {
+        "$noteId": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('series_finished').child(auth.uid).child($inst).exists() && root.child('series_room_members').child($inst).child(auth.uid).exists() && (!newData.exists() || root.child('series_notes').child($inst).child($noteId).exists())",
+            ".validate": "newData.hasChildren(['at'])",
+            "at": {
+              ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= now + 60000"
+            },
+            "reason": {
+              ".validate": "newData.isString() && newData.val().length <= 200"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      }
+    },
+    "series_margin": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$inst": {
+          ".validate": "newData.hasChildren(['text', 'cfi', 'epubVersion', 'savedAt'])",
+          "text": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 400"
+          },
+          "cfi": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 1024"
+          },
+          "epubVersion": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+          },
+          "savedAt": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= now + 60000"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "series_notes_summary": {
+      ".read": true,
+      ".write": false
+    },
     "square_archive": {
       ".read": true,
       ".write": false,
