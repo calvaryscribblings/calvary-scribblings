@@ -119,6 +119,12 @@ on:
       - 'app/lib/membershipPrices.js'
       - 'app/lib/membershipPasses.js'
       - 'app/lib/currency.js'
+      # W42 — the EPUB repair tools. The carry-over mapping resolves CFIs with the vendored
+      # foliate in Chromium, which only this workflow installs before `npm run test:purchases`;
+      # the hygiene job runs the same suite without a browser, where that test skips by name.
+      - 'scripts/epub-repair/**'
+      - 'tests/bookstore/epub-repair.test.mjs'
+      - 'tests/fixtures/epub-repair-fixtures.mjs'
       - 'app/lib/shelf.js'
       # R8.2 — the payment rails. tests/bookstore/paystack.test.mjs imports these modules
       # directly, so a change to either endpoint must re-run the suite that specifies them.
