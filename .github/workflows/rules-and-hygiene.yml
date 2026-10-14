@@ -204,6 +204,21 @@ jobs:
       # emulators. One read-only GET of the public instalment rows borrows an id; nothing writes.
       - name: Series — "Free to read" on the reader surfaces
         run: npm run test:series-free
+      # W46 — READERS' NOTES in a browser, against the same emulators, with the endpoint stubbed:
+      # the door and the room in every state (a sealed room fetches no gated path), the composer,
+      # the last-page sheet, the admin's three slots and review list, and the reader's line chip
+      # and finished write — each with the flag on (preview build) and off. One signed-out GET of
+      # the public series rows borrows a slug; nothing writes to production.
+      - name: WebKit for the line-chip frame suite
+        run: npx playwright install --with-deps webkit
+      - name: Readers' Notes — the door, the room, the composer, the sheet
+        run: npm run test:series-notes:ui
+      - name: Readers' Notes — the admin's questions and review list
+        run: npm run test:series-notes-admin
+      - name: Readers' Notes — the last page and "This is my line"
+        env:
+          GALLIUM_DRIVER: softpipe
+        run: npm run test:series-notes:reader
       # W5 — the report queue page, the under-18 check and the save toast, against the same
       # emulators. This job's path list names suites one by one, so tests/safety/** is in it too.
       - name: W5 safety — /admin/reports, the under-18 check, the save toast
