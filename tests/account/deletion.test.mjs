@@ -375,3 +375,60 @@ test('decodeJwtPayload reads base64url', () => {
   assert.deepEqual(decodeJwtPayload(jwt({ sub: 'a-b_c', auth_time: 1 })), { sub: 'a-b_c', auth_time: 1 });
   assert.equal(decodeJwtPayload('garbage'), null);
 });
+
+// ── W46: Readers' Notes in the scrub (rulings 29, 30, 34 applied to the Series rooms) ──────────
+describe('planScrub · Readers’ Notes', () => {
+  const NOW = 1_790_000_000_000;
+  const I = 'probe-i1';
+  const snap = () => ({
+    series_instalments: { [I]: { seriesId: 'probe', ordinal: 1 } },
+    series_notes: { [I]: {
+      alone: { uid: T, kind: 'sit', text: 'mine, nobody replied', author: { name: 'T', photoURL: 'https://p/t' }, createdAt: 3 },
+      answered: { uid: T, kind: 'line', text: 'mine, A replied', author: { name: 'T' }, createdAt: 2 },
+      theirs: { uid: A, kind: 'else', text: 'A’s note', author: { name: 'A' }, createdAt: 1 },
+    } },
+    series_note_replies: { [I]: {
+      answered: { r1: { uid: A, text: 'A replies', createdAt: 4 }, r2: { uid: T, text: 'T answers back', createdAt: 5, replyTo: 'r1' } },
+      theirs: { r3: { uid: T, text: 'T on A’s note', createdAt: 6, author: { name: 'T' } } },
+      alone: { r4: { uid: T, text: 'T on T', createdAt: 7 } },
+    } },
+    series_notes_held: { [I]: { h1: { uid: T, text: 'held', createdAt: 8 }, h2: { uid: A, text: 'A held', createdAt: 9 } } },
+    series_sides: { [I]: { [T]: 'b', [A]: 'a' } },
+    series_room_members: { [I]: { [T]: 1, [A]: 1 } },
+    series_note_underlines: { [I]: { theirs: { [T]: true, [A]: true }, answered: { [A]: true } } },
+    series_notes_summary: { probe: { inst: I, faces: [{ photoURL: 'https://p/t' }], byInst: {} } },
+  });
+  const plan = planScrub(T, snap(), { now: NOW });
+
+  test('a note nobody else answered goes, with its replies', () => {
+    assert.ok(plan.nulls.includes(`series_notes/${I}/alone`));
+    assert.ok(plan.nulls.includes(`series_note_replies/${I}/alone`));
+  });
+  test('a note someone else answered becomes a tombstone, and their reply stays (30)', () => {
+    const t = plan.sets[`series_notes/${I}/answered`];
+    assert.deepEqual(t, { deleted: true, deletedAt: NOW, kind: 'line', text: '', createdAt: 2 });
+    assert.ok(!plan.nulls.some((p) => p.startsWith(`series_note_replies/${I}/answered`) && !p.endsWith('/r2')));
+    assert.equal(plan.sets[`series_note_replies/${I}/answered/r1`], undefined, 'A’s reply untouched');
+  });
+  test('their replies keep the row, stripped of words, author and uid', () => {
+    assert.deepEqual(plan.sets[`series_note_replies/${I}/theirs/r3`], { removed: true, text: '', createdAt: 6 });
+    assert.deepEqual(plan.sets[`series_note_replies/${I}/answered/r2`], { removed: true, text: '', createdAt: 5, replyTo: 'r1' });
+  });
+  test('held notes, the side (tally down one), membership and underlines go; others’ stay', () => {
+    assert.ok(plan.nulls.includes(`series_notes_held/${I}/h1`));
+    assert.ok(!plan.nulls.includes(`series_notes_held/${I}/h2`));
+    assert.ok(plan.nulls.includes(`series_sides/${I}/${T}`));
+    assert.ok(plan.decrements.includes(`series_side_tallies/${I}/b`));
+    assert.ok(plan.nulls.includes(`series_room_members/${I}/${T}`));
+    assert.ok(plan.nulls.includes(`series_note_underlines/${I}/theirs/${T}`));
+    assert.ok(!plan.nulls.includes(`series_note_underlines/${I}/theirs/${A}`));
+  });
+  test('the door forgets them: the summary is recomputed with no face of theirs', () => {
+    const s = plan.sets['series_notes_summary/probe'];
+    assert.ok(s);
+    assert.deepEqual(s.faces, [{ initials: 'A' }]);
+    assert.equal(s.byInst[I].notes, 1, 'a tombstone is not a note');
+    assert.equal(s.byInst[I].readers, 1);
+    assert.ok(!JSON.stringify(s).includes('https://p/t'));
+  });
+});

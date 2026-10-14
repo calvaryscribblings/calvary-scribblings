@@ -165,6 +165,8 @@ export const NOTES_COPY = Object.freeze({
   replyingTo: (handle) => `Replying to @${handle}`,
   moreReplies: (n) => `View ${n} more ${n === 1 ? 'reply' : 'replies'}`,
   replyRemoved: 'This reply was removed.',
+  // W46 — a deleted reader's note that others had replied to (account scrub, the room's ruling 30).
+  noteDeleted: 'This note was deleted.',
   notSent: 'Not sent.',
   tryAgain: 'Try again',
   composerBar: (N) => `Leave a note on ${N}…`,
@@ -421,7 +423,8 @@ export function faceOf(author) {
 // Square's badges came to disagree with themselves (squareIdentity.js). One instalment's notes
 // are small enough to read whole.
 export function instStats({ ordinal, notes = {}, members = {}, sides = {} }) {
-  const list = Object.values(notes || {}).filter((n) => n && typeof n === 'object');
+  // A tombstone (a deleted reader's note kept for the replies beneath it) is not a note.
+  const list = Object.values(notes || {}).filter((n) => n && typeof n === 'object' && !n.deleted);
   const kinds = { side: 0, sit: 0, line: 0, else: 0 };
   for (const n of list) if (kinds[n.kind] != null) kinds[n.kind] += 1;
   // A tap on a side is an answer (ruling 161) — so Take a side counts its sides, not its notes.
@@ -451,7 +454,7 @@ export function foldSummary(prev, { inst, stats, notes = {}, sit = null, leadIns
   // list minus this instalment's old stamps plus its current ones — byInst remembers which
   // stamps were whose through `stampsByInst`.
   const stampsByInst = { ...(s.stampsByInst || {}) };
-  const mine = Object.values(notes || {}).map((n) => Number(n?.createdAt) || 0).filter((t) => t > 0)
+  const mine = Object.values(notes || {}).filter((n) => n && !n.deleted).map((n) => Number(n.createdAt) || 0).filter((t) => t > 0)
     .sort((a, b) => b - a).slice(0, LATEST_KEPT);
   stampsByInst[inst] = mine;
   s.stampsByInst = stampsByInst;
@@ -471,7 +474,7 @@ export function foldSummary(prev, { inst, stats, notes = {}, sit = null, leadIns
   if (inst === lead) {
     const faces = [];
     const seen = new Set();
-    const recent = Object.values(notes || {}).filter(Boolean).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const recent = Object.values(notes || {}).filter((n) => n && !n.deleted && n.uid).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     for (const n of recent) {
       if (seen.has(n.uid)) continue;
       seen.add(n.uid);

@@ -155,14 +155,17 @@ export default function NoteCard({
   const [replying, setReplying] = useState(null); // null | { replyTo?: id, handle? }
   const { shown, hidden } = foldReplies(replies, expanded);
   const byId = new Map(replies.map((r) => [r.id, r]));
-  const live = !note.local && note.status !== 'held';
+  // W46 — a TOMBSTONE: a deleted reader's note kept for the other readers' replies beneath it
+  // (scripts/account/scrub-plan.mjs). No author, no words, no actions; the thread keeps its shape.
+  const gone = note.deleted === true;
+  const live = !note.local && note.status !== 'held' && !gone;
 
   const menu = [];
   if (live) {
     menu.push({ label: NOTES_COPY.copyLink, onClick: onCopy });
     if (!isOwn) menu.push({ label: NOTES_COPY.report, onClick: onReport, disabled: reported });
   }
-  if (!note.local && isOwn) menu.push({ label: NOTES_COPY.delete, onClick: onRemove, danger: true });
+  if (gone) { /* nothing to act on */ } else if (!note.local && isOwn) menu.push({ label: NOTES_COPY.delete, onClick: onRemove, danger: true });
   else if (!note.local && canRemove) menu.push({ label: NOTES_COPY.remove, onClick: onRemove, danger: true });
 
   return (
@@ -179,8 +182,12 @@ export default function NoteCard({
           <a className="sn-text sn-link" href={lineHref(note.inst, heading.quote)} style={{ color: C.link, paddingLeft: 0 }}>{NOTES_COPY.readInPlace}</a>
         </figure>
       )}
-      <Who note={note} identities={identities} />
-      <div style={{ marginTop: 10 }}><Folded text={note.text} /></div>
+      {gone ? (
+        <p data-note-deleted style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontSize: 17, color: C.quiet, margin: '0 0 10px' }}>{NOTES_COPY.noteDeleted}</p>
+      ) : (<>
+        <Who note={note} identities={identities} />
+        <div style={{ marginTop: 10 }}><Folded text={note.text} /></div>
+      </>)}
       {note.status === 'held' && <p data-held style={{ ...labelStyle(C.goldTint, 9), margin: '10px 0 0' }}>{NOTES_COPY.waitingReview}</p>}
 
       {note.local === 'failed' ? (

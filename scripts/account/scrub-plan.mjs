@@ -32,8 +32,18 @@
 //   KEEP    (34) CMS stories and series they wrote, and their author page (story_authors), until
 //           Ikenna makes the editorial call. Also kept: reports they filed and reports about them
 //           (safety records, per the privacy policy) and rate-limit windows (self-cleaning).
+//   SERIES  (W46, the same rulings applied to Readers' Notes) their notes come down; a note of
+//           theirs with someone else's reply beneath it becomes a TOMBSTONE { deleted: true,
+//           deletedAt, createdAt, kind, text: '' }, drawn "This note was deleted.", and the other
+//           readers' replies stay. Their replies elsewhere keep their row, stripped (removed: true,
+//           text: '', no author, no uid) — the room's own "This reply was removed." Their held
+//           notes, sides (each tally down by one), room memberships and underlines go. Reports they
+//           filed are KEPT (34). The touched series' public summaries are recomputed, so no face of
+//           theirs stays on a door.
 //   BACKSTOP  anything the endpoint deletes is re-checked here (usernames, follows, blocks, a
 //           stub users/{uid} a webhook might have written), so a missed path is caught later.
+
+import { instStats, foldSummary } from '../../app/lib/series/notes.js';
 
 const isObj = (v) => v && typeof v === 'object';
 const entries = (v) => (isObj(v) ? Object.entries(v) : []);
@@ -46,6 +56,9 @@ export const SCAN_NODES = [
   'open_pages', 'open_pages_reactions', 'open_pages_pending', 'open_pages_reports',
   'dm_messages', 'blocked_users', 'followers', 'following', 'usernames', 'cms_voices',
   'user_comments', 'user_square_posts',
+  // W46 — Readers' Notes
+  'series_notes', 'series_notes_held', 'series_note_replies', 'series_sides', 'series_room_members',
+  'series_note_underlines', 'series_instalments', 'series_notes_summary',
 ];
 
 const authoredBy = (rec, uid) => isObj(rec) && (rec.authorUid === uid || rec.uid === uid);
@@ -310,6 +323,82 @@ export function planScrub(uid, snap, { now = Date.now() } = {}) {
     counts.voicesRemoved++;
     voices.push({ id, storagePrefixes: [...new Set([id, v.slug].filter((x) => typeof x === 'string' && x && !x.includes('/')))].map((x) => `voices/${x}/`) });
   }
+
+  // ── Readers' Notes (W46): rulings 29, 30 and 34 applied to the Series rooms ─────────────
+  const touchedInst = new Set();
+  const notesAfter = {};   // inst -> the notes node as it will be
+  const membersAfter = {};
+  const sidesAfter = {};
+  const copy = (v) => (isObj(v) ? { ...v } : {});
+  for (const [inst, notes] of entries(snap.series_notes)) {
+    notesAfter[inst] = copy(notes);
+    for (const [nid, n] of entries(notes)) {
+      if (!authoredBy(n, uid)) continue;
+      touchedInst.add(inst);
+      counts.seriesNotes = (counts.seriesNotes || 0) + 1;
+      const replies = snap.series_note_replies?.[inst]?.[nid];
+      const others = entries(replies).filter(([, r]) => isObj(r) && r.uid !== uid);
+      del(`series_note_underlines/${inst}/${nid}`);
+      if (others.length) {
+        const t = { deleted: true, deletedAt: now, kind: n.kind, text: '' };
+        if (typeof n.createdAt === 'number') t.createdAt = n.createdAt;
+        sets[`series_notes/${inst}/${nid}`] = t;
+        notesAfter[inst][nid] = t;
+        counts.seriesNoteTombstones = (counts.seriesNoteTombstones || 0) + 1;
+      } else {
+        del(`series_notes/${inst}/${nid}`);
+        del(`series_note_replies/${inst}/${nid}`);
+        delete notesAfter[inst][nid];
+      }
+    }
+  }
+  for (const [inst, byNote] of entries(snap.series_note_replies)) {
+    for (const [nid, replies] of entries(byNote)) {
+      for (const [rid, r] of entries(replies)) {
+        if (!authoredBy(r, uid)) continue;
+        touchedInst.add(inst);
+        counts.seriesReplies = (counts.seriesReplies || 0) + 1;
+        const t = { removed: true, text: '' };
+        if (typeof r.createdAt === 'number') t.createdAt = r.createdAt;
+        if (typeof r.replyTo === 'string') t.replyTo = r.replyTo;
+        sets[`series_note_replies/${inst}/${nid}/${rid}`] = t;
+      }
+    }
+  }
+  for (const [inst, held] of entries(snap.series_notes_held)) {
+    for (const [id, h] of entries(held)) if (authoredBy(h, uid)) { del(`series_notes_held/${inst}/${id}`); counts.seriesHeld = (counts.seriesHeld || 0) + 1; }
+  }
+  for (const [inst, sides] of entries(snap.series_sides)) {
+    sidesAfter[inst] = copy(sides);
+    const opt = sides?.[uid];
+    if (typeof opt !== 'string') continue;
+    touchedInst.add(inst);
+    del(`series_sides/${inst}/${uid}`);
+    decrements.push(`series_side_tallies/${inst}/${opt}`);
+    delete sidesAfter[inst][uid];
+  }
+  for (const [inst, members] of entries(snap.series_room_members)) {
+    membersAfter[inst] = copy(members);
+    if (members?.[uid] === undefined) continue;
+    touchedInst.add(inst);
+    del(`series_room_members/${inst}/${uid}`);
+    delete membersAfter[inst][uid];
+  }
+  for (const [inst, byNote] of entries(snap.series_note_underlines)) {
+    for (const [nid, who] of entries(byNote)) if (who?.[uid] !== undefined) del(`series_note_underlines/${inst}/${nid}/${uid}`);
+  }
+  // The doors: recompute every touched instalment into its series' public summary.
+  const summaries = {};
+  for (const inst of touchedInst) {
+    const row = snap.series_instalments?.[inst];
+    const sid = row?.seriesId;
+    if (!sid) continue;
+    const prev = summaries[sid] || snap.series_notes_summary?.[sid] || null;
+    if (!prev) continue;
+    const stats = instStats({ ordinal: row.ordinal, notes: notesAfter[inst] || {}, members: membersAfter[inst] || {}, sides: sidesAfter[inst] || {} });
+    summaries[sid] = foldSummary(prev, { inst, stats, notes: notesAfter[inst] || {} });
+  }
+  for (const [sid, s] of Object.entries(summaries)) sets[`series_notes_summary/${sid}`] = s;
 
   // ── Backstop: what the endpoint should already have removed ────────────────────────────
   const backstop = (p) => { if (!nulls.has(p)) { del(p); counts.backstop++; } };
