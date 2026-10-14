@@ -574,4 +574,10 @@ export const NOTES_ERRORS = Object.freeze({
   forbidden: 'You can’t do that.',
   limit: 'You’ve written a lot just now. Try again in a minute.',
   unavailable: 'We couldn’t reach the room just now. Try again in a moment.',
+  // W46 §2 — the endpoint's four remaining codes, so every refusal it can send has its words
+  // here (docs/series-notes.md: "Words for every refusal are in NOTES_ERRORS").
+  signed_out: 'Sign in to join the room.',
+  limiter_unavailable: 'We couldn’t check this just now. Please try again in a moment.',
+  bad_request: 'Something about that didn’t look right. Please try again.',
+  not_ready: 'All three questions must be ready.',
 });
