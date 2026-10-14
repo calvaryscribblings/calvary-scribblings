@@ -19,7 +19,15 @@ import { useReliableLoad } from '../lib/useReliable';
 import { useReleaseRecheck } from '../lib/series/releaseRecheck';
 import Unavailable from '../components/Unavailable';
 import { shelfLine } from '../lib/series/format';
-import { SERIES_TIER_GATE_ENABLED } from '../lib/series/access';
+import { SERIES_TIER_GATE_ENABLED, isReleased } from '../lib/series/access';
+// W46 — READERS' NOTES. The door beside (under 720px) or beneath (720px and up) each card. While
+// notesEnabled() is false none of this draws and none of its reads run: the grid below is
+// exactly the one that shipped before W46.
+import { useEffect, useState } from 'react';
+import { notesEnabled } from '../lib/series/notes';
+import { readSummary, readPublicQuestions } from '../lib/series/notesClient';
+import Door, { DOOR_CSS } from '../components/seriesNotes/Door';
+import { NOTES_CSS } from '../components/seriesNotes/tokens';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
@@ -34,6 +42,51 @@ const DESCRIPTION = SERIES_TIER_GATE_ENABLED
   ? 'Long-form fiction in instalments. Each one its own complete book, arriving on its own date.'
   : 'Long-form fiction in instalments. Each one its own complete book, arriving on its own date — and free to everyone until memberships open.';
 
+// The door's grid. Under 720px each series is one row: the poster card at its 2-column size, and
+// the door beside it, whose content is laid out absolutely so the door takes EXACTLY the card's
+// height (it contributes none of its own). At 720px and up the columns are today's and the door
+// sits beneath its card at the card's width. Below 340px (a phone at 200% zoom) the door goes
+// beneath the card too, rather than squeezing to a sliver.
+const DOOR_GRID_CSS = `
+.sr-grid.sn-on { grid-template-columns: 1fr; }
+.sn-unit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+.sn-unit > .sn-door { min-height: 0; }
+.sn-unit > .sn-door > .sn-door-in { position: absolute; inset: 0; }
+@media (max-width: 339px) {
+  .sn-unit { grid-template-columns: minmax(0, 1fr); }
+  .sn-unit > .sn-door > .sn-door-in { position: relative; inset: auto; }
+}
+@media (min-width: 720px) {
+  .sr-grid.sn-on { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  .sn-unit { display: flex; flex-direction: column; gap: 10px; }
+  .sn-unit > .sn-door { min-height: 220px; }
+  .sn-unit > .sn-door > .sn-door-in { position: relative; inset: auto; }
+}
+@media (min-width: 1100px) { .sr-grid.sn-on { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+`;
+
+/** The doors' public reads: each series' summary and its released instalments' Sit questions. */
+function useDoorData(rows, enabled) {
+  const [data, setData] = useState({});
+  const key = rows.map((s) => s.id).join('|');
+  useEffect(() => {
+    if (!enabled || !rows.length) return undefined;
+    let live = true;
+    const now = Date.now();
+    Promise.all(rows.map(async (s) => {
+      const released = (s.rows || []).filter((r) => isReleased(r, now)).map((r) => r.id);
+      const [summary, sitByInst] = await Promise.all([
+        readSummary(s.id).catch(() => null),
+        readPublicQuestions(released).catch(() => ({})),
+      ]);
+      return [s.id, { summary, sitByInst }];
+    })).then((pairs) => { if (live) setData(Object.fromEntries(pairs)); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, key]);
+  return data;
+}
+
 export default function SeriesLandingPage() {
   // W2 / SER-01 — the shelf's read under a deadline. A failed read used to be caught in the loader
   // and drawn as "The first series is being written"; a hung one as "Loading the shelf…" for good.
@@ -46,6 +99,8 @@ export default function SeriesLandingPage() {
   }, []);
   const loading = shelf.phase === 'loading';
   const rows = shelf.data || [];
+  const notesOn = notesEnabled();
+  const doors = useDoorData(rows, notesOn);
   // W35 — each card's "next …" line and count are re-read when an instalment arrives.
   useReleaseRecheck(
     rows.flatMap((s) => (s.rows || []).filter((r) => !r.released).map((r) => r.releaseAtMs)),
@@ -97,28 +152,49 @@ export default function SeriesLandingPage() {
         </section>
       )}
 
-      {shelf.phase === 'ready' && rows.length > 0 && (
+      {shelf.phase === 'ready' && rows.length > 0 && !notesOn && (
         <div className="sr-grid">
           {rows.map((s) => (
-            <Link key={s.id} className="sr-card" href={`/series/${s.slug}`}>
-              {/* A decorative fill, not a content image: the series title is right beneath
-                  it in real text, so there is nothing here for alt to say. background-size
-                  cover is the same rendering object-fit:cover gives. */}
-              <div
-                className="sr-poster"
-                role="presentation"
-                style={s.coverUrl ? { backgroundImage: `url(${s.coverUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
-              />
-              <div style={{ padding: '10px 12px 14px' }}>
-                <h2 style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 600, color: '#f5f0e8', margin: '0 0 4px', lineHeight: 1.25 }}>{s.title}</h2>
-                <p style={{ fontFamily: BODY, fontSize: 11.5, color: 'rgba(245,240,232,0.42)', margin: 0 }}>{shelfLine(s.rows || [])}</p>
-              </div>
-            </Link>
+            <SeriesCard key={s.id} s={s} />
           ))}
         </div>
       )}
 
+      {shelf.phase === 'ready' && rows.length > 0 && notesOn && (
+        <>
+          <style>{NOTES_CSS + DOOR_CSS + DOOR_GRID_CSS}</style>
+          <div className="sr-grid sn-on">
+            {rows.map((s) => (
+              <div key={s.id} className="sn-unit" data-series-unit={s.slug}>
+                <SeriesCard s={s} />
+                <Door series={s} rows={s.rows || []} summary={doors[s.id]?.summary || null} sitByInst={doors[s.id]?.sitByInst || {}} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       <TabBar />
     </div>
+  );
+}
+
+// One poster card, drawn the same whether or not the door stands beside it.
+function SeriesCard({ s }) {
+  return (
+    <Link className="sr-card" href={`/series/${s.slug}`}>
+      {/* A decorative fill, not a content image: the series title is right beneath
+          it in real text, so there is nothing here for alt to say. background-size
+          cover is the same rendering object-fit:cover gives. */}
+      <div
+        className="sr-poster"
+        role="presentation"
+        style={s.coverUrl ? { backgroundImage: `url(${s.coverUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+      />
+      <div style={{ padding: '10px 12px 14px' }}>
+        <h2 style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 600, color: '#f5f0e8', margin: '0 0 4px', lineHeight: 1.25 }}>{s.title}</h2>
+        <p style={{ fontFamily: BODY, fontSize: 11.5, color: 'rgba(245,240,232,0.42)', margin: 0 }}>{shelfLine(s.rows || [])}</p>
+      </div>
+    </Link>
   );
 }
