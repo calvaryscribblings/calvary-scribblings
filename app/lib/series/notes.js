@@ -32,6 +32,19 @@ import { isReleased } from './access.js';
 // publish-questions, review), because the questions are drafted before the doors open.
 export const SERIES_NOTES_ENABLED = false;
 
+/**
+ * The flag as every surface and the endpoint ask it. Test builds may switch the feature on
+ * without the constant: a local `next build` with NEXT_PUBLIC_SERIES_NOTES_PREVIEW=1 (inlined
+ * at build time; Cloudflare's build never sets it), and an endpoint test that passes
+ * env.SERIES_NOTES_TEST = '1'. Production has neither, so in production this is the constant.
+ */
+export function notesEnabled(env) {
+  if (SERIES_NOTES_ENABLED) return true;
+  if (env && env.SERIES_NOTES_TEST === '1') return true;
+  // try: workerd has no `process`; Next replaces the whole member expression at build time.
+  try { return process.env.NEXT_PUBLIC_SERIES_NOTES_PREVIEW === '1'; } catch { return false; }
+}
+
 // ── PATHS ───────────────────────────────────────────────────────────────────────────────────
 export const NOTES_PATHS = Object.freeze({
   finished: 'series_finished',                 // /{uid}/{inst}: ms
