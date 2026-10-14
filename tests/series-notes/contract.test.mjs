@@ -15,15 +15,16 @@ const H = 3_600_000;
 const NOW = Date.UTC(2026, 9, 14, 12);
 
 describe('W46 · §0 the flag', () => {
-  test('the flag is in the state the round left it: OFF until §8 turns it on', () => {
-    assert.equal(N.SERIES_NOTES_ENABLED, false);
+  test('the flag is in the state the round left it: ON since W46 §8 (14 Oct 2026)', () => {
+    assert.equal(N.SERIES_NOTES_ENABLED, true);
   });
   test('notesEnabled() is the constant in production', () => {
     assert.equal(N.notesEnabled({}), N.SERIES_NOTES_ENABLED);
     assert.equal(N.notesEnabled(undefined), N.SERIES_NOTES_ENABLED || process.env.NEXT_PUBLIC_SERIES_NOTES_PREVIEW === '1');
   });
-  test('an endpoint test may switch it on with env.SERIES_NOTES_TEST, nothing else does', () => {
+  test('an endpoint test may force it either way with env.SERIES_NOTES_TEST, nothing else does', () => {
     assert.equal(N.notesEnabled({ SERIES_NOTES_TEST: '1' }), true);
+    assert.equal(N.notesEnabled({ SERIES_NOTES_TEST: '0' }), false);
     assert.equal(N.notesEnabled({ SERIES_NOTES_TEST: 'true' }), N.SERIES_NOTES_ENABLED);
   });
 });

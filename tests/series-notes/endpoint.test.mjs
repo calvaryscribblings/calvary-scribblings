@@ -238,7 +238,7 @@ describe('W46 · the order of the checks', () => {
 
   test('1. flag off → 404 not_enabled, before identity, for every reader action', async () => {
     for (const action of ['side', 'note', 'reply', 'remove', 'nonsense']) {
-      const r = await call({ action, inst: INST }, { env: { SERIES_NOTES_TEST: undefined }, uid: null });
+      const r = await call({ action, inst: INST }, { env: { SERIES_NOTES_TEST: '0' }, uid: null });
       assert.equal(r.status, 404, action);
       assert.equal(r.body.code, 'not_enabled');
       assert.equal(r.body.error, NOTES_ERRORS.not_enabled);
@@ -248,9 +248,9 @@ describe('W46 · the order of the checks', () => {
 
   test('flag off: the founders\' actions still work', async () => {
     put(`series_question_drafts/${INST}`, { sit: 'A?', side: { text: 'B?', options: { a: 'x', b: 'y' } }, line: 'C?' });
-    const r = await call({ action: 'publish-questions', inst: INST2 }, { uid: FOUNDER, env: { SERIES_NOTES_TEST: undefined } });
+    const r = await call({ action: 'publish-questions', inst: INST2 }, { uid: FOUNDER, env: { SERIES_NOTES_TEST: '0' } });
     assert.equal(r.body.code, 'not_ready'); // reached the action, past the flag
-    const p = await call({ action: 'publish-questions', inst: INST }, { uid: FOUNDER, env: { SERIES_NOTES_TEST: undefined } });
+    const p = await call({ action: 'publish-questions', inst: INST }, { uid: FOUNDER, env: { SERIES_NOTES_TEST: '0' } });
     assert.equal(p.status, 200);
   });
 
@@ -711,7 +711,7 @@ describe('W46 · draft-questions (founders)', () => {
 
   test('reads the EPUB, asks the quiz\'s model, writes DRAFTS only — never series_questions', async () => {
     put(`series_question_drafts/${INST2}`, { editorNote: 'keep me' });
-    const r = await call({ action: 'draft-questions', inst: INST2 }, { uid: FOUNDER, env: { SERIES_NOTES_TEST: undefined } });
+    const r = await call({ action: 'draft-questions', inst: INST2 }, { uid: FOUNDER, env: { SERIES_NOTES_TEST: '0' } });
     assert.equal(r.status, 200);
     const d = at(`series_question_drafts/${INST2}`);
     assert.equal(d.editorNote, 'keep me', 'PATCH, so nothing else in the draft is lost');

@@ -3,7 +3,7 @@
 //   npm run test:series-notes:reader     (Firebase emulators + `next dev`, twice; hermetic)
 //
 // Two projects over the same spec, one per build of the flag:
-//   · notes-off  — `next dev` WITHOUT NEXT_PUBLIC_SERIES_NOTES_PREVIEW: the committed state. The
+//   · notes-off  — `next dev` with NEXT_PUBLIC_SERIES_NOTES_PREVIEW=0: forced off, the rollback state. The
 //                  Series reader must behave exactly as before W46: no line chip, no finished
 //                  write, no sheet, ?at= ignored, and the frame's `ended` still retires the
 //                  furniture as it always has.

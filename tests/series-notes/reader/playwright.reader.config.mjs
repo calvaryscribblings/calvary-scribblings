@@ -1,7 +1,7 @@
 // W46 §5 — the Series reader's last page, line and place (last-page.spec.mjs), against the
 // Firebase emulators and `next dev`, ONCE PER BUILD OF THE FLAG:
 //
-//   W46_NOTES=0  → notes-off: the committed state (no NEXT_PUBLIC_SERIES_NOTES_PREVIEW)
+//   W46_NOTES=0  → notes-off: forced off (NEXT_PUBLIC_SERIES_NOTES_PREVIEW=0), the rollback state
 //   W46_NOTES=1  → notes-on:  the preview build (NEXT_PUBLIC_SERIES_NOTES_PREVIEW=1)
 //
 // The flag is inlined at build time, so the two cannot share a server; `npm run
@@ -15,7 +15,7 @@ const ON = process.env.W46_NOTES === '1';
 const PORT = process.env.W46_READER_PORT || (ON ? 4463 : 4464);
 // Set to '' when off rather than left out, so a value exported in a developer's shell cannot
 // leak into the off build.
-const env = { NEXT_PUBLIC_FB_EMULATOR: '1', NEXT_PUBLIC_SERIES_NOTES_PREVIEW: ON ? '1' : '' };
+const env = { NEXT_PUBLIC_FB_EMULATOR: '1', NEXT_PUBLIC_SERIES_NOTES_PREVIEW: ON ? '1' : '0' };
 
 export default defineConfig({
   testDir: '.',

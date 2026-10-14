@@ -1,6 +1,6 @@
 // W46 — Readers' Notes with the flag OFF (tests/series-notes/ui/notes-flagoff.spec.mjs): the same
-// emulator fixture, a build WITHOUT NEXT_PUBLIC_SERIES_NOTES_PREVIEW, so notesEnabled() is the
-// committed constant (false). /series must draw the pre-W46 grid and no door; the room nothing.
+// emulator fixture, a build with NEXT_PUBLIC_SERIES_NOTES_PREVIEW=0, so notesEnabled() is off
+// although §8 turned the constant on: this is what a rollback would ship. /series must draw the pre-W46 grid and no door; the room nothing.
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = process.env.W46_UI_OFF_PORT || 4382;
@@ -30,6 +30,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/series`,
     reuseExistingServer: false,
     timeout: 240000,
-    env: { NEXT_PUBLIC_FB_EMULATOR: '1' },
+    env: { NEXT_PUBLIC_FB_EMULATOR: '1', NEXT_PUBLIC_SERIES_NOTES_PREVIEW: '0' },
   },
 });

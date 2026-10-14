@@ -19,7 +19,7 @@ const NOTES = 'app/lib/series/notes.js';
 const DB = 'database.rules.json';
 
 const PURE = [
-  ['the flag ships on', NOTES, 'export const SERIES_NOTES_ENABLED = false;', 'export const SERIES_NOTES_ENABLED = true;'],
+  ['the flag goes back off', NOTES, 'export const SERIES_NOTES_ENABLED = true;', 'export const SERIES_NOTES_ENABLED = false;'],
   ['the light: bright for 12h', NOTES, 'if (age <= 6 * HOUR) return \'bright\';', 'if (age <= 12 * HOUR) return \'bright\';'],
   ['breathes for a day', NOTES, 'now - lastAt <= HOUR &&', 'now - lastAt <= DAY &&'],
   ['note limit 501', NOTES, 'if (n > NOTE_MAX) return { ok: false, error: \'too_long\' };', 'if (n > NOTE_MAX + 1) return { ok: false, error: \'too_long\' };'],

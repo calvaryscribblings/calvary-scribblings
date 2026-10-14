@@ -30,19 +30,27 @@ import { isReleased } from './access.js';
 // line") and every READER action on the endpoint. What it does not gate: the admin's
 // "Readers' Notes" section and the founders' endpoint actions (draft-questions,
 // publish-questions, review), because the questions are drafted before the doors open.
-export const SERIES_NOTES_ENABLED = false;
+export const SERIES_NOTES_ENABLED = true;
 
 /**
- * The flag as every surface and the endpoint ask it. Test builds may switch the feature on
- * without the constant: a local `next build` with NEXT_PUBLIC_SERIES_NOTES_PREVIEW=1 (inlined
- * at build time; Cloudflare's build never sets it), and an endpoint test that passes
- * env.SERIES_NOTES_TEST = '1'. Production has neither, so in production this is the constant.
+ * The flag as every surface and the endpoint ask it. Test builds may override the constant in
+ * EITHER direction, so the off path stays provable after launch (a rollback is one edit, and the
+ * flag-off suites must still be able to show what it would ship):
+ *   · an endpoint test passes env.SERIES_NOTES_TEST = '1' (on) or '0' (off);
+ *   · a local `next build` / `next dev` sets NEXT_PUBLIC_SERIES_NOTES_PREVIEW = '1' or '0'
+ *     (inlined at build time).
+ * Cloudflare's build and the Pages runtime set neither, so in production this is the constant.
  */
 export function notesEnabled(env) {
-  if (SERIES_NOTES_ENABLED) return true;
-  if (env && env.SERIES_NOTES_TEST === '1') return true;
+  const forced = env && env.SERIES_NOTES_TEST;
+  if (forced === '1') return true;
+  if (forced === '0') return false;
+  let preview = '';
   // try: workerd has no `process`; Next replaces the whole member expression at build time.
-  try { return process.env.NEXT_PUBLIC_SERIES_NOTES_PREVIEW === '1'; } catch { return false; }
+  try { preview = process.env.NEXT_PUBLIC_SERIES_NOTES_PREVIEW || ''; } catch { preview = ''; }
+  if (preview === '1') return true;
+  if (preview === '0') return false;
+  return SERIES_NOTES_ENABLED;
 }
 
 // ── PATHS ───────────────────────────────────────────────────────────────────────────────────
