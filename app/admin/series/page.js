@@ -54,6 +54,8 @@ import {
 } from '../../lib/londonTime';
 import { loadWriterRoster, findWriterByHandle } from '../../lib/writerRoster';
 import { InstalmentBody, ReadAction } from '../../series/instalment/[instalmentId]/page-instalment';
+import ReadersNotes, { QUESTIONS_STATE } from './ReadersNotes';
+import { NOTES_COPY } from '../../lib/series/notes';
 
 const ADMIN_UIDS = ['XaG6bTGqdDXh7VkBTw4y1H2d2s82', 'GfXFIc0dThZ1cs2SBBQIFao4aSz1'];
 const AUTOSAVE_MS = 600;
@@ -782,6 +784,8 @@ function InstalmentEditor({ entry, instalmentId, user, go, reload, onCreated }) 
   const [saveErr, setSaveErr] = useState(null);
   const [picking, setPicking] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  // W46 — the Readers' Notes section reports its readiness here, for the panel's checklist line.
+  const [notes, setNotes] = useState(null);
   const formRef = useRef(form);
   const recRef = useRef(rec);
   const timer = useRef(null);
@@ -1108,6 +1112,9 @@ function InstalmentEditor({ entry, instalmentId, user, go, reload, onCreated }) 
             </section>
           )}
 
+          {/* f. Readers' Notes (W46 §7) — drafted and published on their own, in every state */}
+          {id && <ReadersNotes key={id} inst={id} user={user} onStatus={setNotes} />}
+
           {!autosaves && rec?.row && (dirty || manualMsg) && (
             <div className="sa-savebar">
               {manualMsg && <div style={{ flex: '1 1 200px', alignSelf: 'center' }}><Msg m={manualMsg} /></div>}
@@ -1123,7 +1130,7 @@ function InstalmentEditor({ entry, instalmentId, user, go, reload, onCreated }) 
 
         <aside className="sa-panel">
           <Panel entry={entry} rec={rec} state={state} needs={needs} ordinal={ordinal} user={user} go={go} flush={flush}
-            refresh={refresh} reload={reload} onPreview={() => setPreviewing(true)} />
+            refresh={refresh} reload={reload} onPreview={() => setPreviewing(true)} notes={notes} />
         </aside>
       </div>
 
@@ -1150,6 +1157,20 @@ function Check({ item, needed }) {
   );
 }
 
+/**
+ * W46 — "Questions: n of 3 ready", the Readers' Notes line on every state's panel. Optional to
+ * publishing the instalment: the questions are their own act (ruling 164).
+ */
+function NotesCheck({ notes }) {
+  if (!notes) return null;
+  const item = {
+    label: NOTES_COPY.checklist(notes.ready),
+    detail: QUESTIONS_STATE[notes.state]?.chip || '',
+    done: notes.ready === 3 && notes.state === 'published',
+  };
+  return <div data-testid="notes-check"><Check item={item} /></div>;
+}
+
 const STEP = { done: 'done', spin: 'spin', wait: 'wait' };
 function Step({ s, children }) {
   return (
@@ -1164,7 +1185,7 @@ function Step({ s, children }) {
   );
 }
 
-function Panel({ entry, rec, state, needs, ordinal, user, go, flush, refresh, reload, onPreview }) {
+function Panel({ entry, rec, state, needs, ordinal, user, go, flush, refresh, reload, onPreview, notes }) {
   const id = rec?.row?.id;
   // flow: null | { kind: 'publish'|'rebuild', scheduled, seriesWentLive, ms, steps, result }
   const [flow, setFlow] = useState(null);
@@ -1264,6 +1285,7 @@ function Panel({ entry, rec, state, needs, ordinal, user, go, flush, refresh, re
         <div className="sa-dim">Edits you save show on the site straight away.</div>
         {check === 'ok' && <div className="sa-small sa-dim">Its page opens. Checked just now.</div>}
         {check === 'checking' && <div className="sa-small sa-dim">Checking its page…</div>}
+        <NotesCheck notes={notes} />
         <a className="sa-btn sa-btn-s sa-btn-wide" href={instalmentPagePath(id)} target="_blank" rel="noreferrer">View on site</a>
         {!confirmDown
           ? <button type="button" className="sa-btn sa-btn-redline sa-btn-wide" onClick={() => setConfirmDown(true)}>Take it down…</button>
@@ -1280,6 +1302,7 @@ function Panel({ entry, rec, state, needs, ordinal, user, go, flush, refresh, re
         <h2 className="sa-h2">Instalment {ordinal} goes live on {londonLongDate(ms)} at {londonClock(ms)} London time.</h2>
         {(flow?.result === 'scheduled' || check === 'ok') && <div className="sa-dim">Its page is built and waiting. Nothing else to do.</div>}
         {check === 'checking' && !flow && <div className="sa-small sa-dim">Checking its page…</div>}
+        <NotesCheck notes={notes} />
         <button type="button" className="sa-btn sa-btn-p sa-btn-wide" onClick={() => go({ s: entry.id })}>Back to the series</button>
         <button type="button" className="sa-btn sa-btn-s sa-btn-wide"
           onClick={() => { setFlow(null); document.getElementById('sa-when')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>Change the time</button>
@@ -1314,6 +1337,7 @@ function Panel({ entry, rec, state, needs, ordinal, user, go, flush, refresh, re
         <h2 className="sa-h2">Off the site</h2>
         <div>Instalment {ordinal} is off the site. Nothing is deleted.</div>
         <div className="sa-dim">Publish it again whenever you’re ready.</div>
+        <NotesCheck notes={notes} />
         <button type="button" className="sa-btn sa-btn-p sa-btn-wide" onClick={() => publish({ republish: true })}>Publish it again</button>
         <DeleteBlock open={confirmDelete} setOpen={setConfirmDelete} rec={rec} ordinal={ordinal} entry={entry} go={go} reload={reload} />
         <Msg m={msg} />
@@ -1333,6 +1357,7 @@ function Panel({ entry, rec, state, needs, ordinal, user, go, flush, refresh, re
       <div>
         <span className="sa-label">Optional</span>
         {needs.optional.map((n) => <Check key={n.key} item={n} />)}
+        <NotesCheck notes={notes} />
       </div>
       <button type="button" className="sa-btn sa-btn-p sa-btn-wide" disabled={!ready} onClick={() => publish()}>
         {publishButtonLabel(needs)}

@@ -695,3 +695,33 @@ export async function uploadInstalmentImage(id, kind, file, onProgress) {
   }
   return uploadSeriesImage(key, file, onProgress);
 }
+
+/**
+ * W46 §7 — READERS' NOTES: save the instalment's three question slots as a DRAFT.
+ *
+ * series_question_drafts/{inst} is founder read/write and judged by no shape rule: a draft may
+ * be half-typed. It is an update(), never a set(): `side` is replaced whole (so a removed option
+ * goes with it), and the endpoint's own fields (draftedAt, model) survive beside the slots.
+ * Nothing a reader can see is touched — publishing is the endpoint's `publish-questions`.
+ * `fields` is { sit, side: { text, options: { a, b, c?, d? } }, line }.
+ */
+export async function saveQuestionDraft(inst, fields) {
+  if (!isAdmin()) return { ok: false, errors: ['Not authorised'] };
+  if (!inst || typeof inst !== 'string' || /[.#$[\]/]/.test(inst)) return { ok: false, errors: ['instalmentId is required'] };
+  const f = fields || {};
+  const s = (v) => (typeof v === 'string' ? v : '');
+  const options = {};
+  for (const k of ['a', 'b', 'c', 'd']) if (typeof f.side?.options?.[k] === 'string') options[k] = f.side.options[k];
+  try {
+    await update(ref(db, `series_question_drafts/${inst}`), {
+      sit: s(f.sit),
+      side: { text: s(f.side?.text), options },
+      line: s(f.line),
+      updatedAt: serverTimestamp(),
+    });
+    return { ok: true };
+  } catch (err) {
+    console.error('[series.admin-writes] saveQuestionDraft failed', err?.code || err?.message);
+    return { ok: false, errors: ['The questions didn’t save. Check the connection and try again.'] };
+  }
+}
