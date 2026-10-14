@@ -493,3 +493,22 @@ mark, pinned by `tests/ci/w24-reader-print-copy.test.mjs`.
 - **154:** when the app picks up a **corrected edition** of a book (a replaced master), the
   reader is **shown nothing**. The switch is silent: no notice, no banner, no "this book was
   updated" line. Their place is carried across by the carry-over (`docs/epub-replacement.md`).
+
+## 14 Oct 2026 (Ikenna): Readers' Notes for the Series (W46)
+
+The approved canvas and all of its copy. The words are in `NOTES_COPY` in
+`app/lib/series/notes.js`, the contract is `docs/series-notes.md`, and
+`tests/series-notes/contract.test.mjs` holds the copy exact. The brief cites the canvas as
+rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest are:
+
+- **159:** one question of each kind: Take a side (2–4 sides, no right answer), Sit with this
+  (open, always spoiler-free), The line (a line the reader chose in the book). "Or tell us about
+  anything else from {N} that stayed with you." is always offered as well.
+- **160:** nobody sees an instalment's notes until they've finished it. **Enforced by the rules**,
+  not only by the screens.
+- **161:** the first answer opens the room, even one tap on a side.
+- **162:** Sit with this is spoiler-free and sits on the door for everyone.
+- **163:** the writer's answers are pinned, with a writer's mark.
+- **164:** the admin drafts the three questions from the text; the editor edits and publishes.
+- **165:** one reaction, Underline.
+- **166:** notes are AI-checked as they're posted; flagged ones wait for review.
