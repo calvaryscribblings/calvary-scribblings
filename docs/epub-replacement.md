@@ -56,10 +56,27 @@ For each saved place, in this order:
 
 Fractions come from foliate's own `SectionProgress` over uncompressed section sizes.
 
+### A stored CFI is wrapped exactly once (W47)
+
+Every CFI the carry-over writes is `epubcfi(` + body + `)`, with no second `epubcfi(` inside
+(`scripts/epub-repair/cfi.mjs`, `wrappedOnce`). foliate's `joinIndir` unwraps its parts and
+wraps the join once, so its result is never wrapped again. W45 did wrap it again: record A
+went out as `epubcfi(epubcfi(/6/84!…))`. foliate's parser read that at the right place, so the
+mapping's own round trip passed and nothing caught it. Nothing may rely on that.
+
+The guard, `guardCfi`, runs on every decision, whichever branch made it (kept, mapped, landed,
+or a pin-only write). A record whose planned CFI breaks the rule is **refused**. It is shown as
+`REFUSE (refused: cfi not wrapped once; was <branch>)`, counted in `refused`, never backed up or
+written, and the run exits non-zero. The dry run prints `planned cfi wrapped once` or
+`NOT WRAPPED ONCE` on every line it would write, and `stored cfi …` on every line it leaves, so
+a fault like W45's shows before anything is written. A refused record needs a person: find out
+why its CFI came out that way. Don't hand-edit it into shape.
+
 ## On the day
 
 1. `verify.mjs` and `open-in-foliate.mjs` both clean, and a `swap.mjs` dry run shows the live
-   generation matching the recorded one and no record it cannot carry.
+   generation matching the recorded one, no record it cannot carry, and no `REFUSE` or
+   `NOT WRAPPED ONCE` on any line.
 2. `swap.mjs --go` does the rest, in this order, stopping at the first failure:
    - it confirms the live generation is the one recorded at download;
    - it copies that generation to `calvary-scribblings-storage-backups/epub-replacements/<timestamp>/<titleId>/`;

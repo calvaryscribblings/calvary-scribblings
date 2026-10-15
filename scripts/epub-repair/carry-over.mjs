@@ -37,6 +37,9 @@
 // estimate), clamped to 0–1: the reader's pagination is kept, only the structure is corrected.
 // A ribbon's label is rewritten from the new contents when the ribbon changes file.
 //
+// W47: every cfi to be written must be wrapped exactly once (cfi.mjs). One that is not is
+// REFUSED: reported on its line and in `refused`, never written, and the run exits non-zero.
+//
 // SAFETY. Every record to be written is backed up first (outside the repo). Each write is a
 // REST PUT with `if-match` on the ETag read with the record, so a reader's save in between wins
 // (412) and is reported, never overwritten. Every written record is re-read and compared. A
@@ -50,6 +53,7 @@ import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mapPositions } from './map-positions.mjs';
 import { outsideRepo, args } from './paths.mjs';
+import { guardCfi, cfiShape } from './cfi.mjs';
 
 export const PROD_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 export const STORAGE_BUCKET = 'calvary-scribblings.firebasestorage.app';
@@ -212,10 +216,11 @@ export async function carryOver({ db, oldBytes, newBytes, titleId, slug, oldGen,
     ? await mapPositions({ oldBytes, newBytes, records: withCfi.map((r) => ({ key: r.key, kind: r.kind, cfi: r.value.cfi, fraction: r.value.fraction ?? null })) })
     : { records: [] };
   const byKey = new Map(res.records.map((m) => [m.key, m]));
-  const rows = records.map((r) => ({ ...r, mapped: byKey.get(r.key), decision: decide(r, byKey.get(r.key), { oldGen, newGen: newGen || 'NEW' }) }));
+  // W47: whatever branch planned it, a cfi not wrapped exactly once is refused, never written.
+  const rows = records.map((r) => ({ ...r, mapped: byKey.get(r.key), decision: guardCfi(decide(r, byKey.get(r.key), { oldGen, newGen: newGen || 'NEW' })) }));
 
-  const summary = { records: rows.length, write: 0, written: 0, conflicts: 0, verified: 0, mismatched: 0, left: 0, backup: null };
-  for (const r of rows) (r.decision.action === 'write' ? summary.write++ : summary.left++);
+  const summary = { records: rows.length, write: 0, written: 0, conflicts: 0, verified: 0, mismatched: 0, refused: 0, left: 0, backup: null };
+  for (const r of rows) (r.decision.action === 'write' ? summary.write++ : r.decision.action === 'refuse' ? summary.refused++ : summary.left++);
   if (!apply) return { applied: false, rows, summary };
 
   const toWrite = rows.filter((r) => r.decision.action === 'write');
@@ -244,10 +249,14 @@ export function describe(r) {
   const m = r.mapped || {};
   const d = r.decision;
   const where = m.oldFile ? ` · ${m.oldFile}#${m.oldElement} → ${m.newFile ?? '—'}#${m.newElement ?? '—'}` : '';
-  const frac = d.action === 'write' ? ` · fraction ${f3(r.value.fraction)} → ${f3(d.next.fraction)}` : '';
-  const label = r.kind === 'ribbon' && d.action === 'write' ? ` · label ${d.next.label === r.value.label ? 'unchanged' : 'rewritten'}` : '';
+  const planned = d.action === 'write' || d.action === 'refuse';
+  const frac = planned ? ` · fraction ${f3(r.value.fraction)} → ${f3(d.next.fraction)}` : '';
+  const label = r.kind === 'ribbon' && planned ? ` · label ${d.next.label === r.value.label ? 'unchanged' : 'rewritten'}` : '';
+  // W47: the shape of the cfi this row would write, or of the stored one if it is left.
+  const shape = planned ? ` · planned cfi ${cfiShape(d.next.cfi)}` : r.value?.cfi ? ` · stored cfi ${cfiShape(r.value.cfi)}` : '';
   const which = d.which ? ` · Δold ${f3(d.which.dOld)} Δnew ${f3(d.which.dNew)}` : '';
-  return `${r.key} ${r.kind}: ${d.action === 'write' ? 'WRITE' : 'leave'} (${d.why}${d.from ? `; ${d.from}` : ''})${where}${frac}${label}${which}${r.outcome ? ` · ${r.outcome}` : ''}`;
+  const verb = d.action === 'write' ? 'WRITE' : d.action === 'refuse' ? 'REFUSE' : 'leave';
+  return `${r.key} ${r.kind}: ${verb} (${d.why}${d.planned ? `; was ${d.planned}` : ''}${d.from ? `; ${d.from}` : ''})${where}${frac}${label}${shape}${which}${r.outcome ? ` · ${r.outcome}` : ''}`;
 }
 
 // ── CLI ──────────────────────────────────────────────────────────────────────────────────────
@@ -281,7 +290,7 @@ async function main() {
   const { backup, ...counts } = out.summary;
   console.log(`summary: ${JSON.stringify(counts)}`);
   console.log(out.applied ? `applied. backup: ${backup ? 'written (private folder)' : 'none needed'}` : 'dry run: nothing was written.');
-  if (out.summary.mismatched) process.exitCode = 1;
+  if (out.summary.mismatched || out.summary.refused) process.exitCode = 1;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -17,6 +17,7 @@ import { compareEntries } from '../../scripts/epub-repair/verify.mjs';
 import { analyseEpub } from '../../scripts/audit-folded-headings.mjs';
 import { readZip } from '../../scripts/make-sample-epub.mjs';
 import { foldedBook, SPLIT_PLAN, mislabelledBook, RELABEL_PLAN } from '../fixtures/epub-repair-fixtures.mjs';
+import { wrappedOnce, guardCfi, REFUSED_CFI } from '../../scripts/epub-repair/cfi.mjs';
 
 const repaired = (bytes, plan) => writeEntries(applyPlan(readEntries(bytes), plan).entries);
 const str = (bytes, name) => readZip(bytes).get(name).toString('utf8');
@@ -152,6 +153,37 @@ describe('carry-over · mapping saved places into the split file', { skip: noBro
     assert.equal(by.C.result, 'mapped'); assert.equal(by.C.newFile, 'EPUB/text/ch006.xhtml'); assert.equal(by.C.newElement, 3); assert.equal(by.C.textMatches, true);
     assert.equal(by.D.result, 'mapped'); assert.equal(by.D.newFile, 'EPUB/text/ch008.xhtml'); assert.equal(by.D.newElement, 7, 'the second "Yes.", not the first');
     assert.equal(by.E.result, 'landed'); assert.equal(by.E.newFile, 'EPUB/text/ch006.xhtml'); assert.equal(by.E.newElement, 0, 'the start of Four, not of the book');
+    // W47: a mapped and a landed record each carry a cfi wrapped exactly once.
+    for (const k of ['C', 'D', 'E']) {
+      assert.ok(wrappedOnce(by[k].newCfi), `${k} (${by[k].result}): ${by[k].newCfi}`);
+      assert.match(by[k].newCfi, /^epubcfi\(\/6\/\d+!\/4\/2/, `${k}: one wrapper, then the spine step`);
+    }
     assert.equal(sample.missed, 0); assert.equal(sample.mappedTextMismatch, 0);
+  });
+});
+
+describe('carry-over · a cfi is wrapped exactly once (W47)', () => {
+  const ok = 'epubcfi(/6/84!/4/2[thirty-two]/132/1:221)';
+  const doubled = `epubcfi(${ok})`;
+
+  test('the rule', () => {
+    assert.equal(wrappedOnce(ok), true);
+    assert.equal(wrappedOnce('epubcfi(/6/12!/4/2[prologue],/2,/14/1:143)'), true, 'a range cfi');
+    assert.equal(wrappedOnce('epubcfi(/6/4!/4/2[a^(b^)]/2/1:0)'), true, 'escaped parentheses in an id');
+    for (const bad of [doubled, `epubcfi(epubcfi(${ok}))`, '/6/84!/4/2/132/1:221', 'epubcfi()', 'epubcfi(/6/84', '', null, undefined, 7]) {
+      assert.equal(wrappedOnce(bad), false, String(bad));
+    }
+  });
+
+  test('the guard refuses a write whose cfi is doubled, and passes everything else through', () => {
+    const write = (cfi) => ({ action: 'write', why: 'mapped', from: 'pinned old', next: { cfi, fraction: 0.5, epubVersion: 'NEW' } });
+    const refused = guardCfi(write(doubled));
+    assert.equal(refused.action, 'refuse');
+    assert.equal(refused.why, REFUSED_CFI);
+    assert.equal(refused.planned, 'mapped');
+    const fine = write(ok);
+    assert.equal(guardCfi(fine), fine);
+    const leave = { action: 'leave', why: 'pinned new' };
+    assert.equal(guardCfi(leave), leave, 'a record left alone is never refused, whatever it holds');
   });
 });

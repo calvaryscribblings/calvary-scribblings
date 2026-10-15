@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { readZip, parseEpub } from '../make-sample-epub.mjs';
 import { outsideRepo, args, ROOT } from './paths.mjs';
+import { cfiShape } from './cfi.mjs';
 
 const VENDOR = join(ROOT, 'public/vendor/foliate-js-main');
 
@@ -76,7 +77,6 @@ function pageMapper({ oldBook, newBook, records, sample }) {
   };
   const OLD = load(oldBook);
   const NEW = load(newBook);
-  const strip = (c) => c.replace(/^epubcfi\(|\)$/g, '');
 
   // foliate's Resources#resolveCFI, in substance.
   const resolveIn = (B, cfi) => {
@@ -111,7 +111,9 @@ function pageMapper({ oldBook, newBook, records, sample }) {
     r.collapse(true);
     return r;
   };
-  const cfiFor = (di, range) => `epubcfi(${joinIndir(strip(fake.fromIndex(di)), strip(fromRange(range)))})`;
+  // joinIndir unwraps each part and wraps the join ONCE (epubcfi.js `lift`). Never wrap its
+  // result again: W45 wrote epubcfi(epubcfi(…)) that way (W47, scripts/epub-repair/cfi.mjs).
+  const cfiFor = (di, range) => joinIndir(fake.fromIndex(di), fromRange(range));
   const fractionOf = (B, di, range) => {
     const body = B.docs[di].body;
     const total = norm(body.textContent).length || 1;
@@ -285,7 +287,7 @@ async function main() {
   for (const r of res.records) {
     // The stored label is the reader's; compare it, never print it beyond a heading label.
     const labelChange = r.kind === 'ribbon' ? (r.storedLabel ?? r.oldLabel) !== r.newLabel : null;
-    console.log(`${r.key} ${r.kind}: ${r.result} · ${r.oldFile}#${r.oldElement} → ${r.newFile}#${r.newElement} · text ${r.textMatches === null ? 'n/a' : r.textMatches ? 'matches' : 'DIFFERS'} · round trip ${r.roundTrip ? 'ok' : 'FAILED'} · cfi ${r.sameCfi ? 'unchanged' : 'rewritten'} · fraction stored ${f3(r.storedFraction)} / old ${f3(r.oldFractionComputed)} → new ${f3(r.newFraction)}${labelChange === null ? '' : ` · label ${labelChange ? `changes ("${r.storedLabel ?? r.oldLabel}" → "${r.newLabel}")` : 'unchanged'}`}`);
+    console.log(`${r.key} ${r.kind}: ${r.result} · ${r.oldFile}#${r.oldElement} → ${r.newFile}#${r.newElement} · text ${r.textMatches === null ? 'n/a' : r.textMatches ? 'matches' : 'DIFFERS'} · round trip ${r.roundTrip ? 'ok' : 'FAILED'} · cfi ${r.sameCfi ? 'unchanged' : 'rewritten'}${r.newCfi ? `, ${cfiShape(r.newCfi)}` : ''} · fraction stored ${f3(r.storedFraction)} / old ${f3(r.oldFractionComputed)} → new ${f3(r.newFraction)}${labelChange === null ? '' : ` · label ${labelChange ? `changes ("${r.storedLabel ?? r.oldLabel}" → "${r.newLabel}")` : 'unchanged'}`}`);
   }
   if (res.sample) console.log(`sample: ${JSON.stringify(res.sample)}`);
   console.log('dry run: nothing was written.');

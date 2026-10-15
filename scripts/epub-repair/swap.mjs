@@ -95,6 +95,7 @@ async function main() {
     say('   live object sha256 equals the repair');
     if (out.summary.conflicts) say(`   ${out.summary.conflicts} reader save(s) won during the carry-over: run carry-over.mjs --apply again`);
     if (out.summary.mismatched) { process.exitCode = 1; say('   a written record re-read differently: see the backup in the private folder'); }
+    if (out.summary.refused) { process.exitCode = 1; say(`   ${out.summary.refused} record(s) REFUSED: the planned cfi is not wrapped once; nothing was written to them`); }
   }
   console.log(go ? 'swap done.' : 'dry run: nothing was copied, uploaded or written.');
 }

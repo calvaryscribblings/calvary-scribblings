@@ -23,6 +23,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { carryOver, restDb, describe as line, UNPLACED, PINNED_NEW } from '../../scripts/epub-repair/carry-over.mjs';
 import { mapPositions } from '../../scripts/epub-repair/map-positions.mjs';
+import { wrappedOnce, REFUSED_CFI } from '../../scripts/epub-repair/cfi.mjs';
 import { readEntries, writeEntries, applyPlan } from '../../scripts/epub-repair/lib.mjs';
 import { foldedBook, SPLIT_PLAN } from '../fixtures/epub-repair-fixtures.mjs';
 
@@ -143,6 +144,10 @@ describe('carry-over · --apply', () => {
     const mb = byPath(out)['reader-b'].mapped;
     assert.notEqual(pb.cfi, CFI.inCut);
     assert.equal(mb.newFile, 'EPUB/text/ch006.xhtml');
+    // W47: the mapped branch writes a well-formed cfi, end to end, as do the landed and kept.
+    assert.ok(wrappedOnce(pb.cfi), `mapped: ${pb.cfi}`);
+    assert.ok(wrappedOnce(after.readerBookmarks['reader-a'][SLUG].r1.cfi), 'landed');
+    assert.equal(out.summary.refused, 0);
     assert.ok(Math.abs(pb.fraction - (est.inCut.old + (mb.newFraction - mb.oldFractionComputed))) < 1e-5, 'fraction shifted by the mapping\'s own delta');
     const r1 = after.readerBookmarks['reader-a'][SLUG].r1;
     assert.equal(r1.label, 'Four', 'a ribbon that changes chapter takes the new contents label');
@@ -198,6 +203,26 @@ describe('carry-over · --apply', () => {
     const third = await run({ apply: true, backupDir: dir });
     assert.equal(third.summary.written, 1);
     assert.equal((await raw('GET', `readerBookmarks/reader-e/${SLUG}/r8`)).epubVersion, NEW);
+  });
+
+  test('W47: a record whose cfi would be written doubled is refused, reported, and left exactly as it was', async () => {
+    // A position already holding the W45 shape: kept, so the carry-over would write it unchanged.
+    const doubled = pos(place(`epubcfi(${CFI.kept})`, est.kept.old, OLD));
+    await raw('PUT', `bookstore_reading_progress/reader-h/${TITLE}`, doubled);
+    const dry = await run();
+    const h = byPath(dry)['reader-h'];
+    assert.equal(h.decision.action, 'refuse');
+    assert.equal(h.decision.why, REFUSED_CFI);
+    assert.match(line(h), /REFUSE \(refused: cfi not wrapped once; was kept/);
+    assert.match(line(h), /planned cfi NOT WRAPPED ONCE/);
+    assert.match(line(byPath(dry)['reader-b']), /planned cfi wrapped once/, 'the dry run shows a good cfi too');
+    assert.equal(dry.summary.refused, 1);
+    const out = await run({ apply: true, backupDir: await mkdtemp(join(tmpdir(), 'carry-')) });
+    assert.equal(out.summary.refused, 1);
+    assert.equal(out.summary.written, 8, 'every other record is still carried');
+    assert.deepEqual(await raw('GET', `bookstore_reading_progress/reader-h/${TITLE}`), doubled, 'never written');
+    const backup = JSON.parse(await readFile(out.summary.backup, 'utf8'));
+    assert.ok(!backup.records.some((b) => b.path.includes('reader-h')), 'a refused record is not in the write set');
   });
 
   test('the backup folder may not be inside the repo', async () => {
