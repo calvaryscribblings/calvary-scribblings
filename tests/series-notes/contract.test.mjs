@@ -65,6 +65,23 @@ describe('W46 · the words', () => {
     assert.equal(N.chooseLineHref('beta-princess-i2'), '/series/read/beta-princess-i2?from=notes', 'the reader\'s own place: no ?at=');
     assert.equal(N.backToNoteHref('beta-princess', 'beta-princess-i2'), '/series/beta-princess/notes?i=beta-princess-i2&compose=line');
   });
+  // W49 — ruling 177: the reads, en-GB grouping, and first in the room's count line.
+  test('W49: "1 read", "1,204 reads", and "1,204 reads · 38 notes · 21 readers"', () => {
+    const C = N.NOTES_COPY;
+    assert.equal(C.reads(1), '1 read');
+    assert.equal(C.reads(0), '0 reads');
+    assert.equal(C.reads(1204), '1,204 reads');
+    assert.equal(C.reads(1234567), '1,234,567 reads');
+    assert.equal(C.roomCounts(1204, 38, 21), '1,204 reads · 38 notes · 21 readers');
+    assert.equal(C.roomCounts(1, 1, 1), '1 read · 1 note · 1 reader');
+    assert.equal(C.heroCounts(4, 3), '4 notes · 3 readers', 'the door keeps its line');
+  });
+  // W49 §7 — the author snapshot carries isAuthor, as the Square's posts do.
+  test('W49: the author snapshot carries isAuthor for a writer, and only for a writer', () => {
+    assert.equal(N.authorSnapshot({ displayName: 'W', isAuthor: true, readCount: 4 }, 'u').isAuthor, true);
+    assert.equal('isAuthor' in N.authorSnapshot({ displayName: 'R', readCount: 4 }, 'u'), false);
+    assert.equal('isAuthor' in N.authorSnapshot({ displayName: 'R', isAuthor: 'yes' }, 'u'), false);
+  });
   test('bars carry text', () => {
     assert.equal(N.barLabel('Freedom', 58, true), 'Freedom, 58 percent, your side');
     assert.equal(N.barLabel('Duty', 42, false), 'Duty, 42 percent');

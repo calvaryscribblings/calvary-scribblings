@@ -47,6 +47,9 @@ import { getInstalmentRow, getSeriesBySlug } from '../../../lib/series/loader';
 import { notesEnabled, LINE_MAX, NOTES_COPY, checkLine, FROM_COMPOSER, backToNoteHref } from '../../../lib/series/notes';
 import { markFinished, saveMargin } from '../../../lib/series/notesClient';
 import EndSheet from '../../../components/seriesNotes/EndSheet';
+import { db } from '../../../lib/firebase';
+import { sendInstalmentRead } from '../../../lib/readHit';
+import { noteReadingDay, creditFirstRead, READ_NODES } from '../../../lib/readCredit';
 
 const DISPLAY = "'Cormorant Garamond', Georgia, serif";
 const LABEL = "'Cinzel', 'Cormorant Garamond', Georgia, serif";
@@ -77,6 +80,8 @@ const LINE_CHIP = Object.freeze({ maxChars: LINE_MAX, label: NOTES_COPY.thisIsMy
 const LINE_SAVED = NOTES_COPY.lineSaved;
 const LINE_NOT_SAVED = 'Your line wasn’t saved. Please try again.';
 const NOTICE_MS = 3200;
+// W49 — the story counter's dwell (app/reader/[slug]/page-reader.js): 12 seconds on the page.
+const READ_DWELL_MS = 12000;
 
 export default function SeriesReaderClient({ instalmentId, sentinel }) {
   const { user, loading: authLoading } = useAuth() || {};
@@ -276,12 +281,49 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
     }
   }, [user, epubVersion, instalmentId, notice, fromComposer]);
 
+  // ── W49 — THE READ (rulings 176, 179). Not behind notesEnabled(): reads are the Series' own. ──
+  // Once per load, at the story counter's moment: the first page shown (the first relocate) or
+  // 12 seconds of foreground dwell. Signed in only (the endpoint takes the uid from the token).
+  // The streak and badge checks run for every signed-in read, as a story's do; the readCount
+  // credit runs only when the server says this was the reader's FIRST counted read, so the
+  // readers seeded from saved places (ruling 178) are credited nothing.
+  const readFiredRef = useRef(false);
+  const fireInstalmentRead = useCallback(() => {
+    const u = userRef.current;
+    if (readFiredRef.current || !u || instalmentId === sentinel) return;
+    readFiredRef.current = true;
+    noteReadingDay(u.uid, db);
+    sendInstalmentRead(instalmentId, u).then((res) => {
+      if (res?.counted === true) creditFirstRead(u.uid, db, { node: READ_NODES.instalment, key: instalmentId }).catch(() => {});
+    });
+  }, [instalmentId, sentinel]);
+  useEffect(() => {
+    if (gate !== 'reading' || !user) return undefined;
+    let dwell = 0;
+    let last = document.visibilityState === 'visible' ? Date.now() : null;
+    const tick = () => {
+      if (readFiredRef.current) return;
+      if (document.visibilityState !== 'visible') { last = null; return; }
+      const t = Date.now();
+      if (last != null) dwell += t - last;
+      last = t;
+      if (dwell >= READ_DWELL_MS) fireInstalmentRead();
+    };
+    const onVis = () => { last = document.visibilityState === 'visible' ? Date.now() : null; };
+    const iv = setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); };
+  }, [gate, user, fireInstalmentRead]);
+  const onRelocate = useCallback((info) => {
+    fireInstalmentRead();
+    if (NOTES_ON) handleRelocate(info);
+  }, [fireInstalmentRead, handleRelocate]);
+
   const notesProps = NOTES_ON ? {
     lineChip: user && epubVersion ? LINE_CHIP : null,
     onLineChosen: handleLineChosen,
     openAt: placeParam?.at && placeParam.v && epubVersion && placeParam.v === epubVersion ? placeParam.at : null,
     keepChromeAtEnd: true,
-    onRelocate: handleRelocate,
     onEnded: handleEnded,
   } : null;
 
@@ -309,6 +351,7 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
         // would show the reader an error overlay; we would rather spend the first failure on
         // a silent re-mint and only surface it if that fails too.
         onError={handleHostError}
+        onRelocate={onRelocate}
         {...notesProps}
       />
       {NOTES_ON && (

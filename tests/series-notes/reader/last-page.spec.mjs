@@ -72,10 +72,19 @@ async function seed({ progress = null } = {}) {
   });
 }
 
+// W49 — the instalment read. /api/series/read is a Pages Function `next dev` does not run, so it
+// is stood in for here: every call is recorded, and it answers counted:true or false as told.
+const readCalls = [];
+let readCounted = true;
+
 async function fence(page) {
   await page.addInitScript(() => { try { localStorage.setItem('cs_cookie_consent', 'accepted'); } catch {} });
   await page.route('**/*', (r) => {
     const u = new URL(r.request().url());
+    if (u.pathname === '/api/series/read') {
+      readCalls.push({ auth: r.request().headers().authorization || '', body: JSON.parse(r.request().postData() || '{}') });
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ count: 5, counted: readCounted }) });
+    }
     if (u.pathname === '/api/series/stream') {
       return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ url: '/__w46/book.epub', version: VERSION }) });
     }
@@ -188,6 +197,40 @@ async function notNow(page) {
   expect(called, 'the sheet carries onClose').toBe(true);
   return 'onClose';
 }
+
+// ── W49 — THE READ (rulings 176, 179) ─────────────────────────────────────────────────────
+// Not behind the notes flag, so both builds must do it: once per load, after the first page is
+// shown, with the reader's ID token; the readCount credit follows a COUNTED read only.
+test('the read: fired once after the first page, with the token; the credit only when counted', async ({ page }) => {
+  await seed();
+  await db().ref(`users/${READER}/readCount`).set(9);
+  await db().ref(`points/${READER}`).set(null);
+  await db().ref(`library_notifications/${READER}`).set(null);
+  await db().ref(`users/${READER}/readInstalments`).set(null);
+  readCalls.length = 0;
+  readCounted = true;
+  await openSignedIn(page);
+  await expect.poll(() => readCalls.length, { timeout: 15000 }).toBe(1);
+  expect(readCalls[0].auth).toMatch(/^Bearer .+/);
+  expect(readCalls[0].body).toEqual({ inst: ids.inst });
+  await expect.poll(() => val(`users/${READER}/readCount`), { timeout: 15000 }).toBe(10);
+  expect(await val(`users/${READER}/readInstalments/${ids.inst}`)).toBe(true);
+  expect(await val(`users/${READER}/readStories/${ids.inst}`), 'never into readStories').toBeNull();
+  // The tenth read pays, exactly as a story's does.
+  await expect.poll(() => val(`points/${READER}/total`), { timeout: 15000 }).toBe(5);
+  await page.waitForTimeout(13000); // past the 12 s dwell: still one call
+  expect(readCalls.length).toBe(1);
+
+  // A later open the server does not count (a seeded reader, or a second read): no credit.
+  await db().ref(`users/${READER}/readInstalments`).set(null);
+  readCounted = false;
+  await page.reload();
+  await waitForBook(page);
+  await expect.poll(() => readCalls.length, { timeout: 15000 }).toBe(2);
+  await page.waitForTimeout(1500);
+  expect(await val(`users/${READER}/readCount`)).toBe(10);
+  expect(await val(`users/${READER}/readInstalments/${ids.inst}`)).toBeNull();
+});
 
 // ── THE LINE ─────────────────────────────────────────────────────────────────────────────
 test('the line: a phrase offers "This is my line" only with notes on, and the tap saves it to series_margin', async ({ page }) => {

@@ -358,6 +358,7 @@ async function authorFor(db, uid) {
     handle: r.username || r.handle,
     avatarUrl: r.avatarUrl || r.photoURL,
     readCount: typeof r.readCount === 'number' ? r.readCount : undefined,
+    isAuthor: r.isAuthor === true,
   }, uid);
 }
 

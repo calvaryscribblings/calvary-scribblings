@@ -376,6 +376,12 @@ describe('W46 · side', () => {
 
 // ═════════════════════════════════════════════════════════════════════════════════════════
 describe('W46 · note', () => {
+  // W49 §7 — the snapshot carries isAuthor, so a writer whose record goes keeps the Writer badge.
+  test('W49: a writer’s note carries isAuthor in its author snapshot; a reader’s does not', async () => {
+    put(`users/${READER}/isAuthor`, true);
+    const r = await note();
+    assert.equal(at(`series_notes/${INST}/${r.body.noteId}`).author.isAuthor, true);
+  });
   test('a clear note posts live, with the author snapshot, joins the room, and the summary holds no words', async () => {
     const r = await note();
     assert.equal(r.status, 200);

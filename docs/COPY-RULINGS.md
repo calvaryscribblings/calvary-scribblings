@@ -524,3 +524,23 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - `NOTES_COPY.lineSaved`: Saved as your line. (the W46 notice, moved into `NOTES_COPY` so the
   app's parity test sees it; the words are unchanged)
 - `NOTES_COPY.underlined(n)`: Underlined · {n}, as on the approved canvas (it was "Underlined").
+
+## 17 Oct 2026 (Ikenna): reads, counted once (W49)
+
+- **176:** an instalment read counts once per reader, the first time they open it, at the same
+  moment a story counts its read (the first page shown, or 12 seconds on the page).
+  `functions/api/series/read.js`; the count is `series_reads/{inst}`.
+- **177:** shown as "1,204 reads". It sits under each numeral in the room's instalment strip
+  (and in the rail), and first in the room's count line: "1,204 reads · 38 notes · 21 readers".
+  - `NOTES_COPY.reads(n)`: "1 read" or "1,204 reads" (en-GB grouping).
+  - `NOTES_COPY.roomCounts(r, n, m)`: "1,204 reads · 38 notes · 21 readers". The door keeps
+    `heroCounts`: "38 notes · 21 readers".
+- **178:** each instalment's count starts from the readers who already have a saved place in it
+  (`scripts/series/seed-reads.mjs`, run once). Seeded reads credit nobody.
+- **179:** from now on, an instalment read counts toward the reader's island badge exactly as a
+  story read does: readCount, the every-tenth-read points, the streak and the badge checks.
+  `app/lib/readCredit.js`, shared by all three readers.
+- **180:** every story keeps its current read count. The double counting stops from now on, with
+  no recount. `functions/api/hit.js` counts one read per reader (a verified uid, else the device
+  id, else nothing). The `calvary-hit-counter` Worker, which counted every open, is now
+  count-only (`workers-external/`, pasted into the dashboard by hand).

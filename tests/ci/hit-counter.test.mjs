@@ -169,31 +169,28 @@ describe('the scheduled top_stories rebuild', () => {
   });
 });
 
-describe('the POST increment', () => {
+// W49 — THE WORKER NO LONGER COUNTS. Its POST was the unconditional counter behind 229 of the 237
+// story-count increments from 3 to 17 Oct (ruling 180). It now answers the count, in the shape
+// every app version reads ({ count }), and writes NOTHING: no hits, no day bucket. Counting is
+// functions/api/hit.js's alone (tests/hit/hit.emulator.test.mjs).
+describe('the POST, count only (W49)', () => {
   const post = (slug, env = ENV) => captureConsole(() =>
     worker.fetch(new Request(`https://x/?slug=${slug}`, { method: 'POST' }), env, { waitUntil: () => {} }));
 
-  test('it writes TODAY\'s UTC bucket alongside the cumulative counter', async () => {
-    stubFetch([
-      [/\/stories\/village-people\.json\?auth=[^&]*$/, reply(200, '{}')],
-      [/hits\.json/, reply(200, '42')],
-    ]);
+  test('a POST from an old app answers { count } and writes nothing', async () => {
+    stubFetch([[/hits\.json/, reply(200, '42')]]);
     const res = await post('village-people');
-    const patch = calls.find((c) => c.method === 'PATCH');
-    const body = JSON.parse(patch.body);
-    assert.ok(body[`hitsByDay/${utcDay(0)}`], 'today\'s bucket must be in the PATCH');
-    assert.ok(body.hits, 'and the cumulative counter with it');
-    assert.equal((await res.json()).count, 42, 'the resolved count is read back for display');
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { count: 42 }, 'exactly the shape the app reads, with the count');
+    const writes = calls.filter((c) => c.method !== 'GET');
+    assert.deepEqual(writes, [], 'no PATCH, no PUT: no hits and no hitsByDay');
   });
 
-  test('a denied increment returns 502 AND logs it', async () => {
-    stubFetch([[/\/stories\/village-people\.json/, DENIED]]);
-    const res = await post('village-people');
-    // The 502 was always there. The LOG is what was missing, and the log is the half
-    // anyone investigating from the Cloudflare side can actually see — two days of
-    // rejection produced no line anywhere.
-    assert.equal(res.status, 502);
-    assert.ok(logs.some((l) => /increment\(village-people/.test(l)));
+  test('a GET answers the same shape, and writes nothing', async () => {
+    stubFetch([[/hits\.json/, reply(200, '7')]]);
+    const res = await captureConsole(() => worker.fetch(new Request('https://x/?slug=village-people'), ENV, { waitUntil: () => {} }));
+    assert.deepEqual(await res.json(), { count: 7 });
+    assert.deepEqual(calls.filter((c) => c.method !== 'GET'), []);
   });
 
   test('a denied read-back is not reported as an empty counter', async () => {

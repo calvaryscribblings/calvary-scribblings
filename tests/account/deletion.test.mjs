@@ -138,6 +138,15 @@ describe('planOwned', () => {
     const u = planOwned(T, { subscribers: { s1: { email: 'x@y' } } }, null);
     assert.ok(!('subscribers/s1' in u));
   });
+  // W49 — the instalment-read ledger is keyed inst-first, so it is named per instalment. The count
+  // (series_reads) is a public total and keeps their read.
+  test('W49: their instalment-read ledger entries, one per instalment; never the count', () => {
+    const u = planOwned(T, { instalments: { 's-i1': {}, 's-i2': {}, 'bad.id': {} } }, null);
+    assert.equal(u[`series_read_ledger/s-i1/${T}`], null);
+    assert.equal(u[`series_read_ledger/s-i2/${T}`], null);
+    assert.ok(!Object.keys(u).some((k) => k.includes('bad.id')), 'an id that is not a key is skipped');
+    assert.ok(!Object.keys(u).some((k) => k.startsWith('series_reads')), 'the count keeps their read');
+  });
 });
 
 describe('membershipAction', () => {
@@ -322,6 +331,18 @@ describe('runDeletion', () => {
     assert.ok(io.calls.includes(`rm avatars/${T}`) && !io.calls.includes(`rm avatars/${T}EXTRA`), 'never another uid that extends this one');
   });
 
+  test('W49: the owned step clears their instalment-read ledger; the counts keep their reads', async () => {
+    const db = fixture();
+    db.series_instalments = { 's-i1': { status: 'published' }, 's-i2': { status: 'published' } };
+    db.series_read_ledger = { 's-i1': { [T]: 1, [A]: 2 }, 's-i2': { [T]: 3 } };
+    db.series_reads = { 's-i1': 2, 's-i2': 1 };
+    await runDeletion(T, null, memIo(db), { log() {} });
+    assert.equal(db.series_read_ledger['s-i1']?.[T], undefined);
+    assert.equal(db.series_read_ledger['s-i1']?.[A], 2, 'another reader’s entry is untouched');
+    assert.equal(db.series_read_ledger['s-i2']?.[T], undefined);
+    assert.deepEqual(db.series_reads, { 's-i1': 2, 's-i2': 1 });
+  });
+
   test('Paystack is disabled, not Stripe, on the Paystack rail', async () => {
     const db = fixture();
     db.memberships[T] = { rail: 'paystack', status: 'active', paystackSubscriptionCode: 'SUB_p' };
@@ -431,4 +452,14 @@ describe('planScrub · Readers’ Notes', () => {
     assert.equal(s.byInst[I].readers, 1);
     assert.ok(!JSON.stringify(s).includes('https://p/t'));
   });
+});
+
+// ── W49: the instalment-read ledger in the scrub (the endpoint's backstop) ──────────────────
+test('planScrub · W49: their series_read_ledger entries go; the counts and other readers stay', () => {
+  const plan = planScrub(T, { series_read_ledger: { 's-i1': { [T]: 1, [A]: 2 }, 'gone-i9': { [T]: 3 } }, series_reads: { 's-i1': 2 } }, { now: 1 });
+  assert.ok(plan.nulls.includes(`series_read_ledger/s-i1/${T}`));
+  assert.ok(plan.nulls.includes(`series_read_ledger/gone-i9/${T}`), 'an instalment the endpoint could not see');
+  assert.ok(!plan.nulls.includes(`series_read_ledger/s-i1/${A}`));
+  assert.ok(!plan.nulls.some((p) => p.startsWith('series_reads')));
+  assert.equal(plan.counts.seriesReads, 2);
 });

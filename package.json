@@ -65,6 +65,8 @@
     "test:series-admin": "node tests/fixtures/make-epub.mjs && firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/series/playwright.w38.config.mjs\"",
     "test:series-notes-admin": "node --test tests/series-notes/admin/*.test.mjs && firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/series-notes/admin/playwright.config.mjs\"",
     "test:ci": "node --test \"tests/ci/*.test.mjs\"",
+    "test:reads": "node --test tests/reads/read-hit.test.mjs tests/reads/read-credit.test.mjs",
+    "test:reads:emulator": "firebase emulators:exec --only database --project demo-calvary-reads \"node --test --test-concurrency=1 tests/reads/*.emulator.test.mjs\"",
     "test:series-notes": "node --test \"tests/series-notes/*.test.mjs\" tests/series-notes/ui/room-model.test.mjs tests/series-notes/admin/model.test.mjs",
     "test:taxonomy": "node --test tests/ci/taxonomy.test.mjs",
     "test:quiz-marker": "next build && playwright test -c tests/quizmarker/playwright.config.mjs",

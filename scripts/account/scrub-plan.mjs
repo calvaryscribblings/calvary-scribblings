@@ -51,7 +51,7 @@ const entries = (v) => (isObj(v) ? Object.entries(v) : []);
 /** The nodes the scrub reads, whole. The runner fetches exactly these. */
 export const SCAN_NODES = [
   'comments', 'comment_reactions', 'commentReactions', 'comment_likes', 'comment_screening',
-  'storyReads', 'storyReactionUsers', 'leaderboards', 'notifications', 'library_notifications',
+  'storyReads', 'series_read_ledger', 'storyReactionUsers', 'leaderboards', 'notifications', 'library_notifications',
   'square_posts', 'square_likes', 'square_reactions', 'square_archive', 'square_archive_reactions',
   'open_pages', 'open_pages_reactions', 'open_pages_pending', 'open_pages_reports',
   'dm_messages', 'blocked_users', 'followers', 'following', 'usernames', 'cms_voices',
@@ -101,7 +101,7 @@ export function planScrub(uid, snap, { now = Date.now() } = {}) {
     comments: 0, commentTombstones: 0, replies: 0, repliesByOthersKept: 0, commentReactions: 0,
     squarePosts: 0, squareArchived: 0, squareTombstones: 0, squareRepliesByOthersKept: 0, squareReactions: 0,
     openPages: 0, openPagesCommentsByOthers: 0, openPagesReactions: 0,
-    storyReads: 0, storyReactions: 0, leaderboardRows: 0,
+    storyReads: 0, seriesReads: 0, storyReactions: 0, leaderboardRows: 0,
     notificationsInOthersInboxes: 0, dmMessagesSent: 0, voicesRemoved: 0, backstop: 0,
   };
   const del = (p) => nulls.add(p);
@@ -234,6 +234,9 @@ export function planScrub(uid, snap, { now = Date.now() } = {}) {
 
   // ── Story reading and reactions ────────────────────────────────────────────────────────
   for (const [slug, byUser] of entries(snap.storyReads)) if (byUser?.[uid] !== undefined) { del(`storyReads/${slug}/${uid}`); counts.storyReads++; }
+  // W49 — the instalment-read ledger. The endpoint clears it per instalment; this catches an
+  // instalment the endpoint could not see (one deleted since). The count keeps their read.
+  for (const [inst, byUser] of entries(snap.series_read_ledger)) if (byUser?.[uid] !== undefined) { del(`series_read_ledger/${inst}/${uid}`); counts.seriesReads++; }
   for (const [slug, byUser] of entries(snap.storyReactionUsers)) {
     if (!isObj(byUser?.[uid])) continue;
     del(`storyReactionUsers/${slug}/${uid}`);

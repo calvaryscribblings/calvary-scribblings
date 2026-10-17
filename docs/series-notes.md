@@ -208,3 +208,14 @@ These are charged through `functions/api/_ratelimit.js` (fixed windows, fail clo
 
 For the app: mirror all four. The strings are in `NOTES_COPY` (`lineFirst`, `chooseInBook`,
 `lineSaved`, `backToNote`, `underlined(n)`). In the app the disabled Post must also *look* disabled.
+
+## W49: instalment reads in the room (17 Oct 2026, rulings 176–179)
+
+- `series_reads/{inst}` is public and read directly by the room: the strip and the rail show
+  `NOTES_COPY.reads(n)` beneath each numeral, and the hero line is
+  `NOTES_COPY.roomCounts(reads, notes, readers)`. The door keeps `heroCounts`.
+- Counted by `POST /api/series/read` (Bearer token; once per reader; published, released and
+  readable only), and fired by the Series reader at the first page or 12 s. It is not behind
+  `SERIES_NOTES_ENABLED`. The contract is `app/lib/series/reads.js`; the app's half is
+  `docs/APP-HANDOFF-READS.md`.
+- The author snapshot now carries `isAuthor` (W48's open item).

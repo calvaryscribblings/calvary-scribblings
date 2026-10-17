@@ -24,6 +24,7 @@ import Unavailable from '../../../components/Unavailable';
 import AuthModal from '../../../components/AuthModal';
 import { isFounder } from '../../../lib/founders';
 import { resolveIdentities } from '../../../lib/squareIdentity';
+import { totalReads } from '../../../lib/series/reads';
 import {
   NOTES_COPY, QUESTION_LABEL, PAGE_SIZE, instName, romanOf, roomHref, lineHref, sideOptions, rankLines,
   lastVisitKey, notesEnabled, NOTES_ERRORS, COMPOSE_LINE,
@@ -111,7 +112,7 @@ function Nav({ series, slug }) {
   );
 }
 
-function Hero({ series, totals }) {
+function Hero({ series, totals, reads }) {
   const cover = series.coverUrl;
   return (
     <header style={{ position: 'relative', overflow: 'hidden', background: `linear-gradient(180deg, ${C.headerTop} 0%, ${C.ground} 100%)`, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -125,7 +126,10 @@ function Hero({ series, totals }) {
           <span style={{ ...labelStyle(C.goldTint, 10), display: 'block', marginBottom: 6 }}>{NOTES_COPY.kicker}</span>
           <h1 style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 'clamp(1.7rem, 6vw, 2.5rem)', lineHeight: 1.08, margin: '0 0 4px', color: C.cream }}>{series.title}</h1>
           {series.author && <p style={{ fontFamily: DISPLAY, fontSize: 17, color: C.muted, margin: '0 0 4px' }}>{series.author}</p>}
-          <p data-hero-counts style={{ fontFamily: DISPLAY, fontSize: 16, color: C.quiet, margin: 0 }}>{NOTES_COPY.heroCounts(totals.notes, totals.readers)}</p>
+          <p data-hero-counts style={{ fontFamily: DISPLAY, fontSize: 16, color: C.quiet, margin: 0 }}>
+            {/* W49, ruling 177 — the reads across the released instalments lead the line. */}
+            {reads === null ? NOTES_COPY.heroCounts(totals.notes, totals.readers) : NOTES_COPY.roomCounts(reads, totals.notes, totals.readers)}
+          </p>
         </div>
       </div>
     </header>
@@ -133,7 +137,7 @@ function Hero({ series, totals }) {
 }
 
 /** The instalment strip: released only, roman numerals, a count on each; a sealed one is locked. */
-function Strip({ slug, rows, current, summary, finished }) {
+function Strip({ slug, rows, current, summary, finished, reads }) {
   return (
     <div className="sn-strip-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="sn-wrap">
@@ -145,7 +149,11 @@ function Strip({ slug, rows, current, summary, finished }) {
             return (
               <Link key={r.id} href={roomHref(slug, r.id)} aria-current={on ? 'page' : undefined} data-strip={r.id} data-sealed={sealed ? 'true' : 'false'}
                 className="sn-chip" style={on ? { borderColor: 'rgba(201,168,76,0.6)', color: C.cream, background: 'rgba(201,168,76,0.10)', textDecoration: 'none', flexShrink: 0 } : { textDecoration: 'none', flexShrink: 0 }}>
-                <span style={{ fontFamily: LABEL, fontSize: 13, letterSpacing: '0.06em' }}>{romanOf(r.ordinal)}</span>
+                {/* W49, ruling 177 — the reads beneath the numeral; the note count stays beside it. */}
+                <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.1 }}>
+                  <span style={{ fontFamily: LABEL, fontSize: 13, letterSpacing: '0.06em' }}>{romanOf(r.ordinal)}</span>
+                  {typeof reads?.[r.id] === 'number' && <span data-strip-reads style={{ fontFamily: DISPLAY, fontSize: 12, color: C.quiet, whiteSpace: 'nowrap' }}>{NOTES_COPY.reads(reads[r.id])}</span>}
+                </span>
                 {sealed
                   ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 14, color: C.quiet }}><LockIcon />{NOTES_COPY.sealed}</span>
                   : <span style={{ fontFamily: LABEL, fontSize: 12, color: C.quiet }}>{count}</span>}
@@ -158,7 +166,7 @@ function Strip({ slug, rows, current, summary, finished }) {
   );
 }
 
-function Rail({ series, slug, rows, current, summary, finished, titles, onLeave }) {
+function Rail({ series, slug, rows, current, summary, finished, titles, reads, onLeave }) {
   return (
     <aside className="sn-rail" aria-label={series.title}>
       <div role="presentation" style={{ width: 120, aspectRatio: '2 / 3', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: series.coverUrl ? `center/cover no-repeat url(${JSON.stringify(series.coverUrl)})` : '#1a0f2e', marginBottom: 12 }} />
@@ -172,8 +180,13 @@ function Rail({ series, slug, rows, current, summary, finished, titles, onLeave 
               <Link href={roomHref(slug, r.id)} aria-current={on ? 'page' : undefined} className="sn-text"
                 style={{ width: '100%', justifyContent: 'space-between', boxSizing: 'border-box', borderRadius: 10, padding: '6px 10px', background: on ? 'rgba(201,168,76,0.10)' : 'transparent', color: on ? C.cream : C.muted }}>
                 <span style={{ display: 'inline-flex', gap: 8, alignItems: 'baseline', minWidth: 0 }}>
-                  <span style={{ fontFamily: LABEL, fontSize: 12, color: C.goldTint }}>{romanOf(r.ordinal)}</span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titles[r.id] || instName(r.ordinal)}</span>
+                  <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.1, flexShrink: 0 }}>
+                    <span style={{ fontFamily: LABEL, fontSize: 12, color: C.goldTint }}>{romanOf(r.ordinal)}</span>
+                  </span>
+                  <span style={{ display: 'inline-flex', flexDirection: 'column', minWidth: 0 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titles[r.id] || instName(r.ordinal)}</span>
+                    {typeof reads?.[r.id] === 'number' && <span data-rail-reads style={{ fontFamily: DISPLAY, fontSize: 13, color: C.quiet, whiteSpace: 'nowrap' }}>{NOTES_COPY.reads(reads[r.id])}</span>}
+                  </span>
                 </span>
                 {sealed
                   ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 14 }}><LockIcon />{NOTES_COPY.sealed}</span>
@@ -485,6 +498,9 @@ export default function RoomClient({ slug, sentinel }) {
   }
 
   const totals = seriesTotals(summary);
+  // W49 — the reads across the released instalments; null (left out) if any count failed to load.
+  const reads = pub.data?.reads || {};
+  const readsTotal = released.some((r) => reads[r.id] === null || reads[r.id] === undefined) ? null : totalReads(reads, released.map((r) => r.id));
   const sc = sealedCounts(summary, instId);
   const q = priv.questions || null;
   const canWrite = priv.phase === 'open' || priv.phase === 'joining';
@@ -589,11 +605,11 @@ export default function RoomClient({ slug, sentinel }) {
     <div className="sn-room" data-phase={priv.phase}>
       <style>{NOTES_CSS + ROOM_CSS}</style>
       <Nav series={series} slug={slug} />
-      <Hero series={series} totals={totals} />
-      {released.length > 0 && <Strip slug={slug} rows={released} current={instId} summary={summary} finished={finishedAll} />}
+      <Hero series={series} totals={totals} reads={readsTotal} />
+      {released.length > 0 && <Strip slug={slug} rows={released} current={instId} summary={summary} finished={finishedAll} reads={reads} />}
       <div className="sn-wrap" style={{ paddingBottom: canWrite ? 110 : 48 }}>
         <div className="sn-cols">
-          <Rail series={series} slug={slug} rows={released} current={instId} summary={summary} finished={finishedAll} titles={pub.data.titles || {}}
+          <Rail series={series} slug={slug} rows={released} current={instId} summary={summary} finished={finishedAll} titles={pub.data.titles || {}} reads={reads}
             onLeave={canWrite ? () => setComposer({ kind: null }) : null} />
           <main>{body}</main>
         </div>

@@ -121,7 +121,8 @@ test.describe('the room', () => {
       await page.goto(`/series/${slug}/notes?i=${I.i2}`);
       const room = page.locator('[data-room="sealed"]');
       await expect(room).toBeVisible({ timeout: 90000 });
-      await expect(page.locator('[data-hero-counts]')).toHaveText('11 notes · 9 readers');
+      // W49, ruling 177 — the reads across the released instalments lead the line.
+      await expect(page.locator('[data-hero-counts]')).toHaveText('1,204 reads · 11 notes · 9 readers');
       await expect(room).toContainText('The room opens on the last page, so nothing in here can spoil it. 8 notes are waiting for you.');
       await expect(room.locator('[data-question="sit"]')).toContainText('What did the river take');
       await expect(room.locator('[data-question="side"][data-sealed="true"]')).toContainText('12 answers');
@@ -538,6 +539,46 @@ test.describe('W48 · The line with an empty margin (ruling 175)', () => {
     await expect(page.locator('[data-room="open"]')).toBeVisible({ timeout: 90000 });
     await page.waitForTimeout(1000);
     await expect(page.locator('[data-composer]')).toHaveCount(0);
+  });
+});
+
+test.describe('W49 · reads in the room (ruling 177)', () => {
+  test('each chip shows its reads beneath its numeral, the rail the same; every chip one height; nothing overflows', async ({ page }) => {
+    await seed(app, slug, { reader: 'member' });
+    await fence(page, app);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/series/${slug}/notes?i=${I.i2}`);
+    await signIn(page, app);
+    await expect(page.locator('[data-room="open"]')).toBeVisible({ timeout: 90000 });
+    await expect(page.locator('[data-hero-counts]')).toHaveText('1,204 reads · 11 notes · 9 readers');
+    for (const w of WIDTHS) {
+      await page.setViewportSize({ width: w, height: 1000 });
+      await page.waitForTimeout(250);
+      const strip = w >= 1024 ? null : page.locator('.sn-strip');
+      if (strip) {
+        await expect(strip.locator(`[data-strip="${I.i1}"] [data-strip-reads]`)).toHaveText('1,203 reads');
+        await expect(strip.locator(`[data-strip="${I.i2}"] [data-strip-reads]`)).toHaveText('1 read');
+        const geo = await strip.locator('[data-strip]').evaluateAll((els) => els.map((el) => {
+          const r = el.getBoundingClientRect();
+          const num = el.querySelector('[data-strip-reads]').previousElementSibling.getBoundingClientRect();
+          const reads = el.querySelector('[data-strip-reads]').getBoundingClientRect();
+          return { h: r.height, beneath: reads.top >= num.bottom - 1 };
+        }));
+        expect(new Set(geo.map((g) => Math.round(g.h))).size, `every chip one height at ${w}`).toBe(1);
+        expect(geo.every((g) => g.beneath), 'the reads sit beneath the numeral').toBe(true);
+        // The note count stays as it is.
+        await expect(strip.locator(`[data-strip="${I.i2}"]`)).toContainText('8');
+      } else {
+        const rail = page.locator('.sn-rail');
+        await expect(rail.locator('[data-rail-reads]').first()).toHaveText('1,203 reads');
+        await expect(rail.locator('[data-rail-reads]').nth(1)).toHaveText('1 read');
+      }
+      await noHorizontalScroll(page);
+      // W48's card-width check stands: every card inside the screen.
+      const wide = await page.evaluate(() => [...document.querySelectorAll('.sn-card, .sn-strip [data-strip]')].filter((el) => el.getBoundingClientRect().right > document.documentElement.clientWidth + 0.5 && !el.closest('.sn-qrow') && !el.closest('.sn-strip')).length);
+      expect(wide, `cards inside the viewport at ${w}`).toBe(0);
+      await shot(page, `w49-reads-${w}`);
+    }
   });
 });
 

@@ -144,6 +144,10 @@ export const NOTES_COPY = Object.freeze({
   opensOn: (label) => `Opens ${label}`,
   firstQuestions: (date) => `The first three questions arrive with instalment I, on ${date}.`,
   heroCounts: (n, m) => `${n} ${n === 1 ? 'note' : 'notes'} · ${m} ${m === 1 ? 'reader' : 'readers'}`,
+  // W49, ruling 177 — an instalment's reads ("1,204 reads", en-GB grouping), under each numeral in
+  // the strip and the rail, and first in the room's count line.
+  reads: (n) => `${Number(n).toLocaleString('en-GB')} ${n === 1 ? 'read' : 'reads'}`,
+  roomCounts: (r, n, m) => `${Number(r).toLocaleString('en-GB')} ${r === 1 ? 'read' : 'reads'} · ${n} ${n === 1 ? 'note' : 'notes'} · ${m} ${m === 1 ? 'reader' : 'readers'}`,
   sealed: 'Sealed',
   partway: (N) => `You’re partway through ${N}.`,
   sealedBody: (n) => `The room opens on the last page, so nothing in here can spoil it. ${n} ${n === 1 ? 'note is' : 'notes are'} waiting for you.`,
@@ -412,6 +416,9 @@ export function authorSnapshot(profile, uid) {
   if (isStr(photo) && /^https:\/\//.test(photo)) out.photoURL = photo.slice(0, 1024);
   const reads = Number(p.readCount);
   if (Number.isFinite(reads) && reads >= 0) out.badge = Math.floor(reads);
+  // W49 §7 — as the Square's posts carry it, so a reader whose record is gone keeps the right
+  // badge (a writer's, not a reader's).
+  if (p.isAuthor === true) out.isAuthor = true;
   if (!out.handle) delete out.handle;
   return out;
 }

@@ -149,9 +149,15 @@ const sameEmail = (a, b) => typeof a === 'string' && typeof b === 'string' && a.
  * @param reads { user, following, followers, handles: {handle: value}, subscribers, waitlist }
  * @param email the Auth email, or null
  */
-export function planOwned(uid, { user, following, followers, handles, subscribers, waitlist }, email) {
+export function planOwned(uid, { user, following, followers, handles, subscribers, waitlist, instalments }, email) {
   const u = {};
   for (const n of OWNED_NODES) u[`${n}/${uid}`] = null;
+  // W49 — their instalment reads: one ledger entry per instalment they read, keyed inst-first, so
+  // named here per instalment rather than deleted whole. series_reads/{inst} keeps their read: the
+  // count is a public total, not theirs (ruling 176). scripts/account/scrub-plan.mjs is the backstop.
+  for (const inst of Object.keys(instalments || {})) {
+    if (/^[A-Za-z0-9_-]{1,128}$/.test(inst)) u[`series_read_ledger/${inst}/${uid}`] = null;
+  }
   // The other half of every follow: they follow me → following/{them}/{me}; I follow them →
   // followers/{them}/{me}.
   // (A self-follow is already inside the whole-node delete, and naming it twice would be an
@@ -248,13 +254,14 @@ export async function runDeletion(uid, email, io, log = console) {
     },
     async owned() {
       const user = await io.get(`users/${uid}`);
-      const [following, followers, subscribers, waitlist] = await Promise.all([
+      const [following, followers, subscribers, waitlist, instalments] = await Promise.all([
         io.get(`following/${uid}`), io.get(`followers/${uid}`),
         email ? io.get('subscribers') : null, email ? io.get('bookstore_waitlist') : null,
+        io.get('series_instalments'),
       ]);
       const handles = {};
       await Promise.all(handlesOf(user).map(async (h) => { handles[h] = await io.get(`usernames/${h}`); }));
-      await io.patch(planOwned(uid, { user, following, followers, handles, subscribers, waitlist }, email));
+      await io.patch(planOwned(uid, { user, following, followers, handles, subscribers, waitlist, instalments }, email));
     },
     async storage() {
       for (const prefix of STORAGE_PREFIXES(uid)) {

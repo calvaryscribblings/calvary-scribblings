@@ -10,9 +10,25 @@
 //
 //   node scripts/worker-mirror-check.mjs <dashboard-source> hit-counter
 //
+// ── W49 (17 Oct 2026): THIS WORKER NO LONGER COUNTS ──────────────────────────
+//
+// Its POST used to add one to stories/{slug}/hits and today's bucket on EVERY call, with no reader
+// and no ledger. W49 §0 measured it: 229 of the 237 story-count increments from 3 to 17 Oct came
+// from here (the app's opens), which is why a story's count climbed when one person reopened it
+// (ruling 180). Reads are now counted ONCE PER READER by functions/api/hit.js, which is also the
+// only writer of the day buckets, for counted reads only.
+//
+// So the fetch handler is now READ-ONLY for every method: it answers { count } exactly as before,
+// so every app version that reads that shape keeps showing the story's count, and it writes
+// nothing — no hits, no hitsByDay. The app moves to /api/hit with the reader's ID token in A38.
+//
+// THE CRON IS UNCHANGED, byte for byte: rebuildTopStories() still ranks top_stories/weekly from
+// stories/{slug}/hitsByDay and prunes buckets older than KEEP_DAYS. It simply reads buckets that
+// /api/hit now writes.
+//
 // WHAT IT OWNS, and why that matters to the rules:
-//   · stories/{slug}/hits           — cumulative, also written by functions/api/hit.js
-//   · stories/{slug}/hitsByDay/{d}  — UTC day buckets. NOTHING ELSE WRITES THESE.
+//   · stories/{slug}/hits           — read only (functions/api/hit.js is the only writer)
+//   · stories/{slug}/hitsByDay/{d}  — read and pruned by the cron (functions/api/hit.js writes)
 //   · top_stories/weekly            — rebuilt on the cron below.
 // app/public-library/page.js:1093 reads top_stories/weekly. If this Worker stops,
 // that surface goes stale silently — which is precisely what happened on 3 Aug.
@@ -140,38 +156,9 @@ export default {
       return new Response(JSON.stringify({ error: 'Worker misconfigured' }), { status: 500, headers });
     }
 
-    // GET (or anything not POST) is read-only — returns the current count, never increments.
-    if (request.method !== 'POST') {
-      return new Response(JSON.stringify({ count: await readCount(slug, env) }), { headers });
-    }
-
-    // POST increments both the cumulative counter and today's bucket atomically,
-    // in one multi-path PATCH using RTDB increment server values.
-    const today = utcDay(0);
-    const patchBody = JSON.stringify({
-      hits: { '.sv': { increment: 1 } },
-      [`hitsByDay/${today}`]: { '.sv': { increment: 1 } },
-    });
-
-    try {
-      const patchRes = await fetch(dbUrl(env, `stories/${slug}`), {
-        method: 'PATCH',
-        body: patchBody,
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!patchRes.ok) {
-        const detail = await patchRes.text();
-        // The 502 to the caller was always here; the log is what was missing, and
-        // the log is the half anyone investigating can actually see.
-        console.error(`[hit-counter] increment(${slug}, ${today}) FAILED ${patchRes.status} ${detail.slice(0, 300)}`);
-        return new Response(JSON.stringify({ error: 'increment failed', status: patchRes.status, detail }), { status: 502, headers });
-      }
-      // Increment sentinels don't return the resolved value, so read it back for display.
-      return new Response(JSON.stringify({ count: await readCount(slug, env) }), { headers });
-    } catch (e) {
-      console.error(`[hit-counter] increment(${slug}) threw: ${e.message}`);
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
-    }
+    // W49 — every method is read-only: the current count, never an increment. The response shape
+    // is the one every app version reads: { count } (a number, or null when it cannot be read).
+    return new Response(JSON.stringify({ count: await readCount(slug, env) }), { headers });
   },
 
   async scheduled(event, env, ctx) {

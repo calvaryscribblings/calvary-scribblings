@@ -167,7 +167,9 @@ export function asPost(note) {
     authorHandle: a.handle || null,
     authorAvatarUrl: a.photoURL || null,
     authorReadCount: Number(a.badge) || 0,
-    isAuthor: note?.writer === true,
+    // W49 §7 — the snapshot's own isAuthor (the endpoint stores it since W49), so a writer whose
+    // record is gone falls back to the Writer badge.
+    isAuthor: note?.writer === true || a.isAuthor === true,
   };
 }
 

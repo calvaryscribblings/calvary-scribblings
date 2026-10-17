@@ -10,15 +10,14 @@ import {
   USER_COMMENTS_PATH, indexedCommentWrite, indexedCommentRemoval,
   commentCountOf, commentMilestoneFor,
 } from '../../lib/userComments';
-import { updateStreak } from '../../lib/streakEngine';
-import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import QuizCard from '../../components/QuizCard';
 import ReadingRoom from './ReadingRoom';
 import AuthModal from '../../components/AuthModal';
 import AboutTheAuthor from '../../components/AboutTheAuthor';
 import ReadSeal from '../../components/ReadSeal';
 import { use } from 'react';
-import { getReaderId } from '../../lib/readerId';
+import { sendReadHit } from '../../lib/readHit';
+import { noteReadingDay, creditFirstRead, READ_NODES } from '../../lib/readCredit';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, COMMENT_REACTIONS } from '../../components/conversation/ConversationKit';
 import { DELETED_RESPONSE, isTombstone } from '../../lib/deletedContent';
 
@@ -471,13 +470,11 @@ export default function StoryReaderClient({ params, initialStory = null }) {
   const fireReadHit = useCallback(() => {
     if (hitFired.current) return;
     hitFired.current = true;
-    getReaderId().then((readerId) => {
-      const qs = `?slug=${encodeURIComponent(slug)}&readerId=${encodeURIComponent(readerId)}`;
-      fetch(`/api/hit${qs}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug, readerId, client: 'web' }) })  // attributed — see the note in the story page
-        .then((r) => r.json())
-        .then((d) => { if (typeof d.count === 'number') setHitCount(d.count); })
-        .catch(() => {});
-    });
+    // W49 — after sign-in settles; the token when signed in, the device id when not.
+    getFirebaseAuth()
+      .then((auth) => sendReadHit(slug, auth))
+      .then((d) => { if (typeof d?.count === 'number') setHitCount(d.count); })
+      .catch(() => {});
   }, [slug]);
 
   // Auth observer for QuizCard / progress / ribbons (PRESERVED).
@@ -546,16 +543,10 @@ export default function StoryReaderClient({ params, initialStory = null }) {
         const u = onAuthStateChanged(auth, async (user) => {
           if (!user) return; u();
           const db = await getDB();
-          updateStreak(user.uid, db)
-            .then(changed => { if (changed) checkAndAwardBadges(user.uid, db).catch(() => {}); })
-            .catch(() => {});
-          const { ref, get, set, runTransaction } = await import('firebase/database');
-          const rr = ref(db, 'users/' + user.uid + '/readStories/' + slug);
-          const s = await get(rr);
-          if (!s.exists()) {
-            await set(rr, true);
-            await runTransaction(ref(db, 'users/' + user.uid + '/readCount'), c => (c || 0) + 1);
-          }
+          // W49 — the story page's credit, shared (app/lib/readCredit.js). This register used to
+          // copy only half of it and never paid the tenth-read points; it now pays them.
+          noteReadingDay(user.uid, db);
+          await creditFirstRead(user.uid, db, { node: READ_NODES.story, key: slug });
         });
       } catch (e) {}
     })();

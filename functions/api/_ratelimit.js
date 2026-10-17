@@ -116,9 +116,19 @@ function secondsUntilWindowEnd(period, now) {
  *   { scope: 'evalq', period: 'day', id: uid, limit: 200 }
  *   { scope: 'evalq', period: 'day', limit: 1000 }            ← global
  */
+// W49 — A BUCKET KEY RTDB WILL ACCEPT. RTDB keys may not contain . # $ [ ] or /, and an IPv4
+// address is nothing but dots: "203.0.113.7" was refused with a 400, the charge returned null, and
+// the limiter answered "unavailable" — so every /api/hit from an IPv4 address was refused, from the
+// day the per-address caps were added. Production held IPv6 keys and not one IPv4 key across 1,480
+// minute windows (measured 17 Oct 2026). The forbidden characters become '_'; a uid or an IPv6
+// address has none of them, so every key that already worked is unchanged. The caps are not.
+export function bucketKey(id) {
+  return encodeURIComponent(String(id).replace(/[.#$[\]/]/g, '_'));
+}
+
 function bucketPath(env, { scope, period, id }, now) {
   const window = period === 'minute' ? minuteWindow(now) : dayWindow(now);
-  const leaf = id ? encodeURIComponent(id) : '_all';
+  const leaf = id ? bucketKey(id) : '_all';
   return `${dbBase(env)}/${RATE_LIMIT_PATH}/${scope}/${period}/${window}/${leaf}.json`;
 }
 

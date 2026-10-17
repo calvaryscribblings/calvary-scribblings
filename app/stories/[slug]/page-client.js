@@ -6,7 +6,6 @@ import { stories } from '../../lib/stories';
 import { resolveAuthorNames, currentAuthorName } from '../../lib/resolveAuthorNames';
 import { use } from 'react';
 import AuthModal from '../../components/AuthModal';
-import { updateStreak } from '../../lib/streakEngine';
 import { checkAndAwardBadges } from '../../lib/badgeEngine';
 import MentionTextarea from '../../components/MentionTextarea';
 import { notifyMentions } from '../../lib/mentions';
@@ -21,7 +20,8 @@ import AboutTheAuthor from '../../components/AboutTheAuthor';
 import NewsletterInvite from '../../components/NewsletterInvite';
 import AppInvite from '../../components/AppInvite';
 import ReadSeal from '../../components/ReadSeal';
-import { getReaderId } from '../../lib/readerId';
+import { sendReadHit } from '../../lib/readHit';
+import { noteReadingDay, creditFirstRead, READ_NODES } from '../../lib/readCredit';
 import { attachDropcap } from '../../lib/dropcap';
 // Render-time subheading classifier. Applied HERE, in the render, rather than as a DOM pass
 // like attachDropcap — this component is what the static export renders at build time, so
@@ -1068,26 +1068,12 @@ export default function StoryPageClient({ params, initialStory = null }) {
       if (fired) return;
       fired = true;
       cleanup();
-      getReaderId().then((readerId) => {
-        // slug + readerId go in the QUERY STRING (not just the body): the
-        // deployed Pages Function reads slug from the query — a body-only POST
-        // 400s ("Missing slug") and the read count never arrives, leaving the
-        // seal stuck on "—". The body is kept for forward-compat with the
-        // newer handler (which reads query first — "query wins").
-        const qs = `?slug=${encodeURIComponent(slug)}&readerId=${encodeURIComponent(readerId)}`;
-        fetch(`/api/hit${qs}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // `client: 'web'` so this call is ATTRIBUTED. Everything unattributed in
-          // story_clients is read as the un-migrated app fleet (T2, see
-          // functions/api/_telemetry.js) — web traffic landing in that bucket would
-          // make the adoption number read far worse than it is.
-          body: JSON.stringify({ slug, readerId, client: 'web' }),
-        })
-          .then((r) => r.json())
-          .then((data) => { if (typeof data.count === 'number') setHitCount(data.count); })
-          .catch(() => {});
-      });
+      // W49 — after sign-in settles: the ID token when signed in, the device id when not
+      // (app/lib/readHit.js). The server counts one read per reader.
+      getFirebaseAuth()
+        .then((auth) => sendReadHit(slug, auth))
+        .then((data) => { if (typeof data?.count === 'number') setHitCount(data.count); })
+        .catch(() => {});
     };
 
     const checkScroll = () => {
@@ -1136,36 +1122,9 @@ export default function StoryPageClient({ params, initialStory = null }) {
           unsubRead();
           try {
             const db = await getDB();
-            updateStreak(user.uid, db)
-              .then(changed => { if (changed) checkAndAwardBadges(user.uid, db).catch(() => {}); })
-              .catch(() => {});
-            const { ref, get, set, runTransaction, push, update } = await import('firebase/database');
-            const readRef = ref(db, `users/${user.uid}/readStories/${slug}`);
-            const snap = await get(readRef);
-            if (!snap.exists()) {
-              await set(readRef, true);
-              await runTransaction(ref(db, `users/${user.uid}/readCount`), (c) => (c || 0) + 1);
-
-              try {
-                const countSnap = await get(ref(db, `users/${user.uid}/readCount`));
-                const newCount = countSnap.exists() ? countSnap.val() : 1;
-                if (newCount > 0 && newCount % 10 === 0) {
-                  const pointsSnap = await get(ref(db, `points/${user.uid}/total`));
-                  const current = pointsSnap.exists() ? pointsSnap.val() : 0;
-                  await update(ref(db, `points/${user.uid}`), { total: current + 5 });
-                  await push(ref(db, `points/${user.uid}/history`), {
-                    type: 'read', amount: 5,
-                    description: `${newCount} stories read milestone`,
-                    createdAt: Date.now(),
-                  });
-                  await push(ref(db, `library_notifications/${user.uid}`), {
-                    type: 'reward', fromName: 'Calvary Scribblings',
-                    message: `You earned 5 Scribbles — ${newCount} stories read milestone!`,
-                    read: false, createdAt: Date.now(),
-                  });
-                }
-              } catch (e) {}
-            }
+            // W49 — the shared credit (app/lib/readCredit.js), so an instalment credits the same way.
+            noteReadingDay(user.uid, db);
+            await creditFirstRead(user.uid, db, { node: READ_NODES.story, key: slug });
           } catch (e) {}
         });
       } catch (e) {}

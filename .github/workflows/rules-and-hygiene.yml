@@ -74,6 +74,9 @@ on:
       # the whole hygiene set lives and a suite that can only be started by its own workflow is
       # a suite one path filter away from never running.
       - 'tests/reconcile/**'
+      # W49 — the read counters, the seeder and the read credit (test:reads, test:reads:emulator).
+      - 'tests/reads/**'
+      - 'workers-external/**'
       # W5 — the safety browser suite (test:safety, in the rules job).
       - 'tests/safety/**'
       # W17 — the live harnesses tests/ci/w17-live-safety.test.mjs pins: a change to any of them
@@ -145,6 +148,13 @@ jobs:
       - run: npm ci
       - name: Rules assertions — database.rules.json + storage.rules
         run: npm run test:rules
+
+      # W49 — READS, COUNTED ONCE (rulings 176–180). The story counter (functions/api/hit.js) and the
+      # instalment counter (functions/api/series/read.js) run for real against the database emulator,
+      # races included, and so does the one-off seeder with live reads racing it. The client half
+      # (wait for sign-in, never "null") and the shared read credit are pure node.
+      - name: Reads — the counters, the seeder, the credit
+        run: npm run test:reads && npm run test:reads:emulator
 
       # R33.2 — the horizon's decision, asserted without a database. Hermetic and
       # fast, and it sits beside the rules suite because both answer the same

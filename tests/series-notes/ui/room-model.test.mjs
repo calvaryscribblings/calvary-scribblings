@@ -132,3 +132,13 @@ test('authorMark: the Square’s badge inputs for the same reader; Writer for a 
   // No live record (a deleted account): the snapshot is the fallback, as on the Square.
   assert.deepEqual(authorMark(note('gone'), identityOf(asPost(note('gone')), null)), { mark: 'badge', readCount: 1000, isAuthor: false });
 });
+
+// W49 §7 — a writer whose record is gone falls back to the Writer badge, from the snapshot.
+test('asPost: the snapshot’s isAuthor survives a missing record (W48’s open item)', () => {
+  const gone = { uid: 'gone', author: { name: 'Old Writer', badge: 40, isAuthor: true } };
+  const id = identityOf(asPost(gone), null);
+  assert.equal(id.isAuthor, true);
+  assert.deepEqual(authorMark(gone, id), { mark: 'badge', readCount: 40, isAuthor: true });
+  const reader = { uid: 'r', author: { name: 'Reader', badge: 40 } };
+  assert.equal(identityOf(asPost(reader), null).isAuthor, false);
+});

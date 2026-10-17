@@ -1,15 +1,28 @@
 // Story read-counter Pages Function.
 //
-//   POST /api/hit  { slug, readerId }  ->  { count, counted }   (deduped)
-//   POST/GET /api/hit?slug=<slug>      ->  { count }            (back-compat)
+//   POST /api/hit?slug=<slug>
+//     signed in:   Authorization: Bearer <Firebase ID token>      → the ledger key is the uid
+//     signed out:  body { readerId: <device id> } (or ?readerId=) → the ledger key is the device id
+//     neither:     nothing counts
+//   → { count, counted }
 //
-// Replaces the /api/hit endpoint that was removed in the functions/ restructure.
-// The web story/reader pages now fire this behind an engagement gate (not on
-// mount) and pass a readerId so a read counts at most once per (slug, readerId):
-// the ledger at storyReads/{slug}/{readerId} is checked before the counter is
-// bumped. Requests WITHOUT a readerId (old app binaries) keep counting
-// unconditionally — see the back-compat branch below. Callers read { count }
-// (app/stories/[slug]/page-client.js and app/reader/[slug]/page-reader.js).
+// W49, ruling 180: A READ COUNTS ONCE PER READER, and every story keeps the count it has.
+//
+//   · IDENTITY. A signed-in reader is the uid from a VERIFIED ID token, never from the body: a
+//     body uid is just a string anyone can send. The uid is the key the ledger already holds for
+//     readers counted that way, so their existing entries keep deduplicating. A token that does not
+//     verify counts nothing (it does not fall back to the device id, which would be the same reader
+//     counted twice under two keys).
+//   · NO IDENTITY, NO COUNT. The back-compat branch that counted every request without a readerId
+//     is gone. Measured W49 §0 (3–17 Oct): it counted nothing in 14 days. The app's opens went to
+//     the calvary-hit-counter Worker instead, which is now count-only (workers-external/).
+//   · ONE CLAIM. functions/api/_ledger.js: the ledger entry is a conditional PUT, so two hits at
+//     once from one reader count once.
+//   · THE DAY BUCKETS. A counted read also bumps stories/{slug}/hitsByDay/{UTC day}, the buckets
+//     the hit-counter Worker's cron ranks top_stories/weekly from. Only counted reads, so the
+//     weekly list ranks stories by READERS, not opens. This endpoint is now their only writer.
+//
+// Callers: app/lib/readHit.js (the story page and the story reader). Rate limits unchanged.
 //
 // This is a Cloudflare Pages Function (the deployed app is a static `output:'export'`
 // build served from out/, so Next.js Route Handlers do not run as live endpoints —
@@ -18,11 +31,12 @@
 // functions/api/record-attempt.js: a short-lived OAuth token minted from the
 // FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY Pages env vars lets the function
 // write the rules-locked stories node. The increment itself is an atomic RTDB
-// server-side ServerValue increment, so concurrent reads never lose updates —
-// the same guarantee a runTransaction would give on the client SDK.
+// server-side ServerValue increment, so concurrent reads never lose updates.
 
 import { readTelemetry, recordClient } from './_telemetry.js';
 import { consume, limitResponse, clientIp, capFromEnv } from './_ratelimit.js';
+import { claimOnce, bearerOf, utcDayKey } from './_ledger.js';
+import { verifyIdToken } from './bookstore/_lib.js';
 
 const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedatabase.app';
 
@@ -36,8 +50,8 @@ const FB_DB = 'https://calvary-scribblings-default-rtdb.europe-west1.firebasedat
 // documented ceiling is 1,000 writes/second for the whole database, so a flood here does
 // not merely inflate a counter — it takes write capacity away from purchases, sign-ups and
 // comments. The existing readerId ledger is a DEDUPLICATOR, not a limiter: readerId is
-// supplied by the caller, so varying it defeats the ledger entirely, and omitting it takes
-// the back-compat branch that increments unconditionally.
+// supplied by the caller, so varying it defeats the ledger entirely. (Omitting it once took a
+// back-compat branch that incremented unconditionally; W49 removed it.)
 //
 // ── THE DERIVATION ─────────────────────────────────────────────────────────────────────
 //
@@ -172,18 +186,11 @@ async function handle(context) {
   const verdict = await consume(context, HIT_CAPS(env, ip));
   if (!verdict.ok) return limitResponse(verdict);
 
-  // slug + readerId may arrive via query (old app binaries POST ?slug=…, no
-  // body) or as a JSON body { slug, readerId } (current web client). Query wins.
+  // slug may arrive via query or a JSON body; the device id likewise. Query wins.
   let slug = (url.searchParams.get('slug') || '').trim();
   let readerId = (url.searchParams.get('readerId') || '').trim();
   // ── T2: THIS ENDPOINT IS THE DENOMINATOR ───────────────────────────────────
-  // Every client version fires /api/hit on a story open — including the stale
-  // binaries this file's header already describes, which send no body at all. That
-  // is precisely what makes it measurable: a new client identifies itself and an old
-  // one cannot, so the unattributed share IS the un-migrated fleet.
-  //
-  // /api/story can never produce that number on its own; only clients that have
-  // already migrated ever call it. See functions/api/_telemetry.js.
+  // Every web open fires /api/hit, attributed by `client`; see functions/api/_telemetry.js.
   let telemetry = readTelemetry(null);
   if (request.method === 'POST') {
     try {
@@ -194,9 +201,7 @@ async function handle(context) {
         telemetry = readTelemetry(body);
       }
     } catch (e) {
-      // No / non-JSON body — old app binaries send none. Fall through to query, and
-      // leave telemetry empty, which counts this call into the 'unknown' bucket.
-      // That is the intended reading, not a gap.
+      // No / non-JSON body: leave telemetry empty, which counts into the 'unknown' bucket.
     }
   }
 
@@ -205,7 +210,10 @@ async function handle(context) {
   if (slug.length > 200 || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(slug)) {
     return json({ error: 'Invalid slug.' }, 400);
   }
-  // readerId is a Firebase uid or a client UUID — sane charset, ≤64 chars.
+  // W49 — "null" and "undefined" are what a missing id becomes in a query string. Both were real
+  // ledger keys once; neither is a reader.
+  if (readerId === 'null' || readerId === 'undefined') readerId = '';
+  // A device id is a client UUID — sane charset, ≤64 chars.
   if (readerId && (readerId.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(readerId))) {
     return json({ error: 'Invalid readerId.' }, 400);
   }
@@ -248,76 +256,58 @@ async function handle(context) {
     }
     return null;
   };
+  const notCounted = async () => json({ count: await readBackCount(), counted: false });
 
-  // ── Deduped path — one read per (slug, readerId). ─────────────────────────
-  // storyReads/{slug}/{readerId} is the ledger. It is written ONLY by this
-  // function (which holds the DB credential and bypasses rules); clients are
-  // locked out of it (see database.rules.storyReads-fragment.json).
-  if (readerId) {
-    const ledgerPath = `${fbDb}/storyReads/${encodeURIComponent(slug)}/${encodeURIComponent(readerId)}.json`;
-    try {
-      const seenRes = await fetch(ledgerPath, { headers: auth });
-      if (seenRes.ok) {
-        const seen = await seenRes.json();
-        if (seen !== null && seen !== undefined) {
-          // Already counted this reader — return the current total untouched.
-          return json({ count: await readBackCount(), counted: false });
-        }
-      } else {
-        const text = await seenRes.text();
-        console.error('[hit] ledger read failed:', seenRes.status, text.slice(0, 200));
-        return json({ error: 'Failed to check read ledger.' }, 500);
-      }
-    } catch (e) {
-      console.error('[hit] ledger read error:', e.message);
-      return json({ error: 'Failed to check read ledger.' }, 500);
+  // ── WHO IS READING ── the token beats the body ──────────────────────────────
+  let key = null;
+  const idToken = bearerOf(request);
+  if (idToken) {
+    if (!env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+      console.error('[hit] NEXT_PUBLIC_FIREBASE_API_KEY is not set; a signed-in read cannot be verified');
+      return notCounted();
     }
-
-    // First read for this reader: mark the ledger AND bump the counter in one
-    // atomic root PATCH (same shape as functions/api/record-attempt.js).
-    const updates = {
-      [`storyReads/${slug}/${readerId}`]: { '.sv': 'timestamp' },
-      [`stories/${slug}/hits`]: { '.sv': { increment: 1 } },
-    };
-    try {
-      const patchRes = await fetch(`${fbDb}/.json`, {
-        method: 'PATCH',
-        headers: { ...auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      if (!patchRes.ok) {
-        const text = await patchRes.text();
-        console.error('[hit] ledger+increment failed:', patchRes.status, text.slice(0, 200));
-        return json({ error: `Increment failed (${patchRes.status}).` }, 500);
-      }
-    } catch (e) {
-      console.error('[hit] ledger+increment error:', e.message);
-      return json({ error: 'Increment failed.' }, 500);
-    }
-
-    return json({ count: await readBackCount(), counted: true });
+    const uid = await verifyIdToken(idToken, env.NEXT_PUBLIC_FIREBASE_API_KEY).catch(() => null);
+    if (!uid) return notCounted();
+    key = uid;
+  } else if (readerId) {
+    key = readerId;
   }
+  if (!key) return notCounted();
 
-  // ── BACK-COMPAT path — no readerId: count unconditionally (old behavior). ──
-  // TODO(reads-dedupe): remove this branch once the held app OTA has rolled and
-  // every live binary sends a readerId. Until then, old app builds land here.
+  // ── ONE CLAIM per (slug, reader) ────────────────────────────────────────────
+  // storyReads/{slug}/{key} is the ledger, written only here (the admin credential bypasses
+  // the rules). See functions/api/_ledger.js for why this cannot race.
+  let won;
   try {
-    const incRes = await fetch(hitsPath, {
-      method: 'PUT',
+    won = await claimOnce(`${fbDb}/storyReads/${encodeURIComponent(slug)}/${encodeURIComponent(key)}.json`, auth);
+  } catch (e) {
+    console.error('[hit] ledger claim failed:', e.message);
+    return json({ error: 'Failed to check read ledger.' }, 500);
+  }
+  if (!won) return notCounted();
+
+  // The winner, and only the winner, moves the count and today's bucket — in one root PATCH.
+  const updates = {
+    [`stories/${slug}/hits`]: { '.sv': { increment: 1 } },
+    [`stories/${slug}/hitsByDay/${utcDayKey()}`]: { '.sv': { increment: 1 } },
+  };
+  try {
+    const patchRes = await fetch(`${fbDb}/.json`, {
+      method: 'PATCH',
       headers: { ...auth, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ '.sv': { increment: 1 } }),
+      body: JSON.stringify(updates),
     });
-    if (!incRes.ok) {
-      const text = await incRes.text();
-      console.error('[hit] increment failed:', incRes.status, text.slice(0, 200));
-      return json({ error: `Increment failed (${incRes.status}).` }, 500);
+    if (!patchRes.ok) {
+      const text = await patchRes.text();
+      console.error('[hit] increment failed:', patchRes.status, text.slice(0, 200));
+      return json({ error: `Increment failed (${patchRes.status}).` }, 500);
     }
   } catch (e) {
     console.error('[hit] increment error:', e.message);
     return json({ error: 'Increment failed.' }, 500);
   }
 
-  return json({ count: await readBackCount() });
+  return json({ count: await readBackCount(), counted: true });
 }
 
 export async function onRequestGet(context) {

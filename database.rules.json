@@ -271,6 +271,12 @@
         "readStories": {
           ".write": "auth != null && auth.uid == $uid"
         },
+        "readInstalments": {
+          ".write": "auth != null && auth.uid == $uid",
+          "$inst": {
+            ".validate": "newData.isBoolean() && newData.val() === true && $inst.matches(/^[A-Za-z0-9_-]{1,128}$/)"
+          }
+        },
         "readerProgress": {
           ".write": "auth != null && auth.uid == $uid"
         },
@@ -1561,6 +1567,14 @@
           }
         }
       }
+    },
+    "series_reads": {
+      ".read": true,
+      ".write": false
+    },
+    "series_read_ledger": {
+      ".read": false,
+      ".write": false
     },
     "series_margin": {
       "$uid": {

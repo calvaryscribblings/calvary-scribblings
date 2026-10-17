@@ -69,7 +69,7 @@ export async function seed(app, slug, { reader = 'none' } = {}) {
   const { i1, i2, i3 } = ids(slug);
   for (const node of ['series', 'series_instalments', 'series_instalments_detail', 'series_notes_summary', 'series_questions',
     'series_questions_public', 'series_notes', 'series_note_replies', 'series_note_underlines', 'series_side_tallies',
-    'series_room_members', 'series_sides', 'series_finished', 'series_reading_progress', 'series_notes_held', 'series_margin']) {
+    'series_room_members', 'series_sides', 'series_finished', 'series_reading_progress', 'series_notes_held', 'series_margin', 'series_reads']) {
     await db.ref(node).set(null);
   }
   const user = (uid, name, handle) => ({
@@ -126,6 +126,9 @@ export async function seed(app, slug, { reader = 'none' } = {}) {
     [`series_questions_public/${i1}`]: { sit: 'An older question.', publishedAt: now - 9 * DAY },
     [`series_questions_public/${i2}`]: { sit: QUESTIONS.sit, publishedAt: now - DAY },
     [`series_questions_public/${B}-i1`]: { sit: 'What did the lamp see?', publishedAt: now - 5 * DAY },
+    // W49, ruling 177 — the instalments' reads: "1,203 reads" + "1 read" = "1,204 reads" in the hero.
+    [`series_reads/${i1}`]: 1203,
+    [`series_reads/${i2}`]: 1,
     [`series_notes/${i2}`]: notes,
     [`series_note_replies/${i2}`]: replies,
     [`series_note_underlines/${i2}`]: underlines,

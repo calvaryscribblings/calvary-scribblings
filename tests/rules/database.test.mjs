@@ -1683,6 +1683,8 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
     ['photoURL', 'https://x/p.png'], ['platformAvatar', 'https://x/pa.png'],
     ['platforms', { web: true }], ['profile', { a: 1 }], ['readCount', 7],
     ['readStories', { 'a-slug': true }], ['readerProgress', { 'a-slug': { cfi: 'epubcfi(/6/2)' } }],
+    // W49 — the instalment-read credit marker (ruling 179), beside readStories but never in it.
+    ['readInstalments', { 'a-inst': true }],
     ['readerScore', 42], ['scoreUpdatedAt', 1786000000000], ['uid', OWNER],
     ['username', 'areader'],
     // The four the admin UI writes on ANOTHER reader's node — app/admin/authors/page.js:238.
@@ -1728,7 +1730,7 @@ describe('R10.1 · users/$uid — every enumerated field stays writable by its o
       .map(([k]) => k).sort();
     const expected = [...FIELDS, ...FOUNDER_ONLY_FIELDS].map(([f]) => f).sort();
     assert.deepEqual(granted, expected);
-    assert.equal(granted.length, 37);
+    assert.equal(granted.length, 38); // 38 since W49: readInstalments
   });
 
   test('R10.2 · isAuthor — a reader cannot promote themselves into the author collection', async () => {
@@ -3310,6 +3312,7 @@ describe('SIGNUP R1 · users/$uid — the one-object create and the whole-node d
     pendingDeletion: { requestedAt: 1786000000000 }, photoURL: 'https://x/p.png',
     platformAvatar: 'https://x/pa.png', platforms: { ios: true }, profile: { a: 1 },
     readCount: 0, readStories: { 'a-slug': true }, readerProgress: { 'a-slug': { cfi: 'x' } },
+    readInstalments: { 'a-inst': true }, // W49
     readerScore: 0, scoreUpdatedAt: 1786000000000, uid: OWNER, username: 'areader',
     authorBio: 'b', authorPhotoUrl: 'https://x/ap.png', authorRole: 'Contributor',
     authorSocials: { x: 'https://x.com/a' }, storyNotifications: true, mentionNotifications: true,
