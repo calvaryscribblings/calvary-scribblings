@@ -13,6 +13,7 @@ import { READ_DEADLINE_MS, classifyFailure } from '../lib/reliableRead';
 import { useOnline, reconnectDatabase } from '../lib/useReliable';
 import Unavailable from '../components/Unavailable';
 import { isTombstone, announcedPieceOf } from '../lib/deletedContent';
+import { mentionHandles, resolveHandle, matchReaders, replyPrefill } from '../lib/squareHandles';
 
 
 const FB = {
@@ -202,18 +203,16 @@ function MentionDropdown({ query, onSelect }) {
     (async () => {
       const db = await getDB();
       const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, 'users'));
-      if (!snap.exists()) return;
-      const matches = Object.entries(snap.val())
-        .filter(([, u]) => u.username && u.username.toLowerCase().includes(query.toLowerCase()))
-        .slice(0, 5)
-        .map(([uid, u]) => ({ uid, username: u.username, displayName: u.displayName, avatarUrl: u.avatarUrl }));
-      setResults(matches);
+      // W51 — user_search, not the founder-only users root (app/lib/squareHandles.js).
+      try {
+        const snap = await get(ref(db, 'user_search'));
+        setResults(matchReaders(snap.val(), query, { fields: ['username'] }));
+      } catch (e) { console.error('Mention lookup error:', e); setResults([]); }
     })();
   }, [query]);
   if (!results.length) return null;
   return (
-    <div style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: 0, background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 10, overflow: 'hidden', zIndex: 100 }}>
+    <div data-mention-dropdown style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: 0, background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 10, overflow: 'hidden', zIndex: 100 }}>
       {results.map(u => (
         <div key={u.uid} onClick={() => onSelect(u.username)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer' }}
           onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
@@ -595,23 +594,25 @@ function DMPanel({ user, onClose }) {
     (async () => {
       const db = await getDB();
       const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, 'users'));
-      if (!snap.exists()) return;
-      const matches = Object.entries(snap.val())
-        .filter(([uid, u]) => {
-          if (uid === user.uid) return false;
-          const q = newMsgSearch.toLowerCase();
-          return (u.displayName || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q);
-        })
-        .slice(0, 6)
-        .map(([uid, u]) => ({ uid, displayName: u.displayName, username: u.username, avatarUrl: u.avatarUrl }));
-      setNewMsgResults(matches);
+      // W51 — user_search, not the founder-only users root: "+ New" threw for every reader.
+      try {
+        const snap = await get(ref(db, 'user_search'));
+        setNewMsgResults(matchReaders(snap.val(), newMsgSearch, { fields: ['displayName', 'username'], exclude: user.uid, limit: 6 }));
+      } catch (e) { console.error('Message search error:', e); setNewMsgResults([]); }
     })();
   }, [newMsgSearch]);
 
   const startConversation = async (otherUid, otherUser) => {
     const convId = [user.uid, otherUid].sort().join('_');
-    setActiveConv({ convId, otherUid, otherUser });
+    // The search row came from user_search, a stored copy: FIND there, SHOW from users/{uid}.
+    let shown = otherUser;
+    try {
+      const db = await getDB();
+      const { ref, get } = await import('firebase/database');
+      const snap = await get(ref(db, `users/${otherUid}`));
+      if (snap.exists()) { const u = snap.val(); shown = { displayName: u.displayName, username: u.username || u.handle, avatarUrl: u.avatarUrl }; }
+    } catch (e) { console.error('Message recipient lookup error:', e); }
+    setActiveConv({ convId, otherUid, otherUser: shown });
     setShowNewMsg(false); setNewMsgSearch(''); setNewMsgResults([]);
   };
 
@@ -863,6 +864,11 @@ export default function SquarePage() {
   const [replyTo, setReplyTo] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [posting, setPosting] = useState(false);
+  // W51 — the reply box has its own flag; one shared flag let either box stick the other.
+  const [replying, setReplying] = useState(false);
+  const [replyErr, setReplyErr] = useState(false);
+  const postingRef = useRef(false);
+  const replyingRef = useRef(false);
   const [attachedStory, setAttachedStory] = useState(null);
   const [showStoryAttach, setShowStoryAttach] = useState(false);
   const [showDM, setShowDM] = useState(false);
@@ -1076,18 +1082,11 @@ export default function SquarePage() {
   const sendNotifications = async (text, postId, type = 'mention', replyAuthorUid = null) => {
     const db = await getDB();
     const { ref, push, get } = await import('firebase/database');
-    const mentions = [...text.matchAll(/@(\w+)/g)].map(m => m[1]);
-    for (const handle of mentions) {
-      let targetUid = null;
-      const usernameSnap = await get(ref(db, `usernames/${handle}`));
-      if (usernameSnap.exists()) { targetUid = usernameSnap.val(); }
-      else {
-        const usersSnap = await get(ref(db, 'users'));
-        if (usersSnap.exists()) {
-          const entry = Object.entries(usersSnap.val()).find(([, u]) => u.username === handle);
-          if (entry) targetUid = entry[0];
-        }
-      }
+    // W51 — the lowercase index only. The old fallback read the founder-only users root and
+    // threw for every other reader; a handle that does not resolve now simply notifies nobody.
+    const readIndex = async (h) => (await get(ref(db, `usernames/${h}`))).val();
+    for (const handle of mentionHandles(text)) {
+      const targetUid = await resolveHandle(handle, readIndex);
       if (!targetUid || targetUid === user.uid) continue;
       await push(ref(db, `notifications/${targetUid}`), {
         type: 'mention', fromUid: user.uid, fromName: user.displayName || 'Reader',
@@ -1122,63 +1121,108 @@ export default function SquarePage() {
     await set(ref(db, `user_square_posts/${postData.authorUid}/${postId}`), postData);
   };
 
+  // ⚠ W51 — A SAVE THAT SUCCEEDED IS FINISHED THE MOMENT push() RESOLVES.
+  //
+  // The box used to clear only after the mirror write AND the notification fan-out had all
+  // resolved. A mention the index did not hold sent sendNotifications to the founder-only users
+  // root, which threw, so a SAVED post or reply left its box full with no message — and the
+  // reader, pressing again, posted it twice (W50 §2). Now the box clears on the save itself;
+  // the mirror and every notification run after, and their failures are logged, never shown as
+  // a failed post.
+  //
+  // Each box has its own flag AND its own ref. The ref is the guard: two presses inside one task
+  // both see the state flag as false, because React has not re-rendered between them.
+  const afterSave = (key, data, notify) => {
+    (async () => {
+      await mirrorToUserPosts(key, data);
+      await notify();
+    })().catch((e) => console.error('After-save error (the post itself was saved):', e));
+  };
+
   const post = async (pollData = null) => {
     if (!text.trim() && !pollData) return;
-    if (!user) return;
+    if (!user || postingRef.current) return;
     if (!refusalFor(text, { isReply: false }).ok) return;   // R43 — one function, four inputs
+    postingRef.current = true;
     setPosting(true);
+    const body = text.trim();
+    const quoted = quotedPostId;
     try {
       const db = await getDB();
       const { ref, push } = await import('firebase/database');
       const postData = {
-        text: text.trim(), authorUid: user.uid, authorName: user.displayName || 'Reader',
+        text: body, authorUid: user.uid, authorName: user.displayName || 'Reader',
         authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
         authorAvatarUrl: userData?.avatarUrl || null, authorHandle: userData?.username || '', authorReadCount: userData?.readCount || 0,
         isAuthor: userData?.isAuthor || false, attachedStory: attachedStory || null,
         parentId: null, likeCount: 0, pinned: false,
         unpinnedAt: null,
-        quotedPostId: quotedPostId || null,
+        quotedPostId: quoted || null,
         createdAt: Date.now(),
       };
       if (pollData) postData.poll = { ...pollData, votes: {} };
       const newPost = await push(ref(db, 'square_posts'), postData);
-      await mirrorToUserPosts(newPost.key, postData);
-      await sendNotifications(text.trim(), newPost.key, 'post');
-      if (quotedPostId) {
-        const quotedPost = posts.find(p => p.id === quotedPostId);
+      setText(''); setAttachedStory(null); setQuotedPostId(null);
+      afterSave(newPost.key, postData, async () => {
+        await sendNotifications(body, newPost.key, 'post');
+        const quotedPost = quoted ? posts.find(p => p.id === quoted) : null;
         if (quotedPost && quotedPost.authorUid && quotedPost.authorUid !== user.uid) {
           await push(ref(db, `notifications/${quotedPost.authorUid}`), {
             type: 'square_quote', fromUid: user.uid, fromName: user.displayName || 'Reader',
             fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
-            postId: newPost.key, quotedPostId, read: false, createdAt: Date.now(),
+            postId: newPost.key, quotedPostId: quoted, read: false, createdAt: Date.now(),
           });
         }
-      }
-      setText(''); setAttachedStory(null); setQuotedPostId(null);
+      });
     } catch (e) { console.error('Post error:', e); }
+    postingRef.current = false;
     setPosting(false);
   };
 
+  // W51 §2 — a refused or failed reply keeps the reader's words, says "Not sent." and offers
+  // Try again and Remove (the threads canvas's words). Remove only discards the unsent words:
+  // nothing reached the server, so there is nothing to delete.
   const reply = async (parentPost) => {
-    if (!replyText.trim() || !user) return;
+    if (!replyText.trim() || !user || replyingRef.current) return;
     if (!refusalFor(replyText, { isReply: true }).ok) return;   // R33.2 added a check; R43 made it the same check
-    setPosting(true);
+    replyingRef.current = true;
+    setReplying(true); setReplyErr(false);
+    const body = replyText.trim();
     try {
       const db = await getDB();
       const { ref, push } = await import('firebase/database');
       const replyData = {
-        text: replyText.trim(), authorUid: user.uid, authorName: user.displayName || 'Reader',
+        text: body, authorUid: user.uid, authorName: user.displayName || 'Reader',
         authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
         authorAvatarUrl: userData?.avatarUrl || null, authorHandle: userData?.username || '', authorReadCount: userData?.readCount || 0,
         isAuthor: userData?.isAuthor || false, parentId: parentPost.id, likeCount: 0,
         pinned: false, unpinnedAt: null, createdAt: Date.now(),
       };
       const newReply = await push(ref(db, 'square_posts'), replyData);
-      await mirrorToUserPosts(newReply.key, replyData);
-      await sendNotifications(replyText.trim(), newReply.key, 'reply', parentPost.authorUid);
       setReplyText(''); setReplyTo(null);
-    } catch (e) { console.error('Reply error:', e); }
-    setPosting(false);
+      afterSave(newReply.key, replyData, () => sendNotifications(body, newReply.key, 'reply', parentPost.authorUid));
+    } catch (e) {
+      console.error('Reply error:', e);
+      setReplyErr(true);
+    }
+    replyingRef.current = false;
+    setReplying(false);
+  };
+
+  // W51 §3 — INTERIM, until nesting is built. Reply on a reply opens the THREAD's box, prefilled
+  // with "@handle " and focused; the reply posts into the same thread. "Replying to @name" comes
+  // with the rebuild (W50 §4 item 3).
+  const openReply = (rootId, prefill = '') => {
+    setReplyErr(false);
+    if (!prefill) { setReplyTo(replyTo === rootId ? null : rootId); return; }
+    setReplyTo(rootId);
+    setReplyText(prefill);
+    setTimeout(() => {
+      const el = replyTextareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }, 50);
   };
 
   // W13 — optimistic: the state and count flip on the tap, and a failed save restores both
@@ -1368,12 +1412,15 @@ export default function SquarePage() {
   // Called as a FUNCTION, never as a JSX element: declared inside this render, it would be a
   // new component type every render, and React would remount every reaction button on each
   // state change, tearing a burst out mid-flight (W13).
-  const ReactionBar = ({ p, size = 16 }) => {
+  const ReactionBar = ({ p, size = 16, threadId = null }) => {
+    const onReply = threadId && threadId !== p.id
+      ? () => openReply(threadId, replyPrefill(who(p).handle))
+      : () => openReply(p.id);
     const idleColor = 'rgba(245,240,232,0.45)';
     const trailing = (
       <>
         {user && (
-          <button onClick={() => setReplyTo(replyTo === p.id ? null : p.id)}
+          <button onClick={onReply}
             style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
             onMouseLeave={e => e.currentTarget.style.color = idleColor}>
@@ -1682,12 +1729,20 @@ export default function SquarePage() {
                               </div>
                             )}
                             {mentionQueryReply !== '' && <MentionDropdown query={mentionQueryReply} onSelect={insertMentionReply} />}
+                            {replyErr ? (
+                              <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginTop: 6, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
+                                <span style={{ fontSize: '0.8rem', color: '#f87171', marginRight: 'auto' }}>Not sent.</span>
+                                <button onClick={() => { setReplyText(''); setReplyErr(false); setReplyTo(null); }} style={{ background: 'none', border: 'none', color: 'rgba(245,240,232,0.7)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>Remove</button>
+                                <button className="sq-post-btn" onClick={() => reply(p)} disabled={replying || !refusalFor(replyText, { isReply: true }).ok}>{replying ? '…' : 'Try again'}</button>
+                              </div>
+                            ) : (
                             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
                               {/* R43 — the reply BUTTON never checked the cap. The counter
                                   was there and reply() returned silently past 300, so the
                                   button stayed live and clicking it did nothing at all. */}
-                              <button className="sq-post-btn" onClick={() => reply(p)} disabled={posting || !refusalFor(replyText, { isReply: true }).ok}>{posting ? '…' : 'Reply'}</button>
+                              <button className="sq-post-btn" onClick={() => reply(p)} disabled={replying || !refusalFor(replyText, { isReply: true }).ok}>{replying ? '…' : 'Reply'}</button>
                             </div>
+                            )}
                           </div>
                         )}
 
@@ -1730,7 +1785,7 @@ export default function SquarePage() {
                                         {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} who={who} />}
                                       </>
                                     )}
-                                    {!isTombstone(r) && ReactionBar({ p: r, size: 16 })}
+                                    {!isTombstone(r) && ReactionBar({ p: r, size: 16, threadId: p.id })}
                                   </div>
                                 </div>
                               );

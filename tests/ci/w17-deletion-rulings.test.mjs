@@ -65,7 +65,8 @@ describe('ruling 30 · every thread surface draws the tombstone', () => {
       /isTombstone\(p\) \? <div style=\{\{ width: 28, flex: 'none' \}\} \/> : <Avatar/,
       /\{!isTombstone\(quotedPost\) && <div/,
       /\{!isTombstone\(p\) && ReactionBar\(\{ p, size: 16 \}\)\}/,
-      /\{!isTombstone\(r\) && ReactionBar\(\{ p: r, size: 16 \}\)\}/,
+      // W51: the reply's bar also carries its thread (reply on a reply opens the thread's box).
+      /\{!isTombstone\(r\) && ReactionBar\(\{ p: r, size: 16, threadId: p\.id \}\)\}/,
       /surface="feed-post" withdrawn=\{p\.withdrawn === true\} deleted=\{isTombstone\(p\)\}/,
       /surface="feed-reply" withdrawn=\{r\.withdrawn === true\} deleted=\{isTombstone\(r\)\}/,
       /surface="quoted-card" deleted=\{isTombstone\(quotedPost\)\}/,

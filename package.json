@@ -118,7 +118,8 @@
     "test:account": "node --test tests/account/deletion.test.mjs tests/account/web-flow.test.mjs tests/account/private-fields.test.mjs tests/account/rulings-backfill.test.mjs",
     "test:account:emulator": "firebase emulators:exec --only database --project demo-calvary-account \"node --test --test-concurrency=1 tests/account/deletion.emulator.test.mjs\"",
     "test:carry-over:emulator": "firebase emulators:exec --only database --project demo-calvary-carry \"node --test --test-concurrency=1 tests/epub-repair/*.emulator.test.mjs\"",
-    "test:gateway": "next build && playwright test -c tests/gateway/playwright.config.mjs"
+    "test:gateway": "next build && playwright test -c tests/gateway/playwright.config.mjs",
+    "test:square:w51": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w51.config.mjs\""
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
