@@ -44,7 +44,7 @@ import ArchiveLock from '../../../components/ArchiveLock';
 import AuthModal from '../../../components/AuthModal';
 import { SERIES_LOCK_COPY, SERIES_FREE_LOCK_COPY } from '../../../lib/archiveLock';
 import { getInstalmentRow, getSeriesBySlug } from '../../../lib/series/loader';
-import { notesEnabled, LINE_MAX, NOTES_COPY, checkLine } from '../../../lib/series/notes';
+import { notesEnabled, LINE_MAX, NOTES_COPY, checkLine, FROM_COMPOSER, backToNoteHref } from '../../../lib/series/notes';
 import { markFinished, saveMargin } from '../../../lib/series/notesClient';
 import EndSheet from '../../../components/seriesNotes/EndSheet';
 
@@ -68,10 +68,13 @@ const BODY = "Cormorant Garamond, Georgia, serif";
 //   · IN ITS PLACE. /series/read/{inst}?at={cfi}&v={version} opens at that CFI only when v is
 //     the version on screen. A CFI is only trusted in the bytes it was taken in
 //     (docs/reading-position-pin.md); otherwise the reader opens at their own place.
+//   · THE WAY BACK (W48 §1). ?from=notes means the composer's "Choose it in the book" sent the
+//     reader here. Then the notice after "This is my line" carries "Back to your note", to the
+//     room with The line's composer open, and stays until the reader acts (a link must not time out).
 const NOTES_ON = notesEnabled();
 const END_AT = 0.999;
 const LINE_CHIP = Object.freeze({ maxChars: LINE_MAX, label: NOTES_COPY.thisIsMyLine });
-const LINE_SAVED = 'Saved as your line.';
+const LINE_SAVED = NOTES_COPY.lineSaved;
 const LINE_NOT_SAVED = 'Your line wasn’t saved. Please try again.';
 const NOTICE_MS = 3200;
 
@@ -188,6 +191,10 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
       return at ? { at, v: q.get('v') || null } : null;
     } catch { return null; }
   });
+  const [fromComposer] = useState(() => {
+    if (!NOTES_ON || typeof window === 'undefined') return false;
+    try { return new URLSearchParams(window.location.search).get('from') === FROM_COMPOSER; } catch { return false; }
+  });
   const endArmedRef = useRef(true);      // false from raising the sheet until the reader leaves the last page
   const atEndRef = useRef(false);
   const finishedRef = useRef(false);     // series_finished written by this mount
@@ -247,10 +254,11 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
 
   const closeSheet = useCallback(() => setSheetOpen(false), []);
 
-  const notice = useCallback((text) => {
+  // `back` (an href) keeps the notice up: a way back must not time out under the reader's thumb.
+  const notice = useCallback((text, back = null) => {
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    setLineNotice(text);
-    noticeTimer.current = setTimeout(() => setLineNotice(null), NOTICE_MS);
+    setLineNotice({ text, back });
+    noticeTimer.current = back ? null : setTimeout(() => setLineNotice(null), NOTICE_MS);
   }, []);
 
   const handleLineChosen = useCallback(async ({ text, cfi }) => {
@@ -260,12 +268,13 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
     if (!checked.ok) return;
     try {
       await saveMargin(user.uid, instalmentId, checked.line);
-      notice(LINE_SAVED);
+      const slug = ctxRef.current?.slug;
+      notice(LINE_SAVED, fromComposer && slug ? backToNoteHref(slug, instalmentId) : null);
     } catch (e) {
       console.warn('[series-reader] series_margin not written', e);
       notice(LINE_NOT_SAVED);
     }
-  }, [user, epubVersion, instalmentId, notice]);
+  }, [user, epubVersion, instalmentId, notice, fromComposer]);
 
   const notesProps = NOTES_ON ? {
     lineChip: user && epubVersion ? LINE_CHIP : null,
@@ -306,7 +315,14 @@ export default function SeriesReaderClient({ instalmentId, sentinel }) {
         // The room's one quiet word in the book. The live region is always mounted so the
         // notice is announced; the pill wears the Reading Room's own notice styling.
         <div role="status" aria-live="polite" data-line-notice="">
-          {lineNotice && <div className="rr-resume-toast in rr-notice">{lineNotice}</div>}
+          {lineNotice && !lineNotice.back && <div className="rr-resume-toast in rr-notice">{lineNotice.text}</div>}
+          {lineNotice?.back && (
+            <div className="rr-resume-toast in rr-notice" data-line-notice-back=""
+              style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px 0 20px' }}>
+              <span>{lineNotice.text}</span>
+              <a href={lineNotice.back} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 14px', color: '#e8d48a', fontStyle: 'normal', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 4 }}>{NOTES_COPY.backToNote}</a>
+            </div>
+          )}
         </div>
       )}
       {NOTES_ON && sheetOpen && notesCtx && user && (

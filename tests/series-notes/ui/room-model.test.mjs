@@ -3,8 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   lightOpacity, pickInstalment, releasedRows, roomPhase, listOf, underlineCounts, kindCounts, visibleNotes,
-  noteHeading, arrivals, mergeLocal, sealedCounts, seriesTotals, asPost, progressPercent, shareOf,
+  noteHeading, arrivals, mergeLocal, sealedCounts, seriesTotals, asPost, progressPercent, shareOf, authorMark,
 } from '../../../app/components/seriesNotes/roomModel.js';
+import { identityOf } from '../../../app/lib/squareIdentity.js';
 
 const NOW = Date.UTC(2026, 9, 14, 12);
 const DAY = 86_400_000;
@@ -105,4 +106,29 @@ test('progressPercent floors, never shows 100 unfinished; shareOf reads a share'
   assert.equal(progressPercent(0.42), 42);
   assert.equal(shareOf({ a: 58 }, 'a'), 58);
   assert.equal(shareOf({}, 'b'), 0);
+});
+
+// W48 §2 — the author line feeds UserBadge exactly what the Square feeds it for the same reader:
+// the Square's who(p) is identityOf(post, liveRecord), and its badge is
+// <UserBadge readCount={who.readCount} isAuthor={who.isAuthor} />.
+test('authorMark: the Square’s badge inputs for the same reader; Writer for a writer; WRITER for the series’ writer', () => {
+  const squarePost = (uid, stale) => ({ authorUid: uid, authorName: 'Old', authorReadCount: stale, isAuthor: false });
+  const note = (uid, extra = {}) => ({ uid, author: { name: 'Old', badge: 1000 }, ...extra });
+  const LIVE = {
+    reader: { displayName: 'Ada', readCount: 30 },
+    islander: { displayName: 'Ben', readCount: 120 },
+    writer: { displayName: 'Dee', readCount: 40, isAuthor: true },
+  };
+  for (const [uid, rec] of Object.entries(LIVE)) {
+    const square = identityOf(squarePost(uid, 1000), rec);
+    const room = authorMark(note(uid), identityOf(asPost(note(uid)), rec));
+    assert.deepEqual(room, { mark: 'badge', readCount: square.readCount, isAuthor: square.isAuthor }, uid);
+  }
+  assert.equal(authorMark(note('reader'), identityOf(asPost(note('reader')), LIVE.reader)).readCount, 30, 'the live count, not the snapshot');
+  assert.equal(authorMark(note('writer'), identityOf(asPost(note('writer')), LIVE.writer)).isAuthor, true, 'a writer: the Writer badge');
+  // The series' own writer (note.writer, set by the endpoint) keeps the mark, live record or not.
+  assert.deepEqual(authorMark(note('w', { writer: true }), identityOf(asPost(note('w', { writer: true })), LIVE.writer)), { mark: 'writer' });
+  assert.deepEqual(authorMark(note('w', { writer: true }), identityOf(asPost(note('w', { writer: true })), null)), { mark: 'writer' });
+  // No live record (a deleted account): the snapshot is the fallback, as on the Square.
+  assert.deepEqual(authorMark(note('gone'), identityOf(asPost(note('gone')), null)), { mark: 'badge', readCount: 1000, isAuthor: false });
 });

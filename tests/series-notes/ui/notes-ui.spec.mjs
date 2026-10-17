@@ -11,7 +11,8 @@
 //     recorder sees every listen/get frame the page sends the emulator.
 // See fixture.mjs for what is seeded and the endpoint stand-in.
 import { test, expect } from '@playwright/test';
-import { adminApp, closeApp, borrowSlug, ids, seed, fence, recordPaths, gatedOf, signIn } from './fixture.mjs';
+import { getDatabase } from 'firebase-admin/database';
+import { adminApp, closeApp, borrowSlug, ids, seed, fence, recordPaths, gatedOf, signIn, READER } from './fixture.mjs';
 
 const SHOTS = new URL('../../../test-results/series-notes-ui/', import.meta.url).pathname;
 const WIDTHS = [390, 834, 1280];
@@ -204,12 +205,19 @@ test.describe('the room', () => {
     const n4 = page.locator('[data-note="n4"]');
     await expect(n4.locator('blockquote')).toHaveText('The river keeps what the city forgets.');
     await expect(n4.getByRole('link', { name: 'Read it in its place' })).toHaveAttribute('href', /\/series\/read\/.+\?at=epubcfi.+&v=17/);
-    await expect(n4.locator('[data-underline]')).toHaveText('Underlined');
-    // Underline n1: "Underline · 3" becomes "Underlined", and the emulator holds it.
+    // W48 §3 — once underlined it reads "Underlined · n", as on the approved canvas.
+    await expect(n4.locator('[data-underline]')).toHaveText('Underlined · 2');
+    // Underline n1: "Underline · 3" becomes "Underlined · 4", and the emulator holds it.
     const n1 = page.locator('[data-note="n1"]');
     await expect(n1.locator('[data-underline]')).toHaveText('Underline · 3');
     await n1.locator('[data-underline]').click();
-    await expect(n1.locator('[data-underline]')).toHaveText('Underlined');
+    await expect(n1.locator('[data-underline]')).toHaveText('Underlined · 4');
+    await expect(n1.locator('[data-underline] span')).toHaveCSS('text-decoration-line', 'underline');
+    await expect.poll(async () => (await getDatabase(app).ref(`series_note_underlines/${I.i2}/n1/${READER}`).get()).val()).toBe(true);
+    await n1.locator('[data-underline]').click();
+    await expect(n1.locator('[data-underline]')).toHaveText('Underline · 3');
+    await n1.locator('[data-underline]').click();
+    await expect(n1.locator('[data-underline]')).toHaveText('Underlined · 4');
     // Replies: oldest first, two shown, the rest folded.
     await expect(n1.locator('[data-reply]')).toHaveCount(2);
     await expect(n1).toContainText('Replying to @ben');
@@ -277,7 +285,7 @@ test.describe('the room', () => {
     await page.goto(`/series/${slug}/notes?i=${I.i2}&q=line`);
     const line = page.locator('[data-room="line"]');
     await expect(line).toBeVisible({ timeout: 90000 });
-    const ranked = line.locator('li');
+    const ranked = line.locator('li[data-line-rank]');
     await expect(ranked).toHaveCount(2);
     await expect(ranked.first()).toContainText('The river keeps what the city forgets.');
     await expect(ranked.first().locator('[data-most-chosen]')).toHaveText('Most chosen');
@@ -362,6 +370,174 @@ test.describe('the composer', () => {
     await expect(failed.getByRole('button', { name: 'Try again' })).toBeVisible();
     await failed.getByRole('button', { name: 'Remove' }).click();
     await expect(page.locator('[data-notes] article[data-local]')).toHaveCount(0);
+  });
+});
+
+// ── W48 ────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Every author line inside `scope`: the badge sits on the name's line when name + badge fit the
+ * line's width, and wraps beneath the name when they don't; nothing pokes past its card.
+ */
+async function authorLines(page, scope, w) {
+  const bad = await page.evaluate((sel) => {
+    const out = [];
+    for (const who of document.querySelectorAll(`${sel} [data-author]`)) {
+      const line = who.lastElementChild;
+      const name = line.firstElementChild.getBoundingClientRect();
+      const mark = line.querySelector('[data-badge], [data-writer-mark]');
+      const card = who.closest('.sn-card').getBoundingClientRect();
+      const box = line.getBoundingClientRect();
+      // The room clips horizontal overflow (overflow-x: clip), so scrollWidth alone cannot see a
+      // card wider than the screen. Measure the card against the viewport too.
+      if (card.right > document.documentElement.clientWidth + 0.5) out.push(`${who.dataset.author}: card ${Math.round(card.width)}px overflows the ${document.documentElement.clientWidth}px viewport`);
+      if (box.right > card.right + 0.5) out.push(`${who.dataset.author}: line overflows its card`);
+      if (!mark) continue;
+      const m = mark.getBoundingClientRect();
+      if (m.right > card.right + 0.5) out.push(`${who.dataset.author}: badge overflows its card`);
+      const fits = name.width + 8 + m.width <= box.width + 0.5;
+      const same = Math.abs((m.top + m.bottom) / 2 - (name.top + name.bottom) / 2) < name.height / 2;
+      if (fits && !same) out.push(`${who.dataset.author}: fits but wrapped`);
+      if (!fits && m.top < name.bottom - 2) out.push(`${who.dataset.author}: does not fit yet overlaps the name`);
+    }
+    return out;
+  }, scope);
+  expect(bad, `author lines at ${w}px`).toEqual([]);
+}
+
+test.describe('W48 · the badge follows the reader', () => {
+  // The Square draws <UserBadge readCount={identity.readCount} isAuthor={identity.isAuthor} />
+  // from the LIVE record (squareIdentity). The fixture's stored snapshots all claim 1000 reads, so
+  // each expectation below is reachable only from the live record — what the Square shows.
+  const TITLE = { reader: 'Reader', island: 'Island Reader', legend: 'Legend of the Island', immortal: 'Immortal of the Island', writer: 'Writer' };
+  const expectBadge = async (who, tier) => {
+    await expect(who.locator('[data-badge]')).toHaveAttribute('data-badge', tier);
+    await expect(who.locator('[data-badge]')).toHaveText(TITLE[tier]);
+    await expect(who.locator('[data-writer-mark]')).toHaveCount(0);
+  };
+
+  test('a note, a reply, Why they chose and the line view draw the Square’s badge; the series’ writer keeps WRITER', async ({ page }) => {
+    await seed(app, slug, { reader: 'member' });
+    await fence(page, app);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/series/${slug}/notes?i=${I.i2}`);
+    await signIn(page, app);
+    await expect(page.locator('[data-room="open"]')).toBeVisible({ timeout: 90000 });
+    // A note.
+    await expectBadge(page.locator('[data-note="n1"] > [data-author]'), 'reader');
+    await expectBadge(page.locator('[data-note="h1"] > [data-author]'), 'immortal');
+    // A writer who is not this series' writer: the Square's Writer badge, and the writer's ring.
+    await expectBadge(page.locator('[data-note="n5"] > [data-author]'), 'writer');
+    // The series' own writer: the WRITER mark in place of the badge (ruling 163).
+    const nw = page.locator('[data-note="nw"] > [data-author]');
+    await expect(nw.locator('[data-writer-mark]')).toHaveText('WRITER');
+    await expect(nw.locator('[data-badge]')).toHaveCount(0);
+    // A reply.
+    const n1 = page.locator('[data-note="n1"]');
+    await expectBadge(n1.locator('[data-reply]').first().locator('[data-author]'), 'island');
+    await expectBadge(n1.locator('[data-reply]').nth(1).locator('[data-author]'), 'legend');
+    for (const w of WIDTHS) {
+      await page.setViewportSize({ width: w, height: 1000 });
+      await page.waitForTimeout(250);
+      await noHorizontalScroll(page);
+      await authorLines(page, '[data-notes]', w);
+      await shot(page, `w48-badges-open-${w}`);
+    }
+
+    // Take a side's "Why they chose".
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/series/${slug}/notes?i=${I.i2}&q=side`);
+    const side = page.locator('[data-room="side"]');
+    await expect(side).toBeVisible({ timeout: 90000 });
+    await expectBadge(side.locator('[data-note="n2"] > [data-author]'), 'island');
+    await side.getByRole('tab', { name: 'Duty' }).click();
+    await expectBadge(side.locator('[data-note="n3"] > [data-author]'), 'legend');
+    for (const w of WIDTHS) {
+      await page.setViewportSize({ width: w, height: 900 });
+      await page.waitForTimeout(200);
+      await noHorizontalScroll(page);
+      await authorLines(page, '[data-room="side"]', w);
+      await shot(page, `w48-badges-side-${w}`);
+    }
+
+    // The line's view: the readers who chose each line.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/series/${slug}/notes?i=${I.i2}&q=line`);
+    const line = page.locator('[data-room="line"]');
+    await expect(line).toBeVisible({ timeout: 90000 });
+    const first = line.locator('li[data-line-rank]').first().locator('[data-line-readers] [data-author]');
+    await expect(first).toHaveCount(2);
+    await expectBadge(line.locator('[data-author="w46-ui-ada"]'), 'reader');
+    await expectBadge(line.locator('[data-author="w46-ui-dee"]'), 'writer');
+    await expectBadge(line.locator('[data-author="w46-ui-ben"]'), 'island');
+    await targets(page, '.sn-room');
+    for (const w of WIDTHS) {
+      await page.setViewportSize({ width: w, height: 900 });
+      await page.waitForTimeout(200);
+      await noHorizontalScroll(page);
+      await authorLines(page, '[data-room="line"]', w);
+      await shot(page, `w48-badges-line-${w}`);
+    }
+  });
+});
+
+test.describe('W48 · The line with an empty margin (ruling 175)', () => {
+  const LINE = { text: 'The river keeps what the city forgets.', cfi: 'epubcfi(/6/4!/4/2/1:0)', epubVersion: '17' };
+
+  test('guidance, the way to the book, Post dimmed; back with a line it posts the line and the draft', async ({ page }) => {
+    await seed(app, slug, { reader: 'member' });
+    const db = getDatabase(app);
+    await db.ref(`series_margin/${READER}/${I.i2}`).set(null);
+    const calls = await fence(page, app);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/series/${slug}/notes?i=${I.i2}`);
+    await signIn(page, app);
+    await expect(page.locator('[data-room="open"]')).toBeVisible({ timeout: 90000 });
+    await page.locator('[data-composer-bar]').click();
+    const sheet = page.locator('[data-composer]');
+    await sheet.locator('[data-choice="THE LINE"]').click();
+    const first = sheet.locator('[data-line-first]');
+    await expect(first).toHaveText('Choose your line in the book first: press on it and tap “This is my line”.');
+    const field = sheet.getByRole('textbox');
+    const guide = await first.boundingBox();
+    const fieldBox = await field.boundingBox();
+    expect(guide.y + guide.height, 'the guidance sits above the field').toBeLessThanOrEqual(fieldBox.y + 1);
+    const go = sheet.getByRole('link', { name: 'Choose it in the book' });
+    await expect(go).toHaveAttribute('href', `/series/read/${encodeURIComponent(I.i2)}?from=notes`);
+    expect((await go.boundingBox()).y, 'the button sits beneath the field').toBeGreaterThan(fieldBox.y + fieldBox.height);
+    await expect(sheet.getByRole('button', { name: /Add a line from/ })).toHaveCount(0);
+    await field.fill('I carried the ferry one.');
+    const post = sheet.getByRole('button', { name: 'Post' });
+    await expect(post, 'no line, no Post').toBeDisabled();
+    await expect(post).toHaveCSS('opacity', '0.5');
+    await targets(page, '[data-composer]');
+    for (const w of WIDTHS) { await page.setViewportSize({ width: w, height: 900 }); await page.waitForTimeout(200); await noHorizontalScroll(page); await shot(page, `w48-line-first-${w}`); }
+    await post.click({ force: true });
+    expect(calls.filter((c) => c.action === 'note'), 'nothing was sent').toEqual([]);
+
+    // "Choose it in the book" → "This is my line" saves the margin (the reader suite proves that
+    // half) → "Back to your note" lands on ?compose=line. Stand in for the book's write here.
+    await page.keyboard.press('Escape');
+    await db.ref(`series_margin/${READER}/${I.i2}`).set({ ...LINE, savedAt: Date.now() });
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/series/${slug}/notes?i=${I.i2}&compose=line`);
+    const back = page.locator('[data-composer] [data-field-kind="line"]');
+    await expect(back, 'The line’s composer opens by itself').toBeVisible({ timeout: 90000 });
+    await expect(back.getByRole('button', { name: 'Add a line from Instalment II' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(back.locator('blockquote')).toHaveText(LINE.text);
+    await expect(back.getByRole('textbox'), 'the draft is kept').toHaveValue('I carried the ferry one.');
+    await expect(back.locator('[data-line-first]')).toHaveCount(0);
+    await expect(back.locator('[data-choose-in-book]')).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.location.search), 'the parameter is dropped').not.toContain('compose');
+    await shot(page, 'w48-line-back-390');
+    await back.getByRole('button', { name: 'Post' }).click();
+    await expect.poll(() => calls.filter((c) => c.action === 'note').length).toBe(1);
+    expect(calls.at(-1)).toMatchObject({ action: 'note', kind: 'line', text: 'I carried the ferry one.', line: LINE });
+    // A reload does not reopen it.
+    await page.reload();
+    await expect(page.locator('[data-room="open"]')).toBeVisible({ timeout: 90000 });
+    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-composer]')).toHaveCount(0);
   });
 });
 

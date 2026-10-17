@@ -171,6 +171,17 @@ export function asPost(note) {
   };
 }
 
+/**
+ * W48 §2 — what follows the name on a note's or a reply's author line. The series' own writer, on
+ * their own series, keeps the room's WRITER mark (ruling 163). Everyone else gets the Square's
+ * UserBadge, fed exactly what the Square feeds it: the identity's live read count and its own
+ * isAuthor, so a writer shows the Square's Writer badge here too. `id` is identityOf()'s result.
+ */
+export function authorMark(note, id) {
+  if (note?.writer === true) return { mark: 'writer' };
+  return { mark: 'badge', readCount: id?.readCount || 0, isAuthor: id?.isAuthor === true };
+}
+
 /** The progress rule's percent: floored, never 100 while unfinished (the house bar's rule). */
 export function progressPercent(fraction) {
   const f = Number(fraction);

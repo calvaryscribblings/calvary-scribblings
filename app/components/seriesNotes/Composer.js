@@ -17,9 +17,13 @@
 // The field is Cormorant at 20px (the house allows it: every field is 16px or more on touch).
 // Drafts are kept per question on the device (loadDraft/saveDraft). The counter shows only
 // near the limit. "Add a line from {N}" appears when the reader's margin holds one.
+//
+// W48 §1, ruling 175 — when it holds none, The line says how to choose one ("Choose your line in
+// the book first…") and gives the way there ("Choose it in the book"), and Post stays dimmed. The
+// draft is already on the device; the reader's "Back to your note" returns here with it.
 import { useEffect, useRef, useState } from 'react';
 import {
-  NOTES_COPY, NOTE_MAX, COUNTER_FROM, QUESTION_LABEL, instName, sideOptions, notesEnabled, NOTES_ERRORS,
+  NOTES_COPY, NOTE_MAX, COUNTER_FROM, QUESTION_LABEL, instName, sideOptions, notesEnabled, NOTES_ERRORS, chooseLineHref,
 } from '../../lib/series/notes';
 import { notesAction, loadDraft, saveDraft, readMargin } from '../../lib/series/notesClient';
 import { C, DISPLAY, NOTES_CSS, labelStyle, questionStyle } from './tokens';
@@ -86,6 +90,7 @@ export default function Composer({ open, inst, ordinal, slug, questions = null, 
   const [text, setText] = useState('');
   const [side, setSide] = useState(mySide);
   const [margin, setMargin] = useState(null);
+  const [marginRead, setMarginRead] = useState(false); // the guidance waits for the read, so it never flashes
   const [attach, setAttach] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
@@ -113,11 +118,13 @@ export default function Composer({ open, inst, ordinal, slug, questions = null, 
   useEffect(() => {
     if (!open || !user?.uid || !inst) return undefined;
     let live = true;
+    setMarginRead(false);
     readMargin(user.uid, inst).then((m) => {
       if (!live) return;
       const ok = m && typeof m.text === 'string' && m.text && m.cfi && m.epubVersion;
       setMargin(ok ? { text: m.text, cfi: m.cfi, epubVersion: m.epubVersion } : null);
       setAttach(!!ok);
+      setMarginRead(true);
     });
     return () => { live = false; };
   }, [open, user?.uid, inst]);
@@ -222,6 +229,10 @@ export default function Composer({ open, inst, ordinal, slug, questions = null, 
               </div>
             )}
 
+            {kind === 'line' && !margin && marginRead && (
+              <p data-line-first style={{ fontFamily: DISPLAY, fontSize: 17, lineHeight: 1.45, color: C.muted, margin: '0 0 10px' }}>{NOTES_COPY.lineFirst}</p>
+            )}
+
             {kind === 'line' && margin && (
               <div style={{ marginBottom: 10 }}>
                 <button type="button" className="sn-text" aria-pressed={attach} onClick={() => setAttach((a) => !a)} style={{ color: attach ? C.goldTint : C.link, padding: 0 }}>
@@ -249,6 +260,11 @@ export default function Composer({ open, inst, ordinal, slug, questions = null, 
                 <span data-counter style={{ fontFamily: DISPLAY, fontSize: 15, color: len > NOTE_MAX ? '#fda4af' : C.quiet }}>{len} / {NOTE_MAX}</span>
               )}
             </div>
+            {kind === 'line' && !margin && marginRead && (
+              // A plain link: the reader opens at the reader's own place, and the draft is saved.
+              <a href={chooseLineHref(inst)} className="sn-btn sn-secondary" data-choose-in-book style={{ marginTop: 12 }}
+                onClick={() => saveDraft(inst, kind, text)}>{NOTES_COPY.chooseInBook}</a>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
               <button type="button" className="sn-btn sn-primary" disabled={!canPost} onClick={submit} aria-busy={busy}>{NOTES_COPY.post}</button>
             </div>

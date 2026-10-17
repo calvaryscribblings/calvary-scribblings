@@ -106,7 +106,9 @@ export function getBadge(readCount) {
 // the author ring when isAuthor is set.
 const COMMENT_DIMS = { xs: { dim: 26, font: 9 }, sm: { dim: 34, font: 11 }, md: { dim: 36, font: 12 } };
 
-export function Avatar({ variant = 'square', uid, initials, avatarUrl, size, isAuthor = false, isOwn = false }) {
+// `link={false}` draws the same square avatar as a span: for a small avatar beside a name that
+// already says who it is, so no link target falls under 44px (Readers' Notes replies, W48).
+export function Avatar({ variant = 'square', uid, initials, avatarUrl, size, isAuthor = false, isOwn = false, link = true }) {
   const selfFetch = variant === 'comment';
   const [fetched, setFetched] = useState(null);
   useEffect(() => {
@@ -141,8 +143,9 @@ export function Avatar({ variant = 'square', uid, initials, avatarUrl, size, isA
   }
 
   const dim = size || 36;
+  const Tag = link ? 'a' : 'span';
   return (
-    <a href={`/user?id=${uid}`} style={{
+    <Tag href={link ? `/user?id=${uid}` : undefined} aria-hidden={link ? undefined : 'true'} style={{
       width: dim, height: dim, borderRadius: '50%', flexShrink: 0,
       background: isAuthor ? AVATAR_BG_AUTHOR : AVATAR_BG_SQUARE,
       border: isAuthor ? `1.5px solid ${AVATAR_BORDER_AUTHOR}` : `1.5px solid ${AVATAR_BORDER_SQUARE}`,
@@ -151,7 +154,7 @@ export function Avatar({ variant = 'square', uid, initials, avatarUrl, size, isA
       overflow: 'hidden', textDecoration: 'none', fontFamily: FONT,
     }}>
       {photo ? <img src={photo} alt={initials} style={IMG} /> : initials}
-    </a>
+    </Tag>
   );
 }
 
@@ -172,7 +175,7 @@ export function BadgeIcon({ color, size = 13, isFounder = false }) {
 
 export function WriterBadge({ size = 13 }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+    <span data-badge="writer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
         <path fill="#581c87" d={BADGE_SVG_PATH} />
         <path fill="#e9d5ff" d={CHECK_PATH} />
@@ -187,7 +190,7 @@ export function WriterBadge({ size = 13 }) {
 
 function BadgeLabel({ tier, label, color, size, labelSize, gap }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap }}>
+    <span data-badge={tier} style={{ display: 'inline-flex', alignItems: 'center', gap }}>
       <BadgeIcon color={color} size={size} isFounder={tier === 'founder'} />
       <span style={{ fontSize: labelSize, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: tier === 'founder' ? '#c8daea' : color, fontFamily: FONT, whiteSpace: 'nowrap' }}>{label}</span>
     </span>

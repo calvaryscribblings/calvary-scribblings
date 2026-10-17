@@ -156,7 +156,8 @@ export const NOTES_COPY = Object.freeze({
   readInPlace: 'Read it in its place',
   writerMark: 'WRITER',
   underline: (n) => `Underline · ${n}`,
-  underlined: 'Underlined',
+  // W48 §3 — the approved canvas keeps the count once you've underlined ("Underlined · 24").
+  underlined: (n) => `Underlined · ${n}`,
   reply: 'Reply',
   copyLink: 'Copy link',
   report: 'Report',
@@ -186,9 +187,15 @@ export const NOTES_COPY = Object.freeze({
   chooseAgain: 'Choose again',
   notNow: 'Not now',
   thisIsMyLine: 'This is my line',
+  // W48 §1 — the notice after "This is my line", and its way back to the composer.
+  lineSaved: 'Saved as your line.',
+  backToNote: 'Back to your note',
   // §6 — writing
   whatAbout: 'What would you like to write about?',
   addLine: (N) => `Add a line from ${N}`,
+  // W48 §1, ruling 175 — The line with an empty margin: how to choose one, and the way there.
+  lineFirst: 'Choose your line in the book first: press on it and tap “This is my line”.',
+  chooseInBook: 'Choose it in the book',
   onlyFinishers: (N) => `Only readers who’ve finished ${N} will see this.`,
   post: 'Post',
   waitingReview: 'Waiting for a quick review',
@@ -565,6 +572,14 @@ export const roomHref = (slug, inst, extra = {}) => {
   const q = new URLSearchParams({ i: inst, ...extra });
   return `/series/${slug}/notes?${q.toString()}`;
 };
+// W48 §1 — THE WAY TO THE BOOK AND BACK. "Choose it in the book" opens the instalment at the
+// reader's own place (no ?at=), marked as coming from the composer; "Back to your note" returns to
+// the room with The line's composer open. The draft travels on the device (saveDraft), the line in
+// series_margin, so neither rides in the URL.
+export const FROM_COMPOSER = 'notes';
+export const COMPOSE_LINE = 'line';
+export const chooseLineHref = (inst) => `/series/read/${encodeURIComponent(inst)}?from=${FROM_COMPOSER}`;
+export const backToNoteHref = (slug, inst) => roomHref(slug, inst, { compose: COMPOSE_LINE });
 /** "Read it in its place": the reader, opened at the line. */
 export const lineHref = (inst, line) => `/series/read/${encodeURIComponent(inst)}?at=${encodeURIComponent(line?.cfi || '')}${line?.epubVersion ? `&v=${encodeURIComponent(line.epubVersion)}` : ''}`;
 

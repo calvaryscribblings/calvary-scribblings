@@ -512,3 +512,15 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - **164:** the admin drafts the three questions from the text; the editor edits and publishes.
 - **165:** one reaction, Underline.
 - **166:** notes are AI-checked as they're posted; flagged ones wait for review.
+
+## 17 Oct 2026 (Ikenna): Readers' Notes, launch-morning fixes (W48)
+
+- **175:** on The line, with no line chosen yet, the composer says how to choose one and offers
+  the way to the book. Approved as written:
+  - `NOTES_COPY.lineFirst`: Choose your line in the book first: press on it and tap “This is my line”.
+  - `NOTES_COPY.chooseInBook`: Choose it in the book
+  - `NOTES_COPY.backToNote`: Back to your note (carried by the notice after "This is my line"
+    when the reader came from the composer)
+- `NOTES_COPY.lineSaved`: Saved as your line. (the W46 notice, moved into `NOTES_COPY` so the
+  app's parity test sees it; the words are unchanged)
+- `NOTES_COPY.underlined(n)`: Underlined · {n}, as on the approved canvas (it was "Underlined").

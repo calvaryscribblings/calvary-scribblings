@@ -181,3 +181,30 @@ These are charged through `functions/api/_ratelimit.js` (fixed windows, fail clo
 - "Read it in its place" on the web is `/series/read/{inst}?at={cfi}&v={epubVersion}`. A line
   whose `epubVersion` is not the current file's opens at the reader's own place instead, because
   a CFI is only trusted in the bytes it was taken in (`docs/reading-position-pin.md`).
+
+## W48: launch-morning fixes (17 Oct 2026)
+
+- **The line with an empty margin (ruling 175).** When `series_margin/{uid}/{inst}` holds no line,
+  the composer on The line shows `NOTES_COPY.lineFirst` above the field and a `chooseInBook`
+  button beneath it, and Post stays visibly disabled until a line is attached. The button opens
+  `/series/read/{inst}?from=notes` (`chooseLineHref`), which is the reader's own place with no `?at=`. The
+  draft stays on the device, per question, as before. Once the margin holds a line, the composer
+  behaves as it did in W46. The endpoint is unchanged: a line note still needs its line.
+- **The way back.** With `?from=notes`, the notice after "This is my line" is
+  `lineSaved` + a `backToNote` link to `/series/{slug}/notes?i={inst}&compose=line`
+  (`backToNoteHref`). The notice stays up, because a link must not time out. The room opens The
+  line's composer once when it sees `?compose=line`, with the new line attached and the draft in
+  the field, then drops the parameter.
+- **The author line is the Square's.** It has the same Avatar (the writer's ring comes from the
+  identity's own `isAuthor`), the name, and `UserBadge` with the live `readCount` and `isAuthor`.
+  The badge and its title follow the reader into the room, and a writer shows the Writer badge.
+  This applies to notes, replies, "Why they chose", and the line view. The line view now lists,
+  under each line, the readers who chose it. The series' own writer keeps the WRITER mark
+  (ruling 163) in place of the badge (`authorMark` in roomModel.js). Identities still come from
+  `squareIdentity`, with the stored snapshot as the fallback. The snapshot carries no `isAuthor`,
+  so a deleted writer's old notes fall back to a reader's badge.
+- **"Underlined · n".** Once underlined, the button reads `underlined(n)`, as on the approved
+  canvas.
+
+For the app: mirror all four. The strings are in `NOTES_COPY` (`lineFirst`, `chooseInBook`,
+`lineSaved`, `backToNote`, `underlined(n)`). In the app the disabled Post must also *look* disabled.

@@ -9,31 +9,28 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NOTES_COPY, NOTE_FOLD_LINES, REPLY_MAX, foldReplies, lineHref } from '../../lib/series/notes';
 import { identityOf } from '../../lib/squareIdentity';
 import { Avatar, UserBadge, timeAgo } from '../conversation/ConversationKit';
-import { C, DISPLAY, LABEL, labelStyle, questionStyle } from './tokens';
+import { C, DISPLAY, labelStyle, questionStyle } from './tokens';
 import { MoreIcon, QuoteMark } from './Parts';
-import { asPost } from './roomModel';
+import { asPost, authorMark } from './roomModel';
 
 const useIsoLayout = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
-// The note's avatar is the Square's (a 44px link to the reader's page, a full target). A reply's
-// is smaller and is not a link — the name beside it says who it is — so no target falls under 44px.
-function Who({ note, identities, size = 44 }) {
+// THE AUTHOR LINE (W48 §2) is the Square's: its Avatar (the writer's ring from the identity's own
+// isAuthor), the name, and UserBadge with the live read count and isAuthor, so the island badge and
+// title, or the Writer badge, follow the reader into the room. The series' own writer keeps the
+// WRITER mark instead (authorMark). The note's avatar is a 44px link to the reader's page, a full
+// target; a reply's is smaller and not a link — the name beside it says who it is.
+export function Who({ note, identities, size = 44 }) {
   const id = identityOf(asPost(note), identities?.get?.(note.uid));
+  const m = authorMark(note, id);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-      {size >= 44
-        ? <Avatar uid={note.uid} initials={id.initials} avatarUrl={id.avatarUrl} size={size} isAuthor={note.writer === true} />
-        : (
-          <span aria-hidden="true" style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            background: id.avatarUrl ? `center/cover no-repeat url(${JSON.stringify(id.avatarUrl)})` : '#2a1d47', fontFamily: LABEL, fontSize: size * 0.36, color: C.cream }}>
-            {id.avatarUrl ? null : id.initials}
-          </span>
-        )}
+    <div data-author={note.uid} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+      <Avatar uid={note.uid} initials={id.initials} avatarUrl={id.avatarUrl} size={size} isAuthor={id.isAuthor || note.writer === true} link={size >= 44} />
       <div style={{ minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px 8px' }}>
-        <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 17, color: C.cream }}>{id.displayName}</span>
-        {note.writer === true
+        <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 17, color: C.cream, overflowWrap: 'anywhere' }}>{id.displayName}</span>
+        {m.mark === 'writer'
           ? <span data-writer-mark style={{ ...labelStyle(C.goldTint, 9), border: '1px solid rgba(201,168,76,0.5)', borderRadius: 999, padding: '2px 8px' }}>{NOTES_COPY.writerMark}</span>
-          : <UserBadge readCount={id.readCount} isAuthor={false} />}
+          : <UserBadge uid={note.uid} readCount={m.readCount} isAuthor={m.isAuthor} />}
         {note.createdAt > 0 && <span style={{ fontFamily: DISPLAY, fontSize: 14, color: C.quiet }}>{timeAgo(note.createdAt)}</span>}
       </div>
     </div>
@@ -202,7 +199,7 @@ export default function NoteCard({
             <button type="button" className="sn-text" aria-pressed={underlined} onClick={onUnderline} data-underline={underlined ? 'mine' : 'none'}
               style={{ paddingLeft: 0, color: underlined ? C.goldTint : C.quiet }}>
               <span style={underlined ? { textDecoration: 'underline', textDecorationColor: C.gold, textDecorationThickness: 2, textUnderlineOffset: 5 } : undefined}>
-                {underlined ? NOTES_COPY.underlined : NOTES_COPY.underline(count)}
+                {underlined ? NOTES_COPY.underlined(count) : NOTES_COPY.underline(count)}
               </span>
             </button>
           )}

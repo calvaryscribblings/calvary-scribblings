@@ -46,6 +46,20 @@ const QUESTIONS = {
   line: 'Which line did you carry out of this instalment?',
 };
 
+// W48 §2 — each reader's LIVE record carries a different island badge, and every stored author
+// snapshot claims Immortal (badge 1000), so a room drawing the snapshot instead of the live read
+// count shows the wrong title everywhere. dee is a writer (the Square's Writer badge); the
+// series' own writer is a writer too, and must show the room's WRITER mark instead.
+export const BADGES = Object.freeze({
+  'w46-ui-ada': { readCount: 30 },                     // Reader
+  'w46-ui-ben': { readCount: 75 },                     // Island Reader
+  'w46-ui-cam': { readCount: 160, displayName: 'Camilla Oyelaran-Whitfield of the Lagos Ferry' }, // Legend of the Island
+  'w46-ui-dee': { readCount: 40, isAuthor: true },     // Writer
+  'w46-ui-reader': { readCount: 1000 },                // Immortal of the Island
+  'w46-ui-writer': { readCount: 30, isAuthor: true },  // the series' writer: WRITER mark
+});
+const STALE = 1000;
+
 const LONG = Array.from({ length: 14 }, (_, i) => `This is the ${i + 1}th sentence of a long note that should fold behind Read more after six lines.`).join(' ');
 
 /** Wipe and seed. `reader` is one of 'none' | 'sealed' | 'finished' | 'member'. */
@@ -70,10 +84,10 @@ export async function seed(app, slug, { reader = 'none' } = {}) {
     [`series_instalments_detail/${id}`]: { schemaVersion: 1, title: `Fixture Instalment ${ordinal}`, synopsis: null, logline: null, author: 'Fixture Writer',
       authorUid: WRITER, authorHandle: 'fixturewriter', coverUrl: null, epubPath: null, sponsorName: null, sponsorLogoUrl: null, wordCount: null, updatedAt: now },
   });
-  const note = (uid, kind, text, createdAt, extra = {}) => ({ uid, kind, text, createdAt, author: { name: uid.replace('w46-ui-', '').toUpperCase(), handle: uid.replace('w46-ui-', '') }, ...extra });
+  const note = (uid, kind, text, createdAt, extra = {}) => ({ uid, kind, text, createdAt, author: { name: uid.replace('w46-ui-', '').toUpperCase(), handle: uid.replace('w46-ui-', ''), badge: STALE }, ...extra });
   const line = { text: 'The river keeps what the city forgets.', cfi: 'epubcfi(/6/4!/4/2/1:0)', epubVersion: '17' };
   const notes = {
-    nw: note(WRITER, 'sit', 'I wrote this chapter in a week of rain. She never wanted it back.', now - 5 * HOUR, { writer: true, author: { name: 'Fixture Writer', handle: 'fixturewriter' } }),
+    nw: note(WRITER, 'sit', 'I wrote this chapter in a week of rain. She never wanted it back.', now - 5 * HOUR, { writer: true, author: { name: 'Fixture Writer', handle: 'fixturewriter', badge: STALE } }),
     n1: note(OTHERS[0], 'sit', 'Her name. She gave it to the water on purpose.', now - 4 * HOUR),
     n2: note(OTHERS[1], 'side', 'Staying would have meant testifying against her brother.', now - 3 * HOUR, { side: 'a' }),
     n3: note(OTHERS[2], 'side', 'A trial is the only room where the city listens.', now - 2 * HOUR, { side: 'b' }),
@@ -84,10 +98,10 @@ export async function seed(app, slug, { reader = 'none' } = {}) {
   };
   const replies = {
     n1: {
-      r1: { uid: OTHERS[1], text: 'Yes, and the ferryman knew.', createdAt: now - 3.5 * HOUR, author: { name: 'BEN', handle: 'ben' } },
-      r2: { uid: OTHERS[2], text: 'I took it the other way.', createdAt: now - 3.4 * HOUR, author: { name: 'CAM', handle: 'cam' }, replyTo: 'r1' },
-      r3: { uid: OTHERS[3], text: '', createdAt: now - 3.3 * HOUR, author: { name: 'DEE', handle: 'dee' }, removed: true },
-      r4: { uid: OTHERS[0], text: 'Fair.', createdAt: now - 3.2 * HOUR, author: { name: 'ADA', handle: 'ada' } },
+      r1: { uid: OTHERS[1], text: 'Yes, and the ferryman knew.', createdAt: now - 3.5 * HOUR, author: { name: 'BEN', handle: 'ben', badge: STALE } },
+      r2: { uid: OTHERS[2], text: 'I took it the other way.', createdAt: now - 3.4 * HOUR, author: { name: 'CAM', handle: 'cam', badge: STALE }, replyTo: 'r1' },
+      r3: { uid: OTHERS[3], text: '', createdAt: now - 3.3 * HOUR, author: { name: 'DEE', handle: 'dee', badge: STALE }, removed: true },
+      r4: { uid: OTHERS[0], text: 'Fair.', createdAt: now - 3.2 * HOUR, author: { name: 'ADA', handle: 'ada', badge: STALE } },
     },
   };
   const underlines = { n1: { [OTHERS[1]]: true, [OTHERS[2]]: true, [OTHERS[3]]: true }, n4: { [OTHERS[1]]: true } };
@@ -96,6 +110,7 @@ export async function seed(app, slug, { reader = 'none' } = {}) {
     ...user(READER, 'Fixture Reader', 'w46reader'),
     ...Object.fromEntries(OTHERS.flatMap((u) => Object.entries(user(u, u.replace('w46-ui-', '').toUpperCase(), u.replace('w46-ui-', ''))))),
     ...user(WRITER, 'Fixture Writer', 'fixturewriter'),
+    ...Object.fromEntries(Object.entries(BADGES).flatMap(([uid, rec]) => Object.entries(rec).map(([k, v]) => [`users/${uid}/${k}`, v]))),
     ...series(slug, 'Notes Fixture Series'),
     ...inst(i1, slug, 1, now - 9 * DAY),
     ...inst(i2, slug, 2, now - DAY),

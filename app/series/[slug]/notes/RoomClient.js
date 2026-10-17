@@ -10,6 +10,8 @@
 //            answer (a side, or a note) makes the reader a member through the endpoint.
 //   open     finished and a member: the questions, the notes, filters, sort, replies.
 //   ?q=      a question's own view (side: the split and "Why they chose"; line: ranked lines).
+//   ?compose=line  W48 §1: back from "This is my line" — The line's composer opens once, with the
+//            new line attached and the device's draft in the field; the parameter is then dropped.
 //
 // Rendered nothing while notesEnabled() is false.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -24,7 +26,7 @@ import { isFounder } from '../../../lib/founders';
 import { resolveIdentities } from '../../../lib/squareIdentity';
 import {
   NOTES_COPY, QUESTION_LABEL, PAGE_SIZE, instName, romanOf, roomHref, lineHref, sideOptions, rankLines,
-  lastVisitKey, notesEnabled, NOTES_ERRORS,
+  lastVisitKey, notesEnabled, NOTES_ERRORS, COMPOSE_LINE,
 } from '../../../lib/series/notes';
 import {
   notesAction, readFinished, readMember, readQuestions, readNotes, readReplies, readUnderlines, readTallies,
@@ -37,7 +39,7 @@ import {
 } from '../../../components/seriesNotes/roomModel';
 import { C, DISPLAY, LABEL, NOTES_CSS, labelStyle, questionStyle } from '../../../components/seriesNotes/tokens';
 import { ArrowIcon, BackIcon, LockIcon, ProgressRule, QuoteMark } from '../../../components/seriesNotes/Parts';
-import NoteCard, { NoteSkeleton } from '../../../components/seriesNotes/NoteCard';
+import NoteCard, { NoteSkeleton, Who } from '../../../components/seriesNotes/NoteCard';
 import { SealedCard, SitCard, SideCard, LineCard, ElseCard } from '../../../components/seriesNotes/QuestionCard';
 import SideBars from '../../../components/seriesNotes/Bars';
 import Composer from '../../../components/seriesNotes/Composer';
@@ -59,6 +61,11 @@ const ROOM_CSS = `
 .sn-room { background: ${C.ground}; min-height: 100vh; color: ${C.cream}; font-family: ${DISPLAY}; overflow-x: clip; }
 .sn-wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; box-sizing: border-box; }
 .sn-cols { display: block; }
+/* W48 — the room's grid sections take one column that may shrink below its content. With the
+   implicit auto column, the swipeable question row's min-content (three cards at 86%) widened the
+   whole section to 403px on a 358px phone column. .sn-room's overflow-x: clip hid it, and the text
+   of every note card ran off the right edge. */
+.sn-room main > section { grid-template-columns: minmax(0, 1fr); }
 .sn-rail { display: none; }
 .sn-qrow { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; scrollbar-width: none; }
 .sn-qrow::-webkit-scrollbar { display: none; }
@@ -219,6 +226,7 @@ export default function RoomClient({ slug, sentinel }) {
   const wanted = params.get('i');
   const view = params.get('q');
   const focusId = params.get('n');
+  const composeParam = params.get('compose');
   const { user, loading: authLoading } = useAuth() || {};
   const uid = user?.uid || null;
   const [endSheet, setEndSheet] = useState(() => harnessEndSheet(params));
@@ -329,6 +337,21 @@ export default function RoomClient({ slug, sentinel }) {
     }, POLL_MS);
     return () => clearInterval(t);
   }, [open, instId, priv.notes, local, uid]);
+
+  // ?compose=line — the way back from the book: open The line's composer once the room can take a
+  // note, then drop the parameter so a reload or Back doesn't open it again.
+  const composedOnce = useRef(false);
+  useEffect(() => {
+    if (composedOnce.current || composeParam !== COMPOSE_LINE || !instId) return;
+    if (priv.phase !== 'joining' && !(priv.phase === 'open' && !priv.loading && priv.inst === instId)) return;
+    composedOnce.current = true;
+    setComposer({ kind: 'line' });
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('compose');
+      window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash);
+    } catch { /* the composer is open either way */ }
+  }, [composeParam, instId, priv.phase, priv.loading, priv.inst]);
 
   // A linked note (?n=) is brought into view once.
   const focused = useRef(false);
@@ -521,7 +544,7 @@ export default function RoomClient({ slug, sentinel }) {
   } else if (open && view === 'side') {
     body = <SideView q={q} priv={priv} allNotes={allNotes} card={card} slug={slug} instId={instId} animate={freshSide} />;
   } else if (open && view === 'line') {
-    body = <LineView allNotes={allNotes} uid={uid} instId={instId} slug={slug} />;
+    body = <LineView allNotes={allNotes} uid={uid} instId={instId} slug={slug} identities={identities} />;
   } else if (open) {
     const kc = kindCounts(allNotes);
     const list = visibleNotes(allNotes, { filter, sort, counts });
@@ -626,8 +649,11 @@ function SideView({ q, priv, allNotes, card, slug, instId, animate }) {
   );
 }
 
-/** ?q=line — lines ranked by how many readers chose them. */
-function LineView({ allNotes, uid, instId, slug }) {
+/**
+ * ?q=line — lines ranked by how many readers chose them. W48 §2: beneath each line, the readers
+ * who chose it, each on the Square's author line (Who), oldest first.
+ */
+function LineView({ allNotes, uid, instId, slug, identities }) {
   const ranked = rankLines(allNotes.filter((n) => n.kind === 'line' && !n.local), uid);
   return (
     <section data-room="line" style={{ paddingTop: 18, display: 'grid', gap: 14 }}>
@@ -644,6 +670,11 @@ function LineView({ allNotes, uid, instId, slug }) {
               <span style={{ position: 'absolute', left: 0, top: 0 }}><QuoteMark /></span>
               <blockquote style={{ margin: 0, fontFamily: DISPLAY, fontStyle: 'italic', fontSize: 20, lineHeight: 1.45, color: C.goldTint }}>{g.line.text}</blockquote>
             </figure>
+            <ul data-line-readers style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'grid', gap: 8 }}>
+              {[...g.notes].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map((n) => (
+                <li key={n.id}><Who note={n} identities={identities} size={28} /></li>
+              ))}
+            </ul>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
               <span style={{ fontFamily: DISPLAY, fontSize: 16, color: C.quiet }}>{NOTES_COPY.answers(g.count)}</span>
               <a className="sn-text sn-link" href={lineHref(instId, g.line)} style={{ color: C.link }}>{NOTES_COPY.readInPlace}</a>

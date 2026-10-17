@@ -51,6 +51,20 @@ describe('W46 · the words', () => {
     assert.equal(C.tookASide('Freedom'), 'TOOK A SIDE · FREEDOM');
     assert.equal(C.moreReplies(3), 'View 3 more replies');
   });
+  // W48 — launch-morning fixes. The app's parity test reads NOTES_COPY, so these are its words too.
+  test('W48: the line with an empty margin (ruling 175), the way back, and "Underlined · n"', () => {
+    const C = N.NOTES_COPY;
+    assert.equal(C.lineFirst, 'Choose your line in the book first: press on it and tap “This is my line”.');
+    assert.equal(C.chooseInBook, 'Choose it in the book');
+    assert.equal(C.lineSaved, 'Saved as your line.');
+    assert.equal(C.backToNote, 'Back to your note');
+    assert.ok(C.lineFirst.includes(`“${C.thisIsMyLine}”`), 'the guidance names the chip by its own words');
+    assert.equal(C.underlined(24), 'Underlined · 24');
+    assert.equal(C.underlined(1), 'Underlined · 1');
+    assert.equal(C.underline(3), 'Underline · 3');
+    assert.equal(N.chooseLineHref('beta-princess-i2'), '/series/read/beta-princess-i2?from=notes', 'the reader\'s own place: no ?at=');
+    assert.equal(N.backToNoteHref('beta-princess', 'beta-princess-i2'), '/series/beta-princess/notes?i=beta-princess-i2&compose=line');
+  });
   test('bars carry text', () => {
     assert.equal(N.barLabel('Freedom', 58, true), 'Freedom, 58 percent, your side');
     assert.equal(N.barLabel('Duty', 42, false), 'Duty, 42 percent');

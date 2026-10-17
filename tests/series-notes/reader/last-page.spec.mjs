@@ -222,6 +222,41 @@ test('the line: a phrase offers "This is my line" only with notes on, and the ta
   await expect(page.locator('[data-line-notice]')).toHaveAttribute('aria-live', 'polite');
 });
 
+// W48 §1 — the way back. Sent here by the composer's "Choose it in the book" (?from=notes), the
+// notice after "This is my line" carries "Back to your note" to the room with The line's composer
+// open; it stays up (a link must not time out). Without ?from=notes the notice is the plain one.
+test('the line: from the composer, the notice carries "Back to your note" to the room', async ({ page }) => {
+  test.skip(!notesOn(), 'the way back exists only with notes on');
+  for (const from of [true, false]) {
+    await seed();
+    await openSignedIn(page, from ? '?from=notes' : '');
+    await selectPhrase(page);
+    await page.waitForTimeout(SETTLED);
+    expect(await chipShown(page, 'line-chip')).toBe(true);
+    const box = await frame(page).evaluate(() => {
+      const r = document.getElementById('line-chip').getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    const frameBox = await page.locator('iframe.rr-frame').boundingBox();
+    await page.mouse.click(frameBox.x + box.x, frameBox.y + box.y);
+    await expect.poll(() => val(`series_margin/${READER}/${ids.inst}`), { timeout: 15000 }).not.toBeNull();
+    const notice = page.locator('[data-line-notice]');
+    const back = notice.getByRole('link', { name: 'Back to your note' });
+    if (!from) {
+      await expect(notice).toHaveText('Saved as your line.');
+      await expect(back).toHaveCount(0);
+      continue;
+    }
+    await expect(notice).toHaveText('Saved as your line.Back to your note');
+    await expect(back).toHaveAttribute('href', `/series/${ids.seriesId}/notes?i=${encodeURIComponent(ids.inst)}&compose=line`);
+    const r = await back.boundingBox();
+    expect(r.height, 'the way back is a full target').toBeGreaterThanOrEqual(44);
+    await page.waitForTimeout(4000); // past the plain notice's 3.2s
+    await expect(back, 'the way back does not time out').toBeVisible();
+    await page.screenshot({ path: new URL('../../../test-results/series-notes-reader/w48-back-to-note.png', import.meta.url).pathname });
+  }
+});
+
 test('the line: a single word is still Define\'s alone', async ({ page }) => {
   await seed();
   await openSignedIn(page);
