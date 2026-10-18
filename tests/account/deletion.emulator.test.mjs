@@ -69,6 +69,7 @@ const fixture = () => ({
   leaderboard: { [T]: { readerScore: 5 }, [A]: { readerScore: 9 } },
   leaderboards: { 'summer-2026': { final: { [T]: { points: 5 }, [A]: { points: 9 } }, snapshot: { [T]: { points: 5 } } } },
   blocked_users: { [T]: { [B]: true }, [B]: { [T]: true } },
+  muted_users: { [T]: { [B]: true }, [B]: { [T]: true, [A]: true } },
   readerBookmarks: { [T]: { s: true } }, bookmarks: { [T]: { s: true } }, userBookmarks: { [T]: { s: true } },
   userBadges: { [T]: { b: true } }, userStreaks: { [T]: { n: 3 } }, userProgress: { [T]: { s: 1 } },
   userStoryTiers: { [T]: { s: 'gold' } }, points: { [T]: { total: 5 } }, wallet: { [T]: { balance: 5 } },

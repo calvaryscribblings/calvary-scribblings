@@ -54,7 +54,7 @@ export const SCAN_NODES = [
   'storyReads', 'series_read_ledger', 'storyReactionUsers', 'leaderboards', 'notifications', 'library_notifications',
   'square_posts', 'square_likes', 'square_reactions', 'square_archive', 'square_archive_reactions',
   'open_pages', 'open_pages_reactions', 'open_pages_pending', 'open_pages_reports',
-  'dm_messages', 'blocked_users', 'followers', 'following', 'usernames', 'cms_voices',
+  'dm_messages', 'blocked_users', 'muted_users', 'followers', 'following', 'usernames', 'cms_voices',
   'user_comments', 'user_square_posts',
   // W46 — Readers' Notes
   'series_notes', 'series_notes_held', 'series_note_replies', 'series_sides', 'series_room_members',
@@ -409,6 +409,8 @@ export function planScrub(uid, snap, { now = Date.now() } = {}) {
   for (const [who, list] of entries(snap.followers)) if (who === uid || list?.[uid] !== undefined) backstop(who === uid ? `followers/${uid}` : `followers/${who}/${uid}`);
   for (const [who, list] of entries(snap.following)) if (who === uid || list?.[uid] !== undefined) backstop(who === uid ? `following/${uid}` : `following/${who}/${uid}`);
   for (const [who, list] of entries(snap.blocked_users)) if (who === uid || list?.[uid] !== undefined) backstop(who === uid ? `blocked_users/${uid}` : `blocked_users/${who}/${uid}`);
+  // W53 — the Square's mute list: theirs goes whole, and another reader's mute of them with it.
+  for (const [who, list] of entries(snap.muted_users)) if (who === uid || list?.[uid] !== undefined) backstop(who === uid ? `muted_users/${uid}` : `muted_users/${who}/${uid}`);
   if (snap.userNode !== null && snap.userNode !== undefined) backstop(`users/${uid}`);
 
   // A tombstone is written whole: nothing may be removed beneath it separately, and nothing

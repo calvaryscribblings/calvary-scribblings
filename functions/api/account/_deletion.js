@@ -77,6 +77,7 @@ export const OWNED_NODES = [
   'desiderata',        // W22: the reader's Desiderata list — theirs alone, nothing to keep
   'series_finished',   // W46: which instalments they finished — the room's key, theirs alone
   'series_margin',     // W46: "This is my line", private until posted
+  'muted_users',       // W53: the reader's Square mute list — theirs alone, nothing to keep
 ].filter((v, i, a) => a.indexOf(v) === i);
 
 // Kept on purpose, keyed by the same uid. Listed so the test can prove every uid-keyed node in
