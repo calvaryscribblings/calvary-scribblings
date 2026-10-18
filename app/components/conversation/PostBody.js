@@ -89,9 +89,13 @@ export default function PostBody({ text, surface, withdrawn = false, deleted = f
   // the column rather than collapsing the card around it.
   if (paragraphs.length === 0) return h('div', { style: base, 'data-postbody': surface });
 
+  // W52 — a one-line surface (the feed's latest reply) keeps its paragraphs as inline runs with a
+  // space between, on one line, ending in an ellipsis. It sits inside a link to the thread, so a
+  // mention is drawn in its colour but is not a second, nested link.
+  const oneLine = spec.oneLine === true;
   return h(
     'div',
-    { style: base, 'data-postbody': surface },
+    { style: oneLine ? { ...base, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } : base, 'data-postbody': surface },
     paragraphs.map((segments, i) =>
       h(
         'p',
@@ -100,10 +104,13 @@ export default function PostBody({ text, surface, withdrawn = false, deleted = f
           // The gap between thoughts, and nothing else. First paragraph flush so a
           // one-paragraph post — which is most of them — sits exactly where it sat
           // before this existed.
-          style: { margin: i === 0 ? 0 : '0.62em 0 0' },
+          style: oneLine ? { margin: 0, display: 'inline' } : { margin: i === 0 ? 0 : '0.62em 0 0' },
         },
+        oneLine && i > 0 ? ' ' : null,
         segments.map((seg, j) =>
-          seg.type === 'mention'
+          oneLine && seg.type === 'mention'
+            ? h('span', { key: j, style: { color: MENTION_COLOR, fontWeight: 500 } }, seg.value)
+            : seg.type === 'mention'
             ? h(
                 'a',
                 {

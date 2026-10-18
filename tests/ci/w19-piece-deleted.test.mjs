@@ -76,7 +76,8 @@ test('every draw site passes the announced piece to PostBody (the DM bubble carr
       assert.match(m[0], /piece=\{announcedPieceOf\(/, `${f} ${m[1]}`);
     }
   }
-  assert.equal(n, 7);
+  // W52: feed-reply became thread-reply (on /square/p) and the feed gained feed-latest.
+  assert.equal(n, 8);
 });
 
 test('the piece page: the deleted state shows exactly the line, only when the database answered "no piece"', () => {

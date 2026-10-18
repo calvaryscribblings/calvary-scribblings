@@ -28,12 +28,14 @@ describe('W37 · story_exercises is read only when signed in', () => {
 
 describe('W37 · the four navigations', () => {
   const RULE = '@next/next/no-location-assign-relative-destination';
-  test('1 and 2: the Square post cards keep the full load, with the reason on the exception', () => {
+  // W52: the cards no longer load /square#id (an anchor that existed only once the room had
+  // loaded); they open the post's thread, /square/p, at the reply where there is one.
+  test('1 and 2: the Square post cards open the thread, and nothing still loads /square#id', () => {
     for (const p of ['app/profile/page.js', 'app/user/page.js']) {
-      const lines = src(p).split('\n');
-      const i = lines.findIndex((l) => /window\.location\.href = `\/square#/.test(l));
-      assert.ok(i > 0, `${p}: the card still loads /square#id`);
-      assert.match(lines[i - 1], new RegExp(`eslint-disable-next-line ${RULE} -- .*anchor exists only after`));
+      const s = src(p);
+      assert.doesNotMatch(s, /\/square#/, `${p}: a card still loads /square#id`);
+      assert.match(s, /onClick=\{\(\) => window\.location\.assign\(postHref\((post|p)\)\)\}/, p);
+      assert.doesNotMatch(s, new RegExp(`${RULE} -- .*anchor exists only after`), `${p}: the exception's reason is gone with it`);
     }
   });
   test('3: the series reader signs in through AuthModal, not a load of /account', () => {

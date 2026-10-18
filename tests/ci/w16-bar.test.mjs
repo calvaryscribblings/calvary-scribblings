@@ -138,9 +138,14 @@ describe('W16 · the build ID', () => {
     assert.match(src('scripts/stamp-build-info.mjs'), /commit\.slice\(0, 12\)/);
     assert.match(src('scripts/stamp-sw.mjs'), /CF_PAGES_COMMIT_SHA\.slice\(0, 12\)/);
   });
-  test('it is on the story page and in the site footer', () => {
-    assert.match(code('app/stories/[slug]/page-client.js'), /<BuildStamp /);
-    assert.match(code('app/components/Footer.js'), /<BuildStamp /);
+  // Ruling 190 (W52): no reader sees a build ID. Not on the story page; in the site footer for a
+  // founder only (/admin's isFounder). /build.json stays.
+  test('it is in the site footer for a founder only, and not on the story page', () => {
+    assert.doesNotMatch(code('app/stories/[slug]/page-client.js'), /BuildStamp/);
+    assert.match(code('app/components/Footer.js'), /\{stamp && <BuildStamp /);
+    assert.match(code('app/components/Footer.js'), /setStamp\(showsBuildStamp\(u\?\.uid\)\)/);
+    assert.equal((code('app/components/Footer.js').match(/<BuildStamp /g) || []).length, 1);
+    assert.match(code('app/lib/buildStampPolicy.js'), /import \{ isFounder \} from '\.\/founders\.js'/);
     assert.match(code('app/components/BuildStamp.js'), /Build \{BUILD_COMMIT\}/);
   });
   test('stale only when both builds are known and differ', () => {

@@ -1,19 +1,22 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { stories as allStaticStories } from '../lib/stories';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
 import { Avatar, UserBadge, timeAgo, ReactionRow, SQUARE_REACTIONS, BADGE_SVG_PATH, CHECK_PATH } from '../components/conversation/ConversationKit';
 import PostBody from '../components/conversation/PostBody';
 import AttachmentCard from '../components/conversation/AttachmentCard';
-import { MAX_POST_CHARS, MAX_REPLY_CHARS, showCounter, refusalFor, attachmentOf, slimAttachedStory } from '../lib/squarePostBody';
+import { MAX_POST_CHARS, showCounter, refusalFor, attachmentOf, slimAttachedStory } from '../lib/squarePostBody';
 import TabBar, { TabLinks } from '../components/TabBar';
 import { resolveIdentities, identityOf } from '../lib/squareIdentity';
 import { READ_DEADLINE_MS, classifyFailure } from '../lib/reliableRead';
 import { useOnline, reconnectDatabase } from '../lib/useReliable';
 import Unavailable from '../components/Unavailable';
 import { isTombstone, announcedPieceOf } from '../lib/deletedContent';
-import { mentionHandles, resolveHandle, matchReaders, replyPrefill } from '../lib/squareHandles';
+import { mentionHandles, resolveHandle, matchReaders } from '../lib/squareHandles';
+import { latestReply, isRemoved, threadHref, squareNotificationHref, NOTIFICATION_WORDS } from '../lib/squareThreads';
+import { PostMenu, ReportModal, PinIcon } from '../components/conversation/SquarePostMenu';
 
 
 const FB = {
@@ -180,14 +183,6 @@ function QuotedCard({ quotedPost, who, onClear }) {
   );
 }
 
-function PinIcon({ size = 12 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2l3 7h5l-4 3 1.5 7L12 16l-5.5 3L8 12 4 9h5z"/>
-    </svg>
-  );
-}
-
 function PollIcon({ size = 12 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -281,140 +276,6 @@ function PollDisplay({ poll, postId, user }) {
       })}
       <div style={{ fontSize: '0.65rem', color: '#f5f0e8', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
         {totalVotes} vote{totalVotes !== 1 ? 's' : ''}{closed ? ' · Closed' : poll.closesAt ? ` · Closes ${timeAgo(poll.closesAt)}` : ''}
-      </div>
-    </div>
-  );
-}
-
-// ── Post Menu ─────────────────────────────────────────────────────────────────
-function PostMenu({ post, user, onEdit, onDelete, onPin, onStripQuote, onReport, canPin, canRemove }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
-  const isOwn = user?.uid === post.authorUid;
-  const canEdit = isOwn && (Date.now() - post.createdAt) < 5 * 60 * 1000;
-  const isPinned = post.pinned || false;
-
-  useEffect(() => {
-    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const copyLink = () => {
-    // R33.2 — a real address. `/square#id` only resolved while the post was
-    // still in the feed and the room was open; under the horizon it would have
-    // resolved to nothing at all. /square/p?id= reads the room, then the archive.
-    navigator.clipboard.writeText(`${window.location.origin}/square/p?id=${post.id}`);
-    setOpen(false);
-  };
-
-  return (
-    <div ref={menuRef} style={{ position: 'relative', marginLeft: 'auto' }}>
-      <button onClick={() => setOpen(!open)} style={{ background: 'none', border: 'none', color: '#f5f0e8', cursor: 'pointer', padding: '2px 4px', fontSize: 14, lineHeight: 1, transition: 'color 0.2s' }}
-        onMouseEnter={e => e.currentTarget.style.color = '#f5f0e8'}
-        onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>···</button>
-      {open && (
-        <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 10, minWidth: 160, zIndex: 200, overflow: 'hidden' }}>
-          {isOwn && canEdit && (
-            <button onClick={() => { onEdit(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              edit post
-            </button>
-          )}
-          {canPin && (
-            <button onClick={() => { onPin(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: isPinned ? '#fcd34d' : '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <PinIcon size={12} />
-              {isPinned ? 'Unpin post' : 'Pin post'}
-            </button>
-          )}
-          {canRemove && post.quotedPostId && onStripQuote && (
-            <button onClick={() => { onStripQuote(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
-              Strip quote attribution
-            </button>
-          )}
-          {(isOwn || canRemove) && (
-            <button onClick={() => { onDelete(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(220,38,38,0.08)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              {isOwn ? 'Withdraw post' : 'Remove post'}
-            </button>
-          )}
-          <button onClick={copyLink} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: '#f5f0e8', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            Copy link
-          </button>
-          {!isOwn && (
-            <button onClick={() => { onReport(post); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: 'none', border: 'none', color: 'rgba(232,224,212,0.5)', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', textAlign: 'left' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.15)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-              Report
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// R33.2 — the report surface. There was none: the menu item closed the menu.
-function ReportModal({ post, onSubmit, onClose }) {
-  const REASONS = [
-    ['abuse', 'Abusive or hateful'],
-    ['harassment', 'Harassment of a reader'],
-    ['spam', 'Spam or advertising'],
-    ['explicit', 'Explicit or graphic'],
-    ['offtopic', 'Not about reading'],
-    ['other', 'Something else'],
-  ];
-  const [reason, setReason] = useState('abuse');
-  const [note, setNote] = useState('');
-  const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const go = async () => { setBusy(true); try { await onSubmit(post, reason, note); setSent(true); } catch { setSent(true); } setBusy(false); };
-  const box = { background: '#141018', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 12, padding: '20px 22px', maxWidth: 420, width: '100%' };
-  const ff = 'Cormorant Garamond, Georgia, serif';
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={box}>
-        {sent ? (
-          <>
-            <div style={{ fontFamily: ff, fontSize: '1.25rem', color: '#f5f0e8', marginBottom: 8 }}>Reported</div>
-            <p style={{ fontFamily: ff, fontSize: '0.9rem', color: 'rgba(245,240,232,0.6)', lineHeight: 1.6, margin: '0 0 16px' }}>
-              A moderator will see this. Thank you for telling us — the room only works if people do.
-            </p>
-            <button onClick={onClose} style={{ background: '#6b2fad', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontFamily: ff, fontSize: '0.9rem', cursor: 'pointer' }}>Close</button>
-          </>
-        ) : (
-          <>
-            <div style={{ fontFamily: ff, fontSize: '1.25rem', color: '#f5f0e8', marginBottom: 4 }}>Report this post</div>
-            <p style={{ fontFamily: ff, fontSize: '0.85rem', color: 'rgba(245,240,232,0.45)', margin: '0 0 14px' }}>Only moderators see reports. The author isn&apos;t told who reported them.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
-              {REASONS.map(([v, label]) => (
-                <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: ff, fontSize: '0.9rem', color: reason === v ? '#f5f0e8' : 'rgba(245,240,232,0.6)', cursor: 'pointer' }}>
-                  <input type="radio" name="sq-report" value={v} checked={reason === v} onChange={() => setReason(v)} style={{ accentColor: '#6b2fad' }} />
-                  {label}
-                </label>
-              ))}
-            </div>
-            <textarea value={note} onChange={e => setNote(e.target.value.slice(0, 300))} rows={3} placeholder="Anything a moderator should know (optional)"
-              className="sq-textarea" style={{ width: '100%', fontFamily: ff, fontSize: '0.88rem', marginBottom: 12 }} />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={onClose} style={{ background: 'none', border: '1px solid rgba(245,240,232,0.2)', color: 'rgba(245,240,232,0.7)', padding: '8px 16px', borderRadius: 8, fontFamily: ff, fontSize: '0.9rem', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={go} disabled={busy} style={{ background: '#b03636', border: 'none', color: '#fff', padding: '8px 18px', borderRadius: 8, fontFamily: ff, fontSize: '0.9rem', cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Sending…' : 'Report'}</button>
-            </div>
-          </>
-        )}
       </div>
     </div>
   );
@@ -796,6 +657,7 @@ function NotificationsPanel({ user, onClose }) {
   }, [user]);
 
   const notifLabel = (n) => {
+    if (NOTIFICATION_WORDS[n.type]) return NOTIFICATION_WORDS[n.type];   // W52: replied to your post / to you
     if (n.type === 'mention') return ' mentioned you in the Square';
     if (n.type === 'reply') return ' replied to your comment';
     if (n.type === 'open_pages_reply') return ' replied to your comment on Open Pages';
@@ -827,7 +689,7 @@ function NotificationsPanel({ user, onClose }) {
           ) : notifs.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet</div>
           ) : notifs.map(n => {
-            const href = n.type === 'follow' ? `/user?id=${n.fromUid}` : n.type === 'open_pages_reply' ? (n.postId ? `/open-pages/${n.postId}` : null) : n.postId ? `/square#${n.postId}` : null;
+            const href = n.type === 'follow' ? `/user?id=${n.fromUid}` : n.type === 'open_pages_reply' ? (n.postId ? `/open-pages/${n.postId}` : null) : squareNotificationHref(n);
             const ini = (n.fromName || 'R').split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
             return (
               <a key={n.id} href={href || '#'} onClick={!href ? e => e.preventDefault() : undefined}
@@ -857,18 +719,13 @@ function NotificationsPanel({ user, onClose }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SquarePage() {
+  const router = useRouter();
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [posts, setPosts] = useState([]);
   const [text, setText] = useState('');
-  const [replyTo, setReplyTo] = useState(null);
-  const [replyText, setReplyText] = useState('');
   const [posting, setPosting] = useState(false);
-  // W51 — the reply box has its own flag; one shared flag let either box stick the other.
-  const [replying, setReplying] = useState(false);
-  const [replyErr, setReplyErr] = useState(false);
   const postingRef = useRef(false);
-  const replyingRef = useRef(false);
   const [attachedStory, setAttachedStory] = useState(null);
   const [showStoryAttach, setShowStoryAttach] = useState(false);
   const [showDM, setShowDM] = useState(false);
@@ -882,7 +739,6 @@ export default function SquarePage() {
   const [loading, setLoading] = useState(true);
   const [cmsStories, setCmsStories] = useState([]);
   const [mentionQuery, setMentionQuery] = useState('');
-  const [mentionQueryReply, setMentionQueryReply] = useState('');
   const [mentionQueryEdit, setMentionQueryEdit] = useState('');
   const [showAuth, setShowAuth] = useState(false);
   const [reactions, setReactions] = useState({});
@@ -894,7 +750,6 @@ export default function SquarePage() {
   const [identities, setIdentities] = useState({});
   const [reportingPost, setReportingPost] = useState(null);
   const textareaRef = useRef(null);
-  const replyTextareaRef = useRef(null);
   const editTextareaRef = useRef(null);
 
   // Two separate capabilities where there was one role.
@@ -1073,13 +928,12 @@ export default function SquarePage() {
 
   const extractMentionQuery = (t) => { const match = t.match(/@(\w*)$/); return match ? match[1] : ''; };
   const handleTextChange = (val) => { setText(val); setMentionQuery(extractMentionQuery(val)); };
-  const handleReplyTextChange = (val) => { setReplyText(val); setMentionQueryReply(extractMentionQuery(val)); };
   const handleEditTextChange = (val) => { setEditText(val); setMentionQueryEdit(extractMentionQuery(val)); };
   const insertMention = (username) => { setText(text.replace(/@\w*$/, `@${username} `)); setMentionQuery(''); textareaRef.current?.focus(); };
-  const insertMentionReply = (username) => { setReplyText(replyText.replace(/@\w*$/, `@${username} `)); setMentionQueryReply(''); replyTextareaRef.current?.focus(); };
   const insertMentionEdit = (username) => { setEditText(editText.replace(/@\w*$/, `@${username} `)); setMentionQueryEdit(''); editTextareaRef.current?.focus(); };
 
-  const sendNotifications = async (text, postId, type = 'mention', replyAuthorUid = null) => {
+  // W52 — replies are written on the thread page (/square/p), which tells their readers itself.
+  const sendNotifications = async (text, postId, type = 'mention') => {
     const db = await getDB();
     const { ref, push, get } = await import('firebase/database');
     // W51 — the lowercase index only. The old fallback read the founder-only users root and
@@ -1090,13 +944,6 @@ export default function SquarePage() {
       if (!targetUid || targetUid === user.uid) continue;
       await push(ref(db, `notifications/${targetUid}`), {
         type: 'mention', fromUid: user.uid, fromName: user.displayName || 'Reader',
-        fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
-        postId, read: false, createdAt: Date.now(),
-      });
-    }
-    if (type === 'reply' && replyAuthorUid && replyAuthorUid !== user.uid) {
-      await push(ref(db, `notifications/${replyAuthorUid}`), {
-        type: 'reply', fromUid: user.uid, fromName: user.displayName || 'Reader',
         fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
         postId, read: false, createdAt: Date.now(),
       });
@@ -1179,51 +1026,9 @@ export default function SquarePage() {
     setPosting(false);
   };
 
-  // W51 §2 — a refused or failed reply keeps the reader's words, says "Not sent." and offers
-  // Try again and Remove (the threads canvas's words). Remove only discards the unsent words:
-  // nothing reached the server, so there is nothing to delete.
-  const reply = async (parentPost) => {
-    if (!replyText.trim() || !user || replyingRef.current) return;
-    if (!refusalFor(replyText, { isReply: true }).ok) return;   // R33.2 added a check; R43 made it the same check
-    replyingRef.current = true;
-    setReplying(true); setReplyErr(false);
-    const body = replyText.trim();
-    try {
-      const db = await getDB();
-      const { ref, push } = await import('firebase/database');
-      const replyData = {
-        text: body, authorUid: user.uid, authorName: user.displayName || 'Reader',
-        authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
-        authorAvatarUrl: userData?.avatarUrl || null, authorHandle: userData?.username || '', authorReadCount: userData?.readCount || 0,
-        isAuthor: userData?.isAuthor || false, parentId: parentPost.id, likeCount: 0,
-        pinned: false, unpinnedAt: null, createdAt: Date.now(),
-      };
-      const newReply = await push(ref(db, 'square_posts'), replyData);
-      setReplyText(''); setReplyTo(null);
-      afterSave(newReply.key, replyData, () => sendNotifications(body, newReply.key, 'reply', parentPost.authorUid));
-    } catch (e) {
-      console.error('Reply error:', e);
-      setReplyErr(true);
-    }
-    replyingRef.current = false;
-    setReplying(false);
-  };
-
-  // W51 §3 — INTERIM, until nesting is built. Reply on a reply opens the THREAD's box, prefilled
-  // with "@handle " and focused; the reply posts into the same thread. "Replying to @name" comes
-  // with the rebuild (W50 §4 item 3).
-  const openReply = (rootId, prefill = '') => {
-    setReplyErr(false);
-    if (!prefill) { setReplyTo(replyTo === rootId ? null : rootId); return; }
-    setReplyTo(rootId);
-    setReplyText(prefill);
-    setTimeout(() => {
-      const el = replyTextareaRef.current;
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(el.value.length, el.value.length);
-    }, 50);
-  };
+  // W52 — REPLIES LEFT THE FEED. W51's reply box, its "Not sent." alert and its interim
+  // "@handle " reply-on-a-reply moved to the thread page (app/square/p/page.js), where a reply
+  // answers a reply properly (replyToId) and a failed one waits in place in the thread.
 
   // W13 — optimistic: the state and count flip on the tap, and a failed save restores both
   // and rejects, so the button can shake and say so (components/conversation/Reaction.js).
@@ -1333,8 +1138,10 @@ export default function SquarePage() {
     const db = await getDB();
     const { ref, remove, update } = await import('firebase/database');
     if (replies > 0) {
+      // W52 — removedBy says whose hand it was: the author, or a moderator (canRemovePosts).
       await update(ref(db, `square_posts/${p.id}`), {
         text: '', withdrawn: true, withdrawnAt: Date.now(),
+        removedBy: user?.uid === p.authorUid ? 'author' : 'moderator',
       });
       return;
     }
@@ -1412,22 +1219,18 @@ export default function SquarePage() {
   // Called as a FUNCTION, never as a JSX element: declared inside this render, it would be a
   // new component type every render, and React would remount every reaction button on each
   // state change, tearing a burst out mid-flight (W13).
-  const ReactionBar = ({ p, size = 16, threadId = null }) => {
-    const onReply = threadId && threadId !== p.id
-      ? () => openReply(threadId, replyPrefill(who(p).handle))
-      : () => openReply(p.id);
+  // W52 — the reply control is the thread's door: the replies count, opening /square/p.
+  const ReactionBar = ({ p, size = 16, replyCount = 0 }) => {
     const idleColor = 'rgba(245,240,232,0.45)';
     const trailing = (
       <>
-        {user && (
-          <button onClick={onReply}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
-            onMouseLeave={e => e.currentTarget.style.color = idleColor}>
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            {replyTo === p.id ? 'cancel' : 'reply'}
-          </button>
-        )}
+        <a href={threadHref(p.id)} data-thread-open="count" aria-label={replyCount ? `${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}, open the thread` : 'Reply, open the thread'}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, minHeight: 44, textDecoration: 'none', color: idleColor, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
+          onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
+          onMouseLeave={e => e.currentTarget.style.color = idleColor}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          {replyCount ? `${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}` : 'reply'}
+        </a>
         <button onClick={() => handleQuote(p.id)} aria-label="Quote this post"
           style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: idleColor, fontSize: '0.7rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', letterSpacing: '0.1em', transition: 'color 0.2s' }}
           onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
@@ -1660,6 +1463,8 @@ export default function SquarePage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               {topLevel.map((p, i) => {
                 const replies = getReplies(p.id);
+                const replyCount = replies.filter(r => !isRemoved(r)).length;
+                const latest = latestReply(replies);
                 const isOwn = user?.uid === p.authorUid;
                 const isEditing = editingPost === p.id;
                 return (
@@ -1710,87 +1515,29 @@ export default function SquarePage() {
                                 WRITTEN here and read zero times, so a withdrawn post drew
                                 an avatar above an empty div. The branch now lives inside
                                 PostBody, so all eight surfaces have it or none does. */}
-                            <PostBody text={p.text} surface="feed-post" withdrawn={p.withdrawn === true} deleted={isTombstone(p)} style={{ marginBottom: 6 }} piece={announcedPieceOf(p)} />
+                            {/* W52 — the post's words open its thread (a mention inside still goes to its reader). */}
+                            <div data-thread-open="body" style={{ cursor: 'pointer' }}
+                              onClick={(e) => { if (!e.target.closest('a, button')) router.push(threadHref(p.id)); }}>
+                              <PostBody text={p.text} surface="feed-post" withdrawn={p.withdrawn === true} deleted={isTombstone(p)} style={{ marginBottom: 6 }} piece={announcedPieceOf(p)} />
+                            </div>
                             {!p.withdrawn && !isTombstone(p) && <AttachmentCard attachment={attachmentOf(p)} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
                             {p.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === p.quotedPostId)} who={who} />}
                           </>
                         )}
 
-                        {!isTombstone(p) && ReactionBar({ p, size: 16 })}
+                        {!isTombstone(p) && ReactionBar({ p, size: 16, replyCount })}
 
-                        {replyTo === p.id && (
-                          <div style={{ marginTop: 10, position: 'relative' }}>
-                            <textarea ref={replyTextareaRef} className="sq-textarea" placeholder={`Reply to ${who(p).displayName}…`} value={replyText} onChange={e => handleReplyTextChange(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem' }} />
-                            {showCounter(replyText.length, MAX_REPLY_CHARS) && (
-                              <div style={{ textAlign: 'right', fontSize: '0.65rem', marginTop: 2, fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500,
-                                color: replyText.length > MAX_REPLY_CHARS ? '#f87171' : (replyText.length >= MAX_REPLY_CHARS * 0.9 ? '#d99a3c' : 'rgba(255,255,255,0.45)') }}>
-                                {replyText.length} / {MAX_REPLY_CHARS}
-                              </div>
-                            )}
-                            {mentionQueryReply !== '' && <MentionDropdown query={mentionQueryReply} onSelect={insertMentionReply} />}
-                            {replyErr ? (
-                              <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginTop: 6, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
-                                <span style={{ fontSize: '0.8rem', color: '#f87171', marginRight: 'auto' }}>Not sent.</span>
-                                <button onClick={() => { setReplyText(''); setReplyErr(false); setReplyTo(null); }} style={{ background: 'none', border: 'none', color: 'rgba(245,240,232,0.7)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>Remove</button>
-                                <button className="sq-post-btn" onClick={() => reply(p)} disabled={replying || !refusalFor(replyText, { isReply: true }).ok}>{replying ? '…' : 'Try again'}</button>
-                              </div>
-                            ) : (
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-                              {/* R43 — the reply BUTTON never checked the cap. The counter
-                                  was there and reply() returned silently past 300, so the
-                                  button stayed live and clicking it did nothing at all. */}
-                              <button className="sq-post-btn" onClick={() => reply(p)} disabled={replying || !refusalFor(replyText, { isReply: true }).ok}>{replying ? '…' : 'Reply'}</button>
-                            </div>
-                            )}
-                          </div>
-                        )}
-
-                        {replies.length > 0 && (
-                          <div style={{ marginTop: 12, paddingLeft: 12, borderLeft: '1px solid rgba(107,47,173,0.25)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {replies.map(r => {
-                              const rIsOwn = user?.uid === r.authorUid;
-                              return (
-                                <div key={r.id} style={{ display: 'flex', gap: 8 }}>
-                                  {isTombstone(r) ? <div style={{ width: 26, flex: 'none' }} /> : <Avatar uid={r.authorUid} initials={who(r).initials} size={26} isAuthor={who(r).isAuthor} avatarUrl={who(r).avatarUrl} />}
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    {!isTombstone(r) && <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
-                                      <a href={rIsOwn ? '/profile' : `/user?id=${r.authorUid}`} style={{ fontSize: '0.92rem', fontWeight: 600, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none' }}
-                                        onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
-                                        onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{who(r).displayName}</a>
-                                      {who(r).handle && <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{who(r).handle}</span>}
-                                      <UserBadge uid={r.authorUid} readCount={who(r).readCount} isAuthor={who(r).isAuthor} />
-                                      <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.42)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>· {timeAgo(r.createdAt)}{r.edited && <span style={{ color: 'rgba(245,240,232,0.25)' }}> · edited</span>}</span>
-                                      {user && <PostMenu post={r} user={user} onEdit={handleEdit} onDelete={handleDelete} onPin={handlePin} onStripQuote={handleStripQuote} onReport={setReportingPost} canPin={canPin} canRemove={canRemove} />}
-                                    </div>}
-                                    {editingPost === r.id ? (
-                                      <div style={{ position: 'relative' }}>
-                                        <textarea ref={editTextareaRef} className="sq-textarea" value={editText} onChange={e => handleEditTextChange(e.target.value)} rows={2} autoFocus style={{ fontSize: '0.88rem', marginBottom: 6 }} />
-                                        {mentionQueryEdit !== '' && <MentionDropdown query={mentionQueryEdit} onSelect={insertMentionEdit} />}
-                                        {editErr && <div style={{ fontSize: '0.7rem', color: '#f87171', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 6 }}>{editErr}</div>}
-                                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
-                                          {showCounter(editText.length, MAX_REPLY_CHARS) && (
-                                            <span style={{ fontSize: '0.65rem', marginRight: 'auto', fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 500,
-                                              color: editText.length > MAX_REPLY_CHARS ? '#f87171' : (editText.length >= MAX_REPLY_CHARS * 0.9 ? '#d99a3c' : 'rgba(255,255,255,0.45)') }}>
-                                              {editText.length} / {MAX_REPLY_CHARS}
-                                            </span>
-                                          )}
-                                          <button onClick={() => { setEditingPost(null); setMentionQueryEdit(''); setEditErr(''); }} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 10px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Cancel</button>
-                                          <button className="sq-post-btn" onClick={() => saveEdit(r, { isReply: true })} disabled={!refusalFor(editText, { isReply: true, previousLength: (r.text || '').length }).ok}>Save</button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        <PostBody text={r.text} surface="feed-reply" withdrawn={r.withdrawn === true} deleted={isTombstone(r)} piece={announcedPieceOf(r)} />
-                                        {r.quotedPostId && <QuotedCard quotedPost={visiblePosts.find(qp => qp.id === r.quotedPostId)} who={who} />}
-                                      </>
-                                    )}
-                                    {!isTombstone(r) && ReactionBar({ p: r, size: 16, threadId: p.id })}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                        {/* W52 — replies live in the thread. The feed keeps one line: the latest
+                            reply, 22px avatar, name at 500, words at ink 0.68, ellipsis, 36px tall.
+                            It opens the thread at that reply. */}
+                        {latest && (
+                          <a href={threadHref(p.id, latest.id)} data-thread-open="latest"
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, height: 36, minWidth: 0, textDecoration: 'none', color: 'inherit' }}>
+                            <Avatar uid={latest.authorUid} initials={who(latest).initials} size={22} isAuthor={who(latest).isAuthor} avatarUrl={who(latest).avatarUrl} link={false} />
+                            <span style={{ flex: 'none', fontSize: '0.86rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{who(latest).displayName}</span>
+                            <PostBody text={latest.text} surface="feed-latest" piece={announcedPieceOf(latest)} style={{ flex: 1, minWidth: 0 }} />
+                          </a>
                         )}
                       </div>
                     </div>

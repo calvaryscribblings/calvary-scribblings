@@ -544,3 +544,24 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
   no recount. `functions/api/hit.js` counts one read per reader (a verified uid, else the device
   id, else nothing). The `calvary-hit-counter` Worker, which counted every open, is now
   count-only (`workers-external/`, pasted into the dashboard by hand).
+
+## 18 Oct 2026 (Ikenna): the build stamp (W52)
+
+- **190:** No reader sees a build ID. The stamp shows only to founders, in the site footer;
+  /build.json stays. The app's Profile build line goes founder-only in A42.
+
+## 18 Oct 2026 (Ikenna): the town square (rulings 191–203, the town-square canvas)
+
+- **191:** Tonight's question: one house question every weeknight, pinned at the top; answers live under it, not in the feed.
+- **192:** Ikenna writes or approves each question; Claude drafts three a week from new stories; nothing goes out unapproved.
+- **193:** Saturday Story: shortlist of three Monday 8pm, vote closes Wednesday 8pm, read together Saturday 8pm; readers don't see vote counts until it closes.
+- **194:** On Saturday, timed table questions (8:00, 8:45, 9:30) replace Tonight's question; "Ask the writer" runs 8:30–10pm.
+- **195:** Any post can be hidden as a spoiler until tapped; the Saturday table is spoiler-open.
+- **196:** A selected line from any story can be shared to the Square, posting as a cream paper cutting with "Read from this line".
+- **197:** Story pages get an "In the Square" block straight after the story's close, above About the author.
+- **198:** "Here now" shows the faces of readers in the room; "Reading tonight" on a reader's card is opt-in, off by default.
+- **199:** "Tell me when it opens": an opt-in 8pm notification, at most one a day, plus Wednesday's Saturday Story announcement.
+- **200:** The feed shows night dividers (Tonight, Last night, the night before) and a one-line latest reply under each post.
+- **201:** Earlier nights: the archive browsable by night and searchable by story, read-only.
+- **202:** A reader's card offers Mute (they aren't told) and Block; in messages, a single message is reported.
+- **203:** Identity is drawn by the live components (Avatar, UserBadge), everywhere in the Square.

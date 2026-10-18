@@ -61,9 +61,10 @@ const expect = (ok, what) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}`); 
   await page.evaluate(() => window.scrollTo(0, 1400));
   await page.waitForTimeout(1500);
   expect(await page.locator('[data-bar-readout]').count() === 0, 'a signed-in reader who is not a founder, with ?debug=bar: no readout');
-  const stamp = await page.locator('[data-build-stamp]').textContent().catch(() => null);
+  const stamp = (await page.locator('[data-build-stamp]').count()) ? await page.locator('[data-build-stamp]').textContent() : null;
   report.stamp = stamp;
-  expect(!!stamp && /^Build [0-9a-f]{12}$/.test(stamp.trim()), `the build stamp is on the page: ${stamp}`);
+  // Ruling 190 (W52): the story page carries no build stamp; the site footer does.
+  expect(stamp === null, `no build stamp on the story page: ${stamp}`);
   await page.screenshot({ path: join(OUT, 'reader-debug-bar-390.png') });
   const anc = await page.evaluate(async () => {
     const bar = document.querySelector('[data-story-bar]');

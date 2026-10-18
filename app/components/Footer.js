@@ -1,6 +1,9 @@
 'use client';
+import { useEffect, useState } from 'react';
 import AppInvite from './AppInvite';
 import BuildStamp from './BuildStamp';
+import { auth } from '../lib/firebaseCore';
+import { showsBuildStamp } from '../lib/buildStampPolicy';
 
 // ⭑ THE FOOTER CARRIES THE APP ROW, AND IT IS SAFE HERE BY CONSTRUCTION.
 // The 3.1.1 constraint is that a page which says "buy this book" must not, in the same
@@ -19,6 +22,10 @@ import BuildStamp from './BuildStamp';
 // anything inside this file. The guard is tests/applinks/placement.spec.mjs, which walks the
 // built Book Store pages and fails if a store URL appears in any of them.
 export default function Footer({ showAppRow = true }) {
+  // Ruling 190 (W52): the build stamp is a founder's tool, so it is drawn for a founder and for
+  // nobody else. Until auth answers, nothing is drawn, so no reader ever sees it flash.
+  const [stamp, setStamp] = useState(false);
+  useEffect(() => auth.onAuthStateChanged((u) => setStamp(showsBuildStamp(u?.uid))), []);
   return (
     <footer style={{ background: '#111111', padding: '4rem 4% 2rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '3rem', marginBottom: '3rem' }}>
@@ -62,7 +69,7 @@ export default function Footer({ showAppRow = true }) {
       <div style={{ borderTop: showAppRow ? 'none' : '1px solid rgba(255,255,255,0.06)', paddingTop: '2rem', textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: '0.8rem' }}>
         © 2026 Calvary Scribblings. A Calvary Media UK Publication. All rights reserved.
       </div>
-      <BuildStamp tone="dark" style={{ marginTop: '0.75rem' }} />
+      {stamp && <BuildStamp tone="dark" style={{ marginTop: '0.75rem' }} />}
     </footer>
   );
 }

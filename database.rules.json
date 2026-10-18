@@ -537,6 +537,12 @@
         "withdrawnAt": {
           ".validate": "newData.isNumber()"
         },
+        "replyToId": {
+          ".validate": "newData.isString() && newData.val().length <= 64 && ((data.exists() && data.val() === newData.val()) || (newData.parent().child('parentId').isString() && newData.val() !== newData.parent().child('parentId').val() && newData.val() !== $postId && root.child('square_posts').child(newData.val()).child('parentId').val() === newData.parent().child('parentId').val()))"
+        },
+        "removedBy": {
+          ".validate": "newData.isString() && newData.parent().child('withdrawn').val() === true && ((data.exists() && data.val() === newData.val()) || (newData.val() === 'author' && newData.parent().child('authorUid').val() === auth.uid) || (newData.val() === 'moderator' && root.child('users').child(auth.uid).child('canRemovePosts').val() === true))"
+        },
         "authorPlatformAvatar": {
           ".validate": "newData.isString() && newData.val().length <= 2048"
         },

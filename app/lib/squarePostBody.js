@@ -198,7 +198,9 @@ const NOTE_SHORT = 'The author withdrew this post.';
 
 export const SURFACES = {
   'feed-post':      { where: 'app/square/page.js — a post in the feed',                fontSize: '0.98rem', lineHeight: 1.68, color: '#f5f0e8', withdrawnNote: NOTE_POST },
-  'feed-reply':     { where: 'app/square/page.js — a reply under a post',              fontSize: '0.92rem', lineHeight: 1.68, color: '#f5f0e8', withdrawnNote: 'The author withdrew this reply.' },
+  // W52 — replies left the feed for the thread page; the feed keeps one line per post.
+  'thread-reply':   { where: 'app/square/p/page.js — a reply in the thread',           fontSize: '0.92rem', lineHeight: 1.68, color: '#f5f0e8', withdrawnNote: 'The author withdrew this reply.' },
+  'feed-latest':    { where: 'app/square/page.js — the latest reply, one line under a post', fontSize: '0.86rem', lineHeight: 1.4, color: 'rgba(245,240,232,0.68)', oneLine: true, withdrawnNote: 'The author withdrew this reply.' },
   'quoted-card':    { where: 'app/square/page.js — the quoted post card',              fontSize: '0.86rem', lineHeight: 1.55, color: 'rgba(255,255,255,0.65)', italic: true, excerpt: 100, withdrawnNote: NOTE_SHORT },
   'closed-preview': { where: 'app/square/page.js — "Last night in the Square"',        fontSize: '0.88rem', lineHeight: 1.6,  color: 'rgba(232,224,212,0.5)', withdrawnNote: NOTE_SHORT },
   'dm-bubble':      { where: 'app/square/page.js — a direct message bubble',           fontSize: '0.88rem', lineHeight: 1.6,  color: 'inherit', withdrawnNote: 'This message was withdrawn.' },

@@ -12,6 +12,7 @@ import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthor
 import OpenPagesProfileSection from '../components/OpenPagesProfileSection';
 import { USER_COMMENTS_PATH, loadCommentsFor, commentCountOf } from '../lib/userComments';
 import PostBody from '../components/conversation/PostBody';
+import { postHref } from '../lib/squareThreads';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -139,8 +140,8 @@ function SquarePostsModal({ uid, profileData, isAuthor, badge, onClose }) {
               const ini = (p.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
               return (
                 <div key={p.id}
-                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the #id anchor exists only after the Square page loads its posts
-                  onClick={() => window.location.href = `/square#${p.id}`}
+                  // W52 — every Square link opens the thread (/square/p), at the reply where there is one.
+                  onClick={() => window.location.assign(postHref(p))}
                   style={{ padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.015)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>

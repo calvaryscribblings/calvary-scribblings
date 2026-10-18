@@ -17,6 +17,7 @@ import { USER_COMMENTS_PATH, loadCommentsFor, commentCountOf } from '../lib/user
 import PostBody from '../components/conversation/PostBody';
 import HandleField, { readHandleOwner, useHandleCheck } from '../components/HandleField';
 import { checkHandle, renameHandle, normaliseHandle, handleStatusLine, HandleRefused, HANDLE_COPY } from '../lib/handle';
+import { postHref, squareNotificationHref, NOTIFICATION_WORDS } from '../lib/squareThreads';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -222,8 +223,8 @@ function SquarePostCard({ post, profileData, isAuthor, badge }) {
   const initials = (post.authorName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   return (
     <div
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the #id anchor exists only after the Square page loads its posts
-      onClick={() => window.location.href = `/square#${post.id}`}
+      // W52 — every Square link opens the thread (/square/p), at the reply where there is one.
+      onClick={() => window.location.assign(postHref(post))}
       style={{ padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}
       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.015)'}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -406,6 +407,7 @@ function CommentHistoryModal({ uid, onClose, allStoriesMerged }) {
 }
 
 function notifLabel(type) {
+  if (NOTIFICATION_WORDS[type]) return NOTIFICATION_WORDS[type];   // W52: the Square's thread replies
   switch (type) {
     case 'heart': return ' loved your comment';
     case 'fire': return ' reacted \uD83D\uDD25 to your comment';
@@ -421,7 +423,7 @@ function notifLabel(type) {
 function notifHref(n) {
   if (n.type === 'follow' && n.fromUid) return `/user?id=${n.fromUid}`;
   if (n.slug) return `/stories/${n.slug}`;
-  return null;
+  return squareNotificationHref(n);   // W52: a Square notification opens its thread
 }
 
 export default function ProfilePage() {

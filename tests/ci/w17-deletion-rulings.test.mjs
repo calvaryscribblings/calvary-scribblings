@@ -61,20 +61,24 @@ describe('ruling 30 · every thread surface draws the tombstone', () => {
     const feed = src('app/square/page.js');
     for (const re of [
       /isTombstone\(p\) \? <div style=\{\{ width: 34, flex: 'none' \}\} \/> : <Avatar/,
-      /isTombstone\(r\) \? <div style=\{\{ width: 26, flex: 'none' \}\} \/> : <Avatar/,
       /isTombstone\(p\) \? <div style=\{\{ width: 28, flex: 'none' \}\} \/> : <Avatar/,
       /\{!isTombstone\(quotedPost\) && <div/,
-      /\{!isTombstone\(p\) && ReactionBar\(\{ p, size: 16 \}\)\}/,
-      // W51: the reply's bar also carries its thread (reply on a reply opens the thread's box).
-      /\{!isTombstone\(r\) && ReactionBar\(\{ p: r, size: 16, threadId: p\.id \}\)\}/,
+      // W52: replies left the feed; the post's bar carries the replies count that opens the thread.
+      /\{!isTombstone\(p\) && ReactionBar\(\{ p, size: 16, replyCount \}\)\}/,
       /surface="feed-post" withdrawn=\{p\.withdrawn === true\} deleted=\{isTombstone\(p\)\}/,
-      /surface="feed-reply" withdrawn=\{r\.withdrawn === true\} deleted=\{isTombstone\(r\)\}/,
       /surface="quoted-card" deleted=\{isTombstone\(quotedPost\)\}/,
       /surface="closed-preview" deleted=\{isTombstone\(p\)\}/,
     ]) assert.match(feed, re);
+    // W52: /square/p is the thread. The root keeps its tombstone; a removed reply (ruling 30's
+    // deleted account included) draws as a Tombstone — no face, no name, no reactions, no Reply.
     const perm = src('app/square/p/page.js');
-    assert.match(perm, /surface="permalink" withdrawn=\{post\.withdrawn === true\} deleted=\{isTombstone\(post\)\}/);
-    assert.match(perm, /isTombstone\(post\) \? <div/);
+    assert.match(perm, /surface="permalink" withdrawn=\{root\.withdrawn === true\} deleted=\{isTombstone\(root\) \|\| root\.missing === true\}/);
+    assert.match(perm, /isTombstone\(root\) \|\| root\.missing \? <div/);
+    assert.match(perm, /surface="thread-reply" withdrawn=\{r\.withdrawn === true\} deleted=\{isTombstone\(r\)\}/);
+    const branch = perm.slice(perm.indexOf('if (isRemoved(r)) {'), perm.indexOf('const isEditing = editing === r.id;'));
+    assert.match(branch, /<Tombstone post=\{r\} size=\{size\} \/>/);
+    assert.doesNotMatch(branch, /Avatar|ReactionRow|replyButton/);
+    assert.match(perm, /\{post\.deleted \? DELETED_POST : removedNote\(post\)\}/);
   });
 });
 

@@ -300,8 +300,8 @@ describe('every surface has a draw site and every draw site has a surface', () =
   ];
   const source = FILES.map((f) => readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8')).join('\n');
 
-  test('there are exactly eight registered surfaces', () => {
-    assert.equal(SURFACE_KEYS.length, 8, `the table has ${SURFACE_KEYS.length} surfaces, not 8`);
+  test('there are exactly nine registered surfaces (W52: thread-reply replaced feed-reply; feed-latest added)', () => {
+    assert.equal(SURFACE_KEYS.length, 9, `the table has ${SURFACE_KEYS.length} surfaces, not 9`);
   });
 
   for (const key of SURFACE_KEYS) {

@@ -68,7 +68,7 @@ const CHANGED = [
   ["1", "app/lib/openPagesDrafts.js", "characters, so it is saved on this device only until it is shorter.", "characters, so it’s saved on this device only until it’s shorter.", 1],
   ["1", "app/lib/useOpenPagesDraft.js", "This browser is not storing anything,", "This browser isn’t storing anything,", 1],
   ["1", "app/lib/openPagesCopy.js", "we come and ask — that is how most of our contributors were found.", "we come and ask — that’s how most of our contributors were found.", 1],
-  ["1", "app/square/page.js", "The author is not told who reported them.", "The author isn&apos;t told who reported them.", 1],
+  ["1", "app/components/conversation/SquarePostMenu.js", "The author is not told who reported them.", "The author isn&apos;t told who reported them.", 1],
   ["1", "app/square/page.js", "beneath it will stay — they are not yours to delete.", "beneath it will stay — they aren't yours to delete.", 1],
   ["1", "app/square/page.js", "'Withdraw this post? It will be removed from the Square.'", "\"Withdraw this post? It'll be removed from the Square.\"", 1],
   ["1", "app/square/p/page.js", "this one is not among them.", "this one isn’t among them.", 1],

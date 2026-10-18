@@ -36,7 +36,6 @@ import { useGatePreview, readGatePreview } from '../../lib/gatePreview';
 import { lockedForFirstPaint, lockScript } from '../../lib/storyLock';
 import StoryGate from '../../components/StoryGate';
 import StoryBar from '../../components/StoryBar';
-import BuildStamp from '../../components/BuildStamp';
 import { Avatar, UserBadge, timeAgo, renderMentions, ReactionRow, COMMENT_REACTIONS } from '../../components/conversation/ConversationKit';
 import { DELETED_RESPONSE, isTombstone } from '../../lib/deletedContent';
 
@@ -1461,7 +1460,6 @@ useEffect(() => {
                 {displaySubcategory || displayCategory}
               </span>
             </div>
-            <BuildStamp style={{ background: '#f0ead8', padding: '0 2rem 2rem' }} />
           </main>
         </div>
         <ExerciseSection slug={slug} />
