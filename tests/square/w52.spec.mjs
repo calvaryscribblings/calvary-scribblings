@@ -22,6 +22,9 @@ import { test, expect } from '@playwright/test';
 import { getDatabase } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
 import { adminApp, closeApp, DB_NAMESPACE } from '../series/harness.mjs';
+import { routeSquareWrite } from './write-route.mjs';
+
+const WRITES = new WeakMap();   // page → its /api/square/write control (hold/release)
 
 const app = adminApp('square-w52');
 const db = getDatabase(app);
@@ -69,22 +72,11 @@ async function reset({ readerA } = {}) {
   });
 }
 
-async function open(page, path, { uid = A, at = OPEN } = {}) {
+async function open(page, path, { uid = A, at = OPEN, route = {} } = {}) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('dialog', (d) => d.accept());
-  // A test may hold the page's writes to square_posts and release them later, to see what the
-  // page does BEFORE a save is written. Holding delays frames; it never drops or rewrites one.
-  await page.addInitScript(() => {
-    const send = WebSocket.prototype.send;
-    const held = [];
-    window.__holdPostWrites = false;
-    WebSocket.prototype.send = function (d) {
-      if (window.__holdPostWrites && typeof d === 'string' && d.includes('"/square_posts/')) { held.push([this, d]); return; }
-      return send.call(this, d);
-    };
-    window.__releasePostWrites = () => { window.__holdPostWrites = false; while (held.length) { const [ws, d] = held.shift(); send.call(ws, d); } };
-  });
+  WRITES.set(page, await routeSquareWrite(page, { at, ...route }));   // W54: posts, replies and edits go through /api/square/write
   await page.addInitScript((off) => {
     const RD = Date;
     class D2 extends RD { constructor(...a) { if (a.length === 0) super(RD.now() + off); else super(...a); } static now() { return RD.now() + off; } }
@@ -238,10 +230,11 @@ test('a moderator (canRemovePosts, not a founder) removes a reply: removedBy mod
 });
 
 test('a reply that fails waits in place: half opacity, "Not sent.", Try again, Remove', async ({ page }) => {
-  // A legacy record: the stored username is not this reader's in the index, so the rules refuse
-  // authorHandle and the write fails server-side (W51's case).
-  await reset({ readerA: { displayName: 'Reader Ay', username: 'ay_old', readCount: 12, createdAt: 1 } });
-  await openThread(page, '-T1');
+  // W54: replies go through /api/square/write, which builds the author snapshot itself — the
+  // stale-username refusal this used (W51's case) can no longer happen. The failure now is the
+  // Function answering 502, as an outage would.
+  await reset();
+  await openThread(page, '-T1', { route: { fail: 502 } });
   await row(page, '-t1').locator('[data-reply-to="-t1"]').click();
   const field = page.getByLabel('Reply', { exact: true });
   await field.fill('this one is refused');
@@ -304,14 +297,14 @@ test('W51 guard: the box clears only once the save is written', async ({ page })
   await openThread(page, '-T2');
   const field = page.getByLabel('Reply', { exact: true });
   await field.fill('written before the box clears');
-  // Hold the reply's write frame in the page (see open()): the save is not written yet.
-  await page.evaluate(() => { window.__holdPostWrites = true; });
+  // Hold the reply's request to /api/square/write (W54): the save is not written yet.
+  WRITES.get(page).hold();
   await page.getByRole('button', { name: 'Send' }).click();
   await page.waitForTimeout(1500);
   await expect(field).toHaveValue('written before the box clears');
   expect(Object.values(await all()).filter((p) => p.text === 'written before the box clears')).toHaveLength(0);
   // Let it through: the write lands, then the box clears.
-  await page.evaluate(() => window.__releasePostWrites());
+  WRITES.get(page).release();
   await expect(field).toHaveValue('');
   expect(Object.values(await all()).filter((p) => p.text === 'written before the box clears')).toHaveLength(1);
 });

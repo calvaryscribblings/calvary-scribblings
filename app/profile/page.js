@@ -18,6 +18,7 @@ import PostBody from '../components/conversation/PostBody';
 import HandleField, { readHandleOwner, useHandleCheck } from '../components/HandleField';
 import { checkHandle, renameHandle, normaliseHandle, handleStatusLine, HandleRefused, HANDLE_COPY } from '../lib/handle';
 import { postHref, squareNotificationHref, NOTIFICATION_WORDS } from '../lib/squareThreads';
+import { reactionsOf, withReactionCounts } from '../lib/squareReactions';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -276,12 +277,10 @@ function SquarePostsModal({ uid, profileData, isAuthor, badge, onClose }) {
       const snap = await get(ref(db, `user_square_posts/${uid}`));
       if (snap.exists()) {
         const basePosts = Object.entries(snap.val()).map(([id, p]) => ({ id, ...p })).sort((a, b) => b.createdAt - a.createdAt);
-        const liveCounts = await Promise.all(basePosts.map(p => get(ref(db, `square_posts/${p.id}`)).then(s => ({ id: p.id, data: s.exists() ? s.val() : null }))));
-        const merged = basePosts.map(p => {
-          const live = liveCounts.find(l => l.id === p.id)?.data;
-          return { ...p, likeCount: live?.likeCount || 0, clapCount: live?.clapCount || 0, fireCount: live?.fireCount || 0 };
-        });
-        setPosts(merged);
+        // W54 — the counts are who reacted (square_reactions, or the archive's copy once the
+        // horizon has moved the thread), never the stored likeCount/clapCount/fireCount.
+        const nodes = await Promise.all(basePosts.map(p => reactionsOf(db, ref, get, p.id)));
+        setPosts(basePosts.map((p, i) => withReactionCounts(p, nodes[i])));
       }
       setLoading(false);
     })();

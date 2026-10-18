@@ -575,3 +575,9 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - **208:** A blocked reader who tries to message you sees "You can't message this reader." and isn't told why; you see "You've blocked @handle." with Unblock.
 - **209:** One block list everywhere: a block made in Open Pages comments applies to messages and the Square, and the reverse.
 - The reader card (W53 brief): "Mute in the Square" — "Their posts stop showing for you. They won't know."; "Block @handle" — "They can't message you, and their posts leave your Square."; once set, "Unmute" and "Unblock @handle". Messages: "Report a message" — "Pick the message. A moderator sees only that one."; then "Reported. A moderator sees only this message."
+
+## 18 Oct 2026 (Ikenna): the Square's server enforces the hours and the pace (W54)
+
+- **210:** The server enforces the hours: no post or reply outside 20:00–00:00 London, with five minutes' grace after midnight; founders are exempt.
+- **211:** Each reader may make at most 5 posts and 30 replies in any 10 minutes; past that: "Too much at once. Try again in a minute."
+- The refusal outside the hours (W54 brief): "The Square opens at 8pm."

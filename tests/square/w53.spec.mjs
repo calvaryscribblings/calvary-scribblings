@@ -17,6 +17,9 @@ import { test, expect } from '@playwright/test';
 import { getDatabase } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
 import { adminApp, closeApp, DB_NAMESPACE } from '../series/harness.mjs';
+import { routeSquareWrite } from './write-route.mjs';
+
+const WRITES = new WeakMap();   // page → its /api/square/write control (hold/release)
 
 const app = adminApp('square-w53');
 const db = getDatabase(app);
@@ -70,10 +73,11 @@ async function reset({ readerA } = {}) {
   });
 }
 
-async function open(page, path, { uid = A, at = OPEN, cookies = 'decline' } = {}) {
+async function open(page, path, { uid = A, at = OPEN, cookies = 'decline', route = {} } = {}) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('dialog', (d) => d.accept());
+  WRITES.set(page, await routeSquareWrite(page, { at, ...route }));   // W54: posts, replies and edits go through /api/square/write
   await page.addInitScript((off) => {
     const RD = Date;
     class D2 extends RD { constructor(...a) { if (a.length === 0) super(RD.now() + off); else super(...a); } static now() { return RD.now() + off; } }
@@ -261,9 +265,11 @@ test('a reply from a blocked reader leaves no notification, and the reply itself
 });
 
 test('ruling 205: a post that fails waits at the top of the feed — Not sent, Try again, Remove writes nothing', async ({ page }) => {
-  // A legacy record: the stored username is not this reader's in the index, so the write is refused.
-  await reset({ readerA: { displayName: 'Reader Ay', username: 'ay_old', readCount: 12, createdAt: 1 } });
-  await openFeed(page);
+  // W54: posts go through /api/square/write, which builds the author snapshot itself, so the
+  // stale-username refusal this used can no longer happen. The failure is the Function answering
+  // 502, as an outage would.
+  await reset();
+  await openFeed(page, { route: { fail: 502 } });
   const box = page.getByPlaceholder(/What's on your mind/);
   await box.fill('this post is refused');
   await page.getByRole('button', { name: /^Post$/i }).click();

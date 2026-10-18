@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { stories as allStaticStories } from '../lib/stories';
 import { resolveAuthorNames, withCurrentAuthorNames } from '../lib/resolveAuthorNames';
@@ -20,6 +20,8 @@ import { PostMenu, ReportModal, PinIcon } from '../components/conversation/Squar
 import MessagesPanel from '../components/square/MessagesPanel';
 import ReaderCard from '../components/square/ReaderCard';
 import useSafety from '../components/square/useSafety';
+import { sendSquareWrite } from '../lib/squareWrite';
+import { REACTION_TYPES, withReactionCounts } from '../lib/squareReactions';
 
 
 const FB = {
@@ -527,7 +529,9 @@ export default function SquarePage() {
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionQueryEdit, setMentionQueryEdit] = useState('');
   const [showAuth, setShowAuth] = useState(false);
-  const [reactions, setReactions] = useState({});
+  // W54 — every post's square_reactions node, signed in or out: the counts are who reacted, and
+  // this reader's own state is read from the same lists.
+  const [rxNodes, setRxNodes] = useState({});
   const [editingPost, setEditingPost] = useState(null);
   // R43 — the edit path had no way to say no. See saveEdit().
   const [editErr, setEditErr] = useState('');
@@ -543,6 +547,35 @@ export default function SquarePage() {
   const hidden = safety.hidden;
   const unreadNotifs = notifRaw.filter(n => !n.read && !(n.fromUid && hidden.has(n.fromUid))).length;
   const openReader = useCallback((uid) => { if (uid) setCardUid(uid); }, []);
+
+  // This reader's own reactions, from the same lists the counts come from.
+  const reactions = useMemo(() => {
+    if (!user) return {};
+    const out = {};
+    for (const [id, node] of Object.entries(rxNodes)) {
+      out[id] = Object.fromEntries(REACTION_TYPES.filter(t => node?.[t]?.[user.uid] === true).map(t => [t, true]));
+    }
+    return out;
+  }, [rxNodes, user]);
+
+  // Per-child, as square_posts is (R33.2): one reader's tap does not re-deliver everyone's
+  // reactions to everyone.
+  useEffect(() => {
+    let off = null;
+    let cancelled = false;
+    (async () => {
+      const db = await getDB();
+      const { ref, onChildAdded, onChildChanged, onChildRemoved } = await import('firebase/database');
+      if (cancelled) return;
+      const rxRef = ref(db, 'square_reactions');
+      const absorb = (snap) => setRxNodes(prev => ({ ...prev, [snap.key]: snap.val() || {} }));
+      const rA = onChildAdded(rxRef, absorb);
+      const rC = onChildChanged(rxRef, absorb);
+      const rR = onChildRemoved(rxRef, (snap) => setRxNodes(prev => { const n = { ...prev }; delete n[snap.key]; return n; }));
+      off = () => { rA(); rC(); rR(); };
+    })();
+    return () => { cancelled = true; if (off) off(); };
+  }, []);
 
   // The reader card's Message button, from the thread page: /square?dm={uid} opens the conversation.
   useEffect(() => {
@@ -624,20 +657,6 @@ export default function SquarePage() {
           childUnsubs.push(onValue(ref(db, `notifications/${u.uid}`), (snap) => {
             setNotifRaw(snap.exists() ? Object.values(snap.val()) : []);
           }));
-          // Load reactions for all posts
-          // Same fix as square_posts: per-child, so one reader's tap does not
-          // re-deliver everyone's reactions to everyone.
-          const rxRef = ref(db, 'square_reactions');
-          const absorb = (snap) => {
-            const d = snap.val() || {};
-            const mine = {};
-            ['like', 'clap', 'fire'].forEach(t => { if (d[t] && d[t][u.uid]) mine[t] = true; });
-            setReactions(prev => ({ ...prev, [snap.key]: mine }));
-          };
-          const rA = onChildAdded(rxRef, absorb);
-          const rC = onChildChanged(rxRef, absorb);
-          const rR = onChildRemoved(rxRef, (snap) => setReactions(prev => { const n = { ...prev }; delete n[snap.key]; return n; }));
-          childUnsubs.push(() => { rA(); rC(); rR(); });
           const presRef = ref(db, `square_presence/${u.uid}`);
           await set(presRef, true);
           onDisconnect(presRef).remove();
@@ -812,37 +831,36 @@ export default function SquarePage() {
     const story = retry ? retry.attachedStory : attachedStory;
     const poll = retry ? retry.poll : pollData;
     try {
-      const db = await getDB();
-      const { ref, push } = await import('firebase/database');
-      const postData = {
-        text: body, authorUid: user.uid, authorName: user.displayName || 'Reader',
-        authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
-        authorAvatarUrl: userData?.avatarUrl || null, authorHandle: userData?.username || '', authorReadCount: userData?.readCount || 0,
-        isAuthor: userData?.isAuthor || false, attachedStory: story || null,
-        parentId: null, likeCount: 0, pinned: false,
-        unpinnedAt: null,
+      // W54 — the Function writes the post: the server's clock, the hours (210), the pace (211)
+      // and the author snapshot from users/{uid}. It answers with the record it wrote, which is
+      // what the mirror copies.
+      const { id: key, record: postData } = await sendSquareWrite(user, {
+        action: 'post', text: body,
+        attachedStory: story ? slimAttachedStory(story) : null,
         quotedPostId: quoted || null,
-        createdAt: Date.now(),
-      };
-      if (poll) postData.poll = { ...poll, votes: {} };
-      const newPost = await push(ref(db, 'square_posts'), postData);
+        poll: poll || null,
+      });
       if (retry) setFailedPosts(f => f.filter(x => x.id !== retry.id));
       else { setText(''); setAttachedStory(null); setQuotedPostId(null); }
-      afterSave(newPost.key, postData, async () => {
-        await sendNotifications(body, newPost.key, 'post');
+      const db = await getDB();
+      afterSave(key, postData, async () => {
+        await sendNotifications(body, key, 'post');
         const quotedPost = quoted ? posts.find(p => p.id === quoted) : null;
         if (quotedPost && quotedPost.authorUid && quotedPost.authorUid !== user.uid) {
           await tryNotify(db, quotedPost.authorUid, {
             type: 'square_quote', fromUid: user.uid, fromName: user.displayName || 'Reader',
             fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
-            postId: newPost.key, quotedPostId: quoted, read: false, createdAt: Date.now(),
+            postId: key, quotedPostId: quoted, read: false, createdAt: Date.now(),
           });
         }
       });
     } catch (e) {
-      console.error('Post error:', e);
-      if (!retry) {
-        setFailedPosts(f => [{ id: `unsent-${Date.now()}`, text: body, quotedPostId: quoted || null, attachedStory: story || null, poll: poll || null, createdAt: Date.now() }, ...f]);
+      console.error('Post error:', e?.code || e);
+      // W54 — the Function's own words when the refusal is the hours or the pace; otherwise "Not sent." alone.
+      const shown = e?.shown || null;
+      if (retry) setFailedPosts(f => f.map(x => (x.id === retry.id ? { ...x, shown } : x)));
+      else {
+        setFailedPosts(f => [{ id: `unsent-${Date.now()}`, text: body, quotedPostId: quoted || null, attachedStory: story || null, poll: poll || null, createdAt: Date.now(), shown }, ...f]);
         setText(''); setAttachedStory(null); setQuotedPostId(null);
       }
     }
@@ -857,29 +875,25 @@ export default function SquarePage() {
   // W13 — optimistic: the state and count flip on the tap, and a failed save restores both
   // and rejects, so the button can shake and say so (components/conversation/Reaction.js).
   // The listeners' echo then carries the same values and moves nothing.
+  // W54 — the count is the list: the tap writes this reader's own leaf and nothing else.
   const toggleReaction = async (postId, type) => {
     if (!user) return;
     const hasReacted = !!reactions[postId]?.[type];
-    const currentCount = posts.find(p => p.id === postId)?.[`${type}Count`] || 0;
-    const apply = (reacted, count) => {
-      setReactions(prev => ({ ...prev, [postId]: { ...prev[postId], [type]: reacted } }));
-      setPosts(prev => prev.map(p => (p.id === postId ? { ...p, [`${type}Count`]: count } : p)));
-    };
-    apply(!hasReacted, hasReacted ? Math.max(0, currentCount - 1) : currentCount + 1);
+    const apply = (reacted) => setRxNodes(prev => {
+      const node = prev[postId] || {};
+      const who = { ...(node[type] || {}) };
+      if (reacted) who[user.uid] = true; else delete who[user.uid];
+      return { ...prev, [postId]: { ...node, [type]: who } };
+    });
+    apply(!hasReacted);
     const db = await getDB();
-    const { ref, set, remove, runTransaction, push } = await import('firebase/database');
+    const { ref, set, remove, push } = await import('firebase/database');
     const reactionRef = ref(db, `square_reactions/${postId}/${type}/${user.uid}`);
-    const countRef = ref(db, `square_posts/${postId}/${type}Count`);
     try {
-      if (hasReacted) {
-        await remove(reactionRef);
-        await runTransaction(countRef, c => Math.max(0, (c || 0) - 1));
-      } else {
-        await set(reactionRef, true);
-        await runTransaction(countRef, c => (c || 0) + 1);
-      }
+      if (hasReacted) await remove(reactionRef);
+      else await set(reactionRef, true);
     } catch (e) {
-      apply(hasReacted, currentCount);
+      apply(hasReacted);
       throw e;
     }
     // Saved. Telling the post's author is a courtesy after it and never undoes the reaction.
@@ -923,13 +937,12 @@ export default function SquarePage() {
     const verdict = refusalFor(editText, { isReply, previousLength: (record.text || '').length });
     if (!verdict.ok) { setEditErr(verdict.message); return; }
     try {
-      const db = await getDB();
-      const { ref, update } = await import('firebase/database');
-      await update(ref(db, `square_posts/${record.id}`), { text: editText.trim(), edited: true });
+      // W54 — through the Function: your own post, inside five minutes, text only.
+      await sendSquareWrite(user, { action: 'edit', id: record.id, text: editText.trim() });
       setEditingPost(null); setEditText(''); setMentionQueryEdit(''); setEditErr('');
     } catch (e) {
       setEditErr('That edit was refused. Nothing was changed — your text is still here.');
-      console.error('Edit error:', e);
+      console.error('Edit error:', e?.code || e);
     }
   };
 
@@ -1071,7 +1084,7 @@ export default function SquarePage() {
     return (
       <ReactionRow
         reactions={SQUARE_REACTIONS}
-        item={p}
+        item={withReactionCounts(p, rxNodes[p.id])}
         activeMap={reactions[p.id]}
         onToggle={(key) => toggleReaction(p.id, key)}
         canReact={!!user}
@@ -1290,7 +1303,7 @@ export default function SquarePage() {
                   {f.attachedStory && <AttachmentCard attachment={attachmentOf({ attachedStory: f.attachedStory })} />}
                 </div>
                 <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.85rem' }}>
-                  <span style={{ color: '#d4537e' }}>Not sent.</span>
+                  <span style={{ color: '#d4537e' }}>Not sent.{f.shown && <span data-unsent-reason style={{ color: 'rgba(245,240,232,0.72)' }}> {f.shown}</span>}</span>
                   <button disabled={posting} onClick={() => post(null, f)} style={{ minHeight: 44, background: 'none', border: 'none', padding: 0, color: '#a989d9', fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer' }}>Try again</button>
                   <button onClick={() => setFailedPosts(list => list.filter(x => x.id !== f.id))} style={{ minHeight: 44, background: 'none', border: 'none', padding: 0, color: 'rgba(245,240,232,0.62)', fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer' }}>Remove</button>
                 </div>

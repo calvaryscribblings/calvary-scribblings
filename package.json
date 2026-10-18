@@ -121,7 +121,9 @@
     "test:gateway": "next build && playwright test -c tests/gateway/playwright.config.mjs",
     "test:square:w51": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w51.config.mjs\"",
     "test:square:w52": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w52.config.mjs\"",
-    "test:square:w53": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w53.config.mjs\""
+    "test:square:w53": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w53.config.mjs\"",
+    "test:square:write:emulator": "firebase emulators:exec --only database --project demo-calvary-reads \"node --test --test-concurrency=1 tests/square/write.emulator.mjs\"",
+    "test:square:w54": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w54.config.mjs\""
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",

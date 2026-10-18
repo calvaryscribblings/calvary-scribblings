@@ -78,6 +78,7 @@ const fixture = () => ({
   series_reading_progress: { [T]: { x: 1 } }, bookstore_reading_progress: { [T]: { x: 1 } },
   square_presence: { [T]: { online: true } }, open_pages_drafts: { [T]: { d: { title: 'draft' } } },
   open_pages_rate: { [T]: { recent: { 0: 1 } } },
+  square_rate: { [T]: { post: { 0: 1 } }, [A]: { reply: { 0: 2 } } },
   notifications: { [T]: { n: { fromUid: A } }, [A]: { n1: { fromUid: T, fromName: 'Leaving Reader' }, n2: { fromUid: B } } },
   library_notifications: { [T]: { n: { type: 'reward' } }, [A]: { l1: { fromUid: T, fromName: 'Leaving Reader' } } },
   followers: { [T]: { [A]: true }, [A]: { [T]: true, [B]: true } },

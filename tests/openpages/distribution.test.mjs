@@ -194,7 +194,7 @@ describe('R38 · the Square announcement', () => {
     assert.equal(a.authorReadCount, 124);
     assert.equal(a.isAuthor, true);
     assert.equal(a.parentId, null);
-    assert.equal(a.likeCount, 0);
+    assert.equal(a.likeCount, undefined, 'W54: no stored count — the count is who reacted');
     assert.equal(a.createdAt, NOW);
     // Under the horizon a pin confers permanence (R33.2). An automated post must never
     // be able to grant itself that.

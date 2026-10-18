@@ -16,6 +16,7 @@ import { test, expect } from '@playwright/test';
 import { getDatabase } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
 import { adminApp, closeApp } from '../series/harness.mjs';
+import { routeSquareWrite } from './write-route.mjs';
 
 const app = adminApp('square-w51');
 const db = getDatabase(app);
@@ -49,6 +50,7 @@ async function reset({ readerA } = {}) {
 async function openRoom(page, uid = A) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  await routeSquareWrite(page, { at: OPEN });   // W54: posts go through /api/square/write
   await page.addInitScript((off) => {
     const RD = Date;
     class D extends RD { constructor(...a) { if (a.length === 0) super(RD.now() + off); else super(...a); } static now() { return RD.now() + off; } }

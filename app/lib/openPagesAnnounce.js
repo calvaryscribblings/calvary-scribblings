@@ -102,7 +102,6 @@ export function buildAnnouncement(snapshot, profile, { title, postId, now }) {
     authorReadCount: Number(profile?.readCount) || 0,
     isAuthor: profile?.isAuthor === true,
     parentId: null,
-    likeCount: 0,
     // NEVER pinned. Under the horizon a pin confers permanence (R33.2), and an
     // automated post must not be able to grant itself that.
     pinned: false,

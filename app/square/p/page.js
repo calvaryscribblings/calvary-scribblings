@@ -28,6 +28,8 @@ import PostBody from '../../components/conversation/PostBody';
 import AttachmentCard from '../../components/conversation/AttachmentCard';
 import { PostMenu, ReportModal } from '../../components/conversation/SquarePostMenu';
 import { attachmentOf, refusalFor, showCounter, MAX_REPLY_CHARS } from '../../lib/squarePostBody';
+import { sendSquareWrite } from '../../lib/squareWrite';
+import { withReactionCounts } from '../../lib/squareReactions';
 import { isTombstone, announcedPieceOf, DELETED_POST } from '../../lib/deletedContent';
 import { mentionHandles, resolveHandle, matchReaders } from '../../lib/squareHandles';
 import { keyboardInset } from '../../lib/composerRail';
@@ -193,7 +195,13 @@ function Thread() {
         const q = query(ref(db, where), orderByChild('parentId'), equalTo(rootId));
         if (where === 'square_archive') {
           const sibs = await get(q);
-          if (!cancelled) setReplies(sibs.exists() ? Object.entries(sibs.val()).map(([k, v]) => ({ id: k, ...v })) : []);
+          const list = sibs.exists() ? Object.entries(sibs.val()).map(([k, v]) => ({ id: k, ...v })) : [];
+          if (!cancelled) setReplies(list);
+          // W54 — the counts are who reacted; the horizon carried each thread's lists to
+          // square_archive_reactions. One read per record, read-only, like the thread itself.
+          const ids = [rootId, ...list.map((r) => r.id)];
+          const nodes = await Promise.all(ids.map((k) => get(ref(db, `square_archive_reactions/${k}`)).then((s) => s.val()).catch(() => null)));
+          if (!cancelled) setReactions(Object.fromEntries(ids.map((k, i) => [k, nodes[i] || {}])));
           return;
         }
         // In the room the thread is live: a reply, an edit or a removal lands as it happens.
@@ -335,9 +343,9 @@ function Thread() {
   };
 
   // A reply's readers hear after it saved, never instead of it. Logged, never shown as a failure.
-  const tellReaders = async (db, key, body, target) => {
+  const tellReaders = async (db, key, body, target, written) => {
     const { ref, push, get, set } = await import('firebase/database');
-    const record = { text: body, authorUid: user.uid, parentId: rootId, createdAt: Date.now() };
+    const record = { text: written.text, authorUid: user.uid, parentId: rootId, createdAt: written.createdAt };
     if (target) record.replyToId = target.id;
     await set(ref(db, `user_square_posts/${user.uid}/${key}`), record);
     const mentioned = [];
@@ -365,30 +373,26 @@ function Thread() {
     // server's acknowledgement. The words stay in the box while the write is in flight.
     const clearBox = () => { setBox(''); setAnswering(null); setMentionQuery(''); };
     try {
-      const db = await getDB();
-      const { ref, push } = await import('firebase/database');
-      const data = {
-        text: body, authorUid: user.uid, authorName: user.displayName || 'Reader',
-        authorInitials: (user.displayName || 'R').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase(),
-        authorAvatarUrl: userData?.avatarUrl || null, authorHandle: userData?.username || '', authorReadCount: userData?.readCount || 0,
-        isAuthor: userData?.isAuthor || false, parentId: rootId, likeCount: 0,
-        pinned: false, unpinnedAt: null, createdAt: Date.now(),
-      };
-      if (target) data.replyToId = target.id;
-      const saved = await push(ref(db, 'square_posts'), data);
+      // W54 — the Function writes the reply (server clock, hours, pace, author snapshot) and
+      // answers with what it wrote; the mirror and the notifications follow, as before.
+      const { id: key, record } = await sendSquareWrite(user, { action: 'reply', text: body, parentId: rootId, replyToId: target?.id || null });
       if (!retryOf) clearBox();
       if (retryOf) setFailed((f) => f.filter((x) => x.id !== retryOf));
-      setOwnSent((s) => new Set([...s, saved.key]));
-      tellReaders(db, saved.key, body, target).catch((e) => console.error('After-save error (the reply itself was saved):', e));
+      setOwnSent((s) => new Set([...s, key]));
+      const db = await getDB();
+      tellReaders(db, key, body, target, record).catch((e) => console.error('After-save error (the reply itself was saved):', e));
     } catch (e) {
-      console.error('Reply error:', e);
+      console.error('Reply error:', e?.code || e);
       // Not sent: the words move out of the box and wait in the thread, where they were going,
-      // at half opacity, with Try again and Remove.
-      if (!retryOf) {
+      // at half opacity, with Try again and Remove. W54: with the Function's own words when the
+      // refusal is the hours or the pace.
+      const shown = e?.shown || null;
+      if (retryOf) setFailed((f) => f.map((x) => (x.id === retryOf ? { ...x, shown } : x)));
+      else {
         clearBox();
         setFailed((f) => [...f, {
           id: `unsent-${Date.now()}`, unsent: true, text: body, authorUid: user.uid, parentId: rootId,
-          replyToId: target?.id || undefined, createdAt: Date.now(), target,
+          replyToId: target?.id || undefined, createdAt: Date.now(), target, shown,
         }]);
       }
     }
@@ -399,23 +403,23 @@ function Thread() {
   }, [user, userData, rootId, root]);
 
   // ── reactions, as the feed does them (W13) ──────────────────────────────────
-  const counts = useMemo(() => Object.fromEntries([root, ...replies].filter(Boolean).map((p) => [p.id, p])), [root, replies]);
-  const [bumps, setBumps] = useState({});
+  // W54 — the count is the list: square_reactions (square_archive_reactions for an archived
+  // thread), counting who reacted. The tap writes this reader's own leaf and nothing else.
   const toggleReaction = async (p, type) => {
     if (!user) return;
     const mine = !!reactions[p.id]?.[type]?.[user.uid];
-    const base = (bumps[p.id]?.[type] ?? counts[p.id]?.[`${type}Count`]) || 0;
-    const apply = (on, count) => {
-      setReactions((prev) => ({ ...prev, [p.id]: { ...prev[p.id], [type]: { ...(prev[p.id]?.[type] || {}), [user.uid]: on || undefined } } }));
-      setBumps((prev) => ({ ...prev, [p.id]: { ...prev[p.id], [type]: count } }));
-    };
-    apply(!mine, mine ? Math.max(0, base - 1) : base + 1);
+    const apply = (on) => setReactions((prev) => {
+      const who = { ...(prev[p.id]?.[type] || {}) };
+      if (on) who[user.uid] = true; else delete who[user.uid];
+      return { ...prev, [p.id]: { ...prev[p.id], [type]: who } };
+    });
+    apply(!mine);
     const db = await getDB();
-    const { ref, set, remove, runTransaction, push } = await import('firebase/database');
+    const { ref, set, remove, push } = await import('firebase/database');
     try {
-      if (mine) { await remove(ref(db, `square_reactions/${p.id}/${type}/${user.uid}`)); await runTransaction(ref(db, `square_posts/${p.id}/${type}Count`), (c) => Math.max(0, (c || 0) - 1)); }
-      else { await set(ref(db, `square_reactions/${p.id}/${type}/${user.uid}`), true); await runTransaction(ref(db, `square_posts/${p.id}/${type}Count`), (c) => (c || 0) + 1); }
-    } catch (e) { apply(mine, base); throw e; }
+      if (mine) await remove(ref(db, `square_reactions/${p.id}/${type}/${user.uid}`));
+      else await set(ref(db, `square_reactions/${p.id}/${type}/${user.uid}`), true);
+    } catch (e) { apply(mine); throw e; }
     if (!mine && p.authorUid && p.authorUid !== user.uid) {
       try {
         await push(ref(db, `notifications/${p.authorUid}`), {
@@ -430,9 +434,7 @@ function Thread() {
     const r = reactions[p.id] || {};
     return user ? Object.fromEntries(['like', 'clap', 'fire'].map((t) => [t, !!r[t]?.[user.uid]])) : {};
   };
-  // A live echo carries the true count, so it supersedes the optimistic one.
-  useEffect(() => { setBumps({}); }, [replies, root]);
-  const withCounts = (p) => ({ ...p, ...Object.fromEntries(Object.entries(bumps[p.id] || {}).map(([t, c]) => [`${t}Count`, c])) });
+  const withCounts = (p) => withReactionCounts(p, reactions[p.id]);
 
   // ── withdraw, remove, edit, report ──────────────────────────────────────────
   // W52 — a reply is never hard-deleted. Its words and attachments go; the record stays as a
@@ -471,13 +473,12 @@ function Thread() {
     const verdict = refusalFor(editText, { isReply: true, previousLength: (p.text || '').length });
     if (!verdict.ok) { setEditErr(verdict.message); return; }
     try {
-      const db = await getDB();
-      const { ref, update } = await import('firebase/database');
-      await update(ref(db, `square_posts/${p.id}`), { text: editText.trim(), edited: true });
+      // W54 — through the Function: your own reply, inside five minutes, text only.
+      await sendSquareWrite(user, { action: 'edit', id: p.id, text: editText.trim() });
       setEditing(null); setEditText(''); setEditErr('');
     } catch (e) {
       setEditErr('That edit was refused. Nothing was changed — your text is still here.');
-      console.error('Edit error:', e);
+      console.error('Edit error:', e?.code || e);
     }
   };
   const submitReport = async (p, reason, note) => {
@@ -506,7 +507,7 @@ function Thread() {
 
   const Unsent = ({ r }) => (
     <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4, fontFamily: FF, fontSize: '0.85rem' }}>
-      <span style={{ color: NOT_SENT }}>{THREAD_COPY.notSent}</span>
+      <span style={{ color: NOT_SENT }}>{THREAD_COPY.notSent}{r.shown && <span data-unsent-reason style={{ color: INK(0.72) }}> {r.shown}</span>}</span>
       <button disabled={sending} onClick={() => send({ body: r.text, target: r.target, retryOf: r.id })}
         style={{ minHeight: 44, background: 'none', border: 'none', padding: 0, color: HANDLE, fontFamily: FF, fontSize: '0.85rem', cursor: 'pointer' }}>{THREAD_COPY.tryAgain}</button>
       <button onClick={() => setFailed((f) => f.filter((x) => x.id !== r.id))}

@@ -32,6 +32,10 @@
 // surface: it is the cheapest way to put something the house cannot see in front
 // of readers, and the room has nothing to catch it with.
 //
+// (W54: the web's writes now pass a per-reader pace in functions/api/square/write.js,
+// and W53 added blocking. The app's direct path stays unlimited until W55, and a pace
+// is not a moderator — the reason above still stands.)
+//
 // ⚠ AND IT HELD BY ACCIDENT BEFORE THIS FILE EXISTED. Measured 4 Sep 2026: there
 // is no autolinker anywhere in the repo and 0 of 118 live posts contain a URL, so
 // the ruling cost nothing retroactively. But it held because nobody had written a

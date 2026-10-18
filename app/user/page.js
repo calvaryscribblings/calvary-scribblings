@@ -13,6 +13,7 @@ import OpenPagesProfileSection from '../components/OpenPagesProfileSection';
 import { USER_COMMENTS_PATH, loadCommentsFor, commentCountOf } from '../lib/userComments';
 import PostBody from '../components/conversation/PostBody';
 import { postHref } from '../lib/squareThreads';
+import { reactionsOf, withReactionCounts } from '../lib/squareReactions';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -114,11 +115,9 @@ function SquarePostsModal({ uid, profileData, isAuthor, badge, onClose }) {
       const snap = await get(ref(db, `user_square_posts/${uid}`));
       if (snap.exists()) {
         const base = Object.entries(snap.val()).map(([id, p]) => ({ id, ...p })).sort((a, b) => b.createdAt - a.createdAt);
-        const live = await Promise.all(base.map(p => get(ref(db, `square_posts/${p.id}`)).then(s => ({ id: p.id, data: s.exists() ? s.val() : null }))));
-        setPosts(base.map(p => {
-          const l = live.find(x => x.id === p.id)?.data;
-          return { ...p, likeCount: l?.likeCount || 0, clapCount: l?.clapCount || 0, fireCount: l?.fireCount || 0 };
-        }));
+        // W54 — the counts are who reacted, never the stored counts (app/lib/squareReactions.js).
+        const nodes = await Promise.all(base.map(p => reactionsOf(db, ref, get, p.id)));
+        setPosts(base.map((p, i) => withReactionCounts(p, nodes[i])));
       }
       setLoading(false);
     })();
