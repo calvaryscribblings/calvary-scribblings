@@ -645,6 +645,9 @@ export default function OpenPageDetailClient({ params }) {
       await set(newRef, data);
       // Notify the author of the comment/reply being replied to — same shape as
       // notifications/{uid} elsewhere (see app/square/page.js). Skip self-replies.
+      // W53 — on its own: the rules refuse a notification to a reader who has blocked this one
+      // (ruling 209, one block list everywhere), and the reply above is already saved. A refusal
+      // here used to fall into the catch below and take a saved reply off the screen.
       if (parentNode.authorUid && parentNode.authorUid !== user.uid) {
         await push(ref(db, `notifications/${parentNode.authorUid}`), {
           type: 'open_pages_reply',
@@ -655,7 +658,7 @@ export default function OpenPageDetailClient({ params }) {
           postId: id,
           read: false,
           createdAt: Date.now(),
-        });
+        }).catch((e) => console.error('[open-pages] reply notification not sent:', e?.code || e?.message || e));
       }
     } catch (err) {
       console.error('[open-pages] reply post failed:', err);

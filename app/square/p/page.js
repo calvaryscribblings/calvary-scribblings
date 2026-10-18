@@ -32,8 +32,10 @@ import { isTombstone, announcedPieceOf, DELETED_POST } from '../../lib/deletedCo
 import { mentionHandles, resolveHandle, matchReaders } from '../../lib/squareHandles';
 import { keyboardInset } from '../../lib/composerRail';
 import {
-  buildThread, foldNested, isRemoved, removedNote, replyNotifications, threadHref, THREAD_COPY,
+  buildThread, foldNested, isRemoved, isHiddenBy, removedNote, replyNotifications, threadHref, THREAD_COPY,
 } from '../../lib/squareThreads';
+import ReaderCard from '../../components/square/ReaderCard';
+import useSafety from '../../components/square/useSafety';
 
 const FB = {
   apiKey: 'AIzaSyATmmrzAg9b-Nd2I6rGxlE2pylsHeqN2qY',
@@ -96,11 +98,13 @@ function Shell({ children, bottomPad = '6rem' }) {
   );
 }
 
-function NameLine({ post, who, onMenu }) {
+function NameLine({ post, who, onMenu, onOpen }) {
   const id = who(post);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 }}>
-      <span style={{ fontFamily: FF, fontWeight: 500, fontSize: '0.95rem' }}>{id.displayName}</span>
+      {/* W53 — the name opens the reader card. */}
+      <button type="button" onClick={() => onOpen?.(post.authorUid)} data-reader-open={post.authorUid}
+        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#f5f0e8', fontFamily: FF, fontWeight: 500, fontSize: '0.95rem' }}>{id.displayName}</button>
       {id.handle && <span style={{ fontFamily: FF, fontSize: '0.75rem', color: INK(0.45) }}>@{id.handle}</span>}
       <UserBadge uid={post.authorUid} readCount={id.readCount} isAuthor={id.isAuthor} />
       <span style={{ fontFamily: FF, fontSize: '0.75rem', color: INK(0.42) }}>· {timeAgo(post.createdAt)}{post.edited && <span style={{ color: INK(0.25) }}> · edited</span>}</span>
@@ -111,12 +115,14 @@ function NameLine({ post, who, onMenu }) {
 
 // A removed reply, drawn only while replies hang beneath it: a dashed circle where the face was,
 // and who removed it. Ruling 30's deleted-account tombstone keeps its own words.
-function Tombstone({ post, size }) {
+// W53 / ruling 207 — a reply by a reader you've muted or blocked, holding up replies you can see,
+// is drawn the same way: "A reply you've hidden."
+function Tombstone({ post, size, hiddenByYou = false }) {
   return (
-    <div data-reply-tombstone={post.removedBy || (post.deleted ? 'deleted' : 'author')} style={{ display: 'flex', gap: 10, alignItems: 'center', minHeight: size }}>
+    <div data-reply-tombstone={hiddenByYou ? 'hidden' : post.removedBy || (post.deleted ? 'deleted' : 'author')} style={{ display: 'flex', gap: 10, alignItems: 'center', minHeight: size }}>
       <div aria-hidden="true" style={{ width: size, height: size, flex: 'none', borderRadius: '50%', border: `1.5px dashed ${INK(0.28)}` }} />
       <div style={{ fontFamily: FF, fontStyle: 'italic', fontSize: '0.92rem', color: INK(0.45) }}>
-        {post.deleted ? DELETED_POST : removedNote(post)}
+        {hiddenByYou ? THREAD_COPY.hiddenReply : post.deleted ? DELETED_POST : removedNote(post)}
       </div>
     </div>
   );
@@ -151,6 +157,8 @@ function Thread() {
   const [reporting, setReporting] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
   const scrolledTo = useRef(false);
+  const [cardUid, setCardUid] = useState(null);
+  const openReader = useCallback((uid) => { if (uid) setCardUid(uid); }, []);
 
   // ── where the thread lives ──────────────────────────────────────────────────
   useEffect(() => {
@@ -273,10 +281,13 @@ function Thread() {
   const who = (p) => identityOf(p, identities[p.authorUid]);
 
   const interactive = !!(root && state.where === 'square_posts' && open && user && !root.missing);
+  // W53 — this reader's mute and block lists: those readers' replies are hidden (ruling 207).
+  const safety = useSafety(user?.uid || null);
+  const hidden = safety.hidden;
   const canRemove = userData?.canRemovePosts === true;
 
   // Failed replies are drawn in place, as records of the thread, until sent or removed.
-  const thread = useMemo(() => buildThread([...replies, ...failed]), [replies, failed]);
+  const thread = useMemo(() => buildThread([...replies, ...failed], { hidden }), [replies, failed, hidden]);
   const keep = useMemo(() => new Set([...ownSent, ...failed.map((f) => f.id)]), [ownSent, failed]);
 
   // Open at the reply the link names, once it has arrived.
@@ -339,7 +350,9 @@ function Thread() {
       fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
     };
     for (const n of replyNotifications({ me: user.uid, rootAuthorUid: root.authorUid, replyToAuthorUid: target?.authorUid || null, mentionedUids: mentioned })) {
-      await push(ref(db, `notifications/${n.uid}`), { type: n.type, ...from, postId: key, threadId: rootId, read: false, createdAt: Date.now() });
+      // One at a time, each on its own: the rules refuse one to a reader who has blocked this one (W53).
+      try { await push(ref(db, `notifications/${n.uid}`), { type: n.type, ...from, postId: key, threadId: rootId, read: false, createdAt: Date.now() }); }
+      catch (e) { console.error('Notification not sent:', e?.code || e?.message || e); }
     }
   };
 
@@ -508,16 +521,19 @@ function Thread() {
     if (isRemoved(r)) {
       return <div id={`r-${r.id}`} style={{ padding: '10px 6px', borderRadius: 8 }}><Tombstone post={r} size={size} /></div>;
     }
+    if (isHiddenBy(hidden, r)) {
+      return <div id={`r-${r.id}`} style={{ padding: '10px 6px', borderRadius: 8 }}><Tombstone post={r} size={size} hiddenByYou /></div>;
+    }
     const isEditing = editing === r.id;
     return (
       <div id={`r-${r.id}`} data-reply={r.unsent ? 'unsent' : r.id} data-depth={nested ? 2 : 1}
         style={{ display: 'flex', gap: 10, padding: '10px 6px', borderRadius: 8, background: tint }}>
         <div style={{ opacity: r.unsent ? 0.5 : 1, flex: 'none' }}>
-          <Avatar uid={r.authorUid} initials={who(r).initials} size={size} isAuthor={who(r).isAuthor} avatarUrl={who(r).avatarUrl} />
+          <Avatar uid={r.authorUid} initials={who(r).initials} size={size} isAuthor={who(r).isAuthor} avatarUrl={who(r).avatarUrl} onOpen={r.unsent ? null : openReader} label={`Open ${who(r).displayName}`} />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ opacity: r.unsent ? 0.5 : 1 }}>
-            <NameLine post={r} who={who} onMenu={menuFor(r)} />
+            <NameLine post={r} who={who} onMenu={menuFor(r)} onOpen={openReader} />
             {nested && target && (
               <div data-replying-to style={{ fontFamily: FF, fontStyle: 'italic', fontSize: 14, color: INK(0.55), marginBottom: 2 }}>
                 Replying to <span style={{ color: HANDLE, fontStyle: 'normal' }}>@{who(target).handle || who(target).displayName}</span>
@@ -536,7 +552,7 @@ function Thread() {
                 </div>
               </div>
             ) : (
-              <PostBody text={r.text} surface="thread-reply" withdrawn={r.withdrawn === true} deleted={isTombstone(r)} piece={announcedPieceOf(r)} />
+              <PostBody text={r.text} surface="thread-reply" withdrawn={r.withdrawn === true} deleted={isTombstone(r)} removedBy={r.removedBy} piece={announcedPieceOf(r)} />
             )}
           </div>
           {r.unsent ? Unsent({ r }) : (
@@ -582,11 +598,11 @@ function Thread() {
       {/* The post, as the threads canvas draws it. */}
       <div id={`r-${root.id}`} data-thread-root style={{ display: 'flex', gap: 12, padding: '6px 0 4px' }}>
         {/* W17 / ruling 30 — a deleted account's post kept as a tombstone: no author. */}
-        {isTombstone(root) || root.missing ? <div style={{ width: 40, flex: 'none' }} /> : <Avatar uid={root.authorUid} initials={who(root).initials} size={40} isAuthor={who(root).isAuthor} avatarUrl={who(root).avatarUrl} />}
+        {isTombstone(root) || root.missing ? <div style={{ width: 40, flex: 'none' }} /> : <Avatar uid={root.authorUid} initials={who(root).initials} size={40} isAuthor={who(root).isAuthor} avatarUrl={who(root).avatarUrl} onOpen={openReader} label={`Open ${who(root).displayName}`} />}
         <div style={{ minWidth: 0, flex: 1 }}>
-          {!isTombstone(root) && !root.missing && <NameLine post={root} who={who} onMenu={menuFor(root)} />}
+          {!isTombstone(root) && !root.missing && <NameLine post={root} who={who} onMenu={menuFor(root)} onOpen={openReader} />}
           {/* R43 — one renderer for every surface: paragraphs and mentions, nothing else. */}
-          <PostBody text={root.text} surface="permalink" withdrawn={root.withdrawn === true} deleted={isTombstone(root) || root.missing === true} piece={announcedPieceOf(root)} />
+          <PostBody text={root.text} surface="permalink" withdrawn={root.withdrawn === true} deleted={isTombstone(root) || root.missing === true} removedBy={root.removedBy} piece={announcedPieceOf(root)} />
           {!root.withdrawn && !isTombstone(root) && <AttachmentCard attachment={attachmentOf(root)} />}
           {!isTombstone(root) && !root.missing && (
             <ReactionRow reactions={SQUARE_REACTIONS} item={withCounts(root)} activeMap={activeOf(root)}
@@ -644,7 +660,9 @@ function Thread() {
       {/* The reply box, on the bottom bar, above the phone keyboard. */}
       {interactive && (
         <div data-reply-bar data-keyboard-inset={inset}
-          style={{ position: 'fixed', left: 0, right: 0, bottom: inset, background: BAR, borderTop: `1px solid ${INK(0.1)}`, padding: '8px 12px calc(8px + env(safe-area-inset-bottom))', zIndex: 50 }}>
+          // W53 — above the keyboard AND above the cookie notice, which publishes the space it takes
+          // (--cs-cookie-space, app/components/CookieBanner.js): nothing a reader needs sits under it.
+          style={{ position: 'fixed', left: 0, right: 0, bottom: `calc(${inset}px + var(--cs-cookie-space, 0px))`, background: BAR, borderTop: `1px solid ${INK(0.1)}`, padding: '8px 12px calc(8px + env(safe-area-inset-bottom))', zIndex: 50 }}>
           <div style={{ maxWidth: 640, margin: '0 auto', position: 'relative' }}>
             {mentionRows.length > 0 && (
               <div data-mention-dropdown style={{ position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: 56, background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 10, overflow: 'hidden' }}>
@@ -685,6 +703,8 @@ function Thread() {
       )}
 
       {reporting && <ReportModal post={reporting} onSubmit={submitReport} onClose={() => setReporting(null)} />}
+      {cardUid && <ReaderCard uid={cardUid} me={user} safety={safety} onClose={() => setCardUid(null)}
+        onMessage={(uid) => { setCardUid(null); if (!user) { setShowAuth(true); return; } router.push(`/square?dm=${encodeURIComponent(uid)}`); }} />}
       {showAuth && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 3000 }}>
           {(() => { const AuthModal = require('../../components/AuthModal').default; return <AuthModal onClose={() => setShowAuth(false)} />; })()}

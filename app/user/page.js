@@ -160,7 +160,7 @@ function SquarePostsModal({ uid, profileData, isAuthor, badge, onClose }) {
                   </div>
                   {/* R43 — a post drew here as one run-on line too. Same renderer as the
                       feed, the permalink and the rest: paragraphs, mentions, no links. */}
-                  <PostBody text={p.text} surface="profile-other" withdrawn={p.withdrawn === true} style={{ marginBottom: '0.55rem', paddingLeft: '2.75rem' }} piece={announcedPieceOf(p)} />
+                  <PostBody text={p.text} surface="profile-other" withdrawn={p.withdrawn === true} removedBy={p.removedBy} style={{ marginBottom: '0.55rem', paddingLeft: '2.75rem' }} piece={announcedPieceOf(p)} />
                   {p.attachedStory && (
                     <div onClick={e => { e.stopPropagation(); const a = attachmentOf(p); if (a) window.location.href = a.href; }}
                       style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '2.75rem', marginBottom: '0.55rem', padding: '0.4rem 0.65rem', background: 'rgba(107,47,173,0.07)', border: '1px solid rgba(107,47,173,0.16)', borderRadius: '7px', cursor: 'pointer' }}>

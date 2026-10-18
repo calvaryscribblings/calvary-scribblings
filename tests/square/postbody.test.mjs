@@ -297,6 +297,8 @@ describe('every surface has a draw site and every draw site has a surface', () =
     'app/square/p/page.js',
     'app/profile/page.js',
     'app/user/page.js',
+    // W53: the messages panel moved out of the feed page.
+    'app/components/square/MessagesPanel.js',
   ];
   const source = FILES.map((f) => readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8')).join('\n');
 

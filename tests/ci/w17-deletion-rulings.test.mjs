@@ -78,7 +78,8 @@ describe('ruling 30 · every thread surface draws the tombstone', () => {
     const branch = perm.slice(perm.indexOf('if (isRemoved(r)) {'), perm.indexOf('const isEditing = editing === r.id;'));
     assert.match(branch, /<Tombstone post=\{r\} size=\{size\} \/>/);
     assert.doesNotMatch(branch, /Avatar|ReactionRow|replyButton/);
-    assert.match(perm, /\{post\.deleted \? DELETED_POST : removedNote\(post\)\}/);
+    // W53: the same tombstone also draws ruling 207's "A reply you've hidden."
+    assert.match(perm, /\{hiddenByYou \? THREAD_COPY\.hiddenReply : post\.deleted \? DELETED_POST : removedNote\(post\)\}/);
   });
 });
 

@@ -30,6 +30,7 @@ export const THREAD_COPY = {
   removedByAuthor: 'The author withdrew this reply.',
   replyingTo: (handle) => `Replying to @${handle}`,
   viewMore: (n) => (n === 1 ? 'View 1 more reply' : `View ${n} more replies`),
+  hiddenReply: 'A reply you\u2019ve hidden.',   // ruling 207: a muted or blocked reader's reply
   notSent: 'Not sent.',
   tryAgain: 'Try again',
   remove: 'Remove',
@@ -60,24 +61,33 @@ export function topAncestorOf(reply, byId) {
   return cur;
 }
 
+// W53 / ruling 207 — a reply by a reader you've muted or blocked is hidden like a removed one:
+// it leaves the thread unless replies you can see hang beneath it, and then it is drawn as
+// "A reply you've hidden." It never counts.
+export const isHiddenBy = (hidden, r) => !!(hidden && r && !isRemoved(r) && hidden.has(r.authorUid));
+
 /**
  * Build a thread from its root's replies.
  *
  * @param {Array}  replies  every record with parentId === root.id (any order)
+ * @param {object} opts
+ * @param {Set}    opts.hidden  uids this reader has muted or blocked (W53)
  * @returns {{ groups: Array<{ top, nested: Array }>, count: number, byId: Map }}
  *   groups   top-level replies oldest first, each with its nested replies oldest first. A removed
  *            reply is left out unless a reply that is not left out hangs beneath it.
  *   count    replies that are not removed: what the heading, the feed and the badge show.
  */
-export function buildThread(replies) {
+export function buildThread(replies, { hidden = null } = {}) {
   const list = [...(replies || [])].filter(Boolean).sort(byTime);
   const byId = new Map(list.map((r) => [r.id, r]));
 
-  // Which removed replies have a living reply somewhere beneath them? Walk every living reply's
-  // chain upward and mark what it passes. A tombstone with only tombstones beneath is not drawn.
+  // Which removed (or hidden) replies have a living reply somewhere beneath them? Walk every
+  // living reply's chain upward and mark what it passes. A tombstone with only tombstones (or
+  // hidden replies) beneath is not drawn.
+  const gone = (r) => isRemoved(r) || isHiddenBy(hidden, r);
   const holdsUp = new Set();
   for (const r of list) {
-    if (isRemoved(r)) continue;
+    if (gone(r)) continue;
     const seen = new Set([r.id]);
     let cur = r;
     while (cur.replyToId && byId.has(cur.replyToId) && !seen.has(cur.replyToId)) {
@@ -86,7 +96,7 @@ export function buildThread(replies) {
       holdsUp.add(cur.id);
     }
   }
-  const drawn = (r) => !isRemoved(r) || holdsUp.has(r.id);
+  const drawn = (r) => !gone(r) || holdsUp.has(r.id);
 
   const groups = [];
   const groupOf = new Map();
@@ -105,7 +115,7 @@ export function buildThread(replies) {
     const g = groupOf.get(top.id);
     if (g) g.nested.push(r);
   }
-  return { groups, count: list.filter((r) => !isRemoved(r)).length, byId };
+  return { groups, count: list.filter((r) => !gone(r)).length, byId };
 }
 
 /**
@@ -126,10 +136,10 @@ export function foldNested(nested, { expanded = false, keep = new Set() } = {}) 
 }
 
 /** The latest living reply in a thread, for the feed's one line under a post. */
-export function latestReply(replies) {
+export function latestReply(replies, hidden = null) {
   let best = null;
   for (const r of replies || []) {
-    if (!r || isRemoved(r)) continue;
+    if (!r || isRemoved(r) || isHiddenBy(hidden, r)) continue;
     if (!best || byTime(r, best) > 0) best = r;
   }
   return best;

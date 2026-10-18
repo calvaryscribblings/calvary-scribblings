@@ -28,11 +28,12 @@ const MENTION_COLOR = '#9b6dff';
  * @param {string}  text     the post's stored text
  * @param {string}  surface  a key of SURFACES — the draw site names itself
  * @param {object}  style    per-site overrides (size only; never the paragraph rule)
+ * @param {string}  removedBy W53 / ruling 206: 'moderator' reads "This post was removed."
  * @param {boolean} deleted  W17 / ruling 30: a deleted reader's post kept as a tombstone
  * @param {string}  piece    W19 / ruling 47: the Open Pages piece this post announces
  *                           (announcedPieceOf(post)), or null
  */
-export default function PostBody({ text, surface, withdrawn = false, deleted = false, piece = null, style }) {
+export default function PostBody({ text, surface, withdrawn = false, removedBy = null, deleted = false, piece = null, style }) {
   const pieceIsGone = usePieceGone(piece);
   const spec = SURFACES[surface];
   // ⚠ AN UNKNOWN KEY IS A HARD FAILURE, NOT A FALLBACK. A ninth surface that
@@ -80,8 +81,9 @@ export default function PostBody({ text, surface, withdrawn = false, deleted = f
   if (withdrawn) {
     return h(
       'div',
-      { style: { ...base, fontStyle: 'italic', color: 'rgba(245,240,232,0.35)' }, 'data-postbody': surface, 'data-withdrawn': 'true' },
-      spec.withdrawnNote
+      { style: { ...base, fontStyle: 'italic', color: 'rgba(245,240,232,0.35)' }, 'data-postbody': surface, 'data-withdrawn': removedBy === 'moderator' ? 'moderator' : 'true' },
+      // W53 / ruling 206: the moderator's removal says so; anything else is the author's withdrawal.
+      (removedBy === 'moderator' && spec.removedNote) || spec.withdrawnNote
     );
   }
 

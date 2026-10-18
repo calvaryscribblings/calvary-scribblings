@@ -565,3 +565,13 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - **201:** Earlier nights: the archive browsable by night and searchable by story, read-only.
 - **202:** A reader's card offers Mute (they aren't told) and Block; in messages, a single message is reported.
 - **203:** Identity is drawn by the live components (Avatar, UserBadge), everywhere in the Square.
+
+## 18 Oct 2026 (Ikenna): Mute, Block, the failed post and the removed post (W53)
+
+- **204:** Switching who you're replying to keeps what's typed; the "@handle " prefill is gone.
+- **205:** A post that fails to send behaves like a failed reply: words kept, "Not sent.", Try again, Remove — web and app.
+- **206:** A post a moderator removes reads "This post was removed."; one its author withdraws keeps "The author withdrew this post."
+- **207:** A muted or blocked reader's posts leave your feed; where one of their replies holds up others in a thread, it shows as "A reply you've hidden."
+- **208:** A blocked reader who tries to message you sees "You can't message this reader." and isn't told why; you see "You've blocked @handle." with Unblock.
+- **209:** One block list everywhere: a block made in Open Pages comments applies to messages and the Square, and the reverse.
+- The reader card (W53 brief): "Mute in the Square" — "Their posts stop showing for you. They won't know."; "Block @handle" — "They can't message you, and their posts leave your Square."; once set, "Unmute" and "Unblock @handle". Messages: "Report a message" — "Pick the message. A moderator sees only that one."; then "Reported. A moderator sees only this message."

@@ -658,7 +658,7 @@
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
         "$notifId": {
-          ".write": "auth != null && !data.exists() && newData.exists() && (newData.child('fromUid').val() === auth.uid || $uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1')",
+          ".write": "auth != null && !data.exists() && newData.exists() && (newData.child('fromUid').val() === auth.uid || $uid === auth.uid || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82' || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1') && ($uid === auth.uid || !root.child('blocked_users').child($uid).child(auth.uid).exists())",
           ".validate": "newData.hasChildren(['type', 'createdAt'])",
           "type": {
             ".validate": "newData.isString() && newData.val().length <= 32"
@@ -714,7 +714,7 @@
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
         "$convId": {
-          ".write": "auth != null && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",
+          ".write": "auth != null && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && ($uid === auth.uid || (!root.child('blocked_users').child(auth.uid).child($uid).exists() && !root.child('blocked_users').child($uid).child(auth.uid).exists()))",
           "unread": {
             ".validate": "newData.isNumber() && newData.val() >= 0"
           },
@@ -731,7 +731,7 @@
       "$convId": {
         ".read": "auth != null && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",
         "$msgId": {
-          ".write": "auth != null && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && !data.exists() && newData.exists()",
+          ".write": "auth != null && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && !data.exists() && newData.exists() && !root.child('blocked_users').child(auth.uid).child($convId.replace(auth.uid + '_', '').replace('_' + auth.uid, '')).exists() && !root.child('blocked_users').child($convId.replace(auth.uid + '_', '').replace('_' + auth.uid, '')).child(auth.uid).exists()",
           ".validate": "newData.hasChildren(['text', 'senderUid', 'createdAt'])",
           "text": {
             ".validate": "newData.isString() && newData.val().length <= 5000"
@@ -1067,6 +1067,15 @@
       ".read": true,
       "$uid": {
         ".write": "auth != null && ($uid === auth.uid || auth.uid === 'GfXFIc0dThZ1cs2SBBQIFao4aSz1' || auth.uid === 'XaG6bTGqdDXh7VkBTw4y1H2d2s82')"
+      }
+    },
+    "muted_users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$otherUid": {
+          ".validate": "newData.isBoolean() && newData.val() === true && $otherUid !== $uid && $otherUid.length <= 128"
+        }
       }
     },
     "blocked_users": {

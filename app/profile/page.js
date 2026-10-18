@@ -245,7 +245,7 @@ function SquarePostCard({ post, profileData, isAuthor, badge }) {
 
       {/* R43 — a post drew here as one run-on line too. Same renderer as the
           feed, the permalink and the rest: paragraphs, mentions, no links. */}
-      <PostBody text={post.text} surface="profile-own" withdrawn={post.withdrawn === true} style={{ marginBottom: '0.55rem', paddingLeft: '2.75rem' }} piece={announcedPieceOf(post)} />
+      <PostBody text={post.text} surface="profile-own" withdrawn={post.withdrawn === true} removedBy={post.removedBy} style={{ marginBottom: '0.55rem', paddingLeft: '2.75rem' }} piece={announcedPieceOf(post)} />
 
       {post.attachedStory && (
         <div onClick={e => { e.stopPropagation(); const a = attachmentOf(post); if (a) window.location.href = a.href; }}

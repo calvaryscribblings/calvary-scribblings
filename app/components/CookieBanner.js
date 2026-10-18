@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // The banner sits ABOVE the mobile tab bar rather than on top of it.
 //
@@ -29,6 +29,12 @@ import { useState, useEffect } from 'react';
 //     known state and a dead gap is not.
 //
 // Consent logic below is untouched. This round moved a rectangle.
+//
+// W53 — AND IT SAYS HOW MUCH OF THE BOTTOM IT TAKES. On a first visit the banner covered the
+// Square's reply bar and the messages sheet's "+ New". While it is up it publishes
+// --cs-cookie-space on <html>: the distance from the bottom of the window to its top edge, tab bar
+// offset included. The Square's bottom bar sits on top of that, and its sheets pad by it, so
+// nothing a reader needs is under the banner. Gone with the banner; 0 when it never shows.
 const CSS = `
   .cs-cookie {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;
@@ -40,11 +46,24 @@ const CSS = `
 
 export default function CookieBanner() {
   const [visible, setVisible] = useState(false);
+  const boxRef = useRef(null);
 
   useEffect(() => {
     const consent = localStorage.getItem('cs_cookie_consent');
     if (!consent) setVisible(true);
   }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = boxRef.current;
+    if (!visible || !el) { root.style.removeProperty('--cs-cookie-space'); return undefined; }
+    const measure = () => root.style.setProperty('--cs-cookie-space', `${Math.max(0, Math.round(window.innerHeight - el.getBoundingClientRect().top))}px`);
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    window.addEventListener('resize', measure);
+    return () => { ro?.disconnect(); window.removeEventListener('resize', measure); root.style.removeProperty('--cs-cookie-space'); };
+  }, [visible]);
 
   function accept() {
     localStorage.setItem('cs_cookie_consent', 'accepted');
@@ -61,7 +80,7 @@ export default function CookieBanner() {
   return (
     <>
     <style>{CSS}</style>
-    <div className="cs-cookie" style={{
+    <div ref={boxRef} className="cs-cookie" data-cookie-notice style={{
       background: '#111', borderTop: '1px solid #2a2a2a',
       padding: '1rem 2rem', display: 'flex', alignItems: 'center',
       justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap',

@@ -17,6 +17,9 @@ import { isTombstone, announcedPieceOf } from '../lib/deletedContent';
 import { mentionHandles, resolveHandle, matchReaders } from '../lib/squareHandles';
 import { latestReply, isRemoved, threadHref, squareNotificationHref, NOTIFICATION_WORDS } from '../lib/squareThreads';
 import { PostMenu, ReportModal, PinIcon } from '../components/conversation/SquarePostMenu';
+import MessagesPanel from '../components/square/MessagesPanel';
+import ReaderCard from '../components/square/ReaderCard';
+import useSafety from '../components/square/useSafety';
 
 
 const FB = {
@@ -383,20 +386,16 @@ function StoryAttachModal({ onSelect, onClose, cmsStories }) {
 // Pages announcement needs the same card and a piece is not shaped like a story.
 // One card component, one normalising function, and the no-links ruling intact:
 // see app/lib/squarePostBody.js.
-// ── DM Panel ──────────────────────────────────────────────────────────────────
-function DMPanel({ user, onClose }) {
-  const [conversations, setConversations] = useState([]);
-  const [activeConv, setActiveConv] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [dmText, setDmText] = useState('');
-  const [sending, setSending] = useState(false);
-  const [dmImageFile, setDmImageFile] = useState(null);
-  const [loadingConvs, setLoadingConvs] = useState(true);
-  const [newMsgSearch, setNewMsgSearch] = useState('');
-  const [newMsgResults, setNewMsgResults] = useState([]);
-  const [showNewMsg, setShowNewMsg] = useState(false);
-  const messagesEndRef = useRef(null);
-  const dmFileRef = useRef(null);
+// W53 — the messages panel is app/components/square/MessagesPanel.js: identity drawn live, the
+// reader card, the block barrier (ruling 208) and Report a message.
+// ── Notifications Panel ───────────────────────────────────────────────────────
+// W53 — a muted or blocked reader's notifications don't show (and a blocked reader's are refused
+// by the rules), and a face or a name opens the reader card. Identity is the live record (203).
+function NotificationsPanel({ user, onClose, hidden, onOpenReader }) {
+  const [all, setAll] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [identities, setIdentities] = useState({});
+  const notifs = all.filter(n => !(n.fromUid && hidden?.has(n.fromUid))).slice(0, 30);
 
   useEffect(() => {
     if (!user) return;
@@ -406,255 +405,37 @@ function DMPanel({ user, onClose }) {
       const db = await getDB();
       const { ref, onValue } = await import('firebase/database');
       if (cancelled) return;
-      unsub = onValue(ref(db, `dm_conversations/${user.uid}`), async (snap) => {
-        if (!snap.exists()) { setConversations([]); setLoadingConvs(false); return; }
-        const convData = snap.val();
-        const convIds = Object.keys(convData);
-        const convDetails = await Promise.all(convIds.map(async convId => {
-          const otherUid = convId.split('_').find(u => u !== user.uid);
-          const { get } = await import('firebase/database');
-          const [userSnap, lastMsgSnap] = await Promise.all([
-            get(ref(db, `users/${otherUid}`)),
-            get(ref(db, `dm_messages/${convId}`)),
-          ]);
-          const otherUser = userSnap.exists() ? userSnap.val() : {};
-          let lastMsg = null;
-          if (lastMsgSnap.exists()) {
-            const msgs = Object.values(lastMsgSnap.val());
-            lastMsg = msgs[msgs.length - 1];
-          }
-          return { convId, otherUid, otherUser, lastMsg, unread: convData[convId].unread || 0 };
-        }));
-        setConversations(convDetails.sort((a, b) => (b.lastMsg?.createdAt || 0) - (a.lastMsg?.createdAt || 0)));
-        setLoadingConvs(false);
-      });
-    })();
-    return () => { cancelled = true; if (unsub) unsub(); };
-  }, [user]);
-
-  useEffect(() => {
-    if (!activeConv) return;
-    let unsub = null;
-    let cancelled = false;
-    (async () => {
-      const db = await getDB();
-      const { ref, onValue, update } = await import('firebase/database');
-      if (cancelled) return;
-      unsub = onValue(ref(db, `dm_messages/${activeConv.convId}`), (snap) => {
-        if (!snap.exists()) { setMessages([]); return; }
-        setMessages(Object.entries(snap.val()).map(([id, m]) => ({ id, ...m })).sort((a, b) => a.createdAt - b.createdAt));
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      });
-      await update(ref(db, `dm_conversations/${user.uid}/${activeConv.convId}`), { unread: 0 });
-    })();
-    return () => { cancelled = true; if (unsub) unsub(); };
-  }, [activeConv]);
-
-  useEffect(() => {
-    if (!newMsgSearch.trim()) { setNewMsgResults([]); return; }
-    (async () => {
-      const db = await getDB();
-      const { ref, get } = await import('firebase/database');
-      // W51 — user_search, not the founder-only users root: "+ New" threw for every reader.
-      try {
-        const snap = await get(ref(db, 'user_search'));
-        setNewMsgResults(matchReaders(snap.val(), newMsgSearch, { fields: ['displayName', 'username'], exclude: user.uid, limit: 6 }));
-      } catch (e) { console.error('Message search error:', e); setNewMsgResults([]); }
-    })();
-  }, [newMsgSearch]);
-
-  const startConversation = async (otherUid, otherUser) => {
-    const convId = [user.uid, otherUid].sort().join('_');
-    // The search row came from user_search, a stored copy: FIND there, SHOW from users/{uid}.
-    let shown = otherUser;
-    try {
-      const db = await getDB();
-      const { ref, get } = await import('firebase/database');
-      const snap = await get(ref(db, `users/${otherUid}`));
-      if (snap.exists()) { const u = snap.val(); shown = { displayName: u.displayName, username: u.username || u.handle, avatarUrl: u.avatarUrl }; }
-    } catch (e) { console.error('Message recipient lookup error:', e); }
-    setActiveConv({ convId, otherUid, otherUser: shown });
-    setShowNewMsg(false); setNewMsgSearch(''); setNewMsgResults([]);
-  };
-
-  const sendDM = async () => {
-    if (!dmText.trim() && !dmImageFile) return;
-    if (!activeConv) return;
-    setSending(true);
-    try {
-      const db = await getDB();
-      const { ref, push, update } = await import('firebase/database');
-      let imageUrl = null;
-      if (dmImageFile) {
-        const { getStorage, ref: sRef, uploadBytes, getDownloadURL } = await import('firebase/storage');
-        const storage = getStorage(await getApp());
-        const storageRef = sRef(storage, `dm_images/${activeConv.convId}/${Date.now()}`);
-        await uploadBytes(storageRef, dmImageFile);
-        imageUrl = await getDownloadURL(storageRef);
-        setDmImageFile(null);
-      }
-      const msg = { text: dmText.trim(), imageUrl, senderUid: user.uid, createdAt: Date.now() };
-      await push(ref(db, `dm_messages/${activeConv.convId}`), msg);
-      await update(ref(db, `dm_conversations/${user.uid}/${activeConv.convId}`), { unread: 0, lastAt: Date.now() });
-      await update(ref(db, `dm_conversations/${activeConv.otherUid}/${activeConv.convId}`), { unread: 1, lastAt: Date.now() });
-      setDmText('');
-    } catch (e) { console.error('DM send error:', e); }
-    setSending(false);
-  };
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          {activeConv ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={() => setActiveConv(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '0.78rem', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', padding: 0 }}>←</button>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#c9a84c', overflow: 'hidden' }}>
-                {activeConv.otherUser.avatarUrl ? <img src={activeConv.otherUser.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (activeConv.otherUser.displayName || 'R')[0]}
-              </div>
-              <div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{activeConv.otherUser.displayName || 'Reader'}</div>
-                {activeConv.otherUser.username && <div style={{ fontSize: '0.75rem', color: 'rgba(167,139,250,0.5)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{activeConv.otherUser.username}</div>}
-              </div>
-            </div>
-          ) : (
-            <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Messages</div>
-          )}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {!activeConv && (
-              <button onClick={() => setShowNewMsg(!showNewMsg)} style={{ background: 'rgba(107,47,173,0.12)', border: '1px solid rgba(107,47,173,0.25)', borderRadius: 7, padding: '5px 10px', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(155,109,255,0.8)', cursor: 'pointer', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>+ New</button>
-            )}
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
-          </div>
-        </div>
-        {showNewMsg && !activeConv && (
-          <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-            <input autoFocus placeholder="Search by name or @handle…" value={newMsgSearch} onChange={e => setNewMsgSearch(e.target.value)}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '8px 12px', color: '#f5f0e8', fontSize: '0.88rem', fontFamily: 'Cormorant Garamond, Georgia, serif', outline: 'none', boxSizing: 'border-box' }} />
-            {newMsgResults.length > 0 && (
-              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {newMsgResults.map(u => (
-                  <div key={u.uid} onClick={() => startConversation(u.uid, u)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(107,47,173,0.12)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#c9a84c', overflow: 'hidden', flexShrink: 0 }}>
-                      {u.avatarUrl ? <img src={u.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (u.displayName || 'R')[0]}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.92rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{u.displayName || 'Reader'}</div>
-                      {u.username && <div style={{ fontSize: '0.78rem', color: 'rgba(167,139,250,0.5)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{u.username}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        {!activeConv ? (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
-            {loadingConvs ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#f5f0e8', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.9rem' }}>Loading…</div>
-            ) : conversations.length === 0 ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No messages yet. Tap + New to start a conversation.</div>
-            ) : conversations.map(conv => (
-              <div key={conv.convId} onClick={() => setActiveConv(conv)}
-                style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#c9a84c', overflow: 'hidden', flexShrink: 0 }}>
-                  {conv.otherUser.avatarUrl ? <img src={conv.otherUser.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (conv.otherUser.displayName || 'R')[0]}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 500, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 2 }}>{conv.otherUser.displayName || 'Reader'}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.92)', fontFamily: 'Cormorant Garamond, Georgia, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMsg?.text || 'Image'}</div>
-                </div>
-                {conv.unread > 0 && (
-                  <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#6b2fad', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#f5f0e8', fontWeight: 500, flexShrink: 0 }}>{conv.unread}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {messages.map(msg => {
-                const isMine = msg.senderUid === user.uid;
-                return (
-                  <div key={msg.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexDirection: isMine ? 'row-reverse' : 'row' }}>
-                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1px solid rgba(107,47,173,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#c9a84c', overflow: 'hidden', flexShrink: 0 }}>
-                      {isMine ? (user.photoURL ? <img src={user.photoURL} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (user.displayName || 'R')[0]) : (activeConv.otherUser.avatarUrl ? <img src={activeConv.otherUser.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (activeConv.otherUser.displayName || 'R')[0])}
-                    </div>
-                    <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', gap: 4, alignItems: isMine ? 'flex-end' : 'flex-start' }}>
-                      {msg.imageUrl && <img src={msg.imageUrl} alt="shared" style={{ maxWidth: 180, borderRadius: 10, display: 'block' }} />}
-                      {/* R43 — A DM JOINS THE PARAGRAPH RULE. Ikenna's ruling: it is a
-                          different node (dm_messages) and not a post, and it is the same
-                          room and the same complaint — a reader typing four lines and
-                          seeing one run-on line does not care which node it landed in.
-                          Mentions and the no-links rule come with it; no reason was found
-                          to except them, and a mention pointing at a reader's profile is
-                          as useful in a message as in the feed. */}
-                      {msg.text && (
-                        <div style={{ padding: '8px 12px', borderRadius: isMine ? '12px 12px 3px 12px' : '12px 12px 12px 3px', background: isMine ? '#6b2fad' : 'rgba(255,255,255,0.06)', color: isMine ? '#f5f0e8' : 'rgba(232,224,212,0.85)' }}>
-                          <PostBody text={msg.text} surface="dm-bubble" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-            <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-              <button onClick={() => dmFileRef.current?.click()} style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(107,47,173,0.12)', border: '1px solid rgba(107,47,173,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(155,109,255,0.6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              </button>
-              <input ref={dmFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => setDmImageFile(e.target.files[0])} />
-              <input value={dmText} onChange={e => setDmText(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendDM()}
-                placeholder={`Message ${activeConv.otherUser.displayName || 'Reader'}…`}
-                style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '8px 14px', fontSize: '0.88rem', color: 'rgba(255,255,255,0.85)', fontFamily: 'Cormorant Garamond, Georgia, serif', outline: 'none' }} />
-              <button onClick={sendDM} disabled={sending || (!dmText.trim() && !dmImageFile)} style={{ width: 32, height: 32, borderRadius: '50%', background: '#6b2fad', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, opacity: (!dmText.trim() && !dmImageFile) ? 0.4 : 1 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 3L3 10.5l7.5 3L18 6l-7.5 7.5 3 7.5L21 3z" fill="#f5f0e8"/></svg>
-              </button>
-            </div>
-            {dmImageFile && (
-              <div style={{ padding: '0 20px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <img src={URL.createObjectURL(dmImageFile)} alt="preview" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />
-                <button onClick={() => setDmImageFile(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>Remove</button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Notifications Panel ───────────────────────────────────────────────────────
-function NotificationsPanel({ user, onClose }) {
-  const [notifs, setNotifs] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user) return;
-    let unsub = null;
-    let cancelled = false;
-    (async () => {
-      const db = await getDB();
-      const { ref, onValue, update } = await import('firebase/database');
-      if (cancelled) return;
       unsub = onValue(ref(db, `notifications/${user.uid}`), (snap) => {
-        if (!snap.exists()) { setNotifs([]); setLoading(false); return; }
-        const list = Object.entries(snap.val()).map(([id, n]) => ({ id, ...n })).sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
-        setNotifs(list);
+        setAll(snap.exists() ? Object.entries(snap.val()).map(([id, n]) => ({ id, ...n })).sort((a, b) => b.createdAt - a.createdAt) : []);
         setLoading(false);
-        const updates = {};
-        list.filter(n => !n.read).forEach(n => { updates[`${n.id}/read`] = true; });
-        if (Object.keys(updates).length) update(ref(db, `notifications/${user.uid}`), updates);
       });
     })();
     return () => { cancelled = true; if (unsub) unsub(); };
   }, [user]);
+
+  // Mark what is shown as read; a hidden reader's notification is neither shown nor counted.
+  const unreadKey = notifs.filter(n => !n.read).map(n => n.id).join(',');
+  useEffect(() => {
+    if (!user || !unreadKey) return;
+    (async () => {
+      const db = await getDB();
+      const { ref, update } = await import('firebase/database');
+      update(ref(db, `notifications/${user.uid}`), Object.fromEntries(unreadKey.split(',').map(id => [`${id}/read`, true]))).catch(() => {});
+    })();
+  }, [user, unreadKey]);
+
+  const fromKey = [...new Set(notifs.map(n => n.fromUid).filter(Boolean))].sort().join(',');
+  useEffect(() => {
+    if (!fromKey) return;
+    let cancelled = false;
+    (async () => {
+      const db = await getDB();
+      const map = await resolveIdentities(db, fromKey.split(','));
+      if (!cancelled) setIdentities(Object.fromEntries(map));
+    })();
+    return () => { cancelled = true; };
+  }, [fromKey]);
+  const whoFrom = (n) => identityOf({ authorUid: n.fromUid, authorName: n.fromName, authorHandle: n.fromUsername, authorAvatarUrl: n.fromAvatarUrl }, identities[n.fromUid]);
 
   const notifLabel = (n) => {
     if (NOTIFICATION_WORDS[n.type]) return NOTIFICATION_WORDS[n.type];   // W52: replied to your post / to you
@@ -678,10 +459,10 @@ function NotificationsPanel({ user, onClose }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: '75vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <div data-notifications-panel style={{ background: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: '75vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 'var(--cs-cookie-space, 0px)', boxSizing: 'border-box' }}>
+        <div style={{ padding: '10px 14px 10px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '1.2rem', color: '#f5f0e8' }}>Notifications</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
+          <button onClick={onClose} aria-label="Close notifications" style={{ width: 44, height: 44, background: 'none', border: 'none', color: 'rgba(255,255,255,0.95)', fontSize: '1.3rem', cursor: 'pointer' }}>×</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {loading ? (
@@ -690,25 +471,25 @@ function NotificationsPanel({ user, onClose }) {
             <div style={{ padding: '2rem', textAlign: 'center', color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.95rem', fontStyle: 'italic' }}>No notifications yet</div>
           ) : notifs.map(n => {
             const href = n.type === 'follow' ? `/user?id=${n.fromUid}` : n.type === 'open_pages_reply' ? (n.postId ? `/open-pages/${n.postId}` : null) : squareNotificationHref(n);
-            const ini = (n.fromName || 'R').split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
+            const w = whoFrom(n);
             return (
-              <a key={n.id} href={href || '#'} onClick={!href ? e => e.preventDefault() : undefined}
-                style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start', background: n.read ? 'transparent' : 'rgba(107,47,173,0.05)', textDecoration: 'none', cursor: href ? 'pointer' : 'default', transition: 'background 0.15s' }}
-                onMouseEnter={e => { if (href) e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = n.read ? 'transparent' : 'rgba(107,47,173,0.05)'; }}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(107,47,173,0.2)', border: '1.5px solid rgba(167,139,250,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#c9a84c', overflow: 'hidden', flexShrink: 0, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>
-                  {n.fromAvatarUrl ? <img src={n.fromAvatarUrl} alt={ini} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : ini}
-                </div>
+              <div key={n.id} data-notification={n.id}
+                style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start', background: n.read ? 'transparent' : 'rgba(107,47,173,0.05)' }}>
+                {n.fromUid ? <Avatar uid={n.fromUid} initials={w.initials} size={34} isAuthor={w.isAuthor} avatarUrl={w.avatarUrl} onOpen={onOpenReader} label={`Open ${w.displayName}`} /> : <div style={{ width: 34, flex: 'none' }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '0.88rem', color: '#f0ece6', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', lineHeight: 1.45, marginBottom: 2 }}>
-                    <span style={{ fontWeight: 600, color: '#f5f0e8' }}>{n.fromName}</span>
-                    <span style={{ color: 'rgba(255,255,255,0.48)' }}>{notifLabel(n)}</span>
+                    {n.fromUid
+                      ? <button type="button" onClick={() => onOpenReader(n.fromUid)} data-reader-open={n.fromUid} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 600, color: '#f5f0e8' }}>{w.displayName}</button>
+                      : <span style={{ fontWeight: 600, color: '#f5f0e8' }}>{n.fromName}</span>}
+                    {href
+                      ? <a href={href} style={{ color: 'rgba(255,255,255,0.55)', textDecoration: 'none' }}>{notifLabel(n)}</a>
+                      : <span style={{ color: 'rgba(255,255,255,0.48)' }}>{notifLabel(n)}</span>}
                   </div>
-                  {n.fromUsername && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 2 }}>@{n.fromUsername}</div>}
+                  {w.handle && <div style={{ fontSize: '0.7rem', color: 'rgba(167,139,250,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 2 }}>@{w.handle}</div>}
                   <div style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.22)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{timeAgo(n.createdAt)}</div>
                 </div>
                 {!n.read && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b2fad', flexShrink: 0, marginTop: 5 }} />}
-              </a>
+              </div>
             );
           })}
         </div>
@@ -733,7 +514,12 @@ export default function SquarePage() {
   const [showPollCreator, setShowPollCreator] = useState(false);
   // null until presence is KNOWN — "0 in the room" over a feed that never loaded was a claim (SQ-03).
   const [presenceCount, setPresenceCount] = useState(null);
-  const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [notifRaw, setNotifRaw] = useState([]);
+  // W53 — the reader card, and the conversation it opens.
+  const [cardUid, setCardUid] = useState(null);
+  const [dmStart, setDmStart] = useState(null);
+  // W53 / ruling 205 — a post that didn't save waits at the top of the feed, like a failed reply.
+  const [failedPosts, setFailedPosts] = useState([]);
   const [squareOpen, setSquareOpen] = useState(false);
   const [countdown, setCountdown] = useState('');
   const [loading, setLoading] = useState(true);
@@ -751,6 +537,23 @@ export default function SquarePage() {
   const [reportingPost, setReportingPost] = useState(null);
   const textareaRef = useRef(null);
   const editTextareaRef = useRef(null);
+
+  // W53 — this reader's mute and block lists (app/components/square/useSafety.js).
+  const safety = useSafety(user?.uid || null);
+  const hidden = safety.hidden;
+  const unreadNotifs = notifRaw.filter(n => !n.read && !(n.fromUid && hidden.has(n.fromUid))).length;
+  const openReader = useCallback((uid) => { if (uid) setCardUid(uid); }, []);
+
+  // The reader card's Message button, from the thread page: /square?dm={uid} opens the conversation.
+  useEffect(() => {
+    if (!user) return;
+    let want = null;
+    try { want = new URLSearchParams(window.location.search).get('dm'); } catch {}
+    if (!want) return;
+    try { history.replaceState(null, '', '/square'); } catch {}
+    setDmStart(want);
+    setShowDM(true);
+  }, [user]);
 
   // Two separate capabilities where there was one role.
   const canPin        = can(userData, 'canPin');
@@ -819,7 +622,7 @@ export default function SquarePage() {
           const snap = await get(ref(db, `users/${u.uid}`));
           if (snap.exists()) setUserData(snap.val());
           childUnsubs.push(onValue(ref(db, `notifications/${u.uid}`), (snap) => {
-            setUnreadNotifs(snap.exists() ? Object.values(snap.val()).filter(n => !n.read).length : 0);
+            setNotifRaw(snap.exists() ? Object.values(snap.val()) : []);
           }));
           // Load reactions for all posts
           // Same fix as square_posts: per-child, so one reader's tap does not
@@ -932,6 +735,15 @@ export default function SquarePage() {
   const insertMention = (username) => { setText(text.replace(/@\w*$/, `@${username} `)); setMentionQuery(''); textareaRef.current?.focus(); };
   const insertMentionEdit = (username) => { setEditText(editText.replace(/@\w*$/, `@${username} `)); setMentionQueryEdit(''); editTextareaRef.current?.focus(); };
 
+  // W53 — one notification at a time, each on its own: the rules refuse one to a reader who has
+  // blocked the sender, and that refusal must not stop the next reader hearing.
+  const tryNotify = async (db, uid, record) => {
+    try {
+      const { ref, push } = await import('firebase/database');
+      await push(ref(db, `notifications/${uid}`), record);
+    } catch (e) { console.error('Notification not sent:', e?.code || e?.message || e); }
+  };
+
   // W52 — replies are written on the thread page (/square/p), which tells their readers itself.
   const sendNotifications = async (text, postId, type = 'mention') => {
     const db = await getDB();
@@ -942,7 +754,7 @@ export default function SquarePage() {
     for (const handle of mentionHandles(text)) {
       const targetUid = await resolveHandle(handle, readIndex);
       if (!targetUid || targetUid === user.uid) continue;
-      await push(ref(db, `notifications/${targetUid}`), {
+      await tryNotify(db, targetUid, {
         type: 'mention', fromUid: user.uid, fromName: user.displayName || 'Reader',
         fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
         postId, read: false, createdAt: Date.now(),
@@ -952,7 +764,7 @@ export default function SquarePage() {
       const followersSnap = await get(ref(db, `followers/${user.uid}`));
       if (followersSnap.exists()) {
         for (const followerUid of Object.keys(followersSnap.val())) {
-          await push(ref(db, `notifications/${followerUid}`), {
+          await tryNotify(db, followerUid, {
             type: 'square_post', fromUid: user.uid, fromName: user.displayName || 'Reader',
             fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
             postId, read: false, createdAt: Date.now(),
@@ -986,14 +798,19 @@ export default function SquarePage() {
     })().catch((e) => console.error('After-save error (the post itself was saved):', e));
   };
 
-  const post = async (pollData = null) => {
-    if (!text.trim() && !pollData) return;
+  // W53 / ruling 205 — A POST THAT FAILS BEHAVES LIKE A FAILED REPLY. The box clears once the
+  // save is written (W51); if it is refused, the words move out of the box into a card at the top
+  // of tonight's feed, at half opacity, with "Not sent.", Try again and Remove. Remove writes nothing.
+  const post = async (pollData = null, retry = null) => {
+    const body = retry ? retry.text : text.trim();
+    if (!body && !(retry ? retry.poll : pollData)) return;
     if (!user || postingRef.current) return;
-    if (!refusalFor(text, { isReply: false }).ok) return;   // R43 — one function, four inputs
+    if (!refusalFor(body, { isReply: false }).ok) return;   // R43 — one function, four inputs
     postingRef.current = true;
     setPosting(true);
-    const body = text.trim();
-    const quoted = quotedPostId;
+    const quoted = retry ? retry.quotedPostId : quotedPostId;
+    const story = retry ? retry.attachedStory : attachedStory;
+    const poll = retry ? retry.poll : pollData;
     try {
       const db = await getDB();
       const { ref, push } = await import('firebase/database');
@@ -1001,27 +818,34 @@ export default function SquarePage() {
         text: body, authorUid: user.uid, authorName: user.displayName || 'Reader',
         authorInitials: (user.displayName || 'R').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
         authorAvatarUrl: userData?.avatarUrl || null, authorHandle: userData?.username || '', authorReadCount: userData?.readCount || 0,
-        isAuthor: userData?.isAuthor || false, attachedStory: attachedStory || null,
+        isAuthor: userData?.isAuthor || false, attachedStory: story || null,
         parentId: null, likeCount: 0, pinned: false,
         unpinnedAt: null,
         quotedPostId: quoted || null,
         createdAt: Date.now(),
       };
-      if (pollData) postData.poll = { ...pollData, votes: {} };
+      if (poll) postData.poll = { ...poll, votes: {} };
       const newPost = await push(ref(db, 'square_posts'), postData);
-      setText(''); setAttachedStory(null); setQuotedPostId(null);
+      if (retry) setFailedPosts(f => f.filter(x => x.id !== retry.id));
+      else { setText(''); setAttachedStory(null); setQuotedPostId(null); }
       afterSave(newPost.key, postData, async () => {
         await sendNotifications(body, newPost.key, 'post');
         const quotedPost = quoted ? posts.find(p => p.id === quoted) : null;
         if (quotedPost && quotedPost.authorUid && quotedPost.authorUid !== user.uid) {
-          await push(ref(db, `notifications/${quotedPost.authorUid}`), {
+          await tryNotify(db, quotedPost.authorUid, {
             type: 'square_quote', fromUid: user.uid, fromName: user.displayName || 'Reader',
             fromUsername: userData?.username || null, fromAvatarUrl: userData?.avatarUrl || null,
             postId: newPost.key, quotedPostId: quoted, read: false, createdAt: Date.now(),
           });
         }
       });
-    } catch (e) { console.error('Post error:', e); }
+    } catch (e) {
+      console.error('Post error:', e);
+      if (!retry) {
+        setFailedPosts(f => [{ id: `unsent-${Date.now()}`, text: body, quotedPostId: quoted || null, attachedStory: story || null, poll: poll || null, createdAt: Date.now() }, ...f]);
+        setText(''); setAttachedStory(null); setQuotedPostId(null);
+      }
+    }
     postingRef.current = false;
     setPosting(false);
   };
@@ -1191,7 +1015,8 @@ export default function SquarePage() {
   const visiblePosts = posts;
   // Sorting lives here now that the listeners are per-child. Pinned first, then
   // newest — the same order the old whole-node listener produced.
-  const topLevel = visiblePosts.filter(p => !p.parentId).sort((a, b) => {
+  // W53 / ruling 207 — a muted or blocked reader's posts leave this reader's feed.
+  const topLevel = visiblePosts.filter(p => !p.parentId && !hidden.has(p.authorUid)).sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
     if (!a.pinned && b.pinned) return 1;
     return (b.createdAt || 0) - (a.createdAt || 0);
@@ -1310,7 +1135,7 @@ export default function SquarePage() {
               <button onClick={() => setShowDM(true)} aria-label="Messages" style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </button>
-              <button onClick={() => setShowNotifs(true)} style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative' }}>
+              <button onClick={() => setShowNotifs(true)} aria-label="Notifications" style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative' }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                 {unreadNotifs > 0 && <span style={{ position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: '50%', background: '#c9a84c', border: '1.5px solid #0a0a0a' }} />}
               </button>
@@ -1361,7 +1186,7 @@ export default function SquarePage() {
                   {/* R33.2 — this bypassed the shared Avatar for a raw <img>, so it
                       inherited none of the fallback behaviour, and drew neither the
                       handle nor the island badge. Same components as everywhere else now. */}
-                  {isTombstone(p) ? <div style={{ width: 28, flex: 'none' }} /> : <Avatar uid={p.authorUid} initials={who(p).initials} size={28} isAuthor={who(p).isAuthor} avatarUrl={who(p).avatarUrl} />}
+                  {isTombstone(p) ? <div style={{ width: 28, flex: 'none' }} /> : <Avatar uid={p.authorUid} initials={who(p).initials} size={28} isAuthor={who(p).isAuthor} avatarUrl={who(p).avatarUrl} onOpen={openReader} label={`Open ${who(p).displayName}`} />}
                   <div>
                     {!isTombstone(p) && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'rgba(255,255,255,0.4)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}>{who(p).displayName}</span>
@@ -1452,6 +1277,27 @@ export default function SquarePage() {
             </div>
           )}
 
+          {/* W53 / ruling 205 — posts that didn't save, at the top of tonight's feed, at half opacity. */}
+          {failedPosts.map(f => (
+            <div key={f.id} data-post="unsent" style={{ display: 'flex', gap: 10, marginBottom: '1.1rem' }}>
+              <div style={{ opacity: 0.5, flex: 'none' }}>
+                <Avatar uid={user?.uid} initials={userInitials} size={34} avatarUrl={userData?.avatarUrl || null} link={false} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ opacity: 0.5 }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', marginBottom: 2 }}>{user?.displayName || 'Reader'}</div>
+                  <PostBody text={f.text} surface="feed-post" style={{ marginBottom: 6 }} piece={announcedPieceOf(f)} />
+                  {f.attachedStory && <AttachmentCard attachment={attachmentOf({ attachedStory: f.attachedStory })} />}
+                </div>
+                <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '0.85rem' }}>
+                  <span style={{ color: '#d4537e' }}>Not sent.</span>
+                  <button disabled={posting} onClick={() => post(null, f)} style={{ minHeight: 44, background: 'none', border: 'none', padding: 0, color: '#a989d9', fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer' }}>Try again</button>
+                  <button onClick={() => setFailedPosts(list => list.filter(x => x.id !== f.id))} style={{ minHeight: 44, background: 'none', border: 'none', padding: 0, color: 'rgba(245,240,232,0.62)', fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer' }}>Remove</button>
+                </div>
+              </div>
+            </div>
+          ))}
+
           {/* Feed */}
           {loading && roomFailure ? (
             <Unavailable kind={roomFailure} onRetry={retryRoom} refreshing={roomRetrying} subject="the Square" />
@@ -1463,8 +1309,8 @@ export default function SquarePage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               {topLevel.map((p, i) => {
                 const replies = getReplies(p.id);
-                const replyCount = replies.filter(r => !isRemoved(r)).length;
-                const latest = latestReply(replies);
+                const replyCount = replies.filter(r => !isRemoved(r) && !hidden.has(r.authorUid)).length;
+                const latest = latestReply(replies, hidden);
                 const isOwn = user?.uid === p.authorUid;
                 const isEditing = editingPost === p.id;
                 return (
@@ -1479,12 +1325,13 @@ export default function SquarePage() {
                     <div style={{ display: 'flex', gap: 10 }}>
                       {/* W17 / ruling 30 — a deleted account's post with replies beneath it: no avatar,
                           no name, no menu, no reactions, no Reply; the ruled words and the thread. */}
-                      {isTombstone(p) ? <div style={{ width: 34, flex: 'none' }} /> : <Avatar uid={p.authorUid} initials={who(p).initials} size={34} isAuthor={who(p).isAuthor} avatarUrl={who(p).avatarUrl} />}
+                      {isTombstone(p) ? <div style={{ width: 34, flex: 'none' }} /> : <Avatar uid={p.authorUid} initials={who(p).initials} size={34} isAuthor={who(p).isAuthor} avatarUrl={who(p).avatarUrl} onOpen={openReader} label={`Open ${who(p).displayName}`} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {!isTombstone(p) && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
-                          <a href={isOwn ? '/profile' : `/user?id=${p.authorUid}`} style={{ fontSize: '0.92rem', fontWeight: 600, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif', textDecoration: 'none' }}
+                          {/* W53 — the name opens the reader card (which carries Profile). */}
+                          <button type="button" onClick={() => openReader(p.authorUid)} data-reader-open={p.authorUid} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.92rem', fontWeight: 600, color: '#f5f0e8', fontFamily: 'Cormorant Garamond, Georgia, serif' }}
                             onMouseEnter={e => e.currentTarget.style.color = '#c9a84c'}
-                            onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{who(p).displayName}</a>
+                            onMouseLeave={e => e.currentTarget.style.color = '#f5f0e8'}>{who(p).displayName}</button>
                           {who(p).handle && <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.45)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>@{who(p).handle}</span>}
                           <UserBadge uid={p.authorUid} readCount={who(p).readCount} isAuthor={who(p).isAuthor} />
                           <span style={{ fontSize: '0.72rem', color: 'rgba(245,240,232,0.42)', fontWeight: 500, fontFamily: 'Cormorant Garamond, Georgia, serif' }}>· {timeAgo(p.createdAt)}{p.edited && <span style={{ color: 'rgba(245,240,232,0.25)' }}> · edited</span>}</span>
@@ -1518,7 +1365,7 @@ export default function SquarePage() {
                             {/* W52 — the post's words open its thread (a mention inside still goes to its reader). */}
                             <div data-thread-open="body" style={{ cursor: 'pointer' }}
                               onClick={(e) => { if (!e.target.closest('a, button')) router.push(threadHref(p.id)); }}>
-                              <PostBody text={p.text} surface="feed-post" withdrawn={p.withdrawn === true} deleted={isTombstone(p)} style={{ marginBottom: 6 }} piece={announcedPieceOf(p)} />
+                              <PostBody text={p.text} surface="feed-post" withdrawn={p.withdrawn === true} deleted={isTombstone(p)} removedBy={p.removedBy} style={{ marginBottom: 6 }} piece={announcedPieceOf(p)} />
                             </div>
                             {!p.withdrawn && !isTombstone(p) && <AttachmentCard attachment={attachmentOf(p)} />}
                             {p.poll && <PollDisplay poll={p.poll} postId={p.id} user={user} />}
@@ -1552,8 +1399,10 @@ export default function SquarePage() {
       {showStoryAttach && <StoryAttachModal onSelect={(s) => { setAttachedStory(slimAttachedStory(s)); setShowStoryAttach(false); }} onClose={() => setShowStoryAttach(false)} cmsStories={cmsStories} />}
       {showPollCreator && <PollCreatorModal onCreate={createPoll} onClose={() => setShowPollCreator(false)} />}
       {reportingPost && <ReportModal post={reportingPost} onSubmit={submitReport} onClose={() => setReportingPost(null)} />}
-      {showDM && user && <DMPanel user={user} onClose={() => setShowDM(false)} />}
-      {showNotifs && user && <NotificationsPanel user={user} onClose={() => setShowNotifs(false)} />}
+      {showDM && user && <MessagesPanel user={user} safety={safety} startWith={dmStart} onOpenReader={openReader} getStorageApp={getApp} onClose={() => { setShowDM(false); setDmStart(null); }} />}
+      {showNotifs && user && <NotificationsPanel user={user} hidden={hidden} onOpenReader={openReader} onClose={() => setShowNotifs(false)} />}
+      {cardUid && <ReaderCard uid={cardUid} me={user} safety={safety} onClose={() => setCardUid(null)}
+        onMessage={(uid) => { setCardUid(null); if (!user) { setShowAuth(true); return; } setDmStart(uid); setShowDM(true); }} />}
 
       {showAuth && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 3000 }}>

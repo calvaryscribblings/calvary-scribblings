@@ -108,7 +108,9 @@ const COMMENT_DIMS = { xs: { dim: 26, font: 9 }, sm: { dim: 34, font: 11 }, md: 
 
 // `link={false}` draws the same square avatar as a span: for a small avatar beside a name that
 // already says who it is, so no link target falls under 44px (Readers' Notes replies, W48).
-export function Avatar({ variant = 'square', uid, initials, avatarUrl, size, isAuthor = false, isOwn = false, link = true }) {
+// `onOpen` (W53, the Square only): the face is a button that opens the reader card instead of a
+// link to the profile. The card carries Profile, so nothing is lost.
+export function Avatar({ variant = 'square', uid, initials, avatarUrl, size, isAuthor = false, isOwn = false, link = true, onOpen = null, label = '' }) {
   const selfFetch = variant === 'comment';
   const [fetched, setFetched] = useState(null);
   useEffect(() => {
@@ -143,9 +145,12 @@ export function Avatar({ variant = 'square', uid, initials, avatarUrl, size, isA
   }
 
   const dim = size || 36;
-  const Tag = link ? 'a' : 'span';
+  const Tag = onOpen ? 'button' : link ? 'a' : 'span';
   return (
-    <Tag href={link ? `/user?id=${uid}` : undefined} aria-hidden={link ? undefined : 'true'} style={{
+    <Tag href={!onOpen && link ? `/user?id=${uid}` : undefined} aria-hidden={!onOpen && !link ? 'true' : undefined}
+      type={onOpen ? 'button' : undefined} onClick={onOpen ? (e) => { e.preventDefault(); e.stopPropagation(); onOpen(uid); } : undefined}
+      aria-label={onOpen ? (label || 'Open this reader') : undefined} data-reader-open={onOpen ? uid : undefined}
+      style={{ padding: 0, cursor: onOpen ? 'pointer' : undefined,
       width: dim, height: dim, borderRadius: '50%', flexShrink: 0,
       background: isAuthor ? AVATAR_BG_AUTHOR : AVATAR_BG_SQUARE,
       border: isAuthor ? `1.5px solid ${AVATAR_BORDER_AUTHOR}` : `1.5px solid ${AVATAR_BORDER_SQUARE}`,

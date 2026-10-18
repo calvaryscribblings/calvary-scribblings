@@ -67,7 +67,7 @@ test('a surface never claims a deletion it has not seen: an unread piece draws n
 });
 
 test('every draw site passes the announced piece to PostBody (the DM bubble carries no attachment)', () => {
-  const sites = ['app/square/page.js', 'app/square/p/page.js', 'app/profile/page.js', 'app/user/page.js'];
+  const sites = ['app/square/page.js', 'app/square/p/page.js', 'app/profile/page.js', 'app/user/page.js', 'app/components/square/MessagesPanel.js'];
   let n = 0;
   for (const f of sites) {
     for (const m of read(f).matchAll(/<PostBody [^>]*surface="([a-z-]+)"[^>]*\/>/g)) {
@@ -77,7 +77,8 @@ test('every draw site passes the announced piece to PostBody (the DM bubble carr
     }
   }
   // W52: feed-reply became thread-reply (on /square/p) and the feed gained feed-latest.
-  assert.equal(n, 8);
+  // W53: the feed's failed-post card (ruling 205) draws a feed-post body too.
+  assert.equal(n, 9);
 });
 
 test('the piece page: the deleted state shows exactly the line, only when the database answered "no piece"', () => {
