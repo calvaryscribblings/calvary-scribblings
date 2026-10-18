@@ -581,3 +581,4 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - **210:** The server enforces the hours: no post or reply outside 20:00–00:00 London, with five minutes' grace after midnight; founders are exempt.
 - **211:** Each reader may make at most 5 posts and 30 replies in any 10 minutes; past that: "Too much at once. Try again in a minute."
 - The refusal outside the hours (W54 brief): "The Square opens at 8pm."
+- **214:** Founders keep the pace limit in 211; only the hours in 210 are lifted for them. (The Function already works this way.)
