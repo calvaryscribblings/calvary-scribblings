@@ -44,6 +44,19 @@ export function removedNote(r) {
   return r?.removedBy === 'moderator' ? THREAD_COPY.removedByModerator : THREAD_COPY.removedByAuthor;
 }
 
+// The confirmation before an opening post goes, on the feed and the thread alike. The author's
+// words are R33.2's. W55 / ruling 215: a moderator removing someone else's post is asked in a
+// moderator's words, as the menu already names it ("Remove post").
+export function rootDeleteConfirm({ mine, replies = 0 }) {
+  const n = `${replies} ${replies === 1 ? 'reply' : 'replies'}`;
+  if (mine) {
+    return replies > 0
+      ? `Withdraw this post?\n\nThe ${n} beneath it will stay — they aren't yours to delete.`
+      : "Withdraw this post? It'll be removed from the Square.";
+  }
+  return replies > 0 ? `Remove this post?\n\nThe ${n} beneath it will stay.` : 'Remove this post?';
+}
+
 const byTime = (a, b) => (a.createdAt || 0) - (b.createdAt || 0) || String(a.id).localeCompare(String(b.id));
 
 /**
@@ -173,6 +186,20 @@ export function threadHref(rootId, replyId = null) {
   if (!rootId) return null;
   const base = `/square/p?id=${encodeURIComponent(rootId)}`;
   return replyId && replyId !== rootId ? `${base}&reply=${encodeURIComponent(replyId)}` : base;
+}
+
+/**
+ * W55 — Quote from the thread: the feed, with the post in the composer. The feed takes ?quote= once,
+ * quotes the post only if it is still an opening post in the room, and opens the composer either way.
+ */
+export function quoteHref(rootId) {
+  return rootId ? `/square?quote=${encodeURIComponent(rootId)}` : '/square';
+}
+
+/** Which post a /square?quote= link may quote: an opening post still in the room, not withdrawn. */
+export function quotablePost(posts, id) {
+  const p = id ? (posts || []).find((x) => x.id === id) : null;
+  return p && !p.parentId && !p.withdrawn && !p.deleted ? p : null;
 }
 
 /** Where a Square post record (a root or a reply) opens: its thread, at itself. */

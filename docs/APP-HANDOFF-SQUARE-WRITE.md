@@ -2,8 +2,8 @@
 
 W54 moved the web's Square posts, replies and edits onto a server Function. In A44 the app must
 move onto it too. The web is the reference for **systems**. Once both clients use the Function,
-**W55 tightens the rules** so that `square_posts` can only be written through it. **The app's direct
-writes stop working at W55**, so A44 has to ship first.
+**W56 tightens the rules** so that `square_posts` can only be written through it. **The app's direct
+writes stop working at W56**, so A44 has to ship first.
 
 ## The endpoint
 
@@ -78,7 +78,7 @@ A save is finished when the Function answers 200 (W51). Nothing after that can u
   server-only pace counter. Direct client writes to `square_posts` still pass, which is why the app
   keeps working until A44.
 - **Withdraw, moderator removal, pin, poll votes, reports.** These are still direct writes from the
-  client. W55 decides whether any of them move.
+  client. W56 decides whether any of them move.
 
 ## The numbers, and the ground they were measured on
 
@@ -90,3 +90,48 @@ A save is finished when the Function answers 200 (W51). Nothing after that can u
   write has spent one.
 - **The edit window:** 5 minutes from the server's `createdAt`, the same window the menu already
   uses to show Edit.
+
+## W55 — also for A44: the reply box, Quote in the thread, a moderator's wording
+
+W55 built three small things on the web's thread (W52). A44 ships them with the Function. Rulings
+212, 213, 215 and 216 are in `docs/COPY-RULINGS.md`. The web is in `app/square/p/page.js` and
+`app/square/page.js`. The wording is in `app/lib/squareThreads.js`.
+
+**1. The reply box grows (212, 216).**
+
+- On the web: 16px type, 20px line, 11px padding top and bottom, 1px border. That measures 44px
+  at one line, 64 at two and 84 at three. At four lines it stays 84 and scrolls inside. The radius
+  stays 22.
+- **Re-measure on the app's own type.** Don't copy the web's pixels. What carries over: one line
+  matches the Send button's height, the box grows one line at a time, and it stops at three lines.
+- The row aligns to the bottom, so Send sits beside the last line. At one line nothing moves.
+- The "Replying to" row, the mention list and the counter keep their places relative to the box.
+- The space at the foot of the thread grows by exactly what the box grew, so the last reply never
+  sits under the bar.
+- After a send (a 200 from the Function), the box goes back to one line.
+
+**2. Quote on the thread's opening post.**
+
+- A "quote" control after "reply", styled like it. It shows exactly when "reply" does: the room
+  is open, the reader is signed in, the thread is in the room, and the post isn't withdrawn.
+- It opens the feed's composer with the post quoted and the cursor in it, the same as Quote in
+  the feed. If the post has left the room by then (gone from `square_posts`, withdrawn, or a
+  reply), the composer opens without it. The web passes this as `/square?quote={id}` and reads
+  it once.
+- Replies have no Quote. No quote counts yet: they come with the card redesign, on the feed and
+  the thread together.
+
+**3. A moderator's wording (213, 215).**
+
+- **Menu (213).** On a reply, the item says "Withdraw reply" to its author and "Remove reply" to
+  a moderator. The web already does this. The app catches up here.
+- **Confirmation (215).** A moderator removing someone else's opening post is asked "Remove this
+  post?". If the post has replies, the confirmation adds "The N replies beneath it will stay."
+  (with one reply: "The 1 reply beneath it will stay."). The author's words don't change:
+  "Withdraw this post?" plus "The N replies beneath it will stay — they aren't yours to delete.",
+  or "Withdraw this post? It'll be removed from the Square."
+- The same words on the feed and the thread.
+- What it writes doesn't change: `withdrawn` + `removedBy: 'moderator'` when there are replies,
+  a hard remove when there are none. A moderator can't remove another reader's
+  `user_square_posts` mirror. The rules refuse it, so catch that refusal. The web's feed left it
+  unhandled until W55.

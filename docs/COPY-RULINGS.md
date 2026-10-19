@@ -582,3 +582,11 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - **211:** Each reader may make at most 5 posts and 30 replies in any 10 minutes; past that: "Too much at once. Try again in a minute."
 - The refusal outside the hours (W54 brief): "The Square opens at 8pm."
 - **214:** Founders keep the pace limit in 211; only the hours in 210 are lifted for them. (The Function already works this way.)
+
+## 19 Oct 2026 (Ikenna): the reply box, the menu and the moderator's wording (W55)
+
+- **212:** The reply box grows to three lines as you write, on web and app.
+- **213:** On a reply, the menu says "Withdraw reply" to its author and "Remove reply" to a moderator, matching the confirmation that follows. The web already does; the app catches up in A44.
+- **215:** When a moderator removes someone else's post, the confirmation says "Remove this post?", plus "The N replies beneath it will stay." when it has replies.
+- **216:** As the reply box grows, Send stays at the bottom, beside the last line.
+- The rule tightening that W54 called W55 is now W56.

@@ -7,7 +7,7 @@
 // is the copy the server sends.
 //
 // ⚠ THE RULES ARE NOT TIGHTENED YET. Until A44 moves the app onto the Function, the app keeps
-// writing square_posts directly and the rules still allow it. W55 closes the direct path once
+// writing square_posts directly and the rules still allow it. W56 closes the direct path once
 // both clients use this. So for now this is the WEB's boundary, not the platform's.
 
 import { refusalFor, slimAttachedStory } from './squarePostBody.js';

@@ -15,7 +15,7 @@ import { useOnline, reconnectDatabase } from '../lib/useReliable';
 import Unavailable from '../components/Unavailable';
 import { isTombstone, announcedPieceOf } from '../lib/deletedContent';
 import { mentionHandles, resolveHandle, matchReaders } from '../lib/squareHandles';
-import { latestReply, isRemoved, threadHref, squareNotificationHref, NOTIFICATION_WORDS } from '../lib/squareThreads';
+import { latestReply, isRemoved, threadHref, squareNotificationHref, NOTIFICATION_WORDS, rootDeleteConfirm, quotablePost } from '../lib/squareThreads';
 import { PostMenu, ReportModal, PinIcon } from '../components/conversation/SquarePostMenu';
 import MessagesPanel from '../components/square/MessagesPanel';
 import ReaderCard from '../components/square/ReaderCard';
@@ -588,6 +588,25 @@ export default function SquarePage() {
     setShowDM(true);
   }, [user]);
 
+  // W55 — Quote from the thread: /square?quote={id} opens the composer with that post quoted and
+  // the cursor in it, as Quote does here. Taken once, after the room has been read; if the post has
+  // left the room by then (or was withdrawn), the composer opens without it.
+  const pendingQuote = useRef(undefined);
+  useEffect(() => {
+    if (pendingQuote.current === undefined) {
+      try { pendingQuote.current = new URLSearchParams(window.location.search).get('quote'); } catch { pendingQuote.current = null; }
+    }
+    const want = pendingQuote.current;
+    if (!want || !user || loading || !squareOpen) return;
+    pendingQuote.current = null;
+    try { history.replaceState(null, '', '/square'); } catch {}
+    setQuotedPostId(quotablePost(posts, want)?.id || null);
+    setTimeout(() => {
+      textareaRef.current?.scrollIntoView({ block: 'center' });
+      textareaRef.current?.focus();
+    }, 50);
+  }, [user, loading, squareOpen, posts]);
+
   // Two separate capabilities where there was one role.
   const canPin        = can(userData, 'canPin');
   const canRemove     = can(userData, 'canRemovePosts');
@@ -968,10 +987,8 @@ export default function SquarePage() {
   // thing worth not repeating.
   const handleDelete = async (p) => {
     const replies = posts.filter(r => r.parentId === p.id).length;
-    const msg = replies > 0
-      ? `Withdraw this post?\n\nThe ${replies} ${replies === 1 ? 'reply' : 'replies'} beneath it will stay — they aren't yours to delete.`
-      : "Withdraw this post? It'll be removed from the Square.";
-    if (!confirm(msg)) return;
+    // W55 / ruling 215 — a moderator's wording when the post is someone else's.
+    if (!confirm(rootDeleteConfirm({ mine: user?.uid === p.authorUid, replies }))) return;
     const db = await getDB();
     const { ref, remove, update } = await import('firebase/database');
     if (replies > 0) {
@@ -983,7 +1000,8 @@ export default function SquarePage() {
       return;
     }
     await remove(ref(db, `square_posts/${p.id}`));
-    await remove(ref(db, `user_square_posts/${p.authorUid}/${p.id}`));
+    // A moderator can't write another reader's mirror; the post itself is gone, as on /square/p.
+    await remove(ref(db, `user_square_posts/${p.authorUid}/${p.id}`)).catch(() => {});
   };
 
   // R33.2 — THE REPORT BUTTON DID NOTHING. It was wired to

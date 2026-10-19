@@ -5,7 +5,7 @@
 //   · square_rate/{uid} — the pace counter (ruling 211) — is the Function's alone: no client can
 //     read or write it, the owner and the founders included.
 //   · NOTHING ELSE TIGHTENS IN W54. The app keeps writing square_posts directly until A44, so a
-//     direct post, reply and edit by its author still pass here, and so do reactions. W55 closes
+//     direct post, reply and edit by its author still pass here, and so do reactions. W56 closes
 //     the direct path; when it does, these "still allowed" cases are the ones it must flip.
 
 import { test, before, after, beforeEach, describe } from 'node:test';
@@ -35,7 +35,7 @@ describe('W54 · square_rate', () => {
   });
 });
 
-describe('W54 · the direct path stays open until W55 (the app still uses it)', () => {
+describe('W54 · the direct path stays open until W56 (the app still uses it)', () => {
   const rec = (over = {}) => ({ text: 'hello', authorUid: OWNER, authorName: 'Reader', createdAt: Date.now(), ...over });
   test('a direct post, reply and edit by the author still pass', async () => {
     await seed(env, { [`users/${OWNER}`]: { displayName: 'Reader' } });

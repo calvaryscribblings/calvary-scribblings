@@ -7,7 +7,7 @@
 // reader, which the rules already hold to the reader's own uid.
 //
 // The app still writes the stored counts until A44; nothing on the web reads them, so they are
-// harmless until W55 decides what to do with them.
+// harmless until W56 decides what to do with them.
 
 export const REACTION_TYPES = Object.freeze(['like', 'clap', 'fire']);
 

@@ -14,7 +14,7 @@
 // moment it is written; nothing after it can undo it).
 //
 // The pure rules — hours, pace, edit window, shapes, snapshot, and the copy — are
-// app/lib/squareWrite.js. The app keeps writing directly until A44; W55 then tightens the rules so
+// app/lib/squareWrite.js. The app keeps writing directly until A44; W56 then tightens the rules so
 // this Function is the only way in. Until then nothing here is the platform's boundary.
 //
 // ═══════════════════════════════════════════════════════════════════════════════════════

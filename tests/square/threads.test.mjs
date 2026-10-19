@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import {
   buildThread, foldNested, latestReply, replyNotifications, threadHref, postHref,
   squareNotificationHref, removedNote, topAncestorOf, THREAD_COPY, NESTED_SHOWN,
+  rootDeleteConfirm, quoteHref, quotablePost,
 } from '../../app/lib/squareThreads.js';
 import { planSweep, HORIZON_MS } from '../../scripts/square/horizon.mjs';
 
@@ -173,5 +174,30 @@ describe('the horizon carries replyToId and removedBy untouched', () => {
   test('the archive write copies each record whole (no field list to forget a new field)', () => {
     const src = readFileSync(new URL('../../scripts/square/horizon.mjs', import.meta.url), 'utf8');
     assert.match(src, /const \{ id, \.\.\.rec \} = p;\n\s+patch\[`square_archive\/\$\{id\}`\] = \{ \.\.\.rec, archivedAt: now, archivedBy: 'horizon' \};/);
+  });
+});
+
+describe('W55 · the opening post: removing it, and quoting it from the thread', () => {
+  test('ruling 215: a moderator removing someone else\'s post is asked "Remove this post?"', () => {
+    assert.equal(rootDeleteConfirm({ mine: false, replies: 0 }), 'Remove this post?');
+    assert.equal(rootDeleteConfirm({ mine: false, replies: 3 }), 'Remove this post?\n\nThe 3 replies beneath it will stay.');
+    assert.equal(rootDeleteConfirm({ mine: false, replies: 1 }), 'Remove this post?\n\nThe 1 reply beneath it will stay.');
+  });
+  test('the author\'s wording does not change', () => {
+    assert.equal(rootDeleteConfirm({ mine: true, replies: 0 }), "Withdraw this post? It'll be removed from the Square.");
+    assert.equal(rootDeleteConfirm({ mine: true, replies: 2 }), "Withdraw this post?\n\nThe 2 replies beneath it will stay — they aren't yours to delete.");
+  });
+  test('both pages ask through rootDeleteConfirm, and neither keeps its own copy of the words', () => {
+    for (const f of ['app/square/page.js', 'app/square/p/page.js']) {
+      const src = readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8');
+      assert.match(src, /confirm\(rootDeleteConfirm\(/, f);
+      assert.doesNotMatch(src, /Withdraw this post\?/, f);
+    }
+  });
+  test('quoteHref opens the feed with ?quote=; quotablePost takes only an opening post still in the room', () => {
+    assert.equal(quoteHref('-Ab c'), '/square?quote=-Ab%20c');
+    const posts = [{ id: 'R' }, { id: 'r', parentId: 'R' }, { id: 'W', withdrawn: true }, { id: 'D', deleted: true }];
+    assert.equal(quotablePost(posts, 'R')?.id, 'R');
+    for (const id of ['r', 'W', 'D', 'gone', null]) assert.equal(quotablePost(posts, id), null, String(id));
   });
 });

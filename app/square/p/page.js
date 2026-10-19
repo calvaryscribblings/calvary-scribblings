@@ -20,7 +20,7 @@
 // &reply=. The shape of a thread — two levels, the fold, the tombstones, who is notified — is
 // decided in app/lib/squareThreads.js, where the tests can reach it.
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Avatar, UserBadge, timeAgo, ReactionRow, SQUARE_REACTIONS } from '../../components/conversation/ConversationKit';
 import { resolveIdentities, identityOf } from '../../lib/squareIdentity';
@@ -34,7 +34,7 @@ import { isTombstone, announcedPieceOf, DELETED_POST } from '../../lib/deletedCo
 import { mentionHandles, resolveHandle, matchReaders } from '../../lib/squareHandles';
 import { keyboardInset } from '../../lib/composerRail';
 import {
-  buildThread, foldNested, isRemoved, isHiddenBy, removedNote, replyNotifications, threadHref, THREAD_COPY,
+  buildThread, foldNested, isRemoved, isHiddenBy, removedNote, replyNotifications, threadHref, quoteHref, rootDeleteConfirm, THREAD_COPY,
 } from '../../lib/squareThreads';
 import ReaderCard from '../../components/square/ReaderCard';
 import useSafety from '../../components/square/useSafety';
@@ -64,6 +64,12 @@ const HANDLE = '#a989d9';
 const NOT_SENT = '#d4537e';
 const BAR = '#0b0815';
 const ANSWERING_TINT = 'rgba(107,47,173,0.10)';
+
+// W55 / rulings 212, 216 — the reply box grows to three lines as you write, then scrolls inside.
+// 16px type on a 20px line, 11px padding top and bottom, 1px border: 44, 64, 84px.
+const BOX_LINE = 20;
+const BOX_ONE = 44;
+const BOX_MAX = BOX_ONE + 2 * BOX_LINE;
 
 function roomOpen() {
   const h = parseInt(new Date().toLocaleString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', hour12: false }), 10);
@@ -151,6 +157,7 @@ function Thread() {
   const sendingRef = useRef(false);
   const fieldRef = useRef(null);
   const [inset, setInset] = useState(0);
+  const [boxH, setBoxH] = useState(BOX_ONE);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionRows, setMentionRows] = useState([]);
   const [editing, setEditing] = useState(null);
@@ -270,6 +277,18 @@ function Thread() {
     measure();
     return () => { vv.removeEventListener('resize', onChange); vv.removeEventListener('scroll', onChange); if (raf) cancelAnimationFrame(raf); };
   }, []);
+
+  // ── the box grows with what's written (212) ─────────────────────────────────
+  // Measured at one line, then grown to the words' height, capped at three; past that it scrolls.
+  // Runs on every change of text, so a send that clears the box takes it back to one line.
+  useLayoutEffect(() => {
+    const el = fieldRef.current;
+    if (!el) return;
+    el.style.height = `${BOX_ONE}px`;
+    const want = Math.min(BOX_MAX, Math.max(BOX_ONE, el.scrollHeight + 2));   // scrollHeight has no border
+    el.style.height = `${want}px`;
+    setBoxH(want);
+  });
 
   const root = state.phase === 'ok' ? state.root : null;
   const rootId = root?.id || null;
@@ -455,11 +474,9 @@ function Thread() {
       return;
     }
     // The root: as the feed does it (R33.2) — withdrawn while replies stand beneath it.
+    // W55 / ruling 215 — a moderator removing someone else's post is asked in a moderator's words.
     const n = replies.length;
-    const msg = n > 0
-      ? `Withdraw this post?\n\nThe ${n} ${n === 1 ? 'reply' : 'replies'} beneath it will stay — they aren't yours to delete.`
-      : "Withdraw this post? It'll be removed from the Square.";
-    if (!confirm(msg)) return;
+    if (!confirm(rootDeleteConfirm({ mine, replies: n }))) return;
     if (n > 0) {
       await update(ref(db, `square_posts/${p.id}`), { text: '', withdrawn: true, withdrawnAt: Date.now(), removedBy: mine ? 'author' : 'moderator' });
       return;
@@ -585,7 +602,8 @@ function Thread() {
   const canSend = interactive && !sending && text.trim() && refusalFor(text, { isReply: true }).ok;
 
   return (
-    <Shell bottomPad={interactive ? '9rem' : '6rem'}>
+    // The foot of the thread grows with the box, so the last reply never sits under the bar.
+    <Shell bottomPad={interactive ? `calc(9rem + ${boxH - BOX_ONE}px)` : '6rem'}>
       {state.archived && (
         <div style={{ border: '1px solid rgba(201,168,76,0.3)', background: 'rgba(201,168,76,0.06)', borderRadius: 8, padding: '12px 14px', marginBottom: 18 }}>
           <div style={{ fontFamily: FF, fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: GOLD, marginBottom: 4 }}>Past the horizon</div>
@@ -609,11 +627,20 @@ function Thread() {
             <ReactionRow reactions={SQUARE_REACTIONS} item={withCounts(root)} activeMap={activeOf(root)}
               onToggle={(key) => toggleReaction(root, key)} canReact={interactive} iconSize={16}
               trailing={interactive && !root.withdrawn ? (
+              <>
               <button onClick={() => { setAnswering(null); fieldRef.current?.focus(); }}
                 style={{ display: 'flex', alignItems: 'center', gap: 4, minHeight: 44, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: INK(0.45), fontSize: '0.7rem', fontWeight: 500, fontFamily: FF, letterSpacing: '0.1em' }}>
                 <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                 reply
               </button>
+              {/* W55 — Quote, as the feed has it: the feed's composer with this post in it. Replies
+                  stay unquotable, as in the threads canvas. */}
+              <button onClick={() => router.push(quoteHref(root.id))} aria-label="Quote this post" data-thread-quote
+                style={{ display: 'flex', alignItems: 'center', gap: 4, minHeight: 44, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: INK(0.45), fontSize: '0.7rem', fontWeight: 500, fontFamily: FF, letterSpacing: '0.1em' }}>
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h2" /><path d="M14 9h2" /></svg>
+                quote
+              </button>
+              </>
             ) : null} />
           )}
         </div>
@@ -683,13 +710,15 @@ function Thread() {
                   style={{ width: 44, height: 44, background: 'none', border: 'none', color: INK(0.7), fontSize: '1.3rem', cursor: 'pointer', lineHeight: 1 }}>×</button>
               </div>
             )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* 216 — the row aligns to the bottom, so Send sits beside the last line. */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
               <textarea ref={fieldRef} value={text} onChange={(e) => setBox(e.target.value)} rows={1}
                 placeholder={answering ? `Reply to ${answeringWho.displayName}…` : `Reply to ${who(root).displayName}…`}
                 aria-label="Reply"
                 onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canSend) send({ body: text.trim(), target: answering }); }}
-                style={{ flex: 1, height: 44, minHeight: 44, borderRadius: 22, padding: '11px 16px', boxSizing: 'border-box', resize: 'none', overflowY: 'auto', outline: 'none',
-                  background: 'rgba(245,240,232,0.04)', color: '#f5f0e8', fontFamily: FF, fontSize: 16, lineHeight: 1.3,
+                data-reply-field
+                style={{ flex: 1, height: BOX_ONE, minHeight: BOX_ONE, maxHeight: BOX_MAX, borderRadius: 22, padding: '11px 16px', boxSizing: 'border-box', resize: 'none', overflowY: boxH >= BOX_MAX ? 'auto' : 'hidden', outline: 'none',
+                  background: 'rgba(245,240,232,0.04)', color: '#f5f0e8', fontFamily: FF, fontSize: 16, lineHeight: `${BOX_LINE}px`,
                   border: `1px solid ${answering ? 'rgba(201,168,76,0.45)' : INK(0.14)}` }} />
               <button onClick={() => send({ body: text.trim(), target: answering })} disabled={!canSend} aria-label="Send"
                 style={{ width: 44, height: 44, flex: 'none', borderRadius: '50%', background: '#6b2fad', border: 'none', color: '#f5f0e8', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: canSend ? 'pointer' : 'default', opacity: canSend ? 1 : 0.45 }}>
