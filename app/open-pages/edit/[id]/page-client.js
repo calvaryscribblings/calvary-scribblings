@@ -643,6 +643,7 @@ export default function EditPageClient({ params }) {
             {!preview ? (
               <textarea
                 data-field-large=""
+                data-keyboard-own=""
                 ref={bodyRef}
                 value={body}
                 onChange={(e) => setBody(e.target.value.slice(0, BODY_MAX))}

@@ -12,6 +12,7 @@ import ProfileCompletion from './ProfileCompletion';
 import DobCheck from './DobCheck';
 import SaveToast from './SaveToast';
 import GatePreviewBanner from './GatePreview';
+import { KeyboardReveal } from './useKeyboard';
 
 export default function Providers({ children }) {
   // W2 / SPD-09 — THE SERVICE WORKER, SITE-WIDE. It used to register only from the shelf
@@ -122,6 +123,8 @@ export default function Providers({ children }) {
         <SaveToast />
         <CookieBanner />
         <GatePreviewBanner />
+        {/* W55.2 — a field in the page's flow is kept above the phone keyboard — app/components/useKeyboard.js. */}
+        <KeyboardReveal />
       </MembershipProvider>
     </AuthProvider>
   );

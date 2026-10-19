@@ -66,6 +66,26 @@ export function keyboardInset({ innerHeight, height, offsetTop } = {}) {
   return inset > 1 ? Math.round(inset) : 0;
 }
 
+/**
+ * W55.2 — HOW FAR TO SCROLL THE PAGE SO A FOCUSED FIELD SITS ABOVE THE KEYBOARD.
+ *
+ * For a field in the page's flow (a story's response box, a reply, a comment): the field's rect and
+ * the visual viewport are in the same coordinates (the layout viewport's), so the glass the reader
+ * can see runs from vvTop to vvTop + vvHeight. A field whose foot is under that — under the
+ * keyboard — is scrolled up until its foot clears it by `margin`. A field taller than the glass is
+ * brought only as far as its top reaching the top, never past it, so the reader never loses the
+ * start of what they are writing.
+ *
+ * @returns {number} px to scroll the page down by; 0 when the field is already in view.
+ */
+export function revealBy({ fieldTop, fieldBottom, vvTop, vvHeight, margin = 12 } = {}) {
+  if (![fieldTop, fieldBottom, vvTop, vvHeight, margin].every((n) => typeof n === 'number' && Number.isFinite(n))) return 0;
+  const over = fieldBottom + margin - (vvTop + vvHeight);
+  if (over <= 1) return 0;
+  const room = fieldTop - vvTop - margin;
+  return Math.max(0, Math.round(Math.min(over, room)));
+}
+
 // The seven controls, as data. `wrap` is [before, after] around the selection; `line`
 // is a prefix applied at the start of the line; `action` is handled by the composer.
 // `letter` is the character to set in Cormorant — a letter is not an emoji, and the

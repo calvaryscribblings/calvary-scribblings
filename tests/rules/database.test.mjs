@@ -21,6 +21,7 @@
 import { test, before, after, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { dmImageUrlPrefix } from '../../app/lib/dmImages.js';
 import {
   makeEnv, seed, assertFails, assertSucceeds,
   DB_RULES_PATH,
@@ -102,9 +103,12 @@ describe('LB-2 · dm_messages — private mail', () => {
     // strips nulls, so NO stored message carries the key. Requiring it in
     // hasChildren() would reject 100% of real sends.
     await assertSucceeds(owner.ref(`dm_messages/${CONV}/m1`).set(msg(OWNER)));
-    // ...and an image message, where text is legitimately the empty string.
+    // ...and an image message, where text is legitimately the empty string. W55.2 (ruling 222): an
+    // imageUrl now needs the image grant and must be the sender's own upload in this conversation
+    // (tests/rules/dm-images.test.mjs has the refusals).
+    await seed(env, { [`users/${OWNER}/canPostImages`]: true });
     await assertSucceeds(owner.ref(`dm_messages/${CONV}/m2`).set({
-      text: '', imageUrl: 'https://example.com/i.png', senderUid: OWNER, createdAt: now(),
+      text: '', imageUrl: `${dmImageUrlPrefix(CONV, OWNER)}i?alt=media&token=t`, senderUid: OWNER, createdAt: now(),
     }));
   });
 

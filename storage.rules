@@ -237,6 +237,23 @@ service firebase.storage {
                    && request.resource.size < 25 * 1024 * 1024
                    && request.resource.contentType == 'application/pdf';
     }
+    // W55.2 / ruling 222 — images in messages. NO CLIENT WRITES, founders included: the bytes go
+    // through functions/api/square/dm-image.js, which checks the image grant (users/{uid}/
+    // canPostImages — a rule here cannot read the database), the conversation and the block
+    // barrier, then uploads with the admin credential. Readers see an image through the address
+    // the Function returns (it carries a download token); a signed-in SDK read is allowed only
+    // to the conversation's two readers.
+    match /dm_images/{convId}/{fileName} {
+      allow read: if request.auth != null
+                  && (convId.matches(request.auth.uid + '_.*') || convId.matches('.*_' + request.auth.uid));
+      allow write: if false;
+    }
+    // W55.2 / ruling 225 — a REPORTED image, held out of reach of the 24-hour clear-out (storage/
+    // lifecycle.json matches dm_images/ only). Written and deleted by functions/api/square/
+    // report-image.js alone; /admin/reports draws it through the address's download token.
+    match /dm_reported/{contentKey}/{fileName} {
+      allow read, write: if false;
+    }
     match /open_pages/{uid}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null

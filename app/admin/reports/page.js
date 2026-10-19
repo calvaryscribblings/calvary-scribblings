@@ -17,6 +17,7 @@ import { useReliableLoad } from '../../lib/useReliable';
 import AdminLoad from '../../components/AdminLoad';
 import { ref, get, update, serverTimestamp } from 'firebase/database';
 import { queueRows, contextHrefFor } from '../../lib/contentReports';
+import { reportImage, DM_HELD_PREFIX } from '../../lib/dmImages';
 
 const FF = 'Cormorant Garamond, Georgia, serif';
 const S = {
@@ -66,6 +67,7 @@ export default function ReportsAdmin() {
   const [filter, setFilter] = useState('all');
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
+  const [unreleased, setUnreleased] = useState({});   // W55.2: resolved, held image not yet deleted
 
   // W6 (ADM-24) — the switch check and the queue are ONE read under useReliableLoad, so both have
   // a deadline and a failure is drawn as a failure. Before, a failed check set allowed=false and
@@ -81,11 +83,21 @@ export default function ReportsAdmin() {
   const tree = allowed ? queue.data.tree : null;
   const names = allowed ? queue.data.names : {};
 
-  const resolve = async (contentKey) => {
+  // W55.2 / ruling 225 — a DM report's image is held under dm_reported/ until the report is
+  // resolved; resolving it then deletes the held copy, through the server (functions/api/square/
+  // report-image.js), and nothing else.
+  const holdsImage = (row) => row.reports.some((x) => typeof x.imageUrl === 'string' && x.imageUrl.includes(encodeURIComponent(DM_HELD_PREFIX)));
+  const releaseImage = async (contentKey) => {
+    try { await reportImage(user, 'release', contentKey); setUnreleased((u) => { const n = { ...u }; delete n[contentKey]; return n; }); }
+    catch (e) { setUnreleased((u) => ({ ...u, [contentKey]: true })); setErr('Resolved, but the held image could not be deleted: ' + (e?.code || 'error')); }
+  };
+  const resolve = async (row) => {
+    const { contentKey } = row;
     setBusy(contentKey); setErr('');
     try {
       // The server's clock, as on /admin/square: resolvedAt is an audit field.
       await update(ref(db, `content_reports/${contentKey}`), { resolved: true, resolvedBy: user.uid, resolvedAt: serverTimestamp() });
+      if (holdsImage(row)) await releaseImage(contentKey);
       await queue.reload();
     } catch (e) { setErr('Could not resolve: ' + (e?.message || e)); }
     setBusy('');
@@ -144,8 +156,11 @@ export default function ReportsAdmin() {
               <span style={S.kind}>{KIND_LABEL[row.kind] || row.kind}</span>
               <span style={S.quiet}>{row.reports.length} report{row.reports.length === 1 ? '' : 's'} · {when(row.latestAt)}</span>
               {row.resolved
-                ? <span style={{ fontSize: '0.7rem', color: '#6fae7d', letterSpacing: '0.1em' }}>RESOLVED{row.resolvedBy ? ` · ${who(row.resolvedBy)}` : ''}</span>
-                : <button style={{ ...S.ghost, marginLeft: 'auto' }} onClick={() => resolve(row.contentKey)} disabled={busy === row.contentKey}>
+                ? <>
+                    <span style={{ fontSize: '0.7rem', color: '#6fae7d', letterSpacing: '0.1em' }}>RESOLVED{row.resolvedBy ? ` · ${who(row.resolvedBy)}` : ''}</span>
+                    {unreleased[row.contentKey] && <button style={{ ...S.ghost, marginLeft: 'auto' }} onClick={() => releaseImage(row.contentKey)}>Delete held image</button>}
+                  </>
+                : <button style={{ ...S.ghost, marginLeft: 'auto' }} onClick={() => resolve(row)} disabled={busy === row.contentKey}>
                     {busy === row.contentKey ? 'Resolving…' : 'Resolve'}
                   </button>}
             </div>
@@ -157,6 +172,11 @@ export default function ReportsAdmin() {
               <blockquote style={{ margin: '0 0 10px', padding: '8px 12px', borderLeft: '2px solid rgba(201,168,76,0.4)', background: 'rgba(240,236,228,0.03)', fontSize: '0.95rem', lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                 {row.reports[0].snapshot}
               </blockquote>
+            ) : null}
+            {/* W55.2 — a reported message's image is filed with it, so the moderator sees what was sent. */}
+            {row.reports[0].imageUrl && !row.resolved ? (
+              <img data-report-image src={row.reports[0].imageUrl} alt="The image in the reported message"
+                style={{ display: 'block', maxWidth: 240, maxHeight: 240, borderRadius: 8, margin: '0 0 10px', border: '1px solid rgba(240,236,228,0.12)' }} />
             ) : null}
             {row.reports.map((x) => (
               <div key={x.reporterUid} style={{ fontSize: '0.85rem', color: 'rgba(240,236,228,0.65)', paddingLeft: 12, borderLeft: '2px solid rgba(240,236,228,0.1)', marginBottom: 4, overflowWrap: 'anywhere' }}>

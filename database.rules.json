@@ -743,7 +743,7 @@
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
           },
           "imageUrl": {
-            ".validate": "newData.isString() && newData.val().length <= 2048"
+            ".validate": "newData.isString() && newData.val().length <= 2048 && root.child('users').child(auth.uid).child('canPostImages').val() === true && newData.val().beginsWith('https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/dm_images%2F' + $convId + '%2F' + auth.uid + '_')"
           },
           "$other": {
             ".validate": false
@@ -1726,6 +1726,9 @@
           },
           "note": {
             ".validate": "newData.isString() && newData.val().length <= 300"
+          },
+          "imageUrl": {
+            ".validate": "newData.isString() && newData.parent().child('kind').val() === 'dm' && root.child(newData.parent().child('contextPath').val()).child('imageUrl').val() === newData.val()"
           },
           "createdAt": {
             ".validate": "newData.isNumber()"

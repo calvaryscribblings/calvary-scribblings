@@ -5,6 +5,7 @@
 // Edit appears only where the caller passes onEdit; Pin and Strip quote only with their switches.
 
 import { useEffect, useRef, useState } from 'react';
+import { useKeyboardInset } from '../useKeyboard';
 
 export function PinIcon({ size = 12 }) {
   return (
@@ -109,11 +110,14 @@ export function ReportModal({ post, onSubmit, onClose }) {
   const [note, setNote] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const kb = useKeyboardInset();
   const go = async () => { setBusy(true); try { await onSubmit(post, reason, note); setSent(true); } catch { setSent(true); } setBusy(false); };
-  const box = { background: '#141018', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 12, padding: '20px 22px', maxWidth: 420, width: '100%' };
+  // W55.2 — the overlay is the glass the phone keyboard leaves (useKeyboardInset), so the note field
+  // at the dialog's foot is never under the keyboard; a dialog taller than that glass scrolls.
+  const box = { background: '#141018', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 12, padding: '20px 22px', maxWidth: 420, width: '100%', maxHeight: '100%', overflowY: 'auto', boxSizing: 'border-box' };
   const ff = 'Cormorant Garamond, Georgia, serif';
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20 }}>
+    <div onClick={onClose} data-report-overlay style={{ position: 'fixed', left: 0, right: 0, top: kb.top, bottom: kb.inset, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 20, boxSizing: 'border-box' }}>
       <div onClick={e => e.stopPropagation()} style={box}>
         {sent ? (
           <>

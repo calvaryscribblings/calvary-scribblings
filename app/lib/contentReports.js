@@ -21,6 +21,8 @@
 //                user    → users/{uid}
 //   snapshot     ≤ 200 chars. For a DM: snapshotOf(message.text), a VERBATIM prefix — no trim, no ellipsis.
 //   note         optional, ≤ 300 chars, the reporter's own words
+//   imageUrl     W55.2, a DM only: the reported message's own imageUrl, exactly (the rules check it
+//                equals the message's). Filed with the report so a moderator sees the image sent.
 //   createdAt    ms, ≤ now + 5 min
 // Write-once: a second report of the same content by the same reader is refused, not merged.
 
@@ -28,7 +30,7 @@ export const REPORT_KINDS = ['comment', 'dm', 'user'];
 export const REASON_MAX = 40;
 export const SNAPSHOT_MAX = 200;
 export const NOTE_MAX = 300;
-export const RECORD_FIELDS = ['kind', 'reason', 'reporterUid', 'offenderUid', 'contextPath', 'snapshot', 'note', 'createdAt'];
+export const RECORD_FIELDS = ['kind', 'reason', 'reporterUid', 'offenderUid', 'contextPath', 'snapshot', 'note', 'imageUrl', 'createdAt'];
 export const RESOLUTION_FIELDS = ['resolved', 'resolvedBy', 'resolvedAt'];
 
 /** dm ids are [uidA, uidB].sort().join('_') — app/square/page.js. */
@@ -57,7 +59,7 @@ export function snapshotOf(text) {
 }
 
 /** One record, in the rules' shape. `now` is handed in. */
-export function buildReport({ kind, reason, reporterUid, offenderUid, contextPath, text, note, now }) {
+export function buildReport({ kind, reason, reporterUid, offenderUid, contextPath, text, note, imageUrl = null, now }) {
   if (!REPORT_KINDS.includes(kind)) throw new Error(`Unknown report kind: ${kind}`);
   const rec = {
     kind,
@@ -70,6 +72,7 @@ export function buildReport({ kind, reason, reporterUid, offenderUid, contextPat
   };
   const n = String(note ?? '').trim();
   if (n) rec.note = n.slice(0, NOTE_MAX);
+  if (kind === 'dm' && typeof imageUrl === 'string' && imageUrl) rec.imageUrl = imageUrl;
   return rec;
 }
 

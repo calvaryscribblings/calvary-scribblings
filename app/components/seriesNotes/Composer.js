@@ -28,6 +28,7 @@ import {
 import { notesAction, loadDraft, saveDraft, readMargin } from '../../lib/series/notesClient';
 import { C, DISPLAY, NOTES_CSS, labelStyle, questionStyle } from './tokens';
 import { CloseIcon, CheckIcon } from './Parts';
+import { useKeyboardInset } from '../useKeyboard';
 
 let tmpSeq = 0;
 const tempIdOf = () => `tmp-${Date.now().toString(36)}-${(tmpSeq += 1)}`;
@@ -86,6 +87,7 @@ export default function Composer({ open, inst, ordinal, slug, questions = null, 
   void slug;
   const N = instName(ordinal);
   const wide = useWide();
+  const kb = useKeyboardInset();
   const [kind, setKind] = useState(initialKind);
   const [text, setText] = useState('');
   const [side, setSide] = useState(mySide);
@@ -187,12 +189,14 @@ export default function Composer({ open, inst, ordinal, slug, questions = null, 
     onClose?.();
   };
 
+  // W55.2 — percentages of the container, and the container is the glass the keyboard leaves
+  // (useKeyboardInset): on iPhone and iPad the sheet sits on top of the keyboard, never under it.
   const sheetStyle = wide
-    ? { position: 'relative', width: 'min(600px, calc(100vw - 32px))', maxHeight: 'calc(100vh - 48px)', borderRadius: 16 }
-    : { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '92vh', borderRadius: '26px 26px 0 0' };
+    ? { position: 'relative', width: 'min(600px, calc(100vw - 32px))', maxHeight: 'calc(100% - 48px)', borderRadius: 16 }
+    : { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '92%', borderRadius: '26px 26px 0 0' };
 
   return (
-    <div data-composer={wide ? 'dialog' : 'sheet'} style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: wide ? 'center' : 'flex-end', justifyContent: 'center' }}>
+    <div data-composer={wide ? 'dialog' : 'sheet'} style={{ position: 'fixed', left: 0, right: 0, top: kb.top, bottom: kb.inset, zIndex: 1200, display: 'flex', alignItems: wide ? 'center' : 'flex-end', justifyContent: 'center' }}>
       <style>{NOTES_CSS}</style>
       <div aria-hidden="true" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(4,2,10,0.72)' }} />
       <div ref={panel} role="dialog" aria-modal="true" aria-labelledby="sn-composer-title" className={wide ? 'sn-pop' : 'sn-rise'}

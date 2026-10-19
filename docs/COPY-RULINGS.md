@@ -598,3 +598,12 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - **220:** When you report a message, the next step shows the message you picked under "THE MESSAGE A MODERATOR WILL SEE", on the website as in the app.
 - (219 is the app's alone: its post menu drops Block.)
 - Once set, the rows read "Unmute this conversation" and "Unblock @handle" (W55.1 brief).
+
+## 19 Oct 2026 (Ikenna): messages, the keyboard and images (W55.2)
+
+- **222:** Images in messages are sent through the server, and only readers granted image posting can send them.
+- **223:** A message that fails to send stays in the conversation, faded, with "Not sent.", Try again and Remove, like a failed reply.
+- The refusals a reader can act on carry their words after "Not sent.": "Images aren't on for your account.", "That file isn't an image we can send.", "That image is too large to send." (W55.2, app/lib/dmImages.js).
+- **224:** An image in a message lasts 24 hours, then it's deleted and the message shows "This image has expired."; before sending, the preview says "Images disappear after 24 hours."
+- **225:** A reported image is kept with the report, out of reach of the 24-hour clear-out, until a moderator closes the report.
+- DRAFT (W55.2, awaiting a ruling): when a report is filed but its image could not be held, the report step says "Your report was sent, but the image didn’t go with it. Try again." (app/components/square/MessagesPanel.js).

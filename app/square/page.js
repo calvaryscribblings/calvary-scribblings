@@ -610,6 +610,11 @@ export default function SquarePage() {
   // Two separate capabilities where there was one role.
   const canPin        = can(userData, 'canPin');
   const canRemove     = can(userData, 'canRemovePosts');
+  // W55.2 — canPostImages now has ONE surface: images in MESSAGES (ruling 222), uploaded by
+  // functions/api/square/dm-image.js, which checks this same grant on the server. It is passed to
+  // MessagesPanel and nowhere else. POSTS still have no image path, and everything below about
+  // them is still true.
+  //
   // 🚨 R43 — canPostImages IS READ AND DELIBERATELY NOT USED. DO NOT WIRE A BUTTON
   // TO IT WITHOUT BUILDING THE UPLOAD FIRST.
   //
@@ -1430,7 +1435,7 @@ export default function SquarePage() {
       {showStoryAttach && <StoryAttachModal onSelect={(s) => { setAttachedStory(slimAttachedStory(s)); setShowStoryAttach(false); }} onClose={() => setShowStoryAttach(false)} cmsStories={cmsStories} />}
       {showPollCreator && <PollCreatorModal onCreate={createPoll} onClose={() => setShowPollCreator(false)} />}
       {reportingPost && <ReportModal post={reportingPost} onSubmit={submitReport} onClose={() => setReportingPost(null)} />}
-      {showDM && user && <MessagesPanel user={user} safety={safety} startWith={dmStart} onOpenReader={openReader} getStorageApp={getApp} onClose={() => { setShowDM(false); setDmStart(null); }} />}
+      {showDM && user && <MessagesPanel user={user} safety={safety} startWith={dmStart} onOpenReader={openReader} canSendImages={canPostImages} onClose={() => { setShowDM(false); setDmStart(null); }} />}
       {showNotifs && user && <NotificationsPanel user={user} hidden={hidden} onOpenReader={openReader} onClose={() => setShowNotifs(false)} />}
       {cardUid && <ReaderCard uid={cardUid} me={user} safety={safety} onClose={() => setCardUid(null)}
         onMessage={(uid) => { setCardUid(null); if (!user) { setShowAuth(true); return; } setDmStart(uid); setShowDM(true); }} />}

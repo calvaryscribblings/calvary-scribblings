@@ -12,6 +12,7 @@
     "rules:deploy:storage": "GOOGLE_APPLICATION_CREDENTIALS=serviceAccountKey.json firebase deploy --only storage --project calvary-scribblings --non-interactive",
     "rules:pull": "node scripts/rules-pull.mjs",
     "rules:check": "node scripts/rules-check.mjs",
+    "storage:lifecycle": "node scripts/storage/lifecycle.mjs",
     "og:rescrape": "node scripts/og-rescrape.mjs",
     "foliate:check": "node scripts/foliate-lock.mjs --check",
     "foliate:write": "node scripts/foliate-lock.mjs --write",
@@ -125,7 +126,9 @@
     "test:square:write:emulator": "firebase emulators:exec --only database --project demo-calvary-reads \"node --test --test-concurrency=1 tests/square/write.emulator.mjs\"",
     "test:square:w54": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w54.config.mjs\"",
     "test:square:w55": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w55.config.mjs\"",
-    "test:square:w551": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w551.config.mjs\""
+    "test:square:w551": "firebase emulators:exec --only auth,database --project calvary-scribblings \"playwright test -c tests/square/playwright.w551.config.mjs\"",
+    "test:square:w552": "firebase emulators:exec --only auth,database,storage --project calvary-scribblings \"playwright test -c tests/square/playwright.w552.config.mjs\"",
+    "test:square:report-image:emulator": "firebase emulators:exec --only database,storage --project demo-calvary-reads \"node --test --test-concurrency=1 tests/square/report-image.emulator.mjs\""
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",

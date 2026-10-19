@@ -627,6 +627,7 @@ export default function NewOpenPagePage() {
 
         {!preview ? (
           <textarea
+            data-keyboard-own=""
             ref={bodyRef}
             value={body}
             onChange={(e) => setBody(e.target.value.slice(0, BODY_MAX))}

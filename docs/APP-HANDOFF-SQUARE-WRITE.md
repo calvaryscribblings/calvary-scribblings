@@ -188,3 +188,65 @@ never fail on a bad value. Live, 19 Oct 2026 (`scripts/square/reading-since-coun
 323 reader records — 165 with joinDate, 56 with createdAt, 12 with both, 114 with neither; all
 numbers, none unusable. Reading createdAt alone showed the line for 56; joinDate-then-createdAt
 shows it for 209. If the app's card reads only one of the two, it has the same gap.
+
+## W55.2 — also for A44: the keyboard, images in messages, the failed message
+
+Rulings 222–225 are in `docs/COPY-RULINGS.md`. Web: `app/components/square/MessagesPanel.js`,
+`app/lib/dmImages.js` (the shared words, names and the 24-hour test), `functions/api/square/dm-image.js`,
+`functions/api/square/report-image.js`.
+
+**1. The keyboard.** The ruling: in a conversation the message box sits on top of the keyboard,
+with the latest message in view above it, on iPhone and iPad. The web does it with the visual
+viewport (`app/components/useKeyboard.js`); the app does it however its platform does. Check it
+against the ruling, not the web's numbers.
+
+**2. Images go through the server (222). 🚨 Direct uploads stop working at the W55.2 deploy.**
+`storage.rules` now refuses every client write under `dm_images/` (founders included), and the
+`dm_messages` rules accept `imageUrl` only from a reader with `users/{uid}/canPostImages === true`,
+and only when it begins
+`https://firebasestorage.googleapis.com/v0/b/calvary-scribblings.firebasestorage.app/o/dm_images%2F{convId}%2F{senderUid}_`.
+An app that uploads to Storage itself and writes its own download URL is refused on both counts.
+
+    POST /api/square/dm-image?conv={convId}
+    Authorization: Bearer <ID token>          (the header only)
+    Content-Type: image/jpeg | image/png | image/webp | image/gif
+    body: the image's bytes
+    → 200 { ok: true, url }    then write the message with imageUrl = url, exactly
+    → 401 signed_out · 403 not_in_conversation · 403 no_grant · 403 blocked · 415 not_image · 413 too_large · 502 unavailable
+
+- Show the image button only to a reader with the grant.
+- Before upload, redraw the image at most **1600px on its long side, as a JPEG at quality 0.8**
+  (a GIF goes as it is). This drops the EXIF, location included. The cap, **2 MiB**, is checked by
+  the server on what arrives, so after the shrink. Measured on the web (Chromium) with three real
+  4032×3024 photos: 3.19 → 0.46 MB, 5.30 → 0.48 MB, 9.78 → 0.27 MB. The app's encoder will give
+  different bytes; re-measure on the phone, and keep 1600 / 0.8.
+- `blocked` → "You can't message this reader." as now. `no_grant`, `not_image` and `too_large`
+  carry their words after "Not sent." (the `error` field). Everything else is "Not sent." alone.
+
+**3. A failed message (223).** It stays in the conversation at half opacity, with "Not sent."
+(#d4537e), Try again (#a989d9) and Remove (ink 0.62), as the thread's failed reply. Remove writes
+nothing. If the image was stored but the message write failed, Try again reuses the stored address
+and doesn't upload it again.
+
+**4. 24 hours (224).** Cloud Storage deletes everything under `dm_images/` once it is a day old
+(`storage/lifecycle.json`). The app must stop asking for it at the same mark:
+- `now - message.createdAt > 24 h` (strictly more; exactly 24 h still shows) → draw
+  **"This image has expired."** in place of the image, and **never request the address**. A
+  message with no usable `createdAt` counts as expired. The words in the message stay.
+- If the image fails to load before the mark (the clear-out runs early by seconds), draw the same.
+- The preview above the box, once an image is picked: **"Images disappear after 24 hours."**
+
+**5. A reported image is held (225).** Report as now. If the message has an image that hasn't
+expired, put its `imageUrl` in the report (the rules check it equals the message's), then:
+
+    POST /api/square/report-image   { action: 'hold', contentKey: 'dm_{convId}' }
+    → 200 { ok: true, held: true }   the server copied it to dm_reported/… and repointed the report
+    → 410 gone                        it was already cleared out: the report stands as filed, say nothing
+    → anything else                   DRAFT words: "Your report was sent, but the image didn't go with it. Try again."
+                                      (Try again repeats only the hold; the report is write-once)
+
+Releasing the copy is the moderator's, on the web (/admin/reports → Resolve). The app does nothing.
+
+**6. Account deletion.** Neither the endpoint nor the scrub deletes the images a deleted reader
+sent (their `dm_messages` records go; the files under `dm_images/` don't). The 24-hour clear-out
+takes them. Nothing for the app to do.
