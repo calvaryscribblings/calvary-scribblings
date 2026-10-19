@@ -606,4 +606,8 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - The refusals a reader can act on carry their words after "Not sent.": "Images aren't on for your account.", "That file isn't an image we can send.", "That image is too large to send." (W55.2, app/lib/dmImages.js).
 - **224:** An image in a message lasts 24 hours, then it's deleted and the message shows "This image has expired."; before sending, the preview says "Images disappear after 24 hours."
 - **225:** A reported image is kept with the report, out of reach of the 24-hour clear-out, until a moderator closes the report.
-- DRAFT (W55.2, awaiting a ruling): when a report is filed but its image could not be held, the report step says "Your report was sent, but the image didn’t go with it. Try again." (app/components/square/MessagesPanel.js).
+
+## 19 Oct 2026 (Ikenna): where message images are kept, and the report that loses its image (W55.2)
+
+- **226:** Message images stay in the main storage bucket, with its 30-day safety copy, rather than getting a separate bucket of their own.
+- **227:** If a report goes through but its image couldn't be kept with it, the reader sees "Your report was sent, but the image didn’t go with it. Try again." (app/components/square/MessagesPanel.js).

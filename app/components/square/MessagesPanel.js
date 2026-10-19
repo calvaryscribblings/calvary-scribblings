@@ -514,7 +514,7 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
                     <textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 300))} rows={2} placeholder="Anything a moderator should know (optional)"
                       style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 12px', color: '#f5f0e8', fontFamily: FF, fontSize: 16, resize: 'none', outline: 'none' }} />
                     {reportState === 'failed' && <div role="alert" style={{ fontSize: '0.85rem', color: '#d4537e', marginTop: 4 }}>That didn’t go through. Nothing was sent.</div>}
-                    {/* DRAFT (W55.2) — the report is filed but the image wasn't held; Report again retries only the hold. */}
+                    {/* Ruling 227 — the report is filed but the image wasn't held; Report again retries only the hold. */}
                     {reportState === 'unheld' && <div role="alert" data-report-unheld style={{ fontSize: '0.85rem', color: '#d4537e', marginTop: 4 }}>Your report was sent, but the image didn’t go with it. Try again.</div>}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
                       <button onClick={() => { setReportMsg(null); setReportState(''); }} style={{ ...sheetBtn, minHeight: 44, color: INK(0.7) }}>Cancel</button>
