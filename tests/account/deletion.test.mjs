@@ -190,6 +190,7 @@ describe('planScrub — rulings 29–34 (Ikenna, 26 Sep 2026)', () => {
     leaderboards: { 'summer-2026': { final: { [T]: { points: 5 }, [A]: { points: 9 } } } },
     notifications: { [A]: { n1: { fromUid: T }, n2: { fromUid: 'X' } } },
     dm_messages: { [[A, T].sort().join('_')]: { m1: { senderUid: T }, m2: { senderUid: A } } },
+    dm_muted: { [T]: { [[A, T].sort().join('_')]: true }, [A]: { [[A, T].sort().join('_')]: true } },
     cms_voices: { v1: { matchUid: T, slug: 'v1', message: 'their words' }, v2: { matchUid: A, message: 'stays' } },
   };
   const plan = planScrub(T, snap, { now: NOW });
@@ -256,6 +257,11 @@ describe('planScrub — rulings 29–34 (Ikenna, 26 Sep 2026)', () => {
     assert.ok(plan.decrements.includes('storyReactions/story/heart'));
     assert.ok(!plan.decrements.includes('storyReactions/story/fire'));
     assert.ok(has(`notifications/${A}/n1`) && !has(`notifications/${A}/n2`));
+  });
+  test('W55.1: dm_muted is an owned node; their muted conversations go, the other reader keeps theirs', () => {
+    assert.ok(OWNED_NODES.includes('dm_muted'));
+    assert.ok(has(`dm_muted/${T}`));
+    assert.ok(!plan.nulls.some((p) => p.startsWith(`dm_muted/${A}`)));
   });
   test('no counter under a path being deleted or tombstoned; no path overlaps another, removal or tombstone', () => {
     assert.ok(!plan.decrements.some((d) => d.startsWith('comments/story/c1/') || d.startsWith('square_posts/p2/')));

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
-import { SAFETY_COPY, hiddenUids, readingSince, otherInConversation, isPermissionDenied } from '../../app/lib/squareSafety.js';
+import { SAFETY_COPY, hiddenUids, readingSince, joinedAt, unreadShown, otherInConversation, isPermissionDenied } from '../../app/lib/squareSafety.js';
 import { buildThread, latestReply, THREAD_COPY } from '../../app/lib/squareThreads.js';
 import PostBody from '../../app/components/conversation/PostBody.js';
 import { SURFACES } from '../../app/lib/squarePostBody.js';
@@ -41,9 +41,43 @@ describe('the reader card', () => {
     assert.equal(SAFETY_COPY.reportMessageHint, 'Pick the message. A moderator sees only that one.');
     assert.equal(SAFETY_COPY.reported, 'Reported. A moderator sees only this message.');
   });
-  test('" · reading since {Month}" only when the record has a join date', () => {
-    assert.equal(readingSince(Date.UTC(2026, 2, 14)), ' · reading since March 2026');
-    for (const v of [undefined, null, 0, 1, 'x', NaN]) assert.equal(readingSince(v), '', String(v));
+  test('W55.1 — " · reading since {Month}": joinDate, then createdAt, else nothing', () => {
+    const mar = Date.UTC(2026, 2, 14), jun = Date.UTC(2025, 5, 2);
+    assert.equal(readingSince({ joinDate: mar }), ' · reading since March 2026');
+    assert.equal(readingSince({ createdAt: jun }), ' · reading since June 2025');
+    assert.equal(readingSince({ joinDate: mar, createdAt: jun }), ' · reading since March 2026');   // joinDate wins
+    assert.equal(readingSince({ joinDate: String(mar) }), ' · reading since March 2026');
+    assert.equal(readingSince({ joinDate: '2026-03-14T10:00:00Z' }), ' · reading since March 2026');
+    assert.equal(readingSince({ joinDate: 'garbage', createdAt: jun }), ' · reading since June 2025');  // unusable joinDate: createdAt
+    for (const r of [undefined, null, {}, { joinDate: null, createdAt: null }, { joinDate: 0 }, { joinDate: 1 }, { joinDate: 'x' },
+      { joinDate: NaN }, { joinDate: 1e17 }, { joinDate: {} }, { createdAt: true }]) {
+      assert.equal(readingSince(r), '', JSON.stringify(r));
+    }
+    assert.equal(joinedAt({ joinDate: mar }), mar);
+  });
+  test('W55.1 — a date the formatter rejects leaves the line out rather than throwing', () => {
+    const real = Date.prototype.toLocaleDateString;
+    Date.prototype.toLocaleDateString = () => { throw new RangeError('no'); };
+    try { assert.equal(readingSince({ joinDate: Date.UTC(2026, 2, 14) }), ''); } finally { Date.prototype.toLocaleDateString = real; }
+  });
+  test('W55.1 / ruling 218 — a muted conversation counts no unread', () => {
+    const conv = { convId: 'a_b', unread: 3 };
+    assert.equal(unreadShown(conv, {}), 3);
+    assert.equal(unreadShown(conv, { a_b: true }), 0);
+    assert.equal(unreadShown(conv, { a_c: true }), 3);
+    assert.equal(unreadShown({ convId: 'a_b', unread: 'x' }, {}), 0);
+    assert.equal(unreadShown(null, {}), 0);
+  });
+  test('W55.1 — the sheet\'s words (ruling 217) and the report heading (220)', () => {
+    assert.equal(SAFETY_COPY.viewProfile, 'View profile');
+    assert.equal(SAFETY_COPY.muteConversation, 'Mute this conversation');
+    assert.equal(SAFETY_COPY.unmuteConversation, 'Unmute this conversation');
+    assert.equal(SAFETY_COPY.cancel, 'Cancel');
+    assert.equal(SAFETY_COPY.reportHeading.toUpperCase(), 'THE MESSAGE A MODERATOR WILL SEE');
+  });
+  test('W55.1 — the messages list never draws a raw unread count', () => {
+    const src = readFileSync(new URL('../../app/components/square/MessagesPanel.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(src, /conv\.unread\b/);
   });
 });
 

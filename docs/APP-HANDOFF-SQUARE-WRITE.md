@@ -135,3 +135,56 @@ W55 built three small things on the web's thread (W52). A44 ships them with the 
   a hard remove when there are none. A moderator can't remove another reader's
   `user_square_posts` mirror. The rules refuse it, so catch that refusal. The web's feed left it
   unhandled until W55.
+
+## W55.1 — also for A44: the conversation's menu, muting a conversation, the report step
+
+Rulings 217, 218 and 220 are in `docs/COPY-RULINGS.md`; 219 (the post menu drops Block) is the
+app's alone. Web: `app/components/square/MessagesPanel.js`; words and rules of thumb in
+`app/lib/squareSafety.js`.
+
+**1. The ⋯ sheet (217).** The web built it to the approved design, at the foot of the Messages
+panel at every width: dim rgba(4,3,8,0.6) (tap closes), sheet #0e0b18 with a 1px top border at ink
+0.1, 12px top corners, 24px sides, 34px foot, 36×5 grabber. Header: live Avatar 36, name 17/21 500,
+"@handle" 14.5 in rgba(169,137,217,0.85). Rows under 1px ink-0.08 hairlines, 20px icon 14px from
+16.5px/500 words:
+
+| row | does | once set |
+|---|---|---|
+| View profile (52px) | opens their reader card | — |
+| Mute this conversation (52px) | sets `dm_muted/{uid}/{convId}` | "Unmute this conversation" |
+| Report a message + "Pick the message. A moderator sees only that one." | starts the picking | — |
+| Block @handle (#e0868f) + "They can't message you, and their posts leave your Square." | the reader card's Block (`blocked_users`) | "Unblock @handle", no hint |
+
+Cancel: 10px below, 50px, 1px ink-0.14 border, fully rounded, 16.5px. The app's sheet was the
+design; the web's numbers are the web's measurements, so only check the app against the ruling.
+
+**2. Mute this conversation (218) — a new node, in the rules from W55.1's deploy:**
+
+| path | value | who |
+|---|---|---|
+| `dm_muted/{uid}/{convId}` | `true` only; `convId` must be one of `{uid}`'s conversations (`{uid}_…` or `…_{uid}`) | the owner only, read and write |
+
+- While set: that conversation's unread count isn't shown **or counted** anywhere — its row, any
+  total on the Messages button or tab, the app icon badge, and any push or local alert for a new
+  message. The web has only the row count; the app has more surfaces, and every one must skip it.
+- Its messages still arrive and show normally. Opening it still clears `unread` as before.
+- The sender keeps writing `dm_conversations/{other}/{convId}.unread = 1` exactly as now. The
+  mute is never sent to them and nothing the other reader can read changes.
+- Unmute deletes the leaf. A node that can't be read counts as nothing muted.
+- **Account deletion:** `dm_muted` is an owned node (the endpoint deletes `dm_muted/{uid}` whole;
+  the scrub backstops it). Another reader's mute of a conversation with the deleted reader stays,
+  like their half of the conversation (ruling 32). Nothing for the app to do beyond not writing it
+  for a deleted account.
+- **The push server (scripts/push):** sends no DM pushes today. If it ever does, it must read
+  `dm_muted/{recipient}/{convId}` and skip.
+
+**3. The report step (220).** After a message is picked, the step shows it under the heading
+"THE MESSAGE A MODERATOR WILL SEE" (gold, letter-spaced caps with the gold rule, as the thread's
+"REPLIES"), drawn as the bubble it was, then the reasons. What's filed is unchanged.
+
+**4. "Reading since" on the reader card.** Read `users/{uid}/joinDate`, then `createdAt`; a
+number of milliseconds or a string Date can read; leave the line out when neither is usable, and
+never fail on a bad value. Live, 19 Oct 2026 (`scripts/square/reading-since-count.mjs`, read-only):
+323 reader records — 165 with joinDate, 56 with createdAt, 12 with both, 114 with neither; all
+numbers, none unusable. Reading createdAt alone showed the line for 56; joinDate-then-createdAt
+shows it for 209. If the app's card reads only one of the two, it has the same gap.

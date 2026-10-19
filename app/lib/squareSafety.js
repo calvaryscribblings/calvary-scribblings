@@ -4,6 +4,7 @@
 //
 // ⭑ TWO LISTS, BOTH THE READER'S OWN.
 //   muted_users/{uid}/{otherUid} = true     W53, new. Only its owner reads or writes it.
+//   dm_muted/{uid}/{convId} = true          W55.1. One conversation, muted: no unread count.
 //   blocked_users/{uid}/{otherUid} = true   The list Open Pages comments already use. One list
 //                                           everywhere (ruling 209): a block made there applies
 //                                           here, and the reverse.
@@ -31,6 +32,12 @@ export const SAFETY_COPY = {
   reportMessage: 'Report a message',
   reportMessageHint: 'Pick the message. A moderator sees only that one.',
   reported: 'Reported. A moderator sees only this message.',
+  // W55.1 — the conversation's menu (ruling 217) and the report step (220).
+  viewProfile: 'View profile',
+  muteConversation: 'Mute this conversation',
+  unmuteConversation: 'Unmute this conversation',
+  cancel: 'Cancel',
+  reportHeading: 'The message a moderator will see',
 };
 
 /** The uids whose posts, replies and notifications this reader doesn't see. */
@@ -38,10 +45,40 @@ export function hiddenUids(muted, blocked) {
   return new Set([...Object.keys(muted || {}), ...Object.keys(blocked || {})]);
 }
 
-/** " · reading since October 2026", only when the record carries a join date. */
-export function readingSince(createdAt) {
-  if (typeof createdAt !== 'number' || !Number.isFinite(createdAt) || createdAt < 1e11) return '';
-  return ` · reading since ${new Date(createdAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'Europe/London' })}`;
+/**
+ * When a reader joined, from their record. W55.1: joinDate first (what the profile page shows),
+ * then createdAt; the card used to read createdAt alone, which many records don't carry. A value
+ * that isn't a plausible millisecond time (a number, or a string Date can read) is passed over.
+ */
+export function joinedAt(rec) {
+  for (const v of [rec?.joinDate, rec?.createdAt]) {
+    let t = NaN;
+    if (typeof v === 'number') t = v;
+    else if (typeof v === 'string' && v.trim()) t = /^\d+$/.test(v.trim()) ? Number(v.trim()) : Date.parse(v);
+    if (Number.isFinite(t) && t >= 1e11 && t <= 8.64e15) return t;
+  }
+  return null;
+}
+
+/** " · reading since October 2026", or nothing: no date, or one that can't be formatted. */
+export function readingSince(rec) {
+  const t = joinedAt(rec);
+  if (t === null) return '';
+  try {
+    return ` · reading since ${new Date(t).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'Europe/London' })}`;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * W55.1 / ruling 218 — Mute this conversation. A muted conversation's unread count is never
+ * shown or counted: not on its row, not in any total. Its messages still arrive and show.
+ */
+export function unreadShown(conv, mutedConvs) {
+  if (!conv || (mutedConvs && mutedConvs[conv.convId] === true)) return 0;
+  const n = Number(conv.unread);
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 /** The other reader in a conversation id ([a, b].sort().join('_')). */

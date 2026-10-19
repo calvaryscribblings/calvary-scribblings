@@ -590,3 +590,11 @@ rulings 157–166 but states 157 and 158 only as "the approved canvas"; the rest
 - **215:** When a moderator removes someone else's post, the confirmation says "Remove this post?", plus "The N replies beneath it will stay." when it has replies.
 - **216:** As the reply box grows, Send stays at the bottom, beside the last line.
 - The rule tightening that W54 called W55 is now W56.
+
+## 19 Oct 2026 (Ikenna): the conversation's menu, muting a conversation, the report step (W55.1)
+
+- **217:** The ⋯ menu in a conversation follows the approved design on web and app: the reader's face and name, View profile, Mute this conversation, Report a message, Block @handle, and Cancel.
+- **218:** Mute this conversation stops its new messages from raising the unread dot or any alert; they still arrive, and the other reader isn't told.
+- **220:** When you report a message, the next step shows the message you picked under "THE MESSAGE A MODERATOR WILL SEE", on the website as in the app.
+- (219 is the app's alone: its post menu drops Block.)
+- Once set, the rows read "Unmute this conversation" and "Unblock @handle" (W55.1 brief).

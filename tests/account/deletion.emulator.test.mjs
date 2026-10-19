@@ -85,6 +85,7 @@ const fixture = () => ({
   following: { [T]: { [A]: true }, [A]: { [T]: true } },
   dm_conversations: { [T]: { [conv]: { lastAt: 1 } }, [A]: { [conv]: { lastAt: 1 } } },
   dm_messages: { [conv]: { m1: { senderUid: T, text: 'hello' }, m2: { senderUid: A, text: 'hi back' } } },
+  dm_muted: { [T]: { [conv]: true }, [A]: { [conv]: true } },
   comments: {
     story: {
       c1: { authorUid: T, authorName: 'Leaving Reader', text: 'mine', heartCount: 1 },
@@ -151,6 +152,7 @@ const KEPT = [
   // one. Only the id: the deleted reader's messages, profile and pointer are gone.
   new RegExp(`^dm_messages/${conv}$`),
   new RegExp(`^dm_conversations/${A}/${conv}$`),
+  new RegExp(`^dm_muted/${A}/${conv}$`),           // W55.1: and their mute of it
 ];
 
 function walkFor(value, needle, path = [], hits = []) {
@@ -280,6 +282,12 @@ describe('the whole deletion, endpoint then scrub', () => {
     const after = await deleteFully();
     assert.deepEqual(after.dm_messages[conv], { m2: { senderUid: A, text: 'hi back' } });
     assert.deepEqual(after.dm_conversations[A], { [conv]: { lastAt: 1 } });
+  });
+
+  test('W55.1: their muted conversations go whole; the other reader keeps their mute of theirs', async () => {
+    const after = await deleteFully();
+    assert.equal(after.dm_muted?.[T], undefined);
+    assert.deepEqual(after.dm_muted[A], { [conv]: true });
   });
 
   test('RULING 33: the reader voice quoting them comes down — record, images, and a rebuild for its page', async () => {

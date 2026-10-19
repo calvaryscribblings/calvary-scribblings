@@ -121,3 +121,35 @@ describe('W53 · the lists are their owner\'s alone', () => {
     await assertSucceeds(a.ref(`muted_users/${A}/${B}`).remove());
   });
 });
+
+// W55.1 / ruling 218 — Mute this conversation. dm_muted/{uid}/{convId} = true, the owner's alone.
+// The rules don't read it anywhere else: a muted conversation's messages still arrive, and the
+// other reader is never told.
+describe('W55.1 · dm_muted', () => {
+  test('only the owner reads or writes it', async () => {
+    await seed(env, { [`dm_muted/${A}/${CONV}`]: true });
+    await assertSucceeds(a.ref(`dm_muted/${A}`).get());
+    await assertFails(b.ref(`dm_muted/${A}`).get());
+    await assertFails(c.ref(`dm_muted/${A}`).get());
+    await assertFails(b.ref('dm_muted').get());
+    await assertFails(env.unauthenticatedContext().database().ref(`dm_muted/${A}`).get());
+    await assertFails(b.ref(`dm_muted/${A}/${CONV}`).remove());
+    await assertFails(b.ref(`dm_muted/${A}/${convIdFor(A, C)}`).set(true));
+    await assertFails(env.unauthenticatedContext().database().ref(`dm_muted/${A}/${convIdFor(A, C)}`).set(true));
+  });
+  test('true and nothing else; only a conversation of yours; unmute deletes', async () => {
+    await assertSucceeds(a.ref(`dm_muted/${A}/${CONV}`).set(true));
+    for (const v of [false, 'yes', 1, { at: 1 }]) await assertFails(a.ref(`dm_muted/${A}/${convIdFor(A, C)}`).set(v));
+    await assertFails(a.ref(`dm_muted/${A}`).set(true));                       // not a bare value at the top
+    await assertFails(a.ref(`dm_muted/${A}/${convIdFor(B, C)}`).set(true));   // someone else's conversation
+    await assertFails(a.ref(`dm_muted/${A}/x${A}_y`).set(true));
+    await assertSucceeds(a.ref(`dm_muted/${A}`).update({ [convIdFor(A, C)]: true }));
+    await assertSucceeds(a.ref(`dm_muted/${A}/${CONV}`).remove());
+  });
+  test('a muted conversation still takes messages both ways (the rules never read the mute)', async () => {
+    await seed(env, { [`dm_muted/${A}/${CONV}`]: true });
+    await assertSucceeds(b.ref(`dm_messages/${CONV}/m1`).set(msg(B)));
+    await assertSucceeds(b.ref(`dm_conversations/${A}/${CONV}`).update({ unread: 1, lastAt: Date.now() }));
+    await assertSucceeds(a.ref(`dm_messages/${CONV}/m2`).set(msg(A)));
+  });
+});

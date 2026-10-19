@@ -9,21 +9,38 @@
 //     the lists are owner-only — so the blocked side learns it only when a send is refused.
 //   · Report a message (the ⋯ menu): pick one message; it files through app/lib/contentReports.js
 //     as kind 'dm', and a moderator sees only that message (W5's ruling).
+// W55.1:
+//   · the ⋯ menu is the designed sheet (ruling 217), at the foot of the panel at every width: their
+//     face and name, View profile, Mute this conversation, Report a message, Block @handle, Cancel
+//   · Mute this conversation (218): dm_muted/{uid}/{convId} = true. Its unread count is never shown
+//     or counted (unreadShown). Its messages still arrive; the other reader isn't told
+//   · the report step shows the picked message under "THE MESSAGE A MODERATOR WILL SEE" (220)
 // W51's find-by-handle (user_search, never the founder-only users root) is kept as it was.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ref, get, push, set, update, onValue } from 'firebase/database';
+import { ref, get, push, set, update, remove, onValue } from 'firebase/database';
 import { db } from '../../lib/firebaseCore';
 import { Avatar, UserBadge } from '../conversation/ConversationKit';
 import PostBody from '../conversation/PostBody';
 import { resolveIdentities, identityOf } from '../../lib/squareIdentity';
 import { matchReaders } from '../../lib/squareHandles';
-import { SAFETY_COPY, isPermissionDenied } from '../../lib/squareSafety';
+import { SAFETY_COPY, isPermissionDenied, unreadShown } from '../../lib/squareSafety';
 import { buildReport, contentKeyFor, convIdFor } from '../../lib/contentReports';
 
 const FF = 'Cormorant Garamond, Georgia, serif';
 const INK = (a) => `rgba(245,240,232,${a})`;
 const HANDLE = '#a989d9';
+const GOLD = '#c9a84c';
+const BLOCK = '#e0868f';
+
+// The sheet's 20px icons, in the reader card's line (ReaderCard.js).
+const Icon = ({ children }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}>{children}</svg>
+);
+const ProfileIcon = () => <Icon><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" /></Icon>;
+const MuteConvIcon = () => <Icon><path d="M18 8a6 6 0 0 0-9.33-5" /><path d="M6.26 6.26A6 6 0 0 0 6 8c0 7-3 9-3 9h14" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /><line x1="2" y1="2" x2="22" y2="22" /></Icon>;
+const ReportIcon = () => <Icon><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" /></Icon>;
+const BlockIcon = () => <Icon><circle cx="12" cy="12" r="9" /><line x1="5.6" y1="5.6" x2="18.4" y2="18.4" /></Icon>;
 
 const REASONS = [
   ['harassment', 'Harassment'],
@@ -52,6 +69,7 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
   const [reason, setReason] = useState('harassment');
   const [note, setNote] = useState('');
   const [reportState, setReportState] = useState('');  // '' | 'sending' | 'sent' | 'failed'
+  const [mutedConvs, setMutedConvs] = useState({});     // W55.1: dm_muted/{uid}, convId → true
   const messagesEndRef = useRef(null);
   const dmFileRef = useRef(null);
   const startedWith = useRef(null);
@@ -77,6 +95,30 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
     }, () => { if (!cancelled) setLoadingConvs(false); });
     return () => { cancelled = true; off(); };
   }, [user]);
+
+  // W55.1 — this reader's muted conversations. Unreadable is treated as none muted: the reader
+  // sees every count, never fewer.
+  useEffect(() => {
+    if (!user) return undefined;
+    return onValue(ref(db, `dm_muted/${user.uid}`), (s) => setMutedConvs(s.val() || {}), () => setMutedConvs({}));
+  }, [user]);
+  const toggleMuteConv = async (convId) => {
+    const on = mutedConvs[convId] !== true;
+    const flip = (add) => setMutedConvs((m) => { const n = { ...m }; if (add) n[convId] = true; else delete n[convId]; return n; });
+    flip(on);
+    try {
+      const r = ref(db, `dm_muted/${user.uid}/${convId}`);
+      if (on) await set(r, true); else await remove(r);
+    } catch (e) { console.error('Conversation mute failed:', e?.code || e); flip(!on); }
+  };
+
+  // The sheet closes on Escape, as the reader card does.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
 
   // Identity at render, for every reader in the list and the open conversation.
   const uidKey = useMemo(() => [...new Set([...conversations.map((c) => c.otherUid), activeConv?.otherUid].filter(Boolean))].sort().join(','), [conversations, activeConv]);
@@ -178,6 +220,58 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
   const theyRefuse = activeConv ? !!refused[activeConv.convId] : false;
 
   const sheetBtn = { background: 'none', border: 'none', color: INK(0.95), cursor: 'pointer', fontFamily: FF };
+  const convMuted = activeConv ? mutedConvs[activeConv.convId] === true : false;
+
+  // A message's words as the conversation draws them — in the list and, once picked, in the
+  // report step (220), so the reader sees exactly what a moderator will.
+  const bubble = (msg, { isMine = false, pickable = false } = {}) => (
+    <div style={{ padding: '8px 12px', borderRadius: isMine ? '12px 12px 3px 12px' : '12px 12px 12px 3px', background: isMine ? '#6b2fad' : 'rgba(255,255,255,0.06)', color: isMine ? '#f5f0e8' : 'rgba(232,224,212,0.85)', outline: pickable ? '1px dashed rgba(169,137,217,0.6)' : 'none' }}>
+      <PostBody text={msg.text} surface="dm-bubble" />
+    </div>
+  );
+
+  // ── the conversation's sheet (ruling 217) ───────────────────────────────────
+  const HAIR = `1px solid ${INK(0.08)}`;
+  const sheetRow = ({ key, icon, title, hint, color = '#f5f0e8', onClick }) => (
+    <button key={key} type="button" onClick={onClick} data-conv-action={key}
+      style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', boxSizing: 'border-box', minHeight: 52, padding: hint ? '12px 0' : 0, background: 'none', border: 'none', borderTop: HAIR, color, textAlign: 'left', cursor: 'pointer', fontFamily: FF }}>
+      {icon}
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 16.5, fontWeight: 500, lineHeight: '20px' }}>{title}</span>
+        {hint && <span data-conv-hint style={{ display: 'block', fontStyle: 'italic', fontSize: 14.5, lineHeight: '18px', color: INK(0.55) }}>{hint}</span>}
+      </span>
+    </button>
+  );
+  const sheet = activeConv && menuOpen ? (
+    <>
+      <div data-conv-dim onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 2100, background: 'rgba(4,3,8,0.6)' }} />
+      <div role="dialog" aria-modal="true" aria-label="Conversation menu" data-conv-sheet
+        style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 2101, width: '100%', maxWidth: 520, boxSizing: 'border-box',
+          background: '#0e0b18', borderTop: `1px solid ${INK(0.1)}`, borderRadius: '12px 12px 0 0', padding: '8px 24px calc(34px + var(--cs-cookie-space, 0px))', fontFamily: FF, color: '#f5f0e8' }}>
+        <div data-conv-grabber aria-hidden="true" style={{ width: 36, height: 5, borderRadius: 3, background: INK(0.25), margin: '0 auto' }} />
+        <div data-conv-header style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14, paddingBottom: 14 }}>
+          <Avatar uid={activeConv.otherUid} initials={other.initials} size={36} isAuthor={other.isAuthor} avatarUrl={other.avatarUrl} link={false} />
+          <span style={{ minWidth: 0 }}>
+            <span data-conv-name style={{ display: 'block', fontSize: 17, lineHeight: '21px', fontWeight: 500 }}>{other.displayName}</span>
+            {other.handle && <span data-conv-handle style={{ display: 'block', fontSize: 14.5, color: 'rgba(169,137,217,0.85)' }}>@{other.handle}</span>}
+          </span>
+        </div>
+        {sheetRow({ key: 'profile', icon: <ProfileIcon />, title: SAFETY_COPY.viewProfile,
+          onClick: () => { setMenuOpen(false); onOpenReader?.(activeConv.otherUid); } })}
+        {sheetRow({ key: 'mute', icon: <MuteConvIcon />, title: convMuted ? SAFETY_COPY.unmuteConversation : SAFETY_COPY.muteConversation,
+          onClick: () => { setMenuOpen(false); toggleMuteConv(activeConv.convId); } })}
+        {sheetRow({ key: 'report', icon: <ReportIcon />, title: SAFETY_COPY.reportMessage, hint: SAFETY_COPY.reportMessageHint,
+          onClick: () => { setMenuOpen(false); setPicking(true); setReportMsg(null); setReportState(''); } })}
+        {sheetRow({ key: 'block', icon: <BlockIcon />, color: BLOCK,
+          title: iBlocked ? SAFETY_COPY.unblock(otherHandle) : SAFETY_COPY.block(otherHandle), hint: iBlocked ? '' : SAFETY_COPY.blockHint,
+          onClick: () => { setMenuOpen(false); safety?.setBlock(activeConv.otherUid, !iBlocked).catch(() => {}); } })}
+        <button type="button" onClick={() => setMenuOpen(false)} data-conv-cancel
+          style={{ display: 'block', width: '100%', height: 50, marginTop: 10, boxSizing: 'border-box', borderRadius: 999, border: `1px solid ${INK(0.14)}`, background: 'none', color: '#f5f0e8', fontFamily: FF, fontSize: 16.5, cursor: 'pointer' }}>
+          {SAFETY_COPY.cancel}
+        </button>
+      </div>
+    </>
+  ) : null;
 
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -206,15 +300,6 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
             )}
             {activeConv && (
               <button onClick={() => setMenuOpen((v) => !v)} aria-label="Conversation menu" aria-expanded={menuOpen} style={{ ...sheetBtn, width: 44, height: 44, fontSize: '1.1rem' }}>⋯</button>
-            )}
-            {activeConv && menuOpen && (
-              <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 5, background: '#1a1a2e', border: '1px solid rgba(107,47,173,0.3)', borderRadius: 10, width: 260, overflow: 'hidden' }}>
-                <button onClick={() => { setMenuOpen(false); setPicking(true); setReportMsg(null); setReportState(''); }}
-                  style={{ ...sheetBtn, display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', minHeight: 44 }}>
-                  <span style={{ display: 'block', fontSize: '0.95rem', color: '#f5f0e8' }}>{SAFETY_COPY.reportMessage}</span>
-                  <span style={{ display: 'block', fontSize: '0.8rem', color: INK(0.55), marginTop: 2 }}>{SAFETY_COPY.reportMessageHint}</span>
-                </button>
-              </div>
             )}
             <button onClick={onClose} aria-label="Close messages" style={{ ...sheetBtn, width: 44, height: 44, fontSize: '1.3rem' }}>×</button>
           </div>
@@ -260,7 +345,7 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
                     </div>
                     <div style={{ fontSize: '0.78rem', color: INK(0.7), fontFamily: FF, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMsg?.text || (conv.lastMsg?.imageUrl ? 'Image' : '')}</div>
                   </div>
-                  {conv.unread > 0 && <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#6b2fad', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#f5f0e8', flexShrink: 0 }}>{conv.unread}</div>}
+                  {unreadShown(conv, mutedConvs) > 0 && <div data-unread style={{ width: 18, height: 18, borderRadius: '50%', background: '#6b2fad', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#f5f0e8', flexShrink: 0 }}>{unreadShown(conv, mutedConvs)}</div>}
                 </div>
               );
             })}
@@ -284,11 +369,7 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
                     {!isMine && <Avatar uid={msg.senderUid} initials={other.initials} size={24} isAuthor={other.isAuthor} avatarUrl={other.avatarUrl} link={false} />}
                     <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', gap: 4, alignItems: isMine ? 'flex-end' : 'flex-start' }}>
                       {msg.imageUrl && <img src={msg.imageUrl} alt="shared" style={{ maxWidth: 180, borderRadius: 10, display: 'block' }} />}
-                      {msg.text && (
-                        <div style={{ padding: '8px 12px', borderRadius: isMine ? '12px 12px 3px 12px' : '12px 12px 12px 3px', background: isMine ? '#6b2fad' : 'rgba(255,255,255,0.06)', color: isMine ? '#f5f0e8' : 'rgba(232,224,212,0.85)', outline: pickable ? '1px dashed rgba(169,137,217,0.6)' : 'none' }}>
-                          <PostBody text={msg.text} surface="dm-bubble" />
-                        </div>
-                      )}
+                      {msg.text && bubble(msg, { isMine, pickable })}
                     </div>
                   </div>
                 );
@@ -305,6 +386,15 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
                   </div>
                 ) : (
                   <>
+                    {/* 220 — the message as it appeared, under the thread's "REPLIES" heading style. */}
+                    <div data-report-heading style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                      <span style={{ fontFamily: FF, fontSize: '0.8rem', letterSpacing: '0.16em', textTransform: 'uppercase', color: GOLD }}>{SAFETY_COPY.reportHeading}</span>
+                      <span aria-hidden="true" style={{ flex: 1, height: 1, background: 'rgba(201,168,76,0.45)' }} />
+                    </div>
+                    <div data-report-message style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 12, maxHeight: '30vh', overflowY: 'auto' }}>
+                      <Avatar uid={reportMsg.senderUid} initials={other.initials} size={24} isAuthor={other.isAuthor} avatarUrl={other.avatarUrl} link={false} />
+                      <div style={{ maxWidth: '72%' }}>{bubble(reportMsg)}</div>
+                    </div>
                     <div style={{ fontSize: '0.85rem', color: INK(0.55), marginBottom: 6 }}>Why are you reporting it?</div>
                     <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 8 }}>
                       {REASONS.map(([v, label]) => (
@@ -363,6 +453,7 @@ export default function MessagesPanel({ user, safety, onClose, onOpenReader, sta
           </>
         )}
       </div>
+      {sheet}
     </div>
   );
 }

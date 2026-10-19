@@ -4,7 +4,7 @@
 // messages, notifications) opens it: a bottom sheet on phones, a dialog at wider widths.
 //
 //   72px face · name at 24px · their UserBadge · "@handle" (+ " · reading since {Month}" only
-//   when their record has a join date)
+//   when their record has a join date: joinDate, then createdAt — W55.1)
 //   Message (filled #6b2fad) · Profile (outlined, /user?id=) — both 44px
 //   Mute in the Square / Block @handle, with 20px icons; once set, Unmute / Unblock @handle
 // Your own card shows only Profile. Identity comes from the live record (ruling 203).
@@ -54,13 +54,14 @@ export default function ReaderCard({ uid, me, safety, onMessage, onClose }) {
     let cancelled = false;
     (async () => {
       try {
-        const [map, created] = await Promise.all([
-          resolveIdentities(db, [uid]),
-          get(ref(db, `users/${uid}/createdAt`)).then((s) => s.val()).catch(() => null),
-        ]);
+        // W55.1 — joinDate (what the profile page shows), then createdAt: the card read createdAt
+        // alone, so 153 of the 209 readers with a date showed none (scripts/square/reading-since-count.mjs,
+        // 19 Oct 2026: 323 records, 165 joinDate, 56 createdAt, 12 both, 114 neither).
+        const leaf = (k) => get(ref(db, `users/${uid}/${k}`)).then((s) => s.val()).catch(() => null);
+        const [map, joinDate, createdAt] = await Promise.all([resolveIdentities(db, [uid]), leaf('joinDate'), leaf('createdAt')]);
         if (cancelled) return;
         setWho(identityOf({ authorUid: uid }, map.get(uid)));
-        setJoined(created);
+        setJoined({ joinDate, createdAt });
       } catch (e) { console.error('Reader card lookup error:', e); }
     })();
     return () => { cancelled = true; };
