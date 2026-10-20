@@ -13,7 +13,7 @@
     "probe-rung-92": "eec8d5a284b68c1608ca1dbbaf2afa9d634850fb11f8727ff16acb919840934d",
     "probe-rung-78": "709ed7ad27c04fa0aa2ead12223bab1ec17e0fc2ae8148a0795ac50a46f57f34",
     "probe-rung-68": "2d485a70a6f1e58109478e27df217536a7cfdd36b160c281ecf5d1b75b989b73",
-    "probe-descriptor": "6bfd59272ba4c478d88d0122f9a0db570289e20676a64ae76624e7d22894cf34",
+    "probe-descriptor": "d380bfdb47ef067f71159dc1c9966053d5b68bd9d1efff46de05abe5343f3a09",
     "probe-no-descriptor": "d7327c156b1b5d9defc747f79ecd464568b071e757bfeb5a85bbcf04c9028642",
     "probe-descriptor-light": "40d12fb831f6dae9134dfef3ae85b89bb810a3b4ae2e55ae6993f8015c8cb997",
     "probe-break-midword": "072bc79a875a4f07d0bd600645cf7072eaf189ec64fac4a5415ebda3d6bca6b8",
@@ -22,6 +22,8 @@
     "probe-break-impossible": "ca38a7c6a668285f23cb7c35543aad828f5830b309da223ed0a3070f5862e727",
     "probe-non-ascii": "284184b7fcc53e72ad9dbcbd4d7c0542ed5271f8babd664bad54d50ce39ec8f3",
     "probe-unfiled": "44f6ab834c35c796de329f570e38e94234ae6aebb057c655896c82f8710f397b",
-    "probe-numeral": "569fac7f58eda52a78637373f1ea750298da8b947016df24f7df83d2d20822e0"
+    "probe-numeral": "569fac7f58eda52a78637373f1ea750298da8b947016df24f7df83d2d20822e0",
+    "probe-descriptor-two-lines": "281276581c503ea73aebb7c861d7e6db76e6fd438aa49eddd385918006ab33ae",
+    "probe-break-hyphen-refused": "4ad4e2812e5ef3d2b859d96cc9f75f26faddd0ee36a249f265302565f7fa6d4a"
   }
 }
