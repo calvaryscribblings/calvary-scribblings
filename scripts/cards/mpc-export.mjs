@@ -1,7 +1,7 @@
-// THE MAKEPLAYINGCARDS UPLOAD SET — Shorelines, one playtest deck (CARDS-R2).
+// THE MAKEPLAYINGCARDS UPLOAD SET — Shorelines, one playtest deck (CARDS-R2, backs lossless since R2.1).
 //
-//   node --expose-gc scripts/cards/mpc-export.mjs
-//     → cards/print/mpc-playtest/*.jpg + shorelines-playtest-1.zip   (git-ignored: delivered privately)
+//   node --expose-gc scripts/cards/mpc-export.mjs [--r2 <dir of R2's export, to compare fronts>]
+//     → cards/print/mpc-playtest/*.jpg, back-*.png + shorelines-playtest-1.zip   (git-ignored: delivered privately)
 //     → cards/print/mpc-playtest/MANIFEST.md                         (committed)
 //     → cards/review/MPC-PROOF.png                                   (committed)
 //
@@ -78,6 +78,11 @@ for (const c of deck) {
   }
   if (c.kind === 'story' && typeof src.descriptorPending === 'string') refreshed.push({ slug: c.slug, field: 'descriptorPending (not printed)', was: '', now: src.descriptorPending });
 }
+// What R2's export (35a8ab4d) printed differently from deck.json: its own refresh table. A change
+// since R2 is a refreshed field that is not this one.
+const R2_PRINTED = { 'anomaly subcategory': 'Drama' };
+for (const r of refreshed) r.sinceR2 = R2_PRINTED[`${r.slug} ${r.field}`] !== r.now;
+const R2_DIR = process.argv.includes('--r2') ? resolve(process.argv[process.argv.indexOf('--r2') + 1]) : null;
 const pictures = deck.filter((c) => c.kind === 'picture');
 for (const c of pictures) c.poster = await loadImage(readFileSync(resolve(ROOT, PICTURE.posters[c.slug])));
 
@@ -97,6 +102,15 @@ async function exportJpeg(png, file) {
   const meta = await sharp(jpg).metadata();
   return { file, bytes: jpg.length, worst, mean: sum / a.length, jpg, meta };
 }
+// The backs are lossless (R2.1): a JPEG broke the Ending back's half-turn symmetry (worst 26/255).
+async function exportPng(png, file) {
+  const out = await sharp(png).removeAlpha().withIccProfile('srgb').withMetadata({ density: DPI }).png({ compressionLevel: 9 }).toBuffer();
+  writeFileSync(resolve(OUT, file), out);
+  const [a, b] = await Promise.all([sharp(png).removeAlpha().raw().toBuffer(), sharp(readFileSync(resolve(OUT, file))).raw().toBuffer()]);
+  if (!a.equals(b)) throw new Error(`${file}: the PNG does not decode to its render`);
+  const meta = await sharp(out).metadata();
+  return { file, bytes: out.length, worst: 0, mean: 0, meta };
+}
 const devX = (mmv) => MPC.w / 2 + (mmv - TRIM.w / 2) * PX_PER_MM;
 const devY = (mmv) => MPC.h / 2 + (mmv - TRIM.h / 2) * PX_PER_MM;
 async function decodeJpeg(jpg, box) {
@@ -110,9 +124,9 @@ async function decodeJpeg(jpg, box) {
 
 const kebab = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const fronts = [
-  ...deck.map((c) => ({ card: c, slug: c.slug, title: c.title, motif: c.motif, livery: c.kind === 'picture' ? 'Series (picture card)' : LIVERIES[c.livery].name, back: 'back-story.jpg', url: c.url })),
-  ...ENDINGS.map((e) => ({ ending: e, slug: `ending-${kebab(e.name.replace(/^THE /, ''))}`, title: e.name, motif: e.pair.join(' – '), livery: 'Ending', back: 'back-ending.jpg', url: null })),
-  { ring: true, slug: 'the-ring', title: 'The Ring', motif: 'all eight', livery: 'Ring', back: 'back-ending.jpg', url: null },
+  ...deck.map((c) => ({ card: c, slug: c.slug, title: c.title, motif: c.motif, livery: c.kind === 'picture' ? 'Series (picture card)' : LIVERIES[c.livery].name, back: 'back-story.png', url: c.url })),
+  ...ENDINGS.map((e) => ({ ending: e, slug: `ending-${kebab(e.name.replace(/^THE /, ''))}`, title: e.name, motif: e.pair.join(' – '), livery: 'Ending', back: 'back-ending.png', url: null })),
+  { ring: true, slug: 'the-ring', title: 'The Ring', motif: 'all eight', livery: 'Ring', back: 'back-ending.png', url: null },
 ];
 const rows = [];
 for (let i = 0; i < fronts.length; i++) {
@@ -142,16 +156,20 @@ for (let i = 0; i < fronts.length; i++) {
 // the backs
 const icon = await loadImage(readFileSync(resolve(ROOT, STORY_BACK.file)));
 const sb = renderStoryBack(icon);
-const backStory = await exportJpeg(sb.png, 'back-story.jpg');
+const backStory = await exportPng(sb.png, 'back-story.png');
 const eb = renderEndingBack();
 const symmetric = isHalfTurnSymmetric(eb.imageData);
 if (!symmetric.symmetric) throw new Error(`the Ending back is not half-turn symmetric on MPC's canvas (worst ${symmetric.worst})`);
-const backEnding = await exportJpeg(eb.png, 'back-ending.jpg');
-const jpgSym = await (async () => {
-  const { data, info } = await sharp(backEnding.jpg).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+const backEnding = await exportPng(eb.png, 'back-ending.png');
+// checked on the file as it will be uploaded, read back from disk
+const pngSym = await (async () => {
+  const { data, info } = await sharp(readFileSync(resolve(OUT, 'back-ending.png'))).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   return isHalfTurnSymmetric({ data, width: info.width, height: info.height });
 })();
 useCanvas(null);
+if (!pngSym.symmetric) throw new Error(`the Ending back's PNG is not half-turn symmetric (worst ${pngSym.worst})`);
+// Fronts against R2's export, byte for byte.
+const vsR2 = R2_DIR ? rows.map((r) => ({ file: r.file, same: (() => { try { return readFileSync(resolve(OUT, r.file)).equals(readFileSync(resolve(R2_DIR, r.file))); } catch { return false; } })() })) : null;
 
 // ── WHAT FALLS INSIDE MPC'S SAFE MARGIN ──────────────────────────────────────────────────
 // Every registered mark on every front, against MPC's safe area (36 px at 300 dpi inside MPC's
@@ -188,7 +206,7 @@ const all = [...rows, backStory, backEnding];
 const total = all.reduce((a, r) => a + r.bytes, 0);
 const worst = all.reduce((a, r) => (r.worst > a.worst ? r : a), { worst: -1 });
 const M = [];
-M.push('# Shorelines — MakePlayingCards upload set: playtest deck 1 (CARDS-R2)');
+M.push('# Shorelines — MakePlayingCards upload set: playtest deck 1 (CARDS-R2, re-exported in R2.1)');
 M.push('');
 M.push('The deck `cards/review/RATIFIED.md` ratified, in the design `cards/review/SIGNOFF.md` approved, exported for one MakePlayingCards playtest deck. **The images are not in git.** They are in the zip attached to the draft release `shorelines-playtest-1`, visible only to people with push access. Generated by `scripts/cards/mpc-export.mjs`.');
 M.push('');
@@ -197,23 +215,24 @@ M.push('');
 M.push(`- **MPC "Custom Bridge Size Cards", product code PC1201C26-22**, 2.25 × 3.5 in, each card with its own front and back. Checked on MPC's own pages, 20 Oct 2026: "the minimum image upload size requirements are 747 x 1122 pixels (300DPI)", "36 pixels cut off each side", a safe area of "36 pixels each side". (The product page's description also says "56mm x 88mm"; its specifications say 57 × 89 mm and 2.25" × 3.5". The upload numbers are the inch ones.)`);
 M.push(`- **Upload canvas: ${MPC.w} × ${MPC.h} px at ${DPI} dpi** (MPC's 747 × 1122 at 300 dpi, doubled). MPC's bleed ${MPC.bleed} px and safe margin ${MPC.safe} px (${f2(MPC.safeMm, 3)} mm); MPC's trim ${f2(MPC.trim.w)} × ${f2(MPC.trim.h)} mm.`);
 M.push(`- **The design is not rescaled.** Its ${TRIM.w} × ${TRIM.h} mm trim is centred on the canvas, and the bleed runs out to fill it: the ground, glow and grain carry on, as does the picture cards' mount. MPC's cut is ${f2(-MPC.cut.x1, 3)} mm outside the design's trim at each side and ${f2(MPC.cut.y1, 3)} mm inside it at the top and bottom.`);
-M.push(`- **Export:** JPEG, quality ${JPEG.quality}, chroma ${JPEG.chromaSubsampling} (no subsampling), an embedded sRGB profile, ${DPI} dpi in the metadata.`);
+M.push(`- **Export:** fronts JPEG, quality ${JPEG.quality}, chroma ${JPEG.chromaSubsampling} (no subsampling); backs lossless PNG (since R2.1). Every file has an embedded sRGB profile and ${DPI} dpi in its metadata.`);
 M.push('');
 M.push(`## The ${rows.length} cards`);
 M.push('');
-M.push(`**${rows.length} cards: ${rows.filter((r) => r.back === 'back-story.jpg').length} on the story back** (${deck.filter((c) => c.kind === 'picture').length} picture cards and ${deck.filter((c) => c.kind === 'story').length} story cards) **and ${rows.filter((r) => r.back === 'back-ending.jpg').length} on the Ending back** (the ${ENDINGS.length} Endings and the Ring). Order: the picture cards, then the story cards by motif in Ring order (Letter to Grave), then the Endings in Ring order, then the Ring.`);
+M.push(`**${rows.length} cards: ${rows.filter((r) => r.back === 'back-story.png').length} on the story back** (${deck.filter((c) => c.kind === 'picture').length} picture cards and ${deck.filter((c) => c.kind === 'story').length} story cards) **and ${rows.filter((r) => r.back === 'back-ending.png').length} on the Ending back** (the ${ENDINGS.length} Endings and the Ring). Order: the picture cards, then the story cards by motif in Ring order (Letter to Grave), then the Endings in Ring order, then the Ring.`);
 M.push('');
 M.push('| Slot | Front | Back | Title | Motif | Livery | Code |');
 M.push('|---:|---|---|---|---|---|---|');
 for (const r of rows) M.push(`| ${r.slot} | \`${r.file}\` | \`${r.back}\` | ${String(r.title).replace(/\|/g, '\\|')} | ${r.motif} | ${r.livery} | ${r.url ? `\`${r.codeText}\`` : '—'} |`);
 M.push('');
-M.push(`Backs: \`back-story.jpg\` (Ikenna's icon on its own ground, ${ground.hex}) and \`back-ending.jpg\` (the Ring as eight points on the Ending ground). The Ending back is half-turn symmetric pixel for pixel on MPC's canvas, as rendered (worst ${symmetric.worst}); after JPEG compression the worst difference between a pixel and its half-turn partner is ${jpgSym.worst}/255.`);
+M.push(`Backs: \`back-story.png\` (Ikenna's icon on its own ground, ${ground.hex}) and \`back-ending.png\` (the Ring as eight points on the Ending ground), both lossless. **The Ending back is half-turn symmetric pixel for pixel in the PNG file itself**: read back from disk, every pixel equals its half-turn partner (worst ${pngSym.worst}/255 over ${MPC.w} × ${MPC.h} px). Each PNG decodes byte-identical to its render. (R2's JPEG back missed by up to 26/255.)`);
 M.push('');
 M.push('## Checks on the exported files');
 M.push('');
-M.push(`- **Every code decodes from its exported JPEG**, without inversion, to its own URL: ${rows.filter((r) => r.decoded).length} of ${rows.filter((r) => r.url).length} (${rows.filter((r) => r.decoded && r.card?.kind === 'picture').length} picture cards, ${rows.filter((r) => r.decoded && r.card?.kind === 'story').length} story cards).`);
+M.push(`- **Every code decodes from its exported JPEG** (the files as uploaded), without inversion, to its own URL: ${rows.filter((r) => r.decoded).length} of ${rows.filter((r) => r.url).length} (${rows.filter((r) => r.decoded && r.card?.kind === 'picture').length} picture cards, ${rows.filter((r) => r.decoded && r.card?.kind === 'story').length} story cards).`);
 M.push(`- **Code modules sit on whole device pixels** on the new canvas: each code's top-left is snapped to the pixel grid as it is drawn (the largest snap was ${f2(Math.max(...rows.filter((r) => r.codeOffsetPx).map((r) => Math.max(Math.abs(r.codeOffsetPx.x), Math.abs(r.codeOffsetPx.y)))), 2)} px, ${f2(Math.max(...rows.filter((r) => r.codeOffsetPx).map((r) => Math.max(Math.abs(r.codeOffsetPx.x), Math.abs(r.codeOffsetPx.y)))) / PX_PER_MM, 3)} mm), and every module is ${6} px square.`);
-M.push(`- **JPEG against its lossless render:** worst single-channel difference **${worst.worst}/255** (${worst.file}); the mean absolute difference over all ${all.length} images is at most ${f2(Math.max(...all.map((r) => r.mean)), 3)}/255.`);
+M.push(`- **JPEG against its lossless render:** worst single-channel difference **${worst.worst}/255** (${worst.file}); the mean absolute difference over the ${rows.length} fronts is at most ${f2(Math.max(...rows.map((r) => r.mean)), 3)}/255. The backs are lossless.`);
+if (vsR2) M.push(`- **Against R2's export (35a8ab4d):** ${vsR2.filter((v) => v.same).length} of ${vsR2.length} fronts byte-identical; changed: ${vsR2.filter((v) => !v.same).map((v) => `\`${v.file}\``).join(', ') || 'none'}.`);
 M.push(`- **Total size: ${f2(total / 1e6, 1)} MB** for ${all.length} images.`);
 M.push('');
 M.push('## What falls inside MPC\'s safe margin');
@@ -231,11 +250,11 @@ M.push('');
 if (refreshed.length) {
   M.push('## Printed fields refreshed from the database');
   M.push('');
-  M.push('Read-only, at export. The deck and its motifs are as ratified; these are the printed fields as they stand now.');
+  M.push('Read-only, at export. The deck and its motifs are as ratified; these are the printed fields as they stand now. "Since R2" marks a field R2\'s export printed differently.');
   M.push('');
-  M.push('| Card | Field | In deck.json | Printed |');
-  M.push('|---|---|---|---|');
-  for (const r of refreshed) M.push(`| ${r.slug} | ${r.field} | ${JSON.stringify(r.was)} | ${JSON.stringify(r.now)} |`);
+  M.push('| Card | Field | In deck.json | Printed | Since R2 |');
+  M.push('|---|---|---|---|---|');
+  for (const r of refreshed) M.push(`| ${r.slug} | ${r.field} | ${JSON.stringify(r.was)} | ${JSON.stringify(r.now)} | ${r.sinceR2 ? '**changed**' : 'as in R2'} |`);
   M.push('');
 }
 writeFileSync(resolve(OUT, 'MANIFEST.md'), `${M.join('\n')}\n`);
@@ -243,7 +262,7 @@ writeFileSync(resolve(OUT, 'MANIFEST.md'), `${M.join('\n')}\n`);
 // ── THE ZIP ──────────────────────────────────────────────────────────────────────────────
 const zipName = 'shorelines-playtest-1.zip';
 rmSync(resolve(OUT, zipName), { force: true });
-execFileSync('zip', ['-X', '-q', zipName, 'MANIFEST.md', 'back-story.jpg', 'back-ending.jpg', ...rows.map((r) => r.file)], { cwd: OUT });
+execFileSync('zip', ['-X', '-q', zipName, 'MANIFEST.md', 'back-story.png', 'back-ending.png', ...rows.map((r) => r.file)], { cwd: OUT });
 const zipBytes = readFileSync(resolve(OUT, zipName));
 const zipSha = createHash('sha256').update(zipBytes).digest('hex');
 
@@ -254,7 +273,7 @@ const P = 0.3;
 const TW = Math.round(MPC.w * P);
 const TH = Math.round(MPC.h * P);
 const COLS = 8; const GUT = 28; const CAP = 60; const HEAD = 140;
-const files = [...rows.map((r) => ({ file: r.file, label: `${r.slot} ${r.title}` })), { file: 'back-story.jpg', label: 'back-story' }, { file: 'back-ending.jpg', label: 'back-ending' }];
+const files = [...rows.map((r) => ({ file: r.file, label: `${r.slot} ${r.title}` })), { file: 'back-story.png', label: 'back-story (PNG)' }, { file: 'back-ending.png', label: 'back-ending (PNG)' }];
 const gridH = Math.ceil(files.length / COLS) * (TH + CAP + GUT);
 const DET = 620;
 const W = COLS * (TW + GUT) + GUT;
@@ -263,7 +282,7 @@ const sheet = createCanvas(W, H);
 const g = sheet.getContext('2d');
 g.fillStyle = '#ECE8E0'; g.fillRect(0, 0, W, H);
 const say = (t, x, y, font) => { g.fillStyle = '#1C1418'; g.font = font; g.fillText(t, x, y); };
-say('SHORELINES — MPC UPLOAD PROOF (CARDS-R2), decoded from the exported JPEGs', GUT, 60, '42px "Cormorant Garamond SemiBold"');
+say('SHORELINES — MPC UPLOAD PROOF (CARDS-R2.1), decoded from the exported files', GUT, 60, '42px "Cormorant Garamond SemiBold"');
 say(`${files.length} images, ${MPC.w} × ${MPC.h} px at ${DPI} dpi, shown at ${P * 100}%. Cyan: MPC's trim (${f2(MPC.trim.w)} × ${f2(MPC.trim.h)} mm). Green dashed: MPC's safe area (${MPC.safe} px inside it). Bottom: 100% details from the JPEGs.`, GUT, 104, '24px "EB Garamond"');
 for (let i = 0; i < files.length; i++) {
   collect();
@@ -296,8 +315,9 @@ writeFileSync(resolve(ROOT, 'cards/review/MPC-PROOF.png'), sheet.toBuffer('image
 console.log(JSON.stringify({
   canvas: `${MPC.w}x${MPC.h}`, mpcTrimMm: [f2(MPC.trim.w, 3), f2(MPC.trim.h, 3)], cut: MPC.cut, safeBox: S,
   refreshed, fronts: rows.length, decoded: rows.filter((r) => r.decoded).length, withCodes: rows.filter((r) => r.url).length,
-  inMargin, keylineClear, iconClear, endingBackSymmetric: symmetric, endingBackJpgWorst: jpgSym.worst,
-  worstJpeg: { file: worst.file, worst: worst.worst }, maxMean: Math.max(...all.map((r) => r.mean)), totalBytes: total,
-  jpegMeta: { space: backStory.meta.space, density: backStory.meta.density, icc: !!backStory.meta.icc, chroma: backStory.meta.chromaSubsampling },
+  inMargin, keylineClear, iconClear, endingBackSymmetric: symmetric, endingBackPngSymmetric: pngSym, vsR2: vsR2 && { same: vsR2.filter((v) => v.same).length, changed: vsR2.filter((v) => !v.same).map((v) => v.file) },
+  worstJpeg: { file: worst.file, worst: worst.worst }, maxMean: Math.max(...rows.map((r) => r.mean)), totalBytes: total,
+  jpegMeta: { space: rows[0].meta.space, density: rows[0].meta.density, icc: !!rows[0].meta.icc, chroma: rows[0].meta.chromaSubsampling },
+  pngMeta: [backStory, backEnding].map((b) => ({ file: b.file, format: b.meta.format, space: b.meta.space, channels: b.meta.channels, density: b.meta.density, icc: !!b.meta.icc, w: b.meta.width, h: b.meta.height })),
   zip: { bytes: statSync(resolve(OUT, zipName)).size, sha256: zipSha },
 }, null, 1));
