@@ -21,7 +21,7 @@
 // to the database or to Storage, and it uploads nothing. The w360 "after" is made by the same
 // deriveFrom() the reconciler would use, in memory.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -36,6 +36,12 @@ import { DB_URL, RETIRED_NODE, SOURCE_NODE, assertStoryScope, deriveFrom, sha, s
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = resolve(ROOT, 'covers-migration');
+// A SIGNED sheet is a record (COVERS-R20): its sha256 is in its own sign-off. Re-rendering over
+// it would leave the record naming bytes that no longer exist. A new review gets a new name.
+if (existsSync(resolve(OUT, 'DESCRIPTOR-FIT.md')) && /^## Sign-off$/m.test(readFileSync(resolve(OUT, 'DESCRIPTOR-FIT.md'), 'utf8'))) {
+  console.error('REFUSED — covers-migration/DESCRIPTOR-FIT.* is signed off. Write a new review under a new name.');
+  process.exit(2);
+}
 const BEFORE_REF = process.env.BEFORE_REF ?? 'origin/main';
 registerFonts();
 
