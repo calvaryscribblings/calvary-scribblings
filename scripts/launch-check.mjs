@@ -28,6 +28,7 @@ import { GATE_ON_MS, gatingOn, freeUntilFor, servesAsReader } from '../app/lib/s
 import { endingOf } from './check-built-gate.mjs';
 import { LAUNCH_DATE_SHORT } from '../app/lib/launch.js';
 import { dictionaryLookup, DICT_BASE, DICT_SOURCE } from '../app/lib/dictionary.js';
+import { readServiceAccountFile, decodeBase64ServiceAccount } from './security/service-account.mjs';
 
 export const SITE = process.env.LAUNCH_SITE || 'https://calvaryscribblings.co.uk';
 export const GREEN = 'green';
@@ -196,9 +197,10 @@ export function renderHtml(rows, now) {
 
 // ── gathering (I/O) ───────────────────────────────────────────────────────────────────────
 function serviceAccount() {
-  if (process.env.LAUNCH_SERVICE_ACCOUNT) return JSON.parse(readFileSync(process.env.LAUNCH_SERVICE_ACCOUNT, 'utf8'));
-  if (process.env.FIREBASE_SA_KEY) return JSON.parse(Buffer.from(process.env.FIREBASE_SA_KEY, 'base64').toString());
-  return JSON.parse(readFileSync('serviceAccountKey.json', 'utf8'));
+  // Parsed by service-account.mjs: a failed JSON.parse prints its whole input (SECURITY-R1).
+  if (process.env.LAUNCH_SERVICE_ACCOUNT) return readServiceAccountFile(process.env.LAUNCH_SERVICE_ACCOUNT);
+  if (process.env.FIREBASE_SA_KEY) return decodeBase64ServiceAccount(process.env.FIREBASE_SA_KEY);
+  return readServiceAccountFile('serviceAccountKey.json');
 }
 
 /** The launch check's own short-lived token for /api/ops/* (verified by functions/api/ops/_opsAuth.js). */

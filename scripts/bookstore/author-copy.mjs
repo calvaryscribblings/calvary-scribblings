@@ -49,6 +49,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { ALLOWED_UIDS } from './founder-comps.mjs';
 import { COMP_SOURCE, isComp, holdersOf } from '../../app/lib/bookstore/purchaseSource.js';
 import { RESERVED_TITLE_SLUGS } from '../../app/lib/bookstore/schema.js';
+import { parseServiceAccount, readServiceAccountFile } from '../security/service-account.mjs';
 
 export const AUTHOR_COPY_GRANT = 'author-copy';
 export const EPUB_MAX_BYTES = 50 * 1024 * 1024;   // storage.rules' cap on master.epub
@@ -220,8 +221,9 @@ export function planRevoke({ uid, titleId, purchases, titleDoc, keepFiles }) {
 // ── I/O ─────────────────────────────────────────────────────────────────────────────────────
 
 function loadServiceAccount() {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-  return JSON.parse(readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 'serviceAccountKey.json', 'utf8'));
+  // Parsed by service-account.mjs: a failed JSON.parse prints its whole input (SECURITY-R1).
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) return parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT, 'FIREBASE_SERVICE_ACCOUNT');
+  return readServiceAccountFile(process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 'serviceAccountKey.json');
 }
 
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
