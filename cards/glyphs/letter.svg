@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="6mm" height="6mm" viewBox="0 0 24 24" fill="none" stroke="#1C1418" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Letter</title>
+  <path d="M3 6.5 H21 V18.5 H3 Z"/>
+  <path d="M3 6.5 L12 13.2 L21 6.5"/>
+  <path d="M3 18.5 L9.6 11.4 M21 18.5 L14.4 11.4"/>
+  <path d="M12 11.4 A1.8 1.8 0 1 1 11.99 11.4 Z"/>
+</svg>

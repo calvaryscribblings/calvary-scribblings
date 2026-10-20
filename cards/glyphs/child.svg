@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="6mm" height="6mm" viewBox="0 0 24 24" fill="none" stroke="#1C1418" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Child</title>
+  <path d="M12 2 L18 8.5 L12 16 L6 8.5 Z"/>
+  <path d="M12 2 V16 M6 8.5 H18"/>
+  <path d="M12 16 C10.2 17.6 13.8 18.8 12 20.4 C10.8 21.5 12.6 22.4 13.4 22.6"/>
+  <path d="M10.9 17.6 L12.3 17 M12.4 19.6 L13.6 20.4"/>
+</svg>

@@ -1,0 +1,10 @@
+{
+  "name": "calvary-cards",
+  "private": true,
+  "type": "module",
+  "description": "Story Island card game — card faces. Its own two dependencies, pinned exact, so the site's install and the covers pipeline never see them.",
+  "dependencies": {
+    "jsqr": "1.4.0",
+    "qrcode": "1.5.4"
+  }
+}

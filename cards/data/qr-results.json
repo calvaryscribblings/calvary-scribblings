@@ -1,0 +1,856 @@
+[
+ {
+  "slug": "purple-rain",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/purple-rain",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "7am-an-american-pulp-classic",
+  "livery": "inspiring",
+  "text": "https://calvaryscribblings.co.uk/stories/7am-an-american-pulp-classic",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "beta-princess-i2",
+  "livery": "series",
+  "text": "https://calvaryscribblings.co.uk/series/instalment/beta-princess-i2",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "direct",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "skin-eater",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/skin-eater",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "a-legacy-through-time",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/a-legacy-through-time",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "love-it-enough",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/love-it-enough",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "a-daub-of-blue",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/a-daub-of-blue",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "how-are-you-my-friend",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/how-are-you-my-friend",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "full",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/full",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "brenda",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/brenda",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "the-songbird-s-birdsong",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/the-songbird-s-birdsong",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "lagos-friendship",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/lagos-friendship",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "did-you-enjoy-it",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/did-you-enjoy-it",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "ladies-diaries",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/ladies-diaries",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "mother-and-other-poems",
+  "livery": "poetry",
+  "text": "https://calvaryscribblings.co.uk/stories/mother-and-other-poems",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "direct",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "dont-worry",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/dont-worry",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "you-will-love-it",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/you-will-love-it",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "boomerang",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/boomerang",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "beyond-saving",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/beyond-saving",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "sixth-cycle",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/sixth-cycle",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "the-call",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/the-call",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "diary-of-a-lagos-9-5er-i1",
+  "livery": "series",
+  "text": "https://calvaryscribblings.co.uk/series/instalment/diary-of-a-lagos-9-5er-i1",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "direct",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "miss-lady",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/miss-lady",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "beautifully-blue",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/beautifully-blue",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "arrival-again",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/arrival-again",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "odeluwa",
+  "livery": "inspiring",
+  "text": "https://calvaryscribblings.co.uk/stories/odeluwa",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "final-boarding-call",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/final-boarding-call",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "zee-a-love-letters-story",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/zee-a-love-letters-story",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "seat-14b",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/seat-14b",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "the-doherty-confessions-i2",
+  "livery": "series",
+  "text": "https://calvaryscribblings.co.uk/series/instalment/the-doherty-confessions-i2",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "direct",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "the-girl-who-sang-through-the-dark",
+  "livery": "inspiring",
+  "text": "https://calvaryscribblings.co.uk/stories/the-girl-who-sang-through-the-dark",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "room-14",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/room-14",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "small-permissions",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/small-permissions",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "threshold",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/threshold",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "from-scratch",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/from-scratch",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "terms-and-conditions",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/terms-and-conditions",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "the-enabler",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/the-enabler",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "unstoppabbl",
+  "livery": "flash",
+  "text": "https://calvaryscribblings.co.uk/stories/unstoppabbl",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "safety-net",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/safety-net",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "till-debt-do-us-part",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/till-debt-do-us-part",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "manage-it",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/manage-it",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "sapiosexual",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/sapiosexual",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "notes",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/notes",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "pigment",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/pigment",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "one-day-for-the-thief",
+  "livery": "short",
+  "text": "https://calvaryscribblings.co.uk/stories/one-day-for-the-thief",
+  "version": 4,
+  "modules": 33,
+  "sideMm": 10.414,
+  "style": "panel",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "no"
+   },
+   {
+    "style": "panel",
+    "decoded": "yes"
+   }
+  ]
+ },
+ {
+  "slug": "beta-princess-i3",
+  "livery": "series",
+  "text": "https://calvaryscribblings.co.uk/series/instalment/beta-princess-i3",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "direct",
+  "tried": [
+   {
+    "style": "direct",
+    "decoded": "yes"
+   }
+  ]
+ }
+]
