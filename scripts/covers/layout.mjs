@@ -75,8 +75,11 @@ export const RULE = Object.freeze({
 // OPTIONAL, and its absence is a COMPLETE DESIGN. When there is no descriptor the rule is
 // the bottom of the stack and the fleuron takes the room. Nothing shifts to "fill the hole",
 // because there is no hole. Do not add a placeholder here, ever.
+// A descriptor too wide for the title's measure breaks onto more lines (COVERS-R19). Its
+// leading is not a number here: it is DERIVED, cap height plus word gap, by
+// descriptorLeading() in render.mjs, so the gap between lines equals the gap between words.
 export const DESCRIPTOR = Object.freeze({
-  font: 'meta', size: 54, tracking: 9, lineHeight: 1.12,
+  font: 'meta', size: 54, tracking: 9,
   gapBelowRule: 100,
   separator: '  ',
 });

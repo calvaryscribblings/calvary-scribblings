@@ -168,6 +168,18 @@ The generator's **Series livery stays exactly as built** — it is proven on the
 and costs nothing to keep. Whether it is ever *used* is a separate decision for a separate
 day; its existence is not a plan to migrate series.
 
+### Descriptors break the way titles do; title hyphens need 2 behind and 3 forward
+
+**COVERS-R19/R19.1, signed off by Ikenna 20 Oct 2026** (`covers-migration/DESCRIPTOR-FIT.md`).
+A descriptor wider than the title's measure (1232px) breaks between words, filling each line as
+the title wrap does, at the same size and tracking. Its leading is DERIVED, cap height plus the
+word gap as drawn (83.6px at 54px), so the gap between lines equals the gap between words.
+
+A title breaks at an existing hyphen only where it leaves **at least 2 letters or numerals
+behind and carries at least 3 forward** (`HYPHEN_MIN` in text.mjs, Bringhurst's rule, chosen).
+A refused break steps the ladder down, as any break that doesn't fit does: PUBLIC WI-FI IS /
+A TRAP at 140px, not PUBLIC WI- / FI IS A TRAP at 186px.
+
 ## Account deletion: the reader's own request is the authority
 
 **Standing rule (Ikenna, 23 Sep 2026).** A reader's own deletion request is sufficient

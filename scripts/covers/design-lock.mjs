@@ -80,6 +80,13 @@ export const PROBES = Object.freeze([
   { slug: 'probe-non-ascii', title: 'Àkúdáàya', author: 'Céline Beyoncé Adékúnlé', category: 'poetry', subcategory: 'Spoken Word', descriptor: 'return. rumour. recognition.' },
   { slug: 'probe-unfiled', title: 'The Unfiled Story', author: 'A. N. Other', category: '', subcategory: '' },
   { slug: 'probe-numeral', title: '1967', author: 'A. N. Other', category: 'short', subcategory: 'Drama' },
+
+  // ── COVERS-R19/R19.1 (signed off 20 Oct 2026): the descriptor that breaks, and the refused
+  //    hyphen. probe-descriptor breaks too, but by only 5.5px, so a small change to the
+  //    measure could put it back on one line; this one is 335px over and always breaks.
+  { slug: 'probe-descriptor-two-lines', title: 'Chaff', author: 'Stanley Princewill McDaniels', category: 'short', subcategory: 'Drama', descriptor: 'superstition. avoidance. confirmation.' },
+  //   refused   — PUBLIC WI- / FI     (fixed: a hyphen break needs 2 behind and 3 forward)
+  { slug: 'probe-break-hyphen-refused', title: 'Public Wi-Fi Is a Trap', author: 'A. N. Other', category: 'news', subcategory: 'Tech' },
 ]);
 
 /** Render every probe and hash it. Offline, deterministic, ~20s. */
