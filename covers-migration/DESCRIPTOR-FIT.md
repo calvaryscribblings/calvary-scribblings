@@ -155,3 +155,19 @@ Width is the descriptor on one line at 54px tracked 9, as it is drawn live. The 
 | 71 | SPOTLIGHT: Chinedu Philip Onoyima — ‘I want you to know that I’m coming’ | IMAGINATION.  FAITH.  PUBLISHING. | 1233.1 | — | IMAGINATION.  FAITH. (761.5) / PUBLISHING. (423.0) | no |
 | 72 | One Day for the Thief | ACCUSATION.  MOB.  INEVITABILITY. | 1232.0 | — | ACCUSATION.  MOB. (666.9) / INEVITABILITY. (516.6) | no |
 
+
+## Landed
+
+**20 October 2026, COVERS-R20.** Merged into main as `2b2a551f` (a merge commit, keeping R19 `08ff5425`, R19.1 `fff8c520` and the sign-off `57b1b5f1`).
+
+- **The lock:** `DESIGN-LOCK.json` re-recorded in the sign-off commit: 24 probes. `probe-descriptor` moved to `d380bfdb`; `probe-descriptor-two-lines` and `probe-break-hyphen-refused` added; the other 21 unchanged. `covers:verify` 74/74 and CI 1352/1352 before the merge.
+- **The impact job** (push run 39367329305, read-only): **73 stale**, 127 already current, 0 failed. Its 73 slugs are exactly the 73 on the signed sheet, compared slug by slug.
+- **The reconcile** (scheduled run 39367335721 on `2b2a551f`, the */15 cron; no dispatch was needed): design lock OK, 24 probes unchanged; 200 in scope, 0 held; **flipped 73**, already current 127, **failed 0**.
+- **`on-publish --check`** afterwards, read-only: **200 current, 0 stale, 0 failed.**
+- **Checked on the database and in Storage** (read-only):
+  - every one of the 73 points `cover`, `coverSizes.w360` and `coverSizes.w720` at its new render's folder, on `cms_stories` and on `cms_stories_index`, with `coverHash` matching; the live `cover.png` is byte-identical to a fresh render, and both WebPs load;
+  - all 200 index records match their `cms_stories` projection; no stub or orphan record;
+  - the 127 unchanged covers keep the same URLs as before the merge; a sample of 36 of their objects was last written on 29 Sep at the latest, so nothing was re-uploaded;
+  - the 73 old cover files are all still served, so `--rollback` still has what it needs.
+
+This section is pushed to main so that a site build runs after the flips and picks up the new cover URLs on the pages that bake them at build time.
