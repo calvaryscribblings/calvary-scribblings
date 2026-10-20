@@ -164,7 +164,9 @@ test('THE LAYOUT', async (t) => {
     // but it is a real behaviour change, and it should be noticed here rather than in a
     // cover. Re-measure, and update the 0.5 below deliberately.
     const region = STACK_REGION.bottom - STACK_REGION.top;
-    const descExtra = DESCRIPTOR.gapBelowRule + DESCRIPTOR.size * 0.72;
+    // COVERS-R19: a descriptor too wide for the measure breaks onto more lines. A ruled
+    // descriptor is three words, so its worst case is three lines, each a leading apart.
+    const descExtra = DESCRIPTOR.gapBelowRule + DESCRIPTOR.size * 0.72 + 2 * DESCRIPTOR.size * TITLE.lineHeight;
     for (const rung of TITLE.ladder) {
       if (rung.maxLines === Infinity) continue;   // the fallback: uncapped, nothing below it
       const worst = rung.maxLines * rung.size * TITLE.lineHeight + RULE.gapAboveFromTitle + descExtra;

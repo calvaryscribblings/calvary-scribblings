@@ -364,6 +364,68 @@ function fitTitle(ctx, title, extraBelow = 0) {
 }
 
 /**
+ * Break a descriptor that does not fit the measure. COVERS-R19, Ikenna's ruling.
+ *
+ * ── THE DEFECT ───────────────────────────────────────────────────────────────────────────
+ * Found by CARDS-R1.2, 20 Oct 2026. The descriptor was drawn on one line whatever its width,
+ * and nothing held it to anything. The library's widest, SUPERSTITION.  AVOIDANCE.
+ * CONFIRMATION. on The Number Thirteen, ran 1567.6px on a 1600px canvas, straight through
+ * both keylines; 29 live covers crossed the inner keyline.
+ *
+ * ── THE RULE ─────────────────────────────────────────────────────────────────────────────
+ * The descriptor's measure is the TITLE'S OWN MEASURE (TITLE.maxWidth): not a new number.
+ *
+ *   • It fits on one line at its size and tracking → one line, exactly as before. Those
+ *     covers render byte-identical to the ones already live.
+ *   • It does not → it breaks BETWEEN WORDS into the FEWEST lines that each fit the measure,
+ *     and of the breaks that give that many lines, the one whose lines are CLOSEST IN WIDTH
+ *     (the smallest difference between the widest and the narrowest line). A word keeps its
+ *     full stop because the full stop is part of the word, and the words keep their order.
+ *
+ * SIZE AND TRACKING NEVER CHANGE. Shrinking or tightening the long ones would give the library
+ * descriptors in two rhythms; breaking keeps one.
+ *
+ * Line spacing is the title's own ratio (TITLE.lineHeight, 1.12) at the descriptor's size.
+ *
+ * TIES (CHOSEN): two breaks equally close in width go to the one with the narrower widest line,
+ * then to the one that breaks earlier. With three words that means a 1 + 2 split and a 2 + 1
+ * split of exactly equal balance (which has not happened in the library) goes to 1 + 2.
+ *
+ * A single word wider than the measure has no break that fits, and that RAISES, the way an
+ * impossible title does: nothing ships a descriptor over the keyline again. At 54px tracked 9
+ * that is a word of about 25 capitals; the library's longest is 13.
+ */
+export function fitDescriptor(ctx, text) {
+  ctx.font = FONTS[DESCRIPTOR.font](DESCRIPTOR.size);
+  const measure = TITLE.maxWidth;
+  const width = (t) => trackedWidth(ctx, t, DESCRIPTOR.tracking);
+  const one = width(text);
+  if (one <= measure) return { lines: [{ text, width: one }], width: one, measure };
+  const words = text.split(DESCRIPTOR.separator);
+  const join = (ws) => ws.join(DESCRIPTOR.separator);
+  for (let n = 2; n <= words.length; n++) {
+    let best = null;
+    // Every way of cutting the words into n runs, in order. Descriptors are three words by
+    // ruling, so this is two candidates at n = 2; it stays exact for any length.
+    const cut = (from, left, acc) => {
+      if (left === 1) {
+        const lines = [...acc, words.slice(from)].map((ws) => ({ text: join(ws), width: width(join(ws)) }));
+        if (lines.some((l) => l.width > measure)) return;
+        const ws = lines.map((l) => l.width);
+        const spread = Math.max(...ws) - Math.min(...ws);
+        const widest = Math.max(...ws);
+        if (!best || spread < best.spread || (spread === best.spread && widest < best.widest)) best = { lines, spread, widest };
+        return;
+      }
+      for (let i = from + 1; i <= words.length - left + 1; i++) cut(i, left - 1, [...acc, words.slice(from, i)]);
+    };
+    cut(0, n, []);
+    if (best) return { lines: best.lines, width: one, measure };
+  }
+  throw new Error(`descriptor cannot fit the ${measure}px measure: a single word is wider ("${text}")`);
+}
+
+/**
  * Lay the whole cover out without drawing any of it.
  *
  * Separated from painting so the geometry can be asserted directly by the test suite and
@@ -377,11 +439,18 @@ export function planCover(ctx, record) {
   // see fitTitle. Measuring it after would mean picking a rung blind to the row beneath it.
   const descriptorText = formatDescriptor(record.descriptor);
   let descAscent = 0;
+  let descFit = null;
   if (descriptorText) {
+    descFit = fitDescriptor(ctx, descriptorText);
     ctx.font = FONTS[DESCRIPTOR.font](DESCRIPTOR.size);
     descAscent = capAscent(ctx);
   }
-  const extraBelow = descriptorText ? DESCRIPTOR.gapBelowRule + descAscent : 0;
+  // The descriptor's own leading: the title's ratio at the descriptor's size (COVERS-R19).
+  // Each line after the first adds one step; a one-line descriptor adds nothing, so its
+  // geometry is exactly what it always was.
+  const descLeading = DESCRIPTOR.size * TITLE.lineHeight;
+  const descExtraLines = descFit ? (descFit.lines.length - 1) * descLeading : 0;
+  const extraBelow = descriptorText ? DESCRIPTOR.gapBelowRule + descAscent + descExtraLines : 0;
 
   const fitted = fitTitle(ctx, record.title, extraBelow);
   const lineHeight = fitted.size * TITLE.lineHeight;
@@ -392,7 +461,9 @@ export function planCover(ctx, record) {
   // Heights are all relative offsets from the stack top, so the stack's HEIGHT can be known
   // before its POSITION — which is what lets the 20% placement be computed in one pass.
   const ruleOffset = titleBlockHeight + RULE.gapAboveFromTitle;
-  const descOffset = descriptorText ? ruleOffset + DESCRIPTOR.gapBelowRule + descAscent : null;
+  // descOffset is the LAST line's baseline: the stack ends there, and the fleuron's 42% is
+  // measured from it.
+  const descOffset = descriptorText ? ruleOffset + DESCRIPTOR.gapBelowRule + descAscent + descExtraLines : null;
   const stackHeight = descriptorText ? descOffset : ruleOffset;
 
   const slack = (STACK_REGION.bottom - STACK_REGION.top) - stackHeight;
@@ -431,7 +502,13 @@ export function planCover(ctx, record) {
     ),
     title: { ...fitted, lineHeight, baselines: titleBaselines },
     ruleY,
-    descriptor: descriptorText ? { text: descriptorText, y: descriptorY } : null,
+    descriptor: descriptorText ? {
+      text: descriptorText,
+      y: descriptorY,
+      width: descFit.width,
+      measure: descFit.measure,
+      lines: descFit.lines.map((l, i, all) => ({ ...l, y: descriptorY - (all.length - 1 - i) * descLeading })),
+    } : null,
     fleuronY,
     author: String(record.author ?? '').trim(),
     footer: footerFor(record),
@@ -512,7 +589,7 @@ export function renderCover(record) {
   if (plan.descriptor) {
     ctx.fillStyle = livery.keyline;
     ctx.font = FONTS[DESCRIPTOR.font](DESCRIPTOR.size);
-    drawTracked(ctx, plan.descriptor.text, cx, plan.descriptor.y, DESCRIPTOR.tracking);
+    for (const line of plan.descriptor.lines) drawTracked(ctx, line.text, cx, line.y, DESCRIPTOR.tracking);
   }
 
   paintFleuron(ctx, cx, plan.fleuronY, livery.keyline);

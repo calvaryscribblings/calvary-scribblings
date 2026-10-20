@@ -99,6 +99,9 @@ covers-contact-sheet/
 # directory's CONTENTS instead keeps the negation reachable. Same for RATIFIED.md below.
 covers-migration/*
 !covers-migration/SIGNOFF.md
+# COVERS-R19's sign-off sheet and its report: evidence for a decision, reviewable from GitHub.
+!covers-migration/DESCRIPTOR-FIT.png
+!covers-migration/DESCRIPTOR-FIT.md
 covers-descriptors/*
 !covers-descriptors/RATIFIED.md
 
