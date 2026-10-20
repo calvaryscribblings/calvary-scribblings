@@ -50,6 +50,22 @@ function assertSameFaces() {
   facesChecked = true;
 }
 
+// ── THE CANVAS ───────────────────────────────────────────────────────────────────────────
+// What the card is drawn on: a raster of R.w × R.h device px, with the TRIM's top-left at
+// (R.ox, R.oy). The default is the design's own raster (RASTER, the 3 mm bleed on every side)
+// and it is what every review render uses. An export may draw the SAME design on another
+// printer's canvas (useCanvas): the trim keeps its size and is centred, and the bleed runs out
+// to whatever canvas the printer asks for. Nothing is rescaled.
+const DESIGN_CANVAS = Object.freeze({ name: 'design', w: RASTER.w, h: RASTER.h, ox: BLEED_PX, oy: BLEED_PX });
+let R = DESIGN_CANVAS;
+/** Draw on `{ name, w, h }` (device px) with the trim centred, or on the design's own canvas with null. */
+export function useCanvas(canvas) {
+  R = canvas ? Object.freeze({ name: canvas.name, w: canvas.w, h: canvas.h, ox: (canvas.w - TRIM.w * PX_PER_MM) / 2, oy: (canvas.h - TRIM.h * PX_PER_MM) / 2 }) : DESIGN_CANVAS;
+  out = null; layer = null; grainImage = null;   // the pools are sized to the canvas
+  return R;
+}
+export const currentCanvas = () => R;
+
 // ── SURFACES — pooled, for the reason render.mjs gives (Skia memory is invisible to V8) ──
 let out = null;
 let layer = null;
@@ -62,18 +78,20 @@ function fresh(canvas) {
   ctx.globalAlpha = 1;
   ctx.textAlign = 'start';
   ctx.textBaseline = 'alphabetic';
-  ctx.clearRect(0, 0, RASTER.w, RASTER.h);
+  ctx.clearRect(0, 0, R.w, R.h);
   return ctx;
 }
-const surface = () => { out ??= createCanvas(RASTER.w, RASTER.h); return { canvas: out, ctx: fresh(out) }; };
-const scratch = () => { layer ??= createCanvas(RASTER.w, RASTER.h); return { canvas: layer, ctx: fresh(layer) }; };
+const surface = () => { out ??= createCanvas(R.w, R.h); return { canvas: out, ctx: fresh(out) }; };
+const scratch = () => { layer ??= createCanvas(R.w, R.h); return { canvas: layer, ctx: fresh(layer) }; };
 
 // ── TRANSFORMS ───────────────────────────────────────────────────────────────────────────
 /** Cover px from the trim's top-left. */
-const coverSpace = (ctx) => ctx.setTransform(K, 0, 0, K, BLEED_PX, BLEED_PX);
+const coverSpace = (ctx) => ctx.setTransform(K, 0, 0, K, R.ox, R.oy);
 /** Millimetres from the trim's top-left. */
-const mmSpace = (ctx) => ctx.setTransform(PX_PER_MM, 0, 0, PX_PER_MM, BLEED_PX, BLEED_PX);
-const dev = (millimetres) => BLEED_PX + millimetres * PX_PER_MM;
+const mmSpace = (ctx) => ctx.setTransform(PX_PER_MM, 0, 0, PX_PER_MM, R.ox, R.oy);
+/** mm from the trim's left / top edge → device px on the current canvas. */
+const devX = (millimetres) => R.ox + millimetres * PX_PER_MM;
+const devY = (millimetres) => R.oy + millimetres * PX_PER_MM;
 
 // ── COLOUR ───────────────────────────────────────────────────────────────────────────────
 const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
@@ -86,22 +104,24 @@ const darken = (hex, a) => `rgb(${rgb(hex).map((v) => Math.max(0, v - a)).join('
 // grain keeps its COVERAGE: the cover's 150,000 specks over 3.84 M px is 3.9%, and the card
 // raster gets the same fraction of its own pixels from the same slug-seeded stream.
 export const GRAIN_COUNT = Math.round(GRAIN.count * (RASTER.w * RASTER.h) / (CANVAS.w * CANVAS.h));
+/** The same coverage on whatever canvas is current. */
+const grainCount = () => (R === DESIGN_CANVAS ? GRAIN_COUNT : Math.round(GRAIN.count * (R.w * R.h) / (CANVAS.w * CANVAS.h)));
 const TRIM_W = TRIM.w * PX_PER_MM;
 const TRIM_H = TRIM.h * PX_PER_MM;
 
 function paintGround(ctx, livery, seed, { symmetric = false, treatment = true } = {}) {
   ctx.fillStyle = livery.ground;
-  ctx.fillRect(0, 0, RASTER.w, RASTER.h);
+  ctx.fillRect(0, 0, R.w, R.h);
   const light = isLight(livery);
   if (treatment && light) {
     const { canvas: l, ctx: lc } = scratch();
     lc.fillStyle = darken(livery.ground, VIGNETTE.darkenPerChannel);
-    lc.fillRect(0, 0, RASTER.w, RASTER.h);
+    lc.fillRect(0, 0, R.w, R.h);
     lc.globalCompositeOperation = 'destination-out';
     lc.filter = `blur(${VIGNETTE.blur * K}px)`;
     lc.fillStyle = '#fff';
     lc.beginPath();
-    lc.ellipse(RASTER.w / 2, RASTER.h / 2, TRIM_W * VIGNETTE.radiusFactor.x, TRIM_H * VIGNETTE.radiusFactor.y, 0, 0, Math.PI * 2);
+    lc.ellipse(R.w / 2, R.h / 2, TRIM_W * VIGNETTE.radiusFactor.x, TRIM_H * VIGNETTE.radiusFactor.y, 0, 0, Math.PI * 2);
     lc.fill();
     ctx.drawImage(l, 0, 0);
   } else if (treatment && livery.glow) {
@@ -109,7 +129,7 @@ function paintGround(ctx, livery, seed, { symmetric = false, treatment = true } 
     lc.filter = `blur(${GLOW.blur * K}px)`;
     lc.fillStyle = livery.glow;
     lc.beginPath();
-    lc.ellipse(BLEED_PX + TRIM_W * GLOW.centre.x, BLEED_PX + TRIM_H * GLOW.centre.y,
+    lc.ellipse(R.ox + TRIM_W * GLOW.centre.x, R.oy + TRIM_H * GLOW.centre.y,
       (TRIM_W * GLOW.widthFactor) / 2, (TRIM_H * GLOW.heightFactor) / 2, 0, 0, Math.PI * 2);
     lc.fill();
     ctx.save();
@@ -121,17 +141,17 @@ function paintGround(ctx, livery, seed, { symmetric = false, treatment = true } 
   // every speck twice, at (x, y) and at its 180° partner, so the back is the same either way up.
   const rand = rngForSlug(seed);
   const { canvas: l, ctx: lc } = scratch();
-  grainImage ??= lc.createImageData(RASTER.w, RASTER.h);
+  grainImage ??= lc.createImageData(R.w, R.h);
   const d = grainImage.data;
   d.fill(0);
-  const put = (x, y, v) => { const o = (y * RASTER.w + x) * 4; d[o] = v; d[o + 1] = v; d[o + 2] = v; d[o + 3] = 255; };
-  const n = symmetric ? Math.round(GRAIN_COUNT / 2) : GRAIN_COUNT;
+  const put = (x, y, v) => { const o = (y * R.w + x) * 4; d[o] = v; d[o + 1] = v; d[o + 2] = v; d[o + 3] = 255; };
+  const n = symmetric ? Math.round(grainCount() / 2) : grainCount();
   for (let i = 0; i < n; i++) {
-    const x = Math.floor(rand() * RASTER.w);
-    const y = Math.floor(rand() * RASTER.h);
+    const x = Math.floor(rand() * R.w);
+    const y = Math.floor(rand() * R.h);
     const v = Math.floor(rand() * (GRAIN.maxLuminance + 1));
     put(x, y, v);
-    if (symmetric) put(RASTER.w - 1 - x, RASTER.h - 1 - y, v);
+    if (symmetric) put(R.w - 1 - x, R.h - 1 - y, v);
   }
   lc.putImageData(grainImage, 0, 0);
   ctx.save();
@@ -324,7 +344,7 @@ function drawIndices(ctx, colour, glyphs, mark, boxes) {
   paint(lc);
   ctx.save();
   ctx.resetTransform();
-  ctx.translate(RASTER.w, RASTER.h);
+  ctx.translate(R.w, R.h);
   ctx.rotate(Math.PI);
   ctx.drawImage(l, 0, 0);
   ctx.restore();
@@ -381,7 +401,7 @@ function drawCardCode(ctx, livery, url, style, indexBox, boxes) {
   const y2 = codeFootMm(ctx);
   const x1 = x2 - side;
   const y1 = y2 - side;
-  drawCode(ctx, code, dev(x1), dev(y1), style === 'panel'
+  drawCode(ctx, code, devX(x1), devY(y1), style === 'panel'
     ? { dark: isLight(livery) ? livery.keyline : livery.ground, panel: QR.panel }
     : { dark: livery.keyline, panel: null });
   boxes.push({ name: 'code', x1, x2, y1, y2 });
@@ -397,10 +417,10 @@ function drawCardCode(ctx, livery, url, style, indexBox, boxes) {
  */
 export const CODE_READ_MARGIN_MM = 3;
 function codeRegion(ctx, b) {
-  const x = Math.max(0, Math.floor(dev(b.x1 - CODE_READ_MARGIN_MM)));
-  const y = Math.max(0, Math.floor(dev(b.y1 - CODE_READ_MARGIN_MM)));
-  const w = Math.min(RASTER.w, Math.ceil(dev(b.x2 + CODE_READ_MARGIN_MM))) - x;
-  const h = Math.min(RASTER.h, Math.ceil(dev(b.y2 + CODE_READ_MARGIN_MM))) - y;
+  const x = Math.max(0, Math.floor(devX(b.x1 - CODE_READ_MARGIN_MM)));
+  const y = Math.max(0, Math.floor(devY(b.y1 - CODE_READ_MARGIN_MM)));
+  const w = Math.min(R.w, Math.ceil(devX(b.x2 + CODE_READ_MARGIN_MM))) - x;
+  const h = Math.min(R.h, Math.ceil(devY(b.y2 + CODE_READ_MARGIN_MM))) - y;
   ctx.save();
   ctx.resetTransform();
   const img = ctx.getImageData(x, y, w, h);
@@ -517,7 +537,7 @@ export function renderPictureFace(card, opts = {}) {
   const boxes = [];
   ctx.resetTransform();
   ctx.fillStyle = PICTURE.mount;
-  ctx.fillRect(0, 0, RASTER.w, RASTER.h);
+  ctx.fillRect(0, 0, R.w, R.h);
   mmSpace(ctx);
   ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, G.poster.x1, G.poster.y1, G.posterW, G.posterH);
   boxes.push({ name: 'poster', ...G.poster });
@@ -527,7 +547,7 @@ export function renderPictureFace(card, opts = {}) {
   if (opts.qr) {
     const c = encode(card.url, { version: PICTURE.qrVersion });
     if (Math.abs(panelPx(c) / PX_PER_MM - G.code.side) > 1e-9) throw new Error(`${card.slug}: the code is not the shared size`);
-    drawCode(ctx, c, dev(G.code.x1), dev(G.code.y1), { dark: PICTURE.ink, panel: null });
+    drawCode(ctx, c, devX(G.code.x1), devY(G.code.y1), { dark: PICTURE.ink, panel: null });
     boxes.push({ name: 'code', x1: G.code.x1, x2: G.code.x2, y1: G.code.y1, y2: G.code.y2 });
     code = { version: c.version, modules: c.size, text: c.text, sideMm: G.code.side, style: 'mount' };
   }
@@ -581,17 +601,17 @@ export function renderStoryBack(img) {
   const { canvas, ctx } = surface();
   ctx.resetTransform();
   ctx.fillStyle = ground.hex;
-  ctx.fillRect(0, 0, RASTER.w, RASTER.h);
+  ctx.fillRect(0, 0, R.w, R.h);
   const w = STORY_BACK.widthMm * PX_PER_MM;
   const h = w * (img.height / img.width);
-  const x = (RASTER.w - w) / 2;
-  const y = (RASTER.h - h) / 2;
+  const x = (R.w - w) / 2;
+  const y = (R.h - h) / 2;
   ctx.drawImage(img, x, y, w, h);
   // Seam check: the drawn icon's edge pixels against the run-out, on the rendered raster.
-  const out = ctx.getImageData(0, 0, RASTER.w, RASTER.h).data;
+  const out = ctx.getImageData(0, 0, R.w, R.h).data;
   let seam = 0;
-  const px = (X, Y) => { const o = (Y * RASTER.w + X) * 4; return [out[o], out[o + 1], out[o + 2]]; };
-  for (const [X, Y] of [[Math.floor(x) - 1, Math.floor(RASTER.h / 2)], [Math.floor(x) + 1, Math.floor(RASTER.h / 4)], [Math.floor(RASTER.w / 2), Math.floor(y) - 1], [Math.floor(RASTER.w / 2), Math.floor(y) + 1], [Math.ceil(x + w) + 1, Math.floor(y) + 3], [Math.ceil(x + w) - 2, Math.ceil(y + h) - 2]]) {
+  const px = (X, Y) => { const o = (Y * R.w + X) * 4; return [out[o], out[o + 1], out[o + 2]]; };
+  for (const [X, Y] of [[Math.floor(x) - 1, Math.floor(R.h / 2)], [Math.floor(x) + 1, Math.floor(R.h / 4)], [Math.floor(R.w / 2), Math.floor(y) - 1], [Math.floor(R.w / 2), Math.floor(y) + 1], [Math.ceil(x + w) + 1, Math.floor(y) + 3], [Math.ceil(x + w) - 2, Math.ceil(y + h) - 2]]) {
     seam = Math.max(seam, ...px(X, Y).map((v, k) => Math.abs(v - ground.rgb[k])));
   }
   return {
@@ -746,8 +766,8 @@ export function renderEndingBack() {
   const { canvas, ctx } = surface();
   paintGround(ctx, livery, 'ending-back', { symmetric: true, treatment: false });
   ctx.resetTransform();
-  const cx = RASTER.w / 2;
-  const cy = RASTER.h / 2;
+  const cx = R.w / 2;
+  const cy = R.h / 2;
   const r = BACK_RING.radiusMm * PX_PER_MM;
   ctx.strokeStyle = livery.keyline;
   ctx.lineWidth = KEYLINE.outerWidthPx * K;
@@ -765,9 +785,9 @@ export function renderEndingBack() {
   // pixels differ by up to 50/255 from their partners. So the top half is the drawing and the
   // bottom half is that drawing turned a half turn, pixel for pixel. The back is then
   // identical whichever way up it lies, and isHalfTurnSymmetric checks it to zero.
-  const imageData = ctx.getImageData(0, 0, RASTER.w, RASTER.h);
+  const imageData = ctx.getImageData(0, 0, R.w, R.h);
   const d = imageData.data;
-  const total = RASTER.w * RASTER.h;
+  const total = R.w * R.h;
   for (let i = 0; i < Math.floor(total / 2); i++) {
     const j = total - 1 - i;
     for (let k = 0; k < 4; k++) d[j * 4 + k] = d[i * 4 + k];

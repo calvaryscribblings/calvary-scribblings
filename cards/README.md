@@ -19,6 +19,9 @@ A physical deck of real island stories. Each card wears its typographic cover, r
 | `data/qr-results.json` | Every card's code: version, size and decode |
 | `posters/` | Ikenna's poster files, one per series, matted whole on the picture cards (R1.3); moved from `public/` in R1.2 |
 | `Story-Island-icon.png` | Ikenna's app icon, the source of the story back. Kept under his name for it |
+| `review/SIGNOFF.md` | **Gate 2, approved 20 Oct 2026 (CARDS-R2).** The contact sheet's sha256 and what the sign-off authorises |
+| `print/mpc-playtest/MANIFEST.md` | The MakePlayingCards upload set for playtest deck 1: slot, files, title, motif, livery, code. The images themselves are delivered privately (draft release `shorelines-playtest-1`), never committed |
+| `review/MPC-PROOF.png` | Every upload image, decoded from the exported JPEGs, with MPC's trim and safe area |
 | `glyphs/*.svg` | The eight motif glyphs, 6 mm with a 0.15 mm stroke |
 
 ## Rebuilding
@@ -27,11 +30,12 @@ A physical deck of real island stories. Each card wears its typographic cover, r
 cd scripts/cards && npm ci && cd ../..        # qrcode + jsqr, pinned, kept out of the site's install
 node scripts/cards/motif-sheet.mjs            # refuses now: the deck is ratified (RATIFIED.md)
 node --expose-gc scripts/cards/contact-sheet.mjs   # CONTACT-SHEET.png + MEASUREMENTS.md (reads posters/ and the icon)
-npm run covers:lock:check                     # the covers pipeline must still say: 22 probes unchanged
+node --expose-gc scripts/cards/mpc-export.mjs     # the MPC upload set + MANIFEST.md + MPC-PROOF.png
+npm run covers:lock:check                     # the covers pipeline must still say its probes are unchanged
 ```
 
 The card code imports the cover generator's modules from `scripts/covers/` and never edits them.
 
 A full-raster `getImageData` in @napi-rs/canvas 1.0.6 is never freed (about 14 MB a call). The sheet reads only the region around each code, and collects between cards when run with `--expose-gc`.
 
-Not built yet, by design: the print files. The next round builds the MakePlayingCards upload set, after `RATIFIED.md` exists and the contact sheet is approved.
+Both gates are passed (RATIFIED.md, SIGNOFF.md). The first print export is the MakePlayingCards playtest set (CARDS-R2).
