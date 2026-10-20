@@ -1,3 +1,16 @@
+## Ratification
+
+**Ratified by Ikenna, 20 October 2026**, by sending CARDS-R1.3. This file was `cards/review/MOTIF-SHEET.md`, sha256 `ffe16ccbadc9e5688d4eadc03be7575b0fb291f51404a1b007b4ceb39ee2db2d` (checked before the rename), generated at CARDS-R1.2 (`5bfe733b`). Below this record, nothing in the file is changed.
+
+His rulings, on the two questions the sheet left open:
+
+1. **The deck runs at 53.** Captive fills 5 of its 6; the empty slot stays empty.
+2. **The Call counts as Captive**, although its kidnapping proves a hoax and Child is its stronger motif.
+
+**What it authorises:** the 53 cards below, each with the motif listed against it (the 3 picture cards and 50 story cards in "The 53 (+ 1 empty)"). Nothing else: the alternates are not cards, and any change to the deck or a motif needs a new sheet and a new ratification.
+
+---
+
 # Shorelines — motif sheet (CARDS-R1.2, gate 1)
 
 **DRAFT for Ikenna.** It is ratified when Ikenna renames this file to `RATIFIED.md`, or gives a quoted authorisation that is recorded at the rename. It is never renamed on anyone else's judgement.

@@ -23,7 +23,7 @@
 // Water is replaced by Captive (a kidnapping, an arrest, a prison or a locked room that holds
 // someone against their will, and the story turns on it). Every Ending keeps its name. If the
 // library can't fill Captive honestly, the deck runs short.
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MOTIFS } from './geometry.mjs';
@@ -217,6 +217,13 @@ function sheet(cards) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  // RATIFIED (CARDS-R1.3, 20 Oct 2026). The sheet is Ikenna's record now, and deck.json is the
+  // deck it ratified. A change to the deck needs a new sheet and a new ratification, so this
+  // refuses rather than writing a draft beside the ratified one.
+  if (existsSync(resolve(ROOT, 'cards/review/RATIFIED.md'))) {
+    console.error('REFUSED — cards/review/RATIFIED.md exists. The deck is ratified; a change needs a new sheet and a new ratification.');
+    process.exit(2);
+  }
   const cards = buildDeck();
   mkdirSync(resolve(ROOT, 'cards/review'), { recursive: true });
   writeFileSync(resolve(ROOT, 'cards/review/MOTIF-SHEET.md'), sheet(cards));

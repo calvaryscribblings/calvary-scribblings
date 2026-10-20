@@ -11,7 +11,7 @@ A physical deck of real island stories. Each card wears its typographic cover, r
 
 | | |
 |---|---|
-| `review/MOTIF-SHEET.md` | **Gate 1.** The proposed deck. It becomes `RATIFIED.md` only by Ikenna's rename, or by his quoted authorisation recorded at the rename |
+| `review/RATIFIED.md` | **Gate 1, ratified 20 Oct 2026 (CARDS-R1.3).** The deck: 53 cards and their motifs, with the ratification record at the top |
 | `review/CONTACT-SHEET.png` | **Gate 2.** The card faces, the same faces with trim, bleed and safe lines, and details at 100% |
 | `review/MEASUREMENTS.md` | Every measurement, point size, code result and crop, each marked derived or chosen |
 | `data/motif-draft.json` | One drafted motif (or none) for every eligible story and Series instalment, each quote checked verbatim |
@@ -26,7 +26,7 @@ A physical deck of real island stories. Each card wears its typographic cover, r
 
 ```
 cd scripts/cards && npm ci && cd ../..        # qrcode + jsqr, pinned, kept out of the site's install
-node scripts/cards/motif-sheet.mjs            # MOTIF-SHEET.md + data/deck.json
+node scripts/cards/motif-sheet.mjs            # refuses now: the deck is ratified (RATIFIED.md)
 node --expose-gc scripts/cards/contact-sheet.mjs   # CONTACT-SHEET.png + MEASUREMENTS.md (reads posters/ and the icon)
 npm run covers:lock:check                     # the covers pipeline must still say: 22 probes unchanged
 ```
