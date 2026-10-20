@@ -15,13 +15,13 @@
 // code) are placed in millimetres.
 import { createCanvas, Path2D } from '@napi-rs/canvas';
 import { FLEURON_PATH, FLEURON_BBOX } from '../../assets/covers/fleuron-2766.mjs';
-import { registerFonts, measureCanaries, planCover } from '../covers/render.mjs';
+import { registerFonts, measureCanaries, planCover, descriptorLeading } from '../covers/render.mjs';
 import { LIVERIES, isLight } from '../covers/liveries.mjs';
 import { rngForSlug } from '../covers/random.mjs';
 import { caps, clusters, drawTracked, trackedWidth } from '../covers/text.mjs';
 import { CANVAS, DESCRIPTOR, EYEBROW, FLEURON, GLOW, GRAIN, RULE, TITLE, VIGNETTE, BORDER, instalmentFooter } from '../covers/layout.mjs';
 import {
-  BLEED, BLEED_PX, CARD_H, ENDING, INDEX_REGION_MM, PLATE, POSTER_FRAME, SAFE_MM, STORY_BACK, ENDINGS, GLYPH_MM, INDEX, K, KEYLINE, LIVERY_MARK, MOTIFS, PX_PER_MM,
+  BLEED, BLEED_PX, CARD_H, ENDING, PICTURE, SAFE_MM, STORY_BACK, ENDINGS, GLYPH_MM, INDEX, K, KEYLINE, LIVERY_MARK, MOTIFS, PX_PER_MM,
   QR, RASTER, RULE_WIDTH_PX, TRIM, TYPE, Y, coverPx, mm, ptOf, pxOfPt,
 } from './geometry.mjs';
 import { drawGlyph } from './glyphs.mjs';
@@ -274,10 +274,9 @@ function drawTitleAndRule(ctx, livery, fitted, stack, boxes) {
 // ── CORNER INDICES ───────────────────────────────────────────────────────────────────────
 const MARK_PX = pxOfPt(INDEX.markPt);   // the mark's size in cover px
 /**
- * The index's ink box (and its plate, when there is one) with the glyph box's top-left at
- * (ox, oy) mm. Measured, not drawn.
+ * The index's ink box with the glyph box's top-left at (ox, oy) mm. Measured, not drawn.
  */
-function indexGeometry(glyphs, mark, plate, ox = INDEX.x, oy = INDEX.y) {
+function indexGeometry(glyphs, mark, ox = INDEX.x, oy = INDEX.y) {
   const list = [].concat(glyphs);
   const gap = 0.6;
   const width = list.length * GLYPH_MM + (list.length - 1) * gap;
@@ -291,24 +290,18 @@ function indexGeometry(glyphs, mark, plate, ox = INDEX.x, oy = INDEX.y) {
     const mw = mark === '❦' ? fleuronH * 1.1 : mm(trackedWidth(c0, mark, 0));
     box = { ...box, x1: Math.min(box.x1, cx - mw / 2), x2: Math.max(box.x2, cx + mw / 2), y2: markTop + (mark === '❦' ? fleuronH : markCap) };
   }
-  const plateBox = plate && { x1: box.x1 - plate.padMm, y1: box.y1 - plate.padMm, x2: box.x2 + plate.padMm, y2: box.y2 + plate.padMm };
-  return { list, gap, cx, markCap, markTop, fleuronH, ox, oy, box, plateBox, outer: plateBox ?? box };
+  return { list, gap, cx, markCap, markTop, fleuronH, ox, oy, box };
 }
 
 /**
  * Draw the top-left index and its 180° twin. `glyphs` is one motif or several (an Ending's
  * pair sits side by side); `mark` is a letter, '❦' for the fleuron, 'ring' for the Ring's
- * eight points, or null. `at` places them elsewhere than INDEX: { tl: {x, y}, br: {x, y} },
- * each the glyph box's top-left, the bottom-right one given in its own (turned) frame.
- * Returns the bottom-right box as it lands on the card.
+ * eight points, or null. Returns the bottom-right box as it lands on the card.
  */
-function drawIndices(ctx, colour, glyphs, mark, boxes, plate = null, at = null) {
-  const tl = at?.tl ?? { x: INDEX.x, y: INDEX.y };
-  const br = at?.br ?? tl;
-  const paint = (c, o) => {
-    const g = indexGeometry(glyphs, mark, plate, o.x, o.y);
+function drawIndices(ctx, colour, glyphs, mark, boxes) {
+  const paint = (c) => {
+    const g = indexGeometry(glyphs, mark);
     mmSpace(c);
-    if (g.plateBox) roundRect(c, g.plateBox, plate.radiusMm, plate.colour);
     g.list.forEach((m, i) => (m === 'ring'
       ? drawRingMark(c, g.ox + GLYPH_MM / 2, g.oy + GLYPH_MM / 2, colour)
       : drawGlyph(c, m, g.ox + i * (GLYPH_MM + g.gap), g.oy, GLYPH_MM, colour)));
@@ -326,9 +319,9 @@ function drawIndices(ctx, colour, glyphs, mark, boxes, plate = null, at = null) 
   };
   // Top left on the card; the bottom-right twin is the same drawing on a clear layer, turned
   // a half turn about the raster's centre.
-  const gTL = paint(ctx, tl);
+  const g = paint(ctx);
   const { canvas: l, ctx: lc } = scratch();
-  const gBR = paint(lc, br);
+  paint(lc);
   ctx.save();
   ctx.resetTransform();
   ctx.translate(RASTER.w, RASTER.h);
@@ -336,20 +329,11 @@ function drawIndices(ctx, colour, glyphs, mark, boxes, plate = null, at = null) 
   ctx.drawImage(l, 0, 0);
   ctx.restore();
 
-  const twin = rot180(gBR.outer, 'index (bottom right)');
-  boxes.push({ ...gTL.outer, name: 'index (top left)' }, twin);
+  const twin = rot180(g.box, 'index (bottom right)');
+  boxes.push({ ...g.box, name: 'index (top left)' }, twin);
   return twin;
 }
 
-/** A filled rounded rectangle, in mm space. */
-function roundRect(c, b, r, colour) {
-  c.save();
-  c.fillStyle = colour;
-  c.beginPath();
-  c.roundRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1, r);
-  c.fill();
-  c.restore();
-}
 const c0 = createCanvas(10, 10).getContext('2d');
 
 /** Eight points on a circle — the Ring, as a mark. In mm space. */
@@ -449,14 +433,17 @@ export function renderStoryFace(card, opts = {}) {
   let desc = null;
   let belowRule = 0;
   if (plan.descriptor) {
+    // The descriptor the COVER plans (COVERS-R19/R20): its lines, broken the way a title breaks
+    // where it is wider than the title's measure, at the cover's own size and tracking. The face
+    // is the cover scaled by width, so the cover's px are the card's px. Between lines, the
+    // cover's derived leading (descriptorLeading: cap height plus word gap). The LAST line sits
+    // where the single line sat, and the stack makes room for the lines above it, as the
+    // cover's does.
     ctx.font = FONTS.meta(TYPE.descriptor.size);
-    // R1.2: the cover's own size and tracking, in the cover's own px. The face is the cover
-    // scaled by width, so the descriptor takes exactly the share of the width it takes on the
-    // cover. The cover holds a descriptor to its keylines, not to the title measure, and so
-    // does the card: the collision assertion below keeps it inside the inner keyline.
-    desc = { text: plan.descriptor.text, tracking: TYPE.descriptor.tracking, width: trackedWidth(ctx, plan.descriptor.text, TYPE.descriptor.tracking) };
+    const leading = plan.descriptor.lines.length > 1 ? descriptorLeading(ctx).leading : 0;
+    desc = { text: plan.descriptor.text, lines: plan.descriptor.lines.map((l) => l.text), tracking: TYPE.descriptor.tracking, leading, width: plan.descriptor.width };
     ctx.font = FONTS.meta(TYPE.descriptor.size);
-    belowRule = DESCRIPTOR.gapBelowRule + capAscent(ctx);
+    belowRule = DESCRIPTOR.gapBelowRule + capAscent(ctx) + (desc.lines.length - 1) * leading;
   }
   const stack = placeStack(ctx, plan.title, belowRule);
   drawTitleAndRule(ctx, livery, plan.title, stack, boxes);
@@ -464,8 +451,11 @@ export function renderStoryFace(card, opts = {}) {
     coverSpace(ctx);
     ctx.font = FONTS.meta(TYPE.descriptor.size);
     ctx.fillStyle = livery.keyline;
-    drawTracked(ctx, desc.text, CANVAS.w / 2, stack.bottom, desc.tracking);
-    boxes.push(textBox(ctx, 'descriptor', desc.text, CANVAS.w / 2, stack.bottom, desc.tracking));
+    desc.lines.forEach((line, i) => {
+      const y = stack.bottom - (desc.lines.length - 1 - i) * desc.leading;
+      drawTracked(ctx, line, CANVAS.w / 2, y, desc.tracking);
+      boxes.push(textBox(ctx, desc.lines.length > 1 ? `descriptor ${i + 1}` : 'descriptor', line, CANVAS.w / 2, y, desc.tracking));
+    });
   }
   const top = authorTop(ctx);
   const fleuronY = stack.bottom + (top - stack.bottom) * FLEURON.gapFraction;
@@ -475,180 +465,84 @@ export function renderStoryFace(card, opts = {}) {
   const indexBox = drawIndices(ctx, livery.keyline, card.motif, LIVERY_MARK[card.livery], boxes);
   const code = opts.qr ? drawCardCode(ctx, livery, card.url, opts.qr, indexBox, boxes) : null;
 
-  // A descriptor wider than the cover's keylines runs through them on the cover itself (the
-  // live cover of The Number Thirteen does). The ruling sets it at the cover's own scale, so
-  // the card reproduces that and REPORTS it rather than tightening it. It must still clear every
-  // other mark, or the render fails. One that also crosses the SAFE line cannot print as it
-  // stands; it is drawn, marked crossesSafe, and reported for a ruling rather than tightened.
+  // Every mark, the descriptor included, must clear the inner keyline and every other mark.
+  // (R1.2 excused a descriptor wider than the keylines; the covers' break makes that impossible.)
   const collisions = assertClear(boxes, FRAME);
-  const overrun = collisions.includes('descriptor leaves the frame');
-  const problems = collisions.filter((c) => c !== 'descriptor leaves the frame');
-  const d = boxes.find((b) => b.name === 'descriptor');
-  if (problems.length) throw new Error(`${card.slug}: marks collide — ${problems.join('; ')}`);
+  if (collisions.length) throw new Error(`${card.slug}: marks collide — ${collisions.join('; ')}`);
   return {
     png: canvas.toBuffer('image/png'),
     codeImage: code ? codeRegion(ctx, code) : null,
-    layout: { kind: 'story', slug: card.slug, descriptorOverrun: overrun ? { x1: d.x1, x2: d.x2, pastInnerKeylineMm: Math.max(KEYLINE.innerInsetMm - d.x1, 0), pastOuterKeylineMm: Math.max(KEYLINE.outerInsetMm - d.x1, 0), crossesSafe: d.x1 < SAFE_MM || d.x2 > TRIM.w - SAFE_MM } : null, rung: plan.title.size, rungPt: ptOf(plan.title.size), lines: plan.title.lines, stack, fleuronY, descriptor: desc, boxes, code: code && { version: code.code.version, modules: code.code.size, text: code.code.text, sideMm: code.side, x1: code.x1, y1: code.y1, style: code.style } },
+    layout: { kind: 'story', slug: card.slug, rung: plan.title.size, rungPt: ptOf(plan.title.size), lines: plan.title.lines, stack, fleuronY, descriptor: desc, boxes, code: code && { version: code.code.version, modules: code.code.size, text: code.code.text, sideMm: code.side, x1: code.x1, y1: code.y1, style: code.style } },
   };
 }
 
-// ── THE PICTURE CARD ─────────────────────────────────────────────────────────────────────
+// ── THE PICTURE CARD: MATTED (R1.3) ──────────────────────────────────────────────────────
 // One per published series, wearing the series' curated poster (CLAUDE.md: Series covers are
-// curated artwork by rule), from Ikenna's file in cards/posters/.
-//
-// R1.2 FRAMES THE POSTER. The whole poster is shrunk, centred on the trim, until its outermost
-// type clears the safe line by POSTER_FRAME.clearMm, and the margin is Series cream. The scale
-// comes from the poster's WORST element (frameScale); it is never larger than the fit to the
-// bleed, and nothing of the poster is cropped except what may run past the bleed edge.
-//
-// THE INDEX must not cover the poster's title. It keeps its standard place where that is clear;
-// otherwise it is moved to the nearest place inside the fanned-hand region that clears every
-// element of the poster's type by CLEARANCE_MM (placeIndex). If there is no such place, the
-// card is drawn with the index in its standard place and the layout says so: the options are
-// reported, not chosen.
+// curated artwork by rule), whole and untouched, on a Series-cream mount that runs out to the
+// bleed. The index and the code sit in the mount, never on the art. The geometry is
+// PICTURE_GEOMETRY below, one for all three cards; geometry.mjs says where each number comes from.
 
-/** Poster px → mm from the trim's top-left, for a poster of w × h drawn at `s` mm/px, centred. */
-const posterMap = (w, h, s) => {
-  const x0 = TRIM.w / 2 - (w * s) / 2;
-  const y0 = TRIM.h / 2 - (h * s) / 2;
-  return { x0, y0, s, box: (b) => ({ x1: x0 + b[0] * s, y1: y0 + b[1] * s, x2: x0 + b[2] * s, y2: y0 + b[3] * s }) };
-};
+/** The shared geometry, in mm from the trim's top-left. Derived; nothing in it is typed in. */
+export const PICTURE_GEOMETRY = (() => {
+  const side = panelPx(encode('/series/x', { version: PICTURE.qrVersion })) / PX_PER_MM;
+  const code = { x1: (TRIM.w - side) / 2, x2: (TRIM.w + side) / 2, y2: TRIM.h - SAFE_MM, y1: TRIM.h - SAFE_MM - side };
+  const top = INDEX.y + GLYPH_MM + CLEARANCE_MM;
+  const bottom = code.y1 - CLEARANCE_MM;
+  const h = bottom - top;
+  const w = (h * 2) / 3;
+  const poster = { x1: (TRIM.w - w) / 2, x2: (TRIM.w + w) / 2, y1: top, y2: bottom };
+  return Object.freeze({ poster: Object.freeze(poster), code: Object.freeze({ ...code, side }), posterW: w, posterH: h });
+})();
 
 /**
- * The frame scale: the largest mm-per-poster-px at which every element sits at least
- * POSTER_FRAME.clearMm inside the safe line, capped at the fit to the bleed height. Returns the
- * scale and the element and side that bind it.
+ * The source rectangle of a poster file at exactly 2:3: the full height, and the width trimmed by
+ * the same amount from each side (Beta Princess's file is 1406 × 2048, 0.6865; the other two are
+ * already 2:3 and lose nothing). Fractional pixels are kept, so the trim is exactly even.
  */
-export function frameScale(w, h, elements) {
-  const bleedFit = (TRIM.h + 2 * BLEED) / h;
-  const lim = SAFE_MM + POSTER_FRAME.clearMm;
-  const hx = TRIM.w / 2 - lim;
-  const hy = TRIM.h / 2 - lim;
-  let best = { s: bleedFit, element: null, side: 'the bleed fit' };
-  for (const e of elements) {
-    const [u1, v1, u2, v2] = e.box;
-    for (const [d, room, side] of [[w / 2 - u1, hx, 'left'], [u2 - w / 2, hx, 'right'], [h / 2 - v1, hy, 'top'], [v2 - h / 2, hy, 'bottom']]) {
-      if (d > 0 && room / d < best.s) best = { s: room / d, element: e.name, side };
-    }
-  }
-  return { ...best, bleedFit };
+export function posterCrop(img) {
+  const want = (img.height * 2) / 3;
+  if (img.width < want - 1e-9) throw new Error(`poster is narrower than 2:3 (${img.width} × ${img.height}); the ruling only trims width`);
+  const trim = (img.width - want) / 2;
+  return { sx: trim, sy: 0, sw: want, sh: img.height, trimEachSidePx: trim };
 }
 
-const clearOf = (b, list, c = CLEARANCE_MM) => list.filter((e) => overlaps(b, e.box, c));
-
-/**
- * Find where the index plate may sit: inside the safe line, inside the fanned-hand region (or
- * no further out than the standard plate already reaches), clear of every type element. Searched
- * on a 0.05 mm grid, nearest the standard place first. `type` is in the turned frame for the
- * bottom-right twin.
- */
-function placeIndex(motif, mark, type) {
-  const std = indexGeometry(motif, mark, PLATE);
-  const covers = clearOf(std.outer, type);
-  if (!covers.length) return { at: { x: INDEX.x, y: INDEX.y }, moved: false, clear: true, covers: [] };
-  const w = std.outer.x2 - std.outer.x1;
-  const hgt = std.outer.y2 - std.outer.y1;
-  const xMax = Math.max(INDEX_REGION_MM.x + INDEX_REGION_MM.w, std.outer.x2);
-  const yMax = Math.max(INDEX_REGION_MM.y + INDEX_REGION_MM.h, std.outer.y2);
-  let best = null;
-  const steps = (lo, hi, from) => {
-    const out = [];
-    for (let k = Math.ceil((lo - from) / 0.05 - 1e-9); from + k * 0.05 <= hi + 1e-9; k++) out.push(from + k * 0.05);
-    return out;
-  };
-  for (const x1 of steps(SAFE_MM, xMax - w, std.outer.x1)) {
-    for (const y1 of steps(SAFE_MM, yMax - hgt, std.outer.y1)) {
-      const b = { x1, y1, x2: x1 + w, y2: y1 + hgt };
-      if (clearOf(b, type).length) continue;
-      const d = Math.hypot(x1 - std.outer.x1, y1 - std.outer.y1);
-      if (!best || d < best.d) best = { d, dx: x1 - std.outer.x1, dy: y1 - std.outer.y1 };
-    }
-  }
-  if (!best) return { at: { x: INDEX.x, y: INDEX.y }, moved: false, clear: false, covers: covers.map((e) => e.name) };
-  return { at: { x: INDEX.x + best.dx, y: INDEX.y + best.dy }, moved: true, clear: true, covers: covers.map((e) => e.name), shift: { x: best.dx, y: best.dy } };
-}
-
-/**
- * `card.poster` is the loaded image and `card.posterType` its measured elements
- * (cards/data/poster-type.json). `opts.qr` adds the code. `opts.scale` overrides the frame scale
- * and `opts.mark` the livery mark (null for none): both exist only to draw the OPTIONS for a
- * poster whose index cannot sit clear, and the layout records that they were used.
- */
+/** `card.poster` is the loaded image. `opts.qr` adds the code. */
 export function renderPictureFace(card, opts = {}) {
   assertSameFaces();
   const img = card.poster;
   if (!img) throw new Error(`${card.slug}: no poster image supplied`);
-  const elements = card.posterType;
-  const frame = frameScale(img.width, img.height, elements);
-  const s = opts.scale ?? frame.s;
-  const map = posterMap(img.width, img.height, s);
-  const type = elements.map((e) => ({ name: e.name, role: e.role, box: map.box(e.box) }));
+  const G = PICTURE_GEOMETRY;
+  const crop = posterCrop(img);
   const { canvas, ctx } = surface();
   const boxes = [];
   ctx.resetTransform();
-  ctx.fillStyle = POSTER_FRAME.colour;
+  ctx.fillStyle = PICTURE.mount;
   ctx.fillRect(0, 0, RASTER.w, RASTER.h);
   mmSpace(ctx);
-  ctx.drawImage(img, 0, 0, img.width, img.height, map.x0, map.y0, img.width * s, img.height * s);
+  ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, G.poster.x1, G.poster.y1, G.posterW, G.posterH);
+  boxes.push({ name: 'poster', ...G.poster });
 
-  const mark = opts.mark === undefined ? LIVERY_MARK.series : opts.mark;
-  const tl = placeIndex(card.motif, mark, type);
-  const br = placeIndex(card.motif, mark, type.map((e) => ({ ...e, box: rot180(e.box, e.name) })));
-  const brBox = drawIndices(ctx, PLATE.ink, card.motif, mark, boxes, PLATE, { tl: tl.at, br: br.at });
-
+  drawIndices(ctx, PICTURE.ink, card.motif, null, boxes);
   let code = null;
   if (opts.qr) {
-    const c = encode(card.url);
-    const side = panelPx(c) / PX_PER_MM;
-    const x2 = QR.rightMm;
-    const y2 = brBox.y1 - QR.bottomGapAboveIndexMm;
-    drawCode(ctx, c, dev(x2 - side), dev(y2 - side), { dark: PLATE.ink, panel: PLATE.colour });
-    boxes.push({ name: 'code', x1: x2 - side, x2, y1: y2 - side, y2 });
-    code = { version: c.version, modules: c.size, text: c.text, sideMm: side, style: 'plate' };
+    const c = encode(card.url, { version: PICTURE.qrVersion });
+    if (Math.abs(panelPx(c) / PX_PER_MM - G.code.side) > 1e-9) throw new Error(`${card.slug}: the code is not the shared size`);
+    drawCode(ctx, c, dev(G.code.x1), dev(G.code.y1), { dark: PICTURE.ink, panel: null });
+    boxes.push({ name: 'code', x1: G.code.x1, x2: G.code.x2, y1: G.code.y1, y2: G.code.y2 });
+    code = { version: c.version, modules: c.size, text: c.text, sideMm: G.code.side, style: 'mount' };
   }
-  // A picture card has no keyline, so its plates are held inside the SAFE line instead.
+  // No keyline on a picture card: its marks are held inside the SAFE line, and the poster, the
+  // index and the code keep CLEARANCE_MM from one another, as every mark does.
   const collisions = assertClear(boxes, { x1: SAFE_MM, y1: SAFE_MM, x2: TRIM.w - SAFE_MM, y2: TRIM.h - SAFE_MM });
   if (collisions.length) throw new Error(`${card.slug}: marks collide — ${collisions.join('; ')}`);
-  const drawnW = img.width * s;
-  const drawnH = img.height * s;
-  const covered = boxes.map((b) => ({ plate: b.name, covers: clearOf(b, type, 0).map((e) => e.name) })).filter((p) => p.covers.length);
   return {
     png: canvas.toBuffer('image/png'),
-    codeImage: code ? codeRegion(ctx, boxes.find((b) => b.name === 'code')) : null,
+    codeImage: code ? codeRegion(ctx, G.code) : null,
     layout: {
-      kind: 'picture', slug: card.slug, boxes, type,
-      fit: {
-        posterW: img.width, posterH: img.height, scale: s, frameScale: frame, scaleOfBleedFit: s / frame.bleedFit,
-        drawnWmm: drawnW, drawnHmm: drawnH,
-        // trim edge → poster edge; negative where the poster runs past the trim into the bleed
-        margins: { left: map.x0, right: TRIM.w - map.x0 - drawnW, top: map.y0, bottom: TRIM.h - map.y0 - drawnH },
-        effectiveDpi: img.height / (drawnH / 25.4),
-        cropped: { x: Math.max(0, -(map.x0 + BLEED)), y: Math.max(0, -(map.y0 + BLEED)) },
-      },
-      index: { tl, br, mark },
-      covered,
-      options: { scale: opts.scale != null, mark: opts.mark !== undefined },
-      code,
+      kind: 'picture', slug: card.slug, boxes, code,
+      fit: { posterW: img.width, posterH: img.height, crop, drawnWmm: G.posterW, drawnHmm: G.posterH, effectiveDpi: img.height / (G.posterH / 25.4) },
     },
   };
-}
-
-/**
- * For a poster whose index cannot sit clear: the largest scale at which the index, in its
- * standard place, clears every type element. Searched downward from the frame scale.
- */
-export function scaleToClearIndex(card) {
-  const img = card.poster;
-  const std = indexGeometry(card.motif, LIVERY_MARK.series, PLATE).outer;
-  const twin = rot180(std, 'x');
-  let s = frameScale(img.width, img.height, card.posterType).s;
-  while (s > 0.001) {
-    const map = posterMap(img.width, img.height, s);
-    const type = card.posterType.map((e) => ({ box: map.box(e.box) }));
-    if (!clearOf(std, type).length && !clearOf(twin, type).length) return s;
-    s -= 0.00002;
-  }
-  return null;
 }
 
 // ── THE STORY BACK ───────────────────────────────────────────────────────────────────────

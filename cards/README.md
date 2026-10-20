@@ -2,8 +2,8 @@
 
 A physical deck of real island stories. Each card wears its typographic cover, rebuilt at card size, plus one motif drawn from the story. Ruled by Ikenna:
 - bridge-size cards (57 × 89 mm)
-- 54 story cards, 8 Ending cards and 1 Ring card
-- one picture card per published series, wearing its curated poster, framed in Series cream (R1.1, R1.2)
+- 53 deck cards (50 story cards and 3 picture cards; ratified at 53, Captive 5 of 6), 8 Ending cards and 1 Ring card
+- one picture card per published series, its curated poster matted whole on Series cream (R1.1, R1.3)
 - eight motifs: Letter, Secret, Child, Captive, Road, House, Debt, Grave (R1.2: Captive replaced Water)
 - a print-and-play prototype comes before any printer
 
@@ -17,8 +17,7 @@ A physical deck of real island stories. Each card wears its typographic cover, r
 | `data/motif-draft.json` | One drafted motif (or none) for every eligible story and Series instalment, each quote checked verbatim |
 | `data/deck.json` | The proposal as data, written by the motif sheet |
 | `data/qr-results.json` | Every card's code: version, size and decode |
-| `posters/` | Ikenna's poster files, one per series (moved from `public/` in R1.2; nothing card-related is served by the site) |
-| `data/poster-type.json` | Each poster file's own type, measured to derive its frame scale, with the method |
+| `posters/` | Ikenna's poster files, one per series, matted whole on the picture cards (R1.3); moved from `public/` in R1.2 |
 | `Story-Island-icon.png` | Ikenna's app icon, the source of the story back. Kept under his name for it |
 | `glyphs/*.svg` | The eight motif glyphs, 6 mm with a 0.15 mm stroke |
 

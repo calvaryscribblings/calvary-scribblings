@@ -155,7 +155,9 @@ export const QR = Object.freeze({
   ecc: 'M',
   modulePx: 6,                             // dev px — 0.254 mm, whole pixels at 600 dpi
   quietModules: 4,                         // the spec's quiet zone, on the panel
-  rightMm: TRIM.w - KEYLINE.innerInsetMm - 1.0,
+  // R1.3: the panel's right edge on the bottom-right index glyph box's right edge (the glyph box
+  // is INDEX.x in from the trim, 0.90 mm inside the inner keyline), so the two line up.
+  rightMm: TRIM.w - INDEX.x,
   bottomGapAboveIndexMm: 1.2,
   panel: '#F5F0E8',                        // house cream — the livery's own title colour
 });
@@ -182,16 +184,27 @@ export const ENDINGS = Object.freeze([
   { name: 'THE FAREWELL', pair: ['Grave', 'Letter'] },
 ]);
 
-// ── THE PICTURE CARDS ────────────────────────────────────────────────────────────────────
-// One per published series, wearing its poster (cards/posters/, Ikenna's files). R1.2 FRAMES
-// the poster: the whole poster is shrunk, centred on the trim, until its outermost type clears
-// the safe line by POSTER_FRAME.clearMm, and the margin is filled with Series cream. The scale
-// is derived per poster from its worst element (face.mjs, frameScale). The art is never
-// cropped to make the type fit, and never enlarged past the fit to the bleed.
-//
-// The indices and the code sit on plates (CHOSEN in R1.1): Series cream, marks in Series maroon.
-export const PLATE = Object.freeze({ colour: '#E6E0D2', ink: '#6E1424', padMm: 0.8, radiusMm: 0.6 });
-export const POSTER_FRAME = Object.freeze({ colour: '#E6E0D2', clearMm: 0.5 });
+// ── THE PICTURE CARDS: MATTED (R1.3, Ikenna's ruling) ───────────────────────────────────
+// One per published series. The poster is whole and untouched on a Series-cream mount that runs
+// out to the bleed, and the index and the code sit in the mount, never on the art. All three
+// cards share one geometry, derived here:
+//   • the poster's TOP is the collision clearance (face.mjs, CLEARANCE_MM) below the index
+//     glyph box (INDEX.y + GLYPH_MM);
+//   • the CODE's bottom sits on the safe line, and the poster's BOTTOM is that clearance above it;
+//   • the poster's width follows from 2:3, and it is centred across the card.
+// The code is the same size on all three: QR version PICTURE.qrVersion, the version the longest
+// series URL needs, with modules in Series maroon straight on the cream (no plate). The index
+// is the motif glyph alone, in maroon, with no plate and no livery mark: the poster says Series.
+export const PICTURE = Object.freeze({
+  mount: '#E6E0D2',                        // Series cream
+  ink: '#6E1424',                          // Series maroon
+  qrVersion: 5,
+  posters: Object.freeze({                 // Ikenna's files, in cards/posters/
+    'beta-princess': 'cards/posters/beta.jpeg',
+    'diary-of-a-lagos-9-5er': 'cards/posters/diary.jpeg',
+    'the-doherty-confessions': 'cards/posters/doherty.png',
+  }),
+});
 
 // ── THE STORY BACK ───────────────────────────────────────────────────────────────────────
 // Ikenna's upload, cards/Story-Island-icon.png. Its ground is one flat colour, sampled from

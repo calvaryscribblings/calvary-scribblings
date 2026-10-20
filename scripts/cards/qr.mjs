@@ -8,10 +8,14 @@ import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import { QR, SITE, PX_PER_MM } from './geometry.mjs';
 
-/** The code's matrix for a site path (`/stories/slug`), at the ruled error correction. */
-export function encode(path) {
+/**
+ * The code's matrix for a site path (`/stories/slug`), at the ruled error correction. `version`
+ * pins the symbol size, so a set of cards can share one (the picture cards do); without it the
+ * encoder picks the smallest that fits.
+ */
+export function encode(path, { version } = {}) {
   const text = `${SITE}${path}`;
-  const q = QRCode.create(text, { errorCorrectionLevel: QR.ecc });
+  const q = QRCode.create(text, { errorCorrectionLevel: QR.ecc, ...(version ? { version } : {}) });
   return { text, version: q.version, size: q.modules.size, get: (r, c) => q.modules.get(r, c) };
 }
 

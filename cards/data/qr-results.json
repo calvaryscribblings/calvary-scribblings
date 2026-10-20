@@ -945,13 +945,13 @@
   "slug": "beta-princess",
   "livery": "series",
   "text": "https://calvaryscribblings.co.uk/series/beta-princess",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
-  "style": "plate",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "mount",
   "tried": [
    {
-    "style": "plate",
+    "style": "mount",
     "decoded": "yes"
    }
   ]
@@ -960,13 +960,13 @@
   "slug": "diary-of-a-lagos-9-5er",
   "livery": "series",
   "text": "https://calvaryscribblings.co.uk/series/diary-of-a-lagos-9-5er",
-  "version": 4,
-  "modules": 33,
-  "sideMm": 10.414,
-  "style": "plate",
+  "version": 5,
+  "modules": 37,
+  "sideMm": 11.43,
+  "style": "mount",
   "tried": [
    {
-    "style": "plate",
+    "style": "mount",
     "decoded": "yes"
    }
   ]
@@ -978,10 +978,10 @@
   "version": 5,
   "modules": 37,
   "sideMm": 11.43,
-  "style": "plate",
+  "style": "mount",
   "tried": [
    {
-    "style": "plate",
+    "style": "mount",
     "decoded": "yes"
    }
   ]
